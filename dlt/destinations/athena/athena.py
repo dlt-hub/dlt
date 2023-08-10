@@ -53,6 +53,7 @@ HIVET_TO_SCT: Dict[str, TDataType] = {
     "timestamp": "timestamp",
     "bigint": "bigint",
     "binary": "binary",
+    "varbinary": "binary",
     "decimal": "decimal"
 }
 
@@ -119,12 +120,18 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         self.execute_sql(f"DROP DATABASE {self.fully_qualified_dataset_name(escape=False)} CASCADE;")
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        return self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
+        # for some reason dataset need to be esacped with " and not `
+        return f"\"{self.dataset_name}\"" if escape else self.dataset_name
+    
+    def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
+        if escape:
+            table_name = f"\"{table_name}\""
+        return f"{self.fully_qualified_dataset_name(escape)}.{table_name}"
 
     def drop_tables(self, *tables: str) -> None:
         if not tables:
             return
-        statements = [f"DROP TABLE IF EXISTS `{table}`;" for table in tables]
+        statements = [f"DROP TABLE IF EXISTS {self.capabilities.escape_identifier(table)};" for table in tables]
         self.execute_fragments(statements)
 
     @contextmanager
@@ -134,6 +141,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
 
     @staticmethod
     def _make_database_exception(ex: Exception) -> Exception:
+        print(str(ex))
         if isinstance(ex, OperationalError):
             if "TABLE_NOT_FOUND" in str(ex):
                 return DatabaseUndefinedRelation(ex)
@@ -194,7 +202,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         yield cursor
 
     def has_dataset(self) -> bool:
-        query = f"""SHOW DATABASES LIKE '{self.fully_qualified_dataset_name(escape=False)}';"""
+        query = f"""SHOW DATABASES LIKE {self.fully_qualified_dataset_name()};"""
         rows = self.execute_sql(query)
         return len(rows) > 0
 
@@ -214,7 +222,7 @@ class AthenaClient(SqlJobClientBase):
         super().initialize_storage([])
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
-        return f"`{c['name']}` {self._to_db_type(c['data_type'])}"
+        return f"{self.capabilities.escape_identifier(c['name'])} {self._to_db_type(c['data_type'])}"
 
     @classmethod
     def _to_db_type(cls, sc_t: TDataType) -> str:
@@ -252,20 +260,20 @@ class AthenaClient(SqlJobClientBase):
         # this will fail if the table prefix is not properly defined
         table_prefix = path_utils.get_table_prefix(self.config.staging_config.layout, schema_name=schema_name, table_name=table_name)
         location = f"{bucket}/{dataset}/{table_prefix}"
-
+        table_name = self.capabilities.escape_identifier(table_name)
         if is_iceberg and not generate_alter:
-            sql.append(f"""CREATE TABLE `{table_name}`
+            sql.append(f"""CREATE TABLE {table_name}
                     ({columns})
                     LOCATION '{location}'
                     TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');""")
         elif not generate_alter:
-            sql.append(f"""CREATE EXTERNAL TABLE `{table_name}`
+            sql.append(f"""CREATE EXTERNAL TABLE {table_name}
                     ({columns})
                     STORED AS PARQUET
                     LOCATION '{location}';""")
         # alter table to add new columns at the end
         else:
-            sql.append(f"""ALTER TABLE `{table_name}` ADD COLUMNS ({columns});""")
+            sql.append(f"""ALTER TABLE {table_name} ADD COLUMNS ({columns});""")
 
         return sql
 

@@ -797,7 +797,7 @@ files = [
 name = "boto3"
 version = "1.26.161"
 description = "The AWS SDK for Python"
-optional = true
+optional = false
 python-versions = ">= 3.7"
 files = [
     {file = "boto3-1.26.161-py3-none-any.whl", hash = "sha256:f66e5c9dbe7f34383bcf64fa6070771355c11a44dd75c7f1279f2f37e1c89183"},
@@ -816,7 +816,7 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 name = "botocore"
 version = "1.29.161"
 description = "Low-level, data-driven core of boto 3."
-optional = true
+optional = false
 python-versions = ">= 3.7"
 files = [
     {file = "botocore-1.29.161-py3-none-any.whl", hash = "sha256:b906999dd53dda2ef0ef6f7f55fcc81a4b06b9f1c8a9f65c546e0b981f959f5f"},
@@ -1451,13 +1451,13 @@ graph = ["objgraph (>=1.7.2)"]
 
 [[package]]
 name = "dnspython"
-version = "2.4.1"
+version = "2.4.2"
 description = "DNS toolkit"
 optional = false
 python-versions = ">=3.8,<4.0"
 files = [
-    {file = "dnspython-2.4.1-py3-none-any.whl", hash = "sha256:5b7488477388b8c0b70a8ce93b227c5603bc7b77f1565afe8e729c36c51447d7"},
-    {file = "dnspython-2.4.1.tar.gz", hash = "sha256:c33971c79af5be968bb897e95c2448e11a645ee84d93b265ce0b7aabe5dfdca8"},
+    {file = "dnspython-2.4.2-py3-none-any.whl", hash = "sha256:57c6fbaaeaaf39c891292012060beb141791735dbb4004798328fc2c467402d8"},
+    {file = "dnspython-2.4.2.tar.gz", hash = "sha256:8dcfae8c7460a2f84b4072e26f1c9f4101ca20c071649cb7c34e8b6a93d58984"},
 ]
 
 [package.extras]
@@ -2963,7 +2963,7 @@ ansicon = {version = "*", markers = "platform_system == \"Windows\""}
 name = "jmespath"
 version = "1.0.1"
 description = "JSON Matching Expressions"
-optional = true
+optional = false
 python-versions = ">=3.7"
 files = [
     {file = "jmespath-1.0.1-py3-none-any.whl", hash = "sha256:02e2e4cc71b5bcab88332eebf907519190dd9e6e82107fa7f83b1003a6252980"},
@@ -4486,7 +4486,7 @@ pyasn1 = ">=0.4.6,<0.6.0"
 name = "pyathena"
 version = "3.0.6"
 description = "Python DB API 2.0 (PEP 249) client for Amazon Athena"
-optional = true
+optional = false
 python-versions = ">=3.8.1"
 files = [
     {file = "pyathena-3.0.6-py3-none-any.whl", hash = "sha256:27fb606a73644e62be8ef9b86cdf583ab3cb9f8cac9c2ad8f05b7ad6d4eaaa87"},
@@ -5365,7 +5365,7 @@ boto3 = ["aiobotocore[boto3] (>=2.5.0,<2.6.0)"]
 name = "s3transfer"
 version = "0.6.1"
 description = "An Amazon S3 Transfer Manager"
-optional = true
+optional = false
 python-versions = ">= 3.7"
 files = [
     {file = "s3transfer-0.6.1-py3-none-any.whl", hash = "sha256:3c0da2d074bf35d6870ef157158641178a4204a6e689e82546083e31e0311346"},
@@ -6037,13 +6037,13 @@ files = [
 
 [[package]]
 name = "tqdm"
-version = "4.66.0"
+version = "4.66.1"
 description = "Fast, Extensible Progress Meter"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "tqdm-4.66.0-py3-none-any.whl", hash = "sha256:39d459c7140b7890174e69d4d68d6291bc774a55b4bc5d93c0b760798ac5a03e"},
-    {file = "tqdm-4.66.0.tar.gz", hash = "sha256:cc6e7e52202d894e66632c5c8a9330bd0e3ff35d2965c93ca832114a3d865362"},
+    {file = "tqdm-4.66.1-py3-none-any.whl", hash = "sha256:d302b3c5b53d47bce91fea46679d9c3c6508cf6332229aa1e7d8653723793386"},
+    {file = "tqdm-4.66.1.tar.gz", hash = "sha256:d88e651f9db8d8551a62556d3cff9e3034274ca5d66e93197cf2490e2dcb69c7"},
 ]
 
 [package.dependencies]
@@ -6515,4 +6515,4 @@ snowflake = ["snowflake-connector-python"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "5cf505bbc50193e0bb798686c42a26bfbfe464dd480f416afe5e5ff3850f8292"
+content-hash = "0181a8d0b0c9938027406f9fc2a93a643060be680d2c6ef0529878184100dd60"

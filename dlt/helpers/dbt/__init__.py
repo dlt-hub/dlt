@@ -13,6 +13,12 @@ from dlt.helpers.dbt.runner import create_runner, DBTPackageRunner
 
 DEFAULT_DBT_VERSION = ">=1.1,<1.6"
 
+# a map of destination names to dbt package names in case they don't match the pure destination name
+DBT_DESTINATION_MAP = {
+    "athena": "athena-community",
+    "motherduck": "duckdb"
+}
+
 
 def _default_profile_name(credentials: DestinationClientDwhConfiguration) -> str:
     profile_name = credentials.destination_name
@@ -39,8 +45,7 @@ def _create_dbt_deps(destination_names: List[str], dbt_version: str = DEFAULT_DB
     all_packages = destination_names + ["core"]
     for idx, package in enumerate(all_packages):
         # TODO: if we have more cases like this, move to destination capabilities
-        if package == "motherduck":
-            package = "duckdb"
+        package = DBT_DESTINATION_MAP.get(package, package)
         package_w_ver = "dbt-" + package + dbt_version
         # verify package
         pkg_resources.Requirement.parse(package_w_ver)

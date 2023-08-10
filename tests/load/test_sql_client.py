@@ -457,11 +457,12 @@ def assert_load_id(sql_client:SqlClientBase, load_id: str) -> None:
 
 
 def prepare_temp_table(client: SqlJobClientBase) -> str:
-
     uniq_suffix = uniq_id()
     table_name = f"tmp_{uniq_suffix}"
     iceberg_table_suffix = ""
+    coltype = "numeric"
     if client.config.destination_name == "athena":
         iceberg_table_suffix = f"LOCATION '{AWS_BUCKET}/ci/{table_name}' TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');"
-    client.sql_client.execute_sql(f"CREATE TABLE {table_name} (col NUMERIC) {iceberg_table_suffix};")
+        coltype = "bigint"
+    client.sql_client.execute_sql(f"CREATE TABLE {table_name} (col {coltype}) {iceberg_table_suffix};")
     return table_name
