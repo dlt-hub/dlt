@@ -246,11 +246,9 @@ class WeaviateClient(JobClientBase):
         """Make a full Weaviate class name from a table name by prepending
         the dataset name if it exists.
         """
-        return (
-            f"{self.config.dataset_name}_{table_name}"
-            if self.config.dataset_name
-            else table_name
-        )
+        dataset_name = self.config.normalize_dataset_name(self.schema)
+
+        return f"{dataset_name}_{table_name}" if dataset_name else table_name
 
     def get_class_schema(self, table_name: str) -> Dict[str, Any]:
         """Get the Weaviate class schema for a table."""
