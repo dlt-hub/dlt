@@ -15,6 +15,7 @@ class NamingConvention(SnakeCaseNamingConvention):
     _RE_UNDERSCORES = re.compile("([^_])__+")
     _STARTS_DIGIT = re.compile("^[0-9]")
     _STARTS_NON_LETTER = re.compile("^[0-9_]")
+    _SPLIT_UNDERSCORE_NON_CAP = re.compile("(_[^A-Z])")
 
     def normalize_identifier(self, identifier: str) -> str:
         """Normalizes Weaviate property name by removing not allowed characters, replacing them by _ and contracting multiple _ into single one"""
@@ -30,7 +31,9 @@ class NamingConvention(SnakeCaseNamingConvention):
         """Creates Weaviate class name. Runs property normalization and then creates capitalized case name by splitting on _"""
         identifier = BaseNamingConvention.normalize_identifier(self, identifier)
         norm_identifier = self._base_normalize(identifier)
-        norm_identifier = "".join(s[0].upper() + s[1:] if s else "" for s in norm_identifier.split("_"))
+        # norm_identifier = norm_identifier.strip("_")
+        norm_identifier = "".join(s[1:2].upper() + s[2:] if s and s[0] == "_" else s for s in self._SPLIT_UNDERSCORE_NON_CAP.split(norm_identifier))
+        norm_identifier = norm_identifier[0].upper() + norm_identifier[1:]
         if self._STARTS_NON_LETTER.match(norm_identifier):
             norm_identifier = "C" + norm_identifier
         return self.shorten_identifier(norm_identifier, identifier, self.max_length)

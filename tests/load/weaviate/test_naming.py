@@ -13,10 +13,14 @@ def small():
 def test_table_name_normalization() -> None:
     n = NamingConvention()
     assert n.normalize_table_identifier("FlatSpace") == "FlatSpace"
-    assert n.normalize_table_identifier("Flat__Space") == "FlatSpace"
-    assert n.normalize_table_identifier("_Flat__Space_") == "FlatSpacex"
-    assert n.normalize_table_identifier("_Flat__Sp💡ace_") == "FlatSpAcex"
-    assert n.normalize_table_identifier(" Flat Sp!ace ") == "FlatSpAce"
+    assert n.normalize_table_identifier("a_snake_case_name") == "ASnakeCaseName"
+    assert n.normalize_table_identifier("_a_snake_case_name") == "ASnakeCaseName"
+    assert n.normalize_table_identifier("_a_1snake_case_name") == "A1snakeCaseName"
+    assert n.normalize_table_identifier("1_a_1snake_case_name") == "C1A1snakeCaseName"
+    assert n.normalize_table_identifier("Flat__Space") == "Flat_Space"
+    assert n.normalize_table_identifier("_Flat__Space_") == "Flat_Spacex"
+    assert n.normalize_table_identifier("_Flat__Sp💡ace_") == "Flat_SpAcex"
+    assert n.normalize_table_identifier(" Flat Sp!ace ") == "Flat_SpAce"
     assert n.normalize_table_identifier("1") == "C1"
     assert n.normalize_table_identifier("______") == "Xxxxxx"
     assert n.normalize_table_identifier("1______1") == "C11"
