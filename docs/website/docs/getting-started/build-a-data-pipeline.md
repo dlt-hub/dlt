@@ -60,6 +60,53 @@ information about the loaded data, such as package IDs and job metadata.
 The data you can pass to it should be iterable: Lists of rows, generators, or `dlt` sources will do
 just fine.
 
+If you want to configure how the data is loaded, you can choose between `write_disposition`s
+such as `replace`, `append` and `merge`in the pipeline function.
+Here is an example where we load some data to duckdb by `upserting`or `merging` on the id column found in the data:
+In this example, we also run a dbt package and then load the outcomes of the load jobs into their respective tables.
+This will enable us to log when schema changes occured and match them to the loaded data for lineage.
+We also alert the schema change to a slack channel where hopefully the producer and consumer are subscribed.
+
+```python
+import dlt
+
+# have data? dlt likes data
+data = [{'id': 1, 'name': 'John'}]
+
+# open connection
+pipe = dlt.pipeline(destination='duckdb',
+                    dataset_name='raw_data')
+
+# Upsert/merge: Update old records, insert new
+
+load_info = pipe.run(data,
+                      write_disposition="merge",
+                      primary_key="id",
+                      table_name="users")
+
+# add dbt runner, optionally with venv
+print("doing dbt stuff")
+venv = dlt.dbt.get_venv(pipe)
+dbt = dlt.dbt.package(pipe,
+            "https://github.com/dbt-labs/jaffle_shop.git",
+            venv=venv)
+models_info = dbt.run_all()
+
+# Load metadata for latter monitoring
+pipe.run([load_info], table_name="loading_status", write_disposition='append')
+pipe.run([models_info], table_name="transform_status", write_disposition='append')
+
+# let's alert any schema changes
+from dlt.common.runtime.slack import send_slack_message
+# Define your slack hook
+slack_hook = "https://hooks.slack.com/services/xxx/xxx/xxx"
+
+for package in load_info.load_packages:
+  for table_name, table in package.schema_update.items():
+    for column_name, column in table["columns"].items():
+      send_slack_message(slack_hook, message=f"\tTable updated: {table_name}: Column changed: {column_name}: {column['data_type']}")
+```
+
 # Extracting data with `dlt`
 
 Extracting data with `dlt` is simple - you simply decorate your data-producing functions with loading
