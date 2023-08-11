@@ -276,24 +276,46 @@ class WeaviateClient(JobClientBase):
         self.db_client.schema.create_class(updated_schema)
 
     def create_class_property(
-        self, table_name: str, prop_schema: Dict[str, Any]
+        self, class_name: str, prop_schema: Dict[str, Any]
     ) -> None:
-        """Create a Weaviate class property."""
+        """Create a Weaviate class property.
+
+        Args:
+            class_name: The name of the class to create the property on.
+            prop_schema: The property schema to create.
+        """
         self.db_client.schema.property.create(
-            self.make_full_name(table_name), prop_schema
+            self.make_full_name(class_name), prop_schema
         )
 
-    def delete_class(self, table_name: str) -> None:
-        """Delete a Weaviate class."""
-        self.db_client.schema.delete_class(self.make_full_name(table_name))
+    def delete_class(self, class_name: str) -> None:
+        """Delete a Weaviate class.
 
-    def query_class(self, table_name: str, properties: List[str]) -> GetBuilder:
-        """Query a Weaviate class."""
-        return self.db_client.query.get(self.make_full_name(table_name), properties)
+        Args:
+            class_name: The name of the class to delete.
+        """
+        self.db_client.schema.delete_class(self.make_full_name(class_name))
 
-    def create_object(self, obj: Dict[str, Any], table_name: str) -> None:
-        """Create a Weaviate object."""
-        self.db_client.data_object.create(obj, self.make_full_name(table_name))
+    def query_class(self, class_name: str, properties: List[str]) -> GetBuilder:
+        """Query a Weaviate class.
+
+        Args:
+            class_name: The name of the class to query.
+            properties: The properties to return.
+
+        Returns:
+            A Weaviate query builder.
+        """
+        return self.db_client.query.get(self.make_full_name(class_name), properties)
+
+    def create_object(self, obj: Dict[str, Any], class_name: str) -> None:
+        """Create a Weaviate object.
+
+        Args:
+            obj: The object to create.
+            class_name: The name of the class to create the object on.
+        """
+        self.db_client.data_object.create(obj, self.make_full_name(class_name))
 
     @wrap_weaviate_error
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
@@ -313,8 +335,9 @@ class WeaviateClient(JobClientBase):
 
     @wrap_weaviate_error
     def is_storage_initialized(self) -> bool:
+        dataset_name = self.config.normalize_dataset_name(self.schema)
         try:
-            self.db_client.schema.get(self.config.dataset_name)
+            self.db_client.schema.get(dataset_name)
         except weaviate.exceptions.UnexpectedStatusCodeException as e:
             if e.status_code == 404:
                 return False
@@ -322,11 +345,9 @@ class WeaviateClient(JobClientBase):
         return True
 
     def create_sentinel_class(self) -> None:
-        self.db_client.schema.create_class(
-            {
-                "class": self.config.dataset_name,
-            }
-        )
+        """Create an empty class to indicate that the storage is initialized."""
+        dataset_name = self.config.normalize_dataset_name(self.schema)
+        self.create_class({}, full_class_name=dataset_name)
 
     @wrap_weaviate_error
     def update_storage_schema(
