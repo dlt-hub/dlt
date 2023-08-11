@@ -256,11 +256,24 @@ class WeaviateClient(JobClientBase):
         """Get the Weaviate class schema for a table."""
         return self.db_client.schema.get(self.make_full_name(table_name))
 
-    def create_class(self, class_schema: Dict[str, Any]) -> None:
-        """Create a Weaviate class."""
+    def create_class(
+        self, class_schema: Dict[str, Any], full_class_name: Optional[str] = None
+    ) -> None:
+        """Create a Weaviate class.
+
+        Args:
+            class_schema: The class schema to create.
+            full_class_name: The full name of the class to create. If not
+                provided, the class name will be prepended with the dataset name
+                if it exists.
+        """
 
         updated_schema = class_schema.copy()
-        updated_schema["class"] = self.make_full_name(updated_schema["class"])
+        updated_schema["class"] = (
+            self.make_full_name(updated_schema["class"])
+            if full_class_name is None
+            else full_class_name
+        )
 
         self.db_client.schema.create_class(updated_schema)
 
@@ -298,7 +311,7 @@ class WeaviateClient(JobClientBase):
                     raise
 
                 self.delete_class(table_name)
-                self.create_class(class_schema)
+                self.create_class(class_schema, full_class_name=class_schema["class"])
 
     @wrap_weaviate_error
     def is_storage_initialized(self) -> bool:
