@@ -12,14 +12,24 @@ def drop_weaviate_schema() -> None:
     drop_active_pipeline_data()
 
 
-
 def drop_active_pipeline_data() -> None:
+    def schema_has_classes(client):
+        schema = client.db_client.schema.get()
+        return schema["classes"]
+
     if Container()[PipelineContext].is_active():
         # take existing pipeline
         p = dlt.pipeline()
-        db_client = p._destination_client().db_client
-        # TODO: drop only the dataset otherwise you destroy data for all parallel tests
-        db_client.schema.delete_all()
+        client = p._destination_client()
+
+        if schema_has_classes(client):
+            if client.dataset_name:
+                client.drop_dataset()
+            else:
+                raise RuntimeError(
+                    "Cannot drop dataset because it is not set. "
+                    "Clean up the database manually."
+                )
 
         p._wipe_working_folder()
         # deactivate context
