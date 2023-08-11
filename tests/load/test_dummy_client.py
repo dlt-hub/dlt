@@ -20,6 +20,7 @@ from dlt.destinations import dummy
 from dlt.destinations.dummy import dummy as dummy_impl
 from dlt.destinations.dummy.configuration import DummyClientConfiguration
 from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry
+from dlt.common.schema.utils import get_top_level_table
 
 from tests.utils import clean_test_storage, init_test_logging, TEST_DICT_CONFIG_PROVIDER, preserve_environ
 from tests.load.utils import prepare_load_package
@@ -87,6 +88,46 @@ def test_unsupported_write_disposition() -> None:
     # job with unsupported write disp. is failed
     exception = [f for f in load.load_storage.list_failed_jobs(load_id) if f.endswith(".exception")][0]
     assert "LoadClientUnsupportedWriteDisposition" in load.load_storage.storage.load(exception)
+
+
+def test_get_new_jobs_info() -> None:
+    load = setup_loader()
+    load_id, schema = prepare_load_package(
+        load.load_storage,
+        NORMALIZED_FILES
+    )
+
+    # no write disposition specified - get all new jobs
+    assert len(load.get_new_jobs_info(load_id, schema)) == 2
+    # empty list - none
+    assert len(load.get_new_jobs_info(load_id, schema, [])) == 0
+    # two appends
+    assert len(load.get_new_jobs_info(load_id, schema, ["append"])) == 2
+    assert len(load.get_new_jobs_info(load_id, schema, ["replace"])) == 0
+    assert len(load.get_new_jobs_info(load_id, schema, ["replace", "append"])) == 2
+
+    load.load_storage.start_job(load_id, "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl")
+    assert len(load.get_new_jobs_info(load_id, schema, ["replace", "append"])) == 1
+
+
+def test_get_completed_table_chain_single_job_per_table() -> None:
+    load = setup_loader()
+    load_id, schema = prepare_load_package(
+        load.load_storage,
+        NORMALIZED_FILES
+    )
+
+    top_job_table = get_top_level_table(schema.tables, "event_user")
+    assert load.get_completed_table_chain(load_id, schema, top_job_table) is None
+    # fake being completed
+    assert len(load.get_completed_table_chain(load_id, schema, top_job_table, "event_user.839c6e6b514e427687586ccc65bf133f.0.jsonl")) == 1
+    # actually complete
+    loop_top_job_table = get_top_level_table(schema.tables, "event_loop_interrupted")
+    load.load_storage.start_job(load_id, "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl")
+    assert load.get_completed_table_chain(load_id, schema, loop_top_job_table) is None
+    load.load_storage.complete_job(load_id, "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl")
+    assert load.get_completed_table_chain(load_id, schema, loop_top_job_table) == [schema.get_table("event_loop_interrupted")]
+    assert load.get_completed_table_chain(load_id, schema, loop_top_job_table, "event_user.839c6e6b514e427687586ccc65bf133f.0.jsonl") == [schema.get_table("event_loop_interrupted")]
 
 
 def test_spool_job_failed() -> None:
