@@ -64,8 +64,8 @@ If you want to configure how the data is loaded, you can choose between `write_d
 such as `replace`, `append` and `merge`in the pipeline function.
 Here is an example where we load some data to duckdb by `upserting`or `merging` on the id column found in the data:
 In this example, we also run a dbt package and then load the outcomes of the load jobs into their respective tables.
-This will enable us to log when schema changes occured and match them to the loaded data for lineage.
-We also alert the schema change to a slack channel where hopefully the producer and consumer are subscribed.
+This will enable us to log when schema changes occurred and match them to the loaded data for lineage, granting us both column and row level lineage.
+We also alert the schema change to a Slack channel where hopefully the producer and consumer are subscribed.
 
 ```python
 import dlt
@@ -85,20 +85,22 @@ load_info = pipe.run(data,
                       table_name="users")
 
 # add dbt runner, optionally with venv
-print("doing dbt stuff")
 venv = dlt.dbt.get_venv(pipe)
 dbt = dlt.dbt.package(pipe,
             "https://github.com/dbt-labs/jaffle_shop.git",
             venv=venv)
 models_info = dbt.run_all()
 
-# Load metadata for latter monitoring
+# Load metadata for monitoring and load package lineage.
+# This allows for both row and column level lineage,
+# #as it contains schema update info linked to the loaded data
 pipe.run([load_info], table_name="loading_status", write_disposition='append')
 pipe.run([models_info], table_name="transform_status", write_disposition='append')
 
 # let's alert any schema changes
+
 from dlt.common.runtime.slack import send_slack_message
-# Define your slack hook
+
 slack_hook = "https://hooks.slack.com/services/xxx/xxx/xxx"
 
 for package in load_info.load_packages:
