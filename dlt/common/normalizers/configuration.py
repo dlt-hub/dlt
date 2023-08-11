@@ -8,7 +8,7 @@ from dlt.common.normalizers.typing import TJSONNormalizer
 from dlt.common.typing import StrAny
 
 
-@configspec(init=True)
+@configspec
 class NormalizersConfiguration(BaseConfiguration):
     # always in section
     __section__: str = "schema"

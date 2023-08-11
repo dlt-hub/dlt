@@ -10,7 +10,7 @@ class DummyClientCredentials(CredentialsConfiguration):
         return "/dev/null"
 
 
-@configspec(init=True)
+@configspec
 class DummyClientConfiguration(DestinationClientConfiguration):
     destination_name: str = "dummy"
     loader_file_format: TLoaderFileFormat = "jsonl"

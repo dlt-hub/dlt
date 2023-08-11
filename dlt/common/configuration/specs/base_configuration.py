@@ -19,6 +19,8 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintExcept
 _F_BaseConfiguration: Any = type(object)
 _F_ContainerInjectableContext: Any = type(object)
 
+_T = TypeVar("_T", bound="BaseConfiguration")
+
 
 def is_base_configuration_inner_hint(inner_hint: Type[Any]) -> bool:
     return inspect.isclass(inner_hint) and issubclass(inner_hint, BaseConfiguration)
@@ -80,16 +82,16 @@ def is_secret_hint(hint: Type[Any]) -> bool:
 
 
 @overload
-def configspec(cls: Type[TAnyClass], /, *, init: bool = False) -> Type[TAnyClass]:
+def configspec(cls: Type[TAnyClass]) -> Type[TAnyClass]:
     ...
 
 
 @overload
-def configspec(cls: None = ..., /, *, init: bool = False) -> Callable[[Type[TAnyClass]], Type[TAnyClass]]:
+def configspec(cls: None = ...) -> Callable[[Type[TAnyClass]], Type[TAnyClass]]:
     ...
 
 
-def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Union[Type[TAnyClass], Callable[[Type[TAnyClass]], Type[TAnyClass]]]:
+def configspec(cls: Optional[Type[Any]] = None) -> Union[Type[TAnyClass], Callable[[Type[TAnyClass]], Type[TAnyClass]]]:
     """Converts (via derivation) any decorated class to a Python dataclass that may be used as a spec to resolve configurations
 
     In comparison the Python dataclass, a spec implements full dictionary interface for its attributes, allows instance creation from ie. strings
@@ -103,27 +105,57 @@ def configspec(cls: Optional[Type[Any]] = None, /, *, init: bool = False) -> Uni
         # if type does not derive from BaseConfiguration then derive it
         with contextlib.suppress(NameError):
             if not issubclass(cls, BaseConfiguration):
-                # keep the original module
+                # keep the original module and keep defaults for fields listed in annotations
                 fields = {"__module__": cls.__module__, "__annotations__": getattr(cls, "__annotations__", {})}
+                for key in fields['__annotations__'].keys():  # type: ignore[union-attr]
+                    if key in cls.__dict__:
+                        fields[key] = cls.__dict__[key]
                 cls = type(cls.__name__, (cls, _F_BaseConfiguration), fields)
         # get all annotations without corresponding attributes and set them to None
         for ann in cls.__annotations__:
             if not hasattr(cls, ann) and not ann.startswith(("__", "_abc_impl")):
                 setattr(cls, ann, None)
         # get all attributes without corresponding annotations
-        for att_name, att_value in cls.__dict__.items():
+        for att_name, att_value in list(cls.__dict__.items()):
             # skip callables, dunder names, class variables and some special names
             if callable(att_value):
                 if hint_field_name := getattr(att_value, "__hint_for_field__", None):
                     cls.__hint_resolvers__[hint_field_name] = att_value  # type: ignore[attr-defined]
-                continue
+                    continue
+                try:
+                    # Allow callable config objects (e.g. Incremental)
+                    if not isinstance(att_value, BaseConfiguration):
+                        continue
+                except NameError:
+                    # Dealing with BaseConfiguration itself before it is defined
+                    continue
             if not att_name.startswith(("__", "_abc_impl")) and not isinstance(att_value, (staticmethod, classmethod, property)):
                 if att_name not in cls.__annotations__:
                     raise ConfigFieldMissingTypeHintException(att_name, cls)
                 hint = cls.__annotations__[att_name]
+
                 # context can have any type
                 if not is_valid_hint(hint) and not is_context:
                     raise ConfigFieldTypeHintNotSupported(att_name, cls, hint)
+                if isinstance(att_value, BaseConfiguration):
+                    # Wrap config defaults in default_factory to work around dataclass
+                    # blocking mutable defaults
+                    def default_factory(att_value=att_value):  # type: ignore[no-untyped-def]
+                        return att_value.copy()
+                    setattr(cls, att_name, dataclasses.field(default_factory=default_factory))
+
+
+        # We don't want to overwrite user's __init__ method
+        # Create dataclass init only when not defined in the class
+        # (never put init on BaseConfiguration itself)
+        try:
+            is_base = cls is BaseConfiguration
+        except NameError:
+            is_base = True
+        init = False
+        base_params = getattr(cls, "__dataclass_params__", None)
+        if not is_base and (base_params and base_params.init or cls.__init__ is object.__init__):
+            init = True
         # do not generate repr as it may contain secret values
         return dataclasses.dataclass(cls, init=init, eq=False, repr=False)  # type: ignore
 
@@ -150,6 +182,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
     """Typing for dataclass fields"""
     __hint_resolvers__: ClassVar[Dict[str, Callable[["BaseConfiguration"], Type[Any]]]] = {}
 
+
     def parse_native_representation(self, native_value: Any) -> None:
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
         or credentials, for example database connection string or JSON serialized GCP service credentials file.
@@ -175,14 +208,18 @@ class BaseConfiguration(MutableMapping[str, Any]):
         raise NotImplementedError()
 
     @classmethod
-    def get_resolvable_fields(cls) -> Dict[str, type]:
-        """Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned"""
+    def _get_resolvable_dataclass_fields(cls) -> Iterator[dataclasses.Field[Any]]:
+        """Yields all resolvable dataclass fields in the order they should be resolved"""
         # Sort dynamic type hint fields last because they depend on other values
-        fields = sorted(
+        yield from sorted(
             (f for f in cls.__dataclass_fields__.values() if not f.name.startswith("__")),
             key=lambda f: f.name in cls.__hint_resolvers__
         )
-        return {f.name: f.type for f in fields}
+
+    @classmethod
+    def get_resolvable_fields(cls) -> Dict[str, type]:
+        """Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned"""
+        return {f.name: f.type for f in cls._get_resolvable_dataclass_fields()}
 
     def is_resolved(self) -> bool:
         return self.__is_resolved__
@@ -199,6 +236,10 @@ class BaseConfiguration(MutableMapping[str, Any]):
     def resolve(self) -> None:
         self.call_method_in_mro("on_resolved")
         self.__is_resolved__ = True
+
+    def copy(self: _T) -> _T:
+        """Returns a (shallow) copy of the configuration instance"""
+        return self.__class__(**dict(self))
 
     # implement dictionary-compatible interface on top of dataclass
 

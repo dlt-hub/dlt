@@ -6,7 +6,7 @@ from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 from dlt.common.storages import LoadStorageConfiguration, NormalizeStorageConfiguration, SchemaStorageConfiguration
 
 
-@configspec(init=True)
+@configspec
 class NormalizeConfiguration(PoolRunnerConfiguration):
     pool_type: TPoolType = "process"
     destination_capabilities: DestinationCapabilitiesContext = None  # injectable

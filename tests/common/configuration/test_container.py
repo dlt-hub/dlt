@@ -12,7 +12,7 @@ from tests.utils import preserve_environ
 from tests.common.configuration.utils import environment
 
 
-@configspec(init=True)
+@configspec
 class InjectableTestContext(ContainerInjectableContext):
     current_value: str
 

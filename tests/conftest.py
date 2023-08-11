@@ -27,8 +27,10 @@ def pytest_configure(config):
 
     test_storage_root = "_storage"
     run_configuration.RunConfiguration.config_files_storage_path = os.path.join(test_storage_root, "config/")
-    # push telemetry to CI
     run_configuration.RunConfiguration.dlthub_telemetry_segment_write_key = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB"
+    delattr(run_configuration.RunConfiguration, "__init__")
+    run_configuration.RunConfiguration = dataclasses.dataclass(run_configuration.RunConfiguration, init=True, repr=False)  # type: ignore
+    # push telemetry to CI
 
     storage_configuration.LoadStorageConfiguration.load_volume_path = os.path.join(test_storage_root, "load")
     delattr(storage_configuration.LoadStorageConfiguration, "__init__")

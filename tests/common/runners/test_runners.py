@@ -14,19 +14,19 @@ from tests.common.runners.utils import _TestRunnableWorkerMethod, _TestRunnableW
 from tests.utils import init_test_logging
 
 
-@configspec(init=True)
+@configspec
 class ModPoolRunnerConfiguration(PoolRunnerConfiguration):
     pipeline_name: str = "testrunners"
     pool_type: TPoolType = "none"
     run_sleep: float = 0.1
 
 
-@configspec(init=True)
+@configspec
 class ProcessPoolConfiguration(ModPoolRunnerConfiguration):
     pool_type: TPoolType = "process"
 
 
-@configspec(init=True)
+@configspec
 class ThreadPoolConfiguration(ModPoolRunnerConfiguration):
     pool_type: TPoolType = "thread"
 

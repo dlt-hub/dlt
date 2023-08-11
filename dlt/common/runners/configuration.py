@@ -6,7 +6,7 @@ from dlt.common.configuration.specs import BaseConfiguration
 TPoolType = Literal["process", "thread", "none"]
 
 
-@configspec(init=True)
+@configspec
 class PoolRunnerConfiguration(BaseConfiguration):
     pool_type: TPoolType = None  # type of pool to run, must be set in derived configs
     workers: Optional[int] = None  # how many threads/processes in the pool

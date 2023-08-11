@@ -27,7 +27,7 @@ from dlt.extract.source import DltResource, DltSource, TUnboundDltResource
 
 
 
-@configspec(init=True)
+@configspec
 class SourceSchemaInjectableContext(ContainerInjectableContext):
     """A context containing the source schema, present when decorated function is executed"""
     schema: Schema
