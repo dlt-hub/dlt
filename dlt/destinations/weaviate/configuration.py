@@ -32,6 +32,7 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     batch_retries: int = 5
     conn_timeout: int = 10
     read_timeout: int = 3*60
+    dataset_separator: str = "_"
 
     credentials: WeaviateCredentials
     vectorizer: str = "text2vec-openai"
