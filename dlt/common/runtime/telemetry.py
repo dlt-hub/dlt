@@ -8,9 +8,6 @@ from dlt.common.typing import TFun
 from dlt.common.configuration import resolve_configuration
 from dlt.common.runtime.segment import TEventCategory, init_segment, disable_segment, track
 
-from dlt.common.runtime.sentry import init_sentry, disable_sentry
-
-
 _TELEMETRY_STARTED = False
 
 
@@ -22,6 +19,9 @@ def start_telemetry(config: RunConfiguration) -> None:
         return
 
     if config.sentry_dsn:
+        print(config.sentry_dsn)
+        # may raise if sentry is not installed
+        from dlt.common.runtime.sentry import init_sentry
         init_sentry(config)
 
     if config.dlthub_telemetry:
@@ -35,7 +35,12 @@ def stop_telemetry() -> None:
     if not _TELEMETRY_STARTED:
         return
 
-    disable_sentry()
+    try:
+        from dlt.common.runtime.sentry import disable_sentry
+        disable_sentry()
+    except ImportError:
+        pass
+
     disable_segment()
 
     _TELEMETRY_STARTED = False

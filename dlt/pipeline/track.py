@@ -2,8 +2,6 @@
 import contextlib
 from typing import Any
 import humanize
-from sentry_sdk import Hub
-from sentry_sdk.tracing import Span
 
 from dlt.common import pendulum
 from dlt.common import logger
@@ -16,13 +14,19 @@ from dlt.common.destination import DestinationReference
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 
+try:
+    from sentry_sdk import Hub
+    from sentry_sdk.tracing import Span
 
-def _add_sentry_tags(span: Span, pipeline: SupportsPipeline) -> None:
-    span.set_tag("pipeline_name", pipeline.pipeline_name)
-    if pipeline.destination:
-        span.set_tag("destination", pipeline.destination.__name__)
-    if pipeline.dataset_name:
-        span.set_tag("dataset_name", pipeline.dataset_name)
+    def _add_sentry_tags(span: Span, pipeline: SupportsPipeline) -> None:
+        span.set_tag("pipeline_name", pipeline.pipeline_name)
+        if pipeline.destination:
+            span.set_tag("destination", pipeline.destination.__name__)
+        if pipeline.dataset_name:
+            span.set_tag("dataset_name", pipeline.dataset_name)
+except ImportError:
+    # sentry is optional dependency and enabled only when RuntimeConfiguration.sentry_dsn is set
+    pass
 
 
 def slack_notify_load_success(incoming_hook: str, load_info: LoadInfo, trace: PipelineTrace) -> int:
@@ -55,8 +59,8 @@ def slack_notify_load_success(incoming_hook: str, load_info: LoadInfo, trace: Pi
 
 
 def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
-    # https://getsentry.github.io/sentry-python/api.html#sentry_sdk.Hub.capture_event
     if pipeline.runtime_config.sentry_dsn:
+        # https://getsentry.github.io/sentry-python/api.html#sentry_sdk.Hub.capture_event
         # print(f"START SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}")
         transaction = Hub.current.start_transaction(name=step, op=step)
         _add_sentry_tags(transaction, pipeline)
