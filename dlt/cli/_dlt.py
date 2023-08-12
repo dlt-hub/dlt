@@ -200,7 +200,6 @@ def main() -> int:
         # make sure the name is defined
         _ = deploy_command
         deploy_comm = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter, add_help=False)
-        deploy_comm.add_argument("--schedule", required=False, help="A schedule with which to run the pipeline, in cron format. Example: '*/30 * * * *' will run the pipeline every 30 minutes.")
         deploy_comm.add_argument("--location", help="Advanced. Uses a specific url or local path to pipelines repository.")
         deploy_comm.add_argument("--branch", help="Advanced. Uses specific branch of the deploy repository to fetch the template.")
 
@@ -210,6 +209,7 @@ def main() -> int:
 
         # deploy github actions
         deploy_github_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.github_actions.value, help="Deploys the pipeline to Github Actions", parents=[deploy_comm])
+        deploy_github_cmd.add_argument("--schedule", required=False, help="A schedule with which to run the pipeline, in cron format. Example: '*/30 * * * *' will run the pipeline every 30 minutes.")
         deploy_github_cmd.add_argument("--run-manually", default=True, action="store_true", help="Allows the pipeline to be run manually form Github Actions UI.")
         deploy_github_cmd.add_argument("--run-on-push", default=False, action="store_true", help="Runs the pipeline with every push to the repository.")
 
