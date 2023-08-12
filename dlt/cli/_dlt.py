@@ -21,7 +21,7 @@ from dlt.cli.telemetry_command import DLT_TELEMETRY_DOCS_URL, change_telemetry_s
 try:
     from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command, DLT_DEPLOY_DOCS_URL, DeploymentMethods, COMMAND_DEPLOY_REPO_LOCATION, SecretFormats
 except ModuleNotFoundError:
-    raise
+    pass
 
 
 @utils.track_command("init", False, "source_name", "destination_name")
@@ -217,13 +217,10 @@ def main() -> int:
         deploy_airflow_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.airflow_composer.value, help="Deploys the pipeline to Airflow", parents=[deploy_comm])
         deploy_airflow_cmd.add_argument("--secrets-format", default=SecretFormats.toml.value, choices=[v.value for v in SecretFormats], required=False, help="Format of the secrets")
     except NameError:
-        raise
-        pass
         # create placeholder command
-        # deploy_cmd = subparsers.add_parser("deploy", help='Install additional dependencies with pip install "dlt[cli]" to create deployment packages', add_help=False)
-        # deploy_cmd.add_argument("--help", "-h", nargs="?", const=True)
-        # deploy_cmd.add_argument("pipeline_script_path", metavar="pipeline-script-path", nargs="*")
-
+        deploy_cmd = subparsers.add_parser("deploy", help='Install additional dependencies with pip install "dlt[cli]" to create deployment packages', add_help=False)
+        deploy_cmd.add_argument("--help", "-h", nargs="?", const=True)
+        deploy_cmd.add_argument("pipeline_script_path", metavar="pipeline-script-path", nargs="*")
 
     schema = subparsers.add_parser("schema", help="Shows, converts and upgrades schemas")
     schema.add_argument("file", help="Schema file name, in yaml or json format, will autodetect based on extension")
