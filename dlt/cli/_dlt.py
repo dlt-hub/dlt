@@ -12,11 +12,16 @@ from dlt.common.runners import Venv
 
 import dlt.cli.echo as fmt
 from dlt.cli import utils
+from dlt.pipeline.exceptions import CannotRestorePipelineException
+
 from dlt.cli.init_command import init_command, list_verified_sources_command, DLT_INIT_DOCS_URL, DEFAULT_VERIFIED_SOURCES_REPO
-from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command, DLT_DEPLOY_DOCS_URL, DeploymentMethods, COMMAND_DEPLOY_REPO_LOCATION, SecretFormats
 from dlt.cli.pipeline_command import pipeline_command, DLT_PIPELINE_COMMAND_DOCS_URL
 from dlt.cli.telemetry_command import DLT_TELEMETRY_DOCS_URL, change_telemetry_status_command, telemetry_status_command
-from dlt.pipeline.exceptions import CannotRestorePipelineException
+
+try:
+    from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command, DLT_DEPLOY_DOCS_URL, DeploymentMethods, COMMAND_DEPLOY_REPO_LOCATION, SecretFormats
+except ModuleNotFoundError:
+    raise
 
 
 @utils.track_command("init", False, "source_name", "destination_name")
@@ -190,22 +195,35 @@ def main() -> int:
     init_cmd.add_argument("--branch", default=None, help="Advanced. Uses specific branch of the init repository to fetch the template.")
     init_cmd.add_argument("--generic", default=False, action="store_true", help="When present uses a generic template with all the dlt loading code present will be used. Otherwise a debug template is used that can be immediately run to get familiar with the dlt sources.")
 
-    # deploy
-    deploy_cmd = subparsers.add_parser("deploy", help="Creates a deployment package for a selected pipeline script")
-    deploy_cmd.add_argument("pipeline_script_path", metavar="pipeline-script-path", help="Path to a pipeline script")
-    deploy_cmd.add_argument("--schedule", required=False, help="A schedule with which to run the pipeline, in cron format. Example: '*/30 * * * *' will run the pipeline every 30 minutes.")
-    deploy_cmd.add_argument("--location", default=COMMAND_DEPLOY_REPO_LOCATION, help="Advanced. Uses a specific url or local path to pipelines repository.")
-    deploy_cmd.add_argument("--branch", default=None, help="Advanced. Uses specific branch of the deploy repository to fetch the template.")
-    deploy_sub_parsers = deploy_cmd.add_subparsers(dest="deployment_method")
+    # deploy command requires additional dependencies
+    try:
+        # make sure the name is defined
+        _ = deploy_command
+        deploy_comm = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter, add_help=False)
+        deploy_comm.add_argument("--schedule", required=False, help="A schedule with which to run the pipeline, in cron format. Example: '*/30 * * * *' will run the pipeline every 30 minutes.")
+        deploy_comm.add_argument("--location", help="Advanced. Uses a specific url or local path to pipelines repository.")
+        deploy_comm.add_argument("--branch", help="Advanced. Uses specific branch of the deploy repository to fetch the template.")
 
-    # deploy github actions
-    deploy_github_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.github_actions.value, help="Deploys the pipeline to Github Actions")
-    deploy_github_cmd.add_argument("--run-manually", default=True, action="store_true", help="Allows the pipeline to be run manually form Github Actions UI.")
-    deploy_github_cmd.add_argument("--run-on-push", default=False, action="store_true", help="Runs the pipeline with every push to the repository.")
+        deploy_cmd = subparsers.add_parser("deploy", help="Creates a deployment package for a selected pipeline script", parents=[deploy_comm])
+        deploy_cmd.add_argument("pipeline_script_path", metavar="pipeline-script-path", help="Path to a pipeline script")
+        deploy_sub_parsers = deploy_cmd.add_subparsers(dest="deployment_method")
 
-    # deploy airflow composer
-    deploy_airflow_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.airflow_composer.value, help="Deploys the pipeline to Airflow")
-    deploy_airflow_cmd.add_argument("--secrets-format", default=SecretFormats.toml.value, choices=[v.value for v in SecretFormats], required=False, help="Format of the secrets")
+        # deploy github actions
+        deploy_github_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.github_actions.value, help="Deploys the pipeline to Github Actions", parents=[deploy_comm])
+        deploy_github_cmd.add_argument("--run-manually", default=True, action="store_true", help="Allows the pipeline to be run manually form Github Actions UI.")
+        deploy_github_cmd.add_argument("--run-on-push", default=False, action="store_true", help="Runs the pipeline with every push to the repository.")
+
+        # deploy airflow composer
+        deploy_airflow_cmd = deploy_sub_parsers.add_parser(DeploymentMethods.airflow_composer.value, help="Deploys the pipeline to Airflow", parents=[deploy_comm])
+        deploy_airflow_cmd.add_argument("--secrets-format", default=SecretFormats.toml.value, choices=[v.value for v in SecretFormats], required=False, help="Format of the secrets")
+    except NameError:
+        raise
+        pass
+        # create placeholder command
+        # deploy_cmd = subparsers.add_parser("deploy", help='Install additional dependencies with pip install "dlt[cli]" to create deployment packages', add_help=False)
+        # deploy_cmd.add_argument("--help", "-h", nargs="?", const=True)
+        # deploy_cmd.add_argument("pipeline_script_path", metavar="pipeline-script-path", nargs="*")
+
 
     schema = subparsers.add_parser("schema", help="Shows, converts and upgrades schemas")
     schema.add_argument("file", help="Schema file name, in yaml or json format, will autodetect based on extension")
@@ -282,14 +300,21 @@ def main() -> int:
             else:
                 return init_command_wrapper(args.source, args.destination, args.generic, args.location, args.branch)
     elif args.command == "deploy":
-        deploy_args = vars(args)
-        return deploy_command_wrapper(
-            pipeline_script_path=deploy_args.pop("pipeline_script_path"),
-            deployment_method=deploy_args.pop("deployment_method"),
-            repo_location=deploy_args.pop("location"),
-            branch=deploy_args.pop("branch"),
-            **deploy_args
-        )
+        try:
+            deploy_args = {**{"location": COMMAND_DEPLOY_REPO_LOCATION, "branch": None}, **vars(args)}
+            print(deploy_args)
+            return deploy_command_wrapper(
+                pipeline_script_path=deploy_args.pop("pipeline_script_path"),
+                deployment_method=deploy_args.pop("deployment_method"),
+                repo_location=deploy_args.pop("location"),
+                branch=deploy_args.pop("branch"),
+                **deploy_args
+            )
+        except (NameError, KeyError):
+            fmt.warning("Please install additional command line dependencies to use deploy command:")
+            fmt.secho('pip install "dlt[cli]"', bold=True)
+            fmt.echo("We ask you to install those dependencies separately to keep our core library small and make it work everywhere.")
+            return -1
     elif args.command == "telemetry":
         return telemetry_status_command_wrapper()
     else:

@@ -3,10 +3,11 @@ import abc
 import os
 import yaml
 from yaml import Dumper
-import pipdeptree
 from itertools import chain
 from typing import List, Optional, Sequence, Tuple, Any, Dict
 from astunparse import unparse
+# optional dependencies
+import pipdeptree
 import cron_descriptor
 
 import dlt
@@ -225,7 +226,7 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
                     fmt.warning(f"The value of `full_refresh` in call to `dlt.pipeline` cannot be determined from {unparse(f_r_node).strip()}. We assume that you know what you are doing :)")
                 if f_r_value is True:
                     if fmt.confirm("The value of 'full_refresh' is set to True. Do you want to abort to set it to False?", default=True):
-                        return pipelines
+                        raise CliCommandException("deploy", "Please set the full_refresh to False")
 
             p_d_node = call_args.arguments.get("pipelines_dir")
             if p_d_node:
@@ -281,21 +282,19 @@ def generate_pip_freeze(requirements_blacklist: List[str], requirements_file_nam
 
     # construct graph with all packages
     tree = pipdeptree.PackageDAG.from_pkgs(pkgs)
-    nodes = tree.keys()
     branch_keys = {r.key for r in chain.from_iterable(tree.values())}
     # all the top level packages
-    nodes = [p for p in nodes if p.key not in branch_keys]
+    nodes = [p for p in tree.keys() if p.key not in branch_keys]
 
     # compute excludes to compute includes as set difference
     excludes = set(req.strip() for req in requirements_blacklist if not req.strip().startswith("#"))
-    includes = [node.project_name for node in nodes if node.project_name not in excludes]
+    includes = set(node.project_name for node in nodes if node.project_name not in excludes)
 
     # prepare new filtered DAG
     tree = tree.sort()
     tree = tree.filter_nodes(includes, None)
-    nodes = tree.keys()
     branch_keys = {r.key for r in chain.from_iterable(tree.values())}
-    nodes = [p for p in nodes if p.key not in branch_keys]
+    nodes = [p for p in tree.keys() if p.key not in branch_keys]
 
     # detect and warn on conflict
     conflicts = pipdeptree.conflicting_deps(tree)

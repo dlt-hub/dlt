@@ -7,9 +7,6 @@ from typing_extensions import TypeAlias, ParamSpec, Concatenate
 
 from dlt.common.pendulum import timedelta, pendulum
 
-
-
-
 if TYPE_CHECKING:
     from _typeshed import StrOrBytesPath
     # from typing_extensions import ParamSpec

@@ -5,7 +5,6 @@ from requests import (
     ConnectTimeout,
     FileModeWarning,
     HTTPError,
-    JSONDecodeError,
     ReadTimeout,
     RequestException,
     Timeout,
