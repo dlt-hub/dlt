@@ -12,11 +12,31 @@ related pages you are instead looking for the [demo](try-in-colab.md), or the
 
 # Why build pipelines with `dlt`?
 
-By utilizing `dlt`, we can easily adapt and structure data as it evolves, reducing the time spent on
+dlt offers functionality to support the entire extract and load process. Let's look at the high level diagram:
+
+![dlt source resource pipe diagram](/img/dlt-high-level.png)
+
+
+First, We have a `Pipeline` function, that can infer a schema from data and load the data to the destination.
+We can use this pipeline with json data, dataframes, or other iterable objects such as generator functions.
+
+This pipeline provides effortless loading via a schema discovery, versioning and evolution
+engine that ensures you can "just load" any data with row and column level lineage.
+
+By utilizing a `dlt pipeline`, we can easily adapt and structure data as it evolves, reducing the time spent on
 maintenance and development.
 
 This allows our data team to focus on leveraging the data and driving value, while ensuring
 effective governance through timely notifications of any changes.
+
+
+For extract, dlt also provides `source` and `resource` decorators that enable defining
+how extracted data should be loaded, while supporting graceful, s
+calable extraction via microbatching and parallelism.
+
+
+
+
 
 # The simplest pipeline: 1 liner to load data with schema evolution
 
