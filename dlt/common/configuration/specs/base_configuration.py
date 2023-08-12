@@ -166,7 +166,6 @@ def configspec(cls: Optional[Type[Any]] = None) -> Union[Type[TAnyClass], Callab
     return wrap(cls)
 
 
-
 @configspec
 class BaseConfiguration(MutableMapping[str, Any]):
 
@@ -208,7 +207,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         raise NotImplementedError()
 
     @classmethod
-    def _get_resolvable_dataclass_fields(cls) -> Iterator[dataclasses.Field[Any]]:
+    def _get_resolvable_dataclass_fields(cls) -> Iterator[TDtcField]:
         """Yields all resolvable dataclass fields in the order they should be resolved"""
         # Sort dynamic type hint fields last because they depend on other values
         yield from sorted(
