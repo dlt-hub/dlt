@@ -11,6 +11,7 @@ from typing import (
     Any,
     IO,
     Tuple,
+    cast,
 )
 
 from dlt.common.exceptions import (
@@ -260,7 +261,9 @@ class WeaviateClient(JobClientBase):
 
     def get_class_schema(self, table_name: str) -> Dict[str, Any]:
         """Get the Weaviate class schema for a table."""
-        return self.db_client.schema.get(self.make_full_name(table_name))
+        return cast(
+            Dict[str, Any], self.db_client.schema.get(self.make_full_name(table_name))
+        )
 
     def create_class(
         self, class_schema: Dict[str, Any], full_class_name: Optional[str] = None
