@@ -21,7 +21,7 @@ class WeaviateCredentials(CredentialsConfiguration):
         # assuming no password in url scheme for Weaviate
         return self.url
 
-@configspec(init=True)
+@configspec
 class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "weaviate"  # type: ignore
     dataset_name: Optional[str] = None  # make it optional do empty dataset is allowed
