@@ -89,7 +89,8 @@ def test_invoke_deploy_project(script_runner: ScriptRunner) -> None:
 
 
 def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
-    with patch("dlt.cli._dlt.deploy_command") as _deploy_command:
+    # NOTE: you can mock only once per test with ScriptRunner !!
+    with patch("dlt.cli.deploy_command.deploy_command") as _deploy_command:
         script_runner.run(['dlt', 'deploy', 'debug_pipeline.py', 'github-action', '--schedule', '@daily'])
         assert _deploy_command.called
         assert _deploy_command.call_args[1] == {
@@ -102,7 +103,8 @@ def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
             "run_manually": True,
             "run_on_push": False
         }
-    with patch("dlt.cli._dlt.deploy_command") as _deploy_command:
+
+        _deploy_command.reset_mock()
         script_runner.run(['dlt', 'deploy', 'debug_pipeline.py', 'github-action', '--schedule', '@daily', '--location', 'folder', '--branch', 'branch', '--run-on-push'])
         assert _deploy_command.called
         assert _deploy_command.call_args[1] == {
@@ -115,14 +117,14 @@ def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
             "run_manually": True,
             "run_on_push": True
         }
-    # no schedule fails
-    with patch("dlt.cli._dlt.deploy_command") as _deploy_command:
+        # no schedule fails
+        _deploy_command.reset_mock()
         result = script_runner.run(['dlt', 'deploy', 'debug_pipeline.py', 'github-action'])
         assert not _deploy_command.called
         assert result.returncode != 0
         assert "the following arguments are required: --schedule" in result.stderr
-    # airflow without schedule works
-    with patch("dlt.cli._dlt.deploy_command") as _deploy_command:
+        # airflow without schedule works
+        _deploy_command.reset_mock()
         result = script_runner.run(['dlt', 'deploy', 'debug_pipeline.py', 'airflow-composer'])
         assert _deploy_command.called
         assert result.returncode == 0
@@ -134,8 +136,8 @@ def test_invoke_deploy_mock(script_runner: ScriptRunner) -> None:
             "command": "deploy",
             'secrets_format': 'toml'
         }
-    # env secrets format
-    with patch("dlt.cli._dlt.deploy_command") as _deploy_command:
+        # env secrets format
+        _deploy_command.reset_mock()
         result = script_runner.run(['dlt', 'deploy', 'debug_pipeline.py', 'airflow-composer', "--secrets-format", "env"])
         assert _deploy_command.called
         assert result.returncode == 0

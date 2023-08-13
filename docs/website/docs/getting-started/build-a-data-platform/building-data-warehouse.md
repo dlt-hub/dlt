@@ -104,7 +104,7 @@ complexity.
 **This is one of the main reasons we created `dlt`:**
 
 - For common sources, `dlt`’s community-built and maintained pipelines can deploy to your airflow
-  with only two CLI commands (`dlt init source`, `dlt deploy source airflow`). Maintenance is partly
+  with only two CLI commands (`dlt init source`, `dlt deploy pipeline_script.pyu airflow-composer`). Maintenance is partly
   automated, and open sourced, while customisations are easy.
 - For simple sources, you can have an easy python function to just take any data and load it in a
   robust way.

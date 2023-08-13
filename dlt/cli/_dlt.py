@@ -19,7 +19,8 @@ from dlt.cli.pipeline_command import pipeline_command, DLT_PIPELINE_COMMAND_DOCS
 from dlt.cli.telemetry_command import DLT_TELEMETRY_DOCS_URL, change_telemetry_status_command, telemetry_status_command
 
 try:
-    from dlt.cli.deploy_command import PipelineWasNotRun, deploy_command, DLT_DEPLOY_DOCS_URL, DeploymentMethods, COMMAND_DEPLOY_REPO_LOCATION, SecretFormats
+    from dlt.cli import deploy_command
+    from dlt.cli.deploy_command import PipelineWasNotRun, DLT_DEPLOY_DOCS_URL, DeploymentMethods, COMMAND_DEPLOY_REPO_LOCATION, SecretFormats
 except ModuleNotFoundError:
     pass
 
@@ -57,7 +58,13 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, re
 
     from git import InvalidGitRepositoryError, NoSuchPathError
     try:
-        deploy_command(pipeline_script_path=pipeline_script_path, deployment_method=deployment_method, repo_location=repo_location, branch=branch, **kwargs)
+        deploy_command.deploy_command(
+            pipeline_script_path=pipeline_script_path,
+            deployment_method=deployment_method,
+            repo_location=repo_location,
+            branch=branch,
+            **kwargs
+        )
     except (CannotRestorePipelineException, PipelineWasNotRun) as ex:
         click.secho(str(ex), err=True, fg="red")
         fmt.note("You must run the pipeline locally successfully at least once in order to deploy it.")

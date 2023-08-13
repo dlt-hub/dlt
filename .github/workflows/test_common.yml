@@ -80,11 +80,11 @@ jobs:
         run: poetry install --no-interaction -E duckdb -E cli
 
       - run: |
-          poetry run pytest tests/extract tests/pipeline && poetry run pytest tests/cli/common
+          poetry run pytest tests/extract tests/pipeline tests/cli/common
         if: runner.os != 'Windows'
         name: Run extra tests Linux/MAC
       - run: |
-          poetry run pytest tests/extract tests/pipeline && poetry run pytest tests/cli/common
+          poetry run pytest tests/extract tests/pipeline tests/cli/common
         if: runner.os == 'Windows'
         name: Run extra tests Windows
         shell: cmd

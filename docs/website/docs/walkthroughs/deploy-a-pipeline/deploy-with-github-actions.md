@@ -29,16 +29,16 @@ python3 chess_pipeline.py # replace chess_pipeline.py with your pipeline file
 This should successfully load data from the source to the destination once.
 
 ## Initialize deployment
-
-In the same `dlt` project as your working pipeline, you can create a deployment using
-[GitHub Actions](https://github.com/features/actions) that will load data with the `chess_pipeline.py` script
-every 30 minutes by running:
-
+First you need to add additional dependencies that `deploy` command requires:
+```bash
+pip install "dlt[cli]"
+```
+then the command below will create a Github workflow that runs your pipeline script every 30 minutes:
 ```shell
-dlt deploy chess_pipeline.py github-action --schedule "*/30 * * * *" # replace chess_pipeline.py
+dlt deploy chess_pipeline.py github-action --schedule "*/30 * * * *"
 ```
 
-This command checks that your pipeline has run successfully before and creates a GitHub Actions
+It checks that your pipeline has run successfully before and creates a GitHub Actions
 workflow file `run_chess_workflow.yml` in `.github/workflows` with the necessary environment
 variables.
 
