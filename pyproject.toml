@@ -59,17 +59,15 @@ grpcio = {version = ">=1.50.0", optional = true}
 google-cloud-bigquery = {version = ">=2.26.0", optional = true}
 pyarrow = {version = ">=8.0.0", optional = true}
 duckdb = {version = ">=0.6.1,<0.9.0", optional = true}
-dbt-core = {version = ">=1.5.0", optional = true}
-dbt-redshift = {version = ">=1.5.0", optional = true}
-dbt-bigquery = {version = ">=1.5.0", optional = true}
-dbt-duckdb = {version = ">=1.5.0", optional = true}
-dbt-snowflake = {version = ">=1.5.0", optional = true}
-s3fs = {version = "^2023.5.0", optional = true}
-gcsfs = {version = "^2023.5.0", optional = true}
-boto3 = {version = ">=1.26", optional = true}
-snowflake-connector-python = {version = "^3.0.4", optional = true, extras = ["pandas"]}
-fsspec = "^2023.5.0"
-packaging = "^23.1"
+dbt-core = {version = ">=1.2.0", optional = true}
+dbt-redshift = {version = ">=1.2.0", optional = true}
+dbt-bigquery = {version = ">=1.2.0", optional = true}
+dbt-duckdb = {version = ">=1.2.0", optional = true}
+dbt-snowflake = {version = ">=1.2.0", optional = true}
+s3fs = {version = ">=2022.4.0", optional = true}
+gcsfs = {version = ">=2022.4.0", optional = true}
+boto3 = {version = ">=1.25", optional = true}
+snowflake-connector-python = {version = ">=2.9.0", optional = true, extras = ["pandas"]}
 cron-descriptor = {version = ">=1.2.32", optional = true}
 pipdeptree = {version = ">=2.9.0,<2.10", optional = true}
 weaviate-client = {version = ">=3.22", optional = true}
