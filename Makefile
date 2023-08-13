@@ -57,8 +57,8 @@ lint-security:
 test:
 	(set -a && . tests/.env && poetry run pytest tests)
 
-test-local:
-	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data DESTINATION__DUCKDB__CREDENTIALS=duckdb:///_storage/test_quack.duckdb  poetry run pytest tests -k '(postgres and duckdb)'
+test-load-local:
+	DESTINATION__POSTGRES__CREDENTIALS=postgresql://loader:loader@localhost:5432/dlt_data DESTINATION__DUCKDB__CREDENTIALS=duckdb:///_storage/test_quack.duckdb  poetry run pytest tests -k '(postgres or duckdb)'
 
 test-common:
 	poetry run pytest tests/common tests/normalize tests/extract tests/pipeline tests/reflection tests/sources tests/cli/common
