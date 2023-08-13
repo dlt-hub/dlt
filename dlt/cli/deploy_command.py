@@ -12,7 +12,7 @@ from dlt.common.git import is_dirty
 from dlt.cli import utils
 from dlt.cli import echo as fmt
 from dlt.cli.deploy_command_helpers import (PipelineWasNotRun, BaseDeployment, ask_files_overwrite, generate_pip_freeze, github_origin_to_url, serialize_templated_yaml,
-                                            wrap_template_str)
+                                            wrap_template_str, get_schedule_description)
 
 from dlt.version import DLT_PKG_NAME
 
@@ -49,14 +49,33 @@ def deploy_command(pipeline_script_path: str, deployment_method: str, repo_locat
         deployment_class = AirflowDeployment
     else:
         raise ValueError(f"Deployment method '{deployment_method}' is not supported. Only {', '.join([m.value for m in DeploymentMethods])} are available.'")
-
+    # command no longer needed
+    kwargs.pop("command", None)
     deployment_class(pipeline_script_path=pipeline_script_path, location=repo_location, branch=branch, **kwargs).run_deployment()
 
 
 class GithubActionDeployment(BaseDeployment):
+    def __init__(
+        self,
+        pipeline_script_path: str,
+        location: str,
+        schedule: Optional[str],
+        run_on_push: bool = False,
+        run_manually: bool = False,
+        branch: Optional[str] = None,
+    ):
+        super().__init__(pipeline_script_path, location, branch)
+        self.schedule = schedule
+        self.run_on_push = run_on_push
+        self.run_manually = run_manually
+        self.schedule_description: Optional[str]
+
     def _generate_workflow(self, *args: Optional[Any]) -> None:
         self.deployment_method = DeploymentMethods.github_actions.value
+        # validate schedule
+        self.schedule_description = get_schedule_description(self.schedule)
         if self.schedule_description is None:
+            # TODO: move that check to _dlt and some intelligent help message on missing arg
             raise ValueError(
                 f"Setting 'schedule' for '{self.deployment_method}' is required! Use deploy command as 'dlt deploy chess.py {self.deployment_method} --schedule \"*/30 * * * *\"'."
             )
@@ -92,7 +111,7 @@ class GithubActionDeployment(BaseDeployment):
         workflow["name"] = f"Run {self.state['pipeline_name']} pipeline from {self.pipeline_script_path}"
         if self.run_on_push is False:
             del workflow["on"]["push"]
-        if self.run_on_dispatch is False:
+        if self.run_manually is False:
             del workflow["on"]["workflow_dispatch"]
         workflow["on"]["schedule"] = [{"cron": self.schedule}]
         workflow["env"] = {}
@@ -127,7 +146,7 @@ class GithubActionDeployment(BaseDeployment):
         ))
         fmt.echo("* The schedule with which the pipeline is run is: %s.%s%s" % (
             fmt.bold(self.schedule_description),
-            " You can also run the pipeline manually." if self.run_on_dispatch else "",
+            " You can also run the pipeline manually." if self.run_manually else "",
             " Pipeline will also run on each push to the repository." if self.run_on_push else "",
         ))
         fmt.echo(
@@ -166,6 +185,16 @@ class GithubActionDeployment(BaseDeployment):
 
 
 class AirflowDeployment(BaseDeployment):
+    def __init__(
+        self,
+        pipeline_script_path: str,
+        location: str,
+        branch: Optional[str] = None,
+        secrets_format: Optional[str] = None,
+    ):
+        super().__init__(pipeline_script_path, location, branch)
+        self.secrets_format = secrets_format
+
     def _generate_workflow(self, *args: Optional[Any]) -> None:
         self.deployment_method = DeploymentMethods.airflow_composer.value
 

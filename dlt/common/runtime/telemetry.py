@@ -19,7 +19,6 @@ def start_telemetry(config: RunConfiguration) -> None:
         return
 
     if config.sentry_dsn:
-        print(config.sentry_dsn)
         # may raise if sentry is not installed
         from dlt.common.runtime.sentry import init_sentry
         init_sentry(config)

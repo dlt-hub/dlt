@@ -35,25 +35,23 @@ from dlt.cli.exceptions import CliCommandException
 GITHUB_URL = "https://github.com/"
 
 
+def get_schedule_description(schedule: str) -> Optional[Any]:
+    try:
+        return None if schedule is None else cron_descriptor.get_description(schedule)
+    except Exception as ex:
+        raise ValueError(f"Error when parsing schedule '{schedule}': {str(ex)}")
+
+
 class BaseDeployment(abc.ABC):
     def __init__(
         self,
         pipeline_script_path: str,
         location: str,
-        schedule: Optional[str],
-        run_on_push: bool = False,
-        run_on_dispatch: bool = False,
         branch: Optional[str] = None,
-        secrets_format: Optional[str] = None,
-        **_kwargs: Any
     ):
         self.pipeline_script_path = pipeline_script_path
-        self.schedule = schedule
-        self.run_on_push = run_on_push
-        self.run_on_dispatch = run_on_dispatch
         self.repo_location = location
         self.branch = branch
-        self.secrets_format = secrets_format
 
         self.pipelines_dir: Optional[str] = None
         self.pipeline_name: Optional[str] = None
@@ -64,7 +62,6 @@ class BaseDeployment(abc.ABC):
         self.origin: str
         self.repo_pipeline_script_path: str
         self.pipeline_script: Any
-        self.schedule_description: Optional[str]
         self.template_storage: FileStorage
         self.working_directory: str
         self.state: TPipelineState
@@ -83,14 +80,9 @@ class BaseDeployment(abc.ABC):
         self.repo_pipeline_script_path = self.repo_storage.from_wd_to_relative_path(self.pipeline_script_path)
         # load a pipeline script and extract full_refresh and pipelines_dir args
         self.pipeline_script = self.repo_storage.load(self.repo_pipeline_script_path)
-        # validate schedule
-        self.schedule_description = self._get_schedule_description()
         fmt.echo("Looking up the deployment template scripts in %s...\n" % fmt.bold(self.repo_location))
         self.template_storage = git.get_fresh_repo_files(self.repo_location, get_dlt_repos_dir(), branch=self.branch)
         self.working_directory = os.path.split(self.pipeline_script_path)[0]
-
-    def _get_schedule_description(self) -> Optional[Any]:
-        return None if self.schedule is None else cron_descriptor.get_description(self.schedule)
 
     def _get_origin(self) -> str:
         try:
