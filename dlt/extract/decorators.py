@@ -39,7 +39,13 @@ class SourceSchemaInjectableContext(ContainerInjectableContext):
             ...
 
 TSourceFunParams = ParamSpec("TSourceFunParams")
+"""Params of @source decorated function"""
 TResourceFunParams = ParamSpec("TResourceFunParams")
+"""Params of @resource decorated function"""
+TDeferredFunParams = ParamSpec("TDeferredFunParams")
+"""Params of @deferred function"""
+TTransformerFun = Callable[Concatenate[TDataItem, TResourceFunParams], Any]
+"""Params of @transformer decorated function where first argument is always data item"""
 
 
 @overload
@@ -383,12 +389,12 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
-) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], Callable[TResourceFunParams, DltResource]]:
+) -> Callable[[TTransformerFun[TResourceFunParams]], Callable[TResourceFunParams, DltResource]]:
     ...
 
 @overload
 def transformer(
-    f: Callable[Concatenate[TDataItem, TResourceFunParams], Any],
+    f: TTransformerFun[TResourceFunParams],
     /,
     data_from: TUnboundDltResource = DltResource.Empty,
     name: str = None,
@@ -403,7 +409,7 @@ def transformer(
     ...
 
 def transformer(  # type: ignore
-    f: Optional[Callable[Concatenate[TDataItem, TResourceFunParams], Any]] = None,
+    f: Optional[TTransformerFun[TResourceFunParams]] = None,
     /,
     data_from: TUnboundDltResource = DltResource.Empty,
     name: str = None,
@@ -414,7 +420,7 @@ def transformer(  # type: ignore
     merge_key: TTableHintTemplate[TColumnKey] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
-) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], Callable[TResourceFunParams, DltResource]]:
+) -> Callable[[TTransformerFun[TResourceFunParams]], Callable[TResourceFunParams, DltResource]]:
     """A form of `dlt resource` that takes input from other resources via `data_from` argument in order to enrich or transform the data.
 
     The decorated function `f` must take at least one argument of type TDataItems (a single item or list of items depending on the resource `data_from`). `dlt` will pass
@@ -515,7 +521,7 @@ def get_source_schema() -> Schema:
 
 TBoundItems = TypeVar("TBoundItems", bound=TDataItems)
 TDeferred = Callable[[], TBoundItems]
-TDeferredFunParams = ParamSpec("TDeferredFunParams")
+
 
 
 def defer(f: Callable[TDeferredFunParams, TBoundItems]) -> Callable[TDeferredFunParams, TDeferred[TBoundItems]]:

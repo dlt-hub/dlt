@@ -4,6 +4,9 @@ from typing import List
 from airflow import DAG
 from airflow.decorators import dag
 from airflow.operators.python import PythonOperator
+from airflow.models import TaskInstance
+from airflow.utils.state import DagRunState
+from airflow.utils.types import DagRunType
 
 import dlt
 from dlt.common import pendulum
@@ -199,6 +202,7 @@ def test_regular_run() -> None:
 def test_run_with_retry() -> None:
 
     retries = 2
+    now = pendulum.now()
 
     @dlt.resource
     def _fail_3():
@@ -223,9 +227,10 @@ def test_run_with_retry() -> None:
         tasks.add_run(pipeline_fail_3, _fail_3, trigger_rule="all_done", retries=0, provide_context=True)
 
     dag_def: DAG = dag_fail_3()
-    # will fail on extract
+    ti = get_task_run(dag_def, "pipeline_fail_3.pipeline_fail_3", now)
     with pytest.raises(PipelineStepFailed) as pip_ex:
-        dag_def.test()
+        # this is the way to get the exception from a task
+        ti._run_raw_task()
     assert pip_ex.value.step == "extract"
 
     @dag(
@@ -234,7 +239,7 @@ def test_run_with_retry() -> None:
         catchup=False,
         default_args=default_args
     )
-    def dag_fail_3():
+    def dag_fail_4():
         # by default we do not retry extract so we fail
         tasks = PipelineTasksGroup("pipeline_fail_3", retry_policy=DEFAULT_RETRY_BACKOFF, local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False)
 
@@ -242,11 +247,12 @@ def test_run_with_retry() -> None:
             pipeline_name="pipeline_fail_3", dataset_name="mock_data_" + uniq_id(), destination="duckdb", credentials=":pipeline:")
         tasks.add_run(pipeline_fail_3, _fail_3, trigger_rule="all_done", retries=0, provide_context=True)
 
-    dag_def: DAG = dag_fail_3()
+    dag_def: DAG = dag_fail_4()
+    ti = get_task_run(dag_def, "pipeline_fail_3.pipeline_fail_3", now)
     # will fail on extract
     with pytest.raises(PipelineStepFailed) as pip_ex:
         retries = 2
-        dag_def.test()
+        ti._run_raw_task()
     assert pip_ex.value.step == "extract"
 
     @dag(
@@ -255,7 +261,7 @@ def test_run_with_retry() -> None:
         catchup=False,
         default_args=default_args
     )
-    def dag_fail_3():
+    def dag_fail_5():
         # this will retry
         tasks = PipelineTasksGroup("pipeline_fail_3", retry_policy=DEFAULT_RETRY_BACKOFF, retry_pipeline_steps=("load", "extract"), local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False)
 
@@ -263,9 +269,10 @@ def test_run_with_retry() -> None:
             pipeline_name="pipeline_fail_3", dataset_name="mock_data_" + uniq_id(), destination="duckdb", credentials=":pipeline:")
         tasks.add_run(pipeline_fail_3, _fail_3, trigger_rule="all_done", retries=0, provide_context=True)
 
-    dag_def: DAG = dag_fail_3()
+    dag_def: DAG = dag_fail_5()
+    ti = get_task_run(dag_def, "pipeline_fail_3.pipeline_fail_3", now)
     retries = 2
-    dag_def.test()
+    ti._run_raw_task()
     assert retries == 0
 
 
@@ -420,3 +427,15 @@ def test_run_multiple_sources() -> None:
     assert pipeline_dag_serial.state["sources"] == pipeline_dag_mixed.state["sources"]
 
     # TODO: here we create two pipelines in two separate task groups
+
+
+def get_task_run(dag_def: DAG, task_name: str, now: pendulum.DateTime) -> TaskInstance:
+    dag_def.create_dagrun(
+        state=DagRunState.RUNNING,
+        execution_date=now,
+        run_type=DagRunType.MANUAL,
+        data_interval=(now, now)
+    )
+    dag_def.run(start_date=now, run_at_least_once=True)
+    task_def = dag_def.task_dict[task_name]
+    return TaskInstance(task=task_def, execution_date=now)

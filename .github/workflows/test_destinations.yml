@@ -63,12 +63,6 @@ jobs:
           virtualenvs-in-project: true
           installer-parallel: true
 
-      # - name: Get pip cache dir
-      #   id: pip-cache
-      #   run: |
-      #     echo "::set-output name=dir::$(poetry env info -p)"
-      #     echo "$(poetry env info -p)"
-
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v3
@@ -79,7 +73,7 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E redshift -E gs -E s3 -E pyarrow -E duckdb
+        run: poetry install --no-interaction -E redshift -E gs -E s3 -E pyarrow -E duckdb -E cli
 
       # - name: Install self
       #   run: poetry install --no-interaction

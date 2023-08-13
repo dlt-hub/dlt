@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.3.9"
+version = "0.3.10"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -29,7 +29,6 @@ simplejson = ">=3.17.5"
 PyYAML = ">=5.4.1"
 json-logging = "1.4.1rc0"
 semver = ">=2.13.0"
-sentry-sdk = ">=1.4.3"
 hexbytes = ">=0.2.2"
 tzdata = ">=2022.1"
 tomlkit = ">=0.11.3"
@@ -42,42 +41,67 @@ requirements-parser = ">=0.5.0"
 setuptools = ">=65.6.0"
 humanize = ">=4.4.0"
 astunparse = ">=1.6.3"
-cron-descriptor = ">=1.2.32"
-pipdeptree = ">=2.9.3"
 gitpython = ">=3.1.29"
 pytz = ">=2022.6"
 giturlparse = ">=0.10.0"
-orjson = {version = "^3.8.6", markers="platform_python_implementation != 'PyPy'"}
-tenacity = "^8.2.2"
-jsonpath-ng = "^1.5.3"
-deprecated = "^1.2.13"
+orjson = {version = ">=3.6.7", markers="platform_python_implementation != 'PyPy'"}
+tenacity = ">=8.0.2"
+jsonpath-ng = ">=1.5.3"
+deprecated = ">=1.2.9"
+fsspec = ">=2022.4.0"
+packaging = ">=21.1"
 
 psycopg2-binary = {version = ">=2.9.1", optional = true}
 # use this dependency as the current version of psycopg2cffi does not have sql module
 # psycopg2cffi = {git = "https://github.com/chtd/psycopg2cffi.git", optional = true, markers="platform_python_implementation == 'PyPy'"}
 psycopg2cffi = {version = ">=2.9.0", optional = true, markers="platform_python_implementation == 'PyPy'"}
-
 grpcio = {version = ">=1.50.0", optional = true}
 google-cloud-bigquery = {version = ">=2.26.0", optional = true}
 pyarrow = {version = ">=8.0.0", optional = true}
-
 duckdb = {version = ">=0.6.1,<0.9.0", optional = true}
-
-dbt-core = {version = ">=1.5.0", optional = true}
-dbt-redshift = {version = ">=1.5.0", optional = true}
-dbt-bigquery = {version = ">=1.5.0", optional = true}
-dbt-duckdb = {version = ">=1.5.0", optional = true}
-dbt-snowflake = {version = ">=1.5.0", optional = true}
-s3fs = {version = "^2023.5.0", optional = true}
-gcsfs = {version = "^2023.5.0", optional = true}
-boto3 = {version = ">=1.26", optional = true}
-fsspec = "^2023.5.0"
-snowflake-connector-python = {version = "^3.0.4", optional = true, extras = ["pandas"]}
-packaging = "^23.1"
-
+dbt-core = {version = ">=1.2.0", optional = true}
+dbt-redshift = {version = ">=1.2.0", optional = true}
+dbt-bigquery = {version = ">=1.2.0", optional = true}
+dbt-duckdb = {version = ">=1.2.0", optional = true}
+dbt-snowflake = {version = ">=1.2.0", optional = true}
+s3fs = {version = ">=2022.4.0", optional = true}
+gcsfs = {version = ">=2022.4.0", optional = true}
+boto3 = {version = ">=1.25", optional = true}
+snowflake-connector-python = {version = ">=2.9.0", optional = true, extras = ["pandas"]}
+cron-descriptor = {version = ">=1.2.32", optional = true}
+pipdeptree = {version = ">=2.9.0,<2.10", optional = true}
 
 
-[tool.poetry.dev-dependencies]
+[tool.poetry.extras]
+dbt = ["dbt-core", "dbt-redshift", "dbt-bigquery", "dbt-duckdb", "dbt-snowflake"]
+gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
+# bigquery is alias on gcp extras
+bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "db-dtypes", "gcsfs"]
+postgres = ["psycopg2-binary", "psycopg2cffi"]
+redshift = ["psycopg2-binary", "psycopg2cffi"]
+pyarrow = ["pyarrow"]
+duckdb = ["duckdb"]
+filesystem = ["s3fs", "boto3"]
+s3 = ["s3fs", "boto3"]
+gs = ["gcsfs"]
+snowflake = ["snowflake-connector-python"]
+motherduck = ["duckdb", "pyarrow"]
+cli = ["pipdeptree", "cron-descriptor"]
+
+[tool.poetry.scripts]
+dlt = "dlt.cli._dlt:_main"
+
+[tool.poetry.group.dev.dependencies]
+requests-mock = "^1.10.0"
+types-click = "^7.1.8"
+pandas = "^1.5.3"
+sqlfluff = "^1.4.5"
+google-auth-oauthlib = "^1.0.0"
+types-deprecated = "^1.2.9.2"
+tqdm = "^4.65.0"
+enlighten = "^1.11.2"
+alive-progress = "^3.1.1"
+pytest-console-scripts = "^1.4.1"
 pytest = "^6.2.4"
 mypy = "1.2.0"
 flake8 = "^5.0.0"
@@ -98,36 +122,6 @@ flake8-encodings = "^0.5.0"
 flake8-builtins = "^1.5.3"
 types-SQLAlchemy = ">=1.4.53"
 
-[tool.poetry.extras]
-dbt = ["dbt-core", "dbt-redshift", "dbt-bigquery", "dbt-duckdb", "dbt-snowflake"]
-gcp = ["grpcio", "google-cloud-bigquery", "db-dtypes", "gcsfs"]
-# bigquery is alias on gcp extras
-bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "db-dtypes", "gcsfs"]
-postgres = ["psycopg2-binary", "psycopg2cffi"]
-redshift = ["psycopg2-binary", "psycopg2cffi"]
-pyarrow = ["pyarrow"]
-duckdb = ["duckdb"]
-filesystem = ["s3fs", "boto3"]
-s3 = ["s3fs", "boto3"]
-gs = ["gcsfs"]
-snowflake = ["snowflake-connector-python"]
-motherduck= ["duckdb", "pyarrow"]
-
-[tool.poetry.scripts]
-dlt = "dlt.cli._dlt:_main"
-
-[tool.poetry.group.dev.dependencies]
-requests-mock = "^1.10.0"
-types-click = "^7.1.8"
-pandas = "^1.5.3"
-sqlfluff = "^1.4.5"
-google-auth-oauthlib = "^1.0.0"
-types-deprecated = "^1.2.9.2"
-tqdm = "^4.65.0"
-enlighten = "^1.11.2"
-alive-progress = "^3.1.1"
-pytest-console-scripts = "^1.4.1"
-
 [tool.poetry.group.airflow]
 optional = true
 
@@ -139,6 +133,10 @@ optional = true
 
 [tool.poetry.group.providers.dependencies]
 google-api-python-client = "^2.86.0"
+
+
+[tool.poetry.group.sentry-sdk.dependencies]
+sentry-sdk = "^1.5.6"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]
