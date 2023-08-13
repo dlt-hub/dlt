@@ -21,6 +21,17 @@ def test_aws_credentials_resolved_from_default(environment: Dict[str, str]) -> N
     assert config.aws_session_token == 'fake_session_token'
     assert config.profile_name == 'default'
 
+    # use profile name other than default
+    import botocore
+
+    environment["CREDENTIALS__PROFILE_NAME"] = "fake_profile"
+    with pytest.raises(botocore.exceptions.ProfileNotFound):
+        resolve_configuration(AwsCredentials())
+
+    environment["CREDENTIALS__PROFILE_NAME"] = "default"
+    config = resolve_configuration(AwsCredentials())
+    assert config.profile_name == "default"
+
 
 @pytest.mark.skipif('s3' not in ALL_FILESYSTEM_DRIVERS, reason='s3 filesystem driver not configured')
 def test_aws_credentials_from_boto3(environment: Dict[str, str]) -> None:
