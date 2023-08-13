@@ -42,7 +42,9 @@ jobs:
         image: postgres
         # Provide the password for postgres
         env:
-          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: dlt_data
+          POSTGRES_USER: loader
+          POSTGRES_PASSWORD: loader
         ports:
           - 5432:5432
         # Set health checks to wait until postgres has started
@@ -81,4 +83,4 @@ jobs:
       - run: poetry run pytest tests/load tests/cli
         name: Run tests Linux
         env:
-          DESTINATION__POSTGRES__CREDENTIALS: postgresql://postgres:postgres@localhost:5432/postgres
+          DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
