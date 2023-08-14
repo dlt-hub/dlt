@@ -1,28 +1,33 @@
 # Notion
 
-:::info
-Need help deploying these sources, or figuring out how to run them in your data stack?
+:::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
-[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+[Join our Slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
+[Notion](https://www.notion.so/) is a flexible workspace tool for organizing personal and professional tasks, offering customizable notes, documents, databases, and more.
 
-Notion is a tool that allows users to organize and manage their personal and professional lives.
-It provides a flexible workspace where you can create and customize various types of digital content,
-such as notes, documents, databases, task lists, and more.
+This Notion `dlt` verified source and
+[pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/notion_pipeline.py)
+loads data using “Google Analytics API” to the destination of your choice.
 
-Using this Notion `dlt` verified source and pipeline example, you can load the ***databases*** from Notion to a [destination](../destinations/duckdb) of your choice.
-In Notion, [databases](https://www.notion.so/help/intro-to-databases) are a powerful feature that allows you to create structured collections of information.
-They are similar to spreadsheets or tables but with added flexibility and functionality.
+Sources that can be loaded using this verified source are:
 
-## Grab API credentials
+| Name             | Description                                                   |
+|------------------|---------------------------------------------------------------|
+| notion_databases | Retrieves data from Notion databases..                        |
+
+## Setup Guide
+
+### Grab credentials
 
 1. If you don't already have a Notion account, please create one.
 2. Access your Notion account and navigate to [My Integrations](https://www.notion.so/my-integrations).
 3. On the left-hand side, click on "New Integration" and provide a suitable name for the integration.
 4. Finally, click on "Submit" located at the bottom of the page.
 
-## Add a connection to the database
+### Add a connection to the database
 
 1. Open the database that you want to load to the destination.
 2. Click on the three dots located at the top right corner and choose "Add connections".
@@ -32,47 +37,35 @@ They are similar to spreadsheets or tables but with added flexibility and functi
 
 3. From the list of options, select the integration you previously created and click on "Confirm".
 
-## Initialize the verified source and pipeline example
+### Initialize the verified source
 
-To get started with your verified source and pipeline example follow these steps:
+To get started with your data pipeline, follow these steps:
 
-1. Open up your terminal or command prompt and navigate to the directory where you'd like to create your project.
-2. Enter the following command:
+1. Enter the following command:
 
-    ```bash
-    dlt init notion duckdb
-    ```
+   ```bash
+   dlt init notion duckdb
+   ```
 
-    This command will initialize your verified source with Notion and creates a pipeline with duckdb as the destination.
-    If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred destination.
-    You can find supported destinations and their configuration options in our [documentation](../destinations/duckdb)
+   [This command](../../reference/command-line-interface) will initialize
+   [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/notion_pipeline.py)
+   with Notion as the [source](../../general-usage/source) and
+   [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
 
-3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
+1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
+   preferred [destination](../destinations).
 
-    ```
-    notion_source
-    ├── .dlt
-    │   ├── config.toml
-    │   └── secrets.toml
-    ├── notion
-    │   ├── helpers
-    │   │  ├── __init__.py
-    │   │  ├── client.py
-    │   │  └── database.py
-    │   ├── __init__.py
-    │   ├── README.md
-    │   └── settings.py
-    ├── .gitignore
-    ├── requirements.txt
-    └── notion_pipeline.py
-    ```
+1. After running this command, a new directory will be created with the necessary files and
+   configuration settings to get started.
 
+For more information, read the
+[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
 
-## Add credentials
+### Add credentials
 
-1. Inside the `.dlt` folder, you'll find a file called “*secrets.toml*”, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe.
-
-Here's what the file looks like:
+1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
+   information securely, like access tokens. Keep this file safe. Here's its format for service
+   account authentication:
 
 ```toml
 # Put your secret values and credentials here
@@ -81,57 +74,79 @@ Here's what the file looks like:
 api_key = "set me up!" # Notion API token (e.g. secret_XXX...)
 ```
 
-2. Replace the value of `api_key` with the one that [you copied above](notion.md#grab-api-credentials). This will ensure that your data-verified source can access your notion resources securely.
-3. Next, follow the instructions in [Destinations](../destinations/duckdb) to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
+1. Replace the value of `api_key` with the one that [you copied above](notion.md#grab-credentials). This will ensure that your data-verified source can access your notion resources securely.
 
-## Run the pipeline example
+1. Next, follow the instructions in [Destinations](../destinations/duckdb) to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
 
-1. Install the necessary dependencies by running the following command:
+## Run the pipeline
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
+   running the command:
+   ```bash
+   pip install -r requirements.txt
+   ```
+1. You're now ready to run the pipeline! To get started, run the following command:
+   ```bash
+   python3 notion_pipeline.py
+   ```
+1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+   the following command:
+   ```bash
+   dlt pipeline <pipeline_name> show
+   ```
+   For example, the `pipeline_name` for the above pipeline example is
+   `notion`, you may also use any custom name instead.
 
-2. Now the pipeline can be run by using the command:
-
-    ```bash
-    python3 notion_pipeline.py
-    ```
-
-3. To make sure that everything is loaded as expected, use the command:
-
-    ```bash
-    dlt pipeline <pipeline_name> show
-    ```
-
-    For example, the pipeline_name for the above pipeline example is `notion`, you may also use any custom name instead.
+For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
 
 
-## Customizations
+## Sources and resources
 
-To load data to the destination using `dlt`, you have the option to write your own methods.
+`dlt` works on the principle of [sources](../../general-usage/source) and
+[resources](../../general-usage/resource).
 
-### Source and resource methods
+### Source `notion_databases`
 
-`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source)
-and [resources](https://dlthub.com/docs/general-usage/resource) that for this verified
-source are found in the `__init__.py` file within the *notion* directory.
-This verified source has one default method:
-
+This function loads notion databases from notion into the destination.
 ```python
 @dlt.source
 def notion_databases(
     database_ids: Optional[List[Dict[str, str]]] = None,
     api_key: str = dlt.secrets.value,
 ) -> Iterator[DltResource]:
-
 ```
 
-- **`database_ids`**: A list of dictionaries each containing a database id and a name.
-                      If `database_ids` is None, then the source retrieves data from all existed databases in your Notion account.
-- **`api_key`**: The Notion API secret key.
+`database_ids`: A list of dictionaries each containing a database id and a name.
 
-The above function yields data resources from the Notion databases.
-It is important to note that the data is loaded in “replace” mode where the existing data is completely replaced.
+`api_key`: The Notion API secret key.
 
-That’s it! Enjoy running your Notion DLT verified source!
+> If "database_ids" is None, the source fetches data from all integrated databases in your Notion account.
+
+> It is important to note that the data is loaded in “replace” mode where the existing data is completely replaced.
+
+### Create your own pipeline
+
+If you wish to create your own pipelines, you can leverage source and resource methods from this
+verified source.
+
+1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
+
+   ```python
+   pipeline = dlt.pipeline(
+      pipeline_name="notion",  # Use a custom name if desired
+      destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+      dataset_name="notion_database"  # Use a custom name if desired
+   )
+   ```
+
+   To read more about pipeline configuration, please refer to our
+   [documentation](../../general-usage/pipeline).
+
+1. To load all the integrated databases:
+  ```python
+  load_data = notion_databases()
+  load_info = pipeline.run(load_data)
+  print(load_info)
+  ```
+
+1. To load the
