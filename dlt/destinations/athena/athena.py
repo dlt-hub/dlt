@@ -199,7 +199,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
                 except KeyError:
                     raise DatabaseTransientException(OperationalError())
 
-        yield cursor
+        yield DBApiCursorImpl(cursor)  # type: ignore
 
     def has_dataset(self) -> bool:
         query = f"""SHOW DATABASES LIKE {self.fully_qualified_dataset_name()};"""

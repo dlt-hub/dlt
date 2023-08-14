@@ -1,5 +1,6 @@
 import posixpath
 from typing import Sequence, Tuple, List
+import os
 
 import pytest
 from dlt.common.utils import digest128
@@ -37,8 +38,16 @@ def test_filesystem_configuration() -> None:
 
 
 @pytest.mark.parametrize('write_disposition', ('replace', 'append', 'merge'))
-def test_successful_load(write_disposition: str, all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
+@pytest.mark.parametrize('layout', 
+                         ("{schema_name}/{table_name}/{load_id}.{file_id}.{ext}", # new default layout
+                          "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}", # classic layout
+                          "{table_name}88{load_id}-u-{file_id}.{ext}" # some strange layout
+                          ))
+def test_successful_load(write_disposition: str, layout: str, all_buckets_env: str, filesystem_client: FilesystemClient) -> None:
     """Test load is successful with an empty destination dataset"""
+
+    os.environ['DESTINATION__FILESYSTEM__LAYOUT'] = layout
+
     client = filesystem_client
     jobs, _, load_id = perform_load(client, NORMALIZED_FILES, write_disposition=write_disposition)
 
@@ -54,7 +63,7 @@ def test_successful_load(write_disposition: str, all_buckets_env: str, filesyste
         job_info = LoadStorage.parse_job_file_name(job.file_name())
         destination_path = posixpath.join(
             dataset_path,
-            f"{client.schema.name}/{job_info.table_name}/{load_id}.{job_info.file_id}.{job_info.file_format}"
+            layout.format(schema_name=client.schema.name, table_name=job_info.table_name, load_id=load_id, file_id=job_info.file_id, ext=job_info.file_format)
         )
 
         # File is created with correct filename and path

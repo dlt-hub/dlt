@@ -300,6 +300,8 @@ def test_commit_transaction(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_rollback_transaction(client: SqlJobClientBase) -> None:
+    if client.capabilities.supports_transactions is False:
+        pytest.skip("Destination does not support tx")
     table_name = prepare_temp_table(client)
     # test python exception
     with pytest.raises(RuntimeError):
@@ -338,6 +340,8 @@ def test_rollback_transaction(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_transaction_isolation(client: SqlJobClientBase) -> None:
+    if client.capabilities.supports_transactions is False:
+        pytest.skip("Destination does not support tx")
     table_name = prepare_temp_table(client)
     event = Event()
     event.clear()

@@ -14,7 +14,7 @@ from dlt.pipeline.exceptions import SqlClientNotAvailable
 if TYPE_CHECKING:
     from dlt.destinations.filesystem.filesystem import FilesystemClient
 
-from tests.load.utils import ALL_DESTINATIONS, AWS_BUCKET, GCS_BUCKET, FILE_BUCKET, ALL_BUCKETS
+from tests.load.utils import ALL_DESTINATIONS, AWS_BUCKET, GCS_BUCKET, FILE_BUCKET, ALL_BUCKETS, IMPLEMENTED_DESTINATIONS
 
 
 @dataclass
@@ -71,6 +71,10 @@ def destinations_configs(
         local_filesystem_configs: bool = False,
         all_buckets_filesystem_configs: bool = False,
         subset: List[str] = "") -> Iterator[DestinationTestConfiguration]:
+    
+    # sanity check
+    for item in subset:
+        assert item in IMPLEMENTED_DESTINATIONS, f"Destination {item} is not implemented"
 
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
@@ -78,8 +82,8 @@ def destinations_configs(
     # default non staging configs, one per destination
     if default_configs:
         destination_configs += [DestinationTestConfiguration(destination=destination) for destination in ALL_DESTINATIONS if destination != "athena"]
-        # athena needs filesystem staging, so add it separately
-        destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", supports_merge=False, bucket_url=AWS_BUCKET)]
+        # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
+        destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
 
 
     if default_staging_configs or all_staging_configs:

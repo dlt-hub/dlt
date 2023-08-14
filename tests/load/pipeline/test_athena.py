@@ -7,21 +7,12 @@ from tests.load.utils import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW_ALL_DATA_TYP
 from copy import copy, deepcopy
 from tests.pipeline.utils import assert_load_info
 
-from tests.utils import ALL_DESTINATIONS
+from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
-# TODO: probably these tests are not needed if all the other pipeline load tests work with athena
-if 'athena' not in ALL_DESTINATIONS:
-    pytest.skip("athena not configured", allow_module_level=True)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["athena"]), ids=lambda x: x.name)
+def test_athena_destinations(destination_config: DestinationTestConfiguration) -> None:
 
-def test_athena_destinations() -> None:
-
-    pipeline = dlt.pipeline(
-        pipeline_name='aathena_' + uniq_id(),
-        destination="athena",
-        staging="filesystem",
-        dataset_name='aathena_' + uniq_id(),
-        full_refresh=True)
-    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = AWS_BUCKET
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
 
     @dlt.resource(name="items", write_disposition="append")
     def items():
@@ -69,15 +60,11 @@ def test_athena_destinations() -> None:
     assert table_counts["_dlt_loads"] == 2
 
 
-# TODO: add athena to destinations in tests and this test will run at the right location
-def test_athena_datatypes() -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["athena"]), ids=lambda x: x.name)
+def test_athena_datatypes(destination_config: DestinationTestConfiguration) -> None:
 
-    pipeline = dlt.pipeline(
-        pipeline_name='aathena_' + uniq_id(),
-        destination="athena",
-        staging="filesystem",
-        dataset_name='aathena_' + uniq_id(),
-        full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = AWS_BUCKET
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)

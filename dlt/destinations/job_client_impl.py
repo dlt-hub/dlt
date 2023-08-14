@@ -232,9 +232,11 @@ class SqlJobClientBase(StagingJobClientBase):
             elif v == "YES":
                 return True
             raise ValueError(v)
+        
+        
 
         fields = ["column_name", "data_type", "is_nullable"]
-        if self.capabilities.supports_numeric_precision_in_schema:
+        if self.capabilities.schema_supports_numeric_precision:
             fields += ["numeric_precision", "numeric_scale"]
         db_params = self.sql_client.make_qualified_table_name(table_name, escape=False).split(".", 3)
         query = f"""
@@ -253,8 +255,8 @@ WHERE """
             return False, schema_table
         # TODO: pull more data to infer indexes, PK and uniques attributes/constraints
         for c in rows:
-            numeric_precision = c[3] if self.capabilities.supports_numeric_precision_in_schema else None
-            numeric_scale = c[4] if self.capabilities.supports_numeric_precision_in_schema else None
+            numeric_precision = c[3] if self.capabilities.schema_supports_numeric_precision else None
+            numeric_scale = c[4] if self.capabilities.schema_supports_numeric_precision else None
             schema_c: TColumnSchemaBase = {
                 "name": c[0],
                 "nullable": _null_to_bool(c[2]),

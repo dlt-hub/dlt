@@ -2,7 +2,7 @@ import posixpath
 import threading
 import os
 from types import TracebackType
-from typing import ClassVar, List, Sequence, Type, Iterable, cast
+from typing import ClassVar, List, Sequence, Type, Iterable, cast, Set
 from fsspec import AbstractFileSystem
 
 from dlt.common.schema import Schema, TTableSchema
@@ -95,24 +95,24 @@ class FilesystemClient(JobClientBase):
                 all_files += [posixpath.join(basedir, file) for file in files]
 
             for table in truncate_tables:
-                try:
-                    table_prefix = path_utils.get_table_prefix(self.config.layout, self.schema.name, table)
-                    search_prefix = posixpath.join(self.dataset_path, table_prefix)
-                    for item in all_files:
-                        # NOTE: glob implementation in fsspec does not look thread safe, way better is to use ls and then filter
-                        if item.startswith(search_prefix):
-                            # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
-                            self.fs_client.rm_file(item)
-                except CantExtractTablePrefix:
-                    # crazy deletions might happen if table files are not clearly separated, so do nothing
-                    # TODO: print a warning to console?
-                    pass
+                table_prefix = path_utils.get_table_prefix(self.config.layout, self.schema.name, table)
+                search_prefix = posixpath.join(self.dataset_path, table_prefix)
+                for item in all_files:
+                    # NOTE: glob implementation in fsspec does not look thread safe, way better is to use ls and then filter
+                    if item.startswith(search_prefix):
+                        # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
+                        self.fs_client.rm_file(item)
+
 
         # create destination dirs for all tables
+        dirs_to_create: Set[str] = set()
         for tschema in self.schema.tables.values():
             table_prefix = path_utils.get_table_prefix(self.config.layout, self.schema.name, tschema["name"])
             destination_dir = posixpath.join(self.dataset_path, table_prefix)
-            self.fs_client.makedirs(destination_dir, exist_ok=True)
+            dirs_to_create.add(os.path.dirname(destination_dir))
+
+        for dir in dirs_to_create:
+            self.fs_client.makedirs(dir, exist_ok=True)
 
     def is_storage_initialized(self) -> bool:
         return self.fs_client.isdir(self.dataset_path)  # type: ignore[no-any-return]

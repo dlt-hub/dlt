@@ -1,4 +1,5 @@
 from copy import copy
+import pytest
 import itertools
 import random
 from typing import List
@@ -280,7 +281,7 @@ def test_merge_with_dispatch_and_incremental(destination_config: DestinationTest
     # for athena we need to skip this test, as athena does not want a query string longer than 262144 (bytes?) and this is the
     # case here
     if destination_config.destination == "athena":
-        return
+        pytest.skip("athena does not support long queries")
 
     newest_issues = list(sorted(_get_shuffled_events(True), key = lambda x: x["created_at"], reverse=True))
     newest_issue = newest_issues[0]

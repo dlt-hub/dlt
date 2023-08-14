@@ -165,6 +165,7 @@ class Pipeline(SupportsPipeline):
     working_dir: str
     """A working directory of the pipeline"""
     destination: DestinationReference = None
+    staging: DestinationReference = None
     """The destination reference which is ModuleType. `destination.__name__` returns the name string"""
     dataset_name: str = None
     """Name of the dataset to which pipeline will be loaded to"""
@@ -221,9 +222,7 @@ class Pipeline(SupportsPipeline):
             self._state_to_props(state)
 
             # we overwrite the state with the values from init
-            if staging:
-                self._set_staging(staging)
-            self._set_destination(destination)  # changing the destination could be dangerous if pipeline has not loaded items
+            self._set_destinations(destination, staging)  # changing the destination could be dangerous if pipeline has not loaded items
 
             self._set_dataset_name(dataset_name)
             self.credentials = credentials
@@ -340,7 +339,7 @@ class Pipeline(SupportsPipeline):
     ) -> LoadInfo:
         """Loads the packages prepared by `normalize` method into the `dataset_name` at `destination`, using provided `credentials`"""
         # set destination and default dataset if provided
-        self._set_destination(destination)
+        self._set_destinations(destination, None)
         self._set_dataset_name(dataset_name)
         self.credentials = credentials or self.credentials
 
@@ -446,8 +445,7 @@ class Pipeline(SupportsPipeline):
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
         signals.raise_if_signalled()
-        self._set_staging(staging)
-        self._set_destination(destination)
+        self._set_destinations(destination, staging)
         self._set_dataset_name(dataset_name)
 
         # sync state with destination
@@ -486,9 +484,7 @@ class Pipeline(SupportsPipeline):
         Note: this method is executed by the `run` method before any operation on data. Use `restore_from_destination` configuration option to disable that behavior.
 
         """
-        if staging:
-            self._set_staging(staging)
-        self._set_destination(destination)
+        self._set_destinations(destination, staging)
         self._set_dataset_name(dataset_name)
 
         state = self._get_state()
@@ -922,20 +918,6 @@ class Pipeline(SupportsPipeline):
                 "Dependencies for specific destinations are available as extras of dlt"
             )
 
-    def ync(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
-        try:
-            # config is not provided then get it with injected credentials
-            if not initial_config:
-                initial_config = self._get_destination_client_initial_config(self.staging, as_staging=True)
-            return self.staging.client(schema, initial_config) # type: ignore
-        except ImportError:
-            client_spec = self.destination.spec()
-            raise MissingDependencyException(
-                f"{client_spec.destination_name} destination",
-                [f"{version.DLT_PKG_NAME}[{client_spec.destination_name}]"],
-                "Dependencies for specific destinations are available as extras of dlt"
-            )
-
     def _get_destination_capabilities(self) -> DestinationCapabilitiesContext:
         if not self.destination:
                 raise PipelineConfigMissing(
@@ -947,7 +929,7 @@ class Pipeline(SupportsPipeline):
         return self.destination.capabilities()
 
     def _get_staging_capabilities(self) -> DestinationCapabilitiesContext:
-        return self.staging.capabilities() if self.staging is not None else None # type: ignore
+        return self.staging.capabilities() if self.staging is not None else None
 
     def _validate_pipeline_name(self) -> None:
         try:
@@ -980,18 +962,23 @@ class Pipeline(SupportsPipeline):
             if DestinationCapabilitiesContext in self._container:
                 del self._container[DestinationCapabilitiesContext]
 
-    def _set_destination(self, destination: TDestinationReferenceArg) -> None:
+    def _set_destinations(self, destination: TDestinationReferenceArg, staging: TDestinationReferenceArg) -> None:
         destination_mod = DestinationReference.from_name(destination)
         self.destination = destination_mod or self.destination
+
+        if self.destination and not self.destination.capabilities().supported_loader_file_formats and not staging:
+            logger.warning(f"The destination {destination} requires the filesystem staging destination to be set, but it was not provided. Setting it to 'filesystem'.")
+            staging = "filesystem"
+
+        if staging:
+            staging_module = DestinationReference.from_name(staging)
+            if staging_module and not issubclass(staging_module.spec(), DestinationClientStagingConfiguration):
+                raise DestinationNoStagingMode(staging_module.__name__)
+            self.staging = staging_module or self.staging
+
         with self._maybe_destination_capabilities():
             # default normalizers must match the destination
             self._set_default_normalizers()
-
-    def _set_staging(self, staging: TDestinationReferenceArg) -> None:
-        staging_module = DestinationReference.from_name(staging)
-        if staging_module and not issubclass(staging_module.spec(), DestinationClientStagingConfiguration):
-            raise DestinationNoStagingMode(staging_module.__name__)
-        self.staging = staging_module or self.staging
 
     @contextmanager
     def _maybe_destination_capabilities(self, loader_file_format: TLoaderFileFormat = None) -> Iterator[DestinationCapabilitiesContext]:
@@ -1220,10 +1207,8 @@ class Pipeline(SupportsPipeline):
         for prop in Pipeline.LOCAL_STATE_PROPS:
             if prop in state["_local"] and not prop.startswith("_"):
                 setattr(self, prop, state["_local"][prop])  # type: ignore
-        if "staging" in state:
-            self._set_staging(DestinationReference.from_name(self.staging))
         if "destination" in state:
-            self._set_destination(DestinationReference.from_name(self.destination))
+            self._set_destinations(DestinationReference.from_name(self.destination), DestinationReference.from_name(self.staging) if "staging" in state else None )
 
     def _props_to_state(self, state: TPipelineState) -> None:
         """Write pipeline props to `state`"""
