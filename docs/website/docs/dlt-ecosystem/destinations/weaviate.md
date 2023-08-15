@@ -6,7 +6,7 @@ keywords: [weaviate, vector database, destination, dlt]
 
 # Weaviate
 
-Weaviate is an open-source vector database. It allows you to store data objects and perform similarity searches over them.
+Weaviate is an open source vector database. It allows you to store data objects and perform similarity searches over them.
 This destination helps you to load data into Weaviate from [dlt resources](../../general-usage/resource.md).
 
 ## Quickstart
@@ -30,7 +30,7 @@ X-OpenAI-Api-Key = "your-openai-api-key"
 
 In this setup guide, we are using the [Weaviate Cloud Services](https://console.weaviate.cloud/) to get a Weaviate instance and [OpenAI API](https://platform.openai.com/) for generating embeddings.
 
-3. Define the source of the data. For starters, let's use load some data from a simple datastructure:
+3. Define the source of the data. For starters, let's load some data from a simple data structure:
 
 ```python
 import dlt
@@ -83,14 +83,14 @@ The data is now loaded into Weaviate.
 
 ## weaviate_adapter
 
-The `weaviate_adapter` function is a helper function that configures the resource for the Weaviate destination:
+The `weaviate_adapter` is a helper function that configures the resource for the Weaviate destination:
 
 ```python
 weaviate_adapter(data, vectorize, tokenization)
 ```
 
 It accepts the following arguments:
-- `data`: a dlt resource object or a Python datastructure (e.g. a list of dictionaries).
+- `data`: a dlt resource object or a Python data structure (e.g. a list of dictionaries).
 - `vectorize`: a name of the field or a list of names that should be vectorized by Weaviate.
 - `tokenization`: the dictionary containing the tokenization configuration for a field. The dictionary should have the following structure `{'field_name': 'method'}`. Valid methods are "word", "lowercase", "whitespace", "field". The default is "word".
 
