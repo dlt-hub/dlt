@@ -19,7 +19,7 @@ pip install dlt[weaviate]
 
 2. Next, configure the destination in the dlt secrets file. The file is located at `~/.dlt/secrets.toml` by default. Add the following section to the secrets file:
 
-```toml title="~/.dlt/secrets.toml"
+```toml
 [destination.weaviate.credentials]
 url = "https://your-weaviate-url"
 api_key = "your-weaviate-api-key"
