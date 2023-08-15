@@ -1,6 +1,6 @@
 # Mux
 
-:::info
+:::info 
 Need help deploying these sources, or figuring out how to run them in your data stack?
 
 [Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
@@ -8,107 +8,107 @@ Need help deploying these sources, or figuring out how to run them in your data 
 
 
 [Mux.com](http://mux.com/) is a video technology platform that provides infrastructure and tools for developers to build and stream high-quality video content.
-It offers services such as video encoding, storage, delivery, and analytics, aiming to simplify the complexities of video streaming and enhance the viewing experience for end-users.
 
-Using this Mux `dlt` verified source and pipeline example, you can load metadata about the assets and every video view to be loaded to the destination of your choice.
+This Mux `dlt` verified source and
+[pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/mux_pipeline.py)
+loads data using “Mux API” to the destination of your choice.
 
-| Endpoint    | Description                                                                                         |
+
+| Name        | Description                                                                                         |
 |-------------|-----------------------------------------------------------------------------------------------------|
 | asset       | Refers to the video content that you want to upload, encode, store, and stream using their platform |
 | video view  | Represents a single instance of a video being watched or streamed                                   |
 
-## Grab API credentials
 
-1. Sign in to your [mux.com](http://mux.com/) account.
-2. Navigate to the bottom left corner of the page and click on "Settings". Then, choose "Access Token".
-3. Click on "Generate new token".
-4. Provide the required read permissions for Mux videos and Mux data. Additionally, give a meaningful name to the token.
-5. Click on "Generate token".
-6. Copy both the API access token and API secret key. You will need these for configuring the verified source later on.
+## Setup Guide
 
-## Initialize the Mux verified source and the pipeline example
+### Grab credentials
 
-To get started with this verified source, follow these steps:
+1. Sign in to mux.com.
 
-1. Open up your terminal or command prompt and navigate to the directory where you'd like to create your project.
-2. Enter the following command:
+1. Click "Settings" at the bottom left, then select "Access Token".
 
-    ```bash
-    dlt init mux duckdb
-    ```
+1. Select "Generate new token".
 
-    This command will initialize your verified source with Mux and create a pipeline example with duckdb as the destination.
-    If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred destination.
-    You can find supported destinations and their configuration options in our [documentation](../destinations/duckdb).
+1. Assign read permissions for Mux videos and data, and name the token.
 
-3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
+1. Click "Generate token".
 
-```
-mux_source
-├── .dlt
-│   ├── config.toml
-│   └── secrets.toml
-├── mux
-│   └── __init__.py
-│   └── settings.py
-├── .gitignore
-├── requirements.txt
-└── mux_pipeline.py
-```
+1. Copy the API access token and secret key for later configuration.
+
+### Initialize the verified source
+
+To get started with your data pipeline, follow these steps:
+
+1. Enter the following command:
+
+   ```bash
+   dlt init mux duckdb
+   ```
+
+   [This command](../../reference/command-line-interface) will initialize
+   [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/mux_pipeline.py)
+   with Mux as the [source](../../general-usage/source) and
+   [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
+
+1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
+   preferred [destination](../destinations).
+
+1. After running this command, a new directory will be created with the necessary files and
+   configuration settings to get started.
+
+For more information, read the
+[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
 
 
-## **Add credentials**
+### Add credentials
 
 1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe.
 
-Here's what the file looks like:
+    Here's what the file looks like:
 
-```toml
-# Put your secret values and credentials here. Do not share this file and do not push it to github
-[sources.mux]
-mux_api_access_token = "please set me up" # Mux API access token
-mux_api_secret_key = "please set me up!" # Mux API secret key
-```
+    ```toml
+    # Put your secret values and credentials here. Do not share this file and do not push it to github
+    [sources.mux]
+    mux_api_access_token = "please set me up" # Mux API access token
+    mux_api_secret_key = "please set me up!" # Mux API secret key
+    ```
 
-2. Replace the API access and secret key with the ones that you copied above.
+1. Replace the API access and secret key with the ones that you [copied above](#grab-credentials).
    This will ensure that this source can access your Mux resources securely.
-3. Finally, follow the instructions in [Destinations](../destinations/duckdb) to add credentials for your chosen destination.
-   This will ensure that your data is properly routed to its final destination.
 
-## Run the pipeline example
+1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
-1. Install the necessary dependencies by running the following command:
+## Run the pipeline
 
-    ```bash
-    pip install -r requirements.txt
-    ```
+1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
+   running the command:
+   ```bash
+   pip install -r requirements.txt
+   ```
+1. You're now ready to run the pipeline! To get started, run the following command:
+   ```bash
+   python3 mux_pipeline.py
+   ```
+1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+   the following command:
+   ```bash
+   dlt pipeline <pipeline_name> show
+   ```
+   For example, the `pipeline_name` for the above pipeline example is
+   `mux`, you may also use any custom name instead.
 
-2. Now the verified source can be run by using the command:
+For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
 
-    ```bash
-    python3 mux_pipeline.py
-    ```
+## Sources and resources
 
-3. To make sure that everything is loaded as expected, use the command:
-
-    ```bash
-    dlt pipeline <pipeline_name> show
-    ```
-
-    For example, the pipeline_name for the above pipeline example is `mux`, you may also use any custom name instead.
+`dlt` works on the principle of [sources](../../general-usage/source) and
+[resources](../../general-usage/resource).
 
 
-## Customizations
+### Source `mux_source`
 
-To load data to the destination using this verified source, you have the option to write your own methods.
-
-### **Source and resource methods**
-
-`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource)
-that for this verified source are found in the `__init__.py` file within the *mux* directory.
-This verified source has three default methods that form the basis of loading. The methods are:
-
-**Source** **mux_source:**
+This function yields resources "asset_resource" and "views_resource" to load video assets and views.
 
 ```python
 @dlt.source
@@ -117,10 +117,9 @@ def mux_source() -> Iterable[DltResource]:
     yield views_resource
 ```
 
-The `mux_source` function serves as a source function and yields instances of ”*DltResource*” objects, which represent video assets and video views to be loaded.
-It combines the results from `assets_resource` and `views_resource` and yields them as the data source.
+### Resource `assets_resource`
 
-**Resource assets_resource:**
+The assets_resource function fetches metadata about video assets from the Mux API's "assets" endpoint. 
 
 ```python
 @dlt.resource(write_disposition="merge")
@@ -131,11 +130,15 @@ def assets_resource(
 ) -> Iterable[TDataItem]:
 ```
 
-- The `assets_resource` function is a resource function that retrieves metadata about video assets.
-- It makes a request to the Mux API “*assets*” endpoint, using the provided ”*mux_api_access_token*” and ”*mux_api_secret_key*” for authentication.
-- It retrieves information about video assets from the Mux API's and yields the data for each asset.
+`mux_api_access_token`: Mux API token for authentication, defaults to ".dlt/secrets.toml".
 
-**Resource views_resource:**
+`mux_api_secret_key`: Mux API secret key for authentication, defaults to ".dlt/secrets.toml".
+
+`limit`: Sets the cap on the number of video assets fetched. "DEFAULT_LIMIT" set to 100.
+
+### Resource `views_resource`
+
+This function yields data about every video view from yesterday to be loaded.
 
 ```python
 @dlt.resource(write_disposition="append")
@@ -146,19 +149,14 @@ def views_resource(
 ) -> Iterable[DltResource]:
 ```
 
-The `views_resource` function is another resource function that retrieves metadata about video views from yesterday.
+The arguments `mux_api_access_token`, `mux_api_secret_key` and `limit` are the same as described [above](#resource-assets_resource) in "asset_resource".
 
-It makes a request to the Mux API's ”*video-views*” endpoint, using the provided  ”*mux_api_access_token” and “mux_api_secret_key”* for authentication.
+### Create your own pipeline
 
-It retrieves video views data for a specific timeframe (yesterday) and yields the data for each view as a “*DltResouce*” object.
+If you wish to create your own pipelines, you can leverage source and resource methods from this
+verified source.
 
-### **Create Your Data Loading Pipeline using Mux verified source**
-
-If you wish to create your own pipelines, you can leverage the above source and resource functions.
-
-To create your data pipeline, follow these steps:
-
-1. Configure the pipeline by specifying the pipeline name, destination, and dataset. To read more about pipeline configuration, please refer to our [documentation here.](https://dlthub.com/docs/general-usage/pipeline)
+1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
     ```python
     pipeline = dlt.pipeline(
@@ -168,20 +166,24 @@ To create your data pipeline, follow these steps:
     )
     ```
 
-2. Load the metadata to the destination using the source function as follows:
-
-    ```python
-    load_info = pipeline.run(mux_source())
-    print(load_info)
-    ```
-
-3. If you want to load data from a specific source; for example, “*assets”*, you can use the “*with_resources”* method as follows:
+1. To load metadata about every asset to be loaded:
 
     ```python
     load_info = pipeline.run(mux_source().with_resources("assets_resource")
     print(load_info)
     ```
 
-4. This pipeline is responsible for loading metadata related to video assets and views from the previous day into the destination.
+1. To load data for each video view from yesterday:
 
-That's it! Enjoy running your `dlt` Mux pipeline!
+    ```python
+    load_info = pipeline.run(mux_source().with_resources("views_resource")
+    print(load_info)
+    ```
+
+1. To load both metadata about assets and video views from yesterday:
+
+    ```python
+    load_info = pipeline.run(mux_source())
+    print(load_info)
+    ```
+
