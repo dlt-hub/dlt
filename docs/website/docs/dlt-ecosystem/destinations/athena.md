@@ -59,10 +59,37 @@ workgroup="my_workgroup"
 ```
 
 ## Write disposition
-`filesystem` destination handles the write dispositions as follows:
+
+`athena` destination handles the write dispositions as follows:
 - `append` - files belonging to such tables are added to dataset folder
 - `replace` - all files that belong to such tables are deleted from dataset folder and then current set of files is added.
-- `merge` - fallbacks to `append`
+- `merge` - falls back to `append`
+
+## Data loading
+
+Data loading happens by storing parquet files in an s3 bucket and defining a schema on athena. If you query data via sql queries on athena, the returned data is read by
+scanning your bucket and reading all relevant parquet files in there.
+
+## Staging support
+
+Using a staging destination is mandatory when using the athena destination. If you do not set staging to `filesystem`, dlt will automatically do this for you. 
+
+If you decide to change the [filename layout](./filesystem#data-loading) from the default value, keep the following in mind so that athena can reliable build your tables:
+ - You need to provide the `{table_name}` placeholder and this placeholder needs to be followed by a forward slash
+ - You need to provide the `{ile_id}` placeholder and it needs to be somewhere after the `{table_name}` placeholder.
+  - You can not provide any other than the optional `{schema_name}` placeholder before the `{table_name}` placeholder.
+
+
+
+## Additional destination options
+
+### dbt support
+
+Athena is not supported by dbt at this point.
+
+### Syncing of `dlt` state
+
+- This destination fully supports [dlt state sync.](../../general-usage/state#syncing-state-with-destination). The state is saved in athena iceberg tables in your s3 bucket.
 
 
 ## Supported file formats

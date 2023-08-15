@@ -183,7 +183,7 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     info = p.run(github_data)
     assert_load_info(info)
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
-    # only ten rows remains. merge fallbacks to replace when no keys are specified
+    # only ten rows remains. merge falls back to replace when no keys are specified
     assert github_1_counts["issues"] == 10 if destination_config.supports_merge else 100 - 45
 
 

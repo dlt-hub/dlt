@@ -6,7 +6,7 @@ import re
 
 from dlt.destinations.exceptions import InvalidFilesystemLayout, CantExtractTablePrefix
 
-# TODO: ensure lauyout only has supported placeholders
+# TODO: ensure layout only has supported placeholders
 supported_placeholders = {
     "schema_name",
     "table_name",
