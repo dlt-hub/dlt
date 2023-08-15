@@ -232,8 +232,6 @@ class SqlJobClientBase(StagingJobClientBase):
             elif v == "YES":
                 return True
             raise ValueError(v)
-        
-        
 
         fields = ["column_name", "data_type", "is_nullable"]
         if self.capabilities.schema_supports_numeric_precision:

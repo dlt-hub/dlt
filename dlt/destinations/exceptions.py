@@ -103,9 +103,3 @@ class CantExtractTablePrefix(DestinationTerminalException):
         msg += "Please make sure you are using the table_name placeholder and no other placerholder than schema_name is used before it. "
         msg += "A valid layout can be: {schema_name}/{table_name}/{load_id}.{file_id}.{ext}"
         super().__init__(msg)
-
-
-
-
-
-        

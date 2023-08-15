@@ -122,7 +122,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         # for some reason dataset need to be esacped with " and not `
         return f"\"{self.dataset_name}\"" if escape else self.dataset_name
-    
+
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
         if escape:
             table_name = f"\"{table_name}\""
@@ -193,7 +193,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         cursor = self._conn.cursor(formatter=DLTAthenaFormatter())
         for query_line in query.split(";"):
             if query_line.strip():
-                try: 
+                try:
                     cursor.execute(query_line, db_args)
                 # catch key error only here, this will show up if we have a missing parameter
                 except KeyError:
@@ -283,7 +283,7 @@ class AthenaClient(SqlJobClientBase):
         if not job:
             job = DoNothingJob(file_path)
         return job
-    
+
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         return isinstance(ex, Error)

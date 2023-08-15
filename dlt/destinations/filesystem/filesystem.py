@@ -111,8 +111,8 @@ class FilesystemClient(JobClientBase):
             destination_dir = posixpath.join(self.dataset_path, table_prefix)
             dirs_to_create.add(os.path.dirname(destination_dir))
 
-        for dir in dirs_to_create:
-            self.fs_client.makedirs(dir, exist_ok=True)
+        for directory in dirs_to_create:
+            self.fs_client.makedirs(directory, exist_ok=True)
 
     def is_storage_initialized(self) -> bool:
         return self.fs_client.isdir(self.dataset_path)  # type: ignore[no-any-return]

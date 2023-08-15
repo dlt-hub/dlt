@@ -38,7 +38,7 @@ def test_filesystem_configuration() -> None:
 
 
 @pytest.mark.parametrize('write_disposition', ('replace', 'append', 'merge'))
-@pytest.mark.parametrize('layout', 
+@pytest.mark.parametrize('layout',
                          ("{schema_name}/{table_name}/{load_id}.{file_id}.{ext}", # new default layout
                           "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}", # classic layout
                           "{table_name}88{load_id}-u-{file_id}.{ext}" # some strange layout

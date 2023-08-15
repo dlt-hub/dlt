@@ -587,9 +587,6 @@ def test_default_schema_name_init_storage(destination_name: str) -> None:
 
 @pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
 def test_many_schemas_single_dataset(destination_name: str, file_storage: FileStorage) -> None:
-    # event schema with event table
-    if not client.capabilities.preferred_loader_file_format:
-        pytest.skip("preferred loader file format not set, destination will only work with staging")
 
     def _load_something(_client: SqlJobClientBase, expected_rows: int) -> None:
         # load something to event:user_table
@@ -609,6 +606,11 @@ def test_many_schemas_single_dataset(destination_name: str, file_storage: FileSt
         assert len(db_rows) == expected_rows
 
     with cm_yield_client_with_storage(destination_name, default_config_values={"default_schema_name": None}) as client:
+
+        # event schema with event table
+        if not client.capabilities.preferred_loader_file_format:
+            pytest.skip("preferred loader file format not set, destination will only work with staging")
+
         user_table = load_table("event_user")["event_user"]
         client.schema.update_schema(new_table("event_user", columns=user_table.values()))
         client.schema.bump_version()

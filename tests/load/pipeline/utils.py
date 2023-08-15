@@ -71,7 +71,7 @@ def destinations_configs(
         local_filesystem_configs: bool = False,
         all_buckets_filesystem_configs: bool = False,
         subset: List[str] = "") -> Iterator[DestinationTestConfiguration]:
-    
+
     # sanity check
     for item in subset:
         assert item in IMPLEMENTED_DESTINATIONS, f"Destination {item} is not implemented"

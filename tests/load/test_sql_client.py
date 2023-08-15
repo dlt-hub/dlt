@@ -195,7 +195,6 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         chunk_size = 2048
         total_records = 3000
 
-    uniq_suffix = uniq_id()
     client.update_storage_schema()
     table_name = prepare_temp_table(client)
     insert_query = ",".join([f"({idx})" for idx in range(0, total_records)])
