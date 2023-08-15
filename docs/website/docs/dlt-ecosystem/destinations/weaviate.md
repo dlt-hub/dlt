@@ -92,7 +92,17 @@ weaviate_adapter(data, vectorize, tokenization)
 It accepts the following arguments:
 - `data`: a dlt resource object or a Python data structure (e.g. a list of dictionaries).
 - `vectorize`: a name of the field or a list of names that should be vectorized by Weaviate.
-- `tokenization`: the dictionary containing the tokenization configuration for a field. The dictionary should have the following structure `{'field_name': 'method'}`. Valid methods are "word", "lowercase", "whitespace", "field". The default is "word".
+- `tokenization`: the dictionary containing the tokenization configuration for a field. The dictionary should have the following structure `{'field_name': 'method'}`. Valid methods are "word", "lowercase", "whitespace", "field". The default is "word". See [Property tokenization](https://weaviate.io/developers/weaviate/config-refs/schema#property-tokenization) in Weaviate documentation for more details.
+
+Example:
+
+```python
+weaviate_adapter(
+    resource,
+    vectorize=["title", "description"],
+    tokenization={"title": "word", "description": "whitespace"},
+)
+```
 
 A more comprehensive pipeline would load data from some API or use one of dlt's [verified sources](../verified-sources/).
 
