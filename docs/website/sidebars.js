@@ -111,6 +111,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/redshift',
             'dlt-ecosystem/destinations/snowflake',
             'dlt-ecosystem/destinations/motherduck',
+            'dlt-ecosystem/destinations/weaviate',
           ]
         },
         'dlt-ecosystem/staging',
