@@ -2,6 +2,7 @@ import pytest
 
 import dlt
 from dlt.common import json
+from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TTableSchema
 
 from dlt.destinations.weaviate.weaviate_adapter import weaviate_adapter, VECTORIZE_HINT, TOKENIZATION_HINT
@@ -33,7 +34,7 @@ def test_pipeline_append() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
         destination="weaviate",
-        dataset_name="TestPipelineAppendDataset",
+        dataset_name="TestPipelineAppendDataset" + uniq_id(),
     )
     info = pipeline.run(
         some_data(),
@@ -72,7 +73,7 @@ def test_explicit_append() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
         destination="weaviate",
-        dataset_name="TestPipelineAppendDataset",
+        dataset_name="TestPipelineAppendDataset" + uniq_id(),
     )
     info = pipeline.run(
         some_data(),
@@ -103,10 +104,12 @@ def test_pipeline_replace() -> None:
         vectorize=["content"],
     )
 
+    uid = uniq_id()
+
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_replace",
         destination="weaviate",
-        dataset_name="test_pipeline_replace_dataset",  # normalized internally
+        dataset_name="test_pipeline_replace_dataset" + uid,  # normalized internally
     )
 
     info = pipeline.run(
@@ -114,7 +117,7 @@ def test_pipeline_replace() -> None:
         write_disposition="replace",
     )
     assert_load_info(info)
-    assert info.dataset_name == "TestPipelineReplaceDataset"  # normalized internally
+    assert info.dataset_name == "TestPipelineReplaceDataset" + uid  # normalized internally
 
     data = next(generator_instance2)
     assert_class(info.pipeline, "SomeData", items=data)
@@ -167,7 +170,7 @@ def test_pipeline_merge() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="movies",
         destination="weaviate",
-        dataset_name="MoviesDataset",
+        dataset_name="MoviesDataset" + uniq_id(),
     )
     info = pipeline.run(
         movies_data(),
@@ -208,7 +211,7 @@ def test_pipeline_with_schema_evolution():
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
         destination="weaviate",
-        dataset_name="TestSchemaEvolutionDataset",
+        dataset_name="TestSchemaEvolutionDataset" + uniq_id(),
     )
     info = pipeline.run(
         some_data(),
