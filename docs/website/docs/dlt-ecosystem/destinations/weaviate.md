@@ -9,7 +9,7 @@ keywords: [weaviate, vector database, destination, dlt]
 Weaviate is an open source vector database. It allows you to store data objects and perform similarity searches over them.
 This destination helps you to load data into Weaviate from [dlt resources](../../general-usage/resource.md).
 
-## Quickstart
+## Setup Guide
 
 1. To use Weaviate as a destination, make sure the dlt is installed with 'weaviate' extra:
 
@@ -19,7 +19,7 @@ pip install dlt[weaviate]
 
 2. Next, configure the destination in the dlt secrets file. The file is located at `~/.dlt/secrets.toml` by default. Add the following section to the secrets file:
 
-```toml
+```toml title="~/.dlt/secrets.toml"
 [destination.weaviate.credentials]
 url = "https://your-weaviate-url"
 api_key = "your-weaviate-api-key"
@@ -104,16 +104,62 @@ weaviate_adapter(
 )
 ```
 
+:::tip
+
 A more comprehensive pipeline would load data from some API or use one of dlt's [verified sources](../verified-sources/).
+
+:::
 
 ## Write dispotition
 
-All write dispositions are supported.
+A [write disposition](../../general-usage/incremental-loading.md#choosing-a-write-disposition) defines how the data should be written to the destination. All write dispositions are supported by the Weaviate destination.
 
+### Replace
+
+The [`replace`](../../general-usage/full-loading.md) disposition replaces the data in the destination with the data from the resource. It deletes all the classes and objects and recreates the schema before loading the data.
+
+In the movie example from the setup guide, we can use the `replace` disposition to reload the data every time we run the pipeline:
+
+```python
+info = pipeline.run(
+    weaviate_adapter(
+        movies,
+        vectorize="title",
+    ),
+    write_disposition="replace",
+)
+```
+
+### Merge
+
+The [`merge`](../../general-usage/incremental-loading.md) disposition merges the data from the resource with the data in the destination.
 For `merge` disposition you would need to specify a `primary_key` for the resource:
 
 ```python
-@dlt.resource(primary_key="id", write_disposition="merge")
-def my_resource():
-    ...
+info = pipeline.run(
+    weaviate_adapter(
+        movies,
+        vectorize="title",
+    ),
+    primary_key="document_id",
+    write_disposition="merge"
+)
 ```
+
+Internally dlt will use `primary_key` (`document_id` in the example above) to generate a unique identifier ([UUID](https://weaviate.io/developers/weaviate/manage-data/create#id)) for each object in Weaviate. If the object with the same UUID already exists in Weaviate, it will be updated with the new data. Otherwise, a new object will be created.
+
+### Append
+
+This is the default disposition. It will append the data to the existing data in the destination ignoring the `primary_key` field.
+
+## Data loading
+
+### Data types
+### Dataset name
+### Class and property names normalization
+
+## Additional destination options
+
+### dbt support
+
+### Syncing of `dlt` state
