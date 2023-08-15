@@ -145,7 +145,7 @@ def test_skip_sync_schema_for_tables_without_columns(destination_config: Destina
         for d in data:
             yield d
 
-    p = destination_config.setup_pipeline("test_skip_sync_schema_for_tables_without_columns", full_refresh=True)
+    p = destination_config.setup_pipeline("test_skip_sync_schema_for_tables", full_refresh=True)
     p.extract(_data)
     schema = p.default_schema
     assert "data_table" in schema.tables
@@ -233,7 +233,7 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
 
     import_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "import")
     export_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "export")
-    p = destination_config.setup_pipeline("my_pipeline", full_refresh=True, import_schema_path=import_schema_path, export_schema_path=export_schema_path)
+    p = destination_config.setup_pipeline("my_pipeline", import_schema_path=import_schema_path, export_schema_path=export_schema_path)
 
     p.extract(source(10).with_resources("simple_rows"))
     # print(p.default_schema.to_pretty_yaml())

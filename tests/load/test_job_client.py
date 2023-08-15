@@ -348,14 +348,14 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     assert exists is True
     # column order must match TABLE_UPDATE
     storage_columns = list(storage_table.values())
-    for c, s_c in zip(TABLE_UPDATE, storage_columns):
-        print(c["name"])
-        print(c["data_type"])
-        assert c["name"] == s_c["name"]
-        # if c["data_type"] == "complex":
-        #     assert s_c["data_type"] in ["text", "complex"]
-        # else:
-        assert c["data_type"] == s_c["data_type"]
+    for c, expected_c in zip(TABLE_UPDATE, storage_columns):
+        # print(c["name"])
+        # print(c["data_type"])
+        assert c["name"] == expected_c["name"]
+        # athena does not know wei data type and has no JSON type
+        if client.config.destination_name == "athena" and c["data_type"] in ("wei", "complex"):
+            continue
+        assert c["data_type"] == expected_c["data_type"]
 
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)

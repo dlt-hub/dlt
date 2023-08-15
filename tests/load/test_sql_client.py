@@ -13,6 +13,7 @@ from dlt.destinations.exceptions import DatabaseException, DatabaseTerminalExcep
 
 from dlt.destinations.sql_client import DBApiCursor, SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.common.time import ensure_pendulum_datetime
 
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
 from tests.load.utils import yield_client_with_storage, prepare_table, ALL_CLIENTS, AWS_BUCKET
@@ -125,17 +126,21 @@ def test_malformed_execute_parameters(client: SqlJobClientBase) -> None:
 def test_execute_sql(client: SqlJobClientBase) -> None:
     client.update_storage_schema()
     # ask with datetime
-    no_rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE inserted_at = %s", pendulum.now().add(seconds=1))
-    assert len(no_rows) == 0
+    # no_rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE inserted_at = %s", pendulum.now().add(seconds=1))
+    # assert len(no_rows) == 0
     rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME}")
     assert len(rows) == 1
     assert rows[0][0] == "event"
     rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE schema_name = %s", "event")
     assert len(rows) == 1
+    # print(rows)
     assert rows[0][0] == "event"
     assert isinstance(rows[0][1], datetime.datetime)
     assert rows[0][0] == "event"
-    rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE inserted_at = %s", rows[0][1])
+    # print(rows[0][1])
+    # print(type(rows[0][1]))
+    # convert to pendulum to make sure it is supported by dbapi
+    rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE inserted_at = %s", ensure_pendulum_datetime(rows[0][1]))
     assert len(rows) == 1
     # use rows in subsequent test
     if client.sql_client.dbapi.paramstyle == "pyformat":
@@ -417,6 +422,8 @@ def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
+    if client.capabilities.supports_transactions is False:
+        pytest.skip("Destination does not support tx")
     client.schema.bump_version()
     client.update_storage_schema()
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")

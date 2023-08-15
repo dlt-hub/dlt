@@ -24,6 +24,7 @@ from dlt.common.utils import uniq_id
 from dlt.load import Load
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision
 
 from tests.utils import ALL_DESTINATIONS, IMPLEMENTED_DESTINATIONS
 
@@ -157,7 +158,7 @@ TABLE_ROW_ALL_DATA_TYPES  = {
     "col1": 989127831,
     "col2": 898912.821982,
     "col3": True,
-    "col4": "2022-05-23T13:26:45+00:00",
+    "col4": "2022-05-23T13:26:45.176451+00:00",
     "col5": "string data \n \r \x8e 🦆",
     "col6": Decimal("2323.34"),
     "col7": b'binary data \n \r \x8e',
@@ -177,10 +178,20 @@ TABLE_ROW_ALL_DATA_TYPES  = {
 }
 
 
-def assert_all_data_types_row(db_row: List[Any], parse_complex_strings: bool = False, allow_base64_binary: bool = False) -> None:
-    print(db_row)
+def assert_all_data_types_row(
+    db_row: List[Any],
+    parse_complex_strings: bool = False,
+    allow_base64_binary: bool = False,
+    timestamp_precision:int = 6
+) -> None:
     # content must equal
-    db_row[3] = str(pendulum.instance(db_row[3]))  # serialize date
+    # print(db_row)
+    # prepare date to be compared: convert into pendulum instance, adjust microsecond precision
+    expected_rows = list(TABLE_ROW_ALL_DATA_TYPES.values())
+    parsed_date = pendulum.instance(db_row[3])
+    db_row[3] = reduce_pendulum_datetime_precision(parsed_date, timestamp_precision)
+    expected_rows[3] = reduce_pendulum_datetime_precision(ensure_pendulum_datetime(expected_rows[3]), timestamp_precision)
+
     if isinstance(db_row[6], str):
         try:
             db_row[6] = bytes.fromhex(db_row[6])  # redshift returns binary as hex string
@@ -200,9 +211,10 @@ def assert_all_data_types_row(db_row: List[Any], parse_complex_strings: bool = F
         db_row[8] = json.loads(db_row[8])
 
     db_row[9] = db_row[9].isoformat()
-
-    expected_rows = list(TABLE_ROW_ALL_DATA_TYPES.values())
-    print(expected_rows)
+    # print(db_row)
+    # print(expected_rows)
+    for expected, actual in zip(expected_rows, db_row):
+        assert expected == actual
     assert db_row == expected_rows
 
 

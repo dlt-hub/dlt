@@ -1,10 +1,12 @@
 import pytest
-import dlt, os
+from copy import deepcopy
+import datetime  # noqa: I251
+
+import dlt
+from dlt.common import pendulum
 from dlt.common.utils import uniq_id
-from tests.load.utils import AWS_BUCKET
 from tests.load.pipeline.utils import  load_table_counts
 from tests.load.utils import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_ROW_ALL_DATA_TYPES, assert_all_data_types_row
-from copy import copy, deepcopy
 from tests.pipeline.utils import assert_load_info
 
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
@@ -61,11 +63,8 @@ def test_athena_destinations(destination_config: DestinationTestConfiguration) -
 
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["athena"]), ids=lambda x: x.name)
-def test_athena_datatypes(destination_config: DestinationTestConfiguration) -> None:
-
+def test_athena_all_datatypes_and_timestamps(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
-
-    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = AWS_BUCKET
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
 
@@ -87,4 +86,35 @@ def test_athena_datatypes(destination_config: DestinationTestConfiguration) -> N
         assert len(db_rows) == 10
         db_row = list(db_rows[0])
         # content must equal
-        assert_all_data_types_row(db_row[:-2])
+        assert_all_data_types_row(db_row[:-2], parse_complex_strings=True, timestamp_precision=3)
+
+        # now let's query the data with timestamps and dates.
+        # https://docs.aws.amazon.com/athena/latest/ug/engine-versions-reference-0003.html#engine-versions-reference-0003-timestamp-changes
+
+        # use string representation TIMESTAMP(2)
+        db_rows = sql_client.execute_sql("SELECT * FROM data_types WHERE col4 = TIMESTAMP '2022-05-23 13:26:45.176'")
+        assert len(db_rows) == 10
+        # no rows - TIMESTAMP(6) not supported
+        db_rows = sql_client.execute_sql("SELECT * FROM data_types WHERE col4 = TIMESTAMP '2022-05-23 13:26:45.176145'")
+        assert len(db_rows) == 0
+        # use pendulum
+        # that will pass
+        db_rows = sql_client.execute_sql("SELECT * FROM data_types WHERE col4 = %s", pendulum.datetime(2022, 5, 23, 13, 26, 45, 176000))
+        assert len(db_rows) == 10
+        # that will return empty list
+        db_rows = sql_client.execute_sql("SELECT * FROM data_types WHERE col4 = %s", pendulum.datetime(2022, 5, 23, 13, 26, 45, 176145))
+        assert len(db_rows) == 0
+
+        # use datetime
+        db_rows = sql_client.execute_sql("SELECT * FROM data_types WHERE col4 = %s", datetime.datetime(2022, 5, 23, 13, 26, 45, 176000))
+        assert len(db_rows) == 10
+        db_rows = sql_client.execute_sql("SELECT * FROM data_types WHERE col4 = %s", datetime.datetime(2022, 5, 23, 13, 26, 45, 176145))
+        assert len(db_rows) == 0
+
+        # check date
+        db_rows = sql_client.execute_sql("SELECT * FROM data_types WHERE col10 = DATE '2023-02-27'")
+        assert len(db_rows) == 10
+        db_rows = sql_client.execute_sql("SELECT * FROM data_types WHERE col10 = %s", pendulum.date(2023, 2, 27))
+        assert len(db_rows) == 10
+        db_rows = sql_client.execute_sql("SELECT * FROM data_types WHERE col10 = %s", datetime.date(2023, 2, 27))
+        assert len(db_rows) == 10
