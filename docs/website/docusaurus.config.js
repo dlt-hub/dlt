@@ -29,6 +29,25 @@ const config = {
     locales: ['en'],
   },
 
+  plugins: [
+    [
+      'docusaurus-plugin-snipsync',
+      {
+        origins: [
+          {
+            files: ['../snippets/*.py'],
+          },
+        ],
+        targets: ['docs'],
+        features: {
+          enable_source_link: false,
+          enable_code_block: true,
+          allowed_target_extensions: [".md"]
+        },
+      },
+    ],
+  ],
+
   presets: [
     [
       '@docusaurus/preset-classic',

@@ -10,6 +10,14 @@ keywords: [introduction, who, what, how]
 
 ## What is `dlt`?
 
+<!--SNIPSTART hellodlt {"highlightedLines": "{2}"}-->
+```py {{2}}
+# some comment
+p = dlt.Pipeline(pipeline_name='chess_pipeline')
+p.sync_destination()
+```
+<!--SNIPEND-->
+
 `dlt` is an open-source library that enables you to create a data
 [pipeline](general-usage/glossary.md#pipeline) in a Python script. To use it, `pip install dlt` and
 then `import dlt`. Once set up, it will automatically load any
