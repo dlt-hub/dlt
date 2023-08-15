@@ -6,36 +6,38 @@
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
-[Notion](https://www.notion.so/) is a flexible workspace tool for organizing personal and professional tasks, offering customizable notes, documents, databases, and more.
+[Notion](https://www.notion.so/) is a flexible workspace tool for organizing personal and
+professional tasks, offering customizable notes, documents, databases, and more.
 
 This Notion `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/notion_pipeline.py)
-loads data using “Google Analytics API” to the destination of your choice.
+loads data using “Notion API” to the destination of your choice.
 
 Sources that can be loaded using this verified source are:
 
-| Name             | Description                                                   |
-|------------------|---------------------------------------------------------------|
-| notion_databases | Retrieves data from Notion databases..                        |
+| Name             | Description                           |
+|------------------|---------------------------------------|
+| notion_databases | Retrieves data from Notion databases. |
 
 ## Setup Guide
 
 ### Grab credentials
 
 1. If you don't already have a Notion account, please create one.
-2. Access your Notion account and navigate to [My Integrations](https://www.notion.so/my-integrations).
-3. On the left-hand side, click on "New Integration" and provide a suitable name for the integration.
-4. Finally, click on "Submit" located at the bottom of the page.
+1. Access your Notion account and navigate to
+   [My Integrations](https://www.notion.so/my-integrations).
+1. Click "New Integration" on the left and name it appropriately.
+1. Finally, click on "Submit" located at the bottom of the page.
 
 ### Add a connection to the database
 
 1. Open the database that you want to load to the destination.
-2. Click on the three dots located at the top right corner and choose "Add connections".
 
-    ![Notion Database](./docs_images/Notion_Database_2.jpeg)
+1. Click on the three dots located in the top right corner and choose "Add connections".
 
+   ![Notion Database](./docs_images/Notion_Database_2.jpeg)
 
-3. From the list of options, select the integration you previously created and click on "Confirm".
+1. From the list of options, select the integration you previously created and click on "Confirm".
 
 ### Initialize the verified source
 
@@ -49,8 +51,8 @@ To get started with your data pipeline, follow these steps:
 
    [This command](../../reference/command-line-interface) will initialize
    [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/notion_pipeline.py)
-   with Notion as the [source](../../general-usage/source) and
-   [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
+   with Notion as the [source](../../general-usage/source) and [duckdb](../destinations/duckdb.md)
+   as the [destination](../destinations).
 
 1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
    preferred [destination](../destinations).
@@ -67,16 +69,19 @@ For more information, read the
    information securely, like access tokens. Keep this file safe. Here's its format for service
    account authentication:
 
-```toml
-# Put your secret values and credentials here
-# Note: Do not share this file and do not push it to GitHub!
-[source.notion]
-api_key = "set me up!" # Notion API token (e.g. secret_XXX...)
-```
+   ```toml
+   # Put your secret values and credentials here
+   # Note: Do not share this file and do not push it to GitHub!
+   [source.notion]
+   api_key = "set me up!" # Notion API token (e.g. secret_XXX...)
+   ```
 
-1. Replace the value of `api_key` with the one that [you copied above](notion.md#grab-credentials). This will ensure that your data-verified source can access your notion resources securely.
+1. Replace the value of `api_key` with the one that [you copied above](notion.md#grab-credentials).
+   This will ensure that your data-verified source can access your notion resources securely.
 
-1. Next, follow the instructions in [Destinations](../destinations/duckdb) to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
+1. Next, follow the instructions in [Destinations](../destinations/duckdb) to add credentials for
+   your chosen destination. This will ensure that your data is properly routed to its final
+   destination.
 
 ## Run the pipeline
 
@@ -94,11 +99,10 @@ api_key = "set me up!" # Notion API token (e.g. secret_XXX...)
    ```bash
    dlt pipeline <pipeline_name> show
    ```
-   For example, the `pipeline_name` for the above pipeline example is
-   `notion`, you may also use any custom name instead.
+   For example, the `pipeline_name` for the above pipeline example is `notion`, you may also use any
+   custom name instead.
 
 For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
-
 
 ## Sources and resources
 
@@ -108,6 +112,7 @@ For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs
 ### Source `notion_databases`
 
 This function loads notion databases from notion into the destination.
+
 ```python
 @dlt.source
 def notion_databases(
@@ -120,9 +125,11 @@ def notion_databases(
 
 `api_key`: The Notion API secret key.
 
-> If "database_ids" is None, the source fetches data from all integrated databases in your Notion account.
+> If "database_ids" is None, the source fetches data from all integrated databases in your Notion
+> account.
 
-> It is important to note that the data is loaded in “replace” mode where the existing data is completely replaced.
+It is important to note that the data is loaded in “replace” mode where the existing data is
+completely replaced.
 
 ### Create your own pipeline
 
@@ -143,10 +150,32 @@ verified source.
    [documentation](../../general-usage/pipeline).
 
 1. To load all the integrated databases:
-  ```python
-  load_data = notion_databases()
-  load_info = pipeline.run(load_data)
-  print(load_info)
-  ```
 
-1. To load the
+   ```python
+   load_data = notion_databases()
+   load_info = pipeline.run(load_data)
+   print(load_info)
+   ```
+
+1. To load the custom databases:
+
+   ```python
+   selected_database_ids = [{"id": "0517dae9409845cba7d","use_name":"db_one"}, {"id": "d8ee2d159ac34cfc"}]
+   load_data = notion_databases(database_ids=selected_database_ids)
+   load_info = pipeline.run(load_data)
+   print(load_info)
+   ```
+
+   The Database ID can be retrieved from the URL. For example if the URL is:
+
+   ```shell
+   https://www.notion.so/d8ee2d159ac34cfc85827ba5a0a8ae71?v=c714dec3742440cc91a8c38914f83b6b
+   ```
+
+   > The database ID in the given Notion URL is: "d8ee2d159ac34cfc85827ba5a0a8ae71".
+
+The database ID in a Notion URL is the string right after notion.so/, before any question marks. It
+uniquely identifies a specific page or database.
+
+The database name ("use_name") is optional; if skipped, the pipeline will fetch it from Notion
+automatically.
