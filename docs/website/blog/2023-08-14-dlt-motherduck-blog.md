@@ -169,7 +169,6 @@ This is a perfect problem to test out my new super simple and highly customizabl
         In my example, after I load the data to MotherDuck, I can provide access to my team just by clicking on ‘Share’ in the menu of their web UI.
         
         ![motherduck-share](/img/dlt-motherduck-share.png)
-        
 
 **Conclusion:**
 
@@ -178,3 +177,7 @@ This was a fun and interesting exercise of creating a simple, yet powerful Moder
 1. Everything was happening on my laptop during the development giving me full control. Still going to production was seamless and I didn't need to change my code and data transformations at all.
 2. I really liked that I could come with my ideas on what data I need and just write the pipelines in Python using `dlt`. I was not forced to pick from a small pull of existing data extractors. Both, customizing code contributed by others and writing my bigquery source from scratch, were fun and not going beyond Python and data engineering knowledge that I had.
 3. I'm impressed by how simple and customizable my version of MDS is. `dlt`, DuckDB, and MotherDuck share similar philosophy of giving full power to the local user and and making it easy to interact with them in Python. 
+  
+I repeat this entire process for the BigQuery pipeline in this video: 
+  
+<iframe width="100%" height="500" src="https://www.loom.com/embed/2bf3a187edb54c3cae8f32b5430dd0cd?sid=0107062a-2f6b-4105-b5e0-f392ba8d4d00"></iframe>
