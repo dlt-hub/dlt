@@ -4,6 +4,7 @@ from typing import Dict, Any
 import dlt, os
 from dlt.common import json, sleep
 from copy import deepcopy
+from dlt.common.utils import uniq_id
 
 from tests.load.pipeline.test_merge_disposition import github
 from tests.load.pipeline.utils import  load_table_counts
@@ -30,7 +31,7 @@ def load_modified_issues():
 @pytest.mark.parametrize("destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name)
 def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
-    pipeline = destination_config.setup_pipeline(pipeline_name='test_stage_loading_5')
+    pipeline = destination_config.setup_pipeline(pipeline_name='test_stage_loading_5', dataset_name="test_staging_load" + uniq_id())
 
     info = pipeline.run(github(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
@@ -86,7 +87,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 @pytest.mark.parametrize("destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name)
 def test_all_data_types(destination_config: DestinationTestConfiguration) -> None:
 
-    pipeline = destination_config.setup_pipeline('test_stage_loading')
+    pipeline = destination_config.setup_pipeline('test_stage_loading', dataset_name="test_all_data_types" + uniq_id())
 
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)

@@ -31,7 +31,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
         return {**{"_dlt_version": 0}, **{t:0 for t in child_tables}, **counts}
 
     dataset_name = "test_replace_strategies_ds" + uniq_id()
-    pipeline = destination_config.setup_pipeline("test_replace_strategies", dataset_name=dataset_name, full_refresh=False)
+    pipeline = destination_config.setup_pipeline("test_replace_strategies", dataset_name=dataset_name)
 
     global offset
     offset = 1000
@@ -116,7 +116,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     # drop_active_pipeline_data()
 
     # create a pipeline with different name but loading to the same dataset as above - this is to provoke truncating non existing tables
-    pipeline_2 = destination_config.setup_pipeline("test_replace_strategies_2", dataset_name=dataset_name, full_refresh=False)
+    pipeline_2 = destination_config.setup_pipeline("test_replace_strategies_2", dataset_name=dataset_name)
     info = pipeline_2.run(load_items, table_name="items_copy", loader_file_format=destination_config.file_format)
     assert_load_info(info)
 
