@@ -1,34 +1,35 @@
-from typing import Optional, ClassVar, Iterator, Any, AnyStr, Sequence, Tuple, List, Dict, Callable, Iterable
+from typing import Optional, ClassVar, Iterator, Any, AnyStr, Sequence, Tuple, List, Dict, Callable, Iterable, Type
 from copy import deepcopy
 import re
 
 from contextlib import contextmanager
-from pendulum.datetime import DateTime
+from pendulum.datetime import DateTime, Date
+from datetime import datetime  # noqa: I251
 
 import pyathena
 from pyathena import connect
 from pyathena.connection import Connection
 from pyathena.error import OperationalError, DatabaseError, ProgrammingError, IntegrityError, Error
-from pyathena.formatter import DefaultParameterFormatter, _DEFAULT_FORMATTERS, Formatter
+from pyathena.formatter import DefaultParameterFormatter, _DEFAULT_FORMATTERS, Formatter, _format_date
 
-from dlt.destinations.typing import DBApi
-from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
+from dlt.common import logger
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import TTableSchema
-from dlt.destinations.athena import capabilities
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.destinations.sql_client import SqlClientBase, DBApiCursorImpl, raise_database_error, raise_open_connection_error
-from dlt.destinations.typing import DBApiCursor
 from dlt.common.destination.reference import LoadJob
 from dlt.common.destination.reference import TLoadJobState
 from dlt.common.storages import FileStorage
 from dlt.common.schema.typing import VERSION_TABLE_NAME
-from dlt.common.schema.utils import add_missing_hints
 
+
+from dlt.destinations.typing import DBApi, DBTransaction
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
+from dlt.destinations.athena import capabilities
+from dlt.destinations.sql_client import SqlClientBase, DBApiCursorImpl, raise_database_error, raise_open_connection_error
+from dlt.destinations.typing import DBApiCursor
 from dlt.destinations.job_client_impl import SqlJobClientBase, StorageSchemaInfo
 from dlt.destinations.athena.configuration import AthenaClientConfiguration
-from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations import path_utils
 
 SCT_TO_HIVET: Dict[TDataType, str] = {
@@ -55,19 +56,40 @@ HIVET_TO_SCT: Dict[str, TDataType] = {
     "decimal": "decimal"
 }
 
+
 # add a formatter for pendulum to be used by pyathen dbapi
 def _format_pendulum_datetime(formatter: Formatter, escaper: Callable[[str], str], val: Any) -> Any:
     # copied from https://github.com/laughingman7743/PyAthena/blob/f4b21a0b0f501f5c3504698e25081f491a541d4e/pyathena/formatter.py#L114
+    # https://docs.aws.amazon.com/athena/latest/ug/engine-versions-reference-0003.html#engine-versions-reference-0003-timestamp-changes
+    # ICEBERG tables have TIMESTAMP(6), other tables have TIMESTAMP(3), we always generate TIMESTAMP(6)
+    # it is up to the user to cut the microsecond part
     val_string = val.strftime("%Y-%m-%d %H:%M:%S.%f")
     return f"""TIMESTAMP '{val_string}'"""
 
+
 class DLTAthenaFormatter(DefaultParameterFormatter):
+
+    _INSTANCE: ClassVar["DLTAthenaFormatter"] = None
+
+    def __new__(cls: Type["DLTAthenaFormatter"]) -> "DLTAthenaFormatter":
+        if cls._INSTANCE:
+            return cls._INSTANCE
+        return super().__new__(cls)
+
+
     def __init__(self) -> None:
+        if DLTAthenaFormatter._INSTANCE:
+            return
         formatters = deepcopy(_DEFAULT_FORMATTERS)
         formatters[DateTime] = _format_pendulum_datetime
+        formatters[datetime] = _format_pendulum_datetime
+        formatters[Date] = _format_date
+
         super(DefaultParameterFormatter, self).__init__(
             mappings=formatters, default=None
         )
+        DLTAthenaFormatter._INSTANCE = self
+
 
 class DoNothingJob(LoadJob):
     """The most lazy class of dlt"""
@@ -134,8 +156,17 @@ class AthenaSQLClient(SqlClientBase[Connection]):
 
     @contextmanager
     @raise_database_error
-    def begin_transaction(self) -> Iterator[Any]:
+    def begin_transaction(self) -> Iterator[DBTransaction]:
+        logger.warning("Athena does not support transactions! Each SQL statement is auto-committed separately.")
         yield self
+
+    @raise_database_error
+    def commit_transaction(self) -> None:
+        pass
+
+    @raise_database_error
+    def rollback_transaction(self) -> None:
+        raise NotImplementedError("You cannot rollback Athena SQL statements.")
 
     @staticmethod
     def _make_database_exception(ex: Exception) -> Exception:
@@ -202,6 +233,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         query = f"""SHOW DATABASES LIKE {self.fully_qualified_dataset_name()};"""
         rows = self.execute_sql(query)
         return len(rows) > 0
+
 
 class AthenaClient(SqlJobClientBase):
 

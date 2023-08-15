@@ -1,5 +1,4 @@
-from typing import Final, Optional
-from dlt.common.typing import TSecretStrValue
+from typing import ClassVar, Final, List, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
@@ -12,3 +11,5 @@ class AthenaClientConfiguration(DestinationClientDwhConfiguration):
     query_result_bucket: str = None
     credentials: AwsCredentials = None
     workgroup: Optional[str] = None
+
+    __config_gen_annotations__: ClassVar[List[str]] = ["workgroup"]
