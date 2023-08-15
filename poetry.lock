@@ -477,7 +477,7 @@ python-versions = "*"
 
 [[package]]
 name = "astatine"
-version = "0.3.2"
+version = "0.3.3"
 description = "Some handy helper functions for Python's AST module."
 category = "dev"
 optional = false
@@ -3865,8 +3865,8 @@ filesystem = ["s3fs", "boto3"]
 gcp = ["grpcio", "google-cloud-bigquery", "gcsfs"]
 gs = ["gcsfs"]
 motherduck = ["duckdb", "pyarrow"]
+parquet = ["pyarrow"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
-pyarrow = ["pyarrow"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
 s3 = ["s3fs", "boto3"]
 snowflake = ["snowflake-connector-python"]
@@ -3874,7 +3874,7 @@ snowflake = ["snowflake-connector-python"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "63a5afa3a2ae7920730237ebe5dda4aca0660835f9772a0ee2d73a5c8175d998"
+content-hash = "2488cf69d467dd42acbc36d401ea0409fc19e4f473920531bbb12d5e9acb4532"
 
 [metadata.files]
 about-time = [
@@ -4047,8 +4047,8 @@ asn1crypto = [
     {file = "asn1crypto-1.5.1.tar.gz", hash = "sha256:13ae38502be632115abf8a24cbe5f4da52e3b5231990aff31123c805306ccb9c"},
 ]
 astatine = [
-    {file = "astatine-0.3.2-py3-none-any.whl", hash = "sha256:63ce5c4c94b7fb5e21abf4ab20c0f2ac1f10237ec935dcf0041188b60fb2bdd1"},
-    {file = "astatine-0.3.2.tar.gz", hash = "sha256:5511b1d8ad36284410c4bfa45353492ad19a4698f61f226aee90d446aa2e91ae"},
+    {file = "astatine-0.3.3-py3-none-any.whl", hash = "sha256:6d8c914f01fbea252cb8f31563f2e766a9ab03c02b9bcc37d18f7d9138828401"},
+    {file = "astatine-0.3.3.tar.gz", hash = "sha256:0c58a7844b5890ff16da07dbfeb187341d8324cb4378940f89d795cbebebce08"},
 ]
 asttokens = [
     {file = "asttokens-2.2.1-py2.py3-none-any.whl", hash = "sha256:6b0ac9e93fb0335014d382b8fa9b3afa7df546984258005da0b9e7095b3deb1c"},
