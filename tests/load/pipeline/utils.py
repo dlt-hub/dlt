@@ -11,6 +11,8 @@ from dlt.common.configuration.container import Container
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.typing import DictStrAny
 from dlt.pipeline.exceptions import SqlClientNotAvailable
+from dlt.common.schema.typing import LOADS_TABLE_NAME
+
 if TYPE_CHECKING:
     from dlt.destinations.filesystem.filesystem import FilesystemClient
 
@@ -292,6 +294,11 @@ def load_files(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, A
                 result[table_name] = result[table_name] + items
             else:
                 result[table_name] = items
+
+            # loads file is special case
+            if LOADS_TABLE_NAME in table_names and file.find(".{LOADS_TABLE_NAME}."):
+                result[LOADS_TABLE_NAME] = []
+
     return result
 
 
