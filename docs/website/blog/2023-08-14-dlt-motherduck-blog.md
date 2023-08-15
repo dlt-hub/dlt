@@ -121,7 +121,8 @@ This is a perfect problem to test out my new super simple and highly customizabl
     
     1. I first installed dbt along with the duckdb adapter using  `pip install dbt-duckdb` .
     2. I then created a dbt project inside the dlt project using `dbt init` and added any transforms as usual.
-    3. Finally, I added the `dlt`’s dbt runner to my python script, and this configured my pipeline to automatically transform the data after loading it.
+    3. Finally, I added the `dlt`’s dbt runner to my python script, and this configured my pipeline to automatically transform the data after loading it. See [the documentation](https://dlthub.com/docs/dlt-ecosystem/transformations/dbt#dbt-runner-in-dlt) for more information on the dbt runner.
+
 4. **Metabase for the dashboard**
     
     Metabase OSS has a DuckDB driver, which meant that I could simply point it to the DuckDB files in my system and build a dashboard on top of this data.
