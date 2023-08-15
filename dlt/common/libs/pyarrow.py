@@ -6,7 +6,7 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 try:
     import pyarrow
     import pyarrow.parquet
-except ImportError:
+except ModuleNotFoundError:
     raise MissingDependencyException("DLT parquet Helpers", ["parquet"], "DLT Helpers for for parquet.")
 
 

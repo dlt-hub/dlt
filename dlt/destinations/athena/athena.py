@@ -13,11 +13,9 @@ from pyathena.formatter import DefaultParameterFormatter, _DEFAULT_FORMATTERS, F
 
 from dlt.destinations.typing import DBApi
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
-from dlt.common import pendulum
-from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, Schema
-from dlt.common.schema.typing import TTableSchema, TColumnSchemaBase
+from dlt.common.schema.typing import TTableSchema
 from dlt.destinations.athena import capabilities
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.sql_client import SqlClientBase, DBApiCursorImpl, raise_database_error, raise_open_connection_error
@@ -141,7 +139,6 @@ class AthenaSQLClient(SqlClientBase[Connection]):
 
     @staticmethod
     def _make_database_exception(ex: Exception) -> Exception:
-        print(str(ex))
         if isinstance(ex, OperationalError):
             if "TABLE_NOT_FOUND" in str(ex):
                 return DatabaseUndefinedRelation(ex)

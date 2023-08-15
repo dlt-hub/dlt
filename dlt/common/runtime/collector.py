@@ -217,7 +217,7 @@ class TqdmCollector(Collector):
         try:
             global tqdm
             from tqdm import tqdm
-        except ImportError:
+        except ModuleNotFoundError:
             raise MissingDependencyException("TqdmCollector", ["tqdm"], "We need tqdm to display progress bars.")
         self.single_bar = single_bar
         self._bars: Dict[str, tqdm] = {}
@@ -262,7 +262,7 @@ class AliveCollector(Collector):
             global alive_bar
             from alive_progress import alive_bar
 
-        except ImportError:
+        except ModuleNotFoundError:
             raise MissingDependencyException("AliveCollector", ["alive-progress"], "We need alive-progress to display progress bars.")
         self.single_bar = single_bar
         self._bars: Dict[str, Any] = {}
@@ -314,7 +314,7 @@ class EnlightenCollector(Collector):
 
             import enlighten
             from enlighten import Counter as EnlCounter, StatusBar as EnlStatusBar, Manager as EnlManager
-        except ImportError:
+        except ModuleNotFoundError:
             raise MissingDependencyException("EnlightenCollector", ["enlighten"], "We need enlighten to display progress bars with a space for log messages.")
         self.single_bar = single_bar
         self.enlighten_kwargs = enlighten_kwargs

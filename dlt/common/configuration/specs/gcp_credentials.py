@@ -160,7 +160,7 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
     def _get_access_token(self) -> TSecretValue:
         try:
             from requests_oauthlib import OAuth2Session
-        except ImportError:
+        except ModuleNotFoundError:
             raise MissingDependencyException("GcpOAuthCredentials", ["requests_oauthlib"])
 
         google = OAuth2Session(client_id=self.client_id, scope=self.scopes)
@@ -174,7 +174,7 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
     def _get_refresh_token(self, redirect_url: str) -> Tuple[TSecretValue, TSecretValue]:
         try:
             from google_auth_oauthlib.flow import InstalledAppFlow
-        except ImportError:
+        except ModuleNotFoundError:
             raise MissingDependencyException("GcpOAuthCredentials", ["google-auth-oauthlib"])
         flow = InstalledAppFlow.from_client_config(self._installed_dict(redirect_url), self.scopes)
         credentials = flow.run_local_server(port=0)
@@ -184,7 +184,7 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials):
         """Returns google.oauth2.credentials.Credentials"""
         try:
             from google.oauth2.credentials import Credentials as GoogleOAuth2Credentials
-        except ImportError:
+        except ModuleNotFoundError:
             raise MissingDependencyException("GcpOAuthCredentials", ["google-auth-oauthlib"])
 
         credentials = GoogleOAuth2Credentials.from_authorized_user_info(info=dict(self))

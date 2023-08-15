@@ -8,7 +8,7 @@ from dlt.destinations.sql_client import SqlClientBase
 try:
     import pandas as pd
     from pandas.io.sql import _wrap_result
-except ImportError:
+except ModuleNotFoundError:
     raise MissingDependencyException("DLT Pandas Helpers", ["pandas"])
 
 

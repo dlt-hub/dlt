@@ -910,7 +910,7 @@ class Pipeline(SupportsPipeline):
                 if isinstance(client.config, DestinationClientDwhConfiguration) and isinstance(staging_client.config ,DestinationClientStagingConfiguration) and not client.config.staging_config:
                     client.config.staging_config = staging_client.config
             return client, staging_client
-        except ImportError:
+        except ModuleNotFoundError:
             client_spec = self.destination.spec()
             raise MissingDependencyException(
                 f"{client_spec.destination_name} destination",

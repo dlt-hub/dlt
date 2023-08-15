@@ -17,7 +17,7 @@ from dlt.pipeline.state_sync import load_state_from_destination
 try:
     import streamlit as st
     # from streamlit import SECRETS_FILE_LOC, secrets
-except ImportError:
+except ModuleNotFoundError:
     raise MissingDependencyException("DLT Streamlit Helpers", ["streamlit"], "DLT Helpers for Streamlit should be run within a streamlit app.")
 
 
@@ -276,7 +276,7 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
                             # try to import altair charts
                             try:
                                 import altair as alt
-                            except ImportError:
+                            except ModuleNotFoundError:
                                 raise MissingDependencyException(
                                     "DLT Streamlit Helpers",
                                     ["altair"],

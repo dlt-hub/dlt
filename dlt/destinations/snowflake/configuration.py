@@ -20,7 +20,7 @@ def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes
         from cryptography.hazmat.primitives.asymmetric import rsa
         from cryptography.hazmat.primitives.asymmetric import dsa
         from cryptography.hazmat.primitives import serialization
-    except ImportError as e:
+    except ModuleNotFoundError as e:
         raise MissingDependencyException("SnowflakeCredentials with private key", dependencies=[f"{version.DLT_PKG_NAME}[snowflake]"]) from e
 
     pkey = serialization.load_pem_private_key(
