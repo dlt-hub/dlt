@@ -3,10 +3,11 @@ import abc
 import os
 import yaml
 from yaml import Dumper
-import pipdeptree
 from itertools import chain
 from typing import List, Optional, Sequence, Tuple, Any, Dict
 from astunparse import unparse
+# optional dependencies
+import pipdeptree
 import cron_descriptor
 
 import dlt
@@ -34,25 +35,23 @@ from dlt.cli.exceptions import CliCommandException
 GITHUB_URL = "https://github.com/"
 
 
+def get_schedule_description(schedule: str) -> Optional[Any]:
+    try:
+        return None if schedule is None else cron_descriptor.get_description(schedule)
+    except Exception as ex:
+        raise ValueError(f"Error when parsing schedule '{schedule}': {str(ex)}")
+
+
 class BaseDeployment(abc.ABC):
     def __init__(
         self,
         pipeline_script_path: str,
         location: str,
-        schedule: Optional[str],
-        run_on_push: bool = False,
-        run_on_dispatch: bool = False,
         branch: Optional[str] = None,
-        secrets_format: Optional[str] = None,
-        **_kwargs: Any
     ):
         self.pipeline_script_path = pipeline_script_path
-        self.schedule = schedule
-        self.run_on_push = run_on_push
-        self.run_on_dispatch = run_on_dispatch
         self.repo_location = location
         self.branch = branch
-        self.secrets_format = secrets_format
 
         self.pipelines_dir: Optional[str] = None
         self.pipeline_name: Optional[str] = None
@@ -63,7 +62,6 @@ class BaseDeployment(abc.ABC):
         self.origin: str
         self.repo_pipeline_script_path: str
         self.pipeline_script: Any
-        self.schedule_description: Optional[str]
         self.template_storage: FileStorage
         self.working_directory: str
         self.state: TPipelineState
@@ -82,14 +80,9 @@ class BaseDeployment(abc.ABC):
         self.repo_pipeline_script_path = self.repo_storage.from_wd_to_relative_path(self.pipeline_script_path)
         # load a pipeline script and extract full_refresh and pipelines_dir args
         self.pipeline_script = self.repo_storage.load(self.repo_pipeline_script_path)
-        # validate schedule
-        self.schedule_description = self._get_schedule_description()
         fmt.echo("Looking up the deployment template scripts in %s...\n" % fmt.bold(self.repo_location))
         self.template_storage = git.get_fresh_repo_files(self.repo_location, get_dlt_repos_dir(), branch=self.branch)
         self.working_directory = os.path.split(self.pipeline_script_path)[0]
-
-    def _get_schedule_description(self) -> Optional[Any]:
-        return None if self.schedule is None else cron_descriptor.get_description(self.schedule)
 
     def _get_origin(self) -> str:
         try:
@@ -225,7 +218,7 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
                     fmt.warning(f"The value of `full_refresh` in call to `dlt.pipeline` cannot be determined from {unparse(f_r_node).strip()}. We assume that you know what you are doing :)")
                 if f_r_value is True:
                     if fmt.confirm("The value of 'full_refresh' is set to True. Do you want to abort to set it to False?", default=True):
-                        return pipelines
+                        raise CliCommandException("deploy", "Please set the full_refresh to False")
 
             p_d_node = call_args.arguments.get("pipelines_dir")
             if p_d_node:
@@ -281,21 +274,19 @@ def generate_pip_freeze(requirements_blacklist: List[str], requirements_file_nam
 
     # construct graph with all packages
     tree = pipdeptree.PackageDAG.from_pkgs(pkgs)
-    nodes = tree.keys()
     branch_keys = {r.key for r in chain.from_iterable(tree.values())}
     # all the top level packages
-    nodes = [p for p in nodes if p.key not in branch_keys]
+    nodes = [p for p in tree.keys() if p.key not in branch_keys]
 
     # compute excludes to compute includes as set difference
     excludes = set(req.strip() for req in requirements_blacklist if not req.strip().startswith("#"))
-    includes = [node.project_name for node in nodes if node.project_name not in excludes]
+    includes = set(node.project_name for node in nodes if node.project_name not in excludes)
 
     # prepare new filtered DAG
     tree = tree.sort()
     tree = tree.filter_nodes(includes, None)
-    nodes = tree.keys()
     branch_keys = {r.key for r in chain.from_iterable(tree.values())}
-    nodes = [p for p in nodes if p.key not in branch_keys]
+    nodes = [p for p in tree.keys() if p.key not in branch_keys]
 
     # detect and warn on conflict
     conflicts = pipdeptree.conflicting_deps(tree)

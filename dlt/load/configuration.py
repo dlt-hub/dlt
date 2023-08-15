@@ -5,7 +5,7 @@ from dlt.common.storages import LoadStorageConfiguration
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 
 
-@configspec(init=True)
+@configspec
 class LoaderConfiguration(PoolRunnerConfiguration):
     workers: int = 20
     """how many parallel loads can be executed"""

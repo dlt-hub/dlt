@@ -176,20 +176,22 @@ class Load(Runnable[ThreadPool]):
         jobs_info: List[ParsedLoadJobFileName] = []
         new_job_files = self.load_storage.list_new_jobs(load_id)
         for job_file in new_job_files:
-            if not dispositions or self.get_load_table(schema, job_file)["write_disposition"] in dispositions:
+            if dispositions is None or self.get_load_table(schema, job_file)["write_disposition"] in dispositions:
                 jobs_info.append(LoadStorage.parse_job_file_name(job_file))
         return jobs_info
 
+    def get_completed_table_chain(self, load_id: str, schema: Schema, top_merged_table: TTableSchema, being_completed_job_id: str = None) -> List[TTableSchema]:
+        """Gets a table chain starting from the `top_merged_table` containing only tables with completed/failed jobs. None is returned if there's any job that is not completed
 
-    def get_completed_table_chain(self, load_id: str, schema: Schema, top_merged_table: TTableSchema, starting_job_id: str) -> List[TTableSchema]:
-        """Gets a table chain starting from the `top_merged_table` containing only tables with completed/failed jobs. None is returned if there's any job that is not completed"""
+           Optionally `being_completed_job_id` can be passed that is considered to be completed before job itself moves in storage
+        """
         # returns ordered list of tables from parent to child leaf tables
         table_chain: List[TTableSchema] = []
         # make sure all the jobs for the table chain is completed
         for table in get_child_tables(schema.tables, top_merged_table["name"]):
             table_jobs = self.load_storage.list_jobs_for_table(load_id, table["name"])
             # all jobs must be completed in order for merge to be created
-            if any(job.state not in ("failed_jobs", "completed_jobs") and job.job_file_info.job_id() != starting_job_id for job in table_jobs):
+            if any(job.state not in ("failed_jobs", "completed_jobs") and job.job_file_info.job_id() != being_completed_job_id for job in table_jobs):
                 return None
             # if there are no jobs for the table, skip it, unless the write disposition is replace, as we need to create and clear the child tables
             if not table_jobs and top_merged_table["write_disposition"] != "replace":

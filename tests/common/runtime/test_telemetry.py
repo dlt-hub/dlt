@@ -5,7 +5,6 @@ import logging
 from unittest.mock import patch
 
 from dlt.common import logger
-from dlt.common.runtime.sentry import _get_sentry_log_level
 from dlt.common.runtime.segment import get_anonymous_id, track, disable_segment
 from dlt.common.typing import DictStrAny, StrStr
 from dlt.common.configuration import configspec
@@ -24,12 +23,13 @@ class SentryLoggerConfiguration(RunConfiguration):
     dlthub_telemetry_segment_write_key: str = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB"
 
 
-@configspec(init=True)
+@configspec
 class SentryLoggerCriticalConfiguration(SentryLoggerConfiguration):
     log_level: str = "CRITICAL"
 
 
 def test_sentry_log_level() -> None:
+    from dlt.common.runtime.sentry import _get_sentry_log_level
     sll = _get_sentry_log_level(SentryLoggerCriticalConfiguration(log_level="CRITICAL"))
     assert sll._handler.level == logging._nameToLevel["CRITICAL"]
     sll = _get_sentry_log_level(SentryLoggerCriticalConfiguration(log_level="ERROR"))

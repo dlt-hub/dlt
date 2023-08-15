@@ -83,7 +83,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         )
 
 
-@configspec(init=True)
+@configspec
 class SnowflakeClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "snowflake"  # type: ignore[misc]
     credentials: SnowflakeCredentials

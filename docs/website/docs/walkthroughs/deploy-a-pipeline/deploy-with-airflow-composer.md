@@ -26,9 +26,12 @@ python3 {pipeline_name}_pipeline.py
 This should successfully load data from the source to the destination once and allows `dlt` to gather required information for the deployment.
 
 ## 3. Initialize deployment
+First you need to add additional dependencies that `deploy` command requires:
+```bash
+pip install "dlt[cli]"
+```
 
-In the same `dlt` project as your working pipeline, you can run a deployment command.
-
+then:
 ```bash
 dlt deploy {pipeline_name}_pipeline.py airflow-composer
 ```

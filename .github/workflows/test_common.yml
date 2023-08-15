@@ -23,6 +23,16 @@ jobs:
       fail-fast: false
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        python-version: ["3.11.x"]
+        # Test all python versions on ubuntu only
+        include:
+          - python-version: "3.8.x"
+            os: "ubuntu-latest"
+          - python-version: "3.9.x"
+            os: "ubuntu-latest"
+          - python-version: "3.10.x"
+            os: "ubuntu-latest"
+
     defaults:
       run:
         shell: bash
@@ -35,7 +45,7 @@ jobs:
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
-          python-version: "3.10.x"
+          python-version: ${{ matrix.python-version }}
 
       - name: Install Poetry
         # https://github.com/snok/install-poetry#running-on-windows
@@ -45,12 +55,6 @@ jobs:
           virtualenvs-in-project: true
           installer-parallel: true
 
-      # - name: Get pip cache dir
-      #   id: pip-cache
-      #   run: |
-      #     echo "::set-output name=dir::$(poetry env info -p)"
-      #     echo "$(poetry env info -p)"
-
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v3
@@ -59,28 +63,28 @@ jobs:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
-      - name: Install dependencies
-        run: poetry install --no-interaction  -E pyarrow
+      - name: Install dependencies + sentry
+        run: poetry install --no-interaction  -E pyarrow && pip install sentry-sdk
 
       - run: |
-          poetry run pytest tests/common tests/normalize tests/reflection tests/sources tests/cli/common
+          poetry run pytest tests/common tests/normalize tests/reflection tests/sources
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/common tests/normalize tests/reflection tests/sources tests/cli/common -m "not forked"
+          poetry run pytest tests/common tests/normalize tests/reflection tests/sources -m "not forked"
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd
 
       - name: Install extra dependencies
-        run: poetry install --no-interaction -E duckdb -E pyarrow
+        run: poetry install --no-interaction -E duckdb -E cli
 
       - run: |
-          poetry run pytest tests/extract tests/pipeline
+          poetry run pytest tests/extract tests/pipeline tests/cli/common
         if: runner.os != 'Windows'
         name: Run extra tests Linux/MAC
       - run: |
-          poetry run pytest tests/extract tests/pipeline -m "not forked"
+          poetry run pytest tests/extract tests/pipeline tests/cli/common
         if: runner.os == 'Windows'
         name: Run extra tests Windows
         shell: cmd

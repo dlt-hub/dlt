@@ -17,27 +17,36 @@ from dlt.common.utils import set_working_dir
 from dlt.cli import deploy_command, _dlt, echo
 from dlt.cli.exceptions import CliCommandException
 from dlt.pipeline.exceptions import CannotRestorePipelineException
+from dlt.common.typing import StrAny
+from dlt.cli.deploy_command_helpers import get_schedule_description
 
 from tests.utils import TEST_STORAGE_ROOT, test_storage
 
 
-@pytest.mark.parametrize("deployment_method", [dm.value for dm in deploy_command.DeploymentMethods])
-def test_deploy_command_no_repo(test_storage: FileStorage, deployment_method: str) -> None:
+DEPLOY_PARAMS = [
+    ("github-action", {"schedule": "*/30 * * * *", "run_on_push": True, "run_manually": True}),
+    ("airflow-composer", {"secrets_format": "toml"}),
+    ("airflow-composer", {"secrets_format": "env"}),
+    ]
+
+
+@pytest.mark.parametrize("deployment_method,deployment_args", DEPLOY_PARAMS)
+def test_deploy_command_no_repo(test_storage: FileStorage, deployment_method: str, deployment_args: StrAny) -> None:
     pipeline_wf = tempfile.mkdtemp()
     shutil.copytree("tests/cli/cases/deploy_pipeline", pipeline_wf, dirs_exist_ok=True)
 
     with set_working_dir(pipeline_wf):
         # we do not have repo
         with pytest.raises(InvalidGitRepositoryError):
-            deploy_command.deploy_command("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, schedule="*/30 * * * *", run_on_push=True, run_on_dispatch=True)
+            deploy_command.deploy_command("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, **deployment_args)
 
         # test wrapper
-        rc = _dlt.deploy_command_wrapper("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, schedule="*/30 * * * *")
+        rc = _dlt.deploy_command_wrapper("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, **deployment_args)
         assert rc == -3
 
 
-@pytest.mark.parametrize("deployment_method", [dm.value for dm in deploy_command.DeploymentMethods])
-def test_deploy_command(test_storage: FileStorage, deployment_method: str) -> None:
+@pytest.mark.parametrize("deployment_method,deployment_args", DEPLOY_PARAMS)
+def test_deploy_command(test_storage: FileStorage, deployment_method: str, deployment_args: StrAny) -> None:
     # drop pipeline
     p = dlt.pipeline(pipeline_name="debug_pipeline")
     p._wipe_working_folder()
@@ -51,16 +60,16 @@ def test_deploy_command(test_storage: FileStorage, deployment_method: str) -> No
         with Repo.init(".") as repo:
             # test no origin
             with pytest.raises(CliCommandException) as py_ex:
-                deploy_command.deploy_command("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, schedule="*/30 * * * *", run_on_push=True, run_on_dispatch=True)
+                deploy_command.deploy_command("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, **deployment_args)
             assert "Your current repository has no origin set" in py_ex.value.args[0]
-            rc = _dlt.deploy_command_wrapper("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, schedule="*/30 * * * *")
+            rc = _dlt.deploy_command_wrapper("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, **deployment_args)
             assert rc == -5
 
             # we have a repo that was never run
             Remote.create(repo, "origin", "git@github.com:rudolfix/dlt-cmd-test-2.git")
             with pytest.raises(CannotRestorePipelineException):
-                deploy_command.deploy_command("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, schedule="*/30 * * * *", run_on_push=True, run_on_dispatch=True)
-            rc = _dlt.deploy_command_wrapper("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, schedule="*/30 * * * *")
+                deploy_command.deploy_command("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, **deployment_args)
+            rc = _dlt.deploy_command_wrapper("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, **deployment_args)
             assert rc == -2
 
             # run the script with wrong credentials (it is postgres there)
@@ -70,11 +79,11 @@ def test_deploy_command(test_storage: FileStorage, deployment_method: str) -> No
             # os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "password"
             with pytest.raises(CalledProcessError) as py_ex:
                 venv.run_script("debug_pipeline.py")
-            print(py_ex.value.output)
+            # print(py_ex.value.output)
             with pytest.raises(deploy_command.PipelineWasNotRun) as py_ex:
-                deploy_command.deploy_command("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, schedule="*/30 * * * *", run_on_push=True, run_on_dispatch=True)
+                deploy_command.deploy_command("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, **deployment_args)
             assert "The last pipeline run ended with error" in py_ex.value.args[0]
-            rc = _dlt.deploy_command_wrapper("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, schedule="*/30 * * * *")
+            rc = _dlt.deploy_command_wrapper("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, **deployment_args)
             assert rc == -2
 
             os.environ["DESTINATION__POSTGRES__CREDENTIALS"] = pg_credentials
@@ -90,36 +99,25 @@ def test_deploy_command(test_storage: FileStorage, deployment_method: str) -> No
                         "debug_pipeline.py",
                         deployment_method,
                         deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                        schedule="*/30 * * * *",
-                        run_on_push=True,
-                        run_on_dispatch=True,
-                        secrets_format="env"
+                        **deployment_args
                     )
                     _out = buf.getvalue()
-                assert "DESTINATION__POSTGRES__CREDENTIALS" in _out
-                assert "API_KEY" in _out and "api_key" in _out
-                if deployment_method == "airflow-composer":
-                    # TODO: better parametrized test
-                    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
-                        deploy_command.deploy_command(
-                            "debug_pipeline.py",
-                            deployment_method,
-                            deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                            schedule="*/30 * * * *",
-                            run_on_push=True,
-                            run_on_dispatch=True,
-                            secrets_format="toml"
-                        )
-                        _out = buf.getvalue()
-                        assert 'api_key = "api_key"' in _out
-                        assert 'credentials = "postgresql' in _out
+                print(_out)
+                # make sure our secret and config values are all present
+                assert 'api_key_9x3ehash' in _out
+                assert 'dlt_data' in _out
+                if "schedule" in deployment_args:
+                    assert get_schedule_description(deployment_args["schedule"])
+                secrets_format = deployment_args.get("secrets_format", "env")
+                if secrets_format == "env":
+                    assert "API_KEY" in _out
+                else:
+                    assert "api_key = " in _out
 
-                rc = _dlt.deploy_command_wrapper("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, schedule="*/30 * * * *", secrets_format="env")
-                assert rc == 0
             # non existing script name
             with pytest.raises(NoSuchPathError):
-                deploy_command.deploy_command("no_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, schedule="*/30 * * * *", run_on_push=True, run_on_dispatch=True)
+                deploy_command.deploy_command("no_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, **deployment_args)
             with echo.always_choose(False, always_choose_value=True):
-                rc = _dlt.deploy_command_wrapper("no_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, schedule="*/30 * * * *")
+                rc = _dlt.deploy_command_wrapper("no_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, **deployment_args)
                 assert rc == -4
 

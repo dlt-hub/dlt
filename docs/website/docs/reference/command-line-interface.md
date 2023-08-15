@@ -33,7 +33,13 @@ Shows all available verified sources and their short descriptions. For each sour
 and prints the relevant warning.
 
 ## `dlt deploy`
-This command prepares your pipeline for deployment and gives you step by step instruction how to accomplish it.
+This command prepares your pipeline for deployment and gives you step by step instruction how to accomplish it. To enabled this functionality please first execute
+```sh
+pip install "dlt[cli]"
+```
+that will add additional packages to current environment.
+
+> 💡 We ask you to install those dependencies separately to keep our core library small and make it work everywhere.
 
 ### github-action
 

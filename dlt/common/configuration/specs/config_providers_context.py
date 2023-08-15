@@ -102,34 +102,31 @@ def _airflow_providers() -> List[ConfigProvider]:
     returns a list containing the Airflow providers.
 
     Depending on how DAG is defined this function may be called outside of task and
-    task context will be not available. Still we want the provider to function so
+    task context will not be available. Still we want the provider to function so
     we just test if Airflow can be imported.
     """
     if not is_airflow_installed():
         return []
-    from dlt.common.configuration.providers.toml import SECRETS_TOML_KEY
 
-    # hide stdio. airflow typically dumps tons of warnings and deprecations to stdout and stderr
-    with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-        from airflow.models import Variable # noqa
-        from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
-
-        secrets_toml_var = Variable.get(SECRETS_TOML_KEY, default_var=None)
-
-    if secrets_toml_var is None:
-        message = f"Airflow variable '{SECRETS_TOML_KEY}' not found. AirflowSecretsTomlProvider will not be used."
-        try:
-            # prefer logging to task logger
+    try:
+        # hide stdio. airflow typically dumps tons of warnings and deprecations to stdout and stderr
+        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             from airflow.operators.python import get_current_context  # noqa
 
+            from airflow.models import Variable # noqa
+            from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
+            # probe if Airflow variable containing all secrets is present
+            from dlt.common.configuration.providers.toml import SECRETS_TOML_KEY
+            secrets_toml_var = Variable.get(SECRETS_TOML_KEY, default_var=None)
+
+        if secrets_toml_var is None:
+            message = f"Airflow variable '{SECRETS_TOML_KEY}' was not found. " + \
+                "This Airflow variable is a recommended place to hold the content of secrets.toml." + \
+                "If you do not use Airflow variables to hold dlt configuration or use variables with other names you can ignore this warning."
             ti = get_current_context()["ti"]
             ti.log.warning(message)
-        except Exception:
-            # otherwise log to dlt logger
-            from dlt.common import logger
-            if logger.is_logging():
-                logger.warning(message)
-            else:
-                print(message)
+    except Exception:
+        # do not probe variables when not in task context
+        pass
 
     return [AirflowSecretsTomlProvider()]

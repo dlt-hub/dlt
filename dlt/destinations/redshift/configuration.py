@@ -15,7 +15,7 @@ class RedshiftCredentials(PostgresCredentials):
     host: str = None
 
 
-@configspec(init=True)
+@configspec
 class RedshiftClientConfiguration(PostgresClientConfiguration):
     destination_name: Final[str] = "redshift"  # type: ignore
     credentials: RedshiftCredentials

@@ -1,8 +1,14 @@
 import logging
-import sentry_sdk
 from typing import Optional
-from sentry_sdk.transport import HttpTransport
-from sentry_sdk.integrations.logging import LoggingIntegration
+
+from dlt.common.exceptions import MissingDependencyException
+
+try:
+    import sentry_sdk
+    from sentry_sdk.transport import HttpTransport
+    from sentry_sdk.integrations.logging import LoggingIntegration
+except ModuleNotFoundError:
+    raise MissingDependencyException("sentry telemetry", ["sentry-sdk"], "Please install sentry-sdk if you have `sentry_dsn` set in your RuntimeConfiguration")
 
 from dlt.common.typing import DictStrAny, Any, StrAny
 from dlt.common.configuration.specs import RunConfiguration

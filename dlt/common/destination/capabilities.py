@@ -21,7 +21,7 @@ INTERNAL_LOADER_FILE_FORMATS: Set[TLoaderFileFormat] = {"puae-jsonl", "sql", "re
 EXTERNAL_LOADER_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat)) - INTERNAL_LOADER_FILE_FORMATS
 
 
-@configspec(init=True)
+@configspec
 class DestinationCapabilitiesContext(ContainerInjectableContext):
     """Injectable destination capabilities required for many Pipeline stages ie. normalize"""
     preferred_loader_file_format: TLoaderFileFormat

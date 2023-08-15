@@ -38,7 +38,7 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
             raise ConfigurationValueError("Motherduck schema 'md' was specified without corresponding token or password. The required format of connection string is: md:///<database_name>?token=<token>")
 
 
-@configspec(init=True)
+@configspec
 class MotherDuckClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "motherduck"  # type: ignore
     credentials: MotherDuckCredentials

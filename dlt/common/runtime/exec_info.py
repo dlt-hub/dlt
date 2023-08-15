@@ -90,7 +90,7 @@ def is_airflow_installed() -> bool:
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             import airflow
         return True
-    except ImportError:
+    except Exception:
         return False
 
 

@@ -103,7 +103,7 @@ def spec_from_signature(f: AnyFun, sig: Signature, include_defaults: bool = True
     fields["__annotations__"] = annotations
     # synthesize type
     T: Type[BaseConfiguration] = type(name, (BaseConfiguration,), fields)
-    SPEC = configspec(init=False)(T)
+    SPEC = configspec()(T)
     # add to the module
     setattr(module, spec_id, SPEC)
     return SPEC

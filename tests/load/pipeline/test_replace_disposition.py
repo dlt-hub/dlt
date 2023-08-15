@@ -1,3 +1,4 @@
+from typing import Dict
 import yaml
 import dlt, os, pytest
 from dlt.common.utils import uniq_id
@@ -16,6 +17,18 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     os.environ['DATA_WRITER__FILE_MAX_ITEMS'] = "40"
     # use staging tables for replace
     os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
+    # make duckdb to reuse database in working folder
+    os.environ["DESTINATION__DUCKDB__CREDENTIALS"] = "duckdb:///test_replace_disposition.duckdb"
+
+    # TODO: start storing _dlt_loads with right json content
+    increase_loads = lambda x: x if destination_config.destination == "filesystem" else x + 1
+    increase_state_loads = lambda info: len([job for job in info.load_packages[0].jobs["completed_jobs"] if job.job_file_info.table_name == "_dlt_pipeline_state" and job.job_file_info.file_format != "reference"])
+
+    # filesystem does not have versions and child tables
+    def norm_table_counts(counts: Dict[str, int], *child_tables: str) -> Dict[str, int]:
+        if destination_config.destination != "filesystem":
+            return counts
+        return {**{"_dlt_version": 0}, **{t:0 for t in child_tables}, **counts}
 
     dataset_name = "test_replace_strategies_ds" + uniq_id()
     pipeline = destination_config.setup_pipeline("test_replace_strategies", dataset_name=dataset_name, full_refresh=False)
@@ -49,6 +62,11 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
 
     # first run with offset 0
     info = pipeline.run(load_items, loader_file_format=destination_config.file_format)
+    assert_load_info(info)
+    # count state records that got extracted
+    state_records = increase_state_loads(info)
+    dlt_loads: int = increase_loads(0)
+    dlt_versions: int = increase_loads(0)
 
     # we should have all items loaded
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
@@ -61,13 +79,19 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     offset = 1000
     info = pipeline.run(load_items, loader_file_format=destination_config.file_format)
     assert_load_info(info)
+    state_records += increase_state_loads(info)
+    dlt_loads = increase_loads(dlt_loads)
 
     # we should have all items loaded
-    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-
-    assert table_counts["items"] == 120
-    assert table_counts["items__sub_items"] == 240
-    assert table_counts["items__sub_items__sub_sub_items"] == 120
+    table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())
+    assert norm_table_counts(table_counts) == {
+        "items": 120,
+        "items__sub_items": 240,
+        "items__sub_items__sub_sub_items": 120,
+        "_dlt_pipeline_state": state_records,
+        "_dlt_loads": dlt_loads,
+        "_dlt_version": dlt_versions
+    }
 
     # check we really have the replaced data in our destination
     table_dicts = load_tables_to_dicts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
@@ -75,27 +99,60 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     assert {x for i,x in enumerate(range(2000, 2000+120), 1)}.union({x for i,x in enumerate(range(3000, 3000+120), 1)}) == {int(x["id"]) for x in table_dicts["items__sub_items"]}
     assert {x for i,x in enumerate(range(4000, 4120), 1)} == {int(x["id"]) for x in table_dicts["items__sub_items__sub_sub_items"]}
 
-
     # we need to test that destination tables including child tables are cleared when we yield none from the resource
     @dlt.resource(name="items", write_disposition="replace", primary_key="id")
     def load_items_none():
         yield
     info = pipeline.run(load_items_none, loader_file_format=destination_config.file_format)
-
-    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert_load_info(info)
+    state_records += increase_state_loads(info)
+    dlt_loads = increase_loads(dlt_loads)
 
     # table and child tables should be cleared
-    assert table_counts["items"] == 0
-    assert table_counts.get("items__sub_items", 0) == 0
-    assert table_counts.get("items__sub_items__sub_sub_items", 0) == 0
+    table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())
+    assert norm_table_counts(table_counts, "items__sub_items", "items__sub_items__sub_sub_items") == {
+        "items": 0,
+        "items__sub_items": 0,
+        "items__sub_items__sub_sub_items": 0,
+        "_dlt_pipeline_state": state_records,
+        "_dlt_loads": dlt_loads,
+        "_dlt_version": dlt_versions
+    }
 
     # drop and deactivate existing pipeline
     # drop_active_pipeline_data()
 
     # create a pipeline with different name but loading to the same dataset as above - this is to provoke truncating non existing tables
-    pipeline = destination_config.setup_pipeline("test_replace_strategies_2", dataset_name=dataset_name, full_refresh=False)
-    info = pipeline.run(load_items, table_name="items_copy", loader_file_format=destination_config.file_format)
+    pipeline_2 = destination_config.setup_pipeline("test_replace_strategies_2", dataset_name=dataset_name, full_refresh=False)
+    info = pipeline_2.run(load_items, table_name="items_copy", loader_file_format=destination_config.file_format)
+    assert_load_info(info)
 
+    new_state_records = increase_state_loads(info)
+    assert new_state_records == 1
+    dlt_loads = increase_loads(dlt_loads)
+
+    # new pipeline
+    table_counts = load_table_counts(pipeline_2, *pipeline_2.default_schema.tables.keys())
+    assert norm_table_counts(table_counts) == {
+        "items_copy": 120,
+        "items_copy__sub_items": 240,
+        "items_copy__sub_items__sub_sub_items": 120,
+        "_dlt_pipeline_state": state_records + 1,
+        "_dlt_loads": dlt_loads,
+        "_dlt_version": increase_loads(dlt_versions)
+    }
+
+
+    # old pipeline -> shares completed loads and versions table
+    table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())
+    assert norm_table_counts(table_counts, "items__sub_items", "items__sub_items__sub_sub_items") == {
+        "items": 0,
+        "items__sub_items": 0,
+        "items__sub_items__sub_sub_items": 0,
+        "_dlt_pipeline_state": state_records + 1,
+        "_dlt_loads": dlt_loads,  #  next load
+        "_dlt_version": increase_loads(dlt_versions)  # new table name -> new schema
+    }
 
 @pytest.mark.parametrize("destination_config", destinations_configs(local_filesystem_configs=True, default_staging_configs=True, default_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)

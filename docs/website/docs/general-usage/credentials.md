@@ -38,7 +38,7 @@ Once you have credentials for the source and destination, add them to the file a
 
 To add credentials to your deployment,
 
-- either use one of the dlt deploy commands;
+- either use one of the `dlt deploy` commands;
 - or follow the below instructions to pass credentials via code or environment.
 
 ### Passing credentials as code

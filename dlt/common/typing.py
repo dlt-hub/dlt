@@ -7,19 +7,14 @@ from typing_extensions import TypeAlias, ParamSpec, Concatenate
 
 from dlt.common.pendulum import timedelta, pendulum
 
-
-
-
 if TYPE_CHECKING:
     from _typeshed import StrOrBytesPath
-    # from typing_extensions import ParamSpec
     from typing import _TypedDict
     REPattern = _REPattern[str]
 else:
     StrOrBytesPath = Any
     from typing import _TypedDictMeta as _TypedDict
     REPattern = _REPattern
-    # ParamSpec = lambda x: [x]
 
 AnyType: TypeAlias = Any
 NoneType = type(None)
