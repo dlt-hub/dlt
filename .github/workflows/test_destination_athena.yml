@@ -74,7 +74,7 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E athena -E s3 -E pyarrow
+        run: poetry install --no-interaction -E athena
 
       # - name: Install self
       #   run: poetry install --no-interaction

@@ -616,7 +616,7 @@ name = "boto3"
 version = "1.26.161"
 description = "The AWS SDK for Python"
 category = "main"
-optional = false
+optional = true
 python-versions = ">= 3.7"
 
 [package.dependencies]
@@ -632,7 +632,7 @@ name = "botocore"
 version = "1.29.161"
 description = "Low-level, data-driven core of boto 3."
 category = "main"
-optional = false
+optional = true
 python-versions = ">= 3.7"
 
 [package.dependencies]
@@ -1995,7 +1995,7 @@ name = "jmespath"
 version = "1.0.1"
 description = "JSON Matching Expressions"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.7"
 
 [[package]]
@@ -2754,7 +2754,7 @@ name = "pyathena"
 version = "3.0.6"
 description = "Python DB API 2.0 (PEP 249) client for Amazon Athena"
 category = "main"
-optional = false
+optional = true
 python-versions = ">=3.8.1"
 
 [package.dependencies]
@@ -3235,7 +3235,7 @@ name = "s3transfer"
 version = "0.6.1"
 description = "An Amazon S3 Transfer Manager"
 category = "main"
-optional = false
+optional = true
 python-versions = ">= 3.7"
 
 [package.dependencies]
@@ -3856,6 +3856,7 @@ docs = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.link
 testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-ignore-flaky", "pytest-mypy (>=0.9.1)", "pytest-ruff"]
 
 [extras]
+athena = ["pyathena", "pyarrow", "s3fs", "boto3"]
 bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "gcsfs"]
 cli = ["pipdeptree", "cron-descriptor"]
 dbt = ["dbt-core", "dbt-redshift", "dbt-bigquery", "dbt-duckdb", "dbt-snowflake"]
@@ -3873,7 +3874,7 @@ snowflake = ["snowflake-connector-python"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "532e8b53961d86c5ca65338ddfee76d951389e7e2415e297df649e0bc30cc22f"
+content-hash = "63a5afa3a2ae7920730237ebe5dda4aca0660835f9772a0ee2d73a5c8175d998"
 
 [metadata.files]
 about-time = [
