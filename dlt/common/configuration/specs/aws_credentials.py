@@ -42,7 +42,7 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
     def _to_session(self) -> Any:
         try:
             import boto3
-        except ImportError:
+        except ModuleNotFoundError:
             raise MissingDependencyException(self.__class__.__name__, [f"{version.DLT_PKG_NAME}[s3]"])
         return boto3.Session(**self.to_native_representation())
 
@@ -50,7 +50,9 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
         """Sets the credentials properties from boto3 `session` and return session's credentials if found"""
         import boto3
         assert isinstance(session, boto3.Session)
-        self.profile_name = session.profile_name
+        # NOTE: we do not set profile name from boto3 session
+        # we either pass it explicitly in `_to_session` so we know it is identical
+        # or we make boto3 to guess it which results in wrong values for SSO credential
         self.region_name = session.region_name
         default = session.get_credentials()
         if not default:

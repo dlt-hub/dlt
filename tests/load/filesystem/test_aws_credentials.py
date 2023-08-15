@@ -20,7 +20,8 @@ def test_aws_credentials_resolved_from_default(environment: Dict[str, str]) -> N
     assert config.aws_access_key_id == 'fake_access_key'
     assert config.aws_secret_access_key == 'fake_secret_key'
     assert config.aws_session_token == 'fake_session_token'
-    assert config.profile_name == 'default'
+    # we do not set the profile
+    assert config.profile_name is None
 
     # use profile name other than default
     import botocore
@@ -45,10 +46,10 @@ def test_aws_credentials_from_boto3(environment: Dict[str, str]) -> None:
     session = boto3.Session()
 
     c = AwsCredentials(session)
-    assert c.profile_name == "default"
+    assert c.profile_name is None
     assert c.aws_access_key_id == "fake_access_key"
     assert c.region_name == session.region_name
-    assert c.profile_name == session.profile_name
+    assert c.profile_name is None
     assert c.is_resolved()
     assert not c.is_partial()
 
