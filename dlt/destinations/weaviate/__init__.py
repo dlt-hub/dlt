@@ -7,8 +7,9 @@ from dlt.common.destination.reference import (
     JobClientBase,
     DestinationClientConfiguration,
 )
-
 from dlt.common.destination import DestinationCapabilitiesContext
+
+from dlt.destinations.weaviate.weaviate_adapter import weaviate_adapter
 from dlt.destinations.weaviate.configuration import WeaviateClientConfiguration
 
 

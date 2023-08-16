@@ -3,9 +3,9 @@ import pytest
 import dlt
 from dlt.common import json
 from dlt.common.utils import uniq_id
-from dlt.common.schema.typing import TTableSchema
 
-from dlt.destinations.weaviate.weaviate_adapter import weaviate_adapter, VECTORIZE_HINT, TOKENIZATION_HINT
+from dlt.destinations.weaviate import weaviate_adapter
+from dlt.destinations.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
 from dlt.destinations.weaviate.weaviate_client import WeaviateClient
 
 from tests.pipeline.utils import assert_load_info
