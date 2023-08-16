@@ -107,6 +107,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     @dlt.resource(name="items", write_disposition="replace", primary_key="id")
     def load_items_none():
         yield
+
     info = pipeline.run([load_items_none, append_items], loader_file_format=destination_config.file_format)
     assert_load_info(info)
     state_records += increase_state_loads(info)
@@ -153,7 +154,6 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
         "_dlt_loads": dlt_loads,
         "_dlt_version": increase_loads(dlt_versions)
     }
-
 
     # old pipeline -> shares completed loads and versions table
     table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())

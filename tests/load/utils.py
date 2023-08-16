@@ -108,7 +108,6 @@ def yield_client(
 
     # athena requires staging config to be present, so stick this in there here
     if destination_name == "athena":
-        print("SETTING UP STAGING")
         staging_config = DestinationClientStagingConfiguration(
             destination_name="fake-stage",
             dataset_name=dest_config.dataset_name,

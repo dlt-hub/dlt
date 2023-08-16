@@ -59,12 +59,6 @@ jobs:
           virtualenvs-in-project: true
           installer-parallel: true
 
-      # - name: Get pip cache dir
-      #   id: pip-cache
-      #   run: |
-      #     echo "::set-output name=dir::$(poetry env info -p)"
-      #     echo "$(poetry env info -p)"
-
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v3
@@ -77,15 +71,12 @@ jobs:
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction -E athena
 
-      # - name: Install self
-      #   run: poetry install --no-interaction
-
       - run: |
-          poetry run pytest tests/load
+          poetry run pytest tests/load --ignore=tests/load/weaviate
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/load
+          poetry run pytest tests/load --ignore=tests/load/weaviate
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd

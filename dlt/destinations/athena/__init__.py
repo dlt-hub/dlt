@@ -13,7 +13,6 @@ from dlt.common.destination.reference import JobClientBase, DestinationClientCon
 
 @with_config(spec=AthenaClientConfiguration, sections=(known_sections.DESTINATION, "athena",))
 def _configure(config: AthenaClientConfiguration = config.value) -> AthenaClientConfiguration:
-    print(dict(config))
     return config
 
 def capabilities() -> DestinationCapabilitiesContext:
@@ -43,7 +42,6 @@ def capabilities() -> DestinationCapabilitiesContext:
 def client(schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> JobClientBase:
     # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
     from dlt.destinations.athena.athena import AthenaClient
-    print(dict(initial_config))
     return AthenaClient(schema, _configure(initial_config))  # type: ignore
 
 

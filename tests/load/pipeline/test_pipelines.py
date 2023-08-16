@@ -347,7 +347,7 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
     ds_2_name = "IteRation" + uniq_id()
     # illegal name that will be later normalized
     ds_3_name = "1it/era 👍 tion__" + uniq_id()
-    p, s = simple_nested_pipeline(destination_config.destination, dataset_name=ds_1_name, full_refresh=False)
+    p, s = simple_nested_pipeline(destination_config, dataset_name=ds_1_name, full_refresh=False)
     try:
         info = p.run(s())
         assert_load_info(info)

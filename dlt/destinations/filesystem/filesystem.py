@@ -92,20 +92,25 @@ class FilesystemClient(JobClientBase):
             # get all dirs with table data to delete. the table data are guaranteed to be files in those folders
             # TODO: when we do partitioning it is no longer the case and we may remove folders below instead
             truncated_dirs = self._get_table_dirs(truncate_tables)
+            # print(f"TRUNCATE {truncated_dirs}")
             truncate_prefixes: Set[str] = set()
             for table in truncate_tables:
                 table_prefix = self.table_prefix_layout.format(schema_name=self.schema.name, table_name=table)
                 truncate_prefixes.add(posixpath.join(self.dataset_path, table_prefix))
+            # print(f"TRUNCATE PREFIXES {truncate_prefixes}")
 
             for truncate_dir in truncated_dirs:
                 # get files in truncate dirs
                 # NOTE: glob implementation in fsspec does not look thread safe, way better is to use ls and then filter
-                all_files = self.fs_client.ls(truncate_dir, detail=False)
+                # NOTE: without refresh you get random results here
+                all_files = self.fs_client.ls(truncate_dir, detail=False, refresh=True)
+                # print(f"in truncate dir {truncate_dir}: {all_files}")
                 for item in all_files:
                     # check every file against all the prefixes
                     for search_prefix in truncate_prefixes:
                         if item.startswith(search_prefix):
                             # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
+                            # print(f"DEL {item}")
                             self.fs_client.rm_file(item)
 
 

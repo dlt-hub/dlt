@@ -254,7 +254,7 @@ def load_file(path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
             for line in f:
                 result.append(json.loads(line))
 
-    # load insert_values (this is a bit volatile if the extact format of the source file changes)
+    # load insert_values (this is a bit volatile if the exact format of the source file changes)
     elif ext == "insert_values":
         with open(full_path, "rU", encoding="utf-8") as f:
             lines = f.readlines()
@@ -283,6 +283,7 @@ def load_file(path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
                 count += 1
 
     return table_name, result
+
 
 def load_files(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
     """For now this will expect the standard layout in the filesystem destination, if changed the results will not be correct"""

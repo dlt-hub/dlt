@@ -133,12 +133,27 @@ class AthenaSQLClient(SqlClientBase[Connection]):
     def native_connection(self) -> Connection:
         return self._conn
 
+    def escape_ddl_identifier(self, v: str) -> str:
+        # https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html
+        # Athena uses HIVE to create tables but for querying it uses PRESTO (so normal escaping)
+        if not v:
+            return v
+        # bigquery uses hive escaping
+        return escape_bigquery_identifier(v)
+
+    def fully_qualified_ddl_dataset_name(self) -> str:
+        return self.escape_ddl_identifier(self.dataset_name)
+
+    def make_qualified_ddl_table_name(self, table_name: str) -> str:
+        table_name = self.escape_ddl_identifier(table_name)
+        return f"{self.fully_qualified_ddl_dataset_name()}.{table_name}"
+
     def create_dataset(self) -> None:
         # HIVE escaping for DDL
-        self.execute_sql(f"CREATE DATABASE `{self.fully_qualified_dataset_name(escape=False)}`;")
+        self.execute_sql(f"CREATE DATABASE {self.fully_qualified_ddl_dataset_name()};")
 
     def drop_dataset(self) -> None:
-        self.execute_sql(f"DROP DATABASE `{self.fully_qualified_dataset_name(escape=False)}` CASCADE;")
+        self.execute_sql(f"DROP DATABASE {self.fully_qualified_ddl_dataset_name()} CASCADE;")
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         return self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
@@ -146,7 +161,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
     def drop_tables(self, *tables: str) -> None:
         if not tables:
             return
-        statements = [f"DROP TABLE IF EXISTS {self.capabilities.escape_identifier(table)};" for table in tables]
+        statements = [f"DROP TABLE IF EXISTS {self.make_qualified_ddl_table_name(table)};" for table in tables]
         self.execute_fragments(statements)
 
     @contextmanager
@@ -245,6 +260,7 @@ class AthenaClient(SqlJobClientBase):
             config
         )
         super().__init__(schema, config, sql_client)
+        self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
@@ -266,16 +282,8 @@ class AthenaClient(SqlJobClientBase):
                 return val
         return None
 
-    def escape_ddl_identifier(self, v: str) -> str:
-        # https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html
-        # Athena uses HIVE to create tables but for querying it uses PRESTO (so normal escaping)
-        if not v:
-            return v
-        # bigquery uses hive escaping
-        return escape_bigquery_identifier(v)
-
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
-        return f"{self.escape_ddl_identifier(c['name'])} {self._to_db_type(c['data_type'])}"
+        return f"{self.sql_client.escape_ddl_identifier(c['name'])} {self._to_db_type(c['data_type'])}"
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
 
@@ -291,8 +299,7 @@ class AthenaClient(SqlJobClientBase):
         table_prefix = self.table_prefix_layout.format(table_name=table_name)
         location = f"{bucket}/{dataset}/{table_prefix}"
         # use qualified table names
-        escaped_dataset_name = self.escape_ddl_identifier(self.sql_client.dataset_name)
-        qualified_table_name = f"{escaped_dataset_name}.{self.escape_ddl_identifier(table_name)}"
+        qualified_table_name = self.sql_client.make_qualified_ddl_table_name(table_name)
         if is_iceberg and not generate_alter:
             sql.append(f"""CREATE TABLE {qualified_table_name}
                     ({columns})
