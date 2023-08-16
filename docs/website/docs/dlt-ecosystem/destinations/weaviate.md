@@ -154,12 +154,43 @@ This is the default disposition. It will append the data to the existing data in
 
 ## Data loading
 
+Loading data into Weaviate from different sources requires a proper understanding of how data is transformed and integrated into [Weaviate's schema](https://weaviate.io/developers/weaviate/config-refs/schema).
+
 ### Data types
+
+| dlt Type   | Weaviate Type |
+|------------|---------------|
+| text       | text          |
+| double     | number        |
+| bool       | boolean       |
+| timestamp  | date          |
+| date       | date          |
+| bigint     | int           |
+| binary     | blob          |
+| decimal    | text          |
+| wei        | number        |
+| complex    | text          |
+
 ### Dataset name
 ### Class and property names normalization
 
 ## Additional destination options
 
+- `batch_size`: (int) the number of items in the batch insert request. The default is 100.
+- `batch_workers`: (int) the maximal number of concurrent threads to run batch import. The default is 1.
+- batch_consistency: (str) the number of replica nodes in the cluster that must acknowledge a write or read request before it's considered successful. The available consistency levels include:
+    - `ONE`: Only one replica node needs to acknowledge.
+    - `QUORUM`: Majority of replica nodes (calculated as `replication_factor / 2 + 1`) must acknowledge.
+    - `ALL`: All replica nodes in the cluster must send a successful response.
+    The default is `ONE`.
+- batch_retries: (int) number of retries to create a batch that failed with ReadTimeout. The default is 5.
+- dataset_separator: (str) the separator to use when generating the class names in Weaviate.
+- vectorizer: (str) the name of [the vectorizer](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules) to use. The default is `text2vec-openai`.
+
 ### dbt support
 
+Currently Weaviate destination does not support dbt.
+
 ### Syncing of `dlt` state
+
+Weaviate destination does not support syncing of the `dlt` state.
