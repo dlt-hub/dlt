@@ -116,9 +116,9 @@ A [write disposition](../../general-usage/incremental-loading.md#choosing-a-writ
 
 ### Replace
 
-The [`replace`](../../general-usage/full-loading.md) disposition replaces the data in the destination with the data from the resource. It deletes all the classes and objects and recreates the schema before loading the data.
+The [replace](../../general-usage/full-loading.md) disposition replaces the data in the destination with the data from the resource. It deletes all the classes and objects and recreates the schema before loading the data.
 
-In the movie example from the setup guide, we can use the `replace` disposition to reload the data every time we run the pipeline:
+In the movie example from the [setup guide](#setup-guide), we can use the `replace` disposition to reload the data every time we run the pipeline:
 
 ```python
 info = pipeline.run(
@@ -132,7 +132,7 @@ info = pipeline.run(
 
 ### Merge
 
-The [`merge`](../../general-usage/incremental-loading.md) disposition merges the data from the resource with the data in the destination.
+The [merge](../../general-usage/incremental-loading.md) disposition merges the data from the resource with the data in the destination.
 For `merge` disposition you would need to specify a `primary_key` for the resource:
 
 ```python
