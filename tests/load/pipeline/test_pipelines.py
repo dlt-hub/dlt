@@ -63,12 +63,14 @@ def test_default_pipeline_names(use_single_dataset: bool, destination_config: De
 
     # mock the correct destinations (never do that in normal code)
     with p.managed_state():
-        p.destination = DestinationReference.from_name(destination_config.destination)
-        if destination_config.staging:
-            p.staging = DestinationReference.from_name(destination_config.staging)
+        p._set_destinations(
+            DestinationReference.from_name(destination_config.destination),
+            DestinationReference.from_name(destination_config.staging) if destination_config.staging else None
+            )
 
     p.normalize()
     info = p.load(dataset_name="d" + uniq_id())
+    print(p.dataset_name)
     assert info.pipeline is p
     # two packages in two different schemas were loaded
     assert len(info.loads_ids) == 2

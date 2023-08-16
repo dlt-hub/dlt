@@ -60,8 +60,18 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
                 }]
                 }
 
+    # append resource to see if we do not drop any tables
+    @dlt.resource(write_disposition="append")
+    def append_items():
+        global offset
+        for _, index in enumerate(range(offset, offset+12), 1):
+            yield {
+                "id": index,
+                "name": f"item {index}",
+            }
+
     # first run with offset 0
-    info = pipeline.run(load_items, loader_file_format=destination_config.file_format)
+    info = pipeline.run([load_items, append_items], loader_file_format=destination_config.file_format)
     assert_load_info(info)
     # count state records that got extracted
     state_records = increase_state_loads(info)
@@ -70,7 +80,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
 
     # second run with higher offset so we can check the results
     offset = 1000
-    info = pipeline.run(load_items, loader_file_format=destination_config.file_format)
+    info = pipeline.run([load_items, append_items], loader_file_format=destination_config.file_format)
     assert_load_info(info)
     state_records += increase_state_loads(info)
     dlt_loads = increase_loads(dlt_loads)
@@ -78,6 +88,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     # we should have all items loaded
     table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())
     assert norm_table_counts(table_counts) == {
+        "append_items": 24,  # loaded twice
         "items": 120,
         "items__sub_items": 240,
         "items__sub_items__sub_sub_items": 120,
@@ -96,7 +107,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     @dlt.resource(name="items", write_disposition="replace", primary_key="id")
     def load_items_none():
         yield
-    info = pipeline.run(load_items_none, loader_file_format=destination_config.file_format)
+    info = pipeline.run([load_items_none, append_items], loader_file_format=destination_config.file_format)
     assert_load_info(info)
     state_records += increase_state_loads(info)
     dlt_loads = increase_loads(dlt_loads)
@@ -104,6 +115,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     # table and child tables should be cleared
     table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())
     assert norm_table_counts(table_counts, "items__sub_items", "items__sub_items__sub_sub_items") == {
+        "append_items": 36,
         "items": 0,
         "items__sub_items": 0,
         "items__sub_items__sub_sub_items": 0,
@@ -119,14 +131,21 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     pipeline_2 = destination_config.setup_pipeline("test_replace_strategies_2", dataset_name=dataset_name)
     info = pipeline_2.run(load_items, table_name="items_copy", loader_file_format=destination_config.file_format)
     assert_load_info(info)
-
     new_state_records = increase_state_loads(info)
     assert new_state_records == 1
+    dlt_loads = increase_loads(dlt_loads)
+    dlt_versions = increase_loads(dlt_versions)
+
+    info = pipeline_2.run(append_items, loader_file_format=destination_config.file_format)
+    assert_load_info(info)
+    new_state_records = increase_state_loads(info)
+    assert new_state_records == 0
     dlt_loads = increase_loads(dlt_loads)
 
     # new pipeline
     table_counts = load_table_counts(pipeline_2, *pipeline_2.default_schema.tables.keys())
     assert norm_table_counts(table_counts) == {
+        "append_items": 48,
         "items_copy": 120,
         "items_copy__sub_items": 240,
         "items_copy__sub_items__sub_sub_items": 120,
@@ -139,6 +158,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     # old pipeline -> shares completed loads and versions table
     table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())
     assert norm_table_counts(table_counts, "items__sub_items", "items__sub_items__sub_sub_items") == {
+        "append_items": 48,
         "items": 0,
         "items__sub_items": 0,
         "items__sub_items__sub_sub_items": 0,

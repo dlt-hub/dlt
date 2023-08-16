@@ -40,7 +40,8 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
     assert len(package_info.jobs["failed_jobs"]) == 0
     # we have 4 parquet and 4 reference jobs plus one merge job
-    assert len(package_info.jobs["completed_jobs"]) == 9
+    num_jobs = 4 + 4 + 1 if destination_config.supports_merge else 4 + 4
+    assert len(package_info.jobs["completed_jobs"]) == num_jobs
     assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == "reference"]) == 4
     assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == destination_config.file_format]) == 4
     assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == "sql"]) == 1
@@ -124,4 +125,9 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         parse_complex_strings = destination_config.file_format == "parquet" and destination_config.destination in ["redshift", "bigquery", "snowflake"]
         allow_base64_binary = destination_config.file_format == "jsonl" and destination_config.destination in ["redshift"]
         # content must equal
-        assert_all_data_types_row(db_row[:-2], parse_complex_strings=parse_complex_strings, allow_base64_binary=allow_base64_binary)
+        assert_all_data_types_row(
+            db_row[:-2],
+            parse_complex_strings=parse_complex_strings,
+            allow_base64_binary=allow_base64_binary,
+            timestamp_precision=sql_client.capabilities.timestamp_precision
+        )

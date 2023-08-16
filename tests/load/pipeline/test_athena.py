@@ -86,7 +86,7 @@ def test_athena_all_datatypes_and_timestamps(destination_config: DestinationTest
         assert len(db_rows) == 10
         db_row = list(db_rows[0])
         # content must equal
-        assert_all_data_types_row(db_row[:-2], parse_complex_strings=True, timestamp_precision=3)
+        assert_all_data_types_row(db_row[:-2], parse_complex_strings=True, timestamp_precision=sql_client.capabilities.timestamp_precision)
 
         # now let's query the data with timestamps and dates.
         # https://docs.aws.amazon.com/athena/latest/ug/engine-versions-reference-0003.html#engine-versions-reference-0003-timestamp-changes
