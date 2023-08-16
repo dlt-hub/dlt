@@ -9,7 +9,8 @@ from dlt.common import pendulum
 from dlt.common.schema.schema import Schema, utils
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.utils import custom_environ, uniq_id
-from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.common.exceptions import DestinationUndefinedEntity
+
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import STATE_TABLE_COLUMNS, STATE_TABLE_NAME, load_state_from_destination, state_resource
 
@@ -38,14 +39,14 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     p._inject_schema(schema)
     # try with non existing dataset
     with p._sql_job_client(p.default_schema) as job_client:
-        with pytest.raises(DatabaseUndefinedRelation):
+        with pytest.raises(DestinationUndefinedEntity):
             load_state_from_destination(p.pipeline_name, job_client.sql_client)
         # sync the schema
         p.sync_schema()
         exists, _ = job_client.get_storage_table(VERSION_TABLE_NAME)
         assert exists is True
         # dataset exists, still no table
-        with pytest.raises(DatabaseUndefinedRelation):
+        with pytest.raises(DestinationUndefinedEntity):
             load_state_from_destination(p.pipeline_name, job_client.sql_client)
         initial_state = p._get_state()
         # now add table to schema and sync

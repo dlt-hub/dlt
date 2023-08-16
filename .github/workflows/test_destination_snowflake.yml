@@ -72,11 +72,11 @@ jobs:
         run: poetry install --no-interaction -E snowflake -E s3 -E gs
 
       - run: |
-          poetry run pytest tests/load
+          poetry run pytest tests/load --ignore=tests/load/weaviate
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/load
+          poetry run pytest tests/load --ignore=tests/load/weaviate
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd

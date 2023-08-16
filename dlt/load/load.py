@@ -16,14 +16,14 @@ from dlt.common.typing import StrAny
 from dlt.common.runners import TRunMetrics, Runnable, workermethod
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.runtime.logger import pretty_format_exception
-from dlt.common.exceptions import TerminalValueError
+from dlt.common.exceptions import TerminalValueError, DestinationTerminalException, DestinationTransientException
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import VERSION_TABLE_NAME, TTableSchema, TWriteDisposition
+from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
 from dlt.common.destination.reference import DestinationClientDwhBaseConfiguration, FollowupJob, JobClientBase, StagingJobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
 
 from dlt.destinations.job_impl import EmptyLoadJob
-from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException, LoadJobUnknownTableException
+from dlt.destinations.exceptions import LoadJobUnknownTableException
 
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats
@@ -51,7 +51,8 @@ class Load(Runnable[ThreadPool]):
         self.staging_destination = staging_destination
         self.pool: ThreadPool = None
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
-        self._processed_load_ids: Dict[str, int] = {}
+        self._processed_load_ids: Dict[str, str] = {}
+        """Load ids to dataset name"""
 
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
@@ -268,9 +269,14 @@ class Load(Runnable[ThreadPool]):
         if not aborted:
             with self.get_destination_client(schema) as job_client:
                 job_client.complete_load(load_id)
+                # TODO: Load must provide a clear interface to get last loads and metrics
+                # TODO: get more info ie. was package aborted, schema name etc.
+                if isinstance(job_client.config, DestinationClientDwhBaseConfiguration):
+                    self._processed_load_ids[load_id] = job_client.config.normalize_dataset_name(schema)
+                else:
+                    self._processed_load_ids[load_id] = None
         self.load_storage.complete_load_package(load_id, aborted)
         logger.info(f"All jobs completed, archiving package {load_id} with aborted set to {aborted}")
-        self._processed_load_ids[load_id] = 1
 
     def get_table_chain_tables_for_write_disposition(self, load_id: str, schema: Schema, dispositions: List[TWriteDisposition]) -> Set[str]:
         """Get all jobs for tables with given write disposition and resolve the table chain"""
@@ -316,7 +322,7 @@ class Load(Runnable[ThreadPool]):
                             logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
                             job_client.initialize_storage()
                             logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
-                            job_client.update_storage_schema(only_tables=staging_tables | {VERSION_TABLE_NAME}, expected_update=expected_update)
+                            job_client.update_storage_schema(only_tables=staging_tables | {schema.version_table_name}, expected_update=expected_update)
                             logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {staging_tables}")
                             job_client.initialize_storage(truncate_tables=staging_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)
@@ -396,15 +402,13 @@ class Load(Runnable[ThreadPool]):
         return TRunMetrics(False, len(self.load_storage.list_packages()))
 
     def get_load_info(self, pipeline: SupportsPipeline, started_at: datetime.datetime = None) -> LoadInfo:
-        # TODO: Load must provide a clear interface to get last loads and metrics
         # TODO: LoadInfo should hold many datasets
         load_ids = list(self._processed_load_ids.keys())
         load_packages: List[LoadPackageInfo] = []
-        for load_id in load_ids:
+        # get load packages and dataset_name from the last package
+        _dataset_name: str = None
+        for load_id, _dataset_name in self._processed_load_ids.items():
             load_packages.append(self.load_storage.get_load_package_info(load_id))
-        dataset_name = None
-        if isinstance(self.initial_client_config, DestinationClientDwhBaseConfiguration):
-            dataset_name = self.initial_client_config.dataset_name
 
         return LoadInfo(
             pipeline,
@@ -413,7 +417,7 @@ class Load(Runnable[ThreadPool]):
             self.initial_staging_client_config.destination_name if self.initial_staging_client_config else None,
             str(self.initial_staging_client_config) if self.initial_staging_client_config else None,
             self.initial_client_config.fingerprint(),
-            dataset_name,
+            _dataset_name,
             list(load_ids),
             load_packages,
             started_at,

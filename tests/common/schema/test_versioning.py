@@ -89,6 +89,7 @@ def test_preserve_version_on_load() -> None:
     schema = Schema.from_dict(eth_v6)
     # version should not be bumped
     assert version_hash == schema._stored_version_hash
+    assert version_hash == schema.version_hash
     assert version == schema.version
 
 

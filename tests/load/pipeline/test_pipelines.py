@@ -24,6 +24,7 @@ from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE_COLUMNS_SCHE
 from tests.load.pipeline.utils import drop_active_pipeline_data, assert_query_data, assert_table, load_table_counts, select_data
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
+
 @pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize('use_single_dataset', [True, False])
 def test_default_pipeline_names(use_single_dataset: bool, destination_config: DestinationTestConfiguration) -> None:
@@ -67,7 +68,13 @@ def test_default_pipeline_names(use_single_dataset: bool, destination_config: De
             DestinationReference.from_name(destination_config.destination),
             DestinationReference.from_name(destination_config.staging) if destination_config.staging else None
             )
-
+        # does not reset the dataset name
+        assert p.dataset_name in possible_dataset_names
+        # never do that in production code
+        p.dataset_name = None
+        # set no dataset name -> if destination does not support it we revert to default
+        p._set_dataset_name(None)
+        assert p.dataset_name in possible_dataset_names
     p.normalize()
     info = p.load(dataset_name="d" + uniq_id())
     print(p.dataset_name)
@@ -334,10 +341,13 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
 @pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
 def test_dataset_name_change(destination_config: DestinationTestConfiguration) -> None:
     destination_config.setup()
+    # standard name
     ds_1_name = "iteration" + uniq_id()
-    ds_2_name = "iteration" + uniq_id()
-    ds_3_name = "iteration" + uniq_id()
-    p, s = simple_nested_pipeline(destination_config, dataset_name=ds_1_name, full_refresh=False)
+    # will go to snake case
+    ds_2_name = "IteRation" + uniq_id()
+    # illegal name that will be later normalized
+    ds_3_name = "1it/era 👍 tion__" + uniq_id()
+    p, s = simple_nested_pipeline(destination_config.destination, dataset_name=ds_1_name, full_refresh=False)
     try:
         info = p.run(s())
         assert_load_info(info)
@@ -346,14 +356,16 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
         # run to another dataset
         info = p.run(s(), dataset_name=ds_2_name)
         assert_load_info(info)
-        assert info.dataset_name == ds_2_name
+        assert info.dataset_name.startswith("ite_ration")
+        # save normalized dataset name to delete correctly later
+        ds_2_name = info.dataset_name
         ds_2_counts = load_table_counts(p, "lists", "lists__value")
         assert ds_1_counts == ds_2_counts
         # set name and run to another dataset
         p.dataset_name = ds_3_name
         info = p.run(s())
         assert_load_info(info)
-        assert info.dataset_name == ds_3_name
+        assert info.dataset_name.startswith("_1it_era_tion_")
         ds_3_counts = load_table_counts(p, "lists", "lists__value")
         assert ds_1_counts == ds_3_counts
 

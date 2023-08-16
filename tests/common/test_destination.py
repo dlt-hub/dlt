@@ -1,6 +1,6 @@
 import pytest
 
-from dlt.common.destination.reference import DestinationReference, JobClientBase
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, DestinationReference
 from dlt.common.exceptions import InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import InvalidDatasetName
@@ -31,30 +31,39 @@ def test_import_all_destinations() -> None:
         dest.capabilities()
 
 
-def test_normalize_make_dataset_name() -> None:
-    # use schema with default naming convention
+def test_normalize_dataset_name() -> None:
+    # with schema name appended
 
-    # schema name is not normalized, a proper schema name is assumed to be used
-    assert JobClientBase.make_dataset_name(Schema("BANANA", normalize_name=True), "ban_ana_dataset", "default") == "ban_ana_dataset_banana"
-    assert JobClientBase.make_dataset_name(Schema("default"), "ban_ana_dataset", "default") == "ban_ana_dataset"
+    assert DestinationClientDwhConfiguration(dataset_name="ban_ana_dataset", default_schema_name="default").normalize_dataset_name(Schema("banana")) == "ban_ana_dataset_banana"
+    # without schema name appended
+    assert DestinationClientDwhConfiguration(dataset_name="ban_ana_dataset", default_schema_name="default").normalize_dataset_name(Schema("default")) == "ban_ana_dataset"
 
-    # also the dataset name is not normalized. it is verified if it is properly normalizes though
-    with pytest.raises(InvalidDatasetName):
-        JobClientBase.make_dataset_name(Schema("banana"), "BaNaNa", "default")
+    # dataset name will be normalized (now it is up to destination to normalize this)
+    assert DestinationClientDwhConfiguration(dataset_name="BaNaNa", default_schema_name="default").normalize_dataset_name(Schema("banana")) == "ba_na_na_banana"
 
     # empty schemas are invalid
     with pytest.raises(ValueError):
-        JobClientBase.make_dataset_name(Schema(None), "banana_dataset", None)
+        DestinationClientDwhConfiguration(dataset_name="banana_dataset", default_schema_name=None).normalize_dataset_name(Schema(None))
     with pytest.raises(ValueError):
-        JobClientBase.make_dataset_name(Schema(""), "banana_dataset", "")
+        DestinationClientDwhConfiguration(dataset_name="banana_dataset", default_schema_name="").normalize_dataset_name(Schema(""))
 
-    # empty dataset names are invalid
-    with pytest.raises(ValueError):
-        JobClientBase.make_dataset_name(Schema("schema_ana"), "", "ban_schema")
-    with pytest.raises(ValueError):
-        JobClientBase.make_dataset_name(Schema("BAN_ANA", normalize_name=True), None, "BAN_ANA")
+    # empty dataset name is valid!
+    assert DestinationClientDwhConfiguration(dataset_name="", default_schema_name="ban_schema").normalize_dataset_name(Schema("schema_ana")) == "_schema_ana"
+    # empty dataset name is valid!
+    assert DestinationClientDwhConfiguration(dataset_name="", default_schema_name="schema_ana").normalize_dataset_name(Schema("schema_ana")) == ""
+    # None dataset name is valid!
+    assert DestinationClientDwhConfiguration(dataset_name=None, default_schema_name="ban_schema").normalize_dataset_name(Schema("schema_ana")) == "_schema_ana"
+    # None dataset name is valid!
+    assert DestinationClientDwhConfiguration(dataset_name=None, default_schema_name="schema_ana").normalize_dataset_name(Schema("schema_ana")) is None
 
 
-def test_normalize_make_dataset_name_none_default_schema() -> None:
+
+    # now mock the schema name to make sure that it is normalized
+    schema = Schema("barbapapa")
+    schema._schema_name = "BarbaPapa"
+    assert DestinationClientDwhConfiguration(dataset_name="set", default_schema_name="default").normalize_dataset_name(schema) == "set_barba_papa"
+
+
+def test_normalize_dataset_name_none_default_schema() -> None:
     # if default schema is None, suffix is not added
-    assert JobClientBase.make_dataset_name(Schema("default"), "ban_ana_dataset", None) == "ban_ana_dataset"
+    assert DestinationClientDwhConfiguration(dataset_name="ban_ana_dataset", default_schema_name=None).normalize_dataset_name(Schema("default")) == "ban_ana_dataset"

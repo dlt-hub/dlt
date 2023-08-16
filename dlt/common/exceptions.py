@@ -115,6 +115,10 @@ class DestinationTerminalException(DestinationException, TerminalException):
     pass
 
 
+class DestinationUndefinedEntity(DestinationTerminalException):
+    pass
+
+
 class DestinationTransientException(DestinationException, TransientException):
     pass
 

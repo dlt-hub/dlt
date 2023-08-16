@@ -71,6 +71,8 @@ def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
         return value.in_tz(UTC).date()  # type: ignore
     elif isinstance(value, datetime.date):
         return pendulum.date(value.year, value.month, value.day)
+    elif isinstance(value, (int, float)):
+        return pendulum.from_timestamp(value)
     elif isinstance(value, str):
         result = parse_iso_like_datetime(value)
         if isinstance(result, pendulum.DateTime):

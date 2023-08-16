@@ -5,7 +5,6 @@ import humanize
 
 from dlt.common import pendulum
 from dlt.common.typing import AnyFun
-from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
 
@@ -121,7 +120,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         st.header("Last load info")
         col1, col2, col3 = st.columns(3)
         loads_df = _query_data_live(
-            f"SELECT load_id, inserted_at FROM {LOADS_TABLE_NAME} WHERE status = 0 ORDER BY inserted_at DESC LIMIT 101 "
+            f"SELECT load_id, inserted_at FROM {pipeline.default_schema.loads_table_name} WHERE status = 0 ORDER BY inserted_at DESC LIMIT 101 "
         )
         loads_no = loads_df.shape[0]
         if loads_df.shape[0] > 0:
@@ -159,7 +158,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
 
         st.header("Schema updates")
         schemas_df = _query_data_live(
-            f"SELECT schema_name, inserted_at, version, version_hash FROM {VERSION_TABLE_NAME} ORDER BY inserted_at DESC LIMIT 101 "
+            f"SELECT schema_name, inserted_at, version, version_hash FROM {pipeline.default_schema.version_table_name} ORDER BY inserted_at DESC LIMIT 101 "
             )
         st.markdown("**100 recent schema updates**")
         st.dataframe(schemas_df)

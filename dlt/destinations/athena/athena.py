@@ -241,7 +241,7 @@ class AthenaClient(SqlJobClientBase):
         self.table_prefix_layout = path_utils.get_table_prefix_layout(config.staging_config.layout, [])
 
         sql_client = AthenaSQLClient(
-            self.make_dataset_name(schema, config.dataset_name, config.default_schema_name),
+            config.normalize_dataset_name(schema),
             config
         )
         super().__init__(schema, config, sql_client)

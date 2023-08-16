@@ -58,12 +58,33 @@ def test_default_pipeline() -> None:
     assert p.default_schema_name in ["dlt_pytest", "dlt"]
 
 
+def test_default_pipeline_dataset() -> None:
+    # dummy does not need a dataset
+    p = dlt.pipeline(destination="dummy")
+    assert p.dataset_name is None  # so it is none
+
+    # filesystem needs one
+    possible_dataset_names = ["dlt_pytest_dataset", "dlt_pipeline_dataset"]
+    p = dlt.pipeline(destination="filesystem")
+    assert p.dataset_name in possible_dataset_names
+
+
 def test_run_full_refresh_default_dataset() -> None:
-    p = dlt.pipeline(full_refresh=True)
+    p = dlt.pipeline(full_refresh=True, destination="filesystem")
     assert p.dataset_name.endswith(p._pipeline_instance_id)
     # restore this pipeline
     r_p = dlt.attach(full_refresh=False)
     assert r_p.dataset_name.endswith(p._pipeline_instance_id)
+
+    # dummy does not need dataset
+    p = dlt.pipeline(full_refresh=True, destination="dummy")
+    assert p.dataset_name is None
+    # simulate set new dataset
+    p._set_destination("filesystem")
+    assert p.dataset_name is None
+    p._set_dataset_name(None)
+    # full refresh is still observed
+    assert p.dataset_name.endswith(p._pipeline_instance_id)
 
 
 def test_run_full_refresh_underscored_dataset() -> None:
@@ -84,7 +105,7 @@ def test_pipeline_with_non_alpha_name() -> None:
     p = dlt.pipeline(pipeline_name=name)
     assert p.pipeline_name == name
     # default dataset is set
-    assert p.dataset_name == "another_pipeline_8329x_dataset"
+    assert p.dataset_name == f"{name}_dataset"
     # also pipeline name in runtime must be correct
     assert p.runtime_config.pipeline_name == p.pipeline_name
 
@@ -94,8 +115,9 @@ def test_pipeline_with_non_alpha_name() -> None:
 
 
 def test_invalid_dataset_name() -> None:
-    with pytest.raises(InvalidDatasetName):
-        dlt.pipeline(dataset_name="!")
+    # this is invalid dataset name but it will be normalized within a destination
+    p = dlt.pipeline(dataset_name="!")
+    assert p.dataset_name == "!"
 
 
 def test_pipeline_context_deferred_activation() -> None:

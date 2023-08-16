@@ -1,10 +1,10 @@
 from typing import Union, List, Any
 
 from dlt.extract.typing import TTableHintTemplate, TDataItem
-from dlt.common.schema.typing import TColumnKey
+from dlt.common.schema.typing import TColumnNames
 
 
-def resolve_column_value(column_hint: TTableHintTemplate[TColumnKey], item: TDataItem) -> Union[Any, List[Any]]:
+def resolve_column_value(column_hint: TTableHintTemplate[TColumnNames], item: TDataItem) -> Union[Any, List[Any]]:
     """Extract values from the data item given a column hint.
     Returns either a single value or list of values when hint is a composite.
     """

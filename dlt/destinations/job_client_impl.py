@@ -12,7 +12,7 @@ import re
 
 from dlt.common import json, pendulum, logger
 from dlt.common.data_types import TDataType
-from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnSchemaBase, TTableSchema, TWriteDisposition
+from dlt.common.schema.typing import COLUMN_HINTS, TColumnSchemaBase, TTableSchema, TWriteDisposition
 from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
@@ -197,7 +197,7 @@ class SqlJobClientBase(JobClientBase):
         return None
 
     def complete_load(self, load_id: str) -> None:
-        name = self.sql_client.make_qualified_table_name(LOADS_TABLE_NAME)
+        name = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
         now_ts = pendulum.now()
         self.sql_client.execute_sql(
             f"INSERT INTO {name}(load_id, schema_name, status, inserted_at, schema_version_hash) VALUES(%s, %s, %s, %s, %s);",
@@ -261,12 +261,12 @@ WHERE """
         pass
 
     def get_newest_schema_from_storage(self) -> StorageSchemaInfo:
-        name = self.sql_client.make_qualified_table_name(VERSION_TABLE_NAME)
+        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         query = f"SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM {name} WHERE schema_name = %s ORDER BY inserted_at DESC;"
         return self._row_to_schema_info(query, self.schema.name)
 
     def get_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
-        name = self.sql_client.make_qualified_table_name(VERSION_TABLE_NAME)
+        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         query = f"SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM {name} WHERE version_hash = %s;"
         return self._row_to_schema_info(query, version_hash)
 
@@ -386,7 +386,7 @@ WHERE """
         """
         Save the given schema in storage and remove all previous versions with the same name
         """
-        name = self.sql_client.make_qualified_table_name(VERSION_TABLE_NAME)
+        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         self.sql_client.execute_sql(
             f"DELETE FROM {name} WHERE schema_name = %s;", schema.name
         )
@@ -407,9 +407,8 @@ WHERE """
         self._commit_schema_update(schema, schema_str)
 
     def _commit_schema_update(self, schema: Schema, schema_str: str) -> None:
-        # insert
-        name = self.sql_client.make_qualified_table_name(VERSION_TABLE_NAME)
         now_ts = pendulum.now()
+        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         # values =  schema.version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(now_ts), schema_str
         self.sql_client.execute_sql(
             f"INSERT INTO {name}({self.VERSION_TABLE_SCHEMA_COLUMNS}) VALUES (%s, %s, %s, %s, %s, %s);", schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, now_ts, schema_str

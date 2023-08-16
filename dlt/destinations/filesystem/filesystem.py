@@ -5,7 +5,6 @@ from typing import ClassVar, List, Type, Iterable, Set
 from fsspec import AbstractFileSystem
 
 from dlt.common.schema import Schema, TTableSchema
-from dlt.common.schema.typing import LOADS_TABLE_NAME
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob
@@ -16,6 +15,7 @@ from dlt.destinations.filesystem.filesystem_client import client_from_config
 from dlt.common.storages import LoadStorage
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations import path_utils
+
 
 class LoadFilesystemJob(LoadJob):
     def __init__(
@@ -83,7 +83,7 @@ class FilesystemClient(JobClientBase):
 
     @property
     def dataset_path(self) -> str:
-        ds_path = posixpath.join(self.fs_path, self.make_dataset_name(self.schema, self.config.dataset_name, self.config.default_schema_name))
+        ds_path = posixpath.join(self.fs_path, self.config.normalize_dataset_name(self.schema))
         return ds_path
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
@@ -142,7 +142,7 @@ class FilesystemClient(JobClientBase):
 
     def complete_load(self, load_id: str) -> None:
         schema_name = self.schema.name
-        table_name = LOADS_TABLE_NAME
+        table_name = self.schema.loads_table_name
         file_name = f"{schema_name}.{table_name}.{load_id}"
         self.fs_client.touch(posixpath.join(self.dataset_path, file_name))
 

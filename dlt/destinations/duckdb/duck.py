@@ -71,7 +71,7 @@ class DuckDbClient(InsertValuesJobClient):
 
     def __init__(self, schema: Schema, config: DuckDbClientConfiguration) -> None:
         sql_client = DuckDbSqlClient(
-            self.make_dataset_name(schema, config.dataset_name, config.default_schema_name),
+            config.normalize_dataset_name(schema),
             config.credentials
         )
         super().__init__(schema, config, sql_client)
