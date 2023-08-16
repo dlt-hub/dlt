@@ -4,20 +4,20 @@ description: Build a data pipeline - the comprehensive guide
 keywords: [build a data pipeline]
 ---
 
-# Building data pipelines with `dlt`, from basic to advanced
+## Building data pipelines with `dlt`, from basic to advanced
 
 This is in-depth overview will take you through the main areas of pipelining with `dlt`. Go to the
 related pages you are instead looking for the [demo](try-in-colab.md), or the
 [walkthroughs](../walkthroughs).
 
-# Why build pipelines with `dlt`?
+## Why build pipelines with `dlt`?
 
-dlt offers functionality to support the entire extract and load process. Let's look at the high level diagram:
+`dlt` offers functionality to support the entire extract and load process. Let's look at the high level diagram:
 
 ![dlt source resource pipe diagram](/img/dlt-high-level.png)
 
 
-First, We have a `Pipeline` function, that can infer a schema from data and load the data to the destination.
+First, we have a `pipeline` function, that can infer a schema from data and load the data to the destination.
 We can use this pipeline with json data, dataframes, or other iterable objects such as generator functions.
 
 This pipeline provides effortless loading via a schema discovery, versioning and evolution
@@ -29,16 +29,12 @@ maintenance and development.
 This allows our data team to focus on leveraging the data and driving value, while ensuring
 effective governance through timely notifications of any changes.
 
-
-For extract, dlt also provides `source` and `resource` decorators that enable defining
-how extracted data should be loaded, while supporting graceful, s
-calable extraction via microbatching and parallelism.
-
+For extract, `dlt` also provides `source` and `resource` decorators that enable defining
+how extracted data should be loaded, while supporting graceful,
+scalable extraction via micro-batching and parallelism.
 
 
-
-
-# The simplest pipeline: 1 liner to load data with schema evolution
+## The simplest pipeline: 1 liner to load data with schema evolution
 
 ```python
 import dlt
@@ -77,12 +73,13 @@ destination (DuckDB) and dataset name ("country_data"). The `run` method is then
 the data from a list of objects into the table named "countries". The `info` variable stores
 information about the loaded data, such as package IDs and job metadata.
 
-The data you can pass to it should be iterable: Lists of rows, generators, or `dlt` sources will do
+The data you can pass to it should be iterable: lists of rows, generators, or `dlt` sources will do
 just fine.
 
 If you want to configure how the data is loaded, you can choose between `write_disposition`s
-such as `replace`, `append` and `merge`in the pipeline function.
-Here is an example where we load some data to duckdb by `upserting`or `merging` on the id column found in the data:
+such as `replace`, `append` and `merge` in the pipeline function.
+
+Here is an example where we load some data to duckdb by `upserting` or `merging` on the id column found in the data.
 In this example, we also run a dbt package and then load the outcomes of the load jobs into their respective tables.
 This will enable us to log when schema changes occurred and match them to the loaded data for lineage, granting us both column and row level lineage.
 We also alert the schema change to a Slack channel where hopefully the producer and consumer are subscribed.
@@ -94,42 +91,52 @@ import dlt
 data = [{'id': 1, 'name': 'John'}]
 
 # open connection
-pipe = dlt.pipeline(destination='duckdb',
-                    dataset_name='raw_data')
+pipeline = dlt.pipeline(
+    destination='duckdb',
+    dataset_name='raw_data'
+)
 
 # Upsert/merge: Update old records, insert new
-
-load_info = pipe.run(data,
-                      write_disposition="merge",
-                      primary_key="id",
-                      table_name="users")
-
-# add dbt runner, optionally with venv
-venv = dlt.dbt.get_venv(pipe)
-dbt = dlt.dbt.package(pipe,
-            "https://github.com/dbt-labs/jaffle_shop.git",
-            venv=venv)
+load_info = pipeline.run(
+    data,
+    write_disposition="merge",
+    primary_key="id",
+    table_name="users"
+)
+```
+Add dbt runner, optionally with venv:
+```python
+venv = dlt.dbt.get_venv(pipeline)
+dbt = dlt.dbt.package(
+    pipeline,
+    "https://github.com/dbt-labs/jaffle_shop.git",
+    venv=venv
+)
 models_info = dbt.run_all()
 
 # Load metadata for monitoring and load package lineage.
 # This allows for both row and column level lineage,
-# #as it contains schema update info linked to the loaded data
-pipe.run([load_info], table_name="loading_status", write_disposition='append')
-pipe.run([models_info], table_name="transform_status", write_disposition='append')
+# as it contains schema update info linked to the loaded data
+pipeline.run([load_info], table_name="loading_status", write_disposition='append')
+pipeline.run([models_info], table_name="transform_status", write_disposition='append')
+```
 
-# let's alert any schema changes
-
+Let's alert any schema changes:
+```python
 from dlt.common.runtime.slack import send_slack_message
 
 slack_hook = "https://hooks.slack.com/services/xxx/xxx/xxx"
 
 for package in load_info.load_packages:
-  for table_name, table in package.schema_update.items():
-    for column_name, column in table["columns"].items():
-      send_slack_message(slack_hook, message=f"\tTable updated: {table_name}: Column changed: {column_name}: {column['data_type']}")
+    for table_name, table in package.schema_update.items():
+        for column_name, column in table["columns"].items():
+            send_slack_message(
+                slack_hook,
+                message=f"\tTable updated: {table_name}: Column changed: {column_name}: {column['data_type']}"
+            )
 ```
 
-# Extracting data with `dlt`
+## Extracting data with `dlt`
 
 Extracting data with `dlt` is simple - you simply decorate your data-producing functions with loading
 or incremental extraction metadata, which enables `dlt` to extract and load by your custom logic.
@@ -140,7 +147,7 @@ Technically, two key aspects contribute to `dlt`'s effectiveness:
 - The utilization of implicit extraction DAGs that allow efficient API calls for data
   enrichments or transformations.
 
-## Scalability via iterators, chunking, and parallelization
+### Scalability via iterators, chunking, and parallelization
 
 `dlt` offers scalable data extraction by leveraging iterators, chunking, and parallelization
 techniques. This approach allows for efficient processing of large datasets by breaking them down
@@ -156,7 +163,7 @@ multiple data chunks simultaneously, `dlt` takes advantage of parallel processin
 resulting in significantly reduced extraction times. This parallelization enhances performance,
 especially when dealing with high-volume data sources.
 
-## Implicit extraction DAGs
+### Implicit extraction DAGs
 
 `dlt` incorporates the concept of implicit extraction DAGs to handle the dependencies between
 data sources and their transformations automatically. A DAG represents a directed graph without
@@ -175,13 +182,13 @@ the correct order, accounting for any dependencies and transformations.
 When deploying to Airflow, the internal DAG is unpacked into Airflow tasks in such a way to ensure
 consistency and allow granular loading.
 
-# Defining Incremental Loading
+## Defining Incremental Loading
 
 [Incremental loading](../general-usage/incremental-loading.md) is a crucial concept in data pipelines that involves loading only new or changed
 data instead of reloading the entire dataset. This approach provides several benefits, including
 low-latency data transfer and cost savings.
 
-## Declarative loading
+### Declarative loading
 
 Declarative loading allows you to specify the desired state of the data in the target destination,
 enabling efficient incremental updates. With `dlt`, you can define the incremental loading
@@ -200,7 +207,9 @@ behavior using the `write_disposition` parameter. There are three options availa
    `write_disposition='merge'`, you can perform merge-based incremental loading.
 
 For example, let's say you want to load GitHub events and update them in the destination, ensuring
-that only one instance of each event is present. You can use the merge write disposition as follows:
+that only one instance of each event is present.
+
+You can use the merge write disposition as follows:
 
 ```python
 @dlt.resource(primary_key="id", write_disposition="merge")
@@ -213,7 +222,7 @@ In this example, the `github_repo_events` resource uses the merge write disposit
 is present in the `github_repo_events` table. `dlt` takes care of loading the data
 incrementally, deduplicating it, and performing the necessary merge operations.
 
-## Advanced state management
+### Advanced state management
 
 Advanced state management in `dlt` allows you to store and retrieve values across pipeline runs
 by persisting them at the destination but accessing them in a dictionary in code. This enables you
@@ -221,12 +230,12 @@ to track and manage incremental loading effectively. By leveraging the pipeline 
 preserve information, such as last values, checkpoints or column renames, and utilize them later in
 the pipeline.
 
-# Transforming the Data
+## Transforming the Data
 
 Data transformation plays a crucial role in the data loading process. You can perform
 transformations both before and after loading the data. Here's how you can achieve it:
 
-## Before Loading
+### Before Loading
 
 Before loading the data, you have the flexibility to perform transformations using Python. You can
 leverage Python's extensive libraries and functions to manipulate and preprocess the data as needed.
@@ -240,11 +249,11 @@ consistent mapping. The `dummy_source` generates dummy data with an `id` and `na
 column, and the `add_map` function applies the `pseudonymize_name` transformation to each
 record.
 
-## After Loading
+### After Loading
 
 For transformations after loading the data, you have several options available:
 
-### [Using dbt](../dlt-ecosystem/transformations/dbt.md)
+#### [Using dbt](../dlt-ecosystem/transformations/dbt.md)
 
 dbt is a powerful framework for transforming data. It enables you to structure your transformations
 into DAGs, providing cross-database compatibility and various features such as templating,
@@ -252,13 +261,26 @@ backfills, testing, and troubleshooting. You can use the dbt runner in `dlt` to 
 integrate dbt into your pipeline. Here's an example of running a dbt package after loading the data:
 
 ```python
+import dlt
+from pipedrive import pipedrive_source
+
 # load to raw
-pipeline = dlt.pipeline(pipeline_name='pipedrive', destination='bigquery', dataset_name='pipedrive_raw')
+pipeline = dlt.pipeline(
+    pipeline_name='pipedrive',
+    destination='bigquery',
+    dataset_name='pipedrive_raw'
+)
 
 load_info = pipeline.run(pipedrive_source())
 print(load_info)
-# now transform from loaded data to dbt dataset
-pipeline = dlt.pipeline(pipeline_name='pipedrive', destination='bigquery', dataset_name='pipedrive_dbt')
+```
+Now transform from loaded data to dbt dataset:
+```python
+pipeline = dlt.pipeline(
+    pipeline_name='pipedrive',
+    destination='bigquery',
+    dataset_name='pipedrive_dbt'
+)
 
 # make venv and install dbt in it.
 venv = dlt.dbt.get_venv(pipeline)
@@ -277,7 +299,7 @@ pipeline performs transformations using a dbt package called `pipedrive` after l
 The `dbt.package` function sets up the dbt runner, and `dbt.run_all()` executes the dbt
 models defined in the package.
 
-### [Using the `dlt` SQL client](../dlt-ecosystem/transformations/sql.md)
+#### [Using the `dlt` SQL client](../dlt-ecosystem/transformations/sql.md)
 
 Another option is to leverage the `dlt` SQL client to query the loaded data and perform
 transformations using SQL statements. You can execute SQL statements that change the database schema
@@ -296,7 +318,7 @@ with pipeline.sql_client() as client:
 In this example, the `execute_sql` method of the SQL client allows you to execute SQL
 statements. The statement inserts a row with values into the `customers` table.
 
-### [Using Pandas](../dlt-ecosystem/transformations/pandas.md)
+#### [Using Pandas](../dlt-ecosystem/transformations/pandas.md)
 
 You can fetch query results as Pandas data frames and perform transformations using Pandas
 functionalities. Here's an example of reading data from the `issues` table in DuckDB and
@@ -322,7 +344,7 @@ counts = reactions.sum(0).sort_values(0, ascending=False)
 By leveraging these transformation options, you can shape and manipulate the data before or after
 loading it, allowing you to meet specific requirements and ensure data quality and consistency.
 
-# Adjusting the automated normalisation
+## Adjusting the automated normalisation
 
 To streamline the process, `dlt` recommends attaching schemas to sources implicitly instead of
 creating them explicitly. You can provide a few global schema settings and let the table and column
@@ -335,7 +357,7 @@ By adjusting the automated normalization process in `dlt`, you can ensure that t
 schema meets your specific requirements and aligns with your preferred naming conventions, data
 types, and other customization needs.
 
-## Customizing the Normalization Process
+### Customizing the Normalization Process
 
 Customizing the normalization process in `dlt` allows you to adapt it to your specific requirements.
 
@@ -349,7 +371,7 @@ the normalization process to meet your unique needs and achieve optimal results.
 
 Read more about how to configure [schema generation.](../general-usage/schema.md)
 
-## Exporting and Importing Schema Files
+### Exporting and Importing Schema Files
 
 `dlt` allows you to export and import schema files, which contain the structure and instructions for
 processing and loading the data. Exporting schema files enables you to modify them directly, making
@@ -358,12 +380,12 @@ use them in your pipeline.
 
 Read more: [Adjust a schema docs.](../walkthroughs/adjust-a-schema.md)
 
-# Governance Support in `dlt` Pipelines
+## Governance Support in `dlt` Pipelines
 
 `dlt` pipelines offer robust governance support through three key mechanisms: pipeline metadata
 utilization, schema enforcement and curation, and schema change alerts.
 
-## Pipeline Metadata
+### Pipeline Metadata
 
 `dlt` pipelines leverage metadata to provide governance capabilities. This metadata includes load IDs,
 which consist of a timestamp and pipeline name. Load IDs enable incremental transformations and data
@@ -371,7 +393,7 @@ vaulting by tracking data loads and facilitating data lineage and traceability.
 
 Read more about [lineage.](../dlt-ecosystem/visualizations/understanding-the-tables.md#load-ids)
 
-## Schema Enforcement and Curation
+### Schema Enforcement and Curation
 
 `dlt` empowers users to enforce and curate schemas, ensuring data consistency and quality. Schemas
 define the structure of normalized data and guide the processing and loading of data. By adhering to
@@ -380,7 +402,7 @@ practices.
 
 Read more: [Adjust a schema docs.](../walkthroughs/adjust-a-schema.md)
 
-## Schema evolution
+### Schema evolution
 
 `dlt` enables proactive governance by alerting users to schema changes. When modifications occur in
 the source data’s schema, such as table or column alterations, `dlt` notifies stakeholders, allowing
@@ -393,7 +415,7 @@ control throughout the data processing lifecycle.
 
 Read more about [schema evolution.](../reference/explainers/schema-evolution.md)
 
-## Scaling and finetuning
+### Scaling and finetuning
 
 `dlt` offers several mechanism and configuration options to scale up and finetune pipelines:
 
@@ -403,8 +425,8 @@ Read more about [schema evolution.](../reference/explainers/schema-evolution.md)
 
 Read more about [performance.](../reference/performance.md)
 
-## Other advanced topics
+### Other advanced topics
 
 `dlt` is a constantly growing library that supports many features and use cases needed by the
-community. [Join our slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+community. [Join our Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
 to find recent releases or discuss what you can build with `dlt`.
