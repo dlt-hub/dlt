@@ -2,12 +2,12 @@
 
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
-[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+[Join our Slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
-Jira by Atlassian helps teams manage projects and tasks efficiently, prioritize work, and
-collaborate.
+[Jira](https://www.atlassian.com/software/jira) by Atlassian helps teams manage projects and tasks
+efficiently, prioritize work, and collaborate.
 
 This Jira `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/jira_pipeline.py)
@@ -17,7 +17,7 @@ The endpoints that this verified source supports are:
 
 | Name      | Description                                                                              |
 | --------- | ---------------------------------------------------------------------------------------- |
-| issues    | individual pieces of work that must be completed                                         |
+| issues    | individual pieces of work to be completed                                                |
 | users     | administrator of a given project                                                         |
 | workflows | the key aspect of managing and tracking the progress of issues or tasks within a project |
 | projects  | a collection of tasks that need to be completed to achieve a certain outcome             |
@@ -37,7 +37,7 @@ To get a complete list of sub-endpoints that can be loaded, see
 
 1. Go to the "Security" tab and select "Create and manage API tokens."
 
-1. Click on "Create API Token," provide a descriptive name, and click the "Create" button.
+1. Click "Create API Token," provide a descriptive name, and click the "Create" button.
 
 1. Safely copy the newly generated access token.
 
@@ -67,21 +67,21 @@ For more information, read the
 
 ### Add credentials
 
-1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can
-   securely store your access tokens and other sensitive information. It's important to handle this
-   file with care and keep it safe. Here's what the file looks like:
+1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, where you can securely store
+   your access tokens and other sensitive information. It's important to handle this file with care
+   and keep it safe. Here's what the file looks like:
 
    Here's what the file looks like:
 
    ```toml
-   # put your secret values and credentials here. do not share this file and do not push it to github
+   # put your secret values and credentials here. Please do not share this file, and do not push it to GitHub
    [sources.jira]
    subdomain = "set me up!" # please set me up!
    email = "set me up!" # please set me up!
    api_token = "set me up!" # please set me up!
    ```
 
-1. A subdomain is a unique identifier in a URL used to access your Jira account. For instance, in
+1. A subdomain in a URL identifies your Jira account. For example, in
    "https://example.atlassian.net", "example" is the subdomain.
 
 1. Use the email address associated with your Jira account.
@@ -89,7 +89,7 @@ For more information, read the
 1. Replace the access_token value with the [previously copied one](jira.md#grab-credentials) to
    ensure secure access to your Jira account.
 
-1. Next, Follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
+1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
@@ -127,7 +127,9 @@ it is important to note the complete list of the default endpoints given in
 
 ### Source `jira`
 
-This source function creates a list of resources to load data into the destination.
+This source function creates a list of resources to load data into the destination. This function
+returns an iterable of DltResource objects, which represent the data to be loaded into the
+destination. Y
 
 ```python
 @dlt.source
@@ -156,7 +158,7 @@ def jira_search(
 ) -> Iterable[DltResource]:
 ```
 
-The above function uses the same arguments `subdomain`, `email` and `api_token` as discribed above
+The above function uses the same arguments `subdomain`, `email` and `api_token` as described above
 for [jira source](jira.md#source-jira).
 
 ### Resource `issues`
