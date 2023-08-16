@@ -18,12 +18,14 @@ def weaviate_adapter(
     vectorize: TColumnNames = None,
     tokenization: TTokenizationSetting = None,
 ) -> DltResource:
-    """Transforms the provided data to a DltResource with Weaviate-specific hints.
+    """Prepares data for the Weaviate destination by specifying which columns
+    should be vectorized and which tokenization method to use.
 
-    The function can wrap raw data into a DltResource and apply specific vectorization
-    and tokenization hints for columns in the data based on the Weaviate schema.
-
-    These hints are used by the Weaviate destination to create a Weaviate schema.
+    Vectorization is done by Weaviate's vectorizer modules. The vectorizer module
+    can be configured in dlt configuration file under
+    `[destination.weaviate.vectorizer]` and `[destination.weaviate.module_config]`.
+    The default vectorizer module is `text2vec-openai`. See also:
+    https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules
 
     Args:
         data (Any): The data to be transformed. It can be raw data or an instance
