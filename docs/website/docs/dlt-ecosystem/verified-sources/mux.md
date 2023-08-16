@@ -1,9 +1,9 @@
 # Mux
 
-:::info 
+:::info
 Need help deploying these sources, or figuring out how to run them in your data stack?
 
-[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+[Join our Slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
 
@@ -19,12 +19,13 @@ loads data using “Mux API” to the destination of your choice.
 | asset       | Refers to the video content that you want to upload, encode, store, and stream using their platform |
 | video view  | Represents a single instance of a video being watched or streamed                                   |
 
+> Note: The source `mux_source` loads all video assets, but each video view is for yesterday only!
 
 ## Setup Guide
 
 ### Grab credentials
 
-1. Sign in to mux.com.
+1. Sign in to [mux.com.](http://mux.com/)
 
 1. Click "Settings" at the bottom left, then select "Access Token".
 
@@ -119,7 +120,7 @@ def mux_source() -> Iterable[DltResource]:
 
 ### Resource `assets_resource`
 
-The assets_resource function fetches metadata about video assets from the Mux API's "assets" endpoint. 
+The assets_resource function fetches metadata about video assets from the Mux API's "assets" endpoint.
 
 ```python
 @dlt.resource(write_disposition="merge")
@@ -160,9 +161,9 @@ verified source.
 
     ```python
     pipeline = dlt.pipeline(
-        pipeline_name="mux_pipeline",# Use a custom name if desired
-        destination="bigquery",# Choose the appropriate destination (e.g., duckdb, redshift, post)
-        dataset_name="mux_dataset"# Use a custom name if desired
+        pipeline_name="mux_pipeline", # Use a custom name if desired
+        destination="bigquery", # Choose the appropriate destination (e.g., duckdb, redshift, post)
+        dataset_name="mux_dataset" # Use a custom name if desired
     )
     ```
 
