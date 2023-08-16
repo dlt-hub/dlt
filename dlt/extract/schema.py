@@ -3,7 +3,7 @@ from collections.abc import Mapping as C_Mapping
 from typing import List, TypedDict, cast, Any
 
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
-from dlt.common.schema.typing import TColumnKey, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
+from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
 from dlt.common.typing import TDataItem
 from dlt.common.validation import validate_dict_ignoring_xkeys
 
@@ -19,8 +19,8 @@ class TTableSchemaTemplate(TypedDict, total=False):
     # table_sealed: Optional[bool]
     parent: TTableHintTemplate[str]
     columns: TTableHintTemplate[TTableSchemaColumns]
-    primary_key: TTableHintTemplate[TColumnKey]
-    merge_key: TTableHintTemplate[TColumnKey]
+    primary_key: TTableHintTemplate[TColumnNames]
+    merge_key: TTableHintTemplate[TColumnNames]
     incremental: Incremental[Any]
 
 
@@ -80,8 +80,8 @@ class DltResourceSchema:
         parent_table_name: TTableHintTemplate[str] = None,
         write_disposition: TTableHintTemplate[TWriteDisposition] = None,
         columns: TTableHintTemplate[TTableSchemaColumns] = None,
-        primary_key: TTableHintTemplate[TColumnKey] = None,
-        merge_key: TTableHintTemplate[TColumnKey] = None,
+        primary_key: TTableHintTemplate[TColumnNames] = None,
+        merge_key: TTableHintTemplate[TColumnNames] = None,
         incremental: Incremental[Any] = None
     ) -> None:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
@@ -144,7 +144,7 @@ class DltResourceSchema:
                 return hint
 
     @staticmethod
-    def _merge_key(hint: TColumnProp, keys: TColumnKey, partial: TPartialTableSchema) -> None:
+    def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:
         if isinstance(keys, str):
             keys = [keys]
         for key in keys:
@@ -173,8 +173,8 @@ class DltResourceSchema:
         parent_table_name: TTableHintTemplate[str] = None,
         write_disposition: TTableHintTemplate[TWriteDisposition] = None,
         columns: TTableHintTemplate[TTableSchemaColumns] = None,
-        primary_key: TTableHintTemplate[TColumnKey] = None,
-        merge_key: TTableHintTemplate[TColumnKey] = None
+        primary_key: TTableHintTemplate[TColumnNames] = None,
+        merge_key: TTableHintTemplate[TColumnNames] = None
         ) -> TTableSchemaTemplate:
         if not table_name:
             raise TableNameMissing()

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.3.11"
+version = "0.3.11a0"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -70,6 +70,7 @@ boto3 = {version = ">=1.25", optional = true}
 snowflake-connector-python = {version = ">=2.9.0", optional = true, extras = ["pandas"]}
 cron-descriptor = {version = ">=1.2.32", optional = true}
 pipdeptree = {version = ">=2.9.0,<2.10", optional = true}
+weaviate-client = {version = ">=3.22", optional = true}
 
 
 [tool.poetry.extras]
@@ -87,6 +88,7 @@ gs = ["gcsfs"]
 snowflake = ["snowflake-connector-python"]
 motherduck = ["duckdb", "pyarrow"]
 cli = ["pipdeptree", "cron-descriptor"]
+weaviate = ["weaviate-client"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"

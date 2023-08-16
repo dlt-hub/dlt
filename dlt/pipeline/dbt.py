@@ -4,10 +4,10 @@ from dlt.common.exceptions import VenvNotFound
 from dlt.common.runners import Venv
 from dlt.common.schema import Schema
 from dlt.common.typing import TSecretValue
+from dlt.common.schema.utils import normalize_schema_name
 
 from dlt.helpers.dbt import create_venv as _create_venv, package_runner as _package_runner, DBTPackageRunner, DEFAULT_DBT_VERSION as _DEFAULT_DBT_VERSION, restore_venv as _restore_venv
 from dlt.pipeline.pipeline import Pipeline
-
 
 
 def get_venv(pipeline: Pipeline, venv_path: str = "dbt", dbt_version: str = _DEFAULT_DBT_VERSION) -> Venv:
@@ -70,7 +70,7 @@ def package(
     Returns:
         DBTPackageRunner: A configured and authenticated Python `dbt` wrapper
     """
-    schema = pipeline.default_schema if pipeline.default_schema_name else Schema(pipeline.dataset_name)
+    schema = pipeline.default_schema if pipeline.default_schema_name else Schema(normalize_schema_name(pipeline.dataset_name))
     job_client = pipeline._sql_job_client(schema)
     if not venv:
         venv = Venv.restore_current()

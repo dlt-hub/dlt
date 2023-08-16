@@ -80,7 +80,7 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction -E postgres -E duckdb -E pyarrow -E filesystem -E cli
 
-      - run: poetry run pytest tests/load tests/cli
+      - run: poetry run pytest tests/load tests/cli --ignore=tests/load/weaviate
         name: Run tests Linux
         env:
           DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data

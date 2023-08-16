@@ -31,7 +31,16 @@ def schema_storage() -> SchemaStorage:
         explicit_value={
             "import_schema_path": "tests/common/cases/schemas/rasa",
             "external_schema_format": "json"
-        })
+        }
+    )
+    return SchemaStorage(C, makedirs=True)
+
+
+@pytest.fixture
+def schema_storage_no_import() -> SchemaStorage:
+    C = resolve_configuration(
+        SchemaStorageConfiguration()
+    )
     return SchemaStorage(C, makedirs=True)
 
 
@@ -54,13 +63,13 @@ def cn_schema() -> Schema:
 
 
 def test_normalize_schema_name(schema: Schema) -> None:
-    assert schema.naming.normalize_identifier("BAN_ANA") == "ban_ana"
-    assert schema.naming.normalize_identifier("event-.!:value") == "event_value"
-    assert schema.naming.normalize_identifier("123event-.!:value") == "_123event_value"
+    assert schema.naming.normalize_table_identifier("BAN_ANA") == "ban_ana"
+    assert schema.naming.normalize_table_identifier("event-.!:value") == "event_value"
+    assert schema.naming.normalize_table_identifier("123event-.!:value") == "_123event_value"
     with pytest.raises(ValueError):
-        assert schema.naming.normalize_identifier("")
+        assert schema.naming.normalize_table_identifier("")
     with pytest.raises(ValueError):
-        schema.naming.normalize_identifier(None)
+        schema.naming.normalize_table_identifier(None)
 
 
 def test_new_schema(schema: Schema) -> None:
@@ -76,16 +85,16 @@ def test_new_schema_custom_normalizers(cn_schema: Schema) -> None:
     assert_new_schema_values_custom_normalizers(cn_schema)
 
 
-def test_schema_config_normalizers(schema: Schema, schema_storage: SchemaStorage) -> None:
+def test_schema_config_normalizers(schema: Schema, schema_storage_no_import: SchemaStorage) -> None:
     # save snake case schema
-    schema_storage.save_schema(schema)
+    schema_storage_no_import.save_schema(schema)
     # config direct naming convention
     os.environ["SCHEMA__NAMING"] = "direct"
     # new schema has direct naming convention
     schema_direct_nc = Schema("direct_naming")
     assert schema_direct_nc._normalizers_config["names"] == "direct"
     # still after loading the config is "snake"
-    schema = schema_storage.load_schema(schema.name)
+    schema = schema_storage_no_import.load_schema(schema.name)
     assert schema._normalizers_config["names"] == "snake_case"
     # provide capabilities context
     destination_caps = DestinationCapabilitiesContext.generic_capabilities()
@@ -98,7 +107,7 @@ def test_schema_config_normalizers(schema: Schema, schema_storage: SchemaStorage
         # but length is there
         assert schema_direct_nc.naming.max_length == 127
         # also for loaded schema
-        schema = schema_storage.load_schema(schema.name)
+        schema = schema_storage_no_import.load_schema(schema.name)
         assert schema._normalizers_config["names"] == "snake_case"
         assert schema.naming.max_length == 127
 
@@ -151,17 +160,21 @@ def test_column_name_validator(schema: Schema) -> None:
         utils.column_name_validator(schema.naming)(".", "k", 1, TColumnName)
 
 
-def test_invalid_schema_name() -> None:
+def test_schema_name() -> None:
+    # invalid char
     with pytest.raises(InvalidSchemaName) as exc:
         Schema("a!b")
     assert exc.value.name == "a!b"
+    with pytest.raises(InvalidSchemaName) as exc:
+        Schema("1_a")
+    # too long
+    with pytest.raises(InvalidSchemaName) as exc:
+        Schema("a"*65)
 
 
 def test_create_schema_with_normalize_name() -> None:
-    s = Schema("a!b", normalize_name=True)
-    assert s.name == "a_b"
-    s = Schema("A_b_c", normalize_name=True)
-    assert s.name == "a_b_c"
+    assert utils.normalize_schema_name("a!b") == "a_b"
+    assert len(utils.normalize_schema_name("a" * 65)) == 64
 
 
 def test_schema_descriptions_and_annotations(schema_storage: SchemaStorage):

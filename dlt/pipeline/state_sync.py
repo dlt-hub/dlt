@@ -98,7 +98,8 @@ def state_resource(state: TPipelineState) -> DltResource:
 
 
 def load_state_from_destination(pipeline_name: str, sql_client: SqlClientBase[Any]) -> TPipelineState:
-    # NOTE: if dataset or table holding state does not exist, the sql_client will rise DatabaseUndefinedRelation. caller must handle this
+    # NOTE: if dataset or table holding state does not exist, the sql_client will rise DestinationUndefinedEntity. caller must handle this
+    # TODO: this must go into job client and STATE_TABLE_NAME + LOADS_TABLE_NAME must get normalized before using in the query
     query = f"SELECT state FROM {STATE_TABLE_NAME} AS s JOIN {LOADS_TABLE_NAME} AS l ON l.load_id = s._dlt_load_id WHERE pipeline_name = %s AND l.status = 0 ORDER BY created_at DESC"
     with sql_client.execute_query(query, pipeline_name) as cur:
         row = cur.fetchone()

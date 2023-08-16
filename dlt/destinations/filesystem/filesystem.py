@@ -1,12 +1,9 @@
 import posixpath
-import threading
-import os
 from types import TracebackType
-from typing import ClassVar, List, Sequence, Type, Iterable, cast
+from typing import ClassVar, List, Type, Iterable, cast
 from fsspec import AbstractFileSystem
 
 from dlt.common.schema import Schema, TTableSchema
-from dlt.common.schema.typing import TWriteDisposition, LOADS_TABLE_NAME
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob
@@ -112,7 +109,7 @@ class FilesystemClient(JobClientBase):
 
     def complete_load(self, load_id: str) -> None:
         schema_name = self.schema.name
-        table_name = LOADS_TABLE_NAME
+        table_name = self.schema.loads_table_name
         file_name = f"{schema_name}.{table_name}.{load_id}"
         self.fs_client.touch(posixpath.join(self.dataset_path, file_name))
 

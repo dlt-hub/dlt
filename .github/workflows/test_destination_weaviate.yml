@@ -1,5 +1,4 @@
-
-name: test bigquery
+name: test weaviate
 
 on:
   pull_request:
@@ -9,23 +8,12 @@ on:
   workflow_dispatch:
 
 env:
-  CREDENTIALS__PROJECT_ID: chat-analytics-rasa-ci
-  CREDENTIALS__CLIENT_EMAIL: chat-analytics-loader@chat-analytics-rasa-ci.iam.gserviceaccount.com
-  CREDENTIALS__PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
-  CREDENTIALS__TOKEN_URI: https://oauth2.googleapis.com/token
-  CREDENTIALS__CLIENT_ID: 929384042504-3mtjaj1s7vuvf53j88mgdq4te7akkjm3.apps.googleusercontent.com
-  CREDENTIALS__CLIENT_SECRET: ${{ secrets.CREDENTIALS__CLIENT_SECRET }}
-  CREDENTIALS__REFRESH_TOKEN: ${{ secrets.CREDENTIALS__REFRESH_TOKEN }}
-
-  # needed for bigquery staging tests
-  # DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4J46G55G4
-  # DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  DESTINATION__WEAVIATE__CREDENTIALS__URL:  ${{ secrets.DESTINATION__WEAVIATE__CREDENTIALS__URL }}
+  DESTINATION__WEAVIATE__CREDENTIALS__API_KEY: ${{ secrets.DESTINATION__WEAVIATE__CREDENTIALS__API_KEY }}
+  DESTINATION__WEAVIATE__CREDENTIALS__ADDITIONAL_HEADERS: ${{ secrets.DESTINATION__WEAVIATE__CREDENTIALS__ADDITIONAL_HEADERS }}
 
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
-
-  ALL_DESTINATIONS: "[\"bigquery\"]"
-  ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
 
 jobs:
   get_docs_changes:
@@ -33,7 +21,7 @@ jobs:
     if: ${{ !github.event.pull_request.head.repo.fork }}
 
   run_loader:
-    name: Tests BigQuery loader
+    name: Tests Weaviate loader
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
@@ -46,7 +34,6 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-
       - name: Check out
         uses: actions/checkout@master
 
@@ -62,39 +49,27 @@ jobs:
           virtualenvs-in-project: true
           installer-parallel: true
 
-      # - name: Get pip cache dir
-      #   id: pip-cache
-      #   run: |
-      #     echo "::set-output name=dir::$(poetry env info -p)"
-      #     echo "$(poetry env info -p)"
-
       - name: Load cached venv
         id: cached-poetry-dependencies
         uses: actions/cache@v3
         with:
-          # path: ${{ steps.pip-cache.outputs.dir }}
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
 
       - name: Install dependencies
-        # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E bigquery --with providers -E pyarrow
-
-      # - name: Install self
-      #   run: poetry install --no-interaction
-
+        run: poetry install --no-interaction -E weaviate
       - run: |
-          poetry run pytest tests/helpers/providers tests/load --ignore=tests/load/weaviate
+          poetry run pytest tests/load/weaviate/
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/helpers/providers tests/load --ignore=tests/load/weaviate
+          poetry run pytest tests/load/weaviate/
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd
 
   matrix_job_required_check:
-    name: BigQuery loader tests
+    name: Weaviate loader tests
     needs: run_loader
     runs-on: ubuntu-latest
     if: always()

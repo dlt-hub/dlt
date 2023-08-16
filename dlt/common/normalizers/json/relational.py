@@ -91,18 +91,18 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
         out_rec_row: DictStrAny = {}
         out_rec_list: Dict[Tuple[str, ...], Sequence[Any]] = {}
-        schema = self.schema
+        schema_naming = self.schema.naming
 
         def norm_row_dicts(dict_row: StrAny, __r_lvl: int, path: Tuple[str, ...] = ()) -> None:
             for k, v in dict_row.items():
                 if k.strip():
-                    norm_k = schema.naming.normalize_identifier(k)
+                    norm_k = schema_naming.normalize_identifier(k)
                 else:
                     # for empty keys in the data use _
                     norm_k = EMPTY_KEY_IDENTIFIER
                 # if norm_k != k:
                 #     print(f"{k} -> {norm_k}")
-                child_name = norm_k if path == () else schema.naming.shorten_fragments(*path, norm_k)
+                child_name = norm_k if path == () else schema_naming.shorten_fragments(*path, norm_k)
                 # for lists and dicts we must check if type is possibly complex
                 if isinstance(v, (dict, list)):
                     if not self._is_complex_type(table, child_name, __r_lvl):
@@ -112,7 +112,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                             norm_row_dicts(v, __r_lvl + 1, path + (norm_k,))
                         else:
                             # pass the list to out_rec_list
-                            out_rec_list[path + (norm_k,)] = v
+                            out_rec_list[path + (schema_naming.normalize_table_identifier(k),)] = v
                         continue
                     else:
                         # pass the complex value to out_rec_row
@@ -269,7 +269,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         row = cast(TDataItemRowRoot, item)
         # identify load id if loaded data must be processed after loading incrementally
         row["_dlt_load_id"] = load_id
-        yield from self._normalize_row(cast(TDataItemRowChild, row), {}, (self.schema.naming.normalize_identifier(table_name),))
+        yield from self._normalize_row(cast(TDataItemRowChild, row), {}, (self.schema.naming.normalize_table_identifier(table_name),))
 
     @classmethod
     def ensure_this_normalizer(cls, norm_config: TJSONNormalizer) -> None:
