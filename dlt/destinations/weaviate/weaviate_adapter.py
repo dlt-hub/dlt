@@ -18,7 +18,40 @@ def weaviate_adapter(
     vectorize: TColumnNames = None,
     tokenization: TTokenizationSetting = None,
 ) -> DltResource:
+    """Transforms the provided data to a DltResource with Weaviate-specific hints.
 
+    The function can wrap raw data into a DltResource and apply specific vectorization
+    and tokenization hints for columns in the data based on the Weaviate schema.
+
+    These hints are used by the Weaviate destination to create a Weaviate schema.
+
+    Args:
+        data (Any): The data to be transformed. It can be raw data or an instance
+            of DltResource. If raw data, the function wraps it into a DltResource
+            object.
+        vectorize (TColumnNames, optional): Specifies columns that should be
+            vectorized. Can be a single column name as a string or a list of
+            column names.
+        tokenization (TTokenizationSetting, optional): A dictionary mapping column
+            names to tokenization methods supported by Weaviate. The tokenization
+            methods are one of the values in `TOKENIZATION_METHODS`:
+            - 'word',
+            - 'lowercase',
+            - 'whitespace',
+            - 'field'.
+
+    Returns:
+        DltResource: A resource with applied Weaviate-specific hints.
+
+    Raises:
+        ValueError: If input for `vectorize` or `tokenization` is invalid
+            or neither is specified.
+
+    Examples:
+        >>> data = [{"name": "Alice", "description": "Software developer"}]
+        >>> weaviate_adapter(data, vectorize="description", tokenization={"description": "word"})
+        <DltResource with hints applied>
+    """
     # wrap `data` in a resource if not an instance already
     resource: DltResource
     if not isinstance(data, DltResource):
