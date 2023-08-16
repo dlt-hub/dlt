@@ -114,7 +114,7 @@ A more comprehensive pipeline would load data from some API or use one of dlt's 
 
 :::
 
-## Write dispotition
+## Write disposition
 
 A [write disposition](../../general-usage/incremental-loading.md#choosing-a-write-disposition) defines how the data should be written to the destination. All write dispositions are supported by the Weaviate destination.
 
