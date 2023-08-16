@@ -158,6 +158,8 @@ Loading data into Weaviate from different sources requires a proper understandin
 
 ### Data types
 
+Data loaded into Weaviate from various sources might have different types. To ensure compatibility with Weaviate's schema, there's a predefined mapping between the [dlt types](../../general-usage/schema.md#data-types) and [Weaviate's native types](https://weaviate.io/developers/weaviate/config-refs/datatypes):
+
 | dlt Type   | Weaviate Type |
 |------------|---------------|
 | text       | text          |
@@ -172,6 +174,13 @@ Loading data into Weaviate from different sources requires a proper understandin
 | complex    | text          |
 
 ### Dataset name
+
+Weaviate uses classes to categorize and identify data. To avoid potential naming conflicts, especially when dealing with multiple datasets that might have overlapping table names, dlt includes the dataset name into the Weaviate class name. This ensures a unique identifier for every class.
+
+For example, if you have a dataset named `movies_dataset` and a table named `actors`, the Weaviate class name would be `MoviesDataset_Actors` (the default separator is an underscore).
+
+However, if you prefer to have class names without the dataset prefix, you can achieve this by ensuring `dataset_name` is empty or not provided.
+
 ### Class and property names normalization
 
 ## Additional destination options
