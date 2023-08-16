@@ -21,6 +21,7 @@ class WeaviateCredentials(CredentialsConfiguration):
         # assuming no password in url scheme for Weaviate
         return self.url
 
+
 @configspec
 class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "weaviate"  # type: ignore

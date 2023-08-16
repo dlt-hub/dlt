@@ -23,13 +23,7 @@ def drop_active_pipeline_data() -> None:
         client = p._destination_client()
 
         if schema_has_classes(client):
-            if client.dataset_name:
-                client.drop_dataset()
-            else:
-                raise RuntimeError(
-                    "Cannot drop dataset because it is not set. "
-                    "Clean up the database manually."
-                )
+            client.drop_dataset()
 
         p._wipe_working_folder()
         # deactivate context
