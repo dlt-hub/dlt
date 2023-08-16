@@ -6,6 +6,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TTableSchema
 
 from dlt.destinations.weaviate.weaviate_adapter import weaviate_adapter, VECTORIZE_HINT, TOKENIZATION_HINT
+from dlt.destinations.weaviate.weaviate_client import WeaviateClient
 
 from tests.pipeline.utils import assert_load_info
 from .utils import assert_class, delete_classes
@@ -274,8 +275,8 @@ def test_merge_github_nested() -> None:
     assert issues["columns"]["body"][VECTORIZE_HINT]
     assert VECTORIZE_HINT not in issues["columns"]["url"]
     assert issues["columns"]["user__login"][TOKENIZATION_HINT] == "lowercase"
-
     assert_class(p, "Issues", expected_items_count=17)
+
 
 @pytest.mark.skip(reason="skip to avoid race condition with other tests")
 def test_empty_dataset_allowed() -> None:
@@ -285,12 +286,13 @@ def test_empty_dataset_allowed() -> None:
     info = p.run(weaviate_adapter(["a", "b", "c"], vectorize=["value"]))
     # dataset in load info is empty
     assert info.dataset_name is None
+    # check weaviate client props
+    client: WeaviateClient = p._get_destination_client(p.default_schema)
+    assert client.dataset_name is None
+    assert client.sentinel_class == "DltSentinelClass"
     # also check trace
     print(p.last_trace.steps[-1].step_info)
     assert_class(p, "Content", expected_items_count=3)
-
-    # Delete classes manually because dataset_name is not set
-    delete_classes(p, ['DltLoads', 'DltVersion', 'DltPipelineState', 'Content'])
 
 
 @pytest.mark.skip(reason="skip to avoid race condition with other tests")
@@ -303,6 +305,3 @@ def test_vectorize_property_without_data() -> None:
     # dataset in load info is empty
     assert_load_info(info)
     assert_class(p, "Content", expected_items_count=3)
-
-    # Delete classes manually because dataset_name is not set
-    delete_classes(p, ['DltLoads', 'DltVersion', 'DltPipelineState', 'Content'])

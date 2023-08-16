@@ -62,7 +62,11 @@ def test_default_pipeline_names(use_single_dataset: bool, any_destination: str) 
     # mock the correct destinations (never do that in normal code)
     with p.managed_state():
         p._set_destination(any_destination)
-        assert p.dataset_name is None
+        # does not reset the dataset name
+        assert p.dataset_name in possible_dataset_names
+        # never do that in production code
+        p.dataset_name = None
+        # set no dataset name -> if destination does not support it we revert to default
         p._set_dataset_name(None)
         assert p.dataset_name in possible_dataset_names
     p.normalize()

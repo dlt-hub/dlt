@@ -19,7 +19,8 @@ from tests.utils import TEST_STORAGE_ROOT
 
 def get_client_instance(schema: Schema) -> WeaviateClient:
     config = weaviate.spec()()
-    with Container().injectable_context(ConfigSectionContext(sections=('weaviate',))):
+    config.dataset_name = "ClientTest" + uniq_id()
+    with Container().injectable_context(ConfigSectionContext(sections=('destination', 'weaviate'))):
         return weaviate.client(schema, config)  # type: ignore[return-value]
 
 
@@ -33,8 +34,7 @@ def client() -> Iterator[WeaviateClient]:
     try:
         yield _client
     finally:
-        pass
-        _client.db_client.schema.delete_all()
+        _client.drop_dataset()
 
 
 @pytest.fixture
@@ -44,7 +44,7 @@ def file_storage() -> FileStorage:
 
 @pytest.mark.parametrize('write_disposition', ["append", "replace", "merge"])
 def test_all_data_types(client: WeaviateClient, write_disposition: str, file_storage: FileStorage) -> None:
-    class_name = "AllTypes" + uniq_id()
+    class_name = "AllTypes"
     # we should have identical content with all disposition types
     client.schema.update_schema(new_table(class_name, write_disposition=write_disposition, columns=TABLE_UPDATE))
     client.schema.bump_version()

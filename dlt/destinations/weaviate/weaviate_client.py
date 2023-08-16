@@ -239,6 +239,11 @@ class WeaviateClient(JobClientBase):
     def dataset_name(self) -> str:
         return self.config.normalize_dataset_name(self.schema)
 
+    @property
+    def sentinel_class(self) -> str:
+        # if no dataset name is provided we still want to create sentinel class
+        return self.dataset_name or "DltSentinelClass"
+
     @staticmethod
     def create_db_client(config: WeaviateClientConfiguration) -> weaviate.Client:
         return weaviate.Client(
@@ -339,21 +344,23 @@ class WeaviateClient(JobClientBase):
 
         Deletes all classes in the dataset and all data associated with them.
         Deletes the sentinel class as well.
-        """
-        if not self.dataset_name:
-            raise ValueError(
-                "Cannot drop dataset. Dataset name is not set. "
-                "To delete all classes, use `delete_all_classes`."
-            )
 
+        If dataset name was not provided, it deletes all the tables in the current schema
+        """
         schema = self.db_client.schema.get()
         class_name_list = [class_["class"] for class_ in schema.get("classes", [])]
 
-        prefix = f"{self.dataset_name}{self.config.dataset_separator}"
+        if self.dataset_name:
+            prefix = f"{self.dataset_name}{self.config.dataset_separator}"
 
-        for class_name in class_name_list:
-            if class_name.startswith(prefix):
-                self.db_client.schema.delete_class(class_name)
+            for class_name in class_name_list:
+                if class_name.startswith(prefix):
+                    self.db_client.schema.delete_class(class_name)
+        else:
+            # in case of no dataset prefix do our best and delete all tables in the schema
+            for class_name in self.schema.tables.keys():
+                if class_name in class_name_list:
+                    self.db_client.schema.delete_class(class_name)
 
         self.delete_sentinel_class()
 
@@ -376,7 +383,7 @@ class WeaviateClient(JobClientBase):
     @wrap_weaviate_error
     def is_storage_initialized(self) -> bool:
         try:
-            self.db_client.schema.get(self.dataset_name)
+            self.db_client.schema.get(self.sentinel_class)
         except weaviate.exceptions.UnexpectedStatusCodeException as e:
             if e.status_code == 404:
                 return False
@@ -385,11 +392,11 @@ class WeaviateClient(JobClientBase):
 
     def create_sentinel_class(self) -> None:
         """Create an empty class to indicate that the storage is initialized."""
-        self.create_class({}, full_class_name=self.dataset_name)
+        self.create_class({}, full_class_name=self.sentinel_class)
 
     def delete_sentinel_class(self) -> None:
         """Delete the sentinel class."""
-        self.db_client.schema.delete_class(self.dataset_name)
+        self.db_client.schema.delete_class(self.sentinel_class)
 
     @wrap_weaviate_error
     def update_storage_schema(
