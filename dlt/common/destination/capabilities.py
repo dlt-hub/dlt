@@ -44,6 +44,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     alter_add_multi_column: bool = True
     supports_truncate_command: bool = True
     schema_supports_numeric_precision: bool = True
+    timestamp_precision: int = 6
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False

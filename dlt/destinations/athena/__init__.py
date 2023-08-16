@@ -35,6 +35,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supports_transactions = False
     caps.alter_add_multi_column = True
     caps.schema_supports_numeric_precision = False
+    caps.timestamp_precision = 3
     return caps
 
 def client(schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> JobClientBase:

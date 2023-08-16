@@ -13,12 +13,12 @@ this format when configured to do so.
 To use this format you need a `pyarrow` package. You can get this package as a `dlt` extra as well:
 
 ```sh
-pip install dlt[pyarrow]
+pip install dlt[parquet]
 ```
 
 ## Supported destinations
 
-Supported by: **BigQuery**, **DuckDB**, **Snowflake**, **filesystem**.
+Supported by: **BigQuery**, **DuckDB**, **Snowflake**, **filesystem**, **Athena**
 
 By setting the `loader_file_format` argument to `parquet` in the run command, the pipeline will
 store your data in the parquet format to the destination:
@@ -26,6 +26,11 @@ store your data in the parquet format to the destination:
 ```python
 info = pipeline.run(some_source(), loader_file_format="parquet")
 ```
+
+## Destination AutoConfig
+`dlt` uses [destination capabilities](../../walkthroughs/create-new-destination.md#3-set-the-destination-capabilities) to configure parquet writer:
+* uses decimal and wei precision to pick the right **decimal type** and sets precision and scale
+* uses timestamp precision to pick right **timestamp type** resolution (seconds, micro or nano)
 
 ## Options
 
@@ -40,6 +45,7 @@ to create the files. The following options can be used to change the behavior of
   Defaults to "2.4".
 - `data_page_size`: Set a target threshold for the approximate encoded size of data pages within a
   column chunk (in bytes). Defaults to "1048576".
+- `timestamp_timezone`: A string specifying timezone, default is UTC
 
 Read the
 [pyarrow parquet docs](https://arrow.apache.org/docs/python/generated/pyarrow.parquet.ParquetWriter.html)
@@ -53,6 +59,7 @@ Example:
 flavor="spark"
 version="2.4"
 data_page_size=1048576
+timestamp_timezone="Europe/Berlin"
 ```
 
 or using environment variables:
@@ -61,4 +68,5 @@ or using environment variables:
 NORMALIZE__DATA_WRITER__FLAVOR
 NORMALIZE__DATA_WRITER__VERSION
 NORMALIZE__DATA_WRITER__DATA_PAGE_SIZE
+NORMALIZE__DATA_WRITER__TIMESTAMP_TIMEZONE
 ```

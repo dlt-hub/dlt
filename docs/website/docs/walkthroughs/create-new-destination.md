@@ -46,6 +46,8 @@ We keep config and credentials in `configuration.py`. You should:
 * `max_column_identifier_length` max length of column name
 * `naming_convention` a name or naming convention module that maps the input alphabet (ie. JSON identifiers) to destination alphabet. leave the default - it is [very conservative](../general-usage/schema.md#naming-convention)
 * `max_query_length`, `is_max_query_length_in_bytes`, `max_text_data_type_length`, `is_max_text_data_type_length_in_bytes` - tells `dlt` the maximum length of text query and of text data types.
+* `supports_transactions` tells if destination supports transactions
+* `timestamp_precision` sets fidelity of timestamp/datetime type: 0 - 9 (from seconds to nanoseconds), default is 6
 * `supports_ddl_transactions` tells if the destination supports ddl transactions.
 * `alter_add_multi_column` tells if destination can add multiple columns in **ALTER** statement
 * `supports_truncate_command` tells dlt if **truncate** command is used, otherwise it will use **DELETE** to clear tables.

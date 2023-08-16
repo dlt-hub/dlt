@@ -12,6 +12,7 @@ from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.typing import DictStrAny
 from dlt.pipeline.exceptions import SqlClientNotAvailable
 from dlt.common.schema.typing import LOADS_TABLE_NAME
+from dlt.common.destination.reference import StagingJobClientBase
 
 if TYPE_CHECKING:
     from dlt.destinations.filesystem.filesystem import FilesystemClient
@@ -90,6 +91,7 @@ def destinations_configs(
 
     if default_staging_configs or all_staging_configs:
         destination_configs += [
+            DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, supports_merge=False),
             DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, staging_iam_role="arn:aws:iam::267388281016:role/redshift_s3_read", extra_info="s3-role"),
             DestinationTestConfiguration(destination="bigquery", staging="filesystem", file_format="parquet", bucket_url=GCS_BUCKET, extra_info="gcs-authorization"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, stage_name="PUBLIC.dlt_gcs_stage", extra_info="gcs-integration"),
@@ -152,12 +154,13 @@ def drop_active_pipeline_data() -> None:
                         # print("dropped")
                     except Exception as exc:
                         print(exc)
-                    with c.with_staging_dataset(staging=True):
-                        try:
-                            c.drop_dataset()
-                            # print("dropped")
-                        except Exception as exc:
-                            print(exc)
+                    if isinstance(c, StagingJobClientBase):
+                        with c.with_staging_dataset(staging=True):
+                            try:
+                                c.drop_dataset()
+                                # print("dropped")
+                            except Exception as exc:
+                                print(exc)
             except SqlClientNotAvailable:
                 pass
 
