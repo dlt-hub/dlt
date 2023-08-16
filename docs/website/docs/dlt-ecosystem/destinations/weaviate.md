@@ -34,7 +34,7 @@ In this setup guide, we are using the [Weaviate Cloud Services](https://console.
 
 ```python
 import dlt
-from dlt.destinations.weaviate.weaviate_adapter import weaviate_adapter
+from dlt.destinations.weaviate import weaviate_adapter
 
 movies = [
     {
