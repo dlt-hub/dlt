@@ -38,7 +38,7 @@ query_result_bucket="s3://[results_bucket_name]" # replace with your query resul
 [destination.athena.credentials]
 aws_access_key_id="please set me up!" # same as credentials for filesystem
 aws_secret_access_key="please set me up!" # same as credentials for filesystem
-region_name="please set me up!" # set your aws region, for exampe "eu-central-1" for frankfurt
+region_name="please set me up!" # set your aws region, for example "eu-central-1" for frankfurt
 ```
 
 if you have your credentials stored in `~/.aws/credentials` just remove the **[destination.filesystem.credentials]** and **[destination.athena.credentials]** section above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the  profile, pass the profile name as follows (here: `dlt-ci-user`):
@@ -52,7 +52,7 @@ aws_profile="dlt-ci-user"
 
 ## Additional Destination Configuration
 
-You can provide an athena workgroup like so: 
+You can provide an athena workgroup like so:
 ```toml
 [destination.athena]
 workgroup="my_workgroup"
@@ -70,18 +70,28 @@ workgroup="my_workgroup"
 Data loading happens by storing parquet files in an s3 bucket and defining a schema on athena. If you query data via sql queries on athena, the returned data is read by
 scanning your bucket and reading all relevant parquet files in there.
 
+`dlt` internal tables are saved as Iceberg tables.
+
+### Data types
+Athena tables store timestamps with millisecond precision and with that precision we generate parquet files. Mind that Iceberg tables have microsecond precision. Athena does not support JSON filed so JSON is stored as string.
+
+### Naming Convention
+We follow our snake_case name convention. Mind the following:
+* DDL use HIVE escaping with ``````
+* Other queries use PRESTO and regular SQL escaping.
+
 ## Staging support
 
-Using a staging destination is mandatory when using the athena destination. If you do not set staging to `filesystem`, dlt will automatically do this for you. 
+Using a staging destination is mandatory when using the athena destination. If you do not set staging to `filesystem`, dlt will automatically do this for you.
 
 If you decide to change the [filename layout](./filesystem#data-loading) from the default value, keep the following in mind so that athena can reliable build your tables:
  - You need to provide the `{table_name}` placeholder and this placeholder needs to be followed by a forward slash
- - You need to provide the `{ile_id}` placeholder and it needs to be somewhere after the `{table_name}` placeholder.
-  - You can not provide any other than the optional `{schema_name}` placeholder before the `{table_name}` placeholder.
-
+ - You need to provide the `{file_id}` placeholder and it needs to be somewhere after the `{table_name}` placeholder.
+ - {table_name} must be a first placeholder in the layout.
 
 
 ## Additional destination options
+
 
 ### dbt support
 
