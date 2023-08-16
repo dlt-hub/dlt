@@ -217,7 +217,7 @@ Here's a summary of the naming normalization approach:
 
 #### Reserved property names
 
-Reserved property names like `id` or `additional` are prefixed with underscores for differentiation. Therefore, `id becomes `__id and `_id` is rendered as `___id`.
+Reserved property names like `id` or `additional` are prefixed with underscores for differentiation. Therefore, `id` becomes `__id` and `_id` is rendered as `___id`.
 
 ## Additional destination options
 
