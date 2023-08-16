@@ -96,6 +96,8 @@ It accepts the following arguments:
 - `vectorize`: a name of the field or a list of names that should be vectorized by Weaviate.
 - `tokenization`: the dictionary containing the tokenization configuration for a field. The dictionary should have the following structure `{'field_name': 'method'}`. Valid methods are "word", "lowercase", "whitespace", "field". The default is "word". See [Property tokenization](https://weaviate.io/developers/weaviate/config-refs/schema#property-tokenization) in Weaviate documentation for more details.
 
+Returns: a [dlt resource](../../general-usage/resource.md) object that you can pass to the `pipeline.run()`.
+
 Example:
 
 ```python
