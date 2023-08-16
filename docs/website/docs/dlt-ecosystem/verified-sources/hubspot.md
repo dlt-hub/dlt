@@ -8,7 +8,7 @@ keywords: [hubspot api, hubspot verified source, hubspot]
 
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
-[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+[Join our Slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
@@ -36,35 +36,32 @@ To get details about endpoints that can be loaded, see
 
 ### Grab credentials
 
-:::note As of November 30, 2022, HubSpot API Keys are being deprecated and are no longer supported.
-Instead, it would be best to authenticate using a private app access token or OAuth. Access token
-used for this verfied source :::
+::: Note: As of November 30, 2022, HubSpot API Keys are being deprecated and are no longer supported.
+Instead, we recommend to authenticate using a private app access token or OAuth access token. :::
 
 Create a private app and get an authentication token before running the
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/hubspot_pipeline.py).
 Follow these steps:
 
-1. In HubSpot, navigate to settings by clicking the ⚙️ icon in the main navigation bar.
+1. In HubSpot, click the ⚙️ icon to access settings.
 
-1. In the left sidebar menu under "Account Setup" select "Integrations" and then click on "Private
-   Apps".
+1. Under "Account Setup" in the left sidebar, choose "Integrations" > "Private Apps".
 
-1. Click on “Create a private app”.
+1. Select “Create a private app”.
 
-1. Fill in the “Basic Info” tab, by specifying a name and description.
+1. In the “Basic Info” tab, provide a name and description.
 
-1. Next go to the “Scopes” tab and grant the following permissions:
+1. In the “Scopes” tab, grant:
 
-   1. Required read scopes under the CMS, CRM, and Settings options.
-   1. The following under the Standard options:
+   - Read scopes for CMS, CRM, and Settings.
+   - Permissions for:
+    ```
+    business-intelligence, actions, crm.export, e-commerce, oauth, tickets
+    ```
 
-      ```
-      business-intelligence, actions, crm.export, e-commerce, oauth, tickets
-      ```
+1. Click "Create app" > "Continue Creating".
 
-1. Click on Create app and choose "Continue Creating".
-
-1. Finally, "Show token" and copy it. Add it to the ".dlt/secrets.toml" file.
+1. Click "Show token" and store it for ".dlt/secrets.toml".
 
 ### Initialize the verified source
 
@@ -143,7 +140,7 @@ it is important to note the complete list of the default endpoints given in
 ### Source `hubspot`
 
 This function returns a list of resources to load companies, contacts, deals, tickets, products, and
-web analytics events into the destination.
+web analytics events data into the destination.
 
 ```python
 @dlt.source(name="hubspot")
@@ -157,9 +154,9 @@ def hubspot(
 `include_history`: This parameter, when set to "True", loads the history of property changes for the
 specified entities.
 
-### Resouce `companies`
+### Resource `companies`
 
-This resource function fetches data from the "companies" endpoint of the Hubspot API and loads it to
+This resource function fetches data from the "companies" endpoint and loads it to
 the destination, replacing any existing data.
 
 ```python
@@ -171,7 +168,7 @@ def companies(
       yield from crm_objects("company", api_key, include_history=False)
 ```
 
-This resource function takes the same arguments, `api_key` and `include_history` as the husbpot
+This resource function takes the same arguments, `api_key` and `include_history` as the "husbpot"
 source described [above](hubspot.md#source-hubspot). Similar to this, resource functions "contacts",
 "deals", "tickets", "products", and "quotes" retrieve data from the Hubspot API.
 
@@ -189,12 +186,12 @@ def hubspot_events_for_objects(
 ) -> DltResource:
 ```
 
-`object_type`: One of the hubspot object types as defined in
+`object_type`: One of the Hubspot object types as defined in
 [hubspot/settings.py.](https://github.com/dlt-hub/verified-sources/blob/master/sources/hubspot/settings.py).
 
 `object_ids`: List of object ids to track events.
 
-`api_key`: The key used to authenticate with the HubSpot API. configured in "secrets.toml".
+`api_key`: The key used to authenticate with the HubSpot API. Configured in "secrets.toml".
 
 `start_date`: The initial date time from which start getting events, default to "01-01-2000",
 configured in
@@ -220,7 +217,7 @@ verified source.
    To read more about pipeline configuration, please refer to our
    [documentation](../../general-usage/pipeline).
 
-1. To load all the data from, contacts, companies, deals, products, tickets and quotes.
+1. To load all the data from contacts, companies, deals, products, tickets, and quotes into the destination.
 
    ```python
    load_data = hubspot()
@@ -228,26 +225,25 @@ verified source.
    print(load_info)
    ```
 
-1. To load data from contacts and companies, with time history.
+1. To load data from contacts and companies, with time history using "with_resources" method.
 
    ```python
-   load_data = hubspot(include_history=True).with_resources("companies","contacts") 
+   load_data = hubspot(include_history=True).with_resources("companies","contacts")
    load_info = pipeline.run(load_data)
    print(load_info)
    ```
+    1. `include_history` loads property change history and entities as separate tables. By default set as False.
 
-   > `include_history` loads property change history and entities as separate tables. By default set
-   > as False.
 
-1. To load the web analytics events or a given object type and object id.
+1. To load the web analytics events of a given object type.
 
    ```python
    resource = hubspot_events_for_objects("company", ["7086461639", "7086464459"])
-   # Here, object type : company, and object ids : 7086461639 and 7086464459 
+   # Here, object type : company, and object ids : 7086461639 and 7086464459
    load_info = pipeline.run([resource])
    print(load_info)
    ```
+    1. This function uses "object_type" and "object_id" as arguments.
 
-   > This function loads data incrementally and tracks the `occurred_at.last_value` parameter from
-   > the previous pipeline run. Refer to our official documentation for more information on
-   > [incremental loading](../../general-usage/incremental-loading.md).
+    1. This function loads data incrementally and tracks the `occurred_at.last_value` parameter from
+    the previous pipeline run. Refer to our official documentation for more information on [incremental loading](../../general-usage/incremental-loading.md).
