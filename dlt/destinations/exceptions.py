@@ -92,14 +92,16 @@ class MergeDispositionException(DestinationTerminalException):
         msg += reason
         super().__init__(msg)
 
+
 class InvalidFilesystemLayout(DestinationTerminalException):
     def __init__(self, invalid_placeholders: Sequence[str]) -> None:
         self.invalid_placeholders = invalid_placeholders
         super().__init__(f"Invalid placeholders found in filesystem layout: {invalid_placeholders}")
 
+
 class CantExtractTablePrefix(DestinationTerminalException):
-    def __init__(self, table_name: str) -> None:
-        msg = f"Cant extract unique table prefix for table {table_name} from file name layout. "
-        msg += "Please make sure you are using the table_name placeholder and no other placerholder than schema_name is used before it. "
-        msg += "A valid layout can be: {schema_name}/{table_name}/{load_id}.{file_id}.{ext}"
+    def __init__(self, layout: str, details: str) -> None:
+        msg = f"Cannot extract unique table prefix in layout '{layout}'. "
+        msg += details
+        msg += "An example of valid layout: {table_name}/{load_id}.{file_id}.{ext}"
         super().__init__(msg)

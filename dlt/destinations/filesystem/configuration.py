@@ -30,7 +30,6 @@ class FilesystemClientConfiguration(DestinationClientStagingConfiguration):
 
     def on_resolved(self) -> None:
         url = urlparse(self.bucket_url)
-        # print(url)
         if not url.path and not url.netloc:
             raise ConfigurationValueError("File path or netloc missing. Field bucket_url of FilesystemClientConfiguration must contain valid url with a path or host:password component.")
         # this is just a path in local file system

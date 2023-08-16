@@ -31,10 +31,16 @@ aws_access_key_id = "please set me up!" # copy the access key here
 aws_secret_access_key = "please set me up!" # copy the secret access key here
 ```
 
-if you have your credentials stored in `~/.aws/credentials` just remove the **[destination.filesystem.credentials]** section above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the  profile, pass the profile name as follows (here: `dlt-ci-user`):
+If you have your credentials stored in `~/.aws/credentials` just remove the **[destination.filesystem.credentials]** section above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the  profile, pass the profile name as follows (here: `dlt-ci-user`):
 ```toml
 [destination.filesystem.credentials]
 aws_profile="dlt-ci-user"
+```
+
+You can also pass an aws region:
+```toml
+[destination.filesystem.credentials]
+region_name="eu-central-1"
 ```
 
 You need to create a S3 bucket and a user who can access that bucket. `dlt` is not creating buckets automatically.
