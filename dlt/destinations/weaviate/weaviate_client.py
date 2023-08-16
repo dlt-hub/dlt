@@ -28,7 +28,7 @@ from dlt.common import json, pendulum, logger
 from dlt.common.typing import StrAny, TFun
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns
-from dlt.common.schema.typing import TColumnSchema, TColumnSchemaBase
+from dlt.common.schema.typing import TColumnSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -81,10 +81,8 @@ def wrap_weaviate_error(f: TFun) -> TFun:
             weaviate.exceptions.SchemaValidationException,
             weaviate.exceptions.WeaviateEmbeddedInvalidVersion,
         ) as term_ex:
-            print(term_ex)
             raise DestinationTerminalException(term_ex) from term_ex
         except weaviate.exceptions.UnexpectedStatusCodeException as status_ex:
-            print(status_ex)
             # special handling for non existing objects/classes
             if status_ex.status_code == 404:
                 raise DestinationUndefinedEntity(status_ex) from status_ex
@@ -93,7 +91,6 @@ def wrap_weaviate_error(f: TFun) -> TFun:
                 raise DestinationTerminalException(status_ex)
             raise DestinationTransientException(status_ex)
         except weaviate.exceptions.WeaviateBaseError as we_ex:
-            print(we_ex)
             # also includes 401 as transient
             raise DestinationTransientException(we_ex)
 

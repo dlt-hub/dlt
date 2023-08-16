@@ -245,6 +245,7 @@ class AthenaClient(SqlJobClientBase):
             config
         )
         super().__init__(schema, config, sql_client)
+        self.config: AthenaClientConfiguration = config
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # never truncate tables in athena

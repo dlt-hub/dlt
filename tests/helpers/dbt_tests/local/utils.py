@@ -3,7 +3,7 @@ import contextlib
 from typing import Iterator, NamedTuple
 
 from dlt.common.configuration.utils import add_config_to_env
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.reference import DestinationClientDwhBaseConfiguration
 from dlt.common.runners import Venv
 from dlt.common.typing import StrAny
 
@@ -38,7 +38,7 @@ def setup_rasa_runner(profile_name: str, dataset_name: str = None, override_valu
     runner = create_runner(
         Venv.restore_current(),
         # credentials are exported to env in setup_rasa_runner_client
-        DestinationClientDwhConfiguration(dataset_name=dataset_name or FIXTURES_DATASET_NAME),
+        DestinationClientDwhBaseConfiguration(dataset_name=dataset_name or FIXTURES_DATASET_NAME),
         TEST_STORAGE_ROOT,
         package_profile_name=profile_name,
         config=C

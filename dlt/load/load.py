@@ -20,7 +20,7 @@ from dlt.common.exceptions import TerminalValueError, DestinationTerminalExcepti
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.reference import DestinationClientDwhBaseConfiguration, FollowupJob, JobClientBase, StagingJobClientBase, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
+from dlt.common.destination.reference import DestinationClientDwhBaseConfiguration, FollowupJob, JobClientBase, WithStagingDataset, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import LoadJobUnknownTableException
@@ -59,7 +59,7 @@ class Load(Runnable[ThreadPool]):
         supported_file_formats = self.capabilities.supported_loader_file_formats
         if self.staging_destination:
             supported_file_formats = self.staging_destination.capabilities().supported_loader_file_formats + ["reference"]
-        if isinstance(self.get_destination_client(Schema("test")), StagingJobClientBase):
+        if isinstance(self.get_destination_client(Schema("test")), WithStagingDataset):
             supported_file_formats += ["sql"]
         load_storage = LoadStorage(
             is_storage_owner,
@@ -94,7 +94,7 @@ class Load(Runnable[ThreadPool]):
     @contextlib.contextmanager
     def maybe_with_staging_dataset(self, job_client: JobClientBase, table: TTableSchema) -> Iterator[None]:
         """Executes job client methods in context of staging dataset if `table` has `write_disposition` that requires it"""
-        if isinstance(job_client, StagingJobClientBase) and table["write_disposition"] in job_client.get_stage_dispositions():
+        if isinstance(job_client, WithStagingDataset) and table["write_disposition"] in job_client.get_stage_dispositions():
             with job_client.with_staging_dataset():
                 yield
         else:
@@ -316,7 +316,7 @@ class Load(Runnable[ThreadPool]):
                         truncate_tables = self.get_table_chain_tables_for_write_disposition(load_id, schema, staging_client.get_truncate_destination_table_dispositions())
                         staging_client.initialize_storage(truncate_tables)
                 # update the staging dataset if client supports this
-                if isinstance(job_client, StagingJobClientBase):
+                if isinstance(job_client, WithStagingDataset):
                     if staging_tables := self.get_table_chain_tables_for_write_disposition(load_id, schema, job_client.get_stage_dispositions()):
                         with job_client.with_staging_dataset():
                             logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")

@@ -12,7 +12,7 @@ from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.typing import DictStrAny
 from dlt.pipeline.exceptions import SqlClientNotAvailable
 from dlt.common.schema.typing import LOADS_TABLE_NAME
-from dlt.common.destination.reference import StagingJobClientBase
+from dlt.common.destination.reference import WithStagingDataset
 
 if TYPE_CHECKING:
     from dlt.destinations.filesystem.filesystem import FilesystemClient
@@ -154,7 +154,7 @@ def drop_active_pipeline_data() -> None:
                         # print("dropped")
                     except Exception as exc:
                         print(exc)
-                    if isinstance(c, StagingJobClientBase):
+                    if isinstance(c, WithStagingDataset):
                         with c.with_staging_dataset(staging=True):
                             try:
                                 c.drop_dataset()

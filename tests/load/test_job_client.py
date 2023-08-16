@@ -17,7 +17,7 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseException, DatabaseTerminalException, DatabaseUndefinedRelation
 
 from dlt.destinations.job_client_impl import SqlJobClientBase
-from dlt.common.destination.reference import StagingJobClientBase
+from dlt.common.destination.reference import WithStagingDataset
 
 from tests.utils import TEST_STORAGE_ROOT, ALL_DESTINATIONS, autouse_test_storage
 from tests.common.utils import load_json_case
@@ -49,7 +49,6 @@ def postgres_client() -> Iterator[SqlJobClientBase]:
 @pytest.fixture(scope="function")
 def duckdb_client() -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage("duckdb")
-
 
 @pytest.fixture(scope='function')
 def snowflake_client() -> Iterator[SqlJobClientBase]:
@@ -306,13 +305,13 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
         del schema.tables[tbl]
     schema.bump_version()
     client.drop_tables(*tables_to_drop)
-    if isinstance(client, StagingJobClientBase):
+    if isinstance(client, WithStagingDataset):
         with contextlib.suppress(DatabaseUndefinedRelation):
             with client.with_staging_dataset():
                 client.drop_tables(*tables_to_drop, replace_schema=False)
     # drop again - should not break anything
     client.drop_tables(*tables_to_drop)
-    if isinstance(client, StagingJobClientBase):
+    if isinstance(client, WithStagingDataset):
         with contextlib.suppress(DatabaseUndefinedRelation):
             with client.with_staging_dataset():
                 client.drop_tables(*tables_to_drop, replace_schema=False)

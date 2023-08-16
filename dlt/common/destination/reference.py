@@ -42,17 +42,14 @@ class DestinationClientConfiguration(BaseConfiguration):
 
 @configspec
 class DestinationClientDwhBaseConfiguration(DestinationClientConfiguration):
-    # keep default/initial value if present
+    """Configuration of a destination that supports datasets/schemas"""
+
     dataset_name: str = None
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
     default_schema_name: Optional[str] = None
-    """How to handle replace disposition for this destination, can be classic or staging"""
+    """name of default schema to be used to name effective dataset to load data to"""
     replace_strategy: TLoaderReplaceStrategy = "truncate-and-insert"
     """How to handle replace disposition for this destination, can be classic or staging"""
-
-    # def on_resolved(self) -> None:
-    #     if not self.dataset_name:
-    #         raise InvalidDatasetName(self.destination_name)
 
     def normalize_dataset_name(self, schema: Schema) -> str:
         """Builds full db dataset (schema) name out of configured dataset name and schema name: {dataset_name}_{schema.name}. The resulting name is normalized.
@@ -81,6 +78,10 @@ class DestinationClientDwhBaseConfiguration(DestinationClientConfiguration):
 
 @configspec
 class DestinationClientStagingConfiguration(DestinationClientDwhBaseConfiguration):
+    """Configuration of a staging destination, able to store files with desired `layout` at `bucket_url`.
+
+       Also supports datasets and can act as standalone destination.
+    """
     as_staging: bool = False
     bucket_url: str = None
     # layout of the destination files
@@ -101,9 +102,9 @@ class DestinationClientStagingConfiguration(DestinationClientDwhBaseConfiguratio
 
 @configspec
 class DestinationClientDwhConfiguration(DestinationClientDwhBaseConfiguration):
-    """name of default schema to be used to name effective dataset to load data to"""
+    """Configuration of a destination that can take data from staging destination"""
     staging_config: Optional[DestinationClientStagingConfiguration] = None
-
+    """configuration of the staging, if present, injected at runtime"""
     if TYPE_CHECKING:
         def __init__(
             self,
@@ -264,7 +265,8 @@ class JobClientBase(ABC):
                     logger.warning(f"A column {column_name} in table {table_name} in schema {self.schema.name} is incomplete. It was not bound to the data during normalizations stage and its data type is unknown. Did you add this column manually in code ie. as a merge key?")
 
 
-class StagingJobClientBase:
+class WithStagingDataset:
+    """Adds capability to use staging dataset and request it from the loader"""
 
     @abstractmethod
     def get_stage_dispositions(self) -> List[TWriteDisposition]:

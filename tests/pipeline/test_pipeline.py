@@ -80,7 +80,7 @@ def test_run_full_refresh_default_dataset() -> None:
     p = dlt.pipeline(full_refresh=True, destination="dummy")
     assert p.dataset_name is None
     # simulate set new dataset
-    p._set_destination("filesystem")
+    p._set_destinations("filesystem", None)
     assert p.dataset_name is None
     p._set_dataset_name(None)
     # full refresh is still observed

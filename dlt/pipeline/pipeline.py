@@ -24,7 +24,9 @@ from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, LoadStorage, SchemaStorage, FileStorage, NormalizeStorageConfiguration, SchemaStorageConfiguration, LoadStorageConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import DestinationClientDwhBaseConfiguration, DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg, DestinationClientStagingConfiguration,  DestinationClientStagingConfiguration, DestinationClientDwhConfiguration
+from dlt.common.destination.reference import (DestinationClientDwhBaseConfiguration, DestinationReference, JobClientBase, DestinationClientConfiguration,
+                                              TDestinationReferenceArg, DestinationClientStagingConfiguration,  DestinationClientStagingConfiguration,
+                                              DestinationClientDwhConfiguration)
 from dlt.common.destination.capabilities import INTERNAL_LOADER_FILE_FORMATS
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, PipelineContext, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
 from dlt.common.schema import Schema

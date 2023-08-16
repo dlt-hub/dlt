@@ -4,7 +4,7 @@ import pkg_resources
 import semver
 
 from dlt.common.runners import Venv
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.reference import DestinationClientDwhBaseConfiguration
 from dlt.common.configuration.specs import CredentialsWithDefault
 from dlt.common.typing import TSecretValue
 from dlt.version import get_installed_requirement_string
@@ -20,7 +20,7 @@ DBT_DESTINATION_MAP = {
 }
 
 
-def _default_profile_name(credentials: DestinationClientDwhConfiguration) -> str:
+def _default_profile_name(credentials: DestinationClientDwhBaseConfiguration) -> str:
     profile_name = credentials.destination_name
     # in case of credentials with default add default to the profile name
     if isinstance(credentials.credentials, CredentialsWithDefault):
@@ -68,7 +68,7 @@ def create_venv(venv_dir: str, destination_names: List[str], dbt_version: str = 
 
 def package_runner(
     venv: Venv,
-    destination_configuration: DestinationClientDwhConfiguration,
+    destination_configuration: DestinationClientDwhBaseConfiguration,
     working_dir: str,
     package_location: str,
     package_repository_branch: str = None,

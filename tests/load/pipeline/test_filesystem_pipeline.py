@@ -45,8 +45,8 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
     client: FilesystemClient = pipeline._destination_client()  # type: ignore[assignment]
     layout = client.config.layout
 
-    append_glob = posixpath.join(client.dataset_path, 'some_source/some_data/*')
-    replace_glob = posixpath.join(client.dataset_path, 'some_source/other_data/*')
+    append_glob = posixpath.join(client.dataset_path, 'some_data/*')
+    replace_glob = posixpath.join(client.dataset_path, 'other_data/*')
 
     append_files = client.fs_client.glob(append_glob)
     replace_files = client.fs_client.glob(replace_glob)
@@ -113,8 +113,8 @@ def test_pipeline_parquet_filesystem_destination() -> None:
     assert len(package_info.jobs["completed_jobs"]) == 3
 
     client: FilesystemClient = pipeline._destination_client()  # type: ignore[assignment]
-    some_data_glob = posixpath.join(client.dataset_path, 'some_source/some_data/*')
-    other_data_glob = posixpath.join(client.dataset_path, 'some_source/other_data/*')
+    some_data_glob = posixpath.join(client.dataset_path, 'some_data/*')
+    other_data_glob = posixpath.join(client.dataset_path, 'other_data/*')
 
     some_data_files = client.fs_client.glob(some_data_glob)
     other_data_files = client.fs_client.glob(other_data_glob)

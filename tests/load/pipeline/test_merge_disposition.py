@@ -345,7 +345,7 @@ def test_merge_with_dispatch_and_incremental(destination_config: DestinationTest
     assert_load_info(info)
     # still 101
     counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables() if t.get("parent") is None])
-    assert sum(counts.values()) == 102 if destination_config.supports_merge else 101
+    assert sum(counts.values()) == 101 if destination_config.supports_merge else 102
     # for non merge destinations we just check that the run passes
     if not destination_config.supports_merge:
         return
