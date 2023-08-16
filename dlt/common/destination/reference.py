@@ -41,7 +41,7 @@ class DestinationClientConfiguration(BaseConfiguration):
 
 
 @configspec
-class DestinationClientDwhBaseConfiguration(DestinationClientConfiguration):
+class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """Configuration of a destination that supports datasets/schemas"""
 
     dataset_name: str = None
@@ -77,7 +77,7 @@ class DestinationClientDwhBaseConfiguration(DestinationClientConfiguration):
             ...
 
 @configspec
-class DestinationClientStagingConfiguration(DestinationClientDwhBaseConfiguration):
+class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     """Configuration of a staging destination, able to store files with desired `layout` at `bucket_url`.
 
        Also supports datasets and can act as standalone destination.
@@ -101,7 +101,7 @@ class DestinationClientStagingConfiguration(DestinationClientDwhBaseConfiguratio
             ...
 
 @configspec
-class DestinationClientDwhConfiguration(DestinationClientDwhBaseConfiguration):
+class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfiguration):
     """Configuration of a destination that can take data from staging destination"""
     staging_config: Optional[DestinationClientStagingConfiguration] = None
     """configuration of the staging, if present, injected at runtime"""

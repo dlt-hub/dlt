@@ -55,7 +55,7 @@ aws_profile="dlt-ci-user"
 You can provide an athena workgroup like so:
 ```toml
 [destination.athena]
-workgroup="my_workgroup"
+athena_work_group="my_workgroup"
 ```
 
 ## Write disposition
@@ -95,10 +95,14 @@ If you decide to change the [filename layout](./filesystem#data-loading) from th
 
 ### dbt support
 
-Athena is not supported by dbt at this point.
+Athena is supported via `dbt-athena-community`. Credentials are passed into `aws_access_key_id` and `aws_secret_access_key` of generated dbt profile.
+Athena adapter requires that you setup **region_name** in Athena configuration below. You can also setup table catalog name to change the default: **awsdatacatalog**
+```toml
+[destination.athena]
+aws_data_catalog="awsdatacatalog"
+```
 
 ### Syncing of `dlt` state
-
 - This destination fully supports [dlt state sync.](../../general-usage/state#syncing-state-with-destination). The state is saved in athena iceberg tables in your s3 bucket.
 
 

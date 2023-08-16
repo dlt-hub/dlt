@@ -4,7 +4,7 @@ from urllib.parse import urlparse
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
-from dlt.common.destination.reference import DestinationClientDwhBaseConfiguration
+from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.utils import digest128
 
 TWeaviateBatchConsistency = Literal["ONE", "QUORUM", "ALL"]
@@ -23,7 +23,7 @@ class WeaviateCredentials(CredentialsConfiguration):
 
 
 @configspec
-class WeaviateClientConfiguration(DestinationClientDwhBaseConfiguration):
+class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     destination_name: Final[str] = "weaviate"  # type: ignore
     dataset_name: Optional[str] = None  # make it optional do empty dataset is allowed
 

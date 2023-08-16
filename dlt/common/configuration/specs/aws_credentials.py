@@ -44,7 +44,7 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
             import boto3
         except ModuleNotFoundError:
             raise MissingDependencyException(self.__class__.__name__, [f"{version.DLT_PKG_NAME}[s3]"])
-        return boto3.Session(**self.to_native_representation())
+        return boto3.Session(**self.to_native_representation())  # type: ignore
 
     def _from_session(self, session: Any) -> Any:
         """Sets the credentials properties from boto3 `session` and return session's credentials if found"""
@@ -58,8 +58,8 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
         if not default:
             return None
         self.aws_access_key_id = default.access_key
-        self.aws_secret_access_key = default.secret_key
-        self.aws_session_token = default.token
+        self.aws_secret_access_key = TSecretStrValue(default.secret_key)
+        self.aws_session_token = TSecretStrValue(default.token)
         return default
 
     def to_native_credentials(self) -> Optional[Any]:

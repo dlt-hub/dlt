@@ -374,7 +374,10 @@ def test_preserve_column_order(client: SqlJobClientBase) -> None:
     def _assert_columns_order(sql_: str) -> None:
         idx = 0
         for c in columns:
-            col_name = client.capabilities.escape_identifier(c["name"])
+            if hasattr(client.sql_client, "escape_ddl_identifier"):
+                col_name = client.sql_client.escape_ddl_identifier(c["name"])
+            else:
+                col_name = client.capabilities.escape_identifier(c["name"])
             print(col_name)
             # find column names
             idx = sql_.find(col_name, idx)

@@ -10,7 +10,7 @@ from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema
 
 
-from dlt.destinations.job_client_impl import SqlJobClientBaseWithStaging
+from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import LoadJobTerminalException
 
@@ -132,7 +132,7 @@ class SnowflakeStagingCopyJob(SqlStagingCopyJob):
         return sql
 
 
-class SnowflakeClient(SqlJobClientBaseWithStaging):
+class SnowflakeClient(SqlJobClientWithStaging):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 

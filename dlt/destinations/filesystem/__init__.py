@@ -4,7 +4,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import JobClientBase, DestinationClientDwhConfiguration
+from dlt.common.destination.reference import JobClientBase, DestinationClientDwhWithStagingConfiguration
 
 from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
 
@@ -18,7 +18,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     return DestinationCapabilitiesContext.generic_capabilities("jsonl")
 
 
-def client(schema: Schema, initial_config: DestinationClientDwhConfiguration = config.value) -> JobClientBase:
+def client(schema: Schema, initial_config: DestinationClientDwhWithStagingConfiguration = config.value) -> JobClientBase:
     # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
     from dlt.destinations.filesystem.filesystem import FilesystemClient
 

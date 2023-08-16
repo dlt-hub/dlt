@@ -11,7 +11,7 @@ from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.destination.reference import DestinationClientDwhBaseConfiguration, DestinationReference, JobClientBase, LoadJob, DestinationClientStagingConfiguration, WithStagingDataset
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, DestinationReference, JobClientBase, LoadJob, DestinationClientStagingConfiguration, WithStagingDataset
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns, Schema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
@@ -88,7 +88,7 @@ def yield_client(
     # import destination reference by name
     destination: DestinationReference = import_module(f"dlt.destinations.{destination_name}")
     # create initial config
-    dest_config: DestinationClientDwhBaseConfiguration = None
+    dest_config: DestinationClientDwhConfiguration = None
     dest_config = destination.spec()()
     dest_config.dataset_name = dataset_name
 

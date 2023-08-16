@@ -44,7 +44,8 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     assert len(package_info.jobs["completed_jobs"]) == num_jobs
     assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == "reference"]) == 4
     assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == destination_config.file_format]) == 4
-    assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == "sql"]) == 1
+    if destination_config.supports_merge:
+        assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == "sql"]) == 1
 
     initial_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert initial_counts["issues"] == 100
@@ -54,19 +55,20 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
         rows = client.sql_client.execute_sql("SELECT url FROM issues WHERE id = 388089021 LIMIT 1")
         assert rows[0][0] == "https://api.github.com/repos/duckdb/duckdb/issues/71"
 
-    # test merging in some changed values
-    info = pipeline.run(load_modified_issues, loader_file_format=destination_config.file_format)
-    assert_load_info(info)
-    assert pipeline.default_schema.tables["issues"]["write_disposition"] == "merge"
-    merge_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert merge_counts == initial_counts
+    if destination_config.supports_merge:
+        # test merging in some changed values
+        info = pipeline.run(load_modified_issues, loader_file_format=destination_config.file_format)
+        assert_load_info(info)
+        assert pipeline.default_schema.tables["issues"]["write_disposition"] == "merge"
+        merge_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+        assert merge_counts == initial_counts
 
-    # check changes where merged in
-    with pipeline._get_destination_clients(pipeline.default_schema)[0] as client:
-        rows = client.sql_client.execute_sql("SELECT number FROM issues WHERE id = 1232152492 LIMIT 1")
-        assert rows[0][0] == 105
-        rows = client.sql_client.execute_sql("SELECT number FROM issues WHERE id = 1142699354 LIMIT 1")
-        assert rows[0][0] == 300
+        # check changes where merged in
+        with pipeline._get_destination_clients(pipeline.default_schema)[0] as client:
+            rows = client.sql_client.execute_sql("SELECT number FROM issues WHERE id = 1232152492 LIMIT 1")
+            assert rows[0][0] == 105
+            rows = client.sql_client.execute_sql("SELECT number FROM issues WHERE id = 1142699354 LIMIT 1")
+            assert rows[0][0] == 300
 
     # test append
     info = pipeline.run(github().load_issues, write_disposition="append", loader_file_format=destination_config.file_format)

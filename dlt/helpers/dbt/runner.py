@@ -7,7 +7,7 @@ import dlt
 from dlt.common import logger
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.utils import add_config_to_env
-from dlt.common.destination.reference import DestinationClientDwhBaseConfiguration
+from dlt.common.destination.reference import DestinationClientDwhConfiguration
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout_with_result
 from dlt.common.typing import StrAny, TSecretValue
@@ -33,7 +33,7 @@ class DBTPackageRunner:
 
     def __init__(self,
         venv: Venv,
-        credentials: DestinationClientDwhBaseConfiguration,
+        credentials: DestinationClientDwhConfiguration,
         working_dir: str,
         source_dataset_name: str,
         config: DBTRunnerConfiguration
@@ -262,7 +262,7 @@ with exec_to_stdout(f):
 @with_config(spec=DBTRunnerConfiguration, sections=(known_sections.DBT_PACKAGE_RUNNER,))
 def create_runner(
     venv: Venv,
-    credentials: DestinationClientDwhBaseConfiguration,
+    credentials: DestinationClientDwhConfiguration,
     working_dir: str,
     package_location: str = dlt.config.value,
     package_repository_branch: str = None,

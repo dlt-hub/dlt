@@ -103,16 +103,16 @@ class FilesystemClient(JobClientBase):
                 # get files in truncate dirs
                 # NOTE: glob implementation in fsspec does not look thread safe, way better is to use ls and then filter
                 # NOTE: without refresh you get random results here
-                all_files = self.fs_client.ls(truncate_dir, detail=False, refresh=True)
-                # print(f"in truncate dir {truncate_dir}: {all_files}")
-                for item in all_files:
-                    # check every file against all the prefixes
-                    for search_prefix in truncate_prefixes:
-                        if item.startswith(search_prefix):
-                            # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
-                            # print(f"DEL {item}")
-                            self.fs_client.rm_file(item)
-
+                if self.fs_client.exists(truncate_dir):
+                    all_files = self.fs_client.ls(truncate_dir, detail=False, refresh=True)
+                    # print(f"in truncate dir {truncate_dir}: {all_files}")
+                    for item in all_files:
+                        # check every file against all the prefixes
+                        for search_prefix in truncate_prefixes:
+                            if item.startswith(search_prefix):
+                                # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
+                                # print(f"DEL {item}")
+                                self.fs_client.rm_file(item)
 
         # create destination dirs for all tables
         dirs_to_create = self._get_table_dirs(self.schema.tables.keys())

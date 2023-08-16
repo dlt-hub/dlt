@@ -24,9 +24,9 @@ from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, LoadStorage, SchemaStorage, FileStorage, NormalizeStorageConfiguration, SchemaStorageConfiguration, LoadStorageConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (DestinationClientDwhBaseConfiguration, DestinationReference, JobClientBase, DestinationClientConfiguration,
+from dlt.common.destination.reference import (DestinationClientDwhConfiguration, DestinationReference, JobClientBase, DestinationClientConfiguration,
                                               TDestinationReferenceArg, DestinationClientStagingConfiguration,  DestinationClientStagingConfiguration,
-                                              DestinationClientDwhConfiguration)
+                                              DestinationClientDwhWithStagingConfiguration)
 from dlt.common.destination.capabilities import INTERNAL_LOADER_FILE_FORMATS
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, PipelineContext, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
 from dlt.common.schema import Schema
@@ -890,7 +890,7 @@ class Pipeline(SupportsPipeline):
             )
 
         # this client support many schemas and datasets
-        if issubclass(client_spec, DestinationClientDwhBaseConfiguration):
+        if issubclass(client_spec, DestinationClientDwhConfiguration):
             if not self.dataset_name and self.full_refresh:
                 logger.warning("Full refresh may not work if dataset name is not set. Please set the dataset_name argument in dlt.pipeline or run method")
             # set default schema name to load all incoming data to a single dataset, no matter what is the current schema name
@@ -920,7 +920,7 @@ class Pipeline(SupportsPipeline):
                 # config is not provided then get it with injected credentials
                 initial_config = self._get_destination_client_initial_config(self.destination)
             # attach the staging client config to destination client config - if its type supports it
-            if self.staging and isinstance(initial_config, DestinationClientDwhConfiguration) and isinstance(staging_client.config ,DestinationClientStagingConfiguration):
+            if self.staging and isinstance(initial_config, DestinationClientDwhWithStagingConfiguration) and isinstance(staging_client.config ,DestinationClientStagingConfiguration):
                 initial_config.staging_config = staging_client.config
             # create instance with initial_config properly set
             client = self.destination.client(schema, initial_config)

@@ -20,7 +20,7 @@ from dlt.common.exceptions import TerminalValueError, DestinationTerminalExcepti
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.reference import DestinationClientDwhBaseConfiguration, FollowupJob, JobClientBase, WithStagingDataset, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, WithStagingDataset, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import LoadJobUnknownTableException
@@ -271,7 +271,7 @@ class Load(Runnable[ThreadPool]):
                 job_client.complete_load(load_id)
                 # TODO: Load must provide a clear interface to get last loads and metrics
                 # TODO: get more info ie. was package aborted, schema name etc.
-                if isinstance(job_client.config, DestinationClientDwhBaseConfiguration):
+                if isinstance(job_client.config, DestinationClientDwhConfiguration):
                     self._processed_load_ids[load_id] = job_client.config.normalize_dataset_name(schema)
                 else:
                     self._processed_load_ids[load_id] = None

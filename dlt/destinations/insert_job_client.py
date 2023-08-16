@@ -8,7 +8,7 @@ from dlt.common.storages import FileStorage
 
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_impl import EmptyLoadJob
-from dlt.destinations.job_client_impl import SqlJobClientBaseWithStaging
+from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 
 
 class InsertValuesLoadJob(LoadJob, FollowupJob):
@@ -66,7 +66,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
             yield insert_sql
 
 
-class InsertValuesJobClient(SqlJobClientBaseWithStaging):
+class InsertValuesJobClient(SqlJobClientWithStaging):
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         """Returns a completed SqlLoadJob or InsertValuesJob

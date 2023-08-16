@@ -45,11 +45,11 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
     client: FilesystemClient = pipeline._destination_client()  # type: ignore[assignment]
     layout = client.config.layout
 
-    append_glob = posixpath.join(client.dataset_path, 'some_data/*')
-    replace_glob = posixpath.join(client.dataset_path, 'other_data/*')
+    append_glob = list(client._get_table_dirs(["some_data"]))[0]
+    replace_glob = list(client._get_table_dirs(["other_data"]))[0]
 
-    append_files = client.fs_client.glob(append_glob)
-    replace_files = client.fs_client.glob(replace_glob)
+    append_files = client.fs_client.ls(append_glob, detail=False, refresh=True)
+    replace_files = client.fs_client.ls(replace_glob, detail=False, refresh=True)
 
     load_id1 = info1.loads_ids[0]
     load_id2 = info2.loads_ids[0]
@@ -80,8 +80,8 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
 
     # Force replace
     pipeline.run(some_source(), write_disposition='replace')
-    append_files = client.fs_client.glob(append_glob)
-    replace_files = client.fs_client.glob(replace_glob)
+    append_files = client.fs_client.ls(append_glob, detail=False, refresh=True)
+    replace_files = client.fs_client.ls(replace_glob, detail=False, refresh=True)
     assert len(append_files) == 1
     assert len(replace_files) == 1
 

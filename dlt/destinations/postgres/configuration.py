@@ -6,7 +6,7 @@ from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.utils import digest128
 from dlt.common.typing import TSecretValue
 
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 
 
 @configspec
@@ -35,7 +35,7 @@ class PostgresCredentials(ConnectionStringCredentials):
 
 
 @configspec
-class PostgresClientConfiguration(DestinationClientDwhConfiguration):
+class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_name: Final[str] = "postgres"  # type: ignore
     credentials: PostgresCredentials
 

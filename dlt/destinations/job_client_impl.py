@@ -16,7 +16,7 @@ from dlt.common.schema.typing import COLUMN_HINTS, TColumnSchemaBase, TTableSche
 from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
-from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhBaseConfiguration, DestinationClientDwhConfiguration, NewLoadJob, WithStagingDataset, TLoadJobState, LoadJob, JobClientBase, FollowupJob, CredentialsConfiguration
+from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, DestinationClientDwhWithStagingConfiguration, NewLoadJob, WithStagingDataset, TLoadJobState, LoadJob, JobClientBase, FollowupJob, CredentialsConfiguration
 from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaTampered, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
@@ -101,8 +101,8 @@ class SqlJobClientBase(JobClientBase):
     def __init__(self, schema: Schema, config: DestinationClientConfiguration,  sql_client: SqlClientBase[TNativeConn]) -> None:
         super().__init__(schema, config)
         self.sql_client = sql_client
-        assert isinstance(config, DestinationClientDwhBaseConfiguration)
-        self.config: DestinationClientDwhBaseConfiguration = config
+        assert isinstance(config, DestinationClientDwhConfiguration)
+        self.config: DestinationClientDwhConfiguration = config
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
@@ -415,7 +415,7 @@ WHERE """
         )
 
 
-class SqlJobClientBaseWithStaging(SqlJobClientBase, WithStagingDataset):
+class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):
     @contextlib.contextmanager
     def with_staging_dataset(self)-> Iterator["SqlJobClientBase"]:
         with self.sql_client.with_staging_dataset(True):
