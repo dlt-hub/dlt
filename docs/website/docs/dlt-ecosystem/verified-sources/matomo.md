@@ -250,7 +250,7 @@ verified source.
    To read more about pipeline configuration, please refer to our
    [documentation](../../general-usage/pipeline).
 
-1. To load the data for reports.
+1. To load the data from reports.
 
    ```python
    data_reports = matomo_reports()
