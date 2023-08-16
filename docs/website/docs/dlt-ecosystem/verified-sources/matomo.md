@@ -257,7 +257,7 @@ verified source.
    load_info = pipeline_reports.run(data_reports)
    print(load_info)
    ```
-   >site_id defined in ".dlt/config.toml"
+   >"site_id" defined in ".dlt/config.toml"
 
 1. To load custom data from reports using queries.
 
