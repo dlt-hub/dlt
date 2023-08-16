@@ -896,19 +896,28 @@ class Pipeline(SupportsPipeline):
             return client_spec(dataset_name=self.dataset_name, default_schema_name=default_schema_name, credentials=credentials)
         return client_spec(credentials=credentials)
 
-    def _get_destination_clients(self, schema: Schema, initial_config: DestinationClientConfiguration = None, initial_staging_config: DestinationClientConfiguration = None) -> Tuple[JobClientBase, JobClientBase]:
+    def _get_destination_clients(self,
+        schema: Schema,
+        initial_config: DestinationClientConfiguration = None,
+        initial_staging_config: DestinationClientConfiguration = None
+    ) -> Tuple[JobClientBase, JobClientBase]:
         try:
-            # config is not provided then get it with injected credentials
-            if not initial_config:
-                initial_config = self._get_destination_client_initial_config(self.destination)
-            client = self.destination.client(schema, initial_config)
+            # resolve staging config in order to pass it to destination client config
             staging_client = None
             if self.staging:
                 if not initial_staging_config:
+                    # this is just initial config - without user configuration injected
                     initial_staging_config = self._get_destination_client_initial_config(self.staging, as_staging=True)
-                    staging_client = self.staging.client(schema, initial_staging_config)
-                if isinstance(client.config, DestinationClientDwhConfiguration) and isinstance(staging_client.config ,DestinationClientStagingConfiguration) and not client.config.staging_config:
-                    client.config.staging_config = staging_client.config
+                # create the client - that will also resolve the config
+                staging_client = self.staging.client(schema, initial_staging_config)
+            if not initial_config:
+                # config is not provided then get it with injected credentials
+                initial_config = self._get_destination_client_initial_config(self.destination)
+            # attach the staging client config to destination client config - if its type supports it
+            if self.staging and isinstance(initial_config, DestinationClientDwhConfiguration) and isinstance(staging_client.config ,DestinationClientStagingConfiguration):
+                initial_config.staging_config = staging_client.config
+            # create instance with initial_config properly set
+            client = self.destination.client(schema, initial_config)
             return client, staging_client
         except ModuleNotFoundError:
             client_spec = self.destination.spec()
