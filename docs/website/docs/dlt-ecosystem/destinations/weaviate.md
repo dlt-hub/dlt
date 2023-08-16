@@ -11,7 +11,7 @@ This destination helps you to load data into Weaviate from [dlt resources](../..
 
 ## Setup Guide
 
-1. To use Weaviate as a destination, make sure the dlt is installed with 'weaviate' extra:
+1. To use Weaviate as a destination, make sure dlt is installed with 'weaviate' extra:
 
 ```bash
 pip install dlt[weaviate]
@@ -80,6 +80,8 @@ print(info)
 ```
 
 The data is now loaded into Weaviate.
+
+Weaviate destination is different from other [dlt destinations](../destinations/). To use vector search after the data has been loaded, you must specify which fields Weaviate needs to include in the vector index. You do that by wrapping the data (or dlt resource) with the `weaviate_adapter` function.
 
 ## weaviate_adapter
 
@@ -179,9 +181,41 @@ Weaviate uses classes to categorize and identify data. To avoid potential naming
 
 For example, if you have a dataset named `movies_dataset` and a table named `actors`, the Weaviate class name would be `MoviesDataset_Actors` (the default separator is an underscore).
 
-However, if you prefer to have class names without the dataset prefix, you can achieve this by ensuring `dataset_name` is empty or not provided.
+However, if you prefer to have class names without the dataset prefix, skip `dataset_name` argument.
 
-### Class and property names normalization
+For example:
+
+```python
+pipeline = dlt.pipeline(
+    pipeline_name="movies",
+    destination="weaviate",
+)
+```
+
+### Names normalization
+
+When loading data into Weaviate, dlt tries to maintain naming conventions consistent with the Weaviate schema.
+
+Here's a summary of the naming normalization approach:
+
+#### Table names
+
+- Snake case identifiers such as `snake_case_name` get converted to `SnakeCaseName` (aka Pascal case).
+- Pascal case identifiers such as `PascalCaseName` remain unchanged.
+- Leading underscores are removed. Hence, `_snake_case_name` becomes `SnakeCaseName`.
+- Numbers in names are retained, but if a name starts with a number, it's prefixed with a character, e.g., `1_a_1snake_case_name` to `C1A1snakeCaseName`.
+- Double underscores in the middle of names, like `Flat__Space`, result in a single underscore: `Flat_Space`. If these appear at the end, they are followed by an 'x', making `Flat__Space_` into `Flat_Spacex`.
+- Special characters and spaces are replaced with underscores, and emojis are simplified. For instance, `Flat Sp!ace` becomes `Flat_SpAce` and `Flat_Sp💡ace` is changed to `Flat_SpAce`.
+
+#### Property names
+
+- Snake case and camel case remain unchanged: `snake_case_name` and `camelCaseName`.
+- Names with multiple underscores, such as Snake-______c__ase_, are compacted to Snake_c_asex. Except for the case when underscores are leading, in which case they are kept: `___snake_case_name` becomes `___snake_case_name`.
+- Names starting with a number are prefixed with a "p_". For example, `123snake_case_name` becomes `p_123snake_case_name`.
+
+#### Reserved property names
+
+Reserved property names like `id` or `additional` are prefixed with underscores for differentiation. Therefore, `id becomes `__id and `_id` is rendered as `___id`.
 
 ## Additional destination options
 
