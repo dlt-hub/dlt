@@ -3,7 +3,7 @@
 :::info
 Need help deploying these sources, or figuring out how to run them in your data stack?
 
-[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+[Join our Slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
 
@@ -24,8 +24,6 @@ The endpoints that this verified source supports are:
 
 ### Grab credentials
 
-### Grab Matomo credentials
-
 1. Sign in to Matomo.
 1. Hit the Administration (⚙) icon, top right.
 1. Navigate to "Personal > Security" on the left menu.
@@ -35,9 +33,6 @@ The endpoints that this verified source supports are:
 1. Click "Create New Token."
 1. Your token is displayed.
 1. Copy the access token and update it in the `.dlt/secrets.toml` file.
-
-### Grab `URL` and `site_id`
-
 1. Your Matomo URL is the web address in your browser when logged into Matomo, typically "https://mycompany.matomo.cloud/". Update it in  the `.dlt/config.toml`.
 1. The site_id is a unique ID for each monitored site in Matomo, found in the URL or via Administration > Measureables > Manage under ID.
 
@@ -81,7 +76,7 @@ For more information, read the
 1. Replace the api_token value with the [previously copied one](matomo.md#grab-credentials)
    to ensure secure access to your Matomo resources.
 
-1. Next, Follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
+1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
@@ -98,7 +93,7 @@ For more information, read the
    ```
 1. Replace the value of `url` and `site_id`  with the one that [you copied above](matomo.md#grab-url-and-site_id).
 
-1. To monitor live events on a website, enter the `live_event_site_id` (Generally it is same as `site_id`).
+1. To monitor live events on a website, enter the `live_event_site_id` (usually it is same as `site_id`).
 
 ## Run the pipeline
 
@@ -215,7 +210,7 @@ def get_last_visits(
 
 ### Transformer `visitors`
 
-This function, retrieves unique visit information from get_last_visits. 
+This function, retrieves unique visit information from get_last_visits.
 
 ```python
 @dlt.transformer(
@@ -255,7 +250,7 @@ verified source.
    To read more about pipeline configuration, please refer to our
    [documentation](../../general-usage/pipeline).
 
-1. To load all the data from only for reports.
+1. To load the data for reports.
 
    ```python
    data_reports = matomo_reports()
@@ -264,7 +259,7 @@ verified source.
    ```
    >site_id defined in ".dlt/config.toml"
 
-1. To load custom data from reports using queries. 
+1. To load custom data from reports using queries.
 
    ```python
    queries = [
