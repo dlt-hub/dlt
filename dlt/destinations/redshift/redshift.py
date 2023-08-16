@@ -21,7 +21,7 @@ from dlt.common.schema.typing import TTableSchema
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
+from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTerminalException
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, LoadJob
 
@@ -131,9 +131,6 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 {dateformat}
                 {compression}
                 {credentials} MAXERROR 0;""")
-
-
-
 
     def exception(self) -> str:
         # this part of code should be never reached

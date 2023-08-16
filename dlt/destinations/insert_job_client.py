@@ -1,14 +1,14 @@
 import os
 import abc
-from typing import Any, Iterator, List, Type
+from typing import Any, Iterator, List
 
 from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
-from dlt.common.schema.typing import TTableSchema, TWriteDisposition
+from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import FileStorage
 
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_impl import EmptyLoadJob
-from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.job_client_impl import SqlJobClientBaseWithStaging
 
 
 class InsertValuesLoadJob(LoadJob, FollowupJob):
@@ -66,7 +66,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
             yield insert_sql
 
 
-class InsertValuesJobClient(SqlJobClientBase):
+class InsertValuesJobClient(SqlJobClientBaseWithStaging):
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         """Returns a completed SqlLoadJob or InsertValuesJob

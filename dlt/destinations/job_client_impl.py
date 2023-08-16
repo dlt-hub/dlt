@@ -16,7 +16,7 @@ from dlt.common.schema.typing import COLUMN_HINTS, LOADS_TABLE_NAME, VERSION_TAB
 from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
-from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, TLoadJobState, LoadJob, StagingJobClientBase, FollowupJob, DestinationClientStagingConfiguration, CredentialsConfiguration
+from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, NewLoadJob, StagingJobClientBase, TLoadJobState, LoadJob, JobClientBase, FollowupJob, CredentialsConfiguration
 from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaTampered, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
@@ -94,7 +94,7 @@ class CopyRemoteFileLoadJob(LoadJob, FollowupJob):
         return "completed"
 
 
-class SqlJobClientBase(StagingJobClientBase):
+class SqlJobClientBase(JobClientBase):
 
     VERSION_TABLE_SCHEMA_COLUMNS: ClassVar[str] = "version_hash, schema_name, version, engine_version, inserted_at, schema"
 
@@ -142,19 +142,6 @@ class SqlJobClientBase(StagingJobClientBase):
                 yield
         else:
             yield
-
-    @contextlib.contextmanager
-    def with_staging_dataset(self)-> Iterator["SqlJobClientBase"]:
-        with self.sql_client.with_staging_dataset(True):
-            yield self
-
-    def get_stage_dispositions(self) -> List[TWriteDisposition]:
-        """Returns a list of dispositions that require staging tables to be populated"""
-        dispositions: List[TWriteDisposition] = ["merge"]
-        # if we have anything but the truncate-and-insert replace strategy, we need staging tables
-        if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
-            dispositions.append("replace")
-        return dispositions
 
     def get_truncate_destination_table_dispositions(self) -> List[TWriteDisposition]:
         if self.config.replace_strategy == "truncate-and-insert":
@@ -427,3 +414,18 @@ WHERE """
         self.sql_client.execute_sql(
             f"INSERT INTO {name}({self.VERSION_TABLE_SCHEMA_COLUMNS}) VALUES (%s, %s, %s, %s, %s, %s);", schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, now_ts, schema_str
         )
+
+
+class SqlJobClientBaseWithStaging(SqlJobClientBase, StagingJobClientBase):
+    @contextlib.contextmanager
+    def with_staging_dataset(self)-> Iterator["SqlJobClientBase"]:
+        with self.sql_client.with_staging_dataset(True):
+            yield self
+
+    def get_stage_dispositions(self) -> List[TWriteDisposition]:
+        """Returns a list of dispositions that require staging tables to be populated"""
+        dispositions: List[TWriteDisposition] = ["merge"]
+        # if we have anything but the truncate-and-insert replace strategy, we need staging tables
+        if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
+            dispositions.append("replace")
+        return dispositions

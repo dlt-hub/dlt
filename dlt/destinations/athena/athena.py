@@ -20,7 +20,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import LoadJob
 from dlt.common.destination.reference import TLoadJobState
 from dlt.common.storages import FileStorage
-from dlt.common.schema.typing import VERSION_TABLE_NAME
+from dlt.common.data_writers.escape import escape_bigquery_identifier
 
 
 from dlt.destinations.typing import DBApi, DBTransaction
@@ -134,19 +134,14 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         return self._conn
 
     def create_dataset(self) -> None:
-        self.execute_sql(f"CREATE DATABASE {self.fully_qualified_dataset_name(escape=False)};")
+        # HIVE escaping for DDL
+        self.execute_sql(f"CREATE DATABASE `{self.fully_qualified_dataset_name(escape=False)}`;")
 
     def drop_dataset(self) -> None:
-        self.execute_sql(f"DROP DATABASE {self.fully_qualified_dataset_name(escape=False)} CASCADE;")
+        self.execute_sql(f"DROP DATABASE `{self.fully_qualified_dataset_name(escape=False)}` CASCADE;")
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        # for some reason dataset need to be esacped with " and not `
-        return f"\"{self.dataset_name}\"" if escape else self.dataset_name
-
-    def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
-        if escape:
-            table_name = f"\"{table_name}\""
-        return f"{self.fully_qualified_dataset_name(escape)}.{table_name}"
+        return self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
 
     def drop_tables(self, *tables: str) -> None:
         if not tables:
@@ -211,7 +206,6 @@ class AthenaSQLClient(SqlClientBase[Connection]):
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         assert isinstance(query, str)
-
         db_args = kwargs
         # convert sql and params to PyFormat, as athena does not support anything else
         if args:
@@ -230,6 +224,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         yield DBApiCursorImpl(cursor)  # type: ignore
 
     def has_dataset(self) -> bool:
+        # PRESTO escaping for queries
         query = f"""SHOW DATABASES LIKE {self.fully_qualified_dataset_name()};"""
         rows = self.execute_sql(query)
         return len(rows) > 0
@@ -240,6 +235,11 @@ class AthenaClient(SqlJobClientBase):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: AthenaClientConfiguration) -> None:
+        # verify if staging layout is valid for Athena
+        # this will raise if the table prefix is not properly defined
+        # we actually that {table_name} is first, no {schema_name} is allowed
+        self.table_prefix_layout = path_utils.get_table_prefix_layout(config.staging_config.layout, [])
+
         sql_client = AthenaSQLClient(
             self.make_dataset_name(schema, config.dataset_name, config.default_schema_name),
             config
@@ -249,9 +249,6 @@ class AthenaClient(SqlJobClientBase):
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # never truncate tables in athena
         super().initialize_storage([])
-
-    def _get_column_def_sql(self, c: TColumnSchema) -> str:
-        return f"{self.capabilities.escape_identifier(c['name'])} {self._to_db_type(c['data_type'])}"
 
     @classmethod
     def _to_db_type(cls, sc_t: TDataType) -> str:
@@ -268,18 +265,21 @@ class AthenaClient(SqlJobClientBase):
                 return val
         return None
 
-    def get_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
-        query = f"""SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM "{VERSION_TABLE_NAME}" WHERE version_hash = '{version_hash}';"""
-        try:
-            return self._row_to_schema_info(query)
-        except OperationalError:
-            return None
+    def escape_ddl_identifier(self, v: str) -> str:
+        # https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html
+        # Athena uses HIVE to create tables but for querying it uses PRESTO (so normal escaping)
+        if not v:
+            return v
+        # bigquery uses hive escaping
+        return escape_bigquery_identifier(v)
+
+    def _get_column_def_sql(self, c: TColumnSchema) -> str:
+        return f"{self.escape_ddl_identifier(c['name'])} {self._to_db_type(c['data_type'])}"
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
 
         bucket = self.config.staging_config.bucket_url
         dataset = self.sql_client.dataset_name
-        schema_name = self.schema.name
         sql: List[str] = []
 
         # for the system tables we need to create empty iceberg tables to be able to run, DELETE and UPDATE queries
@@ -287,22 +287,24 @@ class AthenaClient(SqlJobClientBase):
         columns = ", ".join([self._get_column_def_sql(c) for c in new_columns])
 
         # this will fail if the table prefix is not properly defined
-        table_prefix = path_utils.get_table_prefix(self.config.staging_config.layout, schema_name=schema_name, table_name=table_name)
+        table_prefix = self.table_prefix_layout.format(table_name=table_name)
         location = f"{bucket}/{dataset}/{table_prefix}"
-        table_name = self.capabilities.escape_identifier(table_name)
+        # use qualified table names
+        escaped_dataset_name = self.escape_ddl_identifier(self.sql_client.dataset_name)
+        qualified_table_name = f"{escaped_dataset_name}.{self.escape_ddl_identifier(table_name)}"
         if is_iceberg and not generate_alter:
-            sql.append(f"""CREATE TABLE {table_name}
+            sql.append(f"""CREATE TABLE {qualified_table_name}
                     ({columns})
                     LOCATION '{location}'
                     TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');""")
         elif not generate_alter:
-            sql.append(f"""CREATE EXTERNAL TABLE {table_name}
+            sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
                     ({columns})
                     STORED AS PARQUET
                     LOCATION '{location}';""")
         # alter table to add new columns at the end
         else:
-            sql.append(f"""ALTER TABLE {table_name} ADD COLUMNS ({columns});""")
+            sql.append(f"""ALTER TABLE {qualified_table_name} ADD COLUMNS ({columns});""")
 
         return sql
 

@@ -64,7 +64,7 @@ class DestinationClientStagingConfiguration(DestinationClientDwhBaseConfiguratio
     as_staging: bool = False
     bucket_url: str = None
     # layout of the destination files
-    layout: str = "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}"
+    layout: str = "{table_name}/{load_id}.{file_id}.{ext}"
 
     if TYPE_CHECKING:
         def __init__(
@@ -263,7 +263,7 @@ class JobClientBase(ABC):
 
         return norm_name
 
-class StagingJobClientBase(JobClientBase):
+class StagingJobClientBase:
 
     @abstractmethod
     def get_stage_dispositions(self) -> List[TWriteDisposition]:
@@ -273,7 +273,7 @@ class StagingJobClientBase(JobClientBase):
     @abstractmethod
     def with_staging_dataset(self)-> ContextManager["JobClientBase"]:
         """Executes job client methods on staging dataset"""
-        return self
+        return self  # type: ignore
 
 
 TDestinationReferenceArg = Union["DestinationReference", ModuleType, None, str]
