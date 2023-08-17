@@ -4,6 +4,7 @@ from types import TracebackType
 from typing import ClassVar, List, Type, Iterable, Set
 from fsspec import AbstractFileSystem
 
+from dlt.common import logger
 from dlt.common.schema import Schema, TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -35,7 +36,9 @@ class LoadFilesystemJob(LoadJob):
         super().__init__(file_name)
         fs_client, _ = client_from_config(config)
         self.destination_file_name = LoadFilesystemJob.make_destination_filename(config.layout, file_name, schema_name, load_id)
-        fs_client.put_file(local_path, self.make_remote_path())
+        item = self.make_remote_path()
+        logger.info("PUT file {item}")
+        fs_client.put_file(local_path, item)
 
     @staticmethod
     def make_destination_filename(layout: str, file_name: str, schema_name: str, load_id: str) -> str:
@@ -103,16 +106,21 @@ class FilesystemClient(JobClientBase):
                 # get files in truncate dirs
                 # NOTE: glob implementation in fsspec does not look thread safe, way better is to use ls and then filter
                 # NOTE: without refresh you get random results here
-                if self.fs_client.exists(truncate_dir):
+                logger.info(f"Will truncate tables in {truncate_dir}")
+                try:
                     all_files = self.fs_client.ls(truncate_dir, detail=False, refresh=True)
+                    logger.info(f"Found {len(all_files)} CANDIDATE files in {truncate_dir}")
                     # print(f"in truncate dir {truncate_dir}: {all_files}")
                     for item in all_files:
                         # check every file against all the prefixes
                         for search_prefix in truncate_prefixes:
                             if item.startswith(search_prefix):
                                 # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
+                                logger.info(f"DEL {item}")
                                 # print(f"DEL {item}")
                                 self.fs_client.rm_file(item)
+                except FileNotFoundError:
+                    logger.info(f"Directory or path to truncate tables {truncate_dir} does not exist but it should be created previously!")
 
         # create destination dirs for all tables
         dirs_to_create = self._get_table_dirs(self.schema.tables.keys())
