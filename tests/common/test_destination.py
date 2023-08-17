@@ -56,8 +56,6 @@ def test_normalize_dataset_name() -> None:
     # None dataset name is valid!
     assert DestinationClientDwhConfiguration(dataset_name=None, default_schema_name="schema_ana").normalize_dataset_name(Schema("schema_ana")) is None
 
-
-
     # now mock the schema name to make sure that it is normalized
     schema = Schema("barbapapa")
     schema._schema_name = "BarbaPapa"

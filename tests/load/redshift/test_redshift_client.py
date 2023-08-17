@@ -16,7 +16,7 @@ from dlt.destinations.redshift.configuration import RedshiftCredentials
 from dlt.destinations.redshift.redshift import RedshiftClient, psycopg2
 
 from tests.common.utils import COMMON_TEST_CASES_PATH
-from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, skipifpypy
+from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, skipifpypy, ALL_DESTINATIONS
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 
 

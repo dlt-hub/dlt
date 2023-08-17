@@ -1,17 +1,16 @@
 from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, Any
 from urllib.parse import urlparse
 
-from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, CredentialsConfiguration
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.typing import TTableSchema, TWriteDisposition
+from dlt.common.schema.typing import TTableSchema
 
 
-from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import LoadJobTerminalException
 
@@ -133,7 +132,7 @@ class SnowflakeStagingCopyJob(SqlStagingCopyJob):
         return sql
 
 
-class SnowflakeClient(SqlJobClientBase):
+class SnowflakeClient(SqlJobClientWithStaging):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
@@ -157,7 +156,7 @@ class SnowflakeClient(SqlJobClientBase):
                 self.sql_client,
                 stage_name=self.config.stage_name,
                 keep_staged_files=self.config.keep_staged_files,
-                staging_credentials=self.config.staging_credentials
+                staging_credentials=self.config.staging_config.credentials if self.config.staging_config else None
             )
         return job
 

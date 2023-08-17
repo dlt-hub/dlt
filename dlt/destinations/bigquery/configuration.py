@@ -5,11 +5,11 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.utils import digest128
 
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 
 
 @configspec
-class BigQueryClientConfiguration(DestinationClientDwhConfiguration):
+class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_name: str = "bigquery"
     credentials: GcpServiceAccountCredentials = None
     location: str = "US"

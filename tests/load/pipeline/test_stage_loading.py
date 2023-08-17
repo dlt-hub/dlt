@@ -4,6 +4,7 @@ from typing import Dict, Any
 import dlt, os
 from dlt.common import json, sleep
 from copy import deepcopy
+from dlt.common.utils import uniq_id
 
 from tests.load.pipeline.test_merge_disposition import github
 from tests.load.pipeline.utils import  load_table_counts
@@ -30,7 +31,7 @@ def load_modified_issues():
 @pytest.mark.parametrize("destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name)
 def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
-    pipeline = destination_config.setup_pipeline(pipeline_name='test_stage_loading_5')
+    pipeline = destination_config.setup_pipeline(pipeline_name='test_stage_loading_5', dataset_name="test_staging_load" + uniq_id())
 
     info = pipeline.run(github(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
@@ -39,32 +40,35 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
     assert len(package_info.jobs["failed_jobs"]) == 0
     # we have 4 parquet and 4 reference jobs plus one merge job
-    assert len(package_info.jobs["completed_jobs"]) == 9
+    num_jobs = 4 + 4 + 1 if destination_config.supports_merge else 4 + 4
+    assert len(package_info.jobs["completed_jobs"]) == num_jobs
     assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == "reference"]) == 4
     assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == destination_config.file_format]) == 4
-    assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == "sql"]) == 1
+    if destination_config.supports_merge:
+        assert len([x for x in package_info.jobs["completed_jobs"] if x.job_file_info.file_format == "sql"]) == 1
 
     initial_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert initial_counts["issues"] == 100
 
     # check item of first row in db
-    with pipeline._get_destination_client(pipeline.default_schema) as client:
+    with pipeline._get_destination_clients(pipeline.default_schema)[0] as client:
         rows = client.sql_client.execute_sql("SELECT url FROM issues WHERE id = 388089021 LIMIT 1")
         assert rows[0][0] == "https://api.github.com/repos/duckdb/duckdb/issues/71"
 
-    # test merging in some changed values
-    info = pipeline.run(load_modified_issues, loader_file_format=destination_config.file_format)
-    assert_load_info(info)
-    assert pipeline.default_schema.tables["issues"]["write_disposition"] == "merge"
-    merge_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert merge_counts == initial_counts
+    if destination_config.supports_merge:
+        # test merging in some changed values
+        info = pipeline.run(load_modified_issues, loader_file_format=destination_config.file_format)
+        assert_load_info(info)
+        assert pipeline.default_schema.tables["issues"]["write_disposition"] == "merge"
+        merge_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+        assert merge_counts == initial_counts
 
-    # check changes where merged in
-    with pipeline._get_destination_client(pipeline.default_schema) as client:
-        rows = client.sql_client.execute_sql("SELECT number FROM issues WHERE id = 1232152492 LIMIT 1")
-        assert rows[0][0] == 105
-        rows = client.sql_client.execute_sql("SELECT number FROM issues WHERE id = 1142699354 LIMIT 1")
-        assert rows[0][0] == 300
+        # check changes where merged in
+        with pipeline._get_destination_clients(pipeline.default_schema)[0] as client:
+            rows = client.sql_client.execute_sql("SELECT number FROM issues WHERE id = 1232152492 LIMIT 1")
+            assert rows[0][0] == 105
+            rows = client.sql_client.execute_sql("SELECT number FROM issues WHERE id = 1142699354 LIMIT 1")
+            assert rows[0][0] == 300
 
     # test append
     info = pipeline.run(github().load_issues, write_disposition="append", loader_file_format=destination_config.file_format)
@@ -86,7 +90,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 @pytest.mark.parametrize("destination_config", destinations_configs(all_staging_configs=True), ids=lambda x: x.name)
 def test_all_data_types(destination_config: DestinationTestConfiguration) -> None:
 
-    pipeline = destination_config.setup_pipeline('test_stage_loading')
+    pipeline = destination_config.setup_pipeline('test_stage_loading', dataset_name="test_all_data_types" + uniq_id())
 
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
@@ -123,4 +127,9 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         parse_complex_strings = destination_config.file_format == "parquet" and destination_config.destination in ["redshift", "bigquery", "snowflake"]
         allow_base64_binary = destination_config.file_format == "jsonl" and destination_config.destination in ["redshift"]
         # content must equal
-        assert_all_data_types_row(db_row[:-2], parse_complex_strings=parse_complex_strings, allow_base64_binary=allow_base64_binary)
+        assert_all_data_types_row(
+            db_row[:-2],
+            parse_complex_strings=parse_complex_strings,
+            allow_base64_binary=allow_base64_binary,
+            timestamp_precision=sql_client.capabilities.timestamp_precision
+        )

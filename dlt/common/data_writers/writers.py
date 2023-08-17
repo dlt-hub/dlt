@@ -183,6 +183,8 @@ class ParquetDataWriterConfiguration(BaseConfiguration):
     flavor: str = "spark"
     version: str = "2.4"
     data_page_size: int = 1024 * 1024
+    timestamp_precision: str = "us"
+    timestamp_timezone: str = "UTC"
 
     __section__: str = known_sections.DATA_WRITER
 
@@ -195,7 +197,8 @@ class ParquetDataWriter(DataWriter):
                  *,
                  flavor: str = "spark",
                  version: str = "2.4",
-                 data_page_size: int = 1024 * 1024
+                 data_page_size: int = 1024 * 1024,
+                 timestamp_timezone: str = "UTC"
                  ) -> None:
         super().__init__(f, caps)
         from dlt.common.libs.pyarrow import pyarrow
@@ -206,13 +209,18 @@ class ParquetDataWriter(DataWriter):
         self.parquet_flavor = flavor
         self.parquet_version = version
         self.parquet_data_page_size = data_page_size
+        self.timestamp_timezone = timestamp_timezone
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_datatype
 
         # build schema
         self.schema = pyarrow.schema(
-            [pyarrow.field(name, get_py_arrow_datatype(schema_item["data_type"], self._caps), nullable=schema_item["nullable"]) for name, schema_item in columns_schema.items()]
+            [pyarrow.field(
+                name,
+                get_py_arrow_datatype(schema_item["data_type"], self._caps, self.timestamp_timezone),
+                nullable=schema_item["nullable"]
+            ) for name, schema_item in columns_schema.items()]
         )
         # find row items that are of the complex type (could be abstracted out for use in other writers?)
         self.complex_indices = [i for i, field in columns_schema.items() if field["data_type"] == "complex"]

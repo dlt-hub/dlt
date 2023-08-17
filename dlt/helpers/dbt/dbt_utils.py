@@ -20,7 +20,7 @@ try:
     import dbt.logger
     from dbt.events import functions
     from dbt.contracts import results as dbt_results
-except ImportError:
+except ModuleNotFoundError:
     raise MissingDependencyException("DBT Core", ["dbt-core"])
 
 try:

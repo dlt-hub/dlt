@@ -3,6 +3,8 @@ import pytest
 from pathlib import Path
 from sqlalchemy.engine import make_url
 
+pytest.importorskip("snowflake")
+
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.utils import digest128

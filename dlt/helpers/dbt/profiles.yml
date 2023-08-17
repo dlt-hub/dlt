@@ -125,3 +125,20 @@ snowflake_pkey:
       private_key: "{{ env_var('DLT__CREDENTIALS__PRIVATE_KEY') }}"
       private_key_passphrase: "{{ env_var('DLT__CREDENTIALS__PRIVATE_KEY_PASSPHRASE', '') }}"
       threads: 4
+
+
+athena:
+  target: analytics
+  outputs:
+    analytics:
+      type: athena
+      s3_staging_dir: "{{ env_var('DLT__QUERY_RESULT_BUCKET') }}"
+      s3_data_dir: "{{ env_var('DLT__BUCKET_URL', env_var('DLT__STAGING_CONFIG__BUCKET_URL')) }}"
+      s3_data_naming: schema_table
+      aws_access_key_id: "{{ env_var('DLT__CREDENTIALS__AWS_ACCESS_KEY_ID') }}"
+      aws_secret_access_key: "{{ env_var('DLT__CREDENTIALS__AWS_SECRET_ACCESS_KEY') }}"
+      region_name: "{{ env_var('DLT__CREDENTIALS__REGION_NAME', 'eu-central-1') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      database: "{{ env_var('DLT__AWS_DATA_CATALOG') }}"
+      # aws_profile_name: "{{ env_var('DLT__CREDENTIALS__PROFILE_NAME', '') }}"
+      work_group: "{{ env_var('DLT__ATHENA_WORK_GROUP', '') }}"

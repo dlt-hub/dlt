@@ -11,9 +11,9 @@ from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobSt
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.typing import TTableSchema, TWriteDisposition
+from dlt.common.schema.typing import TTableSchema
 
-from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, DestinationTransientException, LoadJobNotExistsException, LoadJobTerminalException, LoadJobUnknownTableException
 
 from dlt.destinations.bigquery import capabilities
@@ -129,7 +129,7 @@ class BigqueryStagingCopyJob(SqlStagingCopyJob):
             sql.append(f"CREATE TABLE {table_name} CLONE {staging_table_name};")
         return sql
 
-class BigQueryClient(SqlJobClientBase):
+class BigQueryClient(SqlJobClientWithStaging):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 

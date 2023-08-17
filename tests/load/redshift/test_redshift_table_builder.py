@@ -10,7 +10,10 @@ from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations.redshift.redshift import RedshiftClient
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration, RedshiftCredentials
 
-from tests.load.utils import TABLE_UPDATE
+from tests.load.utils import TABLE_UPDATE, ALL_DESTINATIONS
+
+
+pytestmark = pytest.mark.skipif('redshift' not in ALL_DESTINATIONS, reason="Redshift not configured")
 
 
 @pytest.fixture

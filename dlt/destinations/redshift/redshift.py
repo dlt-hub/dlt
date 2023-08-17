@@ -21,7 +21,7 @@ from dlt.common.schema.typing import TTableSchema
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
+from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.exceptions import DatabaseTerminalException, LoadJobTerminalException
 from dlt.destinations.job_client_impl import CopyRemoteFileLoadJob, LoadJob
 
@@ -132,9 +132,6 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 {compression}
                 {credentials} MAXERROR 0;""")
 
-
-
-
     def exception(self) -> str:
         # this part of code should be never reached
         raise NotImplementedError()
@@ -178,7 +175,7 @@ class RedshiftClient(InsertValuesJobClient):
         job = super().start_file_load(table, file_path, load_id)
         if not job:
             assert NewReferenceJob.is_reference_job(file_path), "Redshift must use staging to load files"
-            job = RedshiftCopyFileLoadJob(table, file_path, self.sql_client, staging_credentials=self.config.staging_credentials, staging_iam_role=self.config.staging_iam_role)
+            job = RedshiftCopyFileLoadJob(table, file_path, self.sql_client, staging_credentials=self.config.staging_config.credentials, staging_iam_role=self.config.staging_iam_role)
         return job
 
     @classmethod

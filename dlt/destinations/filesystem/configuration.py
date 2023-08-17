@@ -22,7 +22,6 @@ class FilesystemClientConfiguration(DestinationClientStagingConfiguration):
     destination_name: Final[str] = "filesystem"  # type: ignore
     # should be an union of all possible credentials as found in PROTOCOL_CREDENTIALS
     credentials: Union[AwsCredentials, GcpServiceAccountCredentials, GcpOAuthCredentials]
-    bucket_url: str
 
     @property
     def protocol(self) -> str:
@@ -31,7 +30,6 @@ class FilesystemClientConfiguration(DestinationClientStagingConfiguration):
 
     def on_resolved(self) -> None:
         url = urlparse(self.bucket_url)
-        # print(url)
         if not url.path and not url.netloc:
             raise ConfigurationValueError("File path or netloc missing. Field bucket_url of FilesystemClientConfiguration must contain valid url with a path or host:password component.")
         # this is just a path in local file system
@@ -68,6 +66,6 @@ class FilesystemClientConfiguration(DestinationClientStagingConfiguration):
             credentials: Optional[GcpServiceAccountCredentials] = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
-            bucket_url: str = None
+            bucket_url: str = None,
         ) -> None:
             ...

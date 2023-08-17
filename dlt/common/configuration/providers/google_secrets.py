@@ -25,7 +25,7 @@ class GoogleSecretsProvider(VaultTomlProvider):
         try:
             from googleapiclient.discovery import build
             from googleapiclient.errors import HttpError
-        except ImportError:
+        except ModuleNotFoundError:
             raise MissingDependencyException("GoogleSecretsProvider", ["google-api-python-client"], "We need google-api-python-client to build client for secretmanager v1")
         from dlt.common import logger
 

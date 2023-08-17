@@ -169,6 +169,7 @@ def run(
     data: Any,
     *,
     destination: TDestinationReferenceArg = None,
+    staging: TDestinationReferenceArg = None,
     dataset_name: str = None,
     credentials: Any = None,
     table_name: str = None,
@@ -228,6 +229,7 @@ def run(
     return pipeline().run(
         data,
         destination=destination,
+        staging=staging,
         dataset_name=dataset_name,
         credentials=credentials,
         table_name=table_name,

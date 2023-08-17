@@ -4,7 +4,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
-from dlt.common.schema.typing import TTableSchema, TWriteDisposition
+from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient

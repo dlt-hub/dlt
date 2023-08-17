@@ -38,10 +38,13 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     is_max_query_length_in_bytes: bool
     max_text_data_type_length: int
     is_max_text_data_type_length_in_bytes: bool
+    supports_transactions: bool
     supports_ddl_transactions: bool
     naming_convention: str = "snake_case"
     alter_add_multi_column: bool = True
     supports_truncate_command: bool = True
+    schema_supports_numeric_precision: bool = True
+    timestamp_precision: int = 6
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False
@@ -64,4 +67,5 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.max_text_data_type_length = 1024 * 1024 * 1024
         caps.is_max_text_data_type_length_in_bytes = True
         caps.supports_ddl_transactions = True
+        caps.supports_transactions = True
         return caps

@@ -12,7 +12,7 @@ try:
     from airflow.utils.task_group import TaskGroup
     from airflow.operators.python import PythonOperator
     from airflow.operators.python import get_current_context
-except ImportError:
+except ModuleNotFoundError:
     raise MissingDependencyException("Airflow", ["airflow>=2.0.0"])
 
 

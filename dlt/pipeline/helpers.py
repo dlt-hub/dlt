@@ -8,6 +8,7 @@ from dlt.common.schema.utils import group_tables_by_resource, compile_simple_reg
 from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.typing import REPattern
 from dlt.common.pipeline import TSourceState, _reset_resource_state, _sources_state, _delete_source_state_keys, _get_matching_resources
+from dlt.common.destination.reference import WithStagingDataset
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.pipeline.exceptions import PipelineStepFailed, PipelineHasPendingDataException
@@ -123,9 +124,10 @@ class DropCommand:
         with self.pipeline._sql_job_client(self.schema) as client:
             client.drop_tables(*table_names)
             # also delete staging but ignore if staging does not exist
-            with contextlib.suppress(DatabaseUndefinedRelation):
-                with client.with_staging_dataset():
-                    client.drop_tables(*table_names)
+            if isinstance(client, WithStagingDataset):
+                with contextlib.suppress(DatabaseUndefinedRelation):
+                    with client.with_staging_dataset():
+                        client.drop_tables(*table_names)
 
     def _delete_pipeline_tables(self) -> None:
         for tbl in self.tables_to_drop:

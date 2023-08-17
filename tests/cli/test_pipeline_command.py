@@ -38,68 +38,78 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
         _out = buf.getvalue()
         # do we have chess pipeline in the list
         assert "chess_pipeline" in _out.splitlines()
+    print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         pipeline_command.pipeline_command("info", "chess_pipeline", None, 0)
         _out = buf.getvalue()
         # do we have duckdb destination
         assert "dlt.destinations.duckdb" in _out
+    print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         pipeline_command.pipeline_command("info", "chess_pipeline", None, 1)
         _out = buf.getvalue()
         # were the sources state displayed
         assert '"chess": {' in _out
+    print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         pipeline_command.pipeline_command("trace", "chess_pipeline", None, 0)
         _out = buf.getvalue()
         # basic trace
         assert "Pipeline chess_pipeline completed in" in _out
+    print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         pipeline_command.pipeline_command("trace", "chess_pipeline", None, 1)
         _out = buf.getvalue()
         # extended trace
         assert "span id:" in _out
+    print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         pipeline_command.pipeline_command("trace", "chess_pipeline", None, 2)
         _out = buf.getvalue()
         # trace with job info
         assert "Jobs details:" in _out
+    print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         pipeline_command.pipeline_command("trace", "chess_pipeline", None, 2)
         _out = buf.getvalue()
         # trace with job info
         assert "Jobs details:" in _out
+    print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         pipeline_command.pipeline_command("load-package", "chess_pipeline", None, 2)
         _out = buf.getvalue()
         # has package info
         assert "The package with load" in _out
+    print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         pipeline_command.pipeline_command("failed-jobs", "chess_pipeline", None, 2)
         _out = buf.getvalue()
         # no failed jobs
         assert "No failed jobs found" in _out
+    print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         # execute sync
         with echo.always_choose(False, True):
             pipeline_command.pipeline_command("sync", "chess_pipeline", None, 0)
         _out = buf.getvalue()
+    print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         # after sync there's no trace
         pipeline_command.pipeline_command("info", "chess_pipeline", None, 0)
-        print(_out)
         _out = buf.getvalue()
         # sync was executed
         assert "Pipeline does not have last run trace." in _out
+    print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         with echo.always_choose(False, True):

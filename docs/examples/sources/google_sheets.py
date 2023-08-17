@@ -7,7 +7,7 @@ from dlt.common.exceptions import MissingDependencyException
 
 try:
     from apiclient.discovery import build
-except ImportError:
+except ModuleNotFoundError:
     raise MissingDependencyException("Google API Client", ["google-api-python-client"])
 
 

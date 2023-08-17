@@ -7,7 +7,7 @@ from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.typing import TSecretValue
 
 DUCK_DB_NAME = "%s.duckdb"
@@ -175,7 +175,7 @@ class DuckDbCredentials(DuckDbBaseCredentials):
 
 
 @configspec
-class DuckDbClientConfiguration(DestinationClientDwhConfiguration):
+class DuckDbClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_name: Final[str] = "duckdb"  # type: ignore
     credentials: DuckDbCredentials
 

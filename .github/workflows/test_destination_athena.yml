@@ -1,5 +1,5 @@
 
-name: test redshift, postgres and filesystem buckets
+name: test athena
 
 on:
   pull_request:
@@ -9,28 +9,18 @@ on:
   workflow_dispatch:
 
 env:
-  DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader@dlttests.cwz0jfxu0m7m.eu-central-1.rds.amazonaws.com:5432/dlt_data
-  DESTINATION__DUCKDB__CREDENTIALS: duckdb:///_storage/test_quack.duckdb
-  DESTINATION__REDSHIFT__CREDENTIALS: postgresql://loader@3.73.90.3:5439/dlt_ci
   DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4J46G55G4
   DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  # DESTINATION__ATHENA__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4J46G55G4
-  # DESTINATION__ATHENA__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  # DESTINATION__ATHENA__CREDENTIALS__REGION_NAME: eu-central-1
-  # DESTINATION__ATHENA__QUERY_RESULT_BUCKET: s3://dlt-athena-output
-
-  # password is the same so it will be shared
-  CREDENTIALS__PROJECT_ID: chat-analytics-rasa-ci
-  CREDENTIALS__CLIENT_EMAIL: chat-analytics-loader@chat-analytics-rasa-ci.iam.gserviceaccount.com
-  CREDENTIALS__PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
-  CREDENTIALS__PASSWORD: ${{ secrets.PG_PASSWORD }}
+  DESTINATION__ATHENA__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4J46G55G4
+  DESTINATION__ATHENA__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  DESTINATION__ATHENA__CREDENTIALS__REGION_NAME: eu-central-1
+  DESTINATION__ATHENA__QUERY_RESULT_BUCKET: s3://dlt-athena-output
 
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_SEGMENT_WRITE_KEY: TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB
-  # Test redshift and filesystem with all buckets
-  # postgres runs again here so we can test on mac/windows
-  ALL_DESTINATIONS: "[\"redshift\", \"postgres\", \"duckdb\"]"
+  ALL_DESTINATIONS: "[\"athena\"]"
+  ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
 
 jobs:
   get_docs_changes:
@@ -39,7 +29,7 @@ jobs:
     if: ${{ !github.event.pull_request.head.repo.fork }}
 
   run_loader:
-    name: test destinations redshift, postgres and filesystem
+    name: test destination athena
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
@@ -75,14 +65,11 @@ jobs:
         with:
           # path: ${{ steps.pip-cache.outputs.dir }}
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-redshift
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-athena
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E redshift -E gs -E s3 -E parquet -E duckdb -E cli
-
-      # - name: Install self
-      #   run: poetry install --no-interaction
+        run: poetry install --no-interaction -E athena
 
       - run: |
           poetry run pytest tests/load --ignore=tests/load/weaviate

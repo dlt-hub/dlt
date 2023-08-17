@@ -26,12 +26,10 @@ from dlt.common.pipeline import PipelineContext
 TEST_STORAGE_ROOT = "_storage"
 
 # destination configs
-ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or ["duckdb", "bigquery", "redshift", "postgres", "snowflake"]
+IMPLEMENTED_DESTINATIONS = {"athena", "duckdb", "bigquery", "redshift", "postgres", "snowflake", "filesystem", "weaviate", "dummy", "motherduck"}
+NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck"}
+ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or list(IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS)
 ALL_LOCAL_DESTINATIONS = set(ALL_DESTINATIONS).intersection("postgres", "duckdb")
-
-def ALL_DESTINATIONS_SUBSET(subset: List[str]) -> List[str]:
-    return list(set(ALL_DESTINATIONS).intersection(subset))
-
 
 def TEST_DICT_CONFIG_PROVIDER():
     # add test dictionary provider

@@ -1,3 +1,4 @@
+import copy
 import inspect
 import contextlib
 import dataclasses
@@ -18,7 +19,6 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintExcept
 # forward class declaration
 _F_BaseConfiguration: Any = type(object)
 _F_ContainerInjectableContext: Any = type(object)
-
 _T = TypeVar("_T", bound="BaseConfiguration")
 
 
@@ -237,8 +237,8 @@ class BaseConfiguration(MutableMapping[str, Any]):
         self.__is_resolved__ = True
 
     def copy(self: _T) -> _T:
-        """Returns a (shallow) copy of the configuration instance"""
-        return self.__class__(**dict(self))
+        """Returns a deep copy of the configuration instance"""
+        return copy.deepcopy(self)
 
     # implement dictionary-compatible interface on top of dataclass
 

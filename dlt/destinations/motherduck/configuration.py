@@ -1,7 +1,7 @@
 from typing import Any, ClassVar, Final, List
 
 from dlt.common.configuration import configspec
-from dlt.common.destination.reference import DestinationClientDwhConfiguration
+from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 from dlt.common.typing import TSecretValue
 from dlt.common.utils import digest128
 from dlt.common.configuration.exceptions import ConfigurationValueError
@@ -39,7 +39,7 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
 
 
 @configspec
-class MotherDuckClientConfiguration(DestinationClientDwhConfiguration):
+class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_name: Final[str] = "motherduck"  # type: ignore
     credentials: MotherDuckCredentials
 

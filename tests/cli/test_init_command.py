@@ -32,7 +32,7 @@ from dlt.reflection import names as n
 
 from tests.cli.utils import echo_default_choice, repo_dir, project_files, cloned_init_repo, get_repo_dir, get_project_files
 from tests.common.utils import modify_and_commit_file
-from tests.utils import ALL_DESTINATIONS, clean_test_storage
+from tests.utils import IMPLEMENTED_DESTINATIONS, clean_test_storage
 
 
 def get_verified_source_candidates(repo_dir: str) -> List[str]:
@@ -166,7 +166,7 @@ def test_init_all_verified_sources_isolated(cloned_init_repo: FileStorage) -> No
             assert_index_version_constraint(files, candidate)
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
+@pytest.mark.parametrize('destination_name', IMPLEMENTED_DESTINATIONS)
 def test_init_all_destinations(destination_name: str, project_files: FileStorage, repo_dir: str) -> None:
     pipeline_name = f"generic_{destination_name}_pipeline"
     init_command.init_command(pipeline_name, destination_name, True, repo_dir)
@@ -486,6 +486,11 @@ def assert_common_files(project_files: FileStorage, pipeline_script: str, destin
         assert args.arguments["destination"].value == destination_name
     # load secrets
     secrets = SecretsTomlProvider()
-    if destination_name != "duckdb":
+    if destination_name not in ["duckdb", "dummy"]:
+        # destination is there
         assert secrets.get_value(destination_name, Any, None, "destination") is not None
+    # certain values are never there
+    for not_there in ["dataset_name", "destination_name", "default_schema_name", "as_staging", "staging_config"]:
+        assert secrets.get_value(not_there, Any, None, "destination", destination_name)[0] is None
+
     return visitor, secrets

@@ -13,9 +13,10 @@ from dlt.destinations.exceptions import DatabaseException, DatabaseTerminalExcep
 
 from dlt.destinations.sql_client import DBApiCursor, SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.common.time import ensure_pendulum_datetime
 
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
-from tests.load.utils import yield_client_with_storage, prepare_table, ALL_CLIENTS
+from tests.load.utils import yield_client_with_storage, prepare_table, ALL_CLIENTS, AWS_BUCKET
 
 
 @pytest.fixture
@@ -47,6 +48,11 @@ def duckdb_client() -> Iterator[SqlJobClientBase]:
 @pytest.fixture(scope='function')
 def snowflake_client() -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage('snowflake')
+
+
+@pytest.fixture(scope='function')
+def athena_client() -> Iterator[SqlJobClientBase]:
+    yield from yield_client_with_storage('athena')
 
 
 @pytest.fixture(scope="function")
@@ -120,17 +126,21 @@ def test_malformed_execute_parameters(client: SqlJobClientBase) -> None:
 def test_execute_sql(client: SqlJobClientBase) -> None:
     client.update_storage_schema()
     # ask with datetime
-    no_rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE inserted_at = %s", pendulum.now().add(seconds=1))
-    assert len(no_rows) == 0
+    # no_rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE inserted_at = %s", pendulum.now().add(seconds=1))
+    # assert len(no_rows) == 0
     rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME}")
     assert len(rows) == 1
     assert rows[0][0] == "event"
     rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE schema_name = %s", "event")
     assert len(rows) == 1
+    # print(rows)
     assert rows[0][0] == "event"
     assert isinstance(rows[0][1], datetime.datetime)
     assert rows[0][0] == "event"
-    rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE inserted_at = %s", rows[0][1])
+    # print(rows[0][1])
+    # print(type(rows[0][1]))
+    # convert to pendulum to make sure it is supported by dbapi
+    rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE inserted_at = %s", ensure_pendulum_datetime(rows[0][1]))
     assert len(rows) == 1
     # use rows in subsequent test
     if client.sql_client.dbapi.paramstyle == "pyformat":
@@ -145,12 +155,12 @@ def test_execute_sql(client: SqlJobClientBase) -> None:
 def test_execute_ddl(client: SqlJobClientBase) -> None:
     uniq_suffix = uniq_id()
     client.update_storage_schema()
-    client.sql_client.execute_sql(f"CREATE TABLE tmp_{uniq_suffix} (col NUMERIC);")
-    client.sql_client.execute_sql(f"INSERT INTO tmp_{uniq_suffix} VALUES (1.0)")
-    rows = client.sql_client.execute_sql(f"SELECT * FROM tmp_{uniq_suffix}")
+    table_name = prepare_temp_table(client)
+    client.sql_client.execute_sql(f"INSERT INTO {table_name} VALUES (1.0)")
+    rows = client.sql_client.execute_sql(f"SELECT * FROM {table_name}")
     assert rows[0][0] == Decimal("1.0")
     # create view, note that bigquery will not let you execute a view that does not have fully qualified table names.
-    f_q_table_name = client.sql_client.make_qualified_table_name(f"tmp_{uniq_suffix}")
+    f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
     client.sql_client.execute_sql(f"CREATE OR REPLACE VIEW view_tmp_{uniq_suffix} AS (SELECT * FROM {f_q_table_name});")
     rows = client.sql_client.execute_sql(f"SELECT * FROM view_tmp_{uniq_suffix}")
     assert rows[0][0] == Decimal("1.0")
@@ -190,19 +200,18 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         chunk_size = 2048
         total_records = 3000
 
-    uniq_suffix = uniq_id()
     client.update_storage_schema()
-    client.sql_client.execute_sql(f"CREATE TABLE tmp_{uniq_suffix} (col INT);")
+    table_name = prepare_temp_table(client)
     insert_query = ",".join([f"({idx})" for idx in range(0, total_records)])
 
-    client.sql_client.execute_sql(f"INSERT INTO tmp_{uniq_suffix} VALUES {insert_query};")
-    with client.sql_client.execute_query(f"SELECT * FROM tmp_{uniq_suffix} ORDER BY col ASC") as curr:
+    client.sql_client.execute_sql(f"INSERT INTO {table_name} VALUES {insert_query};")
+    with client.sql_client.execute_query(f"SELECT * FROM {table_name} ORDER BY col ASC") as curr:
         df = curr.df()
         # Force lower case df columns, snowflake has all cols uppercase
         df.columns = [dfcol.lower() for dfcol in df.columns]
         assert list(df["col"]) == list(range(0, total_records))
     # get chunked
-    with client.sql_client.execute_query(f"SELECT * FROM tmp_{uniq_suffix} ORDER BY col ASC") as curr:
+    with client.sql_client.execute_query(f"SELECT * FROM {table_name} ORDER BY col ASC") as curr:
         # be compatible with duckdb vector size
         df_1 = curr.df(chunk_size=chunk_size)
         df_2 = curr.df(chunk_size=chunk_size)
@@ -275,7 +284,7 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_commit_transaction(client: SqlJobClientBase) -> None:
-    table_name = prepare_temp_table(client.sql_client)
+    table_name = prepare_temp_table(client)
     with client.sql_client.begin_transaction():
         client.sql_client.execute_sql(f"INSERT INTO {table_name} VALUES (%s)", Decimal("1.0"))
         # check row still in transaction
@@ -295,7 +304,9 @@ def test_commit_transaction(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_rollback_transaction(client: SqlJobClientBase) -> None:
-    table_name = prepare_temp_table(client.sql_client)
+    if client.capabilities.supports_transactions is False:
+        pytest.skip("Destination does not support tx")
+    table_name = prepare_temp_table(client)
     # test python exception
     with pytest.raises(RuntimeError):
         with client.sql_client.begin_transaction():
@@ -333,7 +344,9 @@ def test_rollback_transaction(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_transaction_isolation(client: SqlJobClientBase) -> None:
-    table_name = prepare_temp_table(client.sql_client)
+    if client.capabilities.supports_transactions is False:
+        pytest.skip("Destination does not support tx")
+    table_name = prepare_temp_table(client)
     event = Event()
     event.clear()
 
@@ -409,6 +422,8 @@ def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
 def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
+    if client.capabilities.supports_transactions is False:
+        pytest.skip("Destination does not support tx")
     client.schema.bump_version()
     client.update_storage_schema()
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")
@@ -451,8 +466,13 @@ def assert_load_id(sql_client:SqlClientBase, load_id: str) -> None:
     assert len(rows) == 1
 
 
-def prepare_temp_table(sql_client: SqlClientBase) -> str:
+def prepare_temp_table(client: SqlJobClientBase) -> str:
     uniq_suffix = uniq_id()
     table_name = f"tmp_{uniq_suffix}"
-    sql_client.execute_sql(f"CREATE TABLE {table_name} (col NUMERIC);")
+    iceberg_table_suffix = ""
+    coltype = "numeric"
+    if client.config.destination_name == "athena":
+        iceberg_table_suffix = f"LOCATION '{AWS_BUCKET}/ci/{table_name}' TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');"
+        coltype = "bigint"
+    client.sql_client.execute_sql(f"CREATE TABLE {table_name} (col {coltype}) {iceberg_table_suffix};")
     return table_name

@@ -14,8 +14,8 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, ContextDefaultCannotBeCreated
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.resolve import initialize_credentials
-from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, DestinationUndefinedEntity, DestinationNoStagingMode, MissingDependencyException,
-                                   DestinationIncompatibleLoaderFileFormatException)
+from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, DestinationLoadingWithoutStagingNotSupported, DestinationNoStagingMode,
+                                   MissingDependencyException, DestinationUndefinedEntity, DestinationIncompatibleLoaderFileFormatException)
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition
@@ -24,7 +24,9 @@ from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, LoadStorage, SchemaStorage, FileStorage, NormalizeStorageConfiguration, SchemaStorageConfiguration, LoadStorageConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import DestinationReference, JobClientBase, DestinationClientConfiguration, DestinationClientDwhConfiguration, TDestinationReferenceArg, DestinationClientStagingConfiguration, DestinationClientDwhConfiguration
+from dlt.common.destination.reference import (DestinationClientDwhConfiguration, DestinationReference, JobClientBase, DestinationClientConfiguration,
+                                              TDestinationReferenceArg, DestinationClientStagingConfiguration,  DestinationClientStagingConfiguration,
+                                              DestinationClientDwhWithStagingConfiguration)
 from dlt.common.destination.capabilities import INTERNAL_LOADER_FILE_FORMATS
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, PipelineContext, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
 from dlt.common.schema import Schema
@@ -164,6 +166,7 @@ class Pipeline(SupportsPipeline):
     working_dir: str
     """A working directory of the pipeline"""
     destination: DestinationReference = None
+    staging: DestinationReference = None
     """The destination reference which is ModuleType. `destination.__name__` returns the name string"""
     dataset_name: str = None
     """Name of the dataset to which pipeline will be loaded to"""
@@ -220,10 +223,8 @@ class Pipeline(SupportsPipeline):
             self._state_to_props(state)
 
             # we overwrite the state with the values from init
-            if staging:
-                self._set_staging(staging)
             # changing the destination could be dangerous if pipeline has pending load packages
-            self._set_destination(destination)
+            self._set_destinations(destination, staging)
             self._set_dataset_name(dataset_name)
             self.credentials = credentials
             self._configure(import_schema_path, export_schema_path, must_attach_to_local_pipeline)
@@ -339,7 +340,7 @@ class Pipeline(SupportsPipeline):
     ) -> LoadInfo:
         """Loads the packages prepared by `normalize` method into the `dataset_name` at `destination`, using provided `credentials`"""
         # set destination and default dataset if provided
-        self._set_destination(destination)
+        self._set_destinations(destination, None)
         self._set_dataset_name(dataset_name)
         self.credentials = credentials or self.credentials
 
@@ -348,15 +349,7 @@ class Pipeline(SupportsPipeline):
             return None
 
         # make sure that destination is set and client is importable and can be instantiated
-        client = self._get_destination_client(self.default_schema)
-        staging_client = None
-        if self.staging:
-            staging_client = self._get_staging_client(self.default_schema)
-            # inject staging config into destination config,
-            # TODO: Not super clean I think? - DestinationClientDwhConfiguration must be refactored
-            # staging_credentials, dataset name and default schema name are arguments for the loader not parts of configuration
-            if isinstance(client.config, DestinationClientDwhConfiguration) and not client.config.staging_credentials:
-                client.config.staging_credentials = staging_client.config.credentials
+        client, staging_client = self._get_destination_clients(self.default_schema)
 
         # create default loader config and the loader
         load_config = LoaderConfiguration(
@@ -453,13 +446,12 @@ class Pipeline(SupportsPipeline):
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
         signals.raise_if_signalled()
-        self._set_destination(destination)
-        self._set_staging(staging)
+        self._set_destinations(destination, staging)
         self._set_dataset_name(dataset_name)
 
         # sync state with destination
         if self.config.restore_from_destination and not self.full_refresh and not self._state_restored and (self.destination or destination):
-            self.sync_destination(destination, dataset_name)
+            self.sync_destination(destination, staging, dataset_name)
             # sync only once
             self._state_restored = True
 
@@ -481,7 +473,7 @@ class Pipeline(SupportsPipeline):
             return None
 
     @with_schemas_sync
-    def sync_destination(self, destination: TDestinationReferenceArg = None, dataset_name: str = None) -> None:
+    def sync_destination(self, destination: TDestinationReferenceArg = None, staging: TDestinationReferenceArg = None, dataset_name: str = None) -> None:
         """Synchronizes pipeline state with the `destination`'s state kept in `dataset_name`
 
         ### Summary
@@ -493,7 +485,7 @@ class Pipeline(SupportsPipeline):
         Note: this method is executed by the `run` method before any operation on data. Use `restore_from_destination` configuration option to disable that behavior.
 
         """
-        self._set_destination(destination)
+        self._set_destinations(destination, staging)
         self._set_dataset_name(dataset_name)
 
         state = self._get_state()
@@ -653,7 +645,7 @@ class Pipeline(SupportsPipeline):
 
         schema = self.schemas[schema_name] if schema_name else self.default_schema
         client_config = self._get_destination_client_initial_config(credentials)
-        with self._get_destination_client(schema, client_config) as client:
+        with self._get_destination_clients(schema, client_config)[0] as client:
             client.initialize_storage()
             return client.update_storage_schema()
 
@@ -700,11 +692,11 @@ class Pipeline(SupportsPipeline):
         else:
             schema = self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.pipeline_name))
         client_config = self._get_destination_client_initial_config(credentials)
-        return self._get_destination_client(schema, client_config)
+        return self._get_destination_clients(schema, client_config)[0]
 
     def _sql_job_client(self, schema: Schema, credentials: Any = None) -> SqlJobClientBase:
         client_config = self._get_destination_client_initial_config(credentials)
-        client = self._get_destination_client(schema , client_config)
+        client = self._get_destination_clients(schema , client_config)[0]
         if isinstance(client, SqlJobClientBase):
             return client
         else:
@@ -910,27 +902,30 @@ class Pipeline(SupportsPipeline):
 
         return client_spec(credentials=credentials)
 
-    def _get_destination_client(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
+    def _get_destination_clients(self,
+        schema: Schema,
+        initial_config: DestinationClientConfiguration = None,
+        initial_staging_config: DestinationClientConfiguration = None
+    ) -> Tuple[JobClientBase, JobClientBase]:
         try:
-            # config is not provided then get it with injected credentials
+            # resolve staging config in order to pass it to destination client config
+            staging_client = None
+            if self.staging:
+                if not initial_staging_config:
+                    # this is just initial config - without user configuration injected
+                    initial_staging_config = self._get_destination_client_initial_config(self.staging, as_staging=True)
+                # create the client - that will also resolve the config
+                staging_client = self.staging.client(schema, initial_staging_config)
             if not initial_config:
+                # config is not provided then get it with injected credentials
                 initial_config = self._get_destination_client_initial_config(self.destination)
-            return self.destination.client(schema, initial_config)
-        except ImportError:
-            client_spec = self.destination.spec()
-            raise MissingDependencyException(
-                f"{client_spec.destination_name} destination",
-                [f"{version.DLT_PKG_NAME}[{client_spec.destination_name}]"],
-                "Dependencies for specific destinations are available as extras of dlt"
-            )
-
-    def _get_staging_client(self, schema: Schema, initial_config: DestinationClientConfiguration = None) -> JobClientBase:
-        try:
-            # config is not provided then get it with injected credentials
-            if not initial_config:
-                initial_config = self._get_destination_client_initial_config(self.staging, as_staging=True)
-            return self.staging.client(schema, initial_config) # type: ignore
-        except ImportError:
+            # attach the staging client config to destination client config - if its type supports it
+            if self.staging and isinstance(initial_config, DestinationClientDwhWithStagingConfiguration) and isinstance(staging_client.config ,DestinationClientStagingConfiguration):
+                initial_config.staging_config = staging_client.config
+            # create instance with initial_config properly set
+            client = self.destination.client(schema, initial_config)
+            return client, staging_client
+        except ModuleNotFoundError:
             client_spec = self.destination.spec()
             raise MissingDependencyException(
                 f"{client_spec.destination_name} destination",
@@ -949,7 +944,7 @@ class Pipeline(SupportsPipeline):
         return self.destination.capabilities()
 
     def _get_staging_capabilities(self) -> DestinationCapabilitiesContext:
-        return self.staging.capabilities() if self.staging is not None else None # type: ignore
+        return self.staging.capabilities() if self.staging is not None else None
 
     def _validate_pipeline_name(self) -> None:
         try:
@@ -977,19 +972,23 @@ class Pipeline(SupportsPipeline):
             if DestinationCapabilitiesContext in self._container:
                 del self._container[DestinationCapabilitiesContext]
 
-    def _set_destination(self, destination: TDestinationReferenceArg) -> None:
+    def _set_destinations(self, destination: TDestinationReferenceArg, staging: TDestinationReferenceArg) -> None:
         destination_mod = DestinationReference.from_name(destination)
         self.destination = destination_mod or self.destination
+
+        if destination and not self.destination.capabilities().supported_loader_file_formats and not staging:
+            logger.warning(f"The destination {destination_mod.__name__} requires the filesystem staging destination to be set, but it was not provided. Setting it to 'filesystem'.")
+            staging = "filesystem"
+
+        if staging:
+            staging_module = DestinationReference.from_name(staging)
+            if staging_module and not issubclass(staging_module.spec(), DestinationClientStagingConfiguration):
+                raise DestinationNoStagingMode(staging_module.__name__)
+            self.staging = staging_module or self.staging
+
         with self._maybe_destination_capabilities():
             # default normalizers must match the destination
             self._set_default_normalizers()
-
-
-    def _set_staging(self, staging: TDestinationReferenceArg) -> None:
-        staging_module = DestinationReference.from_name(staging)
-        if staging_module and not issubclass(staging_module.spec(), DestinationClientStagingConfiguration):
-            raise DestinationNoStagingMode(staging_module.__name__)
-        self.staging = staging_module or self.staging
 
     @contextmanager
     def _maybe_destination_capabilities(self, loader_file_format: TLoaderFileFormat = None) -> Iterator[DestinationCapabilitiesContext]:
@@ -1026,6 +1025,8 @@ class Pipeline(SupportsPipeline):
             possible_file_formats = [f for f in dest_caps.supported_staging_file_formats if f in stage_caps.supported_loader_file_formats]
         if not file_format:
             if not stage_caps:
+                if not dest_caps.preferred_loader_file_format:
+                    raise DestinationLoadingWithoutStagingNotSupported(destination)
                 file_format = dest_caps.preferred_loader_file_format
             elif stage_caps and dest_caps.preferred_staging_file_format in possible_file_formats:
                 file_format = dest_caps.preferred_staging_file_format
@@ -1220,10 +1221,8 @@ class Pipeline(SupportsPipeline):
         for prop in Pipeline.LOCAL_STATE_PROPS:
             if prop in state["_local"] and not prop.startswith("_"):
                 setattr(self, prop, state["_local"][prop])  # type: ignore
-        if "staging" in state:
-            self._set_staging(DestinationReference.from_name(self.staging))
         if "destination" in state:
-            self._set_destination(DestinationReference.from_name(self.destination))
+            self._set_destinations(DestinationReference.from_name(self.destination), DestinationReference.from_name(self.staging) if "staging" in state else None )
 
     def _props_to_state(self, state: TPipelineState) -> None:
         """Write pipeline props to `state`"""

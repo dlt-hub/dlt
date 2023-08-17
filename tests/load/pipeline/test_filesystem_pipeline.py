@@ -10,12 +10,12 @@ from dlt.common.schema.typing import LOADS_TABLE_NAME
 import pyarrow.parquet as pq
 
 
-def assert_file_matches(job: LoadJobInfo, load_id: str, client: FilesystemClient) -> None:
+def assert_file_matches(layout: str, job: LoadJobInfo, load_id: str, client: FilesystemClient) -> None:
     """Verify file contents of load job are identical to the corresponding file in destination"""
     local_path = Path(job.file_path)
     filename = local_path.name
 
-    destination_fn = LoadFilesystemJob.make_destination_filename(filename, client.schema.name, load_id)
+    destination_fn = LoadFilesystemJob.make_destination_filename(layout, filename, client.schema.name, load_id)
     destination_path = posixpath.join(client.dataset_path, destination_fn)
 
     assert local_path.read_bytes() == client.fs_client.read_bytes(destination_path)
@@ -43,12 +43,13 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
     info2 = pipeline.run(some_source(), write_disposition='merge')
 
     client: FilesystemClient = pipeline._destination_client()  # type: ignore[assignment]
+    layout = client.config.layout
 
-    append_glob = posixpath.join(client.dataset_path, 'some_source.some_data.*')
-    replace_glob = posixpath.join(client.dataset_path, 'some_source.other_data.*')
+    append_glob = list(client._get_table_dirs(["some_data"]))[0]
+    replace_glob = list(client._get_table_dirs(["other_data"]))[0]
 
-    append_files = client.fs_client.glob(append_glob)
-    replace_files = client.fs_client.glob(replace_glob)
+    append_files = client.fs_client.ls(append_glob, detail=False, refresh=True)
+    replace_files = client.fs_client.ls(replace_glob, detail=False, refresh=True)
 
     load_id1 = info1.loads_ids[0]
     load_id2 = info2.loads_ids[0]
@@ -68,7 +69,7 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
     for pkg in info2.load_packages:
         assert pkg.jobs['completed_jobs']
         for job in pkg.jobs['completed_jobs']:
-            assert_file_matches(job, pkg.load_id,  client)
+            assert_file_matches(layout, job, pkg.load_id,  client)
 
 
     complete_fn = f"{client.schema.name}.{LOADS_TABLE_NAME}.%s"
@@ -79,8 +80,8 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
 
     # Force replace
     pipeline.run(some_source(), write_disposition='replace')
-    append_files = client.fs_client.glob(append_glob)
-    replace_files = client.fs_client.glob(replace_glob)
+    append_files = client.fs_client.ls(append_glob, detail=False, refresh=True)
+    replace_files = client.fs_client.ls(replace_glob, detail=False, refresh=True)
     assert len(append_files) == 1
     assert len(replace_files) == 1
 
@@ -112,8 +113,8 @@ def test_pipeline_parquet_filesystem_destination() -> None:
     assert len(package_info.jobs["completed_jobs"]) == 3
 
     client: FilesystemClient = pipeline._destination_client()  # type: ignore[assignment]
-    some_data_glob = posixpath.join(client.dataset_path, 'some_source.some_data.*')
-    other_data_glob = posixpath.join(client.dataset_path, 'some_source.other_data.*')
+    some_data_glob = posixpath.join(client.dataset_path, 'some_data/*')
+    other_data_glob = posixpath.join(client.dataset_path, 'other_data/*')
 
     some_data_files = client.fs_client.glob(some_data_glob)
     other_data_files = client.fs_client.glob(other_data_glob)

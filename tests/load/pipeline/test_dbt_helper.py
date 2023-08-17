@@ -12,6 +12,7 @@ from dlt.helpers.dbt.exceptions import DBTProcessingError, PrerequisitesExceptio
 
 from tests.load.pipeline.utils import select_data
 from tests.utils import ALL_DESTINATIONS
+from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 # uncomment add motherduck tests
 # NOTE: the tests are passing but we disable them due to frequent ATTACH DATABASE timeouts
@@ -26,9 +27,11 @@ def dbt_venv() -> Iterator[Venv]:
         yield venv
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_run_jaffle_package(destination_name: str, dbt_venv: Venv) -> None:
-    pipeline = dlt.pipeline(destination=destination_name, dataset_name="jaffle_jaffle", full_refresh=True)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_run_jaffle_package(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
+    if destination_config.destination == "athena":
+        pytest.skip("dbt-athena requires database to be created and we don't do it in case of Jaffle")
+    pipeline = destination_config.setup_pipeline("jaffle_jaffle", full_refresh=True)
     # get runner, pass the env from fixture
     dbt = dlt.dbt.package(pipeline, "https://github.com/dbt-labs/jaffle_shop.git", venv=dbt_venv)
     # no default schema
@@ -52,14 +55,14 @@ def test_run_jaffle_package(destination_name: str, dbt_venv: Venv) -> None:
     assert len(orders) == 99
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_run_chess_dbt(destination_name: str, dbt_venv: Venv) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
     from docs.examples.chess.chess import chess
 
     # provide chess url via environ
     os.environ["CHESS_URL"] = "https://api.chess.com/pub/"
 
-    pipeline = dlt.pipeline(pipeline_name="chess_games", destination=destination_name, dataset_name="chess_dbt_test", full_refresh=True)
+    pipeline = destination_config.setup_pipeline("chess_games", dataset_name="chess_dbt_test", full_refresh=True)
     assert pipeline.default_schema_name is None
     # get the runner for the "dbt_transform" package
     transforms = dlt.dbt.package(pipeline, "docs/examples/chess/dbt_transform", venv=dbt_venv)
@@ -89,14 +92,14 @@ def test_run_chess_dbt(destination_name: str, dbt_venv: Venv) -> None:
     assert view_player_games == new_view_player_games
 
 
-@pytest.mark.parametrize('destination_name', ALL_DESTINATIONS)
-def test_run_chess_dbt_to_other_dataset(destination_name: str, dbt_venv: Venv) -> None:
+@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+def test_run_chess_dbt_to_other_dataset(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
     from docs.examples.chess.chess import chess
 
     # provide chess url via environ
     os.environ["CHESS_URL"] = "https://api.chess.com/pub/"
 
-    pipeline = dlt.pipeline(pipeline_name="chess_games", destination=destination_name, dataset_name="chess_dbt_test", full_refresh=True)
+    pipeline = destination_config.setup_pipeline("chess_games", dataset_name="chess_dbt_test", full_refresh=True)
     # load each schema in separate dataset
     pipeline.config.use_single_dataset = False
     # assert pipeline.default_schema_name is None
@@ -108,7 +111,7 @@ def test_run_chess_dbt_to_other_dataset(destination_name: str, dbt_venv: Venv) -
     print(info)
     assert pipeline.schema_names == ["chess"]
     # store transformations in alternative dataset
-    test_suffix = "t" + uniq_id()
+    test_suffix = "alt"
     # inject the schema for test_suffix. due to use_single_dataset = False, we are able to create a sql client for it and the dataset
     # will clean up automatically
     pipeline._inject_schema(Schema(test_suffix))

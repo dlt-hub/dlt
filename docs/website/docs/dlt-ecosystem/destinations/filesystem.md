@@ -19,7 +19,18 @@ The command above creates sample `secrets.toml` and requirements file for AWS S3
 ```
 pip install -r requirements.txt
 ```
-or with `pip install dlt[s3]` which will install `s3fs` and `boto3` packages.
+or with `pip install dlt[filesystem]` which will install `s3fs` and `boto3` packages.
+:::caution
+
+We experienced that `s3fs` dependency and `boto3` have conflicting requirements (depending on their release schedule). You may also
+try
+```sh
+pip install dlt
+pip install boto3
+pip install s3fs
+```
+so pip does not fail on backtracking
+:::
 
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`, which looks like this:
 ```toml
@@ -31,10 +42,16 @@ aws_access_key_id = "please set me up!" # copy the access key here
 aws_secret_access_key = "please set me up!" # copy the secret access key here
 ```
 
-if you have your credentials stored in `~/.aws/credentials` just remove the **[destination.filesystem.credentials]** section above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the  profile, pass the profile name as follows (here: `dlt-ci-user`):
+If you have your credentials stored in `~/.aws/credentials` just remove the **[destination.filesystem.credentials]** section above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the  profile, pass the profile name as follows (here: `dlt-ci-user`):
 ```toml
 [destination.filesystem.credentials]
 aws_profile="dlt-ci-user"
+```
+
+You can also pass an aws region:
+```toml
+[destination.filesystem.credentials]
+region_name="eu-central-1"
 ```
 
 You need to create a S3 bucket and a user who can access that bucket. `dlt` is not creating buckets automatically.
@@ -110,20 +127,43 @@ bucket_url = "file:///absolute/path"  # three / for absolute path
 `filesystem` destination handles the write dispositions as follows:
 - `append` - files belonging to such tables are added to dataset folder
 - `replace` - all files that belong to such tables are deleted from dataset folder and then current set of files is added.
-- `merge` - fallbacks to `append`
+- `merge` - falls back to `append`
 
 ## Data loading
 All the files are stored in a single folder with the name of the dataset that you passed to the `run` or `load` methods of `pipeline`. In our example chess pipeline it is **chess_players_games_data**.
 
 > 💡 Note that bucket storages are in fact key-blob storage so folder structure is emulated by splitting file names into components by `/`.
 
+### Files layout
+
 The name of each file contains essential metadata on the content:
 
-`<schema_name>.<table_name>.<load_id>.<file_id>.<file_format>` where:
 - **schema_name** and **table_name** identify the [schema](../../general-usage/schema.md) and table that define the file structure (column names, data types etc.)
 - **load_id** is the [id of the load package](https://dlthub.com/docs/dlt-ecosystem/visualizations/understanding-the-tables#load-ids) form which the file comes from.
 - **file_id** is there are many files with data for a single table, they are copied with different file id.
-- **file_format** a format of the file ie. `jsonl` or `parquet`
+- **ext** a format of the file ie. `jsonl` or `parquet`
+
+Current default layout: **{table_name}/{load_id}.{file_id}.{ext}`**
+
+> 💡 Note that the default layout format has changed from `{schema_name}.{table_name}.{load_id}.{file_id}.{ext}` to `{table_name}/{load_id}.{file_id}.{ext}` in dlt 0.3.12. You can revert to the old layout by setting the old value in your toml file.
+
+
+You can change the file name format by providing the layout setting for the filesystem destination like so:
+```toml
+[destination.filesystem]
+layout="{table_name}/{load_id}.{file_id}.{ext}" # current preconfigured naming scheme
+# layout="{schema_name}.{table_name}.{load_id}.{file_id}.{ext}" # naming scheme in dlt 0.3.11 and earlier
+```
+
+A few things to know when specifying your filename layout:
+- If you want a different basepath that is common to all filenames, you can suffix your `bucket_url` rather than prefix your `layout` setting.
+- If you do not provide the `{ext}` placeholder, it will automatically be added to your layout at the end with a dot as separator.
+- It is best practice to have a separator between each placeholder. Separators can be any character allowed as a filename character but dots, dashes and forward slashes are most common.
+- When you are using the `replace` disposition, `dlt`` will have to be able to figure out the correct files to delete before loading the new data. For this
+to work, you have to
+  - include the `{table_name}` placeholder in your layout
+  - not have any other placeholders except for the `{schema_name}` placeholder before the table_name placeholder and
+  - have a separator after the table_name placeholder
 
 Please note:
 - `dlt` will not dump the current schema content to the bucket

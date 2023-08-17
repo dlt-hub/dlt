@@ -11,10 +11,13 @@ from dlt.common.configuration.container import Container
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.typing import DictStrAny
 from dlt.pipeline.exceptions import SqlClientNotAvailable
+from dlt.common.schema.typing import LOADS_TABLE_NAME
+from dlt.common.destination.reference import WithStagingDataset
+
 if TYPE_CHECKING:
     from dlt.destinations.filesystem.filesystem import FilesystemClient
 
-from tests.load.utils import ALL_DESTINATIONS, AWS_BUCKET, GCS_BUCKET, FILE_BUCKET, ALL_BUCKETS
+from tests.load.utils import ALL_DESTINATIONS, AWS_BUCKET, GCS_BUCKET, FILE_BUCKET, ALL_BUCKETS, IMPLEMENTED_DESTINATIONS
 
 
 @dataclass
@@ -27,6 +30,7 @@ class DestinationTestConfiguration:
     stage_name: Optional[str] = None
     staging_iam_role: Optional[str] = None
     extra_info: Optional[str] = None
+    supports_merge: bool = True  # TODO: take it from client base class
 
     @property
     def name(self) -> str:
@@ -47,15 +51,15 @@ class DestinationTestConfiguration:
         os.environ['DESTINATION__STAGE_NAME'] = self.stage_name or ""
         os.environ['DESTINATION__STAGING_IAM_ROLE'] = self.staging_iam_role or ""
 
-        """For the filesystem destinations we disable compression to make analysing the result easier"""
+        """For the filesystem destinations we disable compression to make analyzing the result easier"""
         if self.destination == "filesystem":
             os.environ['DATA_WRITER__DISABLE_COMPRESSION'] = "True"
 
 
-    def setup_pipeline(self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = True) -> dlt.Pipeline:
+    def setup_pipeline(self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = False, **kwargs) -> dlt.Pipeline:
         """Convenience method to setup pipeline with this configuration"""
         self.setup()
-        pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination=self.destination, staging=self.staging, dataset_name=dataset_name or pipeline_name, full_refresh=full_refresh)
+        pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination=self.destination, staging=self.staging, dataset_name=dataset_name or pipeline_name, full_refresh=full_refresh, **kwargs)
         return pipeline
 
 
@@ -63,30 +67,31 @@ class DestinationTestConfiguration:
 _destinations_and_buckets = [(d, ) for d in ALL_DESTINATIONS] + [('filesystem', b) for b in ALL_BUCKETS]
 _param_ids = [':'.join(p) for p in _destinations_and_buckets]
 
-@pytest.fixture(scope='function', params=_destinations_and_buckets, ids=_param_ids)
-def any_destination(request) -> Iterator[Tuple[str, ...]]:  # type: ignore[no-untyped-def]
-    """Parametrized fixture iterating all destinations including filesystem configured for each test bucket"""
-    destination = request.param[0]
-    if len(request.param) > 1:
-        os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = request.param[1]
-    yield destination
-
-
 def destinations_configs(
-        default_non_staging_configs: bool = False,
+        default_configs: bool = False,
         default_staging_configs: bool = False,
         all_staging_configs: bool = False,
-        local_filesystem_configs: bool = False) -> Iterator[DestinationTestConfiguration]:
+        local_filesystem_configs: bool = False,
+        all_buckets_filesystem_configs: bool = False,
+        subset: List[str] = "") -> Iterator[DestinationTestConfiguration]:
+
+    # sanity check
+    for item in subset:
+        assert item in IMPLEMENTED_DESTINATIONS, f"Destination {item} is not implemented"
 
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
 
     # default non staging configs, one per destination
-    if default_non_staging_configs:
-        destination_configs += [DestinationTestConfiguration(destination=destination) for destination in ALL_DESTINATIONS]
+    if default_configs:
+        destination_configs += [DestinationTestConfiguration(destination=destination) for destination in ALL_DESTINATIONS if destination != "athena"]
+        # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
+        destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
+
 
     if default_staging_configs or all_staging_configs:
         destination_configs += [
+            DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, supports_merge=False),
             DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, staging_iam_role="arn:aws:iam::267388281016:role/redshift_s3_read", extra_info="s3-role"),
             DestinationTestConfiguration(destination="bigquery", staging="filesystem", file_format="parquet", bucket_url=GCS_BUCKET, extra_info="gcs-authorization"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, stage_name="PUBLIC.dlt_gcs_stage", extra_info="gcs-integration"),
@@ -104,11 +109,21 @@ def destinations_configs(
     # filter out non active destinations
     destination_configs = [conf for conf in destination_configs if conf.destination in ALL_DESTINATIONS]
 
+    # filter out destinations not in subset
+    if subset:
+        destination_configs = [conf for conf in destination_configs if conf.destination in subset]
+
+
     # add local filesystem destinations if requested
     if local_filesystem_configs:
         destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="insert_values")]
         destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="parquet")]
         destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="jsonl")]
+
+    if all_buckets_filesystem_configs:
+        for bucket in ALL_BUCKETS:
+            destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=bucket, extra_info=bucket)]
+
 
     return destination_configs
 
@@ -139,12 +154,13 @@ def drop_active_pipeline_data() -> None:
                         # print("dropped")
                     except Exception as exc:
                         print(exc)
-                    with c.with_staging_dataset(staging=True):
-                        try:
-                            c.drop_dataset()
-                            # print("dropped")
-                        except Exception as exc:
-                            print(exc)
+                    if isinstance(c, WithStagingDataset):
+                        with c.with_staging_dataset(staging=True):
+                            try:
+                                c.drop_dataset()
+                                # print("dropped")
+                            except Exception as exc:
+                                print(exc)
             except SqlClientNotAvailable:
                 pass
 
@@ -182,12 +198,16 @@ def _assert_table_sql(p: dlt.Pipeline, table_name: str, table_data: List[Any], s
 
 def _assert_table_fs(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
     """Assert table is loaded to filesystem destination"""
-    client: "FilesystemClient" = p._destination_client(schema_name)  # type: ignore[assignment]
-    glob =  client.fs_client.glob(posixpath.join(client.dataset_path, f'{client.schema.name}.{table_name}.*'))
-    assert len(glob) == 1
-    assert client.fs_client.isfile(glob[0])
+    client: FilesystemClient = p._destination_client(schema_name)  # type: ignore[assignment]
+    # get table directory
+    table_dir = list(client._get_table_dirs([table_name]))[0]
+    # assumes that each table has a folder
+    files = client.fs_client.ls(table_dir, detail=False, refresh=True)
+    # glob =  client.fs_client.glob(posixpath.join(client.dataset_path, f'{client.table_prefix_layout.format(schema_name=schema_name, table_name=table_name)}/*'))
+    assert len(files) >= 1
+    assert client.fs_client.isfile(files[0])
     # TODO: may verify that filesize matches load package size
-    assert client.fs_client.size(glob[0]) > 0
+    assert client.fs_client.size(files[0]) > 0
 
 
 def select_data(p: dlt.Pipeline, sql: str, schema_name: str = None) -> List[Sequence[Any]]:
@@ -209,30 +229,38 @@ def assert_query_data(p: dlt.Pipeline, sql: str, table_data: List[Any], schema_n
             assert row[1] in info.loads_ids
 
 
-def load_file(path: str) -> Tuple[str, List[Dict[str, Any]]]:
+def load_file(path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
     """
     util function to load a filesystem destination file and return parsed content
     values may not be cast to the right type, especially for insert_values, please
     make sure to do conversions and casting if needed in your tests
     """
     result: List[dict, str] = []
-    path_items = os.path.basename(path).split(".")
-    ext = path_items[-1]
-    table_name = path_items[1]
+
+    # check if this is a file we want to read
+    file_name_items = file.split(".")
+    ext = file_name_items[-1]
+    if ext not in ["jsonl", "insert_values", "parquet"]:
+        return "skip", []
+
+    # table name will be last element of path
+    table_name = path.split("/")[-1]
 
     # skip loads table
     if table_name == "_dlt_loads":
         return table_name, []
 
+    full_path = posixpath.join(path, file)
+
     # load jsonl
     if ext == "jsonl":
-        with open(path, "rU", encoding="utf-8") as f:
+        with open(full_path, "rU", encoding="utf-8") as f:
             for line in f:
                 result.append(json.loads(line))
 
-    # load insert_values (this is a bit volatile if the extact format of the source file changes)
+    # load insert_values (this is a bit volatile if the exact format of the source file changes)
     elif ext == "insert_values":
-        with open(path, "rU", encoding="utf-8") as f:
+        with open(full_path, "rU", encoding="utf-8") as f:
             lines = f.readlines()
             # extract col names
             cols = lines[0][15:-2].split(",")
@@ -243,7 +271,7 @@ def load_file(path: str) -> Tuple[str, List[Dict[str, Any]]]:
     # load parquet
     elif ext == "parquet":
         import pyarrow.parquet as pq
-        with open(path, "rb") as f:
+        with open(full_path, "rb") as f:
             table = pq.read_table(f)
             cols = table.column_names
             count = 0
@@ -258,23 +286,27 @@ def load_file(path: str) -> Tuple[str, List[Dict[str, Any]]]:
                     item_count += 1
                 count += 1
 
-    else:
-        raise NotImplementedError(f"Unsupported filetype: {ext}")
-
     return table_name, result
 
+
 def load_files(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
+    """For now this will expect the standard layout in the filesystem destination, if changed the results will not be correct"""
     client: FilesystemClient = p._destination_client()  # type: ignore[assignment]
-    all_files = client.fs_client.ls(client.dataset_path, detail=False, refresh=True)
     result = {}
-    for path in all_files:
-        table_name, items = load_file(path)
-        if table_name not in table_names:
-            continue
-        if table_name in result:
-            result[table_name] = result[table_name] + items
-        else:
-            result[table_name] = items
+    for basedir, _dirs, files  in client.fs_client.walk(client.dataset_path, detail=False, refresh=True):
+        for file in files:
+            table_name, items = load_file(basedir, file)
+            if table_name not in table_names:
+                continue
+            if table_name in result:
+                result[table_name] = result[table_name] + items
+            else:
+                result[table_name] = items
+
+            # loads file is special case
+            if LOADS_TABLE_NAME in table_names and file.find(".{LOADS_TABLE_NAME}."):
+                result[LOADS_TABLE_NAME] = []
+
     return result
 
 

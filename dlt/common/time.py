@@ -120,3 +120,7 @@ def ensure_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
             return result.in_tz(UTC)
         return pendulum.datetime(result.year, result.month, result.day, tz=UTC)
     raise TypeError(f"Cannot coerce {value} to a pendulum.DateTime object.")
+
+
+def reduce_pendulum_datetime_precision(value: pendulum.DateTime, microsecond_precision: int) -> pendulum.DateTime:
+    return value.set(microsecond=value.microsecond // 10**(6 - microsecond_precision) * 10**(6 - microsecond_precision))  # type: ignore

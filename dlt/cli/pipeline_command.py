@@ -151,7 +151,9 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
 
     if operation == "sync":
         if fmt.confirm("About to drop the local state of the pipeline and reset all the schemas. The destination state, data and schemas are left intact. Proceed?", default=False):
+            fmt.echo("Dropping local state")
             p = p.drop()
+            fmt.echo("Restoring from destination")
             p.sync_destination()
 
     if operation == "load-package":

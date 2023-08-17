@@ -9,9 +9,12 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 
 REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
-@pytest.mark.parametrize("destination_config", destinations_configs(local_filesystem_configs=True, default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(local_filesystem_configs=True, default_staging_configs=True, default_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_replace_disposition(destination_config: DestinationTestConfiguration, replace_strategy: str) -> None:
+
+    if not destination_config.supports_merge and replace_strategy != "truncate-and-insert":
+        pytest.skip(f"Destination {destination_config.name} does not support merge and thus {replace_strategy}")
 
     # only allow 40 items per file
     os.environ['DATA_WRITER__FILE_MAX_ITEMS'] = "40"
@@ -31,7 +34,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
         return {**{"_dlt_version": 0}, **{t:0 for t in child_tables}, **counts}
 
     dataset_name = "test_replace_strategies_ds" + uniq_id()
-    pipeline = destination_config.setup_pipeline("test_replace_strategies", dataset_name=dataset_name, full_refresh=False)
+    pipeline = destination_config.setup_pipeline("test_replace_strategies", dataset_name=dataset_name)
 
     global offset
     offset = 1000
@@ -60,8 +63,18 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
                 }]
                 }
 
+    # append resource to see if we do not drop any tables
+    @dlt.resource(write_disposition="append")
+    def append_items():
+        global offset
+        for _, index in enumerate(range(offset, offset+12), 1):
+            yield {
+                "id": index,
+                "name": f"item {index}",
+            }
+
     # first run with offset 0
-    info = pipeline.run(load_items, loader_file_format=destination_config.file_format)
+    info = pipeline.run([load_items, append_items], loader_file_format=destination_config.file_format)
     assert_load_info(info)
     # count state records that got extracted
     state_records = increase_state_loads(info)
@@ -70,7 +83,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
 
     # second run with higher offset so we can check the results
     offset = 1000
-    info = pipeline.run(load_items, loader_file_format=destination_config.file_format)
+    info = pipeline.run([load_items, append_items], loader_file_format=destination_config.file_format)
     assert_load_info(info)
     state_records += increase_state_loads(info)
     dlt_loads = increase_loads(dlt_loads)
@@ -78,6 +91,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     # we should have all items loaded
     table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())
     assert norm_table_counts(table_counts) == {
+        "append_items": 24,  # loaded twice
         "items": 120,
         "items__sub_items": 240,
         "items__sub_items__sub_sub_items": 120,
@@ -96,7 +110,8 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     @dlt.resource(name="items", write_disposition="replace", primary_key="id")
     def load_items_none():
         yield
-    info = pipeline.run(load_items_none, loader_file_format=destination_config.file_format)
+
+    info = pipeline.run([load_items_none, append_items], loader_file_format=destination_config.file_format)
     assert_load_info(info)
     state_records += increase_state_loads(info)
     dlt_loads = increase_loads(dlt_loads)
@@ -104,6 +119,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     # table and child tables should be cleared
     table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())
     assert norm_table_counts(table_counts, "items__sub_items", "items__sub_items__sub_sub_items") == {
+        "append_items": 36,
         "items": 0,
         "items__sub_items": 0,
         "items__sub_items__sub_sub_items": 0,
@@ -116,17 +132,24 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     # drop_active_pipeline_data()
 
     # create a pipeline with different name but loading to the same dataset as above - this is to provoke truncating non existing tables
-    pipeline_2 = destination_config.setup_pipeline("test_replace_strategies_2", dataset_name=dataset_name, full_refresh=False)
+    pipeline_2 = destination_config.setup_pipeline("test_replace_strategies_2", dataset_name=dataset_name)
     info = pipeline_2.run(load_items, table_name="items_copy", loader_file_format=destination_config.file_format)
     assert_load_info(info)
-
     new_state_records = increase_state_loads(info)
     assert new_state_records == 1
+    dlt_loads = increase_loads(dlt_loads)
+    dlt_versions = increase_loads(dlt_versions)
+
+    info = pipeline_2.run(append_items, loader_file_format=destination_config.file_format)
+    assert_load_info(info)
+    new_state_records = increase_state_loads(info)
+    assert new_state_records == 0
     dlt_loads = increase_loads(dlt_loads)
 
     # new pipeline
     table_counts = load_table_counts(pipeline_2, *pipeline_2.default_schema.tables.keys())
     assert norm_table_counts(table_counts) == {
+        "append_items": 48,
         "items_copy": 120,
         "items_copy__sub_items": 240,
         "items_copy__sub_items__sub_sub_items": 120,
@@ -135,10 +158,10 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
         "_dlt_version": increase_loads(dlt_versions)
     }
 
-
     # old pipeline -> shares completed loads and versions table
     table_counts = load_table_counts(pipeline, *pipeline.default_schema.tables.keys())
     assert norm_table_counts(table_counts, "items__sub_items", "items__sub_items__sub_sub_items") == {
+        "append_items": 48,
         "items": 0,
         "items__sub_items": 0,
         "items__sub_items__sub_sub_items": 0,
@@ -147,14 +170,16 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
         "_dlt_version": increase_loads(dlt_versions)  # new table name -> new schema
     }
 
-@pytest.mark.parametrize("destination_config", destinations_configs(local_filesystem_configs=True, default_staging_configs=True, default_non_staging_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(local_filesystem_configs=True, default_staging_configs=True, default_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_replace_table_clearing(destination_config: DestinationTestConfiguration,replace_strategy: str) -> None:
+    if not destination_config.supports_merge and replace_strategy != "truncate-and-insert":
+        pytest.skip(f"Destination {destination_config.name} does not support merge and thus {replace_strategy}")
 
     # use staging tables for replace
     os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
 
-    pipeline = destination_config.setup_pipeline("test_replace_table_clearing")
+    pipeline = destination_config.setup_pipeline("test_replace_table_clearing", dataset_name="test_replace_table_clearing", full_refresh=True)
 
     @dlt.resource(name="main_resource", write_disposition="replace", primary_key="id")
     def items_with_subitems():

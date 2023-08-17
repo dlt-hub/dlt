@@ -1,4 +1,3 @@
-import base64
 import contextlib
 from importlib import import_module
 import codecs
@@ -8,11 +7,11 @@ import shutil
 from pathlib import Path
 
 import dlt
-from dlt.common import json, Decimal, sleep, pendulum
+from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, DestinationReference, JobClientBase, LoadJob
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, DestinationReference, JobClientBase, LoadJob, DestinationClientStagingConfiguration, WithStagingDataset
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns, Schema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
@@ -25,7 +24,8 @@ from dlt.load import Load
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.utils import ALL_DESTINATIONS
+from tests.utils import ALL_DESTINATIONS, IMPLEMENTED_DESTINATIONS
+from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES, assert_all_data_types_row
 
 # bucket urls
 AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
@@ -34,6 +34,7 @@ FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
 
 ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or ["s3", "gs", "file", "memory"]
+
 
 # Filter out buckets not in all filesystem drivers
 ALL_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET]
@@ -44,165 +45,6 @@ ALL_CLIENTS = [f"{name}_client" for name in ALL_DESTINATIONS]
 
 def ALL_CLIENTS_SUBSET(subset: Sequence[str]) -> List[str]:
     return list(set(subset).intersection(ALL_CLIENTS))
-
-
-TABLE_UPDATE: List[TColumnSchema] = [
-    {
-        "name": "col1",
-        "data_type": "bigint",
-        "nullable": False
-    },
-    {
-        "name": "col2",
-        "data_type": "double",
-        "nullable": False
-    },
-    {
-        "name": "col3",
-        "data_type": "bool",
-        "nullable": False
-    },
-    {
-        "name": "col4",
-        "data_type": "timestamp",
-        "nullable": False
-    },
-    {
-        "name": "col5",
-        "data_type": "text",
-        "nullable": False
-    },
-    {
-        "name": "col6",
-        "data_type": "decimal",
-        "nullable": False
-    },
-    {
-        "name": "col7",
-        "data_type": "binary",
-        "nullable": False
-    },
-    {
-        "name": "col8",
-        "data_type": "wei",
-        "nullable": False
-    },
-    {
-        "name": "col9",
-        "data_type": "complex",
-        "nullable": False,
-        "variant": True
-    },
-    {
-        "name": "col10",
-        "data_type": "date",
-        "nullable": False
-    },
-    {
-        "name": "col1_null",
-        "data_type": "bigint",
-        "nullable": True
-    },
-    {
-        "name": "col2_null",
-        "data_type": "double",
-        "nullable": True
-    },
-    {
-        "name": "col3_null",
-        "data_type": "bool",
-        "nullable": True
-    },
-    {
-        "name": "col4_null",
-        "data_type": "timestamp",
-        "nullable": True
-    },
-    {
-        "name": "col5_null",
-        "data_type": "text",
-        "nullable": True
-    },
-    {
-        "name": "col6_null",
-        "data_type": "decimal",
-        "nullable": True
-    },
-    {
-        "name": "col7_null",
-        "data_type": "binary",
-        "nullable": True
-    },
-    {
-        "name": "col8_null",
-        "data_type": "wei",
-        "nullable": True
-    },
-    {
-        "name": "col9_null",
-        "data_type": "complex",
-        "nullable": True,
-        "variant": True
-    },
-    {
-        "name": "col10_null",
-        "data_type": "date",
-        "nullable": True
-    }
-]
-TABLE_UPDATE_COLUMNS_SCHEMA: TTableSchemaColumns = {t["name"]:t for t in TABLE_UPDATE}
-
-TABLE_ROW_ALL_DATA_TYPES  = {
-    "col1": 989127831,
-    "col2": 898912.821982,
-    "col3": True,
-    "col4": "2022-05-23T13:26:45+00:00",
-    "col5": "string data \n \r \x8e 🦆",
-    "col6": Decimal("2323.34"),
-    "col7": b'binary data \n \r \x8e',
-    "col8": 2**56 + 92093890840,
-    "col9": {"complex":[1,2,3,"a"], "link": "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\012 \6 \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"},
-    "col10": "2023-02-27",
-    "col1_null": None,
-    "col2_null": None,
-    "col3_null": None,
-    "col4_null": None,
-    "col5_null": None,
-    "col6_null": None,
-    "col7_null": None,
-    "col8_null": None,
-    "col9_null": None,
-    "col10_null": None
-}
-
-
-def assert_all_data_types_row(db_row: List[Any], parse_complex_strings: bool = False, allow_base64_binary: bool = False) -> None:
-    print(db_row)
-    # content must equal
-    db_row[3] = str(pendulum.instance(db_row[3]))  # serialize date
-    if isinstance(db_row[6], str):
-        try:
-            db_row[6] = bytes.fromhex(db_row[6])  # redshift returns binary as hex string
-        except ValueError:
-            if not allow_base64_binary:
-                raise
-            db_row[6] = base64.b64decode(db_row[6], validate=True)
-    else:
-        db_row[6] = bytes(db_row[6])
-    # redshift and bigquery return strings from structured fields
-    if isinstance(db_row[8], str):
-        # then it must be json
-        db_row[8] = json.loads(db_row[8])
-    # parse again
-    if parse_complex_strings and isinstance(db_row[8], str):
-        # then it must be json
-        db_row[8] = json.loads(db_row[8])
-
-    db_row[9] = db_row[9].isoformat()
-
-    expected_rows = list(TABLE_ROW_ALL_DATA_TYPES.values())
-    print(expected_rows)
-    assert db_row == expected_rows
 
 
 def load_table(name: str) -> TTableSchemaColumns:
@@ -264,8 +106,18 @@ def yield_client(
     # create client and dataset
     client: SqlJobClientBase = None
 
+    # athena requires staging config to be present, so stick this in there here
+    if destination_name == "athena":
+        staging_config = DestinationClientStagingConfiguration(
+            destination_name="fake-stage",
+            dataset_name=dest_config.dataset_name,
+            default_schema_name=dest_config.default_schema_name,
+            bucket_url=AWS_BUCKET
+        )
+        dest_config.staging_config = staging_config
+
     # lookup for credentials in the section that is destination name
-    with Container().injectable_context(ConfigSectionContext(sections=(destination_name,))):
+    with Container().injectable_context(ConfigSectionContext(sections=("destination", destination_name,))):
         with destination.client(schema, dest_config) as client:
             yield client
 
@@ -294,9 +146,10 @@ def yield_client_with_storage(
         yield client
         # print(dataset_name)
         client.sql_client.drop_dataset()
-        with client.with_staging_dataset():
-            if client.is_storage_initialized():
-                client.sql_client.drop_dataset()
+        if isinstance(client, WithStagingDataset):
+            with client.with_staging_dataset():
+                if client.is_storage_initialized():
+                    client.sql_client.drop_dataset()
 
 
 def delete_dataset(client: SqlClientBase[Any], normalized_dataset_name: str) -> None:
