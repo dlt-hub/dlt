@@ -277,12 +277,6 @@ def _get_shuffled_events(shuffle: bool = dlt.secrets.value):
 @pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("github_resource",[github_repo_events, github_repo_events_table_meta])
 def test_merge_with_dispatch_and_incremental(destination_config: DestinationTestConfiguration, github_resource: DltResource) -> None:
-
-    # # for athena we need to skip this test, as athena does not want a query string longer than 262144 (bytes?) and this is the
-    # # case here
-    # if destination_config.destination == "athena":
-    #     pytest.skip("athena does not support long queries")
-
     newest_issues = list(sorted(_get_shuffled_events(True), key = lambda x: x["created_at"], reverse=True))
     newest_issue = newest_issues[0]
 

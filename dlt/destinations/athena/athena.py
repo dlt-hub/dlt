@@ -114,6 +114,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         super().__init__(None, dataset_name)
         self._conn: Connection = None
         self.config = config
+        self.credentials = config.credentials
 
     @raise_open_connection_error
     def open_connection(self) -> Connection:

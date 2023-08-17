@@ -30,7 +30,7 @@ class DestinationTestConfiguration:
     stage_name: Optional[str] = None
     staging_iam_role: Optional[str] = None
     extra_info: Optional[str] = None
-    supports_merge: bool = True
+    supports_merge: bool = True  # TODO: take it from client base class
 
     @property
     def name(self) -> str:
@@ -51,7 +51,7 @@ class DestinationTestConfiguration:
         os.environ['DESTINATION__STAGE_NAME'] = self.stage_name or ""
         os.environ['DESTINATION__STAGING_IAM_ROLE'] = self.staging_iam_role or ""
 
-        """For the filesystem destinations we disable compression to make analysing the result easier"""
+        """For the filesystem destinations we disable compression to make analyzing the result easier"""
         if self.destination == "filesystem":
             os.environ['DATA_WRITER__DISABLE_COMPRESSION'] = "True"
 

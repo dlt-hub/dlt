@@ -11,13 +11,12 @@ import dlt
 
 from dlt.common.runners import Venv
 from dlt.common.storages.file_storage import FileStorage
-
+from dlt.common.typing import StrAny
 from dlt.common.utils import set_working_dir
 
 from dlt.cli import deploy_command, _dlt, echo
 from dlt.cli.exceptions import CliCommandException
 from dlt.pipeline.exceptions import CannotRestorePipelineException
-from dlt.common.typing import StrAny
 from dlt.cli.deploy_command_helpers import get_schedule_description
 
 from tests.utils import TEST_STORAGE_ROOT, test_storage

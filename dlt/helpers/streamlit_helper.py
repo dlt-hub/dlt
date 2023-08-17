@@ -10,7 +10,7 @@ from dlt.common.exceptions import MissingDependencyException
 
 from dlt.helpers.pandas_helper import pd
 from dlt.pipeline import Pipeline
-from dlt.pipeline.exceptions import CannotRestorePipelineException
+from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.state_sync import load_state_from_destination
 
 try:
@@ -97,15 +97,21 @@ def write_load_status_page(pipeline: Pipeline) -> None:
 
     @cache_data(ttl=600)
     def _query_data(query: str, schema_name: str = None) -> pd.DataFrame:
-        with pipeline.sql_client(schema_name) as client:
-            with client.execute_query(query) as curr:
-                return curr.df()
+        try:
+            with pipeline.sql_client(schema_name) as client:
+                with client.execute_query(query) as curr:
+                    return curr.df()
+        except SqlClientNotAvailable:
+            st.error("Cannot load data - SqlClient not available")
 
     @cache_data(ttl=5)
     def _query_data_live(query: str, schema_name: str = None) -> pd.DataFrame:
-        with pipeline.sql_client(schema_name) as client:
-            with client.execute_query(query) as curr:
-                return curr.df()
+        try:
+            with pipeline.sql_client(schema_name) as client:
+                with client.execute_query(query) as curr:
+                    return curr.df()
+        except SqlClientNotAvailable:
+            st.error("Cannot load data - SqlClient not available")
 
     try:
         st.header("Pipeline info")
@@ -210,9 +216,13 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
 
     @cache_data(ttl=60)
     def _query_data(query: str, chunk_size: int = None) -> pd.DataFrame:
-        with pipeline.sql_client(schema_name) as client:
-            with client.execute_query(query) as curr:
-                return curr.df(chunk_size=chunk_size)
+        try:
+            with pipeline.sql_client(schema_name) as client:
+                with client.execute_query(query) as curr:
+                    return curr.df(chunk_size=chunk_size)
+        except SqlClientNotAvailable:
+            st.error("Cannot load data - SqlClient not available")
+
 
     if schema_name:
         schema = pipeline.schemas[schema_name]

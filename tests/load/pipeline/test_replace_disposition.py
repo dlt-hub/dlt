@@ -13,6 +13,9 @@ REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "staging-opt
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_replace_disposition(destination_config: DestinationTestConfiguration, replace_strategy: str) -> None:
 
+    if not destination_config.supports_merge and replace_strategy != "truncate-and-insert":
+        pytest.skip(f"Destination {destination_config.name} does not support merge and thus {replace_strategy}")
+
     # only allow 40 items per file
     os.environ['DATA_WRITER__FILE_MAX_ITEMS'] = "40"
     # use staging tables for replace
@@ -170,11 +173,13 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
 @pytest.mark.parametrize("destination_config", destinations_configs(local_filesystem_configs=True, default_staging_configs=True, default_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
 def test_replace_table_clearing(destination_config: DestinationTestConfiguration,replace_strategy: str) -> None:
+    if not destination_config.supports_merge and replace_strategy != "truncate-and-insert":
+        pytest.skip(f"Destination {destination_config.name} does not support merge and thus {replace_strategy}")
 
     # use staging tables for replace
     os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
 
-    pipeline = destination_config.setup_pipeline("test_replace_table_clearing" + uniq_id())
+    pipeline = destination_config.setup_pipeline("test_replace_table_clearing", dataset_name="test_replace_table_clearing", full_refresh=True)
 
     @dlt.resource(name="main_resource", write_disposition="replace", primary_key="id")
     def items_with_subitems():
