@@ -20,7 +20,27 @@ Let's start by initializing a new dlt project as follows:
 
 ### 2. Setup bucket storage and athena credentials
 
-To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`. You will need to provide a `bucket_url` which holds the uploaded parquetfiles, a `query_result_bucket` which athena uses to write query results too, and credentials that have write and read access to these two buckets as well as the full athena access aws role.
+First install dependencies by running:
+```
+pip install -r requirements.txt
+```
+or with `pip install dlt[athena]` which will install `s3fs`, `pyarrow`, `pyathena` and `boto3` packages.
+
+:::caution
+
+We experienced that `s3fs` dependency and `boto3` have conflicting requirements (depending on their release schedule). You may also
+try
+```sh
+pip install dlt
+pip install boto3
+pip install s3fs
+pip install pyarrow
+pip install pyathena
+```
+so pip does not fail on backtracking
+:::
+
+To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`. You will need to provide a `bucket_url` which holds the uploaded parquet files, a `query_result_bucket` which athena uses to write query results too, and credentials that have write and read access to these two buckets as well as the full athena access aws role.
 
 The toml file looks like this:
 

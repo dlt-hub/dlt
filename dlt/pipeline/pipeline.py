@@ -976,8 +976,8 @@ class Pipeline(SupportsPipeline):
         destination_mod = DestinationReference.from_name(destination)
         self.destination = destination_mod or self.destination
 
-        if self.destination and not self.destination.capabilities().supported_loader_file_formats and not staging:
-            logger.warning(f"The destination {destination} requires the filesystem staging destination to be set, but it was not provided. Setting it to 'filesystem'.")
+        if destination and not self.destination.capabilities().supported_loader_file_formats and not staging:
+            logger.warning(f"The destination {destination_mod.__name__} requires the filesystem staging destination to be set, but it was not provided. Setting it to 'filesystem'.")
             staging = "filesystem"
 
         if staging:

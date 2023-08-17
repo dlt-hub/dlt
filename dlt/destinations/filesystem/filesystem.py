@@ -1,11 +1,11 @@
 import posixpath
 import os
 from types import TracebackType
-from typing import ClassVar, List, Type, Iterable, Set
+from typing import ClassVar, List, Optional, Type, Iterable, Set
 from fsspec import AbstractFileSystem
 
 from dlt.common import logger
-from dlt.common.schema import Schema, TTableSchema
+from dlt.common.schema import Schema, TSchemaTables, TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob
@@ -122,10 +122,12 @@ class FilesystemClient(JobClientBase):
                 except FileNotFoundError:
                     logger.info(f"Directory or path to truncate tables {truncate_dir} does not exist but it should be created previously!")
 
+    def update_storage_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> TSchemaTables:
         # create destination dirs for all tables
-        dirs_to_create = self._get_table_dirs(self.schema.tables.keys())
+        dirs_to_create = self._get_table_dirs(only_tables or self.schema.tables.keys())
         for directory in dirs_to_create:
             self.fs_client.makedirs(directory, exist_ok=True)
+        return expected_update
 
     def _get_table_dirs(self, table_names: Iterable[str]) -> Set[str]:
         """Gets unique directories where table data is stored."""

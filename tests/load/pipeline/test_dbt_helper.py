@@ -111,7 +111,7 @@ def test_run_chess_dbt_to_other_dataset(destination_config: DestinationTestConfi
     print(info)
     assert pipeline.schema_names == ["chess"]
     # store transformations in alternative dataset
-    test_suffix = "t" + uniq_id()
+    test_suffix = "alt"
     # inject the schema for test_suffix. due to use_single_dataset = False, we are able to create a sql client for it and the dataset
     # will clean up automatically
     pipeline._inject_schema(Schema(test_suffix))
