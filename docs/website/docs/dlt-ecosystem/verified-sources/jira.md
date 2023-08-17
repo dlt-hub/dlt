@@ -127,9 +127,7 @@ it is important to note the complete list of the default endpoints given in
 
 ### Source `jira`
 
-This source function creates a list of resources to load data into the destination. This function
-returns an iterable of DltResource objects, which represent the data to be loaded into the
-destination. Y
+This source function creates a list of resources to load data into the destination.
 
 ```python
 @dlt.source
