@@ -44,7 +44,7 @@ class DestinationClientConfiguration(BaseConfiguration):
 class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """Configuration of a destination that supports datasets/schemas"""
 
-    dataset_name: str = None
+    dataset_name: Final[str] = None
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
     default_schema_name: Optional[str] = None
     """name of default schema to be used to name effective dataset to load data to"""
