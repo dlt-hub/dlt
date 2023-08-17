@@ -69,7 +69,7 @@ For more information, read the
 
 1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, where you can securely store
    your access tokens and other sensitive information. It's important to handle this file with care
-   and keep it safe. Here's what the file looks like:
+   and keep it safe.
 
    Here's what the file looks like:
 
@@ -86,7 +86,7 @@ For more information, read the
 
 1. Use the email address associated with your Jira account.
 
-1. Replace the access_token value with the [previously copied one](jira.md#grab-credentials) to
+1. Replace the "access_token" value with the [previously copied one](jira.md#grab-credentials) to
    ensure secure access to your Jira account.
 
 1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
@@ -178,35 +178,35 @@ above.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset. To read more
    about pipeline configuration, please refer to our documentation
-   [here](https://dlthub.com/docs/general-usage/pipeline).
+   [here](https://dlthub.com/docs/general-usage/pipeline):
 
-```python
-pipeline = dlt.pipeline(
-    pipeline_name="jira_pipeline",  # Use a custom name if desired
-    destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-    dataset_name="jira"  # Use a custom name if desired
-)
-```
+    ```python
+    pipeline = dlt.pipeline(
+        pipeline_name="jira_pipeline",  # Use a custom name if desired
+        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+        dataset_name="jira"  # Use a custom name if desired
+    )
+    ```
 
-2. To load custom endpoints such as “issues” and “users” using the jira source function.
+2. To load custom endpoints such as “issues” and “users” using the jira source function:
 
-```python
-#Run the pipeline
-load_info = pipeline.run(jira().with_resources("issues","users"))
-print(f"Load Information: {load_info}")
-```
+    ```python
+    #Run the pipeline
+    load_info = pipeline.run(jira().with_resources("issues","users"))
+    print(f"Load Information: {load_info}")
+    ```
 
 3. To load the custom issues using JQL queries, you can use custom queries, here is an example
    below:
 
-```python
-# Define the JQL queries as follows
-queries = [
-          "created >= -30d order by created DESC",
-          "created >= -30d AND project = DEV AND issuetype = Epic AND status = "In Progress" order by created DESC",
-          ]
-# Run the pipeline
-load_info = pipeline.run(jira_search().issues(jql_queries=queries))
-# Print Load information
-print(f"Load Information: {load_info}")
-```
+    ```python
+    # Define the JQL queries as follows
+    queries = [
+              "created >= -30d order by created DESC",
+              "created >= -30d AND project = DEV AND issuetype = Epic AND status = "In Progress" order by created DESC",
+              ]
+    # Run the pipeline
+    load_info = pipeline.run(jira_search().issues(jql_queries=queries))
+    # Print Load information
+    print(f"Load Information: {load_info}")
+    ```
