@@ -36,8 +36,8 @@ To get details about endpoints that can be loaded, see
 
 ### Grab credentials
 
-::: Note: As of November 30, 2022, HubSpot API Keys are being deprecated and are no longer supported.
-Instead, we recommend to authenticate using a private app access token or OAuth access token. :::
+> Note: As of November 30, 2022, HubSpot API Keys are being deprecated and are no longer supported.
+Instead, we recommend to authenticate using a private app access token or OAuth access token.
 
 Create a private app and get an authentication token before running the
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/hubspot_pipeline.py).
