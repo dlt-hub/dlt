@@ -160,7 +160,7 @@ def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: st
 
 def prepare_table(client: JobClientBase, case_name: str = "event_user", table_name: str = "event_user", make_uniq_table: bool = True) -> None:
     client.schema.bump_version()
-    client.update_storage_schema()
+    client.update_stored_schema()
     user_table = load_table(case_name)[table_name]
     if make_uniq_table:
         user_table_name = table_name + uniq_id()
@@ -168,7 +168,7 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
         user_table_name = table_name
     client.schema.update_schema(new_table(user_table_name, columns=user_table.values()))
     client.schema.bump_version()
-    client.update_storage_schema()
+    client.update_stored_schema()
     return user_table_name
 
 def yield_client(

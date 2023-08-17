@@ -406,12 +406,12 @@ class WeaviateClient(JobClientBase):
         self.db_client.schema.delete_class(self.sentinel_class)
 
     @wrap_weaviate_error
-    def update_storage_schema(
+    def update_stored_schema(
         self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
     ) -> Optional[TSchemaTables]:
         # Retrieve the schema from Weaviate
         applied_update: TSchemaTables = {}
-        schema_info = self.get_schema_by_hash(self.schema.stored_version_hash)
+        schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is None:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} "
@@ -464,7 +464,7 @@ class WeaviateClient(JobClientBase):
             table_schema[prop["name"]] = schema_c
         return True, table_schema
 
-    def get_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
+    def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
         version_class_name = self.schema.version_table_name
 
         try:

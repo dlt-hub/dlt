@@ -24,7 +24,7 @@ from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, LoadStorage, SchemaStorage, FileStorage, NormalizeStorageConfiguration, SchemaStorageConfiguration, LoadStorageConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (DestinationClientDwhConfiguration, DestinationReference, JobClientBase, DestinationClientConfiguration,
+from dlt.common.destination.reference import (DestinationClientDwhConfiguration, JobClientMetadataStorage, DestinationReference, JobClientBase, DestinationClientConfiguration,
                                               TDestinationReferenceArg, DestinationClientStagingConfiguration,  DestinationClientStagingConfiguration,
                                               DestinationClientDwhWithStagingConfiguration)
 from dlt.common.destination.capabilities import INTERNAL_LOADER_FILE_FORMATS
@@ -648,7 +648,7 @@ class Pipeline(SupportsPipeline):
         client_config = self._get_destination_client_initial_config(credentials)
         with self._get_destination_clients(schema, client_config)[0] as client:
             client.initialize_storage()
-            return client.update_storage_schema()
+            return client.update_stored_schema()
 
     def set_local_state_val(self, key: str, value: Any) -> None:
         """Sets value in local state. Local state is not synchronized with destination."""
@@ -1110,38 +1110,25 @@ class Pipeline(SupportsPipeline):
             logger.info("Client not available due to missing credentials")
         return None
 
-    def _restore_state_from_destination(self, raise_on_connection_error: bool = True) -> Optional[TPipelineState]:
+    def _restore_state_from_destination(self) -> Optional[TPipelineState]:
         # if state is not present locally, take the state from the destination
         dataset_name = self.dataset_name
         use_single_dataset = self.config.use_single_dataset
         try:
             # force the main dataset to be used
             self.config.use_single_dataset = True
-            job_client = self._optional_sql_job_client(normalize_schema_name(self.pipeline_name))
-            if job_client:
-                # handle open connection exception silently
-                state = None
-                try:
-                    job_client.sql_client.open_connection()
-                except Exception:
-                    # pass on connection errors
-                    if raise_on_connection_error:
-                        raise
-                    pass
+            schema_name = normalize_schema_name(self.pipeline_name)
+            with self._get_destination_client(Schema(schema_name)) as job_client:
+                if isinstance(job_client, JobClientMetadataStorage):
+                    state = load_state_from_destination(self.pipeline_name, cast(JobClientMetadataStorage, job_client))
+                    if state is None:
+                        logger.info(f"The state was not found in the destination {self.destination.__name__}:{dataset_name}")
+                    else:
+                        logger.info(f"The state was restored from the destination {self.destination.__name__}:{dataset_name}")
                 else:
-                    # try too get state from destination
-                    state = load_state_from_destination(self.pipeline_name, job_client.sql_client)
-                finally:
-                    job_client.sql_client.close_connection()
-
-                if state is None:
-                    logger.info(f"The state was not found in the destination {self.destination.__name__}:{dataset_name}")
-                else:
-                    logger.info(f"The state was restored from the destination {self.destination.__name__}:{dataset_name}")
-                return state
-
-            else:
-                return None
+                    state = None
+                    logger.info(f"Destination does not support metadata storage {self.destination.__name__}:{dataset_name}")
+            return state
         finally:
             # restore the use_single_dataset option
             self.config.use_single_dataset = use_single_dataset
@@ -1151,17 +1138,19 @@ class Pipeline(SupportsPipeline):
         restored_schemas: List[Schema] = []
         for schema_name in schema_names:
             if not self._schema_storage.has_schema(schema_name) or always_download:
-                # assume client always exist
-                with self._optional_sql_job_client(schema_name) as job_client:
-                    schema_info = job_client.get_newest_schema_from_storage()
+                with self._get_destination_client(Schema(schema_name)) as job_client:
+                    if not isinstance(job_client, JobClientMetadataStorage):
+                        logger.info(f"Destination does not support metadata storage {self.destination.__name__}")
+                        return restored_schemas
+                    schema_info = job_client.get_stored_schema()
                     if schema_info is None:
-                        logger.info(f"The schema {schema_name} was not found in the destination {self.destination.__name__}:{job_client.sql_client.dataset_name}.")
+                        logger.info(f"The schema {schema_name} was not found in the destination {self.destination.__name__}:{self.dataset_name}")
                         # try to import schema
                         with contextlib.suppress(FileNotFoundError):
                             self._schema_storage.load_schema(schema_name)
                     else:
                         schema = Schema.from_dict(json.loads(schema_info.schema))
-                        logger.info(f"The schema {schema_name} version {schema.version} hash {schema.stored_version_hash} was restored from the destination {self.destination.__name__}:{job_client.sql_client.dataset_name}")
+                        logger.info(f"The schema {schema_name} version {schema.version} hash {schema.stored_version_hash} was restored from the destination {self.destination.__name__}:{self.dataset_name}")
                         restored_schemas.append(schema)
         return restored_schemas
 

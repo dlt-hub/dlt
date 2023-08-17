@@ -30,7 +30,7 @@ def client(request) -> SqlJobClientBase:
 
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_sql_client_default_dataset_unqualified(client: SqlJobClientBase) -> None:
-    client.update_storage_schema()
+    client.update_stored_schema()
     load_id = "182879721.182912"
     client.complete_load(load_id)
     curr: DBApiCursor
@@ -49,7 +49,7 @@ def test_sql_client_default_dataset_unqualified(client: SqlJobClientBase) -> Non
 
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_malformed_query_parameters(client: SqlJobClientBase) -> None:
-    client.update_storage_schema()
+    client.update_stored_schema()
     # parameters for placeholder will not be provided. the placeholder remains in query
     with pytest.raises(DatabaseTransientException) as term_ex:
         with client.sql_client.execute_query(f"SELECT * FROM {LOADS_TABLE_NAME} WHERE inserted_at = %s"):
@@ -72,7 +72,7 @@ def test_malformed_query_parameters(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_malformed_execute_parameters(client: SqlJobClientBase) -> None:
-    client.update_storage_schema()
+    client.update_stored_schema()
     # parameters for placeholder will not be provided. the placeholder remains in query
     with pytest.raises(DatabaseTransientException) as term_ex:
         client.sql_client.execute_sql(f"SELECT * FROM {LOADS_TABLE_NAME} WHERE inserted_at = %s")
@@ -92,7 +92,7 @@ def test_malformed_execute_parameters(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_execute_sql(client: SqlJobClientBase) -> None:
-    client.update_storage_schema()
+    client.update_stored_schema()
     # ask with datetime
     # no_rows = client.sql_client.execute_sql(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME} WHERE inserted_at = %s", pendulum.now().add(seconds=1))
     # assert len(no_rows) == 0
@@ -136,7 +136,7 @@ def test_execute_ddl(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_execute_query(client: SqlJobClientBase) -> None:
-    client.update_storage_schema()
+    client.update_stored_schema()
     with client.sql_client.execute_query(f"SELECT schema_name, inserted_at FROM {VERSION_TABLE_NAME}") as curr:
         rows = curr.fetchall()
         assert len(rows) == 1
@@ -196,7 +196,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_database_exceptions(client: SqlJobClientBase) -> None:
-    client.update_storage_schema()
+    client.update_stored_schema()
     # invalid table
     with pytest.raises(DatabaseUndefinedRelation) as term_ex:
         with client.sql_client.execute_query("SELECT * FROM TABLE_XXX ORDER BY inserted_at"):
@@ -393,7 +393,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     if client.capabilities.supports_transactions is False:
         pytest.skip("Destination does not support tx")
     client.schema.bump_version()
-    client.update_storage_schema()
+    client.update_stored_schema()
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")
     # simple syntax error
     sql = f"SELEXT * FROM {version_table}"
@@ -401,7 +401,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
         client.sql_client.execute_sql(sql)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "ProgrammingError")
     # still can execute dml and selects
-    assert client.get_newest_schema_from_storage() is not None
+    assert client.get_stored_schema() is not None
     client.complete_load("ABC")
     assert_load_id(client.sql_client, "ABC")
 
@@ -410,7 +410,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     with pytest.raises(DatabaseTransientException):
         client.sql_client.execute_fragments(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "ProgrammingError")
-    assert client.get_newest_schema_from_storage() is not None
+    assert client.get_stored_schema() is not None
     client.complete_load("EFG")
     assert_load_id(client.sql_client, "EFG")
 
@@ -421,7 +421,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
         client.sql_client.execute_fragments(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "IntegrityError")
     # assert isinstance(term_ex.value.dbapi_exception, (psycopg2.InternalError, psycopg2.))
-    assert client.get_newest_schema_from_storage() is not None
+    assert client.get_stored_schema() is not None
     client.complete_load("HJK")
     assert_load_id(client.sql_client, "HJK")
 

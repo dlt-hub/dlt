@@ -1,8 +1,9 @@
 from abc import ABC, abstractmethod
 from importlib import import_module
 from types import TracebackType, ModuleType
-from typing import ClassVar, Final, Optional, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager
+from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager
 from contextlib import contextmanager
+import datetime  # noqa: 251
 
 from dlt.common import logger
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
@@ -20,6 +21,16 @@ from dlt.common.utils import get_module_name
 from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
+
+
+class StorageSchemaInfo(NamedTuple):
+    version_hash: str
+    schema_name: str
+    version: int
+    engine_version: str
+    inserted_at: datetime.datetime
+    schema: str
+
 
 @configspec
 class DestinationClientConfiguration(BaseConfiguration):
@@ -196,7 +207,7 @@ class JobClientBase(ABC):
         """Returns if storage is ready to be read/written."""
         pass
 
-    def update_storage_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+    def update_stored_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
         """Updates storage to the current schema.
 
         Implementations should not assume that `expected_update` is the exact difference between destination state and the self.schema. This is only the case if
@@ -264,6 +275,22 @@ class JobClientBase(ABC):
                 if not is_complete_column(column):
                     logger.warning(f"A column {column_name} in table {table_name} in schema {self.schema.name} is incomplete. It was not bound to the data during normalizations stage and its data type is unknown. Did you add this column manually in code ie. as a merge key?")
 
+
+class JobClientMetadataStorage(ABC):
+
+    @abstractmethod
+    def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
+        """Retrieves newest schema from destination storage"""
+        pass
+
+    @abstractmethod
+    def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
+        pass
+
+    @abstractmethod
+    def get_stored_state(self, state_table: str, pipeline_name: str) -> Optional[str]:
+        """Loads compressed state from destination storage"""
+        pass
 
 class WithStagingDataset:
     """Adds capability to use staging dataset and request it from the loader"""

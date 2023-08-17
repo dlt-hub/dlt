@@ -55,7 +55,7 @@ def test_all_data_types(client: WeaviateClient, write_disposition: str, file_sto
     # we should have identical content with all disposition types
     client.schema.update_schema(new_table(class_name, write_disposition=write_disposition, columns=TABLE_UPDATE))
     client.schema.bump_version()
-    client.update_storage_schema()
+    client.update_stored_schema()
 
     # write row
     with io.BytesIO() as f:
