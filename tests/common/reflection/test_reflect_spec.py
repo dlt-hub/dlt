@@ -5,7 +5,7 @@ import dlt
 from dlt.common import Decimal
 from dlt.common.typing import TSecretValue, is_optional_type
 from dlt.common.configuration.inject import get_fun_spec, with_config
-from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
+from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration, ConnectionStringCredentials
 from dlt.common.reflection.spec import spec_from_signature, _get_spec_name_from_f
 from dlt.common.reflection.utils import get_func_def_node, get_literal_defaults
 
@@ -13,6 +13,7 @@ from dlt.common.reflection.utils import get_func_def_node, get_literal_defaults
 _DECIMAL_DEFAULT = Decimal("0.01")
 _SECRET_DEFAULT = TSecretValue("PASS")
 _CONFIG_DEFAULT = RunConfiguration()
+_CREDENTIALS_DEFAULT = ConnectionStringCredentials("postgresql://loader:loader@localhost:5432/dlt_data")
 
 
 def test_synthesize_spec_from_sig() -> None:
@@ -22,7 +23,7 @@ def test_synthesize_spec_from_sig() -> None:
     def f_typed(p1: str = None, p2: Decimal = None, p3: Any = None, p4: Optional[RunConfiguration] = None, p5: TSecretValue = dlt.secrets.value) -> None:
         pass
 
-    SPEC = spec_from_signature(f_typed, inspect.signature(f_typed))()
+    SPEC = spec_from_signature(f_typed, inspect.signature(f_typed))
     assert SPEC.p1 is None
     assert SPEC.p2 is None
     assert SPEC.p3 is None
@@ -36,13 +37,13 @@ def test_synthesize_spec_from_sig() -> None:
     def f_typed_default(t_p1: str = "str", t_p2: Decimal = _DECIMAL_DEFAULT, t_p3: Any = _SECRET_DEFAULT, t_p4: RunConfiguration = _CONFIG_DEFAULT, t_p5: str = None) -> None:
         pass
 
-    SPEC = spec_from_signature(f_typed_default, inspect.signature(f_typed_default))()
+    SPEC = spec_from_signature(f_typed_default, inspect.signature(f_typed_default))
     assert SPEC.t_p1 == "str"
     assert SPEC.t_p2 == _DECIMAL_DEFAULT
     assert SPEC.t_p3 == _SECRET_DEFAULT
-    assert isinstance(SPEC.t_p4, RunConfiguration)
+    assert isinstance(SPEC().t_p4, RunConfiguration)
     assert SPEC.t_p5 is None
-    fields = SPEC.get_resolvable_fields()
+    fields = SPEC().get_resolvable_fields()
     # Any will not assume TSecretValue type because at runtime it's a str
     # setting default as None will convert type into optional (t_p5)
     assert fields == {"t_p1": str, "t_p2": Decimal, "t_p3": str, "t_p4": RunConfiguration, "t_p5": Optional[str]}
@@ -52,7 +53,7 @@ def test_synthesize_spec_from_sig() -> None:
     def f_untyped(untyped_p1 = None, untyped_p2 = dlt.config.value) -> None:
         pass
 
-    SPEC = spec_from_signature(f_untyped, inspect.signature(f_untyped))()
+    SPEC = spec_from_signature(f_untyped, inspect.signature(f_untyped))
     assert SPEC.untyped_p1 is None
     assert SPEC.untyped_p2 is None
     fields = SPEC.get_resolvable_fields()
@@ -61,25 +62,25 @@ def test_synthesize_spec_from_sig() -> None:
     # spec types derived from defaults
 
 
-    def f_untyped_default(untyped_p1 = "str", untyped_p2 = _DECIMAL_DEFAULT, untyped_p3 = _CONFIG_DEFAULT, untyped_p4 = None) -> None:
+    def f_untyped_default(untyped_p1 = "str", untyped_p2 = _DECIMAL_DEFAULT, untyped_p3 = _CREDENTIALS_DEFAULT, untyped_p4 = None) -> None:
         pass
 
 
-    SPEC = spec_from_signature(f_untyped_default, inspect.signature(f_untyped_default))()
+    SPEC = spec_from_signature(f_untyped_default, inspect.signature(f_untyped_default))
     assert SPEC.untyped_p1 == "str"
     assert SPEC.untyped_p2 == _DECIMAL_DEFAULT
-    assert isinstance(SPEC.untyped_p3, RunConfiguration)
+    assert isinstance(SPEC().untyped_p3, ConnectionStringCredentials)
     assert SPEC.untyped_p4 is None
     fields = SPEC.get_resolvable_fields()
     # untyped_p4 converted to Optional[Any]
-    assert fields == {"untyped_p1": str, "untyped_p2": Decimal, "untyped_p3": RunConfiguration, "untyped_p4": Optional[Any]}
+    assert fields == {"untyped_p1": str, "untyped_p2": Decimal, "untyped_p3": ConnectionStringCredentials, "untyped_p4": Optional[Any]}
 
     # spec from signatures containing positional only and keywords only args
 
     def f_pos_kw_only(pos_only_1=dlt.config.value, pos_only_2: str = "default", /, *, kw_only_1=None, kw_only_2: int = 2) -> None:
         pass
 
-    SPEC = spec_from_signature(f_pos_kw_only, inspect.signature(f_pos_kw_only))()
+    SPEC = spec_from_signature(f_pos_kw_only, inspect.signature(f_pos_kw_only))
     assert SPEC.pos_only_1 is None
     assert SPEC.pos_only_2 == "default"
     assert SPEC.kw_only_1 is None
@@ -89,8 +90,8 @@ def test_synthesize_spec_from_sig() -> None:
 
     # skip arguments with defaults
     # deregister spec to disable cache
-    del globals()[SPEC.__class__.__name__]
-    SPEC = spec_from_signature(f_pos_kw_only, inspect.signature(f_pos_kw_only), include_defaults=False)()
+    del globals()[SPEC.__name__]
+    SPEC = spec_from_signature(f_pos_kw_only, inspect.signature(f_pos_kw_only), include_defaults=False)
     assert not hasattr(SPEC, "kw_only_1")
     assert not hasattr(SPEC, "kw_only_2")
     assert not hasattr(SPEC, "pos_only_2")
@@ -101,7 +102,7 @@ def test_synthesize_spec_from_sig() -> None:
     def f_variadic(var_1: str = "A", *args, kw_var_1: str, **kwargs) -> None:
         print(locals())
 
-    SPEC = spec_from_signature(f_variadic, inspect.signature(f_variadic))()
+    SPEC = spec_from_signature(f_variadic, inspect.signature(f_variadic))
     assert SPEC.var_1 == "A"
     assert not hasattr(SPEC, "kw_var_1")  # kw parameters that must be explicitly passed are removed
     assert not hasattr(SPEC, "args")

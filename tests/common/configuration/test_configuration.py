@@ -1005,3 +1005,51 @@ def test_add_config_to_env(environment: Dict[str, str]) -> None:
     environment.clear()
     add_config_to_env(c.sectioned)
     assert environment == {'DLT_TEST__PASSWORD': 'PASS'}
+
+
+def test_configuration_copy() -> None:
+    c = resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "instrumented": "h>tu>be>xhe", "sectioned": {"password": "pwd"}})
+    assert c.is_resolved()
+    copy_c = c.copy()
+    assert copy_c.is_resolved()
+    assert c.default == copy_c.default
+    assert c.instrumented is not copy_c.instrumented
+    assert dict(c.instrumented) == dict(copy_c.instrumented)
+
+    # try credentials
+    cred = ConnectionStringCredentials()
+    cred.parse_native_representation("postgresql://loader:loader@localhost:5432/dlt_data")
+    copy_cred = cred.copy()
+    assert dict(copy_cred) == dict(cred)
+    assert copy_cred.to_native_representation() == "postgresql://loader:loader@localhost:5432/dlt_data"
+    # resolve the copy
+    assert not copy_cred.is_resolved()
+    resolved_cred_copy = c = resolve.resolve_configuration(copy_cred)
+    assert resolved_cred_copy.is_resolved()
+
+
+def test_configuration_with_configuration_as_default() -> None:
+
+    instrumented_default = InstrumentedConfiguration()
+    instrumented_default.parse_native_representation("h>a>b>he")
+    cred = ConnectionStringCredentials()
+    cred.parse_native_representation("postgresql://loader:loader@localhost:5432/dlt_data")
+
+    @configspec
+    class EmbeddedConfigurationWithDefaults(BaseConfiguration):
+        default: str = "STR"
+        instrumented: InstrumentedConfiguration = instrumented_default
+        sectioned: SectionedConfiguration = SectionedConfiguration(password="P")
+        conn_str: ConnectionStringCredentials = cred
+
+    c_instance = EmbeddedConfigurationWithDefaults()
+    assert c_instance.default == EmbeddedConfigurationWithDefaults.default
+    assert c_instance.instrumented is not instrumented_default
+    assert dict(c_instance.instrumented) == dict(instrumented_default)
+    assert not c_instance.conn_str.is_resolved()
+    assert c_instance.conn_str.host == "localhost"
+    assert not c_instance.is_resolved()
+
+    c_resolved = resolve.resolve_configuration(c_instance)
+    assert c_resolved.is_resolved()
+    assert c_resolved.conn_str.is_resolved()
