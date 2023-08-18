@@ -157,8 +157,8 @@ load_info = pipeline.run(load_json("path/to.json"), table_name="json_data")
 print(load_info)
 ```
 
-    </TabItem>
-    <TabItem value="csv">
+  </TabItem>
+  <TabItem value="csv">
 
 ```python
 import dlt
@@ -176,8 +176,8 @@ load_info = pipeline.run(load_csv("path/to.csv"), table_name="csv_data")
 print(load_info)
 ```
 
-    </TabItem>
-    <TabItem value="api">
+  </TabItem>
+  <TabItem value="api">
 
 ```python
 import dlt
@@ -199,8 +199,8 @@ load_info = pipeline.run(get_user_repo("dlt-hub"))
 print(load_info)
 ```
 
-    </TabItem>
-    <TabItem value="database">
+  </TabItem>
+  <TabItem value="database">
 
 This script connects to your DuckDB database file (`duckdb_database.duckdb` in this case, replace
 it with your database file), executes a SQL query (`SELECT * FROM your_table` in this case,
@@ -234,7 +234,7 @@ load_info = pipeline.run(data)
 print(load_info)
 ```
 
-    </TabItem>
+  </TabItem>
 </Tabs>
 
 ### Use dlt source and resource decorators
