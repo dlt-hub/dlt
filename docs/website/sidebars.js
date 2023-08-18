@@ -19,9 +19,8 @@ const sidebars = {
       type: 'category',
       label: 'Getting Started',
       link: {
-        type: 'generated-index',
-        title: 'Getting Started',
-        description: 'Learn how to get started with using dlt',
+        type: 'doc',
+        id: 'dlt-ecosystem/destinations/index',
         slug: 'getting-started',
         keywords: ['getting started'],
       },
