@@ -4,6 +4,10 @@ description: quick start with dlt
 keywords: [getting started, quick start, basics]
 ---
 
+import Tabs from '@theme/Tabs';
+import TabItem from '@theme/TabItem';
+
+
 # Getting Started
 
 ## Overview
@@ -124,7 +128,15 @@ Let's look at simple examples of loading data from various sources.
 
 Examples:
 
-<Tabs values={[{"label": "from json", "value": "json"}, {"label": "from CSV", "value": "csv"}, {"label": "from API", "value": "api"}, {"label": "from Database", "value":"database"}]}  groupId="source-type" defaultValue="json">
+<Tabs
+  groupId="source-type"
+  defaultValue="json"
+  values={[
+    {"label": "from json", "value": "json"},
+    {"label": "from CSV", "value": "csv"},
+    {"label": "from API", "value": "api"},
+    {"label": "from Database", "value":"database"}
+]}>
 
   <TabItem value="json">
   ```python
@@ -219,6 +231,7 @@ Examples:
   print(load_info)
   ```
   </TabItem>
+</Tabs>
 
 ### Use dlt source and resource decorators
 
