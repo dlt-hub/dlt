@@ -144,14 +144,14 @@ import json
 import dlt
 
 def load_json(file_path):
-  with open(file_path, 'r') as file:
-      data = json.load(file)
-  yield data
+    with open(file_path, 'r') as file:
+        data = json.load(file)
+    yield data
 
 pipeline = dlt.pipeline(
-  pipeline_name='quick_start',
-  destination='duckdb',
-  dataset_name='mydata'
+    pipeline_name='quick_start',
+    destination='duckdb',
+    dataset_name='mydata'
 )
 load_info = pipeline.run(load_json("path/to.json"), table_name="json_data")
 print(load_info)
@@ -165,12 +165,12 @@ import dlt
 import pandas as pd
 
 def load_csv(file_path):
-  yield pd.read_csv(file_path).to_dict(orient='records')
+    yield pd.read_csv(file_path).to_dict(orient='records')
 
 pipeline = dlt.pipeline(
-  pipeline_name='quick_start',
-  destination='duckdb',
-  dataset_name='mydata'
+    pipeline_name='quick_start',
+    destination='duckdb',
+    dataset_name='mydata'
 )
 load_info = pipeline.run(load_csv("path/to.csv"), table_name="csv_data")
 print(load_info)
@@ -184,16 +184,16 @@ import dlt
 import requests
 
 def get_user_repo(username: str) -> dict:
-  # url to request
-  url = f"https://api.github.com/users/{username}"
-  # make the request and return the json
-  user_data = requests.get(url).json()
-  yield user_data
+    # url to request
+    url = f"https://api.github.com/users/{username}"
+    # make the request and return the json
+    user_data = requests.get(url).json()
+    yield user_data
 
 pipeline = dlt.pipeline(
-  pipeline_name='quick_start',
-  destination='duckdb',
-  dataset_name='mydata'
+    pipeline_name='quick_start',
+    destination='duckdb',
+    dataset_name='mydata'
 )
 load_info = pipeline.run(get_user_repo("dlt-hub"))
 print(load_info)
@@ -212,13 +212,13 @@ import dlt
 import duckdb
 
 def load_data_from_duckdb(db_name, query):
-  # connect to the DuckDB
-  con = duckdb.connect(db_name)
-  # execute SQL query and fetch result
-  result = con.execute(query).fetch_df()
-  # close the connection
-  con.close()
-  yield result.to_dict(orient="records")
+    # connect to the DuckDB
+    con = duckdb.connect(db_name)
+    # execute SQL query and fetch result
+    result = con.execute(query).fetch_df()
+    # close the connection
+    con.close()
+    yield result.to_dict(orient="records")
 
 db_name = "path_to_your_db"  # Replace this with the path to your DuckDB database file
 sql_query = "SELECT * FROM your_table"  # Replace with your SQL query
@@ -226,9 +226,9 @@ sql_query = "SELECT * FROM your_table"  # Replace with your SQL query
 data = load_data_from_duckdb(db_name, sql_query)
 
 pipeline = dlt.pipeline(
-  pipeline_name='quick_start',
-  destination='duckdb',
-  dataset_name='mydata'
+    pipeline_name='quick_start',
+    destination='duckdb',
+    dataset_name='mydata'
 )
 load_info = pipeline.run(data)
 print(load_info)
@@ -269,14 +269,14 @@ from typing import Sequence
 import dlt
 
 def load_json(file_path: str) -> dict:
-  with open(file_path, 'r') as file:
-      data = json.load(file)
-  return data
+    with open(file_path, 'r') as file:
+        data = json.load(file)
+    return data
 
 @dlt.source
 def json_source(folders: Sequence[str] = dlt.secrets.value):
-  for folder in folders:
-      yield dlt.resource(json_resource, name=folder.split("/")[-1])(folder)
+    for folder in folders:
+        yield dlt.resource(json_resource, name=folder.split("/")[-1])(folder)
 
 def json_resource(folder: str) -> dict:
     files = glob(f'{folder}/**/*.json', recursive=True)
@@ -284,10 +284,10 @@ def json_resource(folder: str) -> dict:
         yield load_json(file_path)
 
 pipeline = dlt.pipeline(
-  pipeline_name='quick_start',
-  destination='duckdb',
-  dataset_name='mydata',
-  full_refresh=True,
+    pipeline_name='quick_start',
+    destination='duckdb',
+    dataset_name='mydata',
+    full_refresh=True,
 )
 
 data = json_source(["./folder_1", "./folder_2"])
@@ -306,26 +306,26 @@ import requests
 
 @dlt.source
 def get_user_repo(username: str) -> dict:
-  # url to request
-  url = f"https://api.github.com/users/{username}"
-  # make the request and return the json
-  user_data = requests.get(url).json()
-  for k, v in user_data.items():
-      if "url" in k:
-          yield dlt.resource(get_details, name=k)(v)
+    # url to request
+    url = f"https://api.github.com/users/{username}"
+    # make the request and return the json
+    user_data = requests.get(url).json()
+    for k, v in user_data.items():
+        if "url" in k:
+            yield dlt.resource(get_details, name=k)(v)
 
 def get_details(url: str) -> dict:
-  try:
-      details = requests.get(url).json()
-      yield details
-  except requests.exceptions.JSONDecodeError:
-      yield None
+    try:
+        details = requests.get(url).json()
+        yield details
+    except requests.exceptions.JSONDecodeError:
+        yield None
 
 pipeline = dlt.pipeline(
-  pipeline_name='quick_start',
-  destination='duckdb',
-  dataset_name='mydata',
-  full_refresh=True
+    pipeline_name='quick_start',
+    destination='duckdb',
+    dataset_name='mydata',
+    full_refresh=True
 )
 load_info = pipeline.run(get_user_repo("dlt-hub"))
 print(load_info)
