@@ -24,6 +24,36 @@ def sequence_generator():
         count += 3
 
 
+def test_basic_state_and_schema() -> None:
+    generator_instance1 = sequence_generator()
+
+    @dlt.resource
+    def some_data():
+        yield from next(generator_instance1)
+
+    weaviate_adapter(
+        some_data,
+        vectorize=["content"],
+    )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_pipeline_append",
+        destination="weaviate",
+        dataset_name="TestPipelineAppendDataset" + uniq_id(),
+    )
+    info = pipeline.run(
+        some_data(),
+    )
+    assert_load_info(info)
+
+    client, _ = pipeline._get_destination_clients()
+
+    # check if we can get a stored schema and state
+    schema = client.get_stored_schema()
+    assert schema
+    state = client.get_stored_state("_dlt_pipeline_state", "test_pipeline_append")
+    assert state
+
 def test_pipeline_append() -> None:
     generator_instance1 = sequence_generator()
     generator_instance2 = sequence_generator()
@@ -98,6 +128,7 @@ def test_explicit_append() -> None:
 
 
 def test_pipeline_replace() -> None:
+
     generator_instance1 = sequence_generator()
     generator_instance2 = sequence_generator()
 

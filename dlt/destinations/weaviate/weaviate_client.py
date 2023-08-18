@@ -35,6 +35,8 @@ from dlt.common.destination.reference import (
     TLoadJobState,
     LoadJob,
     JobClientBase,
+    JobClientMetadataStorage
+
 )
 from dlt.common.data_types import TDataType
 from dlt.common.storages import FileStorage
@@ -224,7 +226,7 @@ class LoadWeaviateJob(LoadJob):
         raise NotImplementedError()
 
 
-class WeaviateClient(JobClientBase):
+class WeaviateClient(JobClientBase, JobClientMetadataStorage):
     """Weaviate client implementation."""
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -464,37 +466,91 @@ class WeaviateClient(JobClientBase):
             table_schema[prop["name"]] = schema_c
         return True, table_schema
 
-    def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
-        version_class_name = self.schema.version_table_name
+    def get_stored_state(self, state_table: str, pipeline_name: str) -> Optional[str]:
+        """Loads compressed state from destination storage"""
 
-        try:
-            self.get_class_schema(version_class_name)
-        except weaviate.exceptions.UnexpectedStatusCodeException as e:
-            if e.status_code == 404:
+        # we need to find a stored state that matches a load id that was completed
+        # we retrieve the state in blocks of 10 for this
+        stepsize = 10
+        offset = 0
+        while True:
+            state_records = self.get_records(state_table,
+                sort={
+                    "path": ["created_at"],
+                    "order": "desc"
+                }, where={
+                    "path": ["pipeline_name"],
+                    "operator": "Equal",
+                    "valueString": pipeline_name,
+                }, limit=stepsize, offset=offset)
+            offset += stepsize
+            if len(state_records) == 0:
                 return None
-            raise
+            for state in state_records:
+                load_id = state["_dlt_load_id"]
+                load_records = self.get_records(self.schema.loads_table_name,
+                     where={
+                        "path": ["load_id"],
+                        "operator": "Equal",
+                        "valueString": load_id,
+                     }, limit=1)
+                # if there is a load for this state which was successfull, return the state
+                if len(load_records) and load_records[0]["status"] == 0:
+                    return cast(str, state["state"])
 
-        properties = list(self.schema.get_table_columns(version_class_name).keys())
+    def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
+        """Retrieves newest schema from destination storage"""
+        try:
+            # TODO: We might need to change inserted_at to int, now it is pendulum.now() as string
+            # will the sort work correctly on this?
+            record = self.get_records(self.schema.version_table_name, sort={
+                    "path": ["inserted_at"],
+                    "order": "desc"
+            }, limit=1)[0]
+            return StorageSchemaInfo(**record)
+        except IndexError:
+            return None
 
-        response = (
-            self.query_class(version_class_name, properties)
-            .with_where(
-                {
+    def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
+        try:
+            record = self.get_records(self.schema.version_table_name, where={
                     "path": ["version_hash"],
                     "operator": "Equal",
                     "valueString": schema_hash,
-                }
-            )
-            .with_limit(1)
-            .do()
-        )
-
-        try:
-            full_class_name = self.make_full_name(version_class_name)
-            record = response["data"]["Get"][full_class_name][0]
+            }, limit=1)[0]
+            return StorageSchemaInfo(**record)
         except IndexError:
             return None
-        return StorageSchemaInfo(**record)
+
+    def get_records(self, table_name: str, where: Dict[str, Any] = None, sort: Dict[str, Any] = None, limit: int = 0, offset: int = 0) -> List[Dict[str, Any]]:
+
+        # normalize identifier, just to be sure
+        table_name = self.schema.naming.normalize_table_identifier(table_name)
+
+        # fail if schema does not exist?
+        try:
+            self.get_class_schema(table_name)
+        except weaviate.exceptions.UnexpectedStatusCodeException as e:
+            if e.status_code == 404:
+                return []
+            raise
+
+        # build query
+        properties = list(self.schema.get_table_columns(table_name).keys())
+        query = self.query_class(table_name, properties)
+        if where:
+            query = query.with_where(where)
+        if sort:
+            query = query.with_sort(sort)
+        if limit:
+            query = query.with_limit(limit)
+        if offset:
+            query = query.with_offset(offset)
+
+        response = query.do()
+        full_class_name = self.make_full_name(table_name)
+        records = response["data"]["Get"][full_class_name]
+        return cast(List[Dict[str, Any]],records)
 
     def make_weaviate_class_schema(self, table_name: str) -> Dict[str, Any]:
         """Creates a Weaviate class schema from a table schema."""
