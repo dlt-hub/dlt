@@ -21,8 +21,6 @@ const sidebars = {
       link: {
         type: 'doc',
         id: 'dlt-ecosystem/destinations/index',
-        slug: 'getting-started',
-        keywords: ['getting started'],
       },
       items: [
         'getting-started/try-in-colab',
