@@ -6,7 +6,7 @@ keywords: [weaviate, vector database, destination, dlt]
 
 # Weaviate
 
-Weaviate is an open source vector database. It allows you to store data objects and perform similarity searches over them.
+[Weaviate](https://weaviate.io/) is an open source vector database. It allows you to store data objects and perform similarity searches over them.
 This destination helps you to load data into Weaviate from [dlt resources](../../general-usage/resource.md).
 
 ## Setup Guide
