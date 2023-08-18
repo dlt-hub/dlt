@@ -171,7 +171,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         st.dataframe(schemas_df)
 
         st.header("Pipeline state info")
-        with pipeline._get_destination_client() as client:
+        with pipeline._get_destination_clients()[0] as client:
             if isinstance(client, JobClientMetadataStorage):
                 remote_state = load_state_from_destination(pipeline.pipeline_name, client)
         local_state = pipeline.state

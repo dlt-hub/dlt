@@ -899,10 +899,12 @@ class Pipeline(SupportsPipeline):
         return client_spec(credentials=credentials)
 
     def _get_destination_clients(self,
-        schema: Schema,
+        schema: Schema = None,
         initial_config: DestinationClientConfiguration = None,
         initial_staging_config: DestinationClientConfiguration = None
     ) -> Tuple[JobClientBase, JobClientBase]:
+        if not schema:
+            schema = self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.pipeline_name))
         try:
             # resolve staging config in order to pass it to destination client config
             staging_client = None
@@ -1118,9 +1120,9 @@ class Pipeline(SupportsPipeline):
             # force the main dataset to be used
             self.config.use_single_dataset = True
             schema_name = normalize_schema_name(self.pipeline_name)
-            with self._get_destination_client(Schema(schema_name)) as job_client:
+            with self._get_destination_clients(Schema(schema_name))[0] as job_client:
                 if isinstance(job_client, JobClientMetadataStorage):
-                    state = load_state_from_destination(self.pipeline_name, cast(JobClientMetadataStorage, job_client))
+                    state = load_state_from_destination(self.pipeline_name, job_client)
                     if state is None:
                         logger.info(f"The state was not found in the destination {self.destination.__name__}:{dataset_name}")
                     else:
@@ -1138,7 +1140,7 @@ class Pipeline(SupportsPipeline):
         restored_schemas: List[Schema] = []
         for schema_name in schema_names:
             if not self._schema_storage.has_schema(schema_name) or always_download:
-                with self._get_destination_client(Schema(schema_name)) as job_client:
+                with self._get_destination_clients(Schema(schema_name))[0] as job_client:
                     if not isinstance(job_client, JobClientMetadataStorage):
                         logger.info(f"Destination does not support metadata storage {self.destination.__name__}")
                         return restored_schemas
