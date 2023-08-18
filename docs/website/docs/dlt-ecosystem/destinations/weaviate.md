@@ -28,7 +28,7 @@ api_key = "your-weaviate-api-key"
 X-OpenAI-Api-Key = "your-openai-api-key"
 ```
 
-In this setup guide, we are using the [Weaviate Cloud Services](https://console.weaviate.cloud/) to get a Weaviate instance and [OpenAI API](https://platform.openai.com/) for generating embeddings through the [text2vec-openai](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules/text2vec-openai) module.
+In this setup guide, we are using the [Weaviate Cloud Services](https://console.weaviate.cloud/) to get a Weaviate instance and [OpenAI API](https://platform.openai.com/) for generating embeddings through the [text2vec-openai](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules/text2vec-openai) module. You can host your own weaviate instance using docker compose, kubernetes or embedded. Refer to Weaviate's [How-to: Install](https://weaviate.io/developers/weaviate/installation) for details.
 
 3. Define the source of the data. For starters, let's load some data from a simple data structure:
 
