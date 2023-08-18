@@ -250,81 +250,93 @@ Why use them?
 
 Examples:
 
-- json
+<Tabs
+  groupId="source-type"
+  defaultValue="json"
+  values={[
+    {"label": "from json", "value": "json"},
+    {"label": "from API", "value": "api"},
+]}>
+  <TabItem value="json">
 
-  Create dynamic tables
+Create tables dynamically using `dlt.resource`:
 
-  ```python
-  import json
-  from glob import glob
-  from typing import Sequence
+```python
+import json
+from glob import glob
+from typing import Sequence
 
-  import dlt
+import dlt
 
-  def load_json(file_path: str) -> dict:
-      with open(file_path, 'r') as file:
-          data = json.load(file)
-      return data
+def load_json(file_path: str) -> dict:
+  with open(file_path, 'r') as file:
+      data = json.load(file)
+  return data
 
-  @dlt.source
-  def json_source(folders: Sequence[str] = dlt.secrets.value):
-      for folder in folders:
-          yield dlt.resource(json_resource, name=folder.split("/")[-1])(folder)
+@dlt.source
+def json_source(folders: Sequence[str] = dlt.secrets.value):
+  for folder in folders:
+      yield dlt.resource(json_resource, name=folder.split("/")[-1])(folder)
 
-    def json_resource(folder: str) -> dict:
-        files = glob(f'{folder}/**/*.json', recursive=True)
-        for file_path in files:
-            yield load_json(file_path)
+def json_resource(folder: str) -> dict:
+    files = glob(f'{folder}/**/*.json', recursive=True)
+    for file_path in files:
+        yield load_json(file_path)
 
-  pipeline = dlt.pipeline(
-      pipeline_name='quick_start',
-      destination='duckdb',
-      dataset_name='mydata',
-      full_refresh=True,
-  )
+pipeline = dlt.pipeline(
+  pipeline_name='quick_start',
+  destination='duckdb',
+  dataset_name='mydata',
+  full_refresh=True,
+)
 
-  data = json_source(["./folder_1", "./folder_2"])
-  load_info = pipeline.run()
-  print(load_info)
-  ```
+data = json_source(["./folder_1", "./folder_2"])
+load_info = pipeline.run()
+print(load_info)
+```
 
-- API
+  </TabItem>
+  <TabItem value="api">
 
-  Endpoints as different resources
+Load each endpoint as a different resource:
 
-  ```python
-  import dlt
-  import requests
+```python
+import dlt
+import requests
 
-  @dlt.source
-  def get_user_repo(username: str) -> dict:
-      # url to request
-      url = f"https://api.github.com/users/{username}"
-      # make the request and return the json
-      user_data = requests.get(url).json()
-      for k, v in user_data.items():
-          if "url" in k:
-              yield dlt.resource(get_details, name=k)(v)
+@dlt.source
+def get_user_repo(username: str) -> dict:
+  # url to request
+  url = f"https://api.github.com/users/{username}"
+  # make the request and return the json
+  user_data = requests.get(url).json()
+  for k, v in user_data.items():
+      if "url" in k:
+          yield dlt.resource(get_details, name=k)(v)
 
-  def get_details(url: str) -> dict:
-      try:
-          details = requests.get(url).json()
-          yield details
-      except requests.exceptions.JSONDecodeError:
-          yield None
+def get_details(url: str) -> dict:
+  try:
+      details = requests.get(url).json()
+      yield details
+  except requests.exceptions.JSONDecodeError:
+      yield None
 
-  pipeline = dlt.pipeline(
-      pipeline_name='quick_start',
-      destination='duckdb',
-      dataset_name='mydata',
-      full_refresh=True
-  )
-  load_info = pipeline.run(get_user_repo("dlt-hub"))
-  print(load_info)
-  ```
+pipeline = dlt.pipeline(
+  pipeline_name='quick_start',
+  destination='duckdb',
+  dataset_name='mydata',
+  full_refresh=True
+)
+load_info = pipeline.run(get_user_repo("dlt-hub"))
+print(load_info)
+```
 
-  ![Streamlit Load info](img/streamlit2.png)
-  Streamlit Load info. Created tables with all available info about dlt-hub repository on GitHub.
+![Streamlit Load info](img/streamlit2.png)
+Streamlit Load info. Created tables with all available info about dlt-hub repository on GitHub.
+
+  </TabItem>
+</Tabs>
+
 
 Read more:
 
