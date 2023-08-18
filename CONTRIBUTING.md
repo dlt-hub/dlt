@@ -26,11 +26,20 @@ To get started, follow these steps:
 When you're ready to contribute, follow these steps:
 
 1. Create an issue describing the feature, bug fix, or improvement you'd like to make.
-2. Create a new branch in your forked repository for your changes. **Note:** for some special cases, you'd need to contact us to create a branch in the main repository.
+2. Create a new branch in your forked repository for your changes.
 3. Write your code and tests.
 4. Lint your code by running `make lint` and test common modules with `make test-common`.
 5. If you're working on destination code, contact us to get access to test destinations.
 6. Create a pull request targeting the `devel` branch of the main repository.
+
+**Note:** for some special cases, you'd need to contact us to create a branch in this repository (not fork). See below.
+### Testing with Github Actions
+We enable our CI to run tests for contributions from forks. All the tests are run, but not all destinations are available due to credentials. Currently
+only the `duckdb` and `postgres` are available to forks.
+
+## Submitting Changes Requiring Full CI Credentials.
+
+In case you submit a new destination or make changes to a destination that require credentials (so Bigquery, Snowflake, buckets etc.) you **should contact us so we can add you as contributor**. Then you should make a PR directly to the `dlt` repo.
 
 ## Linting
 
@@ -46,7 +55,7 @@ To test common components (which don't require external resources), run `make te
 
 ### Local Destinations
 
-To test local destinations (`duckdb` and `postgres`), run `make test-local`.
+To test local destinations (`duckdb` and `postgres`), run `make test-load-local`.
 
 ### External Destinations
 
