@@ -292,7 +292,7 @@ class JobClientMetadataStorage(ABC):
         """Loads compressed state from destination storage"""
         pass
 
-class WithStagingDataset:
+class WithStagingDataset(ABC):
     """Adds capability to use staging dataset and request it from the loader"""
 
     @abstractmethod
