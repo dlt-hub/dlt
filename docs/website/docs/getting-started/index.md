@@ -120,12 +120,13 @@ load data from any [source](../general-usage/glossary#source) into a chosen
 
 Let's look at simple examples of loading data from various sources.
 
-### Simple data loading (planning to use <Tabs> </Tabs>)
+### Simple data loading
 
 Examples:
 
-- from json
+<Tabs values={[{"label": "from json", "value": "json"}, {"label": "from CSV", "value": "csv"}, {"label": "from API", "value": "api"}, {"label": "from Database", "value":"database"}]}  groupId="source-type" defaultValue="json">
 
+  <TabItem value="json">
   ```python
   import json
   import dlt
@@ -143,9 +144,9 @@ Examples:
   load_info = pipeline.run(load_json("path/to.json"), table_name="json_data")
   print(load_info)
   ```
+  </TabItem>
 
-- from CSV
-
+  <TabItem value="csv">
   ```python
   import dlt
   import pandas as pd
@@ -161,9 +162,9 @@ Examples:
   load_info = pipeline.run(load_csv("path/to.csv"), table_name="csv_data")
   print(load_info)
   ```
+  </TabItem>
 
-- from API
-
+  <TabItem value="api">
   ```python
   import dlt
   import requests
@@ -183,9 +184,9 @@ Examples:
   load_info = pipeline.run(get_user_repo("dlt-hub"))
   print(load_info)
   ```
+  </TabItem>
 
-- from Database
-
+  <TabItem value="database">
   This script connects to your DuckDB database file (`duckdb_database.duckdb` in this case, replace
   it with your database file), executes a SQL query (`SELECT * FROM your_table` in this case,
   replace it with your query), fetches all the result and then closes the connection. Make sure to
@@ -217,6 +218,7 @@ Examples:
   load_info = pipeline.run(data)
   print(load_info)
   ```
+  </TabItem>
 
 ### Use dlt source and resource decorators
 
