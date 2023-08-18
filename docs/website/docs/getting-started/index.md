@@ -379,4 +379,4 @@ Concepts to grasp:
   ["under the hood"](https://github.com/dlt-hub/dlt/blob/devel/docs/technical/secrets_and_config.md).
 - [Incremental loading.](../general-usage/incremental-loading)
 - [Schemas, naming conventions and data normalization](../general-usage/schema).
-- [How we distribute sources to our users](notion://www.notion.so/dlthub/DISTRIBUTION.md).
+- [How we distribute sources to our users](https://github.com/dlt-hub/verified-sources/blob/master/docs/DISTRIBUTION.md).
