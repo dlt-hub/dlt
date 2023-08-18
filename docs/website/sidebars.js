@@ -20,7 +20,7 @@ const sidebars = {
       label: 'Getting Started',
       link: {
         type: 'doc',
-        id: 'dlt-ecosystem/destinations/index',
+        id: 'getting-started/index',
       },
       items: [
         'getting-started/try-in-colab',
