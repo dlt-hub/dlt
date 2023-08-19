@@ -27,6 +27,9 @@ def test_airflow_secrets_toml_provider() -> None:
         from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
 
         Variable.set(SECRETS_TOML_KEY, SECRETS_TOML_CONTENT)
+        # make sure provider works while creating DAG
+        provider = AirflowSecretsTomlProvider()
+        assert provider.get_value("api_key", str, None, "sources")[0] == "test_value"
 
         @task()
         def test_task():
@@ -78,6 +81,7 @@ def test_airflow_secrets_toml_provider_import_dlt_dag() -> None:
 
         # this will initialize provider context
         api_key = secrets["sources.api_key"]
+        assert api_key == "test_value"
 
         @task()
         def test_task():
