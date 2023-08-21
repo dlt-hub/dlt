@@ -1,8 +1,11 @@
-import dlt
+import dlt, pytest
 
 from dlt.destinations.weaviate.naming import NamingConvention
 
+from tests.utils import ACTIVE_DESTINATIONS
 from tests.common.utils import load_yml_case
+
+pytestmark = pytest.mark.skipif('weaviate' not in ACTIVE_DESTINATIONS, reason="Weaviate not configured")
 
 
 @dlt.source

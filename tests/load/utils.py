@@ -2,9 +2,10 @@ import contextlib
 from importlib import import_module
 import codecs
 import os
-from typing import Any, Iterator, List, Sequence, cast, IO, Tuple
+from typing import Any, Iterator, List, Sequence, cast, IO, Tuple, Optional
 import shutil
 from pathlib import Path
+from dataclasses import dataclass
 
 import dlt
 from dlt.common import json, sleep
@@ -24,7 +25,7 @@ from dlt.load import Load
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, ACTIVE_SQL_DESTINATIONS
+from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, SQL_DESTINATIONS
 from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES, assert_all_data_types_row
 
 # bucket urls
@@ -38,6 +39,109 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or ["s3"
 # Filter out buckets not in all filesystem drivers
 ALL_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET]
 ALL_BUCKETS = [bucket for bucket in ALL_BUCKETS if bucket.split(':')[0] in ALL_FILESYSTEM_DRIVERS]
+
+
+
+@dataclass
+class DestinationTestConfiguration:
+    """Class for defining test setup for one destination."""
+    destination: str
+    staging: Optional[str] = None
+    file_format: Optional[str] = None
+    bucket_url: Optional[str] = None
+    stage_name: Optional[str] = None
+    staging_iam_role: Optional[str] = None
+    extra_info: Optional[str] = None
+    supports_merge: bool = True  # TODO: take it from client base class
+
+    @property
+    def name(self) -> str:
+        name: str =  self.destination
+        if self.file_format:
+            name += f"-{self.file_format}"
+        if not self.staging:
+            name += "-no-staging"
+        else:
+            name += "-staging"
+        if self.extra_info:
+            name += f"-{self.extra_info}"
+        return name
+
+    def setup(self) -> None:
+        """Sets up environment variables for this destination configuration"""
+        os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = self.bucket_url or ""
+        os.environ['DESTINATION__STAGE_NAME'] = self.stage_name or ""
+        os.environ['DESTINATION__STAGING_IAM_ROLE'] = self.staging_iam_role or ""
+
+        """For the filesystem destinations we disable compression to make analyzing the result easier"""
+        if self.destination == "filesystem":
+            os.environ['DATA_WRITER__DISABLE_COMPRESSION'] = "True"
+
+
+    def setup_pipeline(self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = False, **kwargs) -> dlt.Pipeline:
+        """Convenience method to setup pipeline with this configuration"""
+        self.setup()
+        pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination=self.destination, staging=self.staging, dataset_name=dataset_name or pipeline_name, full_refresh=full_refresh, **kwargs)
+        return pipeline
+
+
+def destinations_configs(
+        default_sql_configs: bool = False,
+        default_staging_configs: bool = False,
+        all_staging_configs: bool = False,
+        local_filesystem_configs: bool = False,
+        all_buckets_filesystem_configs: bool = False,
+        subset: List[str] = "") -> Iterator[DestinationTestConfiguration]:
+
+    # sanity check
+    for item in subset:
+        assert item in IMPLEMENTED_DESTINATIONS, f"Destination {item} is not implemented"
+
+    # build destination configs
+    destination_configs: List[DestinationTestConfiguration] = []
+
+    # default non staging sql based configs, one per destination
+    if default_sql_configs:
+        destination_configs += [DestinationTestConfiguration(destination=destination) for destination in SQL_DESTINATIONS if destination != "athena"]
+        # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
+        destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
+
+    if default_staging_configs or all_staging_configs:
+        destination_configs += [
+            DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, supports_merge=False),
+            DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, staging_iam_role="arn:aws:iam::267388281016:role/redshift_s3_read", extra_info="s3-role"),
+            DestinationTestConfiguration(destination="bigquery", staging="filesystem", file_format="parquet", bucket_url=GCS_BUCKET, extra_info="gcs-authorization"),
+            DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, stage_name="PUBLIC.dlt_gcs_stage", extra_info="gcs-integration"),
+            DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AWS_BUCKET, stage_name="PUBLIC.dlt_s3_stage", extra_info="s3-integration")
+        ]
+
+    if all_staging_configs:
+        destination_configs += [
+            DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, extra_info="credential-forwarding"),
+            DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, extra_info="credential-forwarding"),
+            DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="jsonl", bucket_url=AWS_BUCKET, extra_info="credential-forwarding"),
+            DestinationTestConfiguration(destination="bigquery", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, extra_info="gcs-authorization"),
+        ]
+
+    # filter out non active destinations
+    destination_configs = [conf for conf in destination_configs if conf.destination in ACTIVE_DESTINATIONS]
+
+    # filter out destinations not in subset
+    if subset:
+        destination_configs = [conf for conf in destination_configs if conf.destination in subset]
+
+    # add local filesystem destinations if requested
+    if local_filesystem_configs:
+        destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="insert_values")]
+        destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="parquet")]
+        destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="jsonl")]
+
+    if all_buckets_filesystem_configs:
+        for bucket in ALL_BUCKETS:
+            destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=bucket, extra_info=bucket)]
+
+    return destination_configs
+
 
 def load_table(name: str) -> TTableSchemaColumns:
     with open(f"./tests/load/cases/{name}.json", "rb") as f:

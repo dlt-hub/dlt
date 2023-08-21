@@ -14,7 +14,9 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema.utils import new_table
 from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, expect_load_file, write_dataset
 
-from tests.utils import TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT, ACTIVE_DESTINATIONS
+
+pytestmark = pytest.mark.skipif('weaviate' not in ACTIVE_DESTINATIONS, reason="Weaviate not configured")
 
 
 def get_client_instance(schema: Schema) -> WeaviateClient:

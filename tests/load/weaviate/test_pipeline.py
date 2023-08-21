@@ -11,6 +11,10 @@ from dlt.destinations.weaviate.weaviate_client import WeaviateClient
 from tests.pipeline.utils import assert_load_info
 from .utils import assert_class, delete_classes
 
+from tests.utils import ACTIVE_DESTINATIONS
+
+pytestmark = pytest.mark.skipif('weaviate' not in ACTIVE_DESTINATIONS, reason="Weaviate not configured")
+
 
 def sequence_generator():
     count = 1
