@@ -8,7 +8,7 @@ from dlt.common.configuration.specs.exceptions import InvalidBoto3Session
 from tests.common.configuration.utils import environment
 
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
-
+from tests.utils import preserve_environ, autouse_test_storage
 
 @pytest.mark.skipif('s3' not in ALL_FILESYSTEM_DRIVERS, reason='s3 filesystem driver not configured')
 def test_aws_credentials_resolved_from_default(environment: Dict[str, str]) -> None:

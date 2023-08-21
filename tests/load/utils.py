@@ -40,8 +40,6 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or ["s3"
 ALL_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET]
 ALL_BUCKETS = [bucket for bucket in ALL_BUCKETS if bucket.split(':')[0] in ALL_FILESYSTEM_DRIVERS]
 
-
-
 @dataclass
 class DestinationTestConfiguration:
     """Class for defining test setup for one destination."""
@@ -123,13 +121,6 @@ def destinations_configs(
             DestinationTestConfiguration(destination="bigquery", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, extra_info="gcs-authorization"),
         ]
 
-    # filter out non active destinations
-    destination_configs = [conf for conf in destination_configs if conf.destination in ACTIVE_DESTINATIONS]
-
-    # filter out destinations not in subset
-    if subset:
-        destination_configs = [conf for conf in destination_configs if conf.destination in subset]
-
     # add local filesystem destinations if requested
     if local_filesystem_configs:
         destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="insert_values")]
@@ -139,6 +130,13 @@ def destinations_configs(
     if all_buckets_filesystem_configs:
         for bucket in ALL_BUCKETS:
             destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=bucket, extra_info=bucket)]
+
+    # filter out non active destinations
+    destination_configs = [conf for conf in destination_configs if conf.destination in ACTIVE_DESTINATIONS]
+
+    # filter out destinations not in subset
+    if subset:
+        destination_configs = [conf for conf in destination_configs if conf.destination in subset]
 
     return destination_configs
 
