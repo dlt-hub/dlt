@@ -20,7 +20,7 @@ TL;DR: By linking each load's metadata to the schema evolution event or schema v
 
 Load IDs are crucial in `dlt` and are present in all the top tables (`_dlt_loads`, `load_id`, etc.). Each pipeline run creates one or more load packages, which can be identified by their `load_id`. A load package typically contains data from all resources of a particular source. The `load_id` of a particular package is added to the top data tables and to the `_dlt_loads` table with a status 0 (when the load process is fully completed).
 
-For more details, refer to the [Load IDs](https://dlthub.com/docs/general-usage/understanding-the-tables#load-ids) section of the documentation.
+For more details, refer to the [Load IDs](https://dlthub.com/docs/dlt-ecosystem/visualizations/understanding-the-tables#load-ids) section of the documentation.
 
 ### Schema Versioning
 
@@ -47,7 +47,7 @@ Row level lineage refers to the ability to track data from its source to its des
 
 In `dlt`, each row in all (top level and child) data tables created by `dlt` contains a unique column named `_dlt_id`. Each child table contains a foreign key column `_dlt_parent_id` linking to a particular row (`_dlt_id`) of a parent table. This allows you to trace the lineage of each row back to its source.
 
-For more details, refer to the [Child and parent tables](https://dlthub.com/docs/general-usage/understanding-the-tables#child-and-parent-tables) section of the documentation.
+For more details, refer to the [Child and parent tables](https://dlthub.com/docs/dlt-ecosystem/visualizations/understanding-the-tables#child-and-parent-tables) section of the documentation.
 
 ### Column Level Lineage
 
@@ -55,7 +55,7 @@ Column level lineage refers to the ability to track how each column in your data
 
 In `dlt`, a column schema contains properties such as `name`, `description`, `data_type`, and `is_variant`, which provide information about the column and its transformations. The `is_variant` property, for example, tells you if a column was generated as a variant of another column.
 
-For more details, refer to the [Tables and columns](https://dlthub.com/docs/general-usage/understanding-the-tables#tables-and-columns) section of the documentation.
+For more details, refer to the [Tables and columns](https://dlthub.com/docs/dlt-ecosystem/visualizations/understanding-the-tables#table-and-column-names) section of the documentation.
 
 By combining row and column level lineage, you can have an easy overview of where your data is coming from and when changes in its structure occur.
 
