@@ -11,23 +11,23 @@ from dlt.helpers.dbt import create_venv
 from dlt.helpers.dbt.exceptions import DBTProcessingError, PrerequisitesException
 
 from tests.load.pipeline.utils import select_data
-from tests.utils import ALL_DESTINATIONS
+from tests.utils import ACTIVE_SQL_DESTINATIONS
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 # uncomment add motherduck tests
 # NOTE: the tests are passing but we disable them due to frequent ATTACH DATABASE timeouts
-# ALL_DESTINATIONS += ["motherduck"]
+# ACTIVE_DESTINATIONS += ["motherduck"]
 
 
 @pytest.fixture(scope="module")
 def dbt_venv() -> Iterator[Venv]:
     # context manager will delete venv at the end
     # yield Venv.restore_current()
-    with create_venv(tempfile.mkdtemp(), ALL_DESTINATIONS) as venv:
+    with create_venv(tempfile.mkdtemp(), list(ACTIVE_SQL_DESTINATIONS)) as venv:
         yield venv
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_run_jaffle_package(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
     if destination_config.destination == "athena":
         pytest.skip("dbt-athena requires database to be created and we don't do it in case of Jaffle")
@@ -55,7 +55,7 @@ def test_run_jaffle_package(destination_config: DestinationTestConfiguration, db
     assert len(orders) == 99
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
     from docs.examples.chess.chess import chess
 
@@ -92,7 +92,7 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
     assert view_player_games == new_view_player_games
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_run_chess_dbt_to_other_dataset(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
     from docs.examples.chess.chess import chess
 

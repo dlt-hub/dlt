@@ -35,12 +35,12 @@ def client(request) -> SqlJobClientBase:
     yield from yield_client_with_storage(request.param.destination)
 
 @pytest.mark.order(1)
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_initialize_storage(client: SqlJobClientBase) -> None:
     pass
 
 @pytest.mark.order(2)
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_get_schema_on_empty_storage(client: SqlJobClientBase) -> None:
     # test getting schema on empty dataset without any tables
     exists, _ = client.get_storage_table(VERSION_TABLE_NAME)
@@ -51,7 +51,7 @@ def test_get_schema_on_empty_storage(client: SqlJobClientBase) -> None:
     assert schema_info is None
 
 @pytest.mark.order(3)
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     schema = client.schema
     schema_update = client.update_storage_schema()
@@ -127,7 +127,7 @@ def test_get_update_basic_schema(client: SqlJobClientBase) -> None:
     assert this_schema == newest_schema
 
 
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_complete_load(client: SqlJobClientBase) -> None:
     client.update_storage_schema()
     load_id = "182879721.182912"
@@ -150,7 +150,7 @@ def test_complete_load(client: SqlJobClientBase) -> None:
     assert len(load_rows) == 2
 
 
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True, subset=["redshift", "postgres", "duckdb"]), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True, subset=["redshift", "postgres", "duckdb"]), indirect=True, ids=lambda x: x.name)
 def test_schema_update_create_table_redshift(client: SqlJobClientBase) -> None:
     # infer typical rasa event schema
     schema = client.schema
@@ -176,7 +176,7 @@ def test_schema_update_create_table_redshift(client: SqlJobClientBase) -> None:
     assert exists is True
 
 
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True, subset=["bigquery"]), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True, subset=["bigquery"]), indirect=True, ids=lambda x: x.name)
 def test_schema_update_create_table_bigquery(client: SqlJobClientBase) -> None:
     # infer typical rasa event schema
     schema = client.schema
@@ -203,7 +203,7 @@ def test_schema_update_create_table_bigquery(client: SqlJobClientBase) -> None:
     assert storage_table["version"]["cluster"] is False
 
 
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
     # force to update schema in chunks by setting the max query size to 10 bytes/chars
     with patch.object(client.capabilities, "max_query_length", new=10):
@@ -241,7 +241,7 @@ def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
         assert storage_table["col4"]["data_type"] == "timestamp"
 
 
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_drop_tables(client: SqlJobClientBase) -> None:
     schema = client.schema
     # Add columns in all tables
@@ -300,7 +300,7 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
     assert len(rows) == 2
 
 
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     schema = client.schema
     table_name = "event_test_table" + uniq_id()
@@ -328,7 +328,7 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
         assert c["data_type"] == expected_c["data_type"]
 
 
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_preserve_column_order(client: SqlJobClientBase) -> None:
     schema = client.schema
     table_name = "event_test_table" + uniq_id()
@@ -357,7 +357,7 @@ def test_preserve_column_order(client: SqlJobClientBase) -> None:
     _assert_columns_order(sql)
 
 
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_data_writer_load(client: SqlJobClientBase, file_storage: FileStorage) -> None:
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
@@ -381,7 +381,7 @@ def test_data_writer_load(client: SqlJobClientBase, file_storage: FileStorage) -
     assert db_row[5] is None
 
 
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_data_writer_string_escape(client: SqlJobClientBase, file_storage: FileStorage) -> None:
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
@@ -399,7 +399,7 @@ def test_data_writer_string_escape(client: SqlJobClientBase, file_storage: FileS
     assert list(db_row) == list(row.values())
 
 
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_data_writer_string_escape_edge(client: SqlJobClientBase, file_storage: FileStorage) -> None:
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
@@ -415,7 +415,7 @@ def test_data_writer_string_escape_edge(client: SqlJobClientBase, file_storage: 
 
 
 @pytest.mark.parametrize('write_disposition', ["append", "replace"])
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, file_storage: FileStorage) -> None:
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
@@ -449,7 +449,7 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     ("replace", "insert-from-staging"),
     ("replace", "staging-optimized")
     ])
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, replace_strategy: str, file_storage: FileStorage) -> None:
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
@@ -514,7 +514,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, re
             assert db_rows[-1][0] == idx
 
 
-@pytest.mark.parametrize("client", destinations_configs(default_configs=True), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> None:
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
@@ -538,7 +538,7 @@ def test_retrieve_job(client: SqlJobClientBase, file_storage: FileStorage) -> No
     assert r_job.state() == "completed"
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_default_schema_name_init_storage(destination_config: DestinationTestConfiguration) -> None:
     with cm_yield_client_with_storage(destination_config.destination, default_config_values={
             "default_schema_name": "event"  # pass the schema that is a default schema. that should create dataset with the name `dataset_name`
@@ -559,7 +559,7 @@ def test_default_schema_name_init_storage(destination_config: DestinationTestCon
         assert client.sql_client.has_dataset()
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_many_schemas_single_dataset(destination_config: DestinationTestConfiguration, file_storage: FileStorage) -> None:
 
     def _load_something(_client: SqlJobClientBase, expected_rows: int) -> None:

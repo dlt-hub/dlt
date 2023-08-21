@@ -17,12 +17,12 @@ from dlt.common.destination.reference import WithStagingDataset
 if TYPE_CHECKING:
     from dlt.destinations.filesystem.filesystem import FilesystemClient
 
-from tests.load.utils import ALL_DESTINATIONS, AWS_BUCKET, GCS_BUCKET, FILE_BUCKET, ALL_BUCKETS, IMPLEMENTED_DESTINATIONS
+from tests.load.utils import ACTIVE_SQL_DESTINATIONS, ACTIVE_DESTINATIONS, AWS_BUCKET, GCS_BUCKET, FILE_BUCKET, ALL_BUCKETS, IMPLEMENTED_DESTINATIONS
 
 
 @dataclass
 class DestinationTestConfiguration:
-    """Class for keeping track of an item in inventory."""
+    """Class for defining test setup for one destination."""
     destination: str
     staging: Optional[str] = None
     file_format: Optional[str] = None
@@ -63,12 +63,8 @@ class DestinationTestConfiguration:
         return pipeline
 
 
-# TODO: please merge this with destinations_configs
-_destinations_and_buckets = [(d, ) for d in ALL_DESTINATIONS] + [('filesystem', b) for b in ALL_BUCKETS]
-_param_ids = [':'.join(p) for p in _destinations_and_buckets]
-
 def destinations_configs(
-        default_configs: bool = False,
+        default_sql_configs: bool = False,
         default_staging_configs: bool = False,
         all_staging_configs: bool = False,
         local_filesystem_configs: bool = False,
@@ -82,9 +78,9 @@ def destinations_configs(
     # build destination configs
     destination_configs: List[DestinationTestConfiguration] = []
 
-    # default non staging configs, one per destination
-    if default_configs:
-        destination_configs += [DestinationTestConfiguration(destination=destination) for destination in ALL_DESTINATIONS if destination != "athena"]
+    # default non staging sql based configs, one per destination
+    if default_sql_configs:
+        destination_configs += [DestinationTestConfiguration(destination=destination) for destination in ACTIVE_SQL_DESTINATIONS if destination != "athena"]
         # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
         destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
 
@@ -106,7 +102,7 @@ def destinations_configs(
         ]
 
     # filter out non active destinations
-    destination_configs = [conf for conf in destination_configs if conf.destination in ALL_DESTINATIONS]
+    destination_configs = [conf for conf in destination_configs if conf.destination in ACTIVE_DESTINATIONS]
 
     # filter out destinations not in subset
     if subset:

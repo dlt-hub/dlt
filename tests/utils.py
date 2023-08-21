@@ -25,11 +25,15 @@ from dlt.common.pipeline import PipelineContext
 
 TEST_STORAGE_ROOT = "_storage"
 
-# destination configs
+# destination constants
 IMPLEMENTED_DESTINATIONS = {"athena", "duckdb", "bigquery", "redshift", "postgres", "snowflake", "filesystem", "weaviate", "dummy", "motherduck"}
 NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck"}
-ALL_DESTINATIONS = dlt.config.get("ALL_DESTINATIONS", list) or list(IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS)
-ALL_LOCAL_DESTINATIONS = set(ALL_DESTINATIONS).intersection("postgres", "duckdb")
+SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
+
+# filter out active destinations for current tests
+ACTIVE_DESTINATIONS = set(dlt.config.get("ACTIVE_DESTINATIONS", list) or list(IMPLEMENTED_DESTINATIONS))
+ACTIVE_SQL_DESTINATIONS = SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
+ACTIVE_NON_SQL_DESTINATIONS = NON_SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
 
 def TEST_DICT_CONFIG_PROVIDER():
     # add test dictionary provider
@@ -40,7 +44,6 @@ def TEST_DICT_CONFIG_PROVIDER():
         provider = DictionaryProvider()
         providers_context.add_provider(provider)
         return provider
-
 
 class MockHttpResponse():
     def __init__(self, status_code: int) -> None:

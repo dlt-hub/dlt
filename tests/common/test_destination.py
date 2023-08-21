@@ -5,7 +5,7 @@ from dlt.common.exceptions import InvalidDestinationReference, UnknownDestinatio
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import InvalidDatasetName
 
-from tests.utils import ALL_DESTINATIONS
+from tests.utils import ACTIVE_DESTINATIONS
 
 
 def test_import_unknown_destination() -> None:
@@ -24,7 +24,7 @@ def test_invalid_destination_reference() -> None:
 
 def test_import_all_destinations() -> None:
     # this must pass without the client dependencies being imported
-    for module in ALL_DESTINATIONS:
+    for module in ACTIVE_DESTINATIONS:
         dest = DestinationReference.from_name(module)
         assert dest.__name__ == "dlt.destinations." + module
         dest.spec()

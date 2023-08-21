@@ -11,12 +11,12 @@ from dlt.destinations.postgres.configuration import PostgresCredentials
 from dlt.destinations.postgres.postgres import PostgresClient
 from dlt.destinations.postgres.sql_client import psycopg2
 
-from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy, preserve_environ, ALL_DESTINATIONS
+from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, skipifpypy, preserve_environ, ACTIVE_DESTINATIONS
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
 from tests.common.configuration.utils import environment
 
 
-pytestmark = pytest.mark.skipif("postgres" not in ALL_DESTINATIONS, reason="Postgres is not configured")
+pytestmark = pytest.mark.skipif("postgres" not in ACTIVE_DESTINATIONS, reason="Postgres is not configured")
 
 
 @pytest.fixture

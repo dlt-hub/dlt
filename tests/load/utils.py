@@ -24,7 +24,7 @@ from dlt.load import Load
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.utils import ALL_DESTINATIONS, IMPLEMENTED_DESTINATIONS
+from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, ACTIVE_SQL_DESTINATIONS
 from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES, assert_all_data_types_row
 
 # bucket urls

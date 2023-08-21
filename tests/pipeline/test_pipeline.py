@@ -29,7 +29,7 @@ from tests.common.utils import TEST_SENTRY_DSN
 
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
-from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT
+from tests.utils import TEST_STORAGE_ROOT
 from tests.common.configuration.utils import environment
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import assert_load_info, airtable_emojis
@@ -187,7 +187,7 @@ def test_deterministic_salt(environment) -> None:
     assert p.pipeline_salt != p3.pipeline_salt
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_create_pipeline_all_destinations(destination_config: DestinationTestConfiguration) -> None:
     # create pipelines, extract and normalize. that should be possible without installing any dependencies
     p = dlt.pipeline(pipeline_name=destination_config.destination + "_pipeline", destination=destination_config.destination, staging=destination_config.staging)

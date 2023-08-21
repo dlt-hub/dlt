@@ -17,13 +17,13 @@ from dlt.common.utils import digest128, uniq_id, custom_environ
 from dlt.destinations.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration
 from dlt.destinations.exceptions import LoadJobNotExistsException, LoadJobTerminalException
 
-from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, preserve_environ, ALL_DESTINATIONS
+from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, preserve_environ, ACTIVE_DESTINATIONS
 from tests.common.utils import json_case_path as common_json_case_path
 from tests.common.configuration.utils import environment
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage, cm_yield_client_with_storage
 
 
-pytestmark = pytest.mark.skipif('bigquery' not in ALL_DESTINATIONS, reason="BigQuery not configured")
+pytestmark = pytest.mark.skipif('bigquery' not in ACTIVE_DESTINATIONS, reason="BigQuery not configured")
 
 
 @pytest.fixture(scope="module")

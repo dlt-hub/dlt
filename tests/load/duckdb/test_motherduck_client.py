@@ -5,10 +5,10 @@ from dlt.common.configuration.resolve import resolve_configuration
 
 from dlt.destinations.motherduck.configuration import MotherDuckCredentials, MotherDuckClientConfiguration
 
-from tests.utils import patch_home_dir, preserve_environ, ALL_DESTINATIONS
+from tests.utils import patch_home_dir, preserve_environ, ACTIVE_DESTINATIONS
 
 
-if 'motherduck' not in ALL_DESTINATIONS:
+if 'motherduck' not in ACTIVE_DESTINATIONS:
     pytest.skip("motherduck is not configured", allow_module_level=True)
 
 

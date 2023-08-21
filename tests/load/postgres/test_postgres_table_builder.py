@@ -8,10 +8,10 @@ from dlt.common.schema import Schema
 from dlt.destinations.postgres.postgres import PostgresClient
 from dlt.destinations.postgres.configuration import PostgresClientConfiguration, PostgresCredentials
 
-from tests.load.utils import TABLE_UPDATE, ALL_DESTINATIONS
+from tests.load.utils import TABLE_UPDATE, ACTIVE_DESTINATIONS
 
 
-pytestmark = pytest.mark.skipif("postgres" not in ALL_DESTINATIONS, reason="Postgres is not configured")
+pytestmark = pytest.mark.skipif("postgres" not in ACTIVE_DESTINATIONS, reason="Postgres is not configured")
 
 
 @pytest.fixture

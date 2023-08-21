@@ -30,7 +30,7 @@ env:
   RUNTIME__DLTHUB_TELEMETRY_SEGMENT_WRITE_KEY: TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB
   # Test redshift and filesystem with all buckets
   # postgres runs again here so we can test on mac/windows
-  ALL_DESTINATIONS: "[\"redshift\", \"postgres\", \"duckdb\"]"
+  ACTIVE_DESTINATIONS: "[\"redshift\", \"postgres\", \"duckdb\"]"
 
 jobs:
   get_docs_changes:
@@ -85,11 +85,11 @@ jobs:
       #   run: poetry install --no-interaction
 
       - run: |
-          poetry run pytest tests/load --ignore=tests/load/weaviate
+          poetry run pytest tests/load
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/load --ignore=tests/load/weaviate
+          poetry run pytest tests/load
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd
