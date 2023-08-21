@@ -88,7 +88,6 @@ def destinations_configs(
         # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
         destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
 
-
     if default_staging_configs or all_staging_configs:
         destination_configs += [
             DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, supports_merge=False),
@@ -113,7 +112,6 @@ def destinations_configs(
     if subset:
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
 
-
     # add local filesystem destinations if requested
     if local_filesystem_configs:
         destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="insert_values")]
@@ -123,7 +121,6 @@ def destinations_configs(
     if all_buckets_filesystem_configs:
         for bucket in ALL_BUCKETS:
             destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=bucket, extra_info=bucket)]
-
 
     return destination_configs
 

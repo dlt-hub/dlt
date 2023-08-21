@@ -11,37 +11,20 @@ from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTrans
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, skipifpypy
-from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage, ALL_CLIENTS_SUBSET
+from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
+from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
-ALL_CLIENTS = ALL_CLIENTS_SUBSET(["duckdb_client", "redshift_client", "postgres_client"])
-
+DEFAULT_SUBSET = ["duckdb", "redshift", "postgres"]
 
 @pytest.fixture
 def file_storage() -> FileStorage:
     return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
 
-
-@pytest.fixture(scope="function")
-def redshift_client() -> Iterator[InsertValuesJobClient]:
-    yield from yield_client_with_storage("redshift")
-
-
-@pytest.fixture(scope="function")
-def postgres_client() -> Iterator[InsertValuesJobClient]:
-    yield from yield_client_with_storage("postgres")
-
-
-@pytest.fixture(scope="function")
-def duckdb_client() -> Iterator[InsertValuesJobClient]:
-    yield from yield_client_with_storage("duckdb")
-
-
 @pytest.fixture(scope="function")
 def client(request) -> InsertValuesJobClient:
-    yield request.getfixturevalue(request.param)
+    yield from yield_client_with_storage(request.param.destination)
 
-
-@pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
+@pytest.mark.parametrize("client", destinations_configs(default_configs=True, subset=DEFAULT_SUBSET), indirect=True, ids=lambda x: x.name)
 def test_simple_load(client: InsertValuesJobClient, file_storage: FileStorage) -> None:
     user_table_name = prepare_table(client)
     canonical_name = client.sql_client.make_qualified_table_name(user_table_name)
@@ -65,7 +48,7 @@ def test_simple_load(client: InsertValuesJobClient, file_storage: FileStorage) -
 
 
 @skipifpypy
-@pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
+@pytest.mark.parametrize("client", destinations_configs(default_configs=True, subset=DEFAULT_SUBSET), indirect=True, ids=lambda x: x.name)
 def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage) -> None:
     # test expected dbiapi exceptions for supported destinations
     import duckdb
@@ -127,7 +110,7 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
 
 
 
-@pytest.mark.parametrize('client', ALL_CLIENTS, indirect=True)
+@pytest.mark.parametrize("client", destinations_configs(default_configs=True, subset=DEFAULT_SUBSET), indirect=True, ids=lambda x: x.name)
 def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -> None:
     mocked_caps = client.sql_client.__class__.capabilities
     insert_sql = prepare_insert_statement(10)

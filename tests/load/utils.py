@@ -35,22 +35,13 @@ MEMORY_BUCKET = dlt.config.get("tests.memory", str)
 
 ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or ["s3", "gs", "file", "memory"]
 
-
 # Filter out buckets not in all filesystem drivers
 ALL_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET]
 ALL_BUCKETS = [bucket for bucket in ALL_BUCKETS if bucket.split(':')[0] in ALL_FILESYSTEM_DRIVERS]
 
-ALL_CLIENTS = [f"{name}_client" for name in ALL_DESTINATIONS]
-
-
-def ALL_CLIENTS_SUBSET(subset: Sequence[str]) -> List[str]:
-    return list(set(subset).intersection(ALL_CLIENTS))
-
-
 def load_table(name: str) -> TTableSchemaColumns:
     with open(f"./tests/load/cases/{name}.json", "rb") as f:
         return cast(TTableSchemaColumns, json.load(f))
-
 
 def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
     file_name = ParsedLoadJobFileName(table_name, uniq_id(), 0, client.capabilities.preferred_loader_file_format).job_id()
@@ -76,7 +67,6 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
     client.schema.bump_version()
     client.update_storage_schema()
     return user_table_name
-
 
 def yield_client(
     destination_name: str,
@@ -120,7 +110,6 @@ def yield_client(
     with Container().injectable_context(ConfigSectionContext(sections=("destination", destination_name,))):
         with destination.client(schema, dest_config) as client:
             yield client
-
 
 @contextlib.contextmanager
 def cm_yield_client(
