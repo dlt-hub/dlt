@@ -29,7 +29,7 @@ def duckdb_pipeline_location() -> None:
         del os.environ["DESTINATION__DUCKDB__CREDENTIALS"]
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_staging_configs=True, default_sql_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_staging_configs=True, default_sql_configs=True, default_vector_configs=True), ids=lambda x: x.name)
 def test_restore_state_utils(destination_config: DestinationTestConfiguration) -> None:
 
     p = destination_config.setup_pipeline(pipeline_name="pipe_" + uniq_id(), dataset_name="state_test_" + uniq_id())
@@ -38,7 +38,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     # inject schema into pipeline, don't do it in production
     p._inject_schema(schema)
     # try with non existing dataset
-    with p._sql_job_client(p.default_schema) as job_client:
+    with p._destination_client(p.default_schema.name) as job_client:
         with pytest.raises(DestinationUndefinedEntity):
             load_state_from_destination(p.pipeline_name, job_client)
         # sync the schema
@@ -134,7 +134,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         assert new_stored_state["_state_version"] + 1 == new_stored_state_2["_state_version"]
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_vector_configs=True), ids=lambda x: x.name)
 def test_silently_skip_on_invalid_credentials(destination_config: DestinationTestConfiguration, environment: Any) -> None:
     environment["CREDENTIALS"] = "postgres://loader:password@localhost:5432/dlt_data"
     environment["DESTINATION__BIGQUERY__CREDENTIALS"] = '{"project_id": "chat-analytics-","client_email": "loader@chat-analytics-317513","private_key": "-----BEGIN PRIVATE KEY-----\\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQCNEN0bL39HmD"}'
@@ -144,7 +144,7 @@ def test_silently_skip_on_invalid_credentials(destination_config: DestinationTes
     destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_vector_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize('use_single_dataset', [True, False])
 def test_get_schemas_from_destination(destination_config: DestinationTestConfiguration, use_single_dataset: bool) -> None:
     pipeline_name = "pipe_" + uniq_id()
@@ -161,12 +161,12 @@ def test_get_schemas_from_destination(destination_config: DestinationTestConfigu
 
     default_schema = Schema("state")
     p._inject_schema(default_schema)
-    with p._sql_job_client(default_schema) as job_client:
+    with p._destination_client(default_schema.name) as job_client:
         # just sync schema without name - will use default schema
         p.sync_schema()
         assert job_client.sql_client.dataset_name == dataset_name
     schema_two = Schema("two")
-    with p._sql_job_client(schema_two) as job_client:
+    with p._destination_client(schema_two.name) as job_client:
         # use the job_client to do that
         job_client.initialize_storage()
         job_client.update_stored_schema()
@@ -174,7 +174,7 @@ def test_get_schemas_from_destination(destination_config: DestinationTestConfigu
         assert job_client.sql_client.dataset_name == _make_dn_name("two")
     schema_three = Schema("three")
     p._inject_schema(schema_three)
-    with p._sql_job_client(schema_three) as job_client:
+    with p._destination_client(schema_three.name) as job_client:
         # sync schema with a name
         p.sync_schema(schema_three.name)
         assert job_client.sql_client.dataset_name == _make_dn_name("three")
@@ -214,7 +214,7 @@ def test_get_schemas_from_destination(destination_config: DestinationTestConfigu
     assert len(restored_schemas) == 3
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_vector_configs=True), ids=lambda x: x.name)
 def test_restore_state_pipeline(destination_config: DestinationTestConfiguration) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "True"
     pipeline_name = "pipe_" + uniq_id()
@@ -324,7 +324,7 @@ def test_restore_state_pipeline(destination_config: DestinationTestConfiguration
     assert set(p.schema_names) == set(["default", "two", "three", "four"])
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_vector_configs=True), ids=lambda x: x.name)
 def test_ignore_state_unfinished_load(destination_config: DestinationTestConfiguration) -> None:
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
@@ -346,7 +346,7 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
         assert state is None
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_vector_configs=True), ids=lambda x: x.name)
 def test_restore_schemas_while_import_schemas_exist(destination_config: DestinationTestConfiguration) -> None:
     # restored schema should attach itself to imported schema and it should not get overwritten
     import_schema_path = os.path.join(TEST_STORAGE_ROOT, "schemas", "import")
@@ -406,7 +406,7 @@ def test_restore_change_dataset_and_destination(destination_name: str) -> None:
     pass
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_vector_configs=True), ids=lambda x: x.name)
 def test_restore_state_parallel_changes(destination_config: DestinationTestConfiguration) -> None:
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
@@ -485,7 +485,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     assert_query_data(p, f"SELECT version, _dlt_load_id FROM {STATE_TABLE_NAME} ORDER BY created_at", [2, 3, 4, 4, 5])
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_vector_configs=True), ids=lambda x: x.name)
 def test_reset_pipeline_on_deleted_dataset(destination_config: DestinationTestConfiguration) -> None:
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()

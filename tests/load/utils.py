@@ -85,6 +85,7 @@ class DestinationTestConfiguration:
 
 def destinations_configs(
         default_sql_configs: bool = False,
+        default_vector_configs: bool = False,
         default_staging_configs: bool = False,
         all_staging_configs: bool = False,
         local_filesystem_configs: bool = False,
@@ -103,6 +104,11 @@ def destinations_configs(
         destination_configs += [DestinationTestConfiguration(destination=destination) for destination in SQL_DESTINATIONS if destination != "athena"]
         # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
         destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
+
+    if default_vector_configs:
+        # for now only weaviate
+        destination_configs += [DestinationTestConfiguration(destination="weaviate")]
+
 
     if default_staging_configs or all_staging_configs:
         destination_configs += [

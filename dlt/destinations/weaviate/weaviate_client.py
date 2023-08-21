@@ -413,7 +413,10 @@ class WeaviateClient(JobClientBase, WithStateSync):
     ) -> Optional[TSchemaTables]:
         # Retrieve the schema from Weaviate
         applied_update: TSchemaTables = {}
-        schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
+        try:
+            schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
+        except DestinationUndefinedEntity:
+            schema_info = None
         if schema_info is None:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} "
@@ -450,6 +453,8 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         table_schema: TTableSchemaColumns = {}
+        table_name = self.schema.naming.normalize_table_identifier(table_name)
+
         try:
             class_schema = self.get_class_schema(table_name)
         except weaviate.exceptions.UnexpectedStatusCodeException as e:
@@ -466,7 +471,6 @@ class WeaviateClient(JobClientBase, WithStateSync):
             table_schema[prop["name"]] = schema_c
         return True, table_schema
 
-    @wrap_weaviate_error
     def get_stored_state(self, state_table: str, pipeline_name: str) -> Optional[str]:
         """Loads compressed state from destination storage"""
 
@@ -499,7 +503,6 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 if len(load_records) and load_records[0]["status"] == 0:
                     return cast(str, state["state"])
 
-    @wrap_weaviate_error
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""
         try:
@@ -524,18 +527,14 @@ class WeaviateClient(JobClientBase, WithStateSync):
         except IndexError:
             return None
 
+    @wrap_weaviate_error
     def get_records(self, table_name: str, where: Dict[str, Any] = None, sort: Dict[str, Any] = None, limit: int = 0, offset: int = 0) -> List[Dict[str, Any]]:
 
         # normalize identifier, just to be sure
         table_name = self.schema.naming.normalize_table_identifier(table_name)
 
         # fail if schema does not exist?
-        try:
-            self.get_class_schema(table_name)
-        except weaviate.exceptions.UnexpectedStatusCodeException as e:
-            if e.status_code == 404:
-                return []
-            raise
+        self.get_class_schema(table_name)
 
         # build query
         properties = list(self.schema.get_table_columns(table_name).keys())
