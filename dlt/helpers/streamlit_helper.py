@@ -7,7 +7,7 @@ from dlt.common import pendulum
 from dlt.common.typing import AnyFun
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.destination.reference import JobClientMetadataStorage
+from dlt.common.destination.reference import WithStateSync
 
 from dlt.helpers.pandas_helper import pd
 from dlt.pipeline import Pipeline
@@ -172,7 +172,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
 
         st.header("Pipeline state info")
         with pipeline._get_destination_clients()[0] as client:
-            if isinstance(client, JobClientMetadataStorage):
+            if isinstance(client, WithStateSync):
                 remote_state = load_state_from_destination(pipeline.pipeline_name, client)
         local_state = pipeline.state
 

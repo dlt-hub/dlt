@@ -276,7 +276,7 @@ class JobClientBase(ABC):
                     logger.warning(f"A column {column_name} in table {table_name} in schema {self.schema.name} is incomplete. It was not bound to the data during normalizations stage and its data type is unknown. Did you add this column manually in code ie. as a merge key?")
 
 
-class JobClientMetadataStorage(ABC):
+class WithStateSync(ABC):
 
     @abstractmethod
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:

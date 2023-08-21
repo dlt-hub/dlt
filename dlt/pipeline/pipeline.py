@@ -24,7 +24,7 @@ from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, LoadStorage, SchemaStorage, FileStorage, NormalizeStorageConfiguration, SchemaStorageConfiguration, LoadStorageConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (DestinationClientDwhConfiguration, JobClientMetadataStorage, DestinationReference, JobClientBase, DestinationClientConfiguration,
+from dlt.common.destination.reference import (DestinationClientDwhConfiguration, WithStateSync, DestinationReference, JobClientBase, DestinationClientConfiguration,
                                               TDestinationReferenceArg, DestinationClientStagingConfiguration,  DestinationClientStagingConfiguration,
                                               DestinationClientDwhWithStagingConfiguration)
 from dlt.common.destination.capabilities import INTERNAL_LOADER_FILE_FORMATS
@@ -1121,7 +1121,7 @@ class Pipeline(SupportsPipeline):
             self.config.use_single_dataset = True
             schema_name = normalize_schema_name(self.pipeline_name)
             with self._get_destination_clients(Schema(schema_name))[0] as job_client:
-                if isinstance(job_client, JobClientMetadataStorage):
+                if isinstance(job_client, WithStateSync):
                     state = load_state_from_destination(self.pipeline_name, job_client)
                     if state is None:
                         logger.info(f"The state was not found in the destination {self.destination.__name__}:{dataset_name}")
@@ -1141,7 +1141,7 @@ class Pipeline(SupportsPipeline):
         for schema_name in schema_names:
             if not self._schema_storage.has_schema(schema_name) or always_download:
                 with self._get_destination_clients(Schema(schema_name))[0] as job_client:
-                    if not isinstance(job_client, JobClientMetadataStorage):
+                    if not isinstance(job_client, WithStateSync):
                         logger.info(f"Destination does not support metadata storage {self.destination.__name__}")
                         return restored_schemas
                     schema_info = job_client.get_stored_schema()

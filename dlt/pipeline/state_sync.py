@@ -10,7 +10,7 @@ from dlt.common import json
 from dlt.common.pipeline import TPipelineState
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import LOADS_TABLE_NAME, TTableSchemaColumns
-from dlt.common.destination.reference import JobClientBase, JobClientMetadataStorage
+from dlt.common.destination.reference import JobClientBase, WithStateSync
 
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.extract.source import DltResource
@@ -98,7 +98,7 @@ def state_resource(state: TPipelineState) -> DltResource:
     return dlt.resource([state_doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS)
 
 
-def load_state_from_destination(pipeline_name: str, client: JobClientMetadataStorage) -> TPipelineState:
+def load_state_from_destination(pipeline_name: str, client: WithStateSync) -> TPipelineState:
     # NOTE: if dataset or table holding state does not exist, the sql_client will rise DestinationUndefinedEntity. caller must handle this
     # TODO: this must go into job client and STATE_TABLE_NAME + LOADS_TABLE_NAME must get normalized before using in the query
     state_str = client.get_stored_state(STATE_TABLE_NAME, pipeline_name)

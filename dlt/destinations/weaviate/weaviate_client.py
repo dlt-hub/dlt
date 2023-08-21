@@ -35,7 +35,7 @@ from dlt.common.destination.reference import (
     TLoadJobState,
     LoadJob,
     JobClientBase,
-    JobClientMetadataStorage
+    WithStateSync
 
 )
 from dlt.common.data_types import TDataType
@@ -226,7 +226,7 @@ class LoadWeaviateJob(LoadJob):
         raise NotImplementedError()
 
 
-class WeaviateClient(JobClientBase, JobClientMetadataStorage):
+class WeaviateClient(JobClientBase, WithStateSync):
     """Weaviate client implementation."""
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -466,6 +466,7 @@ class WeaviateClient(JobClientBase, JobClientMetadataStorage):
             table_schema[prop["name"]] = schema_c
         return True, table_schema
 
+    @wrap_weaviate_error
     def get_stored_state(self, state_table: str, pipeline_name: str) -> Optional[str]:
         """Loads compressed state from destination storage"""
 
@@ -498,6 +499,7 @@ class WeaviateClient(JobClientBase, JobClientMetadataStorage):
                 if len(load_records) and load_records[0]["status"] == 0:
                     return cast(str, state["state"])
 
+    @wrap_weaviate_error
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""
         try:
