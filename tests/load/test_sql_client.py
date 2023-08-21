@@ -122,7 +122,7 @@ def test_execute_sql(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_execute_ddl(client: SqlJobClientBase) -> None:
     uniq_suffix = uniq_id()
-    client.update_storage_schema()
+    client.update_stored_schema()
     table_name = prepare_temp_table(client)
     client.sql_client.execute_sql(f"INSERT INTO {table_name} VALUES (1.0)")
     rows = client.sql_client.execute_sql(f"SELECT * FROM {table_name}")
@@ -168,7 +168,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         chunk_size = 2048
         total_records = 3000
 
-    client.update_storage_schema()
+    client.update_stored_schema()
     table_name = prepare_temp_table(client)
     insert_query = ",".join([f"({idx})" for idx in range(0, total_records)])
 

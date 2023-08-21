@@ -39,7 +39,7 @@ def perform_load(
             truncate_tables.append(parts[0])
 
     client.initialize_storage(truncate_tables=truncate_tables)
-    client.update_storage_schema()
+    client.update_stored_schema()
     root_path = posixpath.join(client.fs_path, client.config.dataset_name)
 
     files = load.load_storage.list_new_jobs(load_id)

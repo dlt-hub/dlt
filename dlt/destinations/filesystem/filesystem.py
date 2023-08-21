@@ -122,7 +122,7 @@ class FilesystemClient(JobClientBase):
                 except FileNotFoundError:
                     logger.info(f"Directory or path to truncate tables {truncate_dir} does not exist but it should be created previously!")
 
-    def update_storage_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> TSchemaTables:
+    def update_stored_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> TSchemaTables:
         # create destination dirs for all tables
         dirs_to_create = self._get_table_dirs(only_tables or self.schema.tables.keys())
         for directory in dirs_to_create:
