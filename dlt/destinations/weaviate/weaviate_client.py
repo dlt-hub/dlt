@@ -453,7 +453,6 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         table_schema: TTableSchemaColumns = {}
-        table_name = self.schema.naming.normalize_table_identifier(table_name)
 
         try:
             class_schema = self.get_class_schema(table_name)
@@ -487,7 +486,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
                     "path": ["pipeline_name"],
                     "operator": "Equal",
                     "valueString": pipeline_name,
-                }, limit=stepsize, offset=offset)
+                }, limit=stepsize, offset=offset, properties=["_dlt_load_id", "state"])
             offset += stepsize
             if len(state_records) == 0:
                 return None
@@ -498,7 +497,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
                         "path": ["load_id"],
                         "operator": "Equal",
                         "valueString": load_id,
-                     }, limit=1)
+                     }, limit=1, properties=["load_id", "status"])
                 # if there is a load for this state which was successfull, return the state
                 if len(load_records) and load_records[0]["status"] == 0:
                     return cast(str, state["state"])
@@ -511,7 +510,12 @@ class WeaviateClient(JobClientBase, WithStateSync):
             record = self.get_records(self.schema.version_table_name, sort={
                     "path": ["inserted_at"],
                     "order": "desc"
-            }, limit=1)[0]
+                }, where={
+                    "path": ["schema_name"],
+                    "operator": "Equal",
+                    "valueString": self.schema.name,
+                },
+                limit=1)[0]
             return StorageSchemaInfo(**record)
         except IndexError:
             return None
@@ -528,16 +532,14 @@ class WeaviateClient(JobClientBase, WithStateSync):
             return None
 
     @wrap_weaviate_error
-    def get_records(self, table_name: str, where: Dict[str, Any] = None, sort: Dict[str, Any] = None, limit: int = 0, offset: int = 0) -> List[Dict[str, Any]]:
-
-        # normalize identifier, just to be sure
-        table_name = self.schema.naming.normalize_table_identifier(table_name)
+    def get_records(self, table_name: str, where: Dict[str, Any] = None, sort: Dict[str, Any] = None, limit: int = 0, offset: int = 0, properties: List[str] = None) -> List[Dict[str, Any]]:
 
         # fail if schema does not exist?
         self.get_class_schema(table_name)
 
         # build query
-        properties = list(self.schema.get_table_columns(table_name).keys())
+        if not properties:
+            properties = list(self.schema.get_table_columns(table_name).keys())
         query = self.query_class(table_name, properties)
         if where:
             query = query.with_where(where)
@@ -651,7 +653,6 @@ class WeaviateClient(JobClientBase, WithStateSync):
             "inserted_at": now_ts,
             "schema": schema_str,
         }
-
         self.create_object(properties, self.schema.version_table_name)
 
     @staticmethod

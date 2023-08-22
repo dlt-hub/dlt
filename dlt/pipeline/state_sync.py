@@ -101,7 +101,8 @@ def state_resource(state: TPipelineState) -> DltResource:
 def load_state_from_destination(pipeline_name: str, client: WithStateSync) -> TPipelineState:
     # NOTE: if dataset or table holding state does not exist, the sql_client will rise DestinationUndefinedEntity. caller must handle this
     # TODO: this must go into job client and STATE_TABLE_NAME + LOADS_TABLE_NAME must get normalized before using in the query
-    state_str = client.get_stored_state(STATE_TABLE_NAME, pipeline_name)
+    table_name = cast(JobClientBase, client).schema.naming.normalize_table_identifier(STATE_TABLE_NAME)
+    state_str = client.get_stored_state(table_name, pipeline_name)
     if not state_str:
         return None
     s = decompress_state(state_str)

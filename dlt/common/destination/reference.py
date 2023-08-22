@@ -1,4 +1,4 @@
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
 from importlib import import_module
 from types import TracebackType, ModuleType
 from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager
@@ -195,6 +195,10 @@ class JobClientBase(ABC):
     def __init__(self, schema: Schema, config: DestinationClientConfiguration) -> None:
         self.schema = schema
         self.config = config
+
+    @property
+    def dataset_name(self) -> str:
+        return None
 
     @abstractmethod
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:

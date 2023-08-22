@@ -697,7 +697,7 @@ class Pipeline(SupportsPipeline):
 
     def _sql_job_client(self, schema: Schema, credentials: Any = None) -> SqlJobClientBase:
         client_config = self._get_destination_client_initial_config(credentials)
-        client = self._get_destination_clients(schema , client_config)[0]
+        client = self._get_destination_clients(schema, client_config)[0]
         if isinstance(client, SqlJobClientBase):
             return client
         else:

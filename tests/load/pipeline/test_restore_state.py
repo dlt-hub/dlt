@@ -58,13 +58,13 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
             "_dlt_load_id": utils.add_missing_hints({"name": "_dlt_load_id", "data_type": "text", "nullable": False}),
             **STATE_TABLE_COLUMNS
         })
-        schema.update_schema(resource.table_schema())
+        schema.update_schema(schema.normalize_table_identifiers(resource.table_schema()))
         # do not bump version here or in sync_schema, dlt won't recognize that schema changed and it won't update it in storage
         # so dlt in normalize stage infers _state_version table again but with different column order and the column order in schema is different
         # then in database. parquet is created in schema order and in Redshift it must exactly match the order.
         # schema.bump_version()
         p.sync_schema()
-        exists, _ = job_client.get_storage_table(STATE_TABLE_NAME)
+        exists, _ = job_client.get_storage_table(schema.naming.normalize_table_identifier(STATE_TABLE_NAME))
         assert exists is True
         # table is there but no state
         assert load_state_from_destination(p.pipeline_name, job_client) is None
@@ -150,34 +150,34 @@ def test_get_schemas_from_destination(destination_config: DestinationTestConfigu
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
 
+    p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
+    p.config.use_single_dataset = use_single_dataset
+
     def _make_dn_name(schema_name: str) -> str:
         if use_single_dataset:
             return dataset_name
         else:
             return f"{dataset_name}_{schema_name}"
 
-    p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
-    p.config.use_single_dataset = use_single_dataset
-
     default_schema = Schema("state")
     p._inject_schema(default_schema)
-    with p._destination_client(default_schema.name) as job_client:
+    with p._get_destination_clients(default_schema)[0]  as job_client:
         # just sync schema without name - will use default schema
         p.sync_schema()
-        assert job_client.sql_client.dataset_name == dataset_name
+        assert job_client.dataset_name == dataset_name
     schema_two = Schema("two")
-    with p._destination_client(schema_two.name) as job_client:
+    with p._get_destination_clients(schema_two)[0] as job_client:
         # use the job_client to do that
         job_client.initialize_storage()
         job_client.update_stored_schema()
         # this may be a separate dataset depending in use_single_dataset setting
-        assert job_client.sql_client.dataset_name == _make_dn_name("two")
+        assert job_client.dataset_name == _make_dn_name("two")
     schema_three = Schema("three")
     p._inject_schema(schema_three)
-    with p._destination_client(schema_three.name) as job_client:
+    with p._get_destination_clients(schema_three)[0] as job_client:
         # sync schema with a name
         p.sync_schema(schema_three.name)
-        assert job_client.sql_client.dataset_name == _make_dn_name("three")
+        assert job_client.dataset_name == _make_dn_name("three")
 
     # wipe and restore
     p._wipe_working_folder()
@@ -283,7 +283,8 @@ def test_restore_state_pipeline(destination_config: DestinationTestConfiguration
         "default": {'state1': 'state1', 'state2': 'state2'}, "two": {'state3': 'state3'}, "three": {'state4': 'state4'}, "four": {"state5": JSON_TYPED_DICT}
     }
     for schema in p.schemas.values():
-        assert "some_data" in schema.tables
+        normalized_id = schema.naming.normalize_table_identifier("some_data")
+        assert normalized_id in schema.tables
     # state version must be the same as the original
     restored_state = p.state
     assert restored_state["_state_version"] == orig_state["_state_version"]
@@ -336,7 +337,7 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
         yield param
 
     info = p.run(some_data("fix_1"))
-    with p._sql_job_client(p.default_schema) as job_client:
+    with p._get_destination_clients(p.default_schema)[0] as job_client:
         state = load_state_from_destination(pipeline_name, job_client)
         assert state is not None
         # delete load id
@@ -367,16 +368,21 @@ def test_restore_schemas_while_import_schemas_exist(destination_config: Destinat
     # extract some additional data to upgrade schema in the pipeline
     p.run(["A", "B", "C"], table_name="labels", schema=schema)
     # schema should be up to date
-    assert "labels" in schema.tables
+    normalized_labels = schema.naming.normalize_table_identifier("labels")
+    normalized_annotations = schema.naming.normalize_table_identifier("annotations")
+    normalized_blacklist = schema.naming.normalize_table_identifier("blacklist")
+
+    assert normalized_labels in schema.tables
 
     # re-attach the pipeline
     p = dlt.attach(pipeline_name=pipeline_name)
     p.run(["C", "D", "E"], table_name="annotations")
     schema = p.schemas["ethereum"]
-    assert "labels" in schema.tables
-    assert "annotations" in schema.tables
+    assert normalized_labels in schema.tables
+    assert normalized_annotations in schema.tables
 
     # wipe the working dir and restore
+
     print("----> wipe")
     p._wipe_working_folder()
     p = dlt.pipeline(
@@ -387,15 +393,16 @@ def test_restore_schemas_while_import_schemas_exist(destination_config: Destinat
     # use run to get changes
     p.run(destination=destination_config.destination, staging=destination_config.staging, dataset_name=dataset_name)
     schema = p.schemas["ethereum"]
-    assert "labels" in schema.tables
-    assert "annotations" in schema.tables
+    assert normalized_labels in schema.tables
+    assert normalized_annotations in schema.tables
+
     # check if attached to import schema
     assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V6
     # extract some data with restored pipeline
     p.run(["C", "D", "E"], table_name="blacklist")
-    assert "labels" in schema.tables
-    assert "annotations" in schema.tables
-    assert "blacklist" in schema.tables
+    assert normalized_labels in schema.tables
+    assert normalized_annotations in schema.tables
+    assert normalized_blacklist in schema.tables
 
 
 @pytest.mark.skip("Not implemented")

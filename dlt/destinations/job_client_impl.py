@@ -95,6 +95,10 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         assert isinstance(config, DestinationClientDwhConfiguration)
         self.config: DestinationClientDwhConfiguration = config
 
+    @property
+    def dataset_name(self) -> str:
+        return self.sql_client.dataset_name
+
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
             self.sql_client.create_dataset()
