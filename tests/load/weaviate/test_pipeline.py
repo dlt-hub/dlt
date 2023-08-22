@@ -11,8 +11,6 @@ from dlt.destinations.weaviate.weaviate_client import WeaviateClient
 from tests.pipeline.utils import assert_load_info
 from .utils import assert_class, delete_classes, drop_active_pipeline_data
 
-from tests.utils import ACTIVE_DESTINATIONS
-
 @pytest.fixture(autouse=True)
 def drop_weaviate_schema() -> None:
     yield

@@ -14,7 +14,7 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema.utils import new_table
 from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE, TABLE_UPDATE_COLUMNS_SCHEMA, expect_load_file, write_dataset
 
-from tests.utils import TEST_STORAGE_ROOT, ACTIVE_DESTINATIONS
+from tests.utils import TEST_STORAGE_ROOT
 
 from .utils import drop_active_pipeline_data
 

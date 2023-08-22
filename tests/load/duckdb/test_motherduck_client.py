@@ -5,12 +5,9 @@ from dlt.common.configuration.resolve import resolve_configuration
 
 from dlt.destinations.motherduck.configuration import MotherDuckCredentials, MotherDuckClientConfiguration
 
-from tests.utils import patch_home_dir, preserve_environ, ACTIVE_DESTINATIONS
+from tests.utils import patch_home_dir, preserve_environ, skip_if_not_active
 
-
-if 'motherduck' not in ACTIVE_DESTINATIONS:
-    pytest.skip("motherduck is not configured", allow_module_level=True)
-
+skip_if_not_active("motherduck")
 
 def test_motherduck_database() -> None:
     # set HOME env otherwise some internal components in ducdkb (HTTPS) do not initialize

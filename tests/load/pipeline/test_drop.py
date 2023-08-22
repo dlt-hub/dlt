@@ -12,7 +12,6 @@ from dlt.load import Load
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.utils import ACTIVE_DESTINATIONS
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 
