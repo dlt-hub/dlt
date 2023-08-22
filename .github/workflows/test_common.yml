@@ -10,6 +10,7 @@ on:
 
 env:
   RUNTIME__LOG_LEVEL: ERROR
+  OS: ["ubuntu-latest", "macos-latest", "windows-latest"]
 
 jobs:
   get_docs_changes:
@@ -22,7 +23,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        os: fromJson( ${{ env.OS }} )
         python-version: ["3.11.x"]
         # Test all python versions on ubuntu only
         include:
