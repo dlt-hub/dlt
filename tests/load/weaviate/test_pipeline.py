@@ -7,6 +7,7 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.weaviate import weaviate_adapter
 from dlt.destinations.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
 from dlt.destinations.weaviate.weaviate_client import WeaviateClient
+from dlt.pipeline.state_sync import STATE_TABLE_NAME
 
 from tests.pipeline.utils import assert_load_info
 from .utils import assert_class, delete_classes, drop_active_pipeline_data
@@ -51,7 +52,8 @@ def test_basic_state_and_schema() -> None:
     # check if we can get a stored schema and state
     schema = client.get_stored_schema()
     assert schema
-    state = client.get_stored_state("_dlt_pipeline_state", "test_pipeline_append")
+    state_table_name = pipeline.default_schema.naming.normalize_table_identifier(STATE_TABLE_NAME)
+    state = client.get_stored_state(state_table_name, "test_pipeline_append")
     assert state
 
 def test_pipeline_append() -> None:
