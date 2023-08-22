@@ -99,6 +99,9 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
     def dataset_name(self) -> str:
         return self.sql_client.dataset_name
 
+    def drop_dataset(self) -> None:
+        self.sql_client.drop_dataset()
+
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
             self.sql_client.create_dataset()
@@ -198,6 +201,10 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             f"INSERT INTO {name}(load_id, schema_name, status, inserted_at, schema_version_hash) VALUES(%s, %s, %s, %s, %s);",
             load_id, self.schema.name, 0, now_ts, self.schema.version_hash
         )
+
+    def clear_load(self, load_id: str) -> None:
+        name = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
+        self.sql_client.execute_sql(f"DELETE FROM {name} WHERE load_id = %s", load_id)
 
     def __enter__(self) -> "SqlJobClientBase":
         self.sql_client.open_connection()

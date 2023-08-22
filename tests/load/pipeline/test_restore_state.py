@@ -7,7 +7,7 @@ import pytest
 import dlt
 from dlt.common import pendulum
 from dlt.common.schema.schema import Schema, utils
-from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
+from dlt.common.schema.typing import LOADS_TABLE_NAME
 from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.exceptions import DestinationUndefinedEntity
 
@@ -43,7 +43,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
             load_state_from_destination(p.pipeline_name, job_client)
         # sync the schema
         p.sync_schema()
-        exists, _ = job_client.get_storage_table(VERSION_TABLE_NAME)
+        exists, _ = job_client.get_storage_table(schema.version_table_name)
         assert exists is True
         # dataset exists, still no table
         with pytest.raises(DestinationUndefinedEntity):
@@ -341,7 +341,8 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
         state = load_state_from_destination(pipeline_name, job_client)
         assert state is not None
         # delete load id
-        job_client.sql_client.execute_sql(f"DELETE FROM {LOADS_TABLE_NAME} WHERE load_id = %s", next(iter(info.loads_ids)))
+        load_id =  next(iter(info.loads_ids))
+        job_client.clear_load(load_id)
         # state without completed load id is not visible
         state = load_state_from_destination(pipeline_name, job_client)
         assert state is None
@@ -512,8 +513,8 @@ def test_reset_pipeline_on_deleted_dataset(destination_config: DestinationTestCo
     p.run(data5, schema=Schema("sch2"))
     assert p.state["_state_version"] == 3
     assert p.first_run is False
-    with p.sql_client() as client:
-        client.drop_dataset()
+    with p._get_destination_clients(p.default_schema)[0] as job_client:
+        job_client.drop_dataset()
     # next sync will wipe out the pipeline
     p.sync_destination()
     assert p.first_run is True

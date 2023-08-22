@@ -161,6 +161,12 @@ class FilesystemClient(JobClientBase):
         file_name = f"{schema_name}.{table_name}.{load_id}"
         self.fs_client.touch(posixpath.join(self.dataset_path, file_name))
 
+    def clear_load(self, load_id: str) -> None:
+        schema_name = self.schema.name
+        table_name = self.schema.loads_table_name
+        file_name = f"{schema_name}.{table_name}.{load_id}"
+        self.fs_client.rm_file(posixpath.join(self.dataset_path, file_name))
+
     def __enter__(self) -> "FilesystemClient":
         return self
 

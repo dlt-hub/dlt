@@ -200,6 +200,9 @@ class JobClientBase(ABC):
     def dataset_name(self) -> str:
         return None
 
+    def drop_dataset(self) -> None:
+        pass
+
     @abstractmethod
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         """Prepares storage to be used ie. creates database schema or file system folder. Truncates requested tables.
@@ -246,6 +249,11 @@ class JobClientBase(ABC):
 
     @abstractmethod
     def complete_load(self, load_id: str) -> None:
+        """Marks the load package with `load_id` as completed in the destination. Before such commit is done, the data with `load_id` is invalid."""
+        pass
+
+    @abstractmethod
+    def clear_load(self, load_id: str) -> None:
         """Marks the load package with `load_id` as completed in the destination. Before such commit is done, the data with `load_id` is invalid."""
         pass
 

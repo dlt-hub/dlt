@@ -631,6 +631,18 @@ class WeaviateClient(JobClientBase, WithStateSync):
         }
         self.create_object(properties, self.schema.loads_table_name)
 
+    @wrap_weaviate_error
+    def clear_load(self, load_id: str) -> None:
+        class_name = self.make_full_name(self.schema.loads_table_name)
+        self.db_client.batch.delete_objects(
+            class_name=class_name,
+            where={
+                'path': ['load_id'],
+                'operator': 'Equal',
+                'valueText': load_id
+            },
+        )
+
     def __enter__(self) -> "WeaviateClient":
         return self
 

@@ -116,6 +116,9 @@ class DummyClient(JobClientBase):
     def complete_load(self, load_id: str) -> None:
         pass
 
+    def clear_load(self, load_id: str) -> None:
+        pass
+
     def __enter__(self) -> "DummyClient":
         return self
 

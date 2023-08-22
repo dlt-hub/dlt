@@ -540,7 +540,7 @@ class Pipeline(SupportsPipeline):
                     if self.default_schema_name is None:
                         should_wipe = True
                     else:
-                        with self._sql_job_client(self.default_schema) as job_client:
+                        with self._get_destination_clients(self.default_schema)[0] as job_client:
                             # and storage is not initialized
                             should_wipe = not job_client.is_storage_initialized()
                     if should_wipe:
@@ -557,6 +557,7 @@ class Pipeline(SupportsPipeline):
             self._props_to_state(state)
             self._save_state(state)
         except Exception as ex:
+            raise ex
             raise PipelineStepFailed(self, "run", ex, None) from ex
 
     def activate(self) -> None:
