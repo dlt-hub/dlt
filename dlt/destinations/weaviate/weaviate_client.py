@@ -156,7 +156,6 @@ class LoadWeaviateJob(LoadJob):
             for i, field in schema.get_table_columns(self.table_name).items()
             if field["data_type"] == "date"
         ]
-
         with FileStorage.open_zipsafe_ro(local_path) as f:
             self.load_batch(f)
 

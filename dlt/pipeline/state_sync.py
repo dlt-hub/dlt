@@ -94,7 +94,6 @@ def state_resource(state: TPipelineState) -> DltResource:
         "state":  state_str,
         "created_at": pendulum.now()
     }
-
     return dlt.resource([state_doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS)
 
 

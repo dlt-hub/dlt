@@ -1121,7 +1121,11 @@ class Pipeline(SupportsPipeline):
             # force the main dataset to be used
             self.config.use_single_dataset = True
             schema_name = normalize_schema_name(self.pipeline_name)
-            with self._get_destination_clients(Schema(schema_name))[0] as job_client:
+            with self._maybe_destination_capabilities():
+                schema = Schema(schema_name)
+                schema.update_normalizers()
+                schema._schema_name = schema.naming.normalize_identifier(schema_name)
+            with self._get_destination_clients(schema)[0] as job_client:
                 if isinstance(job_client, WithStateSync):
                     state = load_state_from_destination(self.pipeline_name, job_client)
                     if state is None:
@@ -1140,20 +1144,24 @@ class Pipeline(SupportsPipeline):
         # check which schemas are present in the pipeline and restore missing schemas
         restored_schemas: List[Schema] = []
         for schema_name in schema_names:
-            if not self._schema_storage.has_schema(schema_name) or always_download:
-                with self._get_destination_clients(Schema(schema_name))[0] as job_client:
+            with self._maybe_destination_capabilities():
+                schema = Schema(schema_name)
+                schema.update_normalizers()
+                schema._schema_name = schema.naming.normalize_identifier(schema_name)
+            if not self._schema_storage.has_schema(schema.name) or always_download:
+                with self._get_destination_clients(schema)[0] as job_client:
                     if not isinstance(job_client, WithStateSync):
                         logger.info(f"Destination does not support metadata storage {self.destination.__name__}")
                         return restored_schemas
                     schema_info = job_client.get_stored_schema()
                     if schema_info is None:
-                        logger.info(f"The schema {schema_name} was not found in the destination {self.destination.__name__}:{self.dataset_name}")
+                        logger.info(f"The schema {schema.name} was not found in the destination {self.destination.__name__}:{self.dataset_name}")
                         # try to import schema
                         with contextlib.suppress(FileNotFoundError):
-                            self._schema_storage.load_schema(schema_name)
+                            self._schema_storage.load_schema(schema.name)
                     else:
                         schema = Schema.from_dict(json.loads(schema_info.schema))
-                        logger.info(f"The schema {schema_name} version {schema.version} hash {schema.stored_version_hash} was restored from the destination {self.destination.__name__}:{self.dataset_name}")
+                        logger.info(f"The schema {schema.name} version {schema.version} hash {schema.stored_version_hash} was restored from the destination {self.destination.__name__}:{self.dataset_name}")
                         restored_schemas.append(schema)
         return restored_schemas
 

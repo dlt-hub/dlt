@@ -416,6 +416,7 @@ def test_restore_change_dataset_and_destination(destination_name: str) -> None:
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_vector_configs=True), ids=lambda x: x.name)
 def test_restore_state_parallel_changes(destination_config: DestinationTestConfiguration) -> None:
+
     pipeline_name = "pipe_" + uniq_id()
     dataset_name="state_test_" + uniq_id()
     destination_config.setup()
@@ -429,13 +430,15 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     # extract two resources that modify the state
     data1 = some_data("state1")
     data1._name = "state1_data"
+
     p.run([data1, some_data("state2")], schema=Schema("default"), destination=destination_config.destination, staging=destination_config.staging, dataset_name=dataset_name)
     orig_state = p.state
 
     # create a production pipeline in separate pipelines_dir
     production_p = dlt.pipeline(pipeline_name=pipeline_name, pipelines_dir=TEST_STORAGE_ROOT)
-    production_p.sync_destination(destination=destination_config.destination, staging=destination_config.staging, dataset_name=dataset_name)
+    production_p.run(destination=destination_config.destination, staging=destination_config.staging, dataset_name=dataset_name)
     assert production_p.default_schema_name == "default"
+
     prod_state = production_p.state
     assert prod_state["sources"] == {"default": {'state1': 'state1', 'state2': 'state2'}}
     assert prod_state["_state_version"] == orig_state["_state_version"]
@@ -446,13 +449,14 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     print("---> run production")
     production_p.run(data2)
     assert production_p.state["_state_version"] == prod_state["_state_version"]
-    print(production_p.default_schema.tables.keys())
-    assert "state1_data2" in production_p.default_schema.tables
+
+    normalize = production_p.default_schema.naming.normalize_table_identifier
+    assert normalize("state1_data2") in production_p.default_schema.tables
 
     print("---> run local")
     # sync the local pipeline, state didn't change so new schema is not retrieved
     p.sync_destination()
-    assert "state1_data2" not in p.default_schema.tables
+    assert normalize("state1_data2") not in p.default_schema.tables
 
     # change state on production
     data3 = some_data("state3")
@@ -464,9 +468,9 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     # print(p.default_schema)
     p.sync_destination()
     # existing schema got overwritten
-    assert "state1_data2" in p._schema_storage.load_schema(p.default_schema_name).tables
+    assert normalize("state1_data2") in p._schema_storage.load_schema(p.default_schema_name).tables
     # print(p.default_schema)
-    assert "state1_data2" in p.default_schema.tables
+    assert normalize("state1_data2") in p.default_schema.tables
 
     # change state locally
     data4 = some_data("state4")
