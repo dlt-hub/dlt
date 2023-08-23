@@ -46,10 +46,15 @@ dev: has-poetry
 
 lint:
 	./check-package.sh
-	poetry run mypy --config-file mypy.ini dlt docs/examples
-	poetry run flake8 --max-line-length=200 dlt docs/examples
+	poetry run mypy --config-file mypy.ini dlt
+	poetry run flake8 --max-line-length=200 dlt
 	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
 	# $(MAKE) lint-security
+
+test-and-lint-snippets:
+	poetry run mypy --config-file mypy.ini docs/snippets docs/examples
+	poetry run flake8 --max-line-length=200 docs/snippets docs/examples
+	poetry run pytest docs/snippets
 
 lint-security:
 	poetry run bandit -r dlt/ -n 3 -l
