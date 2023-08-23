@@ -91,6 +91,8 @@ body:
         - "3.9"
         - "3.8"
         - "Below 3.8"
+    validations:
+      required: true
   - type: textarea
     attributes:
       label: dlt data source
