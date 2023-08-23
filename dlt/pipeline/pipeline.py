@@ -557,7 +557,6 @@ class Pipeline(SupportsPipeline):
             self._props_to_state(state)
             self._save_state(state)
         except Exception as ex:
-            raise ex
             raise PipelineStepFailed(self, "run", ex, None) from ex
 
     def activate(self) -> None:
