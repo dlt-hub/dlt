@@ -11,7 +11,7 @@ from tests.pipeline.utils import assert_load_info
 
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["athena"]), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["athena"]), ids=lambda x: x.name)
 def test_athena_destinations(destination_config: DestinationTestConfiguration) -> None:
 
     pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
@@ -62,7 +62,7 @@ def test_athena_destinations(destination_config: DestinationTestConfiguration) -
     assert table_counts["_dlt_loads"] == 2
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["athena"]), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["athena"]), ids=lambda x: x.name)
 def test_athena_all_datatypes_and_timestamps(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)

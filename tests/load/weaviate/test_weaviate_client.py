@@ -16,6 +16,13 @@ from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE, TABLE_UPDAT
 
 from tests.utils import TEST_STORAGE_ROOT
 
+from .utils import drop_active_pipeline_data
+
+@pytest.fixture(autouse=True)
+def drop_weaviate_schema() -> None:
+    yield
+    drop_active_pipeline_data()
+
 
 def get_client_instance(schema: Schema) -> WeaviateClient:
     config = weaviate.spec()()

@@ -9,7 +9,12 @@ from dlt.destinations.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZAT
 from dlt.destinations.weaviate.weaviate_client import WeaviateClient
 
 from tests.pipeline.utils import assert_load_info
-from .utils import assert_class, delete_classes
+from .utils import assert_class, delete_classes, drop_active_pipeline_data
+
+@pytest.fixture(autouse=True)
+def drop_weaviate_schema() -> None:
+    yield
+    drop_active_pipeline_data()
 
 
 def sequence_generator():

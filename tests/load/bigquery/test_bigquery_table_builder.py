@@ -13,11 +13,6 @@ from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 
 from tests.load.utils import TABLE_UPDATE
-from tests.utils import ALL_DESTINATIONS
-
-
-pytestmark = pytest.mark.skipif('bigquery' not in ALL_DESTINATIONS, reason="BigQuery not configured")
-
 
 @pytest.fixture
 def schema() -> Schema:

@@ -18,14 +18,14 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConf
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.exceptions import DestinationHasFailedJobs
 
-from tests.utils import ALL_DESTINATIONS, TEST_STORAGE_ROOT, preserve_environ
+from tests.utils import TEST_STORAGE_ROOT, preserve_environ
 from tests.pipeline.utils import assert_load_info
 from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE_COLUMNS_SCHEMA, assert_all_data_types_row, delete_dataset
 from tests.load.pipeline.utils import drop_active_pipeline_data, assert_query_data, assert_table, load_table_counts, select_data
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize('use_single_dataset', [True, False])
 def test_default_pipeline_names(use_single_dataset: bool, destination_config: DestinationTestConfiguration) -> None:
     destination_config.setup()
@@ -91,7 +91,7 @@ def test_default_pipeline_names(use_single_dataset: bool, destination_config: De
         assert_table(p, "data_fun", data, schema_name="names", info=info)
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
 def test_default_schema_name(destination_config: DestinationTestConfiguration) -> None:
     destination_config.setup()
     dataset_name = "dataset_" + uniq_id()
@@ -110,7 +110,7 @@ def test_default_schema_name(destination_config: DestinationTestConfiguration) -
     assert_table(p, "test", data, info=info)
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
 def test_attach_pipeline(destination_config: DestinationTestConfiguration) -> None:
 
     # load data and then restore the pipeline and see if data is still there
@@ -143,7 +143,7 @@ def test_attach_pipeline(destination_config: DestinationTestConfiguration) -> No
     assert_table(p, "data_table", data, info=info)
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_skip_sync_schema_for_tables_without_columns(destination_config: DestinationTestConfiguration) -> None:
 
     # load data and then restore the pipeline and see if data is still there
@@ -172,7 +172,7 @@ def test_skip_sync_schema_for_tables_without_columns(destination_config: Destina
         assert not exists
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
 def test_run_full_refresh(destination_config: DestinationTestConfiguration) -> None:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
     destination_config.setup()
@@ -202,7 +202,7 @@ def test_run_full_refresh(destination_config: DestinationTestConfiguration) -> N
 
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None:
     dataset_name = "d" + uniq_id()
     row = {
@@ -288,7 +288,7 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
     assert_query_data(p, "SELECT schema_version_hash FROM _dlt_loads ORDER BY inserted_at", version_history)
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize('disable_compression', [True, False])
 def test_pipeline_data_writer_compression(disable_compression: bool, destination_config: DestinationTestConfiguration) -> None:
     # Ensure pipeline works without compression
@@ -308,7 +308,7 @@ def test_pipeline_data_writer_compression(disable_compression: bool, destination
     assert_table(info.pipeline, "data", data, info=info)
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_source_max_nesting(destination_config: DestinationTestConfiguration) -> None:
     destination_config.setup()
 
@@ -338,7 +338,7 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
     assert cn_val == complex_part
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_dataset_name_change(destination_config: DestinationTestConfiguration) -> None:
     destination_config.setup()
     # standard name
@@ -378,7 +378,7 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["postgres"]), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["postgres"]), ids=lambda x: x.name)
 def test_pipeline_explicit_destination_credentials(destination_config: DestinationTestConfiguration) -> None:
 
     # explicit credentials resolved
@@ -413,7 +413,7 @@ def test_pipeline_explicit_destination_credentials(destination_config: Destinati
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["postgres"]), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["postgres"]), ids=lambda x: x.name)
 def test_pipeline_with_sources_sharing_schema(destination_config: DestinationTestConfiguration) -> None:
 
     schema = Schema("shared")
@@ -497,7 +497,7 @@ def test_pipeline_with_sources_sharing_schema(destination_config: DestinationTes
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["postgres"]), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["postgres"]), ids=lambda x: x.name)
 def test_many_pipelines_single_dataset(destination_config: DestinationTestConfiguration) -> None:
     schema = Schema("shared")
 
@@ -561,7 +561,7 @@ def test_many_pipelines_single_dataset(destination_config: DestinationTestConfig
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["snowflake"]), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["snowflake"]), ids=lambda x: x.name)
 def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration) -> None:
     """Using custom stage name instead of the table stage"""
     os.environ['DESTINATION__SNOWFLAKE__STAGE_NAME'] = 'my_non_existing_stage'
@@ -594,7 +594,7 @@ def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["snowflake"]), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["snowflake"]), ids=lambda x: x.name)
 def test_snowflake_delete_file_after_copy(destination_config: DestinationTestConfiguration) -> None:
     """Using keep_staged_files = false option to remove staged files after copy"""
     os.environ['DESTINATION__SNOWFLAKE__KEEP_STAGED_FILES'] = 'FALSE'
@@ -618,7 +618,7 @@ def test_snowflake_delete_file_after_copy(destination_config: DestinationTestCon
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["bigquery", "snowflake", "duckdb"]), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["bigquery", "snowflake", "duckdb"]), ids=lambda x: x.name)
 def test_parquet_loading(destination_config: DestinationTestConfiguration) -> None:
     """Run pipeline twice with merge write disposition
     Resource with primary key falls back to append. Resource without keys falls back to replace.

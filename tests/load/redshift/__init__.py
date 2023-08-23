@@ -1,7 +1,3 @@
-import pytest
-from tests.utils import ALL_DESTINATIONS
+from tests.utils import skip_if_not_active
 
-
-if 'redshift' not in ALL_DESTINATIONS:
-    pytest.skip("redshift not configured", allow_module_level=True)
-
+skip_if_not_active("redshift")

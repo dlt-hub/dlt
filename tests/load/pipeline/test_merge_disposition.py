@@ -22,10 +22,10 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 
 # uncomment add motherduck tests
 # NOTE: the tests are passing but we disable them due to frequent ATTACH DATABASE timeouts
-# ALL_DESTINATIONS += ["motherduck"]
+# ACTIVE_DESTINATIONS += ["motherduck"]
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("eth_2", full_refresh=True)
 
@@ -59,7 +59,7 @@ def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguratio
     assert eth_2_counts == eth_3_counts
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_merge_on_ad_hoc_primary_key(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("github_1", full_refresh=True)
 
@@ -98,7 +98,7 @@ def github():
     return load_issues
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_merge_source_compound_keys_and_changes(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("github_3", full_refresh=True)
 
@@ -130,7 +130,7 @@ def test_merge_source_compound_keys_and_changes(destination_config: DestinationT
     assert github_1_counts == github_3_counts
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_merge_no_child_tables(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("github_3", full_refresh=True)
     github_data = github()
@@ -161,7 +161,7 @@ def test_merge_no_child_tables(destination_config: DestinationTestConfiguration)
     assert github_2_counts["issues"] == 100 if destination_config.supports_merge else 115
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("github_3", full_refresh=True)
     github_data = github()
@@ -187,7 +187,7 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     assert github_1_counts["issues"] == 10 if destination_config.supports_merge else 100 - 45
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_merge_keys_non_existing_columns(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("github_3", full_refresh=True)
     github_data = github()
@@ -219,7 +219,7 @@ def test_merge_keys_non_existing_columns(destination_config: DestinationTestConf
         assert "m_a1" not in table_schema  # unbound columns were not created
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True, subset=["duckdb", "snowflake", "bigquery"]), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["duckdb", "snowflake", "bigquery"]), ids=lambda x: x.name)
 def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("github_3", full_refresh=True)
     github_data = github()
@@ -274,7 +274,7 @@ def _get_shuffled_events(shuffle: bool = dlt.secrets.value):
 
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("github_resource",[github_repo_events, github_repo_events_table_meta])
 def test_merge_with_dispatch_and_incremental(destination_config: DestinationTestConfiguration, github_resource: DltResource) -> None:
     newest_issues = list(sorted(_get_shuffled_events(True), key = lambda x: x["created_at"], reverse=True))
@@ -349,7 +349,7 @@ def test_merge_with_dispatch_and_incremental(destination_config: DestinationTest
             assert len(list(q.fetchall())) == 1
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_deduplicate_single_load(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("abstract", full_refresh=True)
 
@@ -375,7 +375,7 @@ def test_deduplicate_single_load(destination_config: DestinationTestConfiguratio
     assert counts["duplicates_no_child"] == 1 if destination_config.supports_merge else 2
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("abstract", full_refresh=True)
 

@@ -24,13 +24,15 @@ from dlt.common.schema.utils import get_top_level_table
 
 from tests.utils import clean_test_storage, init_test_logging, TEST_DICT_CONFIG_PROVIDER, preserve_environ
 from tests.load.utils import prepare_load_package
+from tests.utils import skip_if_not_active
+
+skip_if_not_active("dummy")
 
 
 NORMALIZED_FILES = [
     "event_user.839c6e6b514e427687586ccc65bf133f.0.jsonl",
     "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl"
 ]
-
 
 @pytest.fixture(autouse=True)
 def storage() -> FileStorage:

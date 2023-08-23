@@ -1,9 +1,8 @@
-import dlt
+import dlt, pytest
 
 from dlt.destinations.weaviate.naming import NamingConvention
 
 from tests.common.utils import load_yml_case
-
 
 @dlt.source
 def small():

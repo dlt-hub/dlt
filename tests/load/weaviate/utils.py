@@ -1,6 +1,10 @@
 import dlt
 from typing import Any, List
 
+import dlt
+from dlt.common.pipeline import PipelineContext
+from dlt.common.configuration.container import Container
+
 from dlt.destinations.weaviate.weaviate_client import WeaviateClient
 from dlt.destinations.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
 
@@ -64,3 +68,20 @@ def delete_classes(p, class_list):
     db_client = p._destination_client().db_client
     for class_name in class_list:
         db_client.schema.delete_class(class_name)
+
+def drop_active_pipeline_data() -> None:
+    def schema_has_classes(client):
+        schema = client.db_client.schema.get()
+        return schema["classes"]
+
+    if Container()[PipelineContext].is_active():
+        # take existing pipeline
+        p = dlt.pipeline()
+        client = p._destination_client()
+
+        if schema_has_classes(client):
+            client.drop_dataset()
+
+        p._wipe_working_folder()
+        # deactivate context
+        Container()[PipelineContext].deactivate()
