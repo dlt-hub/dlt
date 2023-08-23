@@ -494,7 +494,10 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     assert ra_production_p.state == prod_state
 
     # get all the states, notice version 4 twice (one from production, the other from local)
-    assert_query_data(p, f"SELECT version, _dlt_load_id FROM {STATE_TABLE_NAME} ORDER BY created_at", [2, 3, 4, 4, 5])
+    with p._destination_client(p.default_schema.name) as job_client:
+        schema = p.default_schema
+        states = job_client.get_stored_states(schema.naming.normalize_table_identifier(STATE_TABLE_NAME))
+        assert [5, 4, 4, 3, 2] == [s.version for s in states]
 
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_vector_configs=True), ids=lambda x: x.name)

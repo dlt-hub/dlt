@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod, abstractproperty
 from importlib import import_module
 from types import TracebackType, ModuleType
-from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager
+from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager, Dict, Any
 from contextlib import contextmanager
 import datetime  # noqa: 251
 
@@ -31,6 +31,13 @@ class StorageSchemaInfo(NamedTuple):
     inserted_at: datetime.datetime
     schema: str
 
+class StateInfo(NamedTuple):
+    version: int
+    engine_version: int
+    pipeline_name: str
+    state: str
+    created_at: datetime.datetime
+    dlt_load_id: str = None
 
 @configspec
 class DestinationClientConfiguration(BaseConfiguration):
@@ -300,8 +307,13 @@ class WithStateSync(ABC):
         pass
 
     @abstractmethod
-    def get_stored_state(self, state_table: str, pipeline_name: str) -> Optional[str]:
+    def get_stored_state(self, state_table: str, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage"""
+        pass
+
+    @abstractmethod
+    def get_stored_states(self, state_table: str) -> List[StateInfo]:
+        """Loads list of compressed states from destination storage"""
         pass
 
 class WithStagingDataset(ABC):

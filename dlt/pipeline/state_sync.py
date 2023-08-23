@@ -101,10 +101,10 @@ def load_state_from_destination(pipeline_name: str, client: WithStateSync) -> TP
     # NOTE: if dataset or table holding state does not exist, the sql_client will rise DestinationUndefinedEntity. caller must handle this
     # TODO: this must go into job client and STATE_TABLE_NAME + LOADS_TABLE_NAME must get normalized before using in the query
     table_name = cast(JobClientBase, client).schema.naming.normalize_table_identifier(STATE_TABLE_NAME)
-    state_str = client.get_stored_state(table_name, pipeline_name)
-    if not state_str:
+    state = client.get_stored_state(table_name, pipeline_name)
+    if not state:
         return None
-    s = decompress_state(state_str)
+    s = decompress_state(state.state)
     return migrate_state(pipeline_name, s, s["_state_engine_version"], STATE_ENGINE_VERSION)
 
 

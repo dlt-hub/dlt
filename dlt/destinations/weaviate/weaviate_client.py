@@ -44,7 +44,7 @@ from dlt.common.storages import FileStorage
 from dlt.destinations.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
 
 from dlt.destinations.job_impl import EmptyLoadJob
-from dlt.destinations.job_client_impl import StorageSchemaInfo
+from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 from dlt.destinations.weaviate import capabilities
 from dlt.destinations.weaviate.configuration import WeaviateClientConfiguration
 from dlt.destinations.weaviate.exceptions import WeaviateBatchError
@@ -229,6 +229,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
     """Weaviate client implementation."""
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
+    state_properties: ClassVar[List[str]] = ["version", "engine_version", "pipeline_name", "state", "created_at", "_dlt_load_id"]
 
     def __init__(self, schema: Schema, config: WeaviateClientConfiguration) -> None:
         super().__init__(schema, config)
@@ -469,7 +470,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             table_schema[prop["name"]] = schema_c
         return True, table_schema
 
-    def get_stored_state(self, state_table: str, pipeline_name: str) -> Optional[str]:
+    def get_stored_state(self, state_table: str, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage"""
 
         # we need to find a stored state that matches a load id that was completed
@@ -485,7 +486,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
                     "path": ["pipeline_name"],
                     "operator": "Equal",
                     "valueString": pipeline_name,
-                }, limit=stepsize, offset=offset, properties=["_dlt_load_id", "state"])
+                }, limit=stepsize, offset=offset, properties=self.state_properties)
             offset += stepsize
             if len(state_records) == 0:
                 return None
@@ -499,7 +500,19 @@ class WeaviateClient(JobClientBase, WithStateSync):
                      }, limit=1, properties=["load_id", "status"])
                 # if there is a load for this state which was successfull, return the state
                 if len(load_records) and load_records[0]["status"] == 0:
-                    return cast(str, state["state"])
+                    state["dlt_load_id"] = state.pop("_dlt_load_id")
+                    return StateInfo(**state)
+                
+    def get_stored_states(self, state_table: str) -> List[StateInfo]:
+        state_records = self.get_records(state_table,
+            sort={
+                "path": ["created_at"],
+                "order": "desc"
+            }, properties=self.state_properties)
+        
+        for state in state_records:
+            state["dlt_load_id"] = state.pop("_dlt_load_id")
+        return [StateInfo(**state) for state in state_records]
 
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""
