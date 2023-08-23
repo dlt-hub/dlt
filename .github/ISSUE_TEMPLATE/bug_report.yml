@@ -60,7 +60,7 @@ body:
         - "Other"
     validations:
       required: true
-  - type: textarea
+  - type: dropdown
     attributes:
       label: Runtime environment
       description: >
