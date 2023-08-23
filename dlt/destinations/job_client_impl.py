@@ -275,7 +275,7 @@ WHERE """
         if not row:
             return None
         return StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4]))
-    
+
     def get_stored_states(self, state_table: str) -> List[StateInfo]:
         """Loads list of compressed states from destination storage, optionally filtered by pipeline name"""
         query = f"SELECT {self.STATE_TABLE_COLUMNS} FROM {state_table} AS s ORDER BY created_at DESC"

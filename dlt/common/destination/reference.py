@@ -207,6 +207,7 @@ class JobClientBase(ABC):
     def dataset_name(self) -> str:
         return None
 
+    @abstractmethod
     def drop_dataset(self) -> None:
         pass
 

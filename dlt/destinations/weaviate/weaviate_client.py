@@ -502,14 +502,14 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 if len(load_records) and load_records[0]["status"] == 0:
                     state["dlt_load_id"] = state.pop("_dlt_load_id")
                     return StateInfo(**state)
-                
+
     def get_stored_states(self, state_table: str) -> List[StateInfo]:
         state_records = self.get_records(state_table,
             sort={
                 "path": ["created_at"],
                 "order": "desc"
             }, properties=self.state_properties)
-        
+
         for state in state_records:
             state["dlt_load_id"] = state.pop("_dlt_load_id")
         return [StateInfo(**state) for state in state_records]

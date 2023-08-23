@@ -89,6 +89,9 @@ class FilesystemClient(JobClientBase):
         ds_path = posixpath.join(self.fs_path, self.config.normalize_dataset_name(self.schema))
         return ds_path
 
+    def drop_dataset(self) -> None:
+        return super().drop_dataset()
+
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # clean up existing files for tables selected for truncating
         if truncate_tables and self.fs_client.isdir(self.dataset_path):
