@@ -12,8 +12,7 @@ body:
   - type: dropdown
     attributes:
       label: dlt version
-      description: >
-        What dlt version are you using?
+      description: What dlt version are you using?
       multiple: false
       options:
         - "0.3.x (stable)"
