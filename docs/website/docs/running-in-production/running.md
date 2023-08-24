@@ -7,7 +7,7 @@ keywords: [running, production, tips]
 # Running
 
 When running the pipeline in production, you may consider a few additions to your script. We'll use
-a script below as a starting point.
+the script below as a starting point.
 
 ```python
 import dlt
@@ -47,7 +47,8 @@ destination.
 You can also get the runtime trace from the pipeline. It contains timing information on `extract`,
 `normalize` and `load` steps and also all the config and secret values with full information from
 where they were obtained. You can display and load trace info as shown below. Use your code editor
-to explore `trace` object further.
+to explore `trace` object further. The `normalize` step information contains the counts of rows per
+table of data that was normalized and then loaded.
 
 ```python
     # print human friendly trace information
@@ -56,13 +57,26 @@ to explore `trace` object further.
     pipeline.run([pipeline.last_trace], table_name="_trace")
 ```
 
+You can also access the last `extract`, `normalize` and `load` infos directly:
+
+```python
+    # print human friendly extract information
+    print(pipeline.last_extract_info)
+    # print human friendly normalization information
+    print(pipeline.last_normalize_info)
+    # access row counts dictionary of normalize info
+    print(pipeline.last_normalize_info.row_counts)
+    # print human friendly load information
+    print(pipeline.last_load_info)
+```
+
 Please note that you can inspect the pipeline using
 [command line](../reference/command-line-interface.md#dlt-pipeline).
 
 ### Inspect, save and alert on schema changes
 
-In package information you can also see the list of all tables and columns created at the
-destination during loading of that package. Code below displays all tables and schemas. Note that
+In the package information you can also see the list of all tables and columns created at the
+destination during loading of that package. The code below displays all tables and schemas. Note that
 those objects are Typed Dictionaries, use your code editor to explore.
 
 ```python
