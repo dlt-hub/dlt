@@ -53,7 +53,7 @@ for row in dummy_source().dummy_data().add_map(pseudonymize_name):
 # 1. Create an instance of the source so you can edit it.
 data_source = dummy_source()
 # 2. Modify this source instance's resource
-data_source = data_source.dummy_data().add_map(replace_umlauts_in_dict_keys)
+data_source = data_source.dummy_data().add_map(pseudonymize_name)
 # 3. Inspect your result
 for row in data_source:
     print(row)
