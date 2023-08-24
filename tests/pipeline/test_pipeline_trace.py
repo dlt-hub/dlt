@@ -12,7 +12,7 @@ import dlt
 from dlt.common import json
 from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
-from dlt.common.pipeline import ExtractInfo
+from dlt.common.pipeline import ExtractInfo, NormalizeInfo, LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.runtime.telemetry import stop_telemetry
 from dlt.common.typing import DictStrAny, StrStr, TSecretValue
@@ -56,6 +56,9 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert isinstance(step.finished_at, datetime.datetime)
     assert isinstance(step.step_info, ExtractInfo)
     assert step.step_info.extract_data_info == [{"name": "inject_tomls", "data_type": "source"}]
+    # check infos
+    assert isinstance(p.last_extract_info, ExtractInfo)
+
     # check config trace
     resolved = _find_resolved_value(trace.resolved_config_values, "api_type", [])
     assert resolved.config_type_name == "TestCreateTraceInjectTomlsConfiguration"
@@ -113,6 +116,8 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert step.step == "normalize"
     assert step.step_info is norm_info
     assert_trace_printable(trace)
+    assert isinstance(p.last_normalize_info, NormalizeInfo)
+    assert p.last_normalize_info.row_counts == {'_dlt_pipeline_state': 1, 'data': 3}
 
     # load
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
@@ -128,6 +133,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert resolved.value == "1.0"
     assert resolved.config_type_name == "DummyClientConfiguration"
     assert_trace_printable(trace)
+    assert isinstance(p.last_load_info, LoadInfo)
 
     # run resets the trace
     load_info = inject_tomls().run()
@@ -144,6 +150,9 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert step.step_info is load_info  # same load info
     assert trace.steps[0].step_info is not extract_info
     assert_trace_printable(trace)
+    assert isinstance(p.last_load_info, LoadInfo)
+    assert isinstance(p.last_normalize_info, NormalizeInfo)
+    assert isinstance(p.last_extract_info, ExtractInfo)
 
 
 def test_save_load_trace() -> None:
@@ -162,6 +171,8 @@ def test_save_load_trace() -> None:
     assert resolved.value == "1.0"
     assert resolved.config_type_name == "DummyClientConfiguration"
     assert_trace_printable(trace)
+    # check row counts
+    assert pipeline.last_normalize_info.row_counts == {'_dlt_pipeline_state': 1, 'data': 3}
 
     # exception also saves trace
     @dlt.resource
@@ -185,6 +196,7 @@ def test_save_load_trace() -> None:
     assert run_step.step_exception is not None
     assert step.step_exception == run_step.step_exception
     assert_trace_printable(trace)
+    assert pipeline.last_normalize_info is None
 
 
 def test_disable_trace(environment: StrStr) -> None:
@@ -192,6 +204,7 @@ def test_disable_trace(environment: StrStr) -> None:
     environment["COMPLETED_PROB"] = "1.0"
     dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
     assert dlt.pipeline().last_trace is None
+    assert dlt.pipeline().last_normalize_info is None
 
 
 def test_trace_on_restore_state(environment: StrStr) -> None:
@@ -205,6 +218,7 @@ def test_trace_on_restore_state(environment: StrStr) -> None:
     with patch.object(Pipeline, 'sync_destination', _sync_destination_patch):
         dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
         assert len(dlt.pipeline().last_trace.steps) == 4
+        assert dlt.pipeline().last_normalize_info.row_counts == {'_dlt_pipeline_state': 1, 'data': 3}
 
 
 def test_load_none_trace() -> None:

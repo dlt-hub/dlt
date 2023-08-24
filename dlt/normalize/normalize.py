@@ -24,7 +24,7 @@ from dlt.common.utils import chunks
 from dlt.normalize.configuration import NormalizeConfiguration
 
 
-# 
+# row counts
 TRowCount = Dict[str, int]
 # normalize worker wrapping function (map_parallel, map_single) return type
 TMapFuncRV = Tuple[Sequence[TSchemaUpdate], TRowCount]

@@ -616,7 +616,7 @@ class Pipeline(SupportsPipeline):
         if self._last_trace:
             return self._last_trace
         return load_trace(self.working_dir)
-    
+
     def last_pipeline_step_trace(self, step_name: TPipelineStep) -> PipelineStepTrace:
         trace = self.last_trace
         if not trace:
@@ -632,21 +632,21 @@ class Pipeline(SupportsPipeline):
         if step_trace and isinstance(step_trace.step_info, ExtractInfo):
             return step_trace.step_info
         return None
-    
+
     @property
     def last_normalize_info(self) -> NormalizeInfo:
         step_trace = self.last_pipeline_step_trace("normalize")
         if step_trace and isinstance(step_trace.step_info, NormalizeInfo):
             return step_trace.step_info
         return None
-    
+
     @property
     def last_load_info(self) -> LoadInfo:
         step_trace = self.last_pipeline_step_trace("load")
         if step_trace and isinstance(step_trace.step_info, LoadInfo):
             return step_trace.step_info
         return None
-        
+
     def list_extracted_resources(self) -> Sequence[str]:
         """Returns a list of all the files with extracted resources that will be normalized."""
         return self._get_normalize_storage().list_files_to_normalize_sorted()
