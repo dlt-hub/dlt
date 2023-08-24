@@ -155,7 +155,9 @@ def extract(
                 if resource.name not in tables_by_resources:
                     continue
                 for table in tables_by_resources[resource.name]:
-                    _write_empty_file(table["name"])
+                    # we only need to write empty files for the top tables
+                    if not table.get("parent", None):
+                        _write_empty_file(table["name"])
 
             if left_gens > 0:
                 # go to 100%

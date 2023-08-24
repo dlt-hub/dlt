@@ -99,6 +99,14 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
         "_dlt_loads": dlt_loads,
         "_dlt_version": dlt_versions
     }
+    # check trace
+    assert pipeline.last_normalize_info.row_counts == {
+        "append_items": 12,
+        "items": 120,
+        "items__sub_items": 240,
+        "items__sub_items__sub_sub_items": 120
+    }
+
 
     # check we really have the replaced data in our destination
     table_dicts = load_tables_to_dicts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
@@ -127,6 +135,11 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
         "_dlt_loads": dlt_loads,
         "_dlt_version": dlt_versions
     }
+    # check trace
+    assert pipeline.last_normalize_info.row_counts == {
+        "append_items": 12,
+        "items": 0,
+    }
 
     # drop and deactivate existing pipeline
     # drop_active_pipeline_data()
@@ -139,6 +152,13 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     assert new_state_records == 1
     dlt_loads = increase_loads(dlt_loads)
     dlt_versions = increase_loads(dlt_versions)
+    # check trace
+    assert pipeline_2.last_normalize_info.row_counts == {
+        "items_copy": 120,
+        "items_copy__sub_items": 240,
+        "items_copy__sub_items__sub_sub_items": 120,
+        "_dlt_pipeline_state": 1
+    }
 
     info = pipeline_2.run(append_items, loader_file_format=destination_config.file_format)
     assert_load_info(info)
@@ -156,6 +176,10 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
         "_dlt_pipeline_state": state_records + 1,
         "_dlt_loads": dlt_loads,
         "_dlt_version": increase_loads(dlt_versions)
+    }
+    # check trace
+    assert pipeline_2.last_normalize_info.row_counts == {
+        "append_items": 12,
     }
 
     # old pipeline -> shares completed loads and versions table
@@ -254,6 +278,16 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     assert table_counts["other_items__sub_items"] == 2
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
+    # check trace
+    assert pipeline.last_normalize_info.row_counts == {
+        "items": 1,
+        "items__sub_items": 2,
+        "other_items": 1,
+        "other_items__sub_items": 2,
+        "static_items": 1,
+        "static_items__sub_items": 2,
+        "_dlt_pipeline_state": 1
+    }
 
     # see if child table gets cleared
     pipeline.run(items_without_subitems, loader_file_format=destination_config.file_format)
@@ -264,6 +298,11 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     assert table_counts.get("other_items__sub_items", 0) == 0
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
+    # check trace
+    assert pipeline.last_normalize_info.row_counts == {
+        "items": 1,
+        "other_items": 1
+    }
 
     # see if yield none clears everything
     pipeline.run(items_with_subitems, loader_file_format=destination_config.file_format)
@@ -275,6 +314,11 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     assert table_counts.get("other_items__sub_items", 0) == 0
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
+    # check trace
+    assert pipeline.last_normalize_info.row_counts == {
+        "items": 0,
+        "other_items": 0
+    }
 
     # see if yielding something next to other none entries still goes into db
     pipeline.run(items_with_subitems_yield_none, loader_file_format=destination_config.file_format)
@@ -285,3 +329,10 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     assert table_counts["other_items__sub_items"] == 2
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
+    # check trace
+    assert pipeline.last_normalize_info.row_counts == {
+        "items": 1,
+        "items__sub_items": 2,
+        "other_items": 1,
+        "other_items__sub_items": 2,
+    }
