@@ -1,138 +1,137 @@
 # Salesforce
 
-:::info
-Need help deploying these sources, or figuring out how to run them in your data stack?
+:::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
-[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+[Join our Slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
+Salesforce is a cloud platform that streamlines business operations and customer relationship
+management, encompassing sales, marketing, and customer service.
 
-Salesforce is a cloud-based platform that helps businesses manage customer relationships and optimize various operational aspects. It empowers you to effectively handle sales, marketing, customer service, and more.
+This Salesforce `dlt` verified source and
+[pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/salesforce_pipeline.py)
+loads data using “Salesforce API” to the destination of your choice.
 
-This Salesforce `dlt` verified source and pipeline example offers the capability to load Salesforce endpoints such as "User" and "Opportunity" to a destination of your choosing. It enables you to conveniently load the following endpoints:
+The resources that this verified source supports are:
 
-### Single loading endpoints (replace mode)
+| Name           | Mode    | Description                                                                                       |
+|----------------|---------|---------------------------------------------------------------------------------------------------|
+| User           | replace | refers to an individual who has access to a Salesforce org or instance                            |
+| UserRole       | replace | a standard object that represents a role within the organization's hierarchy                      |
+| Lead           | replace | prospective customer/individual/org. that has shown interest in a company's products/services     |
+| Contact        | replace | an individual person associated with an account or organization                                   |
+| Campaign       | replace | marketing initiative or project designed to achieve specific goals, such as generating leads etc. |
+| Product2       | replace | for managing and organizing your product-related data within the Salesforce ecosystem             |
+| Pricebook2     | replace | used to manage product pricing and create price books                                             |
+| PricebookEntry | replace | an object that represents a specific price for a product in a price book                          |
+| Opportunity            | merge | represents a sales opportunity for a specific account or contact                                                            |
+| OpportunityLineItem    | merge | represents individual line items or products associated with an opportunity                                                 |
+| OpportunityContactRole | merge | represents the association between an Opportunity and a contact                                                             |
+| Account                | merge | individual or organization that interacts with your business                                                                |
+| CampaignMember         | merge | association between a contact or lead and a campaign                                                                        |
+| Task                   | merge | used to track and manage various activities and tasks within the salesforce platform                                        |
+| Event                  | merge | used to track and manage calendar-based events, such as meetings, appointments calls, or any other time-specific activities |
 
-| Endpoint | Mode | Description                                                                                      |
-| --- | --- |--------------------------------------------------------------------------------------------------|
-| User | replace | refers to an individual who has access to a Salesforce org or instance                           |
-| UserRole | replace | a standard object that represents a role within the organization's hierarchy                     |
-| Lead | replace | prospective customer/individual/org. that has shown interest in a company's products/services    |
-| Contact | replace | an individual person associated with an account or organization                                  |
-| Campaign | replace | marketing initiative or project designed to achieve specific goals, such as generating leads etc. |
-| Product2 | replace | for managing and organizing your product-related data within the Salesforce ecosystem            |
-| Pricebook2 | replace | used to manage product pricing and create price books                                            |
-| PricebookEntry | replace | an object that represents a specific price for a product in a price book                         |
+## Setup Guide
 
-### Incremental endpoints (merge mode)
+### Grab credentials
 
-| Endpoint | Mode | Description |
-| --- | --- | --- |
-| Opportunity | merge | represents a sales opportunity for a specific account or contact |
-| OpportunityLineItem | merge | represents individual line items or products associated with an Opportunity |
-| OpportunityContactRole | merge | represents the association between an Opportunity and a Contact |
-| Account | merge | individual or organization that interacts with your business |
-| CampaignMember | merge | association between a Contact or Lead and a Campaign |
-| Task | merge | used to track and manage various activities and tasks within the Salesforce platform |
-| Event | merge | used to track and manage calendar-based events, such as meetings, appointments calls, or any other time-specific activities |
+To set up your pipeline, you'll need your Salesforce `user_name`, `password`, and `security_token`. Use
+your login credentials for user_name and password.
 
-## Grab credentials
+To obtain the `security_token`, follow these steps:
 
-To set up your pipeline, you will require the following credentials: “*user_name”*, “*password”*, and “*security_token”*.
-The “*user_name”* and “*password”* are the ones that you used to log into your Salesforce account, to grab the “*security token”* please follow these steps:
+1. Log into Salesforce with your credentials.
 
-### Grab `security_token`
+1. Click your profile picture/avatar at the top-right.
 
-1. Log in to your Salesforce account using your username and password.
-2. Click on your profile picture or avatar at the top-right corner of the screen.
-3. From the drop-down menu, select "Settings."
-4. In the left-hand sidebar, under "Personal Setup," click on "My Personal Information," then select "Reset My Security Token".
-5. On the Reset Security Token page, click the "Reset Security Token" button.
-6. Salesforce will send an email to the email address associated with your account, note it.
+1. Select "Settings" from the drop-down.
 
-## Initialize the Salesforce verified source and pipeline example
+1. Under "Personal Setup" in the sidebar, choose "My Personal Information" > "Reset My Security
+   Token".
 
-To get started with your verified source, follow these steps:
+1. Click "Reset Security Token".
 
-1. Open up your terminal or command prompt and navigate to the directory where you'd like to create your project.
-2. Enter the following command:
-    ```bash
-    dlt init salesforce duckdb
-    ```
+1. Check your email for the token sent by Salesforce.
 
-    This command will initialize your verified source with Salesforce and creates a pipeline example with duckdb as the destination.
-    If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred destination.
-    You can find supported destinations and their configuration options in our [documentation](../destinations/duckdb).
+### Initialize the verified source
 
-3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
+To get started with your data pipeline, follow these steps:
 
-    ```toml
-    salesforce_source
-    ├── .dlt
-    │   ├── config.toml
-    │   └── secrets.toml
-    ├── salesforce
-    │   └── __init__.py
-    │   └── helpers.py
-    │   └── settings.py
-    ├── .gitignore
-    ├── requirements.txt
-    └── salesforce_pipeline.py
-    ```
+1. Enter the following command:
 
+   ```bash
+   dlt init salesforce duckdb
+   ```
 
-## Add credentials
+   [This command](../../reference/command-line-interface) will initialize
+   [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/salesforce_pipeline.py)
+   with Salesforce as the [source](../../general-usage/source) and
+   [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
 
-1. Inside the `.dlt` folder, you'll find a file called “*secrets.toml*”, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe.
+1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
+   preferred [destination](../destinations).
 
-Here's what the file looks like:
+1. After running this command, a new directory will be created with the necessary files and
+   configuration settings to get started.
 
-```toml
-# put your secret values and credentials here. do not share this file and do not push it to github
-[sources.salesforce]
-username = "please set me up!" # Salesforce user name
-password = "please set me up!" # Salesforce password
-security_token = "please set me up!" # Salesforce security token generated
-```
+For more information, read the
+[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
 
-2. Please replace the values of “*username”* and “*password”* in the “*secrets.toml”* with your actual Salesforce account login credentials.
-3. Next, replace the value of “*security_token”* with the one that [you copied above](salesforce.md#grab-credentials). This will ensure that your verified source can access your Salesforce resources securely.
-4. Next, follow the instructions in [Destinations](../destinations/duckdb) to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
+### Add credentials
 
-## Run the pipeline example
+1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can
+   securely store your access tokens and other sensitive information. It's important to handle this
+   file with care and keep it safe. Here's what the file looks like:
 
-1. Install the necessary dependencies by running the following command:
+   ```toml
+   # put your secret values and credentials here. do not share this file and do not push it to github
+   [sources.salesforce]
+   username = "please set me up!" # Salesforce user name
+   password = "please set me up!" # Salesforce password
+   security_token = "please set me up!" # Salesforce security token
+   ```
 
-```bash
-pip install -r requirements.txt
-```
+1. In `secrets.toml`, replace username and password with your Salesforce credentials.
 
-2. Now the pipeline can be run by using the command:
+1. Update the security_token value with the token you
+   [copied earlier](salesforce.md#grab-credentials) for secure Salesforce access.
 
-```bash
-python3 salesforce_pipeline.py
-```
+1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
+   add credentials for your chosen destination, ensuring proper routing of your data to the final
+   destination.
 
-3. To make sure that everything is loaded as expected, use the command:
+## Run the pipeline
 
-```bash
-dlt pipeline <pipeline_name> show
-```
+1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
+   running the command:
+   ```bash
+   pip install -r requirements.txt
+   ```
+1. You're now ready to run the pipeline! To get started, run the following command:
+   ```bash
+   python3 salesforce_pipeline.py
+   ```
+1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+   the following command:
+   ```bash
+   dlt pipeline <pipeline_name> show
+   ```
+   For example, the `pipeline_name` for the above pipeline example is `salesforce`, you may also use
+   any custom name instead.
 
-For example, the pipeline_name for the above pipeline is `salesforce`, you may also use any custom name instead.
+For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
 
+## Sources and resources
 
-## Customizations
+`dlt` works on the principle of [sources](../../general-usage/source) and
+[resources](../../general-usage/resource).
 
-To load data to the destination using this verified source, you have the option to write your own methods.
+### Source `salesforce_source`:
 
-### Source and resource methods
-
-`dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources](https://dlthub.com/docs/general-usage/resource)
-that for this verified source are found in the `__init__.py` file within the salesforce directory.
-The `salesforce_pipeline.py` has two default methods:
-
-**Source** **<u>salesforce_source:</u>**
+This function returns a list of resources to load users, user_role, opportunity,
+opportunity_line_item, account etc. data from Salesforce API.
 
 ```python
 @dlt.source(name="salesforce")
@@ -141,21 +140,17 @@ def salesforce_source(
     password: str = dlt.secrets.value,
     security_token: str = dlt.secrets.value,
 ) ->Iterable[DltResource]:
-
-    client = Salesforce(user_name, password, security_token)
 ```
 
-- **`user_name`**: the name used to sign in to your sales force account.
-- **`password`**: the password used to login to the salesforce account.
-- **`security_token`**:  A token required to authenticate the Salesforce API. This token is defined in the “*dlt.secret.toml”* file.
+- `user_name`: Your Salesforce account username.
 
-Inside the “*salesforce_source”* function, a connection to the Salesforce API is established using the provided “*user_name”*, “*password”*, and “*security_token”* parameters.
-This connection is used to initialize a “*client”* object using the “*Salesforce”* class, which handles the authentication with the Salesforce API.
+- `password`: Corresponding Salesforce password.
 
-The “*client”* object is then utilized within the resource methods to interact with the Salesforce API and retrieve data from specific
-Salesforce endpoints. Each resource method corresponds to a different Salesforce object and is responsible for fetching data from that object.
+- `security_token`: Token for Salesforce API authentication, configured in ".dlt/secrets.toml".
 
-a) **Resource** **<u>sf_user</u>: (single load)**
+### Resource `sf_user` (replace mode):
+
+This resource function retrieves records from the Salesforce "User" endpoint.
 
 ```python
 @dlt.resource(write_disposition="replace")
@@ -163,18 +158,19 @@ def sf_user() -> Iterator[Dict[str, Any]]:
     yield from get_records(client, "User")
 ```
 
-**`sf_user`**: This resource retrieves records from the Salesforce "User" endpoint. It is configured with a write disposition of "replace," which means the existing data in the destination will be replaced with the new data.
-
-In addition to the **resource "sf_user"** there are several other resources defined in the file `__init.py__`that utilizes the replace mode when writing data to the destination.
+Besides "sf_user", the there are several resources that use replace mode for data writing to the
+destination.
 
 | user_role() | contact() | lead() | campaign() | product_2() | pricebook_2() | pricebook_entry() |
-| --- | --- | --- | --- | --- | --- | --- |
+|-------------|-----------|--------|------------|-------------|---------------|-------------------|
 
-The functions mentioned above retrieve records from specific endpoints based on their names. For instance, the function `user_role()` retrieves data from the “user_role” endpoint.
+The described functions fetch records from endpoints based on their names, e.g., user_role()
+accesses the "user_role" endpoint.
 
-Each resource returns an iterator that yields dictionaries representing the records fetched from the Salesforce API using the `get_records()` function.
+### Resource `opportunity` (incremental loading):
 
-b) **Resource <u>opportunity:</u> (incremental loading)**
+This resource function retrieves records from the Salesforce "Opportunity" endpoint in incremental
+mode.
 
 ```python
 @dlt.resource(write_disposition="merge")
@@ -186,74 +182,90 @@ def opportunity(
 
     yield from get_records(
         client, "Opportunity", last_timestamp.last_value, "SystemModstamp"
-		)
+    )
 ```
 
-The above code defines a function called "opportunity" that writes data to a destination using a “*merge”* mode. This means that existing data in the destination will be preserved, and new data will be added or updated as needed. It works on the principle of *[incremental loading](https://dlthub.com/docs/general-usage/incremental-loading).*
+`last_timestamp`: Argument that will receive [incremental](../../general-usage/incremental-loading) state, initialized with "initial_value".
+It is configured to track "SystemModstamp" field in data item returned by "get_records" and then yielded.
+It will store the newest "SystemModstamp" value in dlt state and make it available in "last_timestamp.last_value" on next pipeline run.
 
-- The function takes an optional parameter called "last_timestamp," which is used to track the timestamp of the last processed "Opportunity" record during the previous pipeline run. This parameter is obtained from a source called “*dlt.sources.incremental”* and is stored in the pipeline's *[state](https://dlthub.com/docs/general-usage/state)*.
-- Within the function, there is a call to another function called "*get_records*." This function is provided with several arguments: the API client, "*Opportunity*" as the source of data, the initial value of the last processed timestamp from the previous pipeline run, and "*SystemModstamp*" as the timestamp until which the pipeline should run.
-- The "*get_records*" function is expected to return an iterator containing dictionaries, with each dictionary representing a single record.
-- The function uses a generator with the "yield from" statement to yield each record from the iterator obtained from "*get_records*". This allows the records to be consumed one by one.
-
-In addition to the **resource "opportunity"** there are several other resources defined in the file `__init.py__`that utilizes the merge mode and incremental loading when writing data to the destination.
+Besides "opportunity", the there are several resources that use replace mode for data writing to the
+destination.
 
 | opportunity_line_item() | opportunity_contact_role() | account() | campaign_member() | task() | event() |
-| --- | --- | --- | --- | --- | --- |
+|-------------------------|----------------------------|-----------|-------------------|--------|---------|
 
-The functions mentioned above retrieve records from specific endpoints based on their names. For instance, the function `opportunity_line_item()` retrieves data from the OpportunityLineItem endpoint.
+The described functions fetch records from endpoints based on their names, e.g.,
+opportunity_line_item() accesses the "opportunity_line_item" endpoint.
 
-Each resource returns an iterator that yields dictionaries representing the records fetched from the Salesforce API using the `get_records()` function.
+## Customization
 
-### **Create Your Data Loading Pipeline**
+### Create your own pipeline
 
-If you wish to create your own pipelines you can leverage source and resource methods as discussed above.
+If you wish to create your own pipelines you can leverage source and resource methods as discussed
+above.
 
-To create your data pipeline using single loading and [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading), follow these steps:
+To create your data pipeline using single loading and
+[incremental data loading](../../general-usage/incremental-loading), follow these
+steps:
 
-1. Configure the pipeline by specifying the pipeline name, destination, and dataset. To read more about pipeline configuration, please refer to our documentation [here](https://dlthub.com/docs/general-usage/pipeline).
+1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-    ```python
-    pipeline = dlt.pipeline(
-        pipeline_name="salesforce_pipeline",  # Use a custom name if desired
-        destination="bigquery",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-        dataset_name="salesforce_data"  # Use a custom name if desired
-    )
-    ```
+   ```python
+   pipeline = dlt.pipeline(
+       pipeline_name="salesforce_pipeline",  # Use a custom name if desired
+       destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+       dataset_name="salesforce_data"  # Use a custom name if desired
+   )
+   ```
 
-2. To load data from all the endpoints, use the `salesforce_source` method as follows:
+   To read more about pipeline configuration, please refer to our
+   [documentation](../../general-usage/pipeline).
 
-    ```python
-    load_data = salesforce_source()
-    ```
+1. To load data from all the endpoints, use the `salesforce_source` method as follows:
 
-3. Use the method `pipeline.run()` to execute the pipeline:
+   ```python
+   load_data = salesforce_source()
+   source.schema.merge_hints({"not_null": ["id"]}) #Hint for id field not null
+   load_info = pipeline.run(load_data)
+   # print the information on data that was loaded
+   print(load_info)
+   ```
 
-    ```python
-    load_info = pipeline.run(load_data)
-    # pretty print the information on data that was loaded
-    print(load_info)
-    ```
+   > A hint ensures that the id column is void of null values. During data loading, dlt will verify
+   > that the source's id column doesn't contain nulls.
 
-4. To use the method `pipeline.run()` to load custom endpoints “*candidates*” and “*members*”, the above script may be modified as:
+1. To use the method `pipeline.run()` to load custom endpoints “candidates” and “members”:
 
-    ```python
-    load_info = pipeline.run(load_data.with_resources("opportunity", "contact")
-    # pretty print the information on data that was loaded
-    print(load_info)
-    ```
+   ```python
+   load_info = pipeline.run(load_data.with_resources("opportunity", "contact"))
+   # print the information on data that was loaded
+   print(load_info)
+   ```
 
-    > Note: that in the above run, the "opportunity" and “contact” endpoints are loaded incrementally using the 'merge' mode, utilizing the 'last_timestamp' key. During the initial run, the 'last_timestamp' value will be set to “None” which means it’ll load all the data. However, for subsequent runs, the pipeline will only merge data for the "opportunity" and “contact” endpoint starting from the 'last_timestamp.last_value', which represents the last 'last_timestamp' value from the previous pipeline run. It’s important to note that incremental loading is only possible for endpoints that have resources defined in merge mode and use “*dlt.sources.incremental*” parameter.
+   In the initial run, the "opportunity" and "contact" endpoints load all data using 'merge' mode
+   and 'last_timestamp' set to "None". In subsequent runs, only data after
+   'last_timestamp.last_value' (from the previous run) is merged. Incremental loading is specific to
+   endpoints in merge mode with the “dlt.sources.incremental” parameter.
 
-5. For using incremental loading for endpoints, it's important to keep the pipeline name and destination dataset name unchanged. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) of the last pipeline run, which includes the end date needed for loading data incrementally. Modifying these names can lead to [“full_refresh”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh) which will disrupt the tracking of relevant metadata(state) for [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
-6. If you want to load data from the “contact” and “task” endpoints. You can do it as follows:
+   > For incremental loading of endpoints, maintain the pipeline name and destination dataset name.
+   > The pipeline name is important for accessing the
+   > [state](../../general-usage/state) from the last run, including the end date
+   > for incremental data loads. Altering these names could trigger a
+   > [“full_refresh”](../../general-usage/pipeline#do-experiments-with-full-refresh),
+   > disrupting the metadata tracking for
+   > [incremental data loading](../../general-usage/incremental-loading).
 
-    ```python
-    load_info = pipeline.run(load_data.with_resources("contact", "task")
-    # pretty print the information on data that was loaded
-    print(load_info)
-    ```
+1. To load data from the “contact” in replace mode and “task” incrementally merge mode
+   endpoints:
 
-    > Note: that in the mentioned pipeline, the "contact" parameter is loaded in "replace" mode for every run, meaning that it overwrites the existing data completely. On the other hand, the "task" endpoint can be loaded incrementally in "merge" mode, where new data is added or existing data is updated as necessary while preserving the already loaded data using the ‘**last_timestamp'**  value.
+   ```python
+   load_info = pipeline.run(load_data.with_resources("contact", "task"))
+   # pretty print the information on data that was loaded
+   print(load_info)
+   ```
 
-That’s it! Enjoy running your Salesforce DLT pipeline!
+   > Note: In the referenced pipeline, the "contact" parameter is always loaded in "replace" mode,
+   > overwriting existing data. Conversely, the "task" endpoint supports "merge" mode for
+   > incremental loads, updating or adding data based on the 'last_timestamp' value without erasing
+   > previously loaded data.
