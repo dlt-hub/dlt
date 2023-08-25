@@ -44,12 +44,10 @@ The resources that this verified source supports are:
 
 ### Grab credentials
 
-To set up your pipeline, you'll need your Salesforce user_name, password, and security_token. Use
+To set up your pipeline, you'll need your Salesforce `user_name`, `password`, and `security_token`. Use
 your login credentials for user_name and password.
 
-To obtain the security_token, follow these steps:
-
-#### Grab `security_token`
+To obtain the `security_token`, follow these steps:
 
 1. Log into Salesforce with your credentials.
 
@@ -102,12 +100,12 @@ For more information, read the
    security_token = "please set me up!" # Salesforce security token
    ```
 
-1. In "secrets.toml", replace username and password with your Salesforce credentials.
+1. In `secrets.toml`, replace username and password with your Salesforce credentials.
 
 1. Update the security_token value with the token you
-   [copied earlier](salesforce.md#grab-securitytoken) for secure Salesforce access.
+   [copied earlier](salesforce.md#grab-credentials) for secure Salesforce access.
 
-1. Next, Follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
+1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
@@ -176,8 +174,6 @@ destination.
 The described functions fetch records from endpoints based on their names, e.g., user_role()
 accesses the "user_role" endpoint.
 
-Each resource yields dictionaries of records from the Salesforce API via the get_records() function.
-
 b) Resource `opportunity` (incremental loading):
 
 This resource function retrieves records from the Salesforce "Opportunity" endpoint in incremental
@@ -205,8 +201,6 @@ destination.
 The described functions fetch records from endpoints based on their names, e.g.,
 opportunity_line_item() accesses the "opportunity_line_item" endpoint.
 
-Each resource yields dictionaries of records from the Salesforce API via the get_records() function.
-
 ## Customization
 
 ### Create your own pipeline
@@ -215,7 +209,7 @@ If you wish to create your own pipelines you can leverage source and resource me
 above.
 
 To create your data pipeline using single loading and
-[incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading), follow these
+[incremental data loading](../../general-usage/incremental-loading), follow these
 steps:
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
@@ -259,11 +253,11 @@ steps:
 
    > For incremental loading of endpoints, maintain the pipeline name and destination dataset name.
    > The pipeline name is important for accessing the
-   > [state](https://dlthub.com/docs/general-usage/state) from the last run, including the end date
+   > [state](../../general-usage/state) from the last run, including the end date
    > for incremental data loads. Altering these names could trigger a
-   > [“full_refresh”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh),
+   > [“full_refresh”](../../general-usage/pipeline#do-experiments-with-full-refresh),
    > disrupting the metadata tracking for
-   > [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
+   > [incremental data loading](../../general-usage/incremental-loading).
 
 1. To load data from the “contact” in replace mode and “task” incrementally merge mode
    endpoints:
