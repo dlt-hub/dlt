@@ -19,14 +19,13 @@ The command above creates sample `secrets.toml` and requirements file for AWS S3
 ```
 pip install -r requirements.txt
 ```
-or with `pip install dlt[filesystem]` which will install `s3fs` and `boto3` packages.
+or with `pip install dlt[filesystem]` which will install `s3fs` and `botocore` packages.
 :::caution
 
-We experienced that `s3fs` dependency and `boto3` have conflicting requirements (depending on their release schedule). You may also
+You may also install the dependencies independently
 try
 ```sh
 pip install dlt
-pip install boto3
 pip install s3fs
 ```
 so pip does not fail on backtracking

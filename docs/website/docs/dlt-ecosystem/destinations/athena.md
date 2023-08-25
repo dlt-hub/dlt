@@ -24,15 +24,14 @@ First install dependencies by running:
 ```
 pip install -r requirements.txt
 ```
-or with `pip install dlt[athena]` which will install `s3fs`, `pyarrow`, `pyathena` and `boto3` packages.
+or with `pip install dlt[athena]` which will install `s3fs`, `pyarrow`, `pyathena` and `botocore` packages.
 
 :::caution
 
-We experienced that `s3fs` dependency and `boto3` have conflicting requirements (depending on their release schedule). You may also
+You may also install the dependencies independently
 try
 ```sh
 pip install dlt
-pip install boto3
 pip install s3fs
 pip install pyarrow
 pip install pyathena
