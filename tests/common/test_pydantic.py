@@ -1,7 +1,7 @@
 import pytest
 from typing import Union, Optional, List
 
-from datetime import datetime, date
+from datetime import datetime, date  # noqa: I251
 from dlt.common import Decimal
 
 from pydantic import BaseModel
