@@ -9,7 +9,7 @@ from hexbytes import HexBytes
 try:
     from pydantic import BaseModel as PydanticBaseModel
 except ImportError:
-    PydanticBaseModel = None
+    PydanticBaseModel = None  # type: ignore[misc]
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.arithmetics import Decimal
