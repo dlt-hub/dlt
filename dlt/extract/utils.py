@@ -7,7 +7,7 @@ from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSche
 from dlt.common.typing import TDataItem
 
 try:
-    from dlt.common import pydantic
+    from dlt.common.libs import pydantic
 except MissingDependencyException:
     pydantic = None
 
@@ -44,6 +44,9 @@ def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColum
 
 
 def ensure_table_schema_columns_hint(columns: TTableHintTemplate[TAnySchemaColumns]) -> TTableHintTemplate[TTableSchemaColumns]:
+    """Convert column schema hint to a hint returning `TTableSchemaColumns`.
+    A callable hint is wrapped in another function which converts the original result.
+    """
     if callable(columns) and not isinstance(columns, type):
         def wrapper(item: TDataItem) -> TTableSchemaColumns:
             return ensure_table_schema_columns(cast(TFunHintTemplate[TAnySchemaColumns], columns)(item))
