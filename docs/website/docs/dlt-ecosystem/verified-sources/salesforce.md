@@ -148,7 +148,7 @@ def salesforce_source(
 
 - `security_token`: Token for Salesforce API authentication, configured in ".dlt/secrets.toml".
 
-### a) Resource `sf_user` (replace mode):
+### Resource `sf_user` (replace mode):
 
 This resource function retrieves records from the Salesforce "User" endpoint.
 
@@ -167,7 +167,7 @@ destination.
 The described functions fetch records from endpoints based on their names, e.g., user_role()
 accesses the "user_role" endpoint.
 
-### b) Resource `opportunity` (incremental loading):
+### Resource `opportunity` (incremental loading):
 
 This resource function retrieves records from the Salesforce "Opportunity" endpoint in incremental
 mode.
@@ -184,6 +184,10 @@ def opportunity(
         client, "Opportunity", last_timestamp.last_value, "SystemModstamp"
 		)
 ```
+
+`last_timestamp`: Argument that will receive [incremental](../../general-usage/incremental-loading) state, initialized with "initial_value".
+It is configured to track "SystemModstamp" field in data item returned by "get_records" and then yielded.
+It will store the newest "SystemModstamp" value in dlt state and make it available in "last_timestamp.last_value" on next pipeline run.
 
 Besides "opportunity", the there are several resources that use replace mode for data writing to the
 destination.
@@ -234,7 +238,7 @@ steps:
 1. To use the method `pipeline.run()` to load custom endpoints “candidates” and “members”:
 
    ```python
-   load_info = pipeline.run(load_data.with_resources("opportunity", "contact")
+   load_info = pipeline.run(load_data.with_resources("opportunity", "contact"))
    # print the information on data that was loaded
    print(load_info)
    ```
@@ -256,7 +260,7 @@ steps:
    endpoints:
 
    ```python
-   load_info = pipeline.run(load_data.with_resources("contact", "task")
+   load_info = pipeline.run(load_data.with_resources("contact", "task"))
    # pretty print the information on data that was loaded
    print(load_info)
    ```
