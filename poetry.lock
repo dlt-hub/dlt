@@ -7099,6 +7099,7 @@ gs = ["gcsfs"]
 motherduck = ["duckdb", "pyarrow"]
 parquet = ["pyarrow"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
+pydantic = ["pydantic"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
 s3 = ["boto3", "s3fs"]
 snowflake = ["snowflake-connector-python"]
@@ -7107,4 +7108,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "e30e9956892c32f6084a0e3099970dbb64237300824ee366f8974a6ca423ba79"
+content-hash = "b54d1a10a798e95442aabc07c7dbf2d173966355671de0f356bed592c2976fa0"

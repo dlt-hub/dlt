@@ -93,6 +93,7 @@ motherduck = ["duckdb", "pyarrow"]
 cli = ["pipdeptree", "cron-descriptor"]
 athena = ["pyathena", "pyarrow", "s3fs", "boto3"]
 weaviate = ["weaviate-client"]
+pydantic = ["pydantic"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
