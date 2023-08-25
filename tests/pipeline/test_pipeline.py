@@ -1052,5 +1052,5 @@ def test_extract_pydantic_models() -> None:
 
     storage = ExtractorStorage(pipeline._normalize_storage_config)
     expect_extracted_file(
-        storage, pipeline.pipeline_name, "users", json.dumps([{"user_id": 1, "name": "a"}, {"user_id": 2, "name": "b"}])
+        storage, pipeline.default_schema_name, "users", json.dumps([{"user_id": 1, "name": "a"}, {"user_id": 2, "name": "b"}])
     )
