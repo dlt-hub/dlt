@@ -15,8 +15,6 @@ loads data using “Salesforce API” to the destination of your choice.
 
 The resources that this verified source supports are:
 
-### Resources (replace mode)
-
 | Name           | Mode    | Description                                                                                       |
 |----------------|---------|---------------------------------------------------------------------------------------------------|
 | User           | replace | refers to an individual who has access to a Salesforce org or instance                            |
@@ -27,11 +25,6 @@ The resources that this verified source supports are:
 | Product2       | replace | for managing and organizing your product-related data within the Salesforce ecosystem             |
 | Pricebook2     | replace | used to manage product pricing and create price books                                             |
 | PricebookEntry | replace | an object that represents a specific price for a product in a price book                          |
-
-### Resources loading incrementally (merge mode)
-
-| Name                   | Mode  | Description                                                                                                                 |
-|------------------------|-------|-----------------------------------------------------------------------------------------------------------------------------|
 | Opportunity            | merge | represents a sales opportunity for a specific account or contact                                                            |
 | OpportunityLineItem    | merge | represents individual line items or products associated with an opportunity                                                 |
 | OpportunityContactRole | merge | represents the association between an Opportunity and a contact                                                             |
@@ -155,7 +148,7 @@ def salesforce_source(
 
 - `security_token`: Token for Salesforce API authentication, configured in ".dlt/secrets.toml".
 
-a) Resource `sf_user` (replace mode):
+### a) Resource `sf_user` (replace mode):
 
 This resource function retrieves records from the Salesforce "User" endpoint.
 
@@ -174,7 +167,7 @@ destination.
 The described functions fetch records from endpoints based on their names, e.g., user_role()
 accesses the "user_role" endpoint.
 
-b) Resource `opportunity` (incremental loading):
+### b) Resource `opportunity` (incremental loading):
 
 This resource function retrieves records from the Salesforce "Opportunity" endpoint in incremental
 mode.
