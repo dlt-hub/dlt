@@ -6,7 +6,12 @@ from typing import Any, Callable, List, Protocol, IO, Union
 from uuid import UUID
 from hexbytes import HexBytes
 
+try:
+    from pydantic import BaseModel as PydanticBaseModel
+except ImportError:
+    PydanticBaseModel = None
 
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
 from dlt.common.utils import map_nested_in_place
@@ -81,6 +86,8 @@ def custom_encode(obj: Any) -> str:
         return obj._asdict()  # type: ignore
     elif dataclasses.is_dataclass(obj):
         return dataclasses.asdict(obj)  # type: ignore
+    elif PydanticBaseModel and isinstance(obj, PydanticBaseModel):
+        return obj.dict()  # type: ignore[return-value]
     raise TypeError(repr(obj) + " is not JSON serializable")
 
 
@@ -130,6 +137,8 @@ def custom_pua_encode(obj: Any) -> str:
         return obj._asdict()  # type: ignore
     elif dataclasses.is_dataclass(obj):
         return dataclasses.asdict(obj)  # type: ignore
+    elif PydanticBaseModel and isinstance(obj, PydanticBaseModel):
+        return obj.dict()  # type: ignore[return-value]
     raise TypeError(repr(obj) + " is not JSON serializable")
 
 

@@ -1034,3 +1034,23 @@ def test_column_argument_pydantic(method: str) -> None:
     assert p.default_schema.tables['some_data']['columns']['a']['nullable'] is True
     assert p.default_schema.tables['some_data']['columns']['b']['data_type'] == 'text'
     assert p.default_schema.tables['some_data']['columns']['b']['nullable'] is True
+
+
+def test_extract_pydantic_models() -> None:
+    pipeline = dlt.pipeline(destination='duckdb')
+
+    class User(BaseModel):
+        user_id: int
+        name: str
+
+    @dlt.resource
+    def users() -> Iterator[User]:
+        yield User(user_id=1, name="a")
+        yield User(user_id=2, name="b")
+
+    pipeline.extract(users())
+
+    storage = ExtractorStorage(pipeline._normalize_storage_config)
+    expect_extracted_file(
+        storage, pipeline.pipeline_name, "users", json.dumps([{"user_id": 1, "name": "a"}, {"user_id": 2, "name": "b"}])
+    )

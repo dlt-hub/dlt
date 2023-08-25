@@ -43,8 +43,6 @@ def pydantic_to_table_schema_columns(model: Union[BaseModel, Type[BaseModel]]) -
             "name": name,
             "data_type": py_type_to_sc_type(inner_type),
             "nullable": nullable,
-
-
         }
 
     return result
