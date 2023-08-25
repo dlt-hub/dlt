@@ -5,7 +5,7 @@ from datetime import datetime, date  # noqa: I251
 from dlt.common import Decimal
 
 from pydantic import BaseModel
-from dlt.common.pydantic import pydantic_to_table_schema_columns
+from dlt.common.libs.pydantic import pydantic_to_table_schema_columns
 
 
 @pytest.mark.parametrize('instance', [True, False])
