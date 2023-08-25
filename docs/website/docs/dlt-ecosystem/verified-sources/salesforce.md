@@ -182,7 +182,7 @@ def opportunity(
 
     yield from get_records(
         client, "Opportunity", last_timestamp.last_value, "SystemModstamp"
-		)
+    )
 ```
 
 `last_timestamp`: Argument that will receive [incremental](../../general-usage/incremental-loading) state, initialized with "initial_value".
