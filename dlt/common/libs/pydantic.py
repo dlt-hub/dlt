@@ -23,7 +23,7 @@ def pydantic_to_table_schema_columns(model: Union[BaseModel, Type[BaseModel]]) -
     result: TTableSchemaColumns = {}
 
     fields = model.__fields__
-    for field_name, field in fields.items():  # type: ignore[union-attr]
+    for field_name, field in fields.items():
         annotation = field.annotation
         nullable = is_optional_type(annotation)
 
