@@ -68,8 +68,11 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         stage_file_path = ""
 
         if bucket_path:
-            # s3 credentials case
-            if bucket_path.startswith("s3://") and staging_credentials and isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+            # referencing an external s3 stage does not require explicit AWS credentials
+            if bucket_path.startswith("s3://") and stage_name:
+                from_clause = f"FROM '@{stage_name}'"
+            # referencing an staged files via a bucket URL requires explicit AWS credentials
+            elif bucket_path.startswith("s3://") and staging_credentials and isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
                 credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"""
                 from_clause = f"FROM '{bucket_path}'"
             else:
