@@ -289,7 +289,7 @@ def test_empty_dataset_allowed() -> None:
     # check if we use localhost
     client: WeaviateClient = p._destination_client()
     if "localhost" not in client.config.credentials.url:
-        pytest.skip(reason="skip to avoid race condition with other tests")
+        pytest.skip("skip to avoid race condition with other tests")
 
     assert p.dataset_name is None
     info = p.run(weaviate_adapter(["context", "created", "not a stop word"], vectorize=["value"]))
@@ -310,7 +310,7 @@ def test_vectorize_property_without_data() -> None:
     # check if we use localhost
     client: WeaviateClient = p._destination_client()
     if "localhost" not in client.config.credentials.url:
-        pytest.skip(reason="skip to avoid race condition with other tests")
+        pytest.skip("skip to avoid race condition with other tests")
 
     assert p.dataset_name is None
     info = p.run(weaviate_adapter(["a", "b", "c"], vectorize=["content"]))
