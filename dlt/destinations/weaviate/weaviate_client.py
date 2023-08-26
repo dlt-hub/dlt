@@ -69,6 +69,13 @@ WT_TO_SCT: Dict[str, TDataType] = {
     "blob": "binary",
 }
 
+NON_VECTORIZED_CLASS = {
+    "vectorizer": "none",
+    "vectorIndexConfig": {
+        "skip": True,
+    }
+}
+
 
 def wrap_weaviate_error(f: TFun) -> TFun:
     @wraps(f)
@@ -243,9 +250,12 @@ class WeaviateClient(JobClientBase):
 
     @staticmethod
     def create_db_client(config: WeaviateClientConfiguration) -> weaviate.Client:
+        auth_client_secret: weaviate.AuthApiKey = weaviate.AuthApiKey(api_key=config.credentials.api_key) if config.credentials.api_key else None
         return weaviate.Client(
             url=config.credentials.url,
-            auth_client_secret=weaviate.AuthApiKey(api_key=config.credentials.api_key),
+            timeout_config=(config.conn_timeout, config.read_timeout),
+            startup_period=config.startup_period,
+            auth_client_secret=auth_client_secret,
             additional_headers=config.credentials.additional_headers,
         )
 
@@ -389,7 +399,7 @@ class WeaviateClient(JobClientBase):
 
     def create_sentinel_class(self) -> None:
         """Create an empty class to indicate that the storage is initialized."""
-        self.create_class({}, full_class_name=self.sentinel_class)
+        self.create_class(NON_VECTORIZED_CLASS, full_class_name=self.sentinel_class)
 
     def delete_sentinel_class(self) -> None:
         """Delete the sentinel class."""
@@ -429,7 +439,7 @@ class WeaviateClient(JobClientBase):
             if len(new_columns) > 0:
                 if exists:
                     for column in new_columns:
-                        prop = self._make_property_schema(column["name"], column, True)
+                        prop = self._make_property_schema(column["name"], column)
                         self.create_class_property(table_name, prop)
                 else:
                     class_schema = self.make_weaviate_class_schema(table_name)
@@ -488,75 +498,53 @@ class WeaviateClient(JobClientBase):
 
     def make_weaviate_class_schema(self, table_name: str) -> Dict[str, Any]:
         """Creates a Weaviate class schema from a table schema."""
-        if table_name.startswith(self.schema._dlt_tables_prefix):
-            return self._make_non_vectorized_class_schema(table_name)
+        class_schema: Dict[str, Any] = {
+            "class": table_name,
+            "properties": self._make_properties(table_name),
+        }
 
-        return self._make_vectorized_class_schema(table_name)
+        # check if any column requires vectorization
+        if get_columns_names_with_prop(self.schema.get_table(table_name), VECTORIZE_HINT):  # type: ignore
+            class_schema.update(self._vectorizer_config)
+        else:
+            class_schema.update(NON_VECTORIZED_CLASS)
 
-    def _make_properties(
-        self, table_name: str, is_vectorized_class: bool = True
-    ) -> List[Dict[str, Any]]:
+        return class_schema
+
+    def _make_properties(self, table_name: str) -> List[Dict[str, Any]]:
         """Creates a Weaviate properties schema from a table schema.
 
         Args:
             table: The table name for which columns should be converted to properties
-            is_vectorized_class: Controls whether the `moduleConfig` should be
-                added to the properties schema. This is only needed for
-                vectorized classes.
         """
 
         return [
-            self._make_property_schema(column_name, column, is_vectorized_class)
+            self._make_property_schema(column_name, column)
             for column_name, column in self.schema.get_table_columns(table_name).items()
         ]
 
-    def _make_property_schema(
-        self, column_name: str, column: TColumnSchema, is_vectorized_class: bool
-    ) -> Dict[str, Any]:
+    def _make_property_schema(self, column_name: str, column: TColumnSchema) -> Dict[str, Any]:
         extra_kv = {}
 
-        if is_vectorized_class:
-            vectorizer_name = self._vectorizer_config["vectorizer"]
-
-            # x-weaviate-vectorize: (bool) means that this field should be vectorized
-            if not column.get(VECTORIZE_HINT, False):
-                # do not vectorize
-                extra_kv["moduleConfig"] = {
-                    vectorizer_name: {
-                        "skip": True,
-                    }
+        vectorizer_name = self._vectorizer_config["vectorizer"]
+        # x-weaviate-vectorize: (bool) means that this field should be vectorized
+        if not column.get(VECTORIZE_HINT, False):
+            # tell weaviate explicitly to not vectorize when column has no vectorize hint
+            extra_kv["moduleConfig"] = {
+                vectorizer_name: {
+                    "skip": True,
                 }
+            }
 
-            # x-weaviate-tokenization: (str) specifies the method to use
-            # for tokenization
-            if TOKENIZATION_HINT in column:
-                extra_kv["tokenization"] = column[TOKENIZATION_HINT]  # type: ignore
+        # x-weaviate-tokenization: (str) specifies the method to use
+        # for tokenization
+        if TOKENIZATION_HINT in column:
+            extra_kv["tokenization"] = column[TOKENIZATION_HINT]  # type: ignore
 
         return {
             "name": column_name,
             "dataType": [self._to_db_type(column["data_type"])],
             **extra_kv,
-        }
-
-    def _make_vectorized_class_schema(self, table_name: str) -> Dict[str, Any]:
-        properties = self._make_properties(table_name)
-
-        return {
-            "class": table_name,
-            "properties": properties,
-            **self._vectorizer_config,
-        }
-
-    def _make_non_vectorized_class_schema(self, table_name: str) -> Dict[str, Any]:
-        properties = self._make_properties(table_name, is_vectorized_class=False)
-
-        return {
-            "class": table_name,
-            "properties": properties,
-            "vectorizer": "none",
-            "vectorIndexConfig": {
-                "skip": True,
-            },
         }
 
     def start_file_load(
