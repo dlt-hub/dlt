@@ -35,7 +35,7 @@ AZ_BUCKET = dlt.config.get("tests.bucket_url_az", str)
 FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
 
-ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or ["s3", "gs", "file", "memory"]
+ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or ["s3", "gs", "az", "file", "memory"]
 
 # Filter out buckets not in all filesystem drivers
 ALL_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET]
