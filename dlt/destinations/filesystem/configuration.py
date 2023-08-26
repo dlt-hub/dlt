@@ -4,7 +4,7 @@ from typing import Final, Type, Optional, Union, TYPE_CHECKING
 
 from dlt.common.configuration import configspec, resolve_type
 from dlt.common.destination.reference import CredentialsConfiguration, DestinationClientStagingConfiguration
-from dlt.common.configuration.specs import GcpServiceAccountCredentials, AwsCredentials, GcpOAuthCredentials
+from dlt.common.configuration.specs import GcpServiceAccountCredentials, AwsCredentials, GcpOAuthCredentials, AzureCredentials, AzureCredentialsWithoutDefaults
 from dlt.common.utils import digest128
 from dlt.common.configuration.exceptions import ConfigurationValueError
 
@@ -13,7 +13,8 @@ PROTOCOL_CREDENTIALS = {
     "gs": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
     "gcs": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
     "gdrive": GcpOAuthCredentials,
-    "s3": AwsCredentials
+    "s3": AwsCredentials,
+    "az": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
 }
 
 
@@ -21,7 +22,7 @@ PROTOCOL_CREDENTIALS = {
 class FilesystemClientConfiguration(DestinationClientStagingConfiguration):
     destination_name: Final[str] = "filesystem"  # type: ignore
     # should be an union of all possible credentials as found in PROTOCOL_CREDENTIALS
-    credentials: Union[AwsCredentials, GcpServiceAccountCredentials, GcpOAuthCredentials]
+    credentials: Union[AwsCredentials, GcpServiceAccountCredentials, GcpOAuthCredentials, AzureCredentials]
 
     @property
     def protocol(self) -> str:
