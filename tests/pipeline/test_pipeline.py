@@ -226,7 +226,7 @@ def test_destination_explicit_credentials(environment: Any) -> None:
     assert config.credentials.is_resolved()
     # if string cannot be parsed
     p = dlt.pipeline(pipeline_name="postgres_pipeline", destination="filesystem", credentials="PR8BLEM")
-    with pytest.raises(NativeValueError) as ne_x:
+    with pytest.raises(NativeValueError):
         p._get_destination_client_initial_config(p.destination)
 
 
