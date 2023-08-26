@@ -112,7 +112,7 @@ def _airflow_providers() -> List[ConfigProvider]:
         # hide stdio. airflow typically dumps tons of warnings and deprecations to stdout and stderr
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             # try to get dlt secrets variable. many broken Airflow installations break here. in that case do not create
-            from airflow.models import Variable # noqa
+            from airflow.models import Variable, TaskInstance # noqa
             from dlt.common.configuration.providers.airflow import AirflowSecretsTomlProvider
             # probe if Airflow variable containing all secrets is present
             from dlt.common.configuration.providers.toml import SECRETS_TOML_KEY
@@ -123,7 +123,7 @@ def _airflow_providers() -> List[ConfigProvider]:
 
             # check if we are in task context and provide more info
             from airflow.operators.python import get_current_context  # noqa
-            ti = get_current_context()["ti"]
+            ti: TaskInstance = get_current_context()["ti"]  # type: ignore
 
         # log outside of stderr/out redirect
         if secrets_toml_var is None:

@@ -23,7 +23,7 @@ PROTOCOL_CREDENTIALS = {
 class FilesystemClientConfiguration(DestinationClientStagingConfiguration):
     destination_name: Final[str] = "filesystem"  # type: ignore
     # should be an union of all possible credentials as found in PROTOCOL_CREDENTIALS
-    credentials: Union[AwsCredentials, GcpServiceAccountCredentials, GcpOAuthCredentials, AzureCredentials]
+    credentials: Union[AwsCredentials, GcpServiceAccountCredentials, AzureCredentials, GcpOAuthCredentials]
 
     @property
     def protocol(self) -> str:
