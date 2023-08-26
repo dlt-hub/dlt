@@ -1,7 +1,7 @@
 from typing import Type, Union, get_type_hints, get_args
 
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.schema.typing import TTableSchemaColumns, TColumnSchema
+from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.data_types import py_type_to_sc_type, TDataType
 from dlt.common.typing import is_optional_type, extract_inner_type, is_list_generic_type, is_dict_generic_type, is_union
 

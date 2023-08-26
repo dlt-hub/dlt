@@ -11,7 +11,6 @@ try:
 except ImportError:
     PydanticBaseModel = None  # type: ignore[misc]
 
-from dlt.common.exceptions import MissingDependencyException
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
 from dlt.common.utils import map_nested_in_place
