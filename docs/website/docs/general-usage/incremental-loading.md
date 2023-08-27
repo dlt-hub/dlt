@@ -168,25 +168,32 @@ def repo_issues(
     repository,
     created_at = dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z")
 ):
-    # get issues from created from last "created_at" value
-    for page in _get_issues_page(access_token, repository, since=created_at.last_value):
+    # get issues since "created_at" stored in state on previous run (or initial_value on first run)
+    for page in _get_issues_page(access_token, repository, since=created_at.start_value):
         yield page
+        # last_value is updated after every page
+        print(created_at.last_value)
 ```
 
 Here we add `created_at` argument that will receive incremental state, initialized to
 `1970-01-01T00:00:00Z`. It is configured to track `created_at` field in issues returned by
 `_get_issues_page` and then yielded. It will store the newest `created_at` value in `dlt`
-[state](state.md) and make it available in `created_at.last_value` on next pipeline
+[state](state.md) and make it available in `created_at.start_value` on next pipeline
 run. This value is used to request only issues newer (or equal) via GitHub API.
 
-On the first run of this resource, all the issues (we use "1970-01-01T00:00:00Z" as initial to get
-all of them) will be loaded and the `created_at.last_value` will get the `created_at` of most recent
-issue. On the second run we'll pass this value to `_get_issues_page` to get only the newer issues.
+In essence, `dlt.sources.incremental` instance above
+* **created_at.initial_value** which is always equal to "1970-01-01T00:00:00Z" passed in constructor
+* **created_at.start_value** a maximum `created_at` value from the previous run or the **initial_value** on first run
+* **created_at.last_value** a "real time" `created_at` value updated with each yielded item or page. before first yield it equals **start_value**
+* **created_at.end_value** (here not used) [marking end of backfill range](#using-dltsourcesincremental-for-backfill)
+
+When paginating you probably need **start_value** which does not change during the execution of the resource, however
+most paginators will return a **next page** link which you should use.
 
 Behind the scenes, `dlt` will deduplicate the results ie. in case the last issue is returned again
 (`created_at` filter is inclusive) and skip already loaded ones. In the example below we
 incrementally load the GitHub events, where API does not let us filter for the newest events - it
-always returns all of them. Nevertheless, `dlt` will load only the incremental part, skipping all the
+always returns all of them. Nevertheless, `dlt` will load only the new items, filtering out all the
 duplicates and past issues.
 
 ```python
@@ -215,7 +222,13 @@ The `start_out_of_range` boolean flag is set when the first such element is yiel
 since we know that github returns results ordered from newest to oldest, we know that all subsequent
 items will be filtered out anyway and there's no need to fetch more data.
 
-`dlt.sources.incremental` allows to define custom `last_value` function. This lets you define
+### max, min or custom `last_value_func`
+
+`dlt.sources.incremental` allows to choose a function that orders (compares) values coming from the items to current `last_value`.
+* The default function is built-in `max` which returns bigger value of the two
+* Another built-in `min` returns smaller value.
+
+You can pass your custom function as well. This lets you define
 `last_value` on complex types i.e. dictionaries and store indexes of last values, not just simple
 types. The `last_value` argument is a [JSON Path](https://github.com/json-path/JsonPath#operators)
 and lets you select nested and complex data (including the whole data item when `$` is used).
@@ -243,6 +256,8 @@ def get_events(last_created_at = dlt.sources.incremental("$", last_value_func=by
     with open("tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8") as f:
         yield json.load(f)
 ```
+
+### Deduplication primary_key
 
 `dlt.sources.incremental` let's you optionally set a `primary_key` that is used exclusively to
 deduplicate and which does not become a table hint. The same setting lets you disable the
@@ -304,7 +319,7 @@ def repo_issues(
     created_at = dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z", end_value="2022-07-01T00:00:00Z")
 ):
     # get issues from created from last "created_at" value
-    for page in _get_issues_page(access_token, repository, since=created_at.last_value, until=created_at.end_value):
+    for page in _get_issues_page(access_token, repository, since=created_at.start_value, until=created_at.end_value):
         yield page
 ```
 Above we use `initial_value` and `end_value` arguments of the `incremental` to define the range of issues that we want to retrieve
@@ -345,7 +360,7 @@ def tickets(
     ),
 ):
     for page in zendesk_client.get_pages(
-        "/api/v2/incremental/tickets", "tickets", start_time=updated_at.last_value
+        "/api/v2/incremental/tickets", "tickets", start_time=updated_at.start_value
     ):
         yield page
 ```
@@ -464,7 +479,7 @@ def tickets(
     ),
 ):
     for page in zendesk_client.get_pages(
-        "/api/v2/incremental/tickets", "tickets", start_time=updated_at.last_value
+        "/api/v2/incremental/tickets", "tickets", start_time=updated_at.start_value
     ):
         yield page
 

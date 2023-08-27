@@ -18,7 +18,7 @@ from dlt.common.source import unset_current_pipe_name, set_current_pipe_name
 from dlt.common.typing import AnyFun, AnyType, TDataItems
 from dlt.common.utils import get_callable_name
 
-from dlt.extract.exceptions import CreatePipeException, DltSourceException, ExtractorException, InvalidResourceDataTypeFunctionNotAGenerator, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeException, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError
+from dlt.extract.exceptions import CreatePipeException, DltSourceException, ExtractorException, InvalidResourceDataTypeFunctionNotAGenerator, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeException, PipeGenInvalid, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError
 from dlt.extract.typing import DataItemWithMeta, ItemTransform, SupportsPipe, TPipedDataItems
 
 if TYPE_CHECKING:
@@ -454,7 +454,8 @@ class PipeIterator(Iterator[PipeItem]):
         pipe = pipe._clone()
         # head must be iterator
         pipe.evaluate_gen()
-        assert isinstance(pipe.gen, Iterator)
+        if not isinstance(pipe.gen, Iterator):
+            raise PipeGenInvalid(pipe.name, pipe.gen)
         # create extractor
         extract = cls(max_parallel_items, workers, futures_poll_interval, next_item_mode)
         # add as first source
@@ -495,7 +496,8 @@ class PipeIterator(Iterator[PipeItem]):
             else:
                 # head of independent pipe must be iterator
                 pipe.evaluate_gen()
-                assert isinstance(pipe.gen, Iterator)
+                if not isinstance(pipe.gen, Iterator):
+                    raise PipeGenInvalid(pipe.name, pipe.gen)
                 # add every head as source only once
                 if not any(i.pipe == pipe for i in extract._sources):
                     extract._sources.append(SourcePipeItem(pipe.gen, 0, pipe, None))

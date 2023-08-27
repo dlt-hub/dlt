@@ -34,11 +34,15 @@ class DltResourceSchema:
             self.set_template(table_schema_template)
 
     @property
-    def table_name(self) -> str:
-        """Get table name to which resource loads data. Raises in case of table names derived from data."""
+    def table_name(self) -> TTableHintTemplate[str]:
+        """Get table name to which resource loads data. May return a callable."""
         if self._table_name_hint_fun:
-            raise DataItemRequiredForDynamicTableHints(self._name)
-        return self._table_schema_template["name"] if self._table_schema_template else self._name  # type: ignore
+            return self._table_name_hint_fun
+        return self._table_schema_template["name"] if self._table_schema_template else self._name
+
+    @table_name.setter
+    def table_name(self, value: TTableHintTemplate[str]) -> None:
+        self.apply_hints(table_name=value)
 
     @property
     def write_disposition(self) -> TWriteDisposition:
