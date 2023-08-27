@@ -1,5 +1,3 @@
-from pydantic import BaseModel
-
 import dlt
 from dlt.common import json
 from dlt.common.storages import NormalizeStorageConfiguration
