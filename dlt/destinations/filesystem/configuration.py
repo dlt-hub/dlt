@@ -15,6 +15,7 @@ PROTOCOL_CREDENTIALS = {
     "gdrive": GcpOAuthCredentials,
     "s3": AwsCredentials,
     "az": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
+    "abfs": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
 }
 
 

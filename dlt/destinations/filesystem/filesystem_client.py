@@ -17,7 +17,7 @@ def client_from_config(config: FilesystemClientConfiguration) -> Tuple[AbstractF
     fs_kwargs: DictStrAny = {}
     if proto == "s3":
         fs_kwargs.update(cast(AwsCredentials, config.credentials).to_s3fs_credentials())
-    elif proto == "az":
+    elif proto in ["az", "abfs"]:
         fs_kwargs.update(cast(AzureCredentials, config.credentials).to_adlfs_credentials())
     elif proto in ['gcs', 'gs']:
         assert isinstance(config.credentials, GcpCredentials)
