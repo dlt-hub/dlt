@@ -1,7 +1,15 @@
-from typing import Union, List, Any
+from typing import Union, List, Any, Sequence, cast
+from collections.abc import Mapping as C_Mapping
 
-from dlt.extract.typing import TTableHintTemplate, TDataItem
-from dlt.common.schema.typing import TColumnNames
+from dlt.common.exceptions import MissingDependencyException
+from dlt.extract.typing import TTableHintTemplate, TDataItem, TFunHintTemplate
+from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
+from dlt.common.typing import TDataItem
+
+try:
+    from dlt.common import pydantic
+except MissingDependencyException:
+    pydantic = None
 
 
 def resolve_column_value(column_hint: TTableHintTemplate[TColumnNames], item: TDataItem) -> Union[Any, List[Any]]:
@@ -12,3 +20,33 @@ def resolve_column_value(column_hint: TTableHintTemplate[TColumnNames], item: TD
     if isinstance(columns, str):
         return item[columns]
     return [item[k] for k in columns]
+
+
+def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColumns:
+    """Convert supported column schema types to a column dict which
+    can be used in resource schema.
+
+    Args:
+        columns: A dict of column schemas, a list of column schemas, or a pydantic model
+    """
+    if isinstance(columns, C_Mapping):
+        # Assume dict is already in the correct format
+        return columns
+    elif isinstance(columns, Sequence):
+        # Assume list of columns
+        return {col['name']: col for col in columns}
+    elif pydantic is not None and (
+        isinstance(columns, pydantic.BaseModel) or issubclass(columns, pydantic.BaseModel)
+    ):
+        return pydantic.pydantic_to_table_schema_columns(columns)
+
+    raise ValueError(f"Unsupported columns type: {type(columns)}")
+
+
+def ensure_table_schema_columns_hint(columns: TTableHintTemplate[TAnySchemaColumns]) -> TTableHintTemplate[TTableSchemaColumns]:
+    if callable(columns) and not isinstance(columns, type):
+        def wrapper(item: TDataItem) -> TTableSchemaColumns:
+            return ensure_table_schema_columns(cast(TFunHintTemplate[TAnySchemaColumns], columns)(item))
+        return wrapper
+
+    return ensure_table_schema_columns(columns)

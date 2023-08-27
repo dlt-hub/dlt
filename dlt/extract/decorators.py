@@ -14,7 +14,8 @@ from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.pipeline import PipelineContext
 from dlt.common.source import _SOURCES, SourceInfo
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns, TWriteDisposition
+from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns
+from dlt.extract.utils import ensure_table_schema_columns_hint
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
@@ -196,7 +197,7 @@ def resource(
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-    columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
@@ -211,7 +212,7 @@ def resource(
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-    columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
@@ -226,7 +227,7 @@ def resource(
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-    columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
@@ -241,7 +242,7 @@ def resource(
     name: str = None,
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-    columns: TTableHintTemplate[TTableSchemaColumns] = None,
+    columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
@@ -304,10 +305,11 @@ def resource(
         DltResource instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
     def make_resource(_name: str, _section: str, _data: Any, incremental: IncrementalResourceWrapper = None) -> DltResource:
+        schema_columns = ensure_table_schema_columns_hint(columns) if columns is not None else None
         table_template = DltResource.new_table_template(
             table_name or _name,
             write_disposition=write_disposition,
-            columns=columns,
+            columns=schema_columns,
             primary_key=primary_key,
             merge_key=merge_key
         )
