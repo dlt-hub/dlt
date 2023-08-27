@@ -73,6 +73,58 @@ accepts following arguments:
 > 💡 You can mark some resource arguments as configuration and [credentials](credentials.md)
 > values so `dlt` can pass them automatically to your functions.
 
+### Define a schema with Pydantic
+
+You can alternatively use a [Pydantic](https://pydantic-docs.helpmanual.io/) model to define the schema.
+For example:
+
+
+```python
+from pydantic import BaseModel
+
+
+class Address(BaseModel):
+    street: str
+    city: str
+    postal_code: str
+
+
+class User(BaseModel):
+    id: int
+    name: str
+    tags: List[str]
+    email: Optional[str]
+    address: Address
+    status: Union[int, str]
+
+
+@dlt.resource(name="user", columns=User)
+def get_users():
+    ...
+```
+
+The data types of the table columns are inferred from the types of the pydantic fields. These use the same type conversions
+as when the schema is automatically generated from the data.
+
+Things to note:
+
+- Fields with an `Optional` type are marked as `nullable`
+- Fields with a `Union` type are converted to the first (not `None`) type listed in the union. E.g. `status: Union[int, str]` results in a `bigint` column.
+- `list`, `dict` and nested pydantic model fields will use the `complex` type which means they'll be stored as a JSON object in the database instead of creating child tables. You can override this by manually calling the pydantic helper with `skip_complex_types=True`, see below:
+
+```python
+from dlt.common.lib.pydantic import pydantic_to_table_schema_columns
+
+...
+
+@dlt.resource(name="user", columns=pydantic_to_table_schema_columns(User, skip_complex_types=True))
+def get_users():
+    ...
+```
+
+This omits any `dict`/`list`/`BaseModel` type fields from the schema, so dlt will fall back on the default
+behaviour of creating child tables for these fields.
+
 ### Dispatch data to many tables
 
 You can load data to many tables from a single resource. The most common case is a stream of events
