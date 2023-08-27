@@ -20,6 +20,7 @@ from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.pipeline import NormalizeInfo
 from dlt.common.utils import chunks, TRowCount, merge_row_count, increase_row_count
+from dlt.normalize.exceptions import SchemaFrozenException
 
 from dlt.normalize.configuration import NormalizeConfiguration
 
@@ -158,7 +159,7 @@ class Normalize(Runnable[ProcessPool]):
 
                     # if there is a schema update and we disallow any data not fitting the schema, raise!
                     elif partial_table and config.schema_update_mode == "freeze-and-raise":
-                        raise Exception("Schema frozen!")
+                        raise SchemaFrozenException(f"Trying to modify table {table_name} but schema is frozen.")
 
                     # theres a new table or new columns in existing table
                     elif partial_table:
