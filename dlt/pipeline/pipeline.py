@@ -779,10 +779,7 @@ class Pipeline(SupportsPipeline):
                 columns_dict = {c["name"]:c for c in columns}
             # apply hints only if any of the hints is present, table_name must be always present
             if table_name or parent_table_name or write_disposition or columns or primary_key:
-                resource_table_name: str = None
-                with contextlib.suppress(DataItemRequiredForDynamicTableHints):
-                    resource_table_name = resource.table_name
-                resource.apply_hints(table_name or resource_table_name or resource.name, parent_table_name, write_disposition, columns_dict, primary_key)
+                resource.apply_hints(table_name or resource.table_name or resource.name, parent_table_name, write_disposition, columns_dict, primary_key)
 
         def choose_schema() -> Schema:
             """Except of explicitly passed schema, use a clone that will get discarded if extraction fails"""

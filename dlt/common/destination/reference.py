@@ -54,7 +54,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     def normalize_dataset_name(self, schema: Schema) -> str:
         """Builds full db dataset (schema) name out of configured dataset name and schema name: {dataset_name}_{schema.name}. The resulting name is normalized.
 
-           If default schema name equals schema.name, the schema suffix is skipped.
+           If default schema name is None or equals schema.name, the schema suffix is skipped.
         """
         if not schema.name:
             raise ValueError("schema_name is None or empty")
