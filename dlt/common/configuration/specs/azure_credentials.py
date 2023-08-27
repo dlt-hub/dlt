@@ -17,6 +17,8 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
     azure_storage_account_name: str = None
     azure_storage_account_key: Optional[TSecretStrValue] = None
     azure_storage_sas_token: TSecretStrValue = None
+    azure_sas_token_permissions: str = "racwdl"
+    """Permissions to use when generating a SAS token. Ignored when sas token is provided directly"""
 
     def to_adlfs_credentials(self) -> Dict[str, Any]:
         """Return a dict that can be passed as kwargs to adlfs"""
@@ -32,7 +34,7 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
             account_name=self.azure_storage_account_name,
             account_key=self.azure_storage_account_key,
             resource_types=ResourceTypes(container=True, object=True),
-            permission='rwdlacx',
+            permission=self.azure_sas_token_permissions,
             expiry=pendulum.now().add(days=1)
         )
 
