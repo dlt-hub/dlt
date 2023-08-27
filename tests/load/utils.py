@@ -90,7 +90,7 @@ def destinations_configs(
         all_staging_configs: bool = False,
         local_filesystem_configs: bool = False,
         all_buckets_filesystem_configs: bool = False,
-        subset: List[str] = "") -> Iterator[DestinationTestConfiguration]:
+        subset: Sequence[str] = ()) -> List[DestinationTestConfiguration]:
 
     # sanity check
     for item in subset:
@@ -113,8 +113,8 @@ def destinations_configs(
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, stage_name="PUBLIC.dlt_gcs_stage", extra_info="gcs-integration"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AWS_BUCKET, extra_info="s3-integration"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AWS_BUCKET, stage_name="PUBLIC.dlt_s3_stage", extra_info="s3-integration"),
-            # DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AZ_BUCKET, stage_name="PUBLIC.dlt_az_stage", extra_info="az_integration")
-            DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AZ_BUCKET, extra_info="az-integration"),
+            DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AZ_BUCKET, stage_name="PUBLIC.dlt_az_stage", extra_info="az-integration"),
+            DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AZ_BUCKET, extra_info="az-authorization"),
         ]
 
     if all_staging_configs:
