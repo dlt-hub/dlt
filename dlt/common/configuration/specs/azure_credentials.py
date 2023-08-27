@@ -32,14 +32,13 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
             account_name=self.azure_storage_account_name,
             account_key=self.azure_storage_account_key,
             resource_types=ResourceTypes(container=True, object=True),
-            permission='rwdlac',
+            permission='rwdlacx',
             expiry=pendulum.now().add(days=1)
         )
 
     def on_partial(self) -> None:
-        if not self.azure_storage_account_key and not self.azure_storage_sas_token:
-            raise ValueError("Either azure_storage_account_key or azure_storage_sas_token must be set")
-        if not self.azure_storage_sas_token:
+        # sas token can be generated from account key
+        if self.azure_storage_account_key and not self.azure_storage_sas_token:
             self.create_sas_token()
         if not self.is_partial():
             self.resolve()
