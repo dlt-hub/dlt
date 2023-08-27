@@ -49,7 +49,7 @@ To get started with your data pipeline, follow these steps:
    ```
 
    [This command](../../reference/command-line-interface) will initialize
-   [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/shopidy_dlt_pipeline.py)
+   [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/shopify_dlt_pipeline.py)
    with Shopify as the [source](../../general-usage/source) and [duckdb](../destinations/duckdb.md)
    as the [destination](../destinations).
 
@@ -161,19 +161,19 @@ This resource loads products from your Shopify shop into the destination. It sup
 loading and pagination.
 
 ```python
- @dlt.resource(primary_key="id", write_disposition="merge")
-    def products(
-        updated_at: dlt.sources.incremental[
-            pendulum.DateTime
-        ] = dlt.sources.incremental(
-            "updated_at",
-            initial_value=start_date_obj,
-            end_value=end_date_obj,
-            allow_external_schedulers=True,
-        ),
-        created_at_min: pendulum.DateTime = created_at_min_obj,
-        items_per_page: int = items_per_page,
-    ) -> Iterable[TDataItem]:
+@dlt.resource(primary_key="id", write_disposition="merge")
+   def products(
+       updated_at: dlt.sources.incremental[
+           pendulum.DateTime
+       ] = dlt.sources.incremental(
+           "updated_at",
+           initial_value=start_date_obj,
+           end_value=end_date_obj,
+           allow_external_schedulers=True,
+       ),
+       created_at_min: pendulum.DateTime = created_at_min_obj,
+       items_per_page: int = items_per_page,
+) -> Iterable[TDataItem]:
 ```
 
 `updated_at`: The saved [state](../../general-usage/state) of the last 'updated_at' value.
@@ -195,7 +195,7 @@ verified source.
        pipeline_name="shopify",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
        dataset_name="shopify_data"  # Use a custom name if desired
-    )
+   )
    ```
 
    To read more about pipeline configuration, please refer to our
@@ -220,7 +220,6 @@ verified source.
    # Load all orders from 2023-01-01 to now
    min_start_date = current_start_date = pendulum.datetime(2023, 1, 1)
    max_end_date = pendulum.now()
-
    # Create a list of time ranges of 1 week each, we'll use this to load the data in chunks
    ranges: List[Tuple[pendulum.DateTime, pendulum.DateTime]] = []
    while current_start_date < max_end_date:
