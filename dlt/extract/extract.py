@@ -142,7 +142,7 @@ def extract(
                             _write_dynamic_table(resource, pipe_item.item)
                     else:
                         # write item belonging to table with static name
-                        table_name = resource.table_name
+                        table_name = resource.table_name  # type: ignore
                         _write_static_table(resource, table_name)
                         _write_item(table_name, resource.name, pipe_item.item)
 

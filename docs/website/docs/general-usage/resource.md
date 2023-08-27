@@ -242,6 +242,12 @@ tables.users.apply_hints(
 pipeline.run(tables)
 ```
 
+To just change a name of a table to which resource will load data, do the following:
+```python
+tables = sql_database()
+tables.users.table_name = "other_users"
+```
+
 ## Load resources
 
 You can pass individual resources or list of resources to the `dlt.pipeline` object. The resources

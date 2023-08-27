@@ -349,6 +349,15 @@ def test_transformer_preliminary_step() -> None:
     assert list(dlt.resource(["A", "b", "C"], name="data") | tx_stage) == ['A', 'A', 'B', 'B', 'C', 'C']
 
 
+def test_set_table_name() -> None:
+    r = dlt.resource(["A", "b", "C"], name="data")
+    assert r.table_name == "data"
+    r.table_name = "letters"
+    assert r.table_name == "letters"
+    r.table_name = lambda letter: letter
+    assert callable(r.table_name)
+
+
 def test_select_resources() -> None:
 
     @dlt.source
