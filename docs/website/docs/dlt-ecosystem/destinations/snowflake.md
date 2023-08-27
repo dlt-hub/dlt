@@ -75,7 +75,7 @@ The **password authentication** is not any different from other databases like P
 You can also pass credentials as a database connection string. For example:
 ```toml
 # keep it at the top of your toml file! before any section starts
-destination.postgres.snowflake="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?warehouse=COMPUTE_WH&role=DLT_LOADER_ROLE"
+destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?warehouse=COMPUTE_WH&role=DLT_LOADER_ROLE"
 ```
 
 In **key pair authentication** you replace password with a private key exported in PEM format. The key may be encrypted. In that case you must provide a passphrase.
@@ -95,7 +95,7 @@ private_key_passphrase="passphrase"
 We allow to pass private key and passphrase in connection string. Please url encode the private key and passphrase.
 ```toml
 # keep it at the top of your toml file! before any section starts
-destination.postgres.snowflake="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?private_key=<url encoded pem>&private_key_passphrase=<url encoded passphrase>"
+destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?private_key=<url encoded pem>&private_key_passphrase=<url encoded passphrase>"
 ```
 
 ## Write disposition
