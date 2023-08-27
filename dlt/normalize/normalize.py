@@ -19,13 +19,10 @@ from dlt.common.typing import TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.pipeline import NormalizeInfo
-from dlt.common.utils import chunks
+from dlt.common.utils import chunks, TRowCount, merge_row_count, increase_row_count
 
 from dlt.normalize.configuration import NormalizeConfiguration
 
-
-# row counts
-TRowCount = Dict[str, int]
 # normalize worker wrapping function (map_parallel, map_single) return type
 TMapFuncRV = Tuple[Sequence[TSchemaUpdate], TRowCount]
 # normalize worker wrapping function signature
@@ -33,14 +30,6 @@ TMapFuncType = Callable[[Schema, str, Sequence[str]], TMapFuncRV]  # input param
 # tuple returned by the worker
 TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str], TRowCount]
 
-def increase_row_count(row_counts: TRowCount, table_name: str, count: int) -> None:
-    row_counts[table_name] = row_counts.get(table_name, 0) + count
-
-# merges row counts_2 into row_counts_1
-def merge_row_count(row_counts_1: TRowCount, row_counts_2: TRowCount) -> None:
-    keys = set(row_counts_1.keys()) | set(row_counts_2.keys())
-    for key in keys:
-        row_counts_1[key] = row_counts_1.get(key, 0) + row_counts_2.get(key, 0)
 
 class Normalize(Runnable[ProcessPool]):
 
