@@ -11,11 +11,12 @@ except ImportError:
     raise MissingDependencyException("DLT pydantic Helpers", ["pydantic"], "DLT Helpers for for pydantic.")
 
 
-def pydantic_to_table_schema_columns(model: Union[BaseModel, Type[BaseModel]]) -> TTableSchemaColumns:
+def pydantic_to_table_schema_columns(model: Union[BaseModel, Type[BaseModel]], skip_complex_types: bool = False) -> TTableSchemaColumns:
     """Convert a pydantic model to a table schema columns dict
 
     Args:
         model: The pydantic model to convert. Can be a class or an instance.
+        skip_complex_types: If True, columns of complex types (`dict`, `list`, `BaseModel`) will be excluded from the result.
 
     Returns:
         TTableSchemaColumns: table schema columns dict
@@ -38,10 +39,13 @@ def pydantic_to_table_schema_columns(model: Union[BaseModel, Type[BaseModel]]) -
             inner_type = dict
 
         name = field.alias or field_name
+        data_type = py_type_to_sc_type(inner_type)
+        if data_type == 'complex' and skip_complex_types:
+            continue
 
         result[name] = {
             "name": name,
-            "data_type": py_type_to_sc_type(inner_type),
+            "data_type": data_type,
             "nullable": nullable,
         }
 
