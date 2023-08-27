@@ -1122,8 +1122,8 @@ class Pipeline(SupportsPipeline):
             schema_name = normalize_schema_name(self.pipeline_name)
             with self._maybe_destination_capabilities():
                 schema = Schema(schema_name)
-                schema.update_normalizers()
-                schema._schema_name = schema.naming.normalize_identifier(schema_name)
+                # schema.update_normalizers()
+                # schema._schema_name = schema.naming.normalize_identifier(schema_name)
             with self._get_destination_clients(schema)[0] as job_client:
                 if isinstance(job_client, WithStateSync):
                     state = load_state_from_destination(self.pipeline_name, job_client)
@@ -1145,8 +1145,8 @@ class Pipeline(SupportsPipeline):
         for schema_name in schema_names:
             with self._maybe_destination_capabilities():
                 schema = Schema(schema_name)
-                schema.update_normalizers()
-                schema._schema_name = schema.naming.normalize_identifier(schema_name)
+                # schema.update_normalizers()
+                # schema._schema_name = schema.naming.normalize_identifier(schema_name)
             if not self._schema_storage.has_schema(schema.name) or always_download:
                 with self._get_destination_clients(schema)[0] as job_client:
                     if not isinstance(job_client, WithStateSync):

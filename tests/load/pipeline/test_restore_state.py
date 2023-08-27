@@ -164,20 +164,20 @@ def test_get_schemas_from_destination(destination_config: DestinationTestConfigu
     with p._get_destination_clients(default_schema)[0]  as job_client:
         # just sync schema without name - will use default schema
         p.sync_schema()
-        assert job_client.dataset_name == dataset_name
+        assert job_client.dataset_name == default_schema.naming.normalize_table_identifier(dataset_name)
     schema_two = Schema("two")
     with p._get_destination_clients(schema_two)[0] as job_client:
         # use the job_client to do that
         job_client.initialize_storage()
         job_client.update_stored_schema()
         # this may be a separate dataset depending in use_single_dataset setting
-        assert job_client.dataset_name == _make_dn_name("two")
+        assert job_client.dataset_name == schema_two.naming.normalize_table_identifier(_make_dn_name("two"))
     schema_three = Schema("three")
     p._inject_schema(schema_three)
     with p._get_destination_clients(schema_three)[0] as job_client:
         # sync schema with a name
         p.sync_schema(schema_three.name)
-        assert job_client.dataset_name == _make_dn_name("three")
+        assert job_client.dataset_name == schema_three.naming.normalize_table_identifier(_make_dn_name("three"))
 
     # wipe and restore
     p._wipe_working_folder()
