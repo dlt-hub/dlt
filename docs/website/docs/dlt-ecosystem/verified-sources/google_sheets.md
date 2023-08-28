@@ -22,7 +22,7 @@ loads data using “Google Sheets API” to the destination of your choice.
 Sources and resources that can be loaded using this verified source are:
 
 | Name               | Description                                                |
-|--------------------|------------------------------------------------------------|
+| ------------------ | ---------------------------------------------------------- |
 | google_spreadsheet | Retrieves data from a Google Spreadsheet                   |
 | range_names        | Processes the range and yields data from each range        |
 | spreadsheet_info   | Information about the spreadsheet and the ranges processed |
@@ -172,7 +172,7 @@ converted into tables, named after them and stored in the destination.
 1. You can pass explicit ranges to the google spreadsheet "ranged_names" as:
 
    | Name         | Example                                   |
-   |--------------|-------------------------------------------|
+   | ------------ | ----------------------------------------- |
    | Sheet names  | \["Sheet1","Sheet2","custom_sheet_name"\] |
    | Named ranges | \["range_name1","range_name2"\]           |
    | Any range    | \["Sheet1!A1:B7","Sheet2!B3:E15"\]        |
@@ -221,16 +221,15 @@ For more information, read the
    account authentication:
 
    ```toml
-   [sources.sheets.credentials] ##CHECK IT
+   [sources.google_sheets.credentials] ##CHECK IT
    project_id = "project_id" # please set me up!
    client_email = "client_email" # please set me up!
    private_key = "private_key" # please set me up!
    ```
 
 1. From the ".json" that you
-   [downloaded earlier](google_sheets.md#grab-google-service-account-credentials),
-   copy `project_id`,  `private_key`,
-   and `client_email` under `[sources.google_sheets.credentials]`.
+   [downloaded earlier](google_sheets.md#grab-google-service-account-credentials), copy
+   `project_id`, `private_key`, and `client_email` under `[sources.google_sheets.credentials]`.
 
 1. Alternatively, if you're using OAuth credentials, replace the the fields and values with those
    you [grabbed for OAuth credentials](google_sheets.md#grab-google-oauth-credentials).
@@ -238,7 +237,7 @@ For more information, read the
 1. The secrets.toml for OAuth authentication looks like:
 
    ```toml
-   [sources.sheets.credentials] ##CHECK IT
+   [sources.google_sheets.credentials] ##CHECK IT
    client_id = "client_id" # please set me up!
    client_secret = "client_secret" # please set me up!
    refresh_token = "refresh_token" # please set me up!
@@ -250,9 +249,9 @@ For more information, read the
 1. Next you need to configure ".dlt/config.toml", which looks like:
 
    ```toml
-   [sources.google_sheets.google_spreadsheet]
+   [sources.google_sheets]
+   spreadsheet_url_or_id = "Please set me up!"
    range_names = ["Please set me up!"]
-   spreadsheet_identifier = "Please set me up!"
    ```
 
 1. In range_names, you can enter values as discussed in
@@ -340,10 +339,10 @@ separate tables in the destination.
 
 ```python
 dlt.resource(
-         process_range(rows_data, headers=headers, data_types=data_types),
-         name=name,
-         write_disposition="replace",
-   )
+     process_range(rows_data, headers=headers, data_types=data_types),
+     name=name,
+     write_disposition="replace",
+)
 ```
 
 `process_range`: Function handles rows from a specified Google Spreadsheet range, taking data rows,
@@ -365,11 +364,11 @@ This resource loads the info about the sheets and range names into the destinati
 
 ```python
 dlt.resource(
-         metadata_table,
-         write_disposition="merge",
-         name="spreadsheet_info",
-         merge_key="spreadsheet_id",
-    )
+     metadata_table,
+     write_disposition="merge",
+     name="spreadsheet_info",
+     merge_key="spreadsheet_id",
+)
 ```
 
 `metadata_table`: Contains metadata about the spreadsheet and the ranges processed.
@@ -392,9 +391,9 @@ verified source.
 
    ```python
    pipeline = dlt.pipeline(
-      pipeline_name="google_sheets",  # Use a custom name if desired
-      destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-      dataset_name="google_spreadsheet_data"  # Use a custom name if desired
+        pipeline_name="google_sheets",  # Use a custom name if desired
+        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+        dataset_name="google_spreadsheet_data"  # Use a custom name if desired
    )
    ```
 
@@ -406,9 +405,9 @@ verified source.
         range_names=["range_name1", "range_name2"], # Range names
         get_sheets=False,
         get_named_ranges=False,
-    )
-    load_info = pipeline.run(load_data)
-    print(load_info)
+   )
+   load_info = pipeline.run(load_data)
+   print(load_info)
    ```
 
    > Note: You can pass the URL or spreadsheet ID and range names explicitly or in
@@ -418,12 +417,12 @@ verified source.
 
    ```python
    load_data = google_spreadsheet(
-       "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
+        "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
         get_sheets=False,
         get_named_ranges=True,
-    )
-    load_info = pipeline.run(load_data)
-    print(load_info)
+   )
+   load_info = pipeline.run(load_data)
+   print(load_info)
    ```
 
    > Pass an empty list to range_names in ".dlt/config.toml" to retrieve all range names.
@@ -432,12 +431,12 @@ verified source.
 
    ```python
    load_data = google_spreadsheet(
-       "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
+        "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
         get_sheets=True,
         get_named_ranges=False,
-    )
-    load_info = pipeline.run(load_data)
-    print(load_info)
+   )
+   load_info = pipeline.run(load_data)
+   print(load_info)
    ```
 
    > Pass an empty list to range_names in ".dlt/config.toml" to retrieve all sheets.
@@ -460,15 +459,15 @@ verified source.
 
    ```python
    load_data1 = google_spreadsheet(
-         "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
-         range_names=["Sheet 1!A1:B10"],
-         get_named_ranges=False,
+        "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
+        range_names=["Sheet 1!A1:B10"],
+        get_named_ranges=False,
    )
 
    load_data2 = google_spreadsheet(
         "https://docs.google.com/spreadsheets/d/3jo4HjqouQnnCIZAFa2rL6vT91YRN8aIhts22SKKO390/edit#gid=0", #Spreadsheet URL
-         range_names=["Sheet 1!B1:C10"],
-         get_named_ranges=True,
+        range_names=["Sheet 1!B1:C10"],
+        get_named_ranges=True,
    )
    load_info = pipeline.run([load_data1,load_data2])
    print(load_info)
@@ -478,7 +477,7 @@ verified source.
 
    ```python
    load_data = google_spreadsheet(
-       "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
+        "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
         range_names=["Sheet 1!A1:B10"],
         get_named_ranges=False,
    )
