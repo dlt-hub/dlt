@@ -1,4 +1,4 @@
-# @@@SNIPSTART getting_started_index_snippet_1
+# @@@SNIPSTART getting_started_index_snippet_start
 import dlt
 
 data = [
