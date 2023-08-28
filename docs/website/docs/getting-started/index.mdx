@@ -133,63 +133,20 @@ The library will create/update tables, infer data types and deal with nested dat
 ]}>
   <TabItem value="json">
 
-```python
-import json
-import dlt
-
-with open("test.json", 'r') as file:
-    data = json.load(file)
-
-pipeline = dlt.pipeline(
-	pipeline_name='from_json',
-	destination='duckdb',
-	dataset_name='mydata',
-)
-# dlt works with lists of dicts, so wrap data to the list
-load_info = pipeline.run([data], table_name="json_data")
-print(load_info)
-```
+<!--SNIPSTART getting_started_index_snippet_json -->
+<!--SNIPEND-->
 
   </TabItem>
   <TabItem value="csv">
 
-```python
-import dlt
-import pandas as pd
-
-df = pd.read_csv("test.csv")
-data = df.to_dict(orient='records')
-
-pipeline = dlt.pipeline(
-	pipeline_name='from_csv',
-	destination='duckdb',
-	dataset_name='mydata',
-)
-load_info = pipeline.run(data, table_name="csv_data")
-print(load_info)
-```
+<!--SNIPSTART getting_started_index_snippet_csv -->
+<!--SNIPEND-->
 
   </TabItem>
   <TabItem value="api">
 
-```python
-import dlt
-import requests
-
-# url to request dlt-hub followers
-url = f"https://api.github.com/users/dlt-hub/followers"
-# make the request and return the json
-data = requests.get(url).json()
-
-pipeline = dlt.pipeline(
-	pipeline_name='from_api',
-	destination='duckdb',
-	dataset_name='mydata',
-)
-# dlt works with lists of dicts, so wrap data to the list
-load_info = pipeline.run([data], table_name="followers")
-print(load_info)
-```
+<!--SNIPSTART getting_started_index_snippet_api -->
+<!--SNIPEND-->
 
   </TabItem>
   <TabItem value="database">
@@ -201,29 +158,8 @@ to sync your databases with warehouses, data lakes, or vector stores.
 
 :::
 
-```python
-import dlt
-import duckdb
-
-db_name = "path_to_your_db"  # Replace this with the path to your DuckDB database file
-sql_query = "SELECT * FROM your_table"  # Replace with your SQL query
-
-# connect to the DuckDB
-con = duckdb.connect(db_name)
-# execute SQL query and fetch result
-result = con.execute(query).fetch_df()
-# close the connection
-con.close()
-data = result.to_dict(orient="records")
-
-pipeline = dlt.pipeline(
-    pipeline_name='from_database',
-    destination='duckdb',
-    dataset_name='mydata',
-)
-load_info = pipeline.run(data)
-print(load_info)
-```
+<!--SNIPSTART getting_started_index_snippet_db -->
+<!--SNIPEND-->
 
   </TabItem>
 </Tabs>
