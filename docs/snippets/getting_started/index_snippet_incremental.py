@@ -18,7 +18,7 @@ print(load_info)
 
 # @@@SNIPSTART getting_started_index_snippet_incremental
 import dlt
-import requests
+from dlt.sources.helpers import requests
 
 @dlt.resource(table_name="issues", write_disposition="append")
 def get_issues(
@@ -57,7 +57,7 @@ print(load_info)
 
 # @@@SNIPSTART getting_started_index_snippet_incremental_merge
 import dlt
-import requests
+from dlt.sources.helpers import requests
 
 @dlt.resource(
     table_name="issues",

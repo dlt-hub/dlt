@@ -70,7 +70,7 @@ temp_file.close()
 
 # @@@SNIPSTART getting_started_index_snippet_api
 import dlt
-import requests
+from dlt.sources.helpers import requests
 
 # url to request dlt-hub followers
 url = f"https://api.github.com/users/dlt-hub/followers"
