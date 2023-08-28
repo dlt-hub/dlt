@@ -86,6 +86,8 @@ class Normalize(Runnable[ProcessPool]):
             load_storage = LoadStorage(False, destination_caps.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
             normalize_storage = NormalizeStorage(False, normalize_storage_config)
 
+            schema_has_columns = schema.has_data_columns
+
             try:
                 root_tables: Set[str] = set()
                 populated_root_tables: Set[str] = set()
@@ -99,7 +101,7 @@ class Normalize(Runnable[ProcessPool]):
                         items_count = 0
                         for line_no, line in enumerate(f):
                             items: List[TDataItem] = json.loads(line)
-                            partial_update, items_count, r_counts = Normalize._w_normalize_chunk(normalize_config, load_storage, schema, load_id, root_table_name, items)
+                            partial_update, items_count, r_counts = Normalize._w_normalize_chunk(normalize_config, load_storage, schema, load_id, root_table_name, items, schema_has_columns)
                             schema_updates.append(partial_update)
                             total_items += items_count
                             merge_row_count(row_counts, r_counts)
@@ -128,7 +130,7 @@ class Normalize(Runnable[ProcessPool]):
         return schema_updates, total_items, load_storage.closed_files(), row_counts
 
     @staticmethod
-    def _w_normalize_chunk(config: NormalizeConfiguration, load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem]) -> Tuple[TSchemaUpdate, int, TRowCount]:
+    def _w_normalize_chunk(config: NormalizeConfiguration, load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem], schema_has_columns: bool) -> Tuple[TSchemaUpdate, int, TRowCount]:
         column_schemas: Dict[str, TTableSchemaColumns] = {}  # quick access to column schema for writers below
         schema_update: TSchemaUpdate = {}
         schema_name = schema.name
@@ -146,19 +148,23 @@ class Normalize(Runnable[ProcessPool]):
                         row[k] = custom_pua_decode(v)  # type: ignore
                     # coerce row of values into schema table, generating partial table with new columns if any
                     row, partial_table = schema.coerce_row(table_name, parent_table, row)
-
-                    # if there is a schema update and we froze schema and discaro additional data, clean up
-                    if partial_table and config.schema_update_mode == "freeze-and-discard":
+                    
+                    # if there is a schema update and we froze schema and filter additional data, clean up
+                    if schema_has_columns and partial_table and config.schema_update_mode == "freeze-and-filter":
                         # do not create new tables
-                        if table_name not in schema.tables:
+                        if table_name not in schema.tables or not len(schema.tables[table_name].get("columns", {})):
                             continue
                         # pop unknown values
                         for item in list(row.keys()):
                             if item not in schema.tables[table_name]["columns"]:
                                 row.pop(item)
 
+                    # if there is a schema update and we froze schema and discard additional rows, just continue
+                    elif schema_has_columns and partial_table and config.schema_update_mode == "freeze-and-filter":
+                        continue
+
                     # if there is a schema update and we disallow any data not fitting the schema, raise!
-                    elif partial_table and config.schema_update_mode == "freeze-and-raise":
+                    elif schema_has_columns and partial_table and config.schema_update_mode == "freeze-and-raise":
                         raise SchemaFrozenException(f"Trying to modify table {table_name} but schema is frozen.")
 
                     # theres a new table or new columns in existing table

@@ -5,7 +5,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 from dlt.common.storages import LoadStorageConfiguration, NormalizeStorageConfiguration, SchemaStorageConfiguration
 
-TSchemaUpdateMode = Literal["update-schema", "freeze-and-discard", "freeze-and-raise"]
+TSchemaUpdateMode = Literal["update-schema", "freeze-and-filter", "freeze-and-raise", "freeze-and-discard"]
 
 
 @configspec

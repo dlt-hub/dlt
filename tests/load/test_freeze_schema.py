@@ -7,10 +7,16 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.normalize.exceptions import SchemaFrozenException
 from dlt.common.schema import utils
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["duckdb"]), ids=lambda x: x.name)
-def test_freeze_schema(destination_config: DestinationTestConfiguration) -> None:
+SCHEMA_UPDATE_MODES = ["update-schema", "freeze-and-filter", "freeze-and-raise", "freeze-and-discard"]
 
-    pipeline = destination_config.setup_pipeline("test_freeze_schema", dataset_name="freeze" + uniq_id())
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["duckdb"]), ids=lambda x: x.name)
+@pytest.mark.parametrize("update_mode", SCHEMA_UPDATE_MODES)
+def test_freeze_schema(update_mode: str, destination_config: DestinationTestConfiguration) -> None:
+
+    # freeze pipeline, drop additional values
+    # this will allow for the first run to create the schema, but will not accept further updates after that
+    os.environ['NORMALIZE__SCHEMA_UPDATE_MODE'] = update_mode
+    pipeline = destination_config.setup_pipeline("test_freeze_schema_2", dataset_name="freeze" + uniq_id())
 
     @dlt.resource(name="items", write_disposition="append")
     def load_items():
@@ -44,24 +50,29 @@ def test_freeze_schema(destination_config: DestinationTestConfiguration) -> None
     assert table_counts["items"] == 10
     schema_hash = utils.generate_version_hash(pipeline.default_schema.to_dict())
 
-    # freeze pipeline, drop additional values
-    os.environ['NORMALIZE__SCHEMA_UPDATE_MODE'] = "freeze-and-discard"
-    pipeline.run([load_items_with_subitems], loader_file_format=destination_config.file_format)
-    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    # check schema has not changed
-    assert schema_hash == utils.generate_version_hash(pipeline.default_schema.to_dict())
+
+    # on freeze and raise we expect an exception
+    if update_mode == "freeze-and-raise":
+        with pytest.raises(PipelineStepFailed) as py_ex:
+            pipeline.run([load_items_with_subitems], loader_file_format=destination_config.file_format)
+            assert isinstance(py_ex.value.__context__, SchemaFrozenException)
+    else:
+        pipeline.run([load_items_with_subitems], loader_file_format=destination_config.file_format)
+
+
+
+    # check schema has not changed for frozen modes
+    if update_mode != "update-schema":
+        assert schema_hash == utils.generate_version_hash(pipeline.default_schema.to_dict())
+
+    return 
 
     # check data
+    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 20
     assert "items__sub_items" not in table_counts
     # schema was not migrated to contain new subtable
     assert "items__sub_items" not in pipeline.default_schema.tables
     # schema was not migrated to contain new attribute
     assert "new_attribute" not in pipeline.default_schema.tables["items"]["columns"]
-
-    # now raise on migration
-    os.environ['NORMALIZE__SCHEMA_UPDATE_MODE'] = "freeze-and-raise"
-    with pytest.raises(PipelineStepFailed) as py_ex:
-        pipeline.run([load_items_with_subitems], loader_file_format=destination_config.file_format)
-        assert isinstance(py_ex.value.__context__, SchemaFrozenException)
 
