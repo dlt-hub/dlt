@@ -103,6 +103,8 @@ next_item_mode=5
 
 We recommend using this to make API calls in your sources as it makes your pipeline more resilient to intermittent network errors and other random glitches which otherwise can cause the whole pipeline to fail.
 
+The dlt requests client will additionally set the default user-agent header to `dlt/{DLT_VERSION_NAME}`.
+
 For most use cases this is a drop in replacement for `requests`, so:
 
 :heavy_multiplication_x: **Don't**

@@ -76,7 +76,7 @@ To get an `OAuth token` follow these steps:
   Alternatively, you can use the following Python script:
 
   ```python
-    import requests
+    from dlt.sources.helpers import requests
     import json
 
     subdomain = "set_me_up"

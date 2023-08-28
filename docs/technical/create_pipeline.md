@@ -11,7 +11,7 @@ It is possible to create "intuitive" pipeline just by providing a list of object
 
 ```python
 import dlt
-import requests
+from dlt.sources.helpers import requests
 
 dlt.run(
   requests.get("https://api.chess.com/pub/player/magnuscarlsen/games/2022/11").json()["games"],
@@ -62,7 +62,7 @@ The user of the pipeline can check what resources are available and select the r
 
 **each resource has a a separate resource function**
 ```python
-import requests
+from dlt.sources.helpers import requests
 import dlt
 
 @dlt.source
@@ -220,7 +220,7 @@ Also look at the following [test](/tests/extract/test_decorators.py) : `test_sou
 Resource functions can be placed inside the source extractor function. That lets them get access to source function input arguments and all the computations within the source function via so called closure.
 
 ```python
-import requests
+from dlt.sources.helpers import requests
 import dlt
 
 # the `dlt.source` tell the library that the decorated function is a source
