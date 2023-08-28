@@ -30,7 +30,7 @@ pip install dlt
 Command above just installs library core, in example below we use `duckdb` as a destination so let's add it:
 
 ```bash
-pip install dlt[duckdb]
+pip install "dlt[duckdb]"
 ```
 
 :::tip
@@ -206,22 +206,19 @@ to sync your databases with warehouses, data lakes, or vector stores.
 import dlt
 import duckdb
 
-def load_data_from_duckdb(db_name, query):
-    # connect to the DuckDB
-    con = duckdb.connect(db_name)
-    # execute SQL query and fetch result
-    result = con.execute(query).fetch_df()
-    # close the connection
-    con.close()
-    yield result.to_dict(orient="records")
-
 db_name = "path_to_your_db"  # Replace this with the path to your DuckDB database file
 sql_query = "SELECT * FROM your_table"  # Replace with your SQL query
 
-data = load_data_from_duckdb(db_name, sql_query)
+# connect to the DuckDB
+con = duckdb.connect(db_name)
+# execute SQL query and fetch result
+result = con.execute(query).fetch_df()
+# close the connection
+con.close()
+data = result.to_dict(orient="records")
 
 pipeline = dlt.pipeline(
-    pipeline_name='quick_start',
+    pipeline_name='from_database',
     destination='duckdb',
     dataset_name='mydata'
 )
@@ -250,7 +247,7 @@ data = [
 ]
 
 pipeline = dlt.pipeline(
-    pipeline_name='quick_start',
+    pipeline_name='replace_data',
     destination='duckdb',
     dataset_name='mydata'
 )
@@ -385,7 +382,7 @@ def get_issues(
 
 
 pipeline = dlt.pipeline(
-	pipeline_name='github_issues',
+	pipeline_name='github_issues_merge',
 	destination='duckdb',
 	dataset_name='mydata',
     full_refresh=True,
@@ -404,4 +401,4 @@ and `updated_at.last_value` to tell GitHub which issues we are interested in. `u
 
 Learn more:
 
-- [You can do way more with merge](../general-usage/incremental-loading#merge-incremental-loading)
+- [You can do way more with merge.](../general-usage/incremental-loading#merge-incremental-loading)
