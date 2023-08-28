@@ -477,20 +477,14 @@ verified source.
 
    ```python
    load_data = google_spreadsheet(
-        "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
-        range_names=["Sheet 1!A1:B10"],
-        get_named_ranges=False,
+    "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", #Spreadsheet URL
+     range_names=["Sheet 1!A1:B10"],
+     get_named_ranges=False,
    )
 
-   load_data.resources["Sheet 1!A1:B10"].apply_hints(table_name="loaded_data_1")
+   data.resources["Sheet 1!A1:B10"].apply_hints(table_name="loaded_data_1")
 
    load_info = pipeline.run(load_data)
    print(load_info)
-
-   user_tables = pipeline.default_schema.data_tables()
-
-   assert set([t["name"] for t in user_tables]) == {
-        "loaded_data_1",
-        "spreadsheet_info",
    }
    ```
