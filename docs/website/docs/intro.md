@@ -23,7 +23,7 @@ example:
 <!--SNIPSTART intro_snippet -->
 ```py
 import dlt
-import requests
+from dlt.sources.helpers import requests
 # Create a dlt pipeline that will load
 # chess player data to the DuckDB destination
 pipeline = dlt.pipeline(

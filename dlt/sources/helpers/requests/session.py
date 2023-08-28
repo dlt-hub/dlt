@@ -5,6 +5,7 @@ from typing import Optional, TYPE_CHECKING, Sequence, Union, Tuple, Type, TypeVa
 from dlt.sources.helpers.requests.typing import TRequestTimeout
 from dlt.common.typing import TimedeltaSeconds
 from dlt.common.time import to_seconds
+from dlt.version import __version__
 
 
 TSession = TypeVar("TSession", bound=BaseSession)
@@ -33,6 +34,9 @@ class Session(BaseSession):
         super().__init__()
         self.timeout = _timeout_to_seconds(timeout)
         self.raise_for_status = raise_for_status
+        self.headers.update({
+            "User-Agent": f"dlt/{__version__}",
+        })
 
     if TYPE_CHECKING:
         request = BaseSession.request
