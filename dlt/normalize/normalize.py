@@ -160,7 +160,7 @@ class Normalize(Runnable[ProcessPool]):
                                 row.pop(item)
 
                     # if there is a schema update and we froze schema and discard additional rows, just continue
-                    elif schema_has_columns and partial_table and config.schema_update_mode == "freeze-and-filter":
+                    elif schema_has_columns and partial_table and config.schema_update_mode == "freeze-and-discard":
                         continue
 
                     # if there is a schema update and we disallow any data not fitting the schema, raise!
