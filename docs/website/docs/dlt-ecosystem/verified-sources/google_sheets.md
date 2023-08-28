@@ -22,7 +22,7 @@ loads data using “Google Sheets API” to the destination of your choice.
 Sources and resources that can be loaded using this verified source are:
 
 | Name               | Description                                                |
-| ------------------ | ---------------------------------------------------------- |
+|--------------------|------------------------------------------------------------|
 | google_spreadsheet | Retrieves data from a Google Spreadsheet                   |
 | range_names        | Processes the range and yields data from each range        |
 | spreadsheet_info   | Information about the spreadsheet and the ranges processed |
@@ -48,7 +48,7 @@ one follow these steps:
 
 1. Sign in to [console.cloud.google.com](http://console.cloud.google.com/).
 
-1. [Create a service account](https://cloud.google.com/iam/docs/service-accounts-create#creating)if
+1. [Create a service account](https://cloud.google.com/iam/docs/service-accounts-create#creating) if
    needed.
 
 1. Enable "Google Sheets API", refer
@@ -172,7 +172,7 @@ converted into tables, named after them and stored in the destination.
 1. You can pass explicit ranges to the google spreadsheet "ranged_names" as:
 
    | Name         | Example                                   |
-   | ------------ | ----------------------------------------- |
+   |--------------|-------------------------------------------|
    | Sheet names  | \["Sheet1","Sheet2","custom_sheet_name"\] |
    | Named ranges | \["range_name1","range_name2"\]           |
    | Any range    | \["Sheet1!A1:B7","Sheet2!B3:E15"\]        |
@@ -185,10 +185,10 @@ If you are not happy with the workflow above, you can:
 
 1. Pass a list of ranges as supported by Google Sheets in range_names.
 
-> Note: To retrieve all named ranges with "get_named_ranges" or all sheets with "get_sheets"
-> methods, pass an empty `range_names` list as `range_names = []`. Even when you use set
-> "get_named_ranges" to false pass the range_names as empty list to get all the sheets with
-> "get_sheets" method.
+   > Note: To retrieve all named ranges with "get_named_ranges" or all sheets with "get_sheets"
+   > methods, pass an empty `range_names` list as `range_names = []`. Even when you use set
+   > "get_named_ranges" to false pass the range_names as empty list to get all the sheets with
+   > "get_sheets" method.
 
 ### Initialize the verified source
 
@@ -228,12 +228,12 @@ For more information, read the
    ```
 
 1. From the ".json" that you
-   [downloaded earlier](google_analytics.md#grab-google-service-account-credentials),
-   copy `project_id`,  `private_key`,
-   and `client_email` under `[sources.google_analytics.credentials]`.
+   [downloaded earlier](google_sheets.md#grab-google-service-account-credentials),
+   copy `project_id`,  `private_key`,
+   and `client_email` under `[sources.google_sheets.credentials]`.
 
 1. Alternatively, if you're using OAuth credentials, replace the the fields and values with those
-   you [grabbed for OAuth credentials](google_analytics.md#grab-google-oauth-credentials).
+   you [grabbed for OAuth credentials](google_sheets.md#grab-google-oauth-credentials).
 
 1. The secrets.toml for OAuth authentication looks like:
 
@@ -256,7 +256,7 @@ For more information, read the
    ```
 
 1. In range_names, you can enter values as discussed in
-   [Guidelines about named ranges](#guidelines-about-named-ranges).
+   [Guidelines about named ranges](google_sheets.md#guidelines-about-named-ranges).
 
 1. Provide the spreadsheet URL or just its ID as the identifier. E.g., use either the full link:
 
@@ -331,7 +331,7 @@ def google_spreadsheet(
 `get_sheets`: If True, imports all spreadsheet sheets into the database.
 
 `get_named_ranges`: If True, imports either all named ranges or those
-[specified](#guidelines-about-named-ranges) into the database.
+[specified](google_sheets.md#guidelines-about-named-ranges) into the database.
 
 ### Resource `range_names`
 
