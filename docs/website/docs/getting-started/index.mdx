@@ -41,6 +41,7 @@ Use clean virtual environment for your experiments! Here are [detailed instructi
 
 Let's load a list of Python objects (dictionaries) into `duckdb` and inspect the created dataset:
 
+<!--SNIPSTART getting_started_index_snippet_1 -->
 ```python
 import dlt
 
@@ -57,6 +58,7 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(data, table_name="users")
 print(load_info)
 ```
+<!--SNIPEND-->
 
 Save this python script with the name `quick_start_pipeline.py` and run the following command:
 
