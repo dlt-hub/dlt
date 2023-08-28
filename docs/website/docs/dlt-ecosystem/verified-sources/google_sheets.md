@@ -482,7 +482,7 @@ verified source.
         get_named_ranges=False,
    )
 
-   data.resources["Sheet 1!A1:B10"].apply_hints(table_name="loaded_data_1")
+   load_data.resources["Sheet 1!A1:B10"].apply_hints(table_name="loaded_data_1")
 
    load_info = pipeline.run(load_data)
    print(load_info)
