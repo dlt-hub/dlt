@@ -9,16 +9,10 @@ body:
         Thanks for reporting a bug for dlt! Please fill out the sections below.
         If you are not sure if this is a bug or not, please join our [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
         and ask in the #3-technical-help channel.
-  - type: dropdown
+  - type: input
     attributes:
       label: dlt version
-      description: What dlt version are you using?
-      multiple: false
-      options:
-        - "0.3.x (stable)"
-        - "0.3.x (pre-release)"
-        - "devel (development)"
-        - "Other dlt version (please specify below)"
+      description: What dlt version are you using? You can find this information in the output of `dlt --version`.
     validations:
       required: true
   - type: textarea
@@ -90,7 +84,6 @@ body:
         - "3.10"
         - "3.9"
         - "3.8"
-        - "Below 3.8"
     validations:
       required: true
   - type: textarea
