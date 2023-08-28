@@ -1,0 +1,119 @@
+---
+name: Bug Report
+description: Report a problem with dlt
+labels: ["kind:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for reporting a bug for dlt! Please fill out the sections below.
+        If you are not sure if this is a bug or not, please join our [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+        and ask in the #3-technical-help channel.
+  - type: input
+    attributes:
+      label: dlt version
+      description: What dlt version are you using? You can find this information in the output of `dlt --version`.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Describe the problem
+      description: Outline the problem or issue you encountered.
+      placeholder: >
+        Share the context in which the issue occurred, and details of what happened.
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: Expected behavior
+      description: Describe your expectation of how dlt should behave.
+      placeholder: >
+        Elaborate on why you believe the observed behavior is incorrect. Including exact error messages,
+        log fragments or screenshots. Attach files by dragging and dropping here.
+  - type: textarea
+    attributes:
+      label: Steps to reproduce
+      description: >
+        How can we replicate the issue? If it's not straightforward to reproduce, please join our [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+        and ask in the #3-technical-help channel.
+      placeholder: >
+        Provide a step-by-step description of how to reproduce the problem you are running into.
+        Please be as specific as possible by providing a link to a public repository with a
+        minimalistic reproducer or a code snippet that can be used to reproduce the problem.
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Operating system
+      description: What operating system are you using?
+      multiple: true
+      options:
+        - "Linux"
+        - "macOS"
+        - "Windows"
+        - "Other"
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Runtime environment
+      description: >
+        What kind of deployment do you have? If you use a Managed Service, consider first using regular
+        channels of reporting issues for the service.
+      multiple: false
+      options:
+        - "Local"
+        - "Virtual Machine"
+        - "Docker, Docker Compose"
+        - "Kubernetes"
+        - "Airflow"
+        - "Astronomer"
+        - "Google Cloud Composer"
+        - "Google Colab"
+        - "GitHub Codespaces"
+        - "Other"
+    validations:
+      required: true
+  - type: dropdown
+    attributes:
+      label: Python version
+      description: What Python version are you using?
+      multiple: false
+      options:
+        - "3.11"
+        - "3.10"
+        - "3.9"
+        - "3.8"
+    validations:
+      required: true
+  - type: textarea
+    attributes:
+      label: dlt data source
+      description: What data source are you using?
+      placeholder: >
+        E.g. dlt verified source, API, CSV, etc.
+  - type: dropdown
+    attributes:
+      label: dlt destination
+      description: What type of destination are you using?
+      multiple: true
+      options:
+        - Google BigQuery
+        - DuckDB
+        - Filesystem & buckets
+        - Postgres
+        - Amazon Redshift
+        - Snowflake
+        - AWS Athena / Glue Catalog
+        - MotherDuck
+        - Weaviate
+  - type: textarea
+    attributes:
+      label: Other deployment details
+      description: Offer more details about your deployment.
+  - type: textarea
+    attributes:
+      label: Additional information
+      description: Is there anything else you'd like us to know?
+      placeholder: >
+        E.g. issue frequency, workarounds, related issues, suggestions on how to fix, etc.
