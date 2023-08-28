@@ -12,40 +12,40 @@ import TabItem from '@theme/TabItem';
 
 ## Overview
 
-`dlt` is an open-source library that enables you to create a data
-[pipeline](../general-usage/glossary#pipeline) in a Python script. Once set up,
-it will automatically load any [source](../general-usage/glossary#source) (e.g.
-an API) into a live dataset stored in
-the [destination](../general-usage/glossary#destination) of your choice.
+`dlt` is an open-source library that you can add to your Python scripts to load data
+from various and often messy data sources into well-structured, live datasets.
+Below we give you a preview how you can get data from APIs, files, Python objects or
+pandas dataframes and move it into a [local or remote database, data lake or a vector data store]().
+
+Let's get started!
 
 ## Installation
 
-Official releases of `dlt` can be installed from [PyPI](https://pypi.org/project/dlt/):
+Install dlt using pip:
 
 ```bash
 pip install dlt
 ```
 
-The primary invocation of `pip` will load `dlt`, along with any of its mandatory dependencies. For
-installation of optional dependencies, like `duckdb` (which you can use as a destination), use the
-following command:
+Command above just installs library core, in example below we use `duckdb` as a destination so let's add it:
 
 ```bash
 pip install dlt[duckdb]
 ```
 
-Please see the [installation page](../reference/installation) for details.
+:::tip
+Use clean virtual environment for your experiments! Here are [detailed instructions](../reference/installation).
+:::
 
 ## Quick start
 
-Once you have `dlt` installed, you’re ready to get started. To test it out, you might want to upload
-a test data example to the `duckdb` database as a destination:
+Let's load a list of Python objects (dictionaries) into `duckdb` and inspect the created dataset:
 
 ```python
 import dlt
 
 data = [
-    {'id': 1, 'name': 'Alisa'},
+    {'id': 1, 'name': 'Alice'},
     {'id': 2, 'name': 'Bob'}
 ]
 
@@ -58,12 +58,7 @@ load_info = pipeline.run(data, table_name="users")
 print(load_info)
 ```
 
-You're now ready to run the pipeline!
-
-If you use Jupyter Notebook, then run this cell as usual.
-
-Otherwise, save this python script with the name `quick_start_pipeline.py` and run the following
-command:
+Save this python script with the name `quick_start_pipeline.py` and run the following command:
 
 ```bash
 python3 quick_start_pipeline.py
@@ -79,6 +74,8 @@ Load package 1692364844.460054 is LOADED and contains no failed jobs
 ```
 
 Now explore your data!
+
+You may need to install `pandas` and `streamlit`.
 
 To see the schema of your created database, run Streamlit command:
 
@@ -99,34 +96,29 @@ destination.
 ![Streamlit Explore data](img/streamlit1.png)
 Streamlit Explore data. Schema and data for a test pipeline “quick_start”.
 
-What is next?
+:::tip
+`dlt` works in Jupyter Notebook! Do the above in [Colab Demo.](https://dlthub.com/docs/getting-started/try-in-colab)
+:::
 
+Learn more:
 - What is a data pipeline?
   [General usage: Pipeline.](../general-usage/pipeline)
-- How to create your own pipeline?
-  [Walkthrough: Create a pipeline](../walkthroughs/create-a-pipeline).
+- [Walkthrough: Create a pipeline](../walkthroughs/create-a-pipeline).
+- [Walkthrough: Run a pipeline.](../walkthroughs/run-a-pipeline)
 - How to configure DuckDB?
   [Destinations: DuckDB.](../dlt-ecosystem/destinations/duckdb)
 - [The full list of available destinations.](../dlt-ecosystem/destinations/)
-- Visualisation:
-  [Exploring the data](../dlt-ecosystem/visualizations/exploring-the-data).
+- [Exploring the data](../dlt-ecosystem/visualizations/exploring-the-data).
 - What happens after loading?
   [Understanding the tables](../dlt-ecosystem/visualizations/understanding-the-tables).
-- Are there existed pipelines?
-  [Walkthrough: Add a verified sources.](../walkthroughs/add-a-verified-source)
-- [Try the Colab Demo.](../getting-started/try-in-colab)
+- Access your data with [SQL](https://dlthub.com/docs/dlt-ecosystem/transformations/sql) or [Pandas](https://dlthub.com/docs/dlt-ecosystem/transformations/sql)
 
-## Basics
+## Load your data
 
-As described above, `dlt` is intended for quick and easy creation of data pipelines to automatically
-load data from any [source](../general-usage/glossary#source) into a chosen
-[destination](../general-usage/glossary#destination).
+### Load data from a variety of sources
 
-Let's look at simple examples of loading data from various sources.
-
-### Simple data loading
-
-Examples:
+Use dlt to load practically any data you deal with in your Python scripts into a dataset.
+The library will create/update tables, infer data types and deal with nested data automatically:
 
 <Tabs
   groupId="source-type"
@@ -143,17 +135,17 @@ Examples:
 import json
 import dlt
 
-def load_json(file_path):
-    with open(file_path, 'r') as file:
-        data = json.load(file)
-    yield data
+with open("test.json", 'r') as file:
+    data = json.load(file)
 
 pipeline = dlt.pipeline(
-    pipeline_name='quick_start',
-    destination='duckdb',
-    dataset_name='mydata'
+	pipeline_name='from_json',
+	destination='duckdb',
+	dataset_name='mydata',
+    full_refresh=True,
 )
-load_info = pipeline.run(load_json("path/to.json"), table_name="json_data")
+# dlt works with lists of dicts, so wrap data to the list
+load_info = pipeline.run([data], table_name="json_data")
 print(load_info)
 ```
 
@@ -164,15 +156,16 @@ print(load_info)
 import dlt
 import pandas as pd
 
-def load_csv(file_path):
-    yield pd.read_csv(file_path).to_dict(orient='records')
+df = pd.read_csv("test.csv")
+data = df.to_dict(orient='records')
 
 pipeline = dlt.pipeline(
-    pipeline_name='quick_start',
-    destination='duckdb',
-    dataset_name='mydata'
+	pipeline_name='from_csv',
+	destination='duckdb',
+	dataset_name='mydata',
+    full_refresh=True,
 )
-load_info = pipeline.run(load_csv("path/to.csv"), table_name="csv_data")
+load_info = pipeline.run(data, table_name="csv_data")
 print(load_info)
 ```
 
@@ -183,29 +176,31 @@ print(load_info)
 import dlt
 import requests
 
-def get_user_repo(username: str) -> dict:
-    # url to request
-    url = f"https://api.github.com/users/{username}"
-    # make the request and return the json
-    user_data = requests.get(url).json()
-    yield user_data
+# url to request dlt-hub followers
+url = f"https://api.github.com/users/dlt-hub/followers"
+# make the request and return the json
+data = requests.get(url).json()
 
 pipeline = dlt.pipeline(
-    pipeline_name='quick_start',
-    destination='duckdb',
-    dataset_name='mydata'
+	pipeline_name='from_api',
+	destination='duckdb',
+	dataset_name='mydata',
+    full_refresh=True,
 )
-load_info = pipeline.run(get_user_repo("dlt-hub"))
+# dlt works with lists of dicts, so wrap data to the list
+load_info = pipeline.run([data], table_name="followers")
 print(load_info)
 ```
 
   </TabItem>
   <TabItem value="database">
 
-This script connects to your DuckDB database file (`duckdb_database.duckdb` in this case, replace
-it with your database file), executes a SQL query (`SELECT * FROM your_table` in this case,
-replace it with your query), fetches all the result and then closes the connection. Make sure to
-replace `your_table` with your actual table name in the DuckDB database.
+:::tip
+
+Use our verified [sql database source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/sql_database)
+to sync your databases with warehouses, data lakes, or vector stores.
+
+:::
 
 ```python
 import dlt
@@ -237,177 +232,176 @@ print(load_info)
   </TabItem>
 </Tabs>
 
-### Use dlt source and resource decorators
+### Append or replace your data
 
-Why use them?
+Run any of the previous examples twice to notice that each time a copy of the data is added to your tables.
+We call this load mode `append`. It is very useful when i.e. you have a new folder created daily with `json` file logs, and you want to ingest them.
 
-- A source is a function decorated with `@dlt.source` that returns one or more resources.
-- A source can optionally define a [schema](../general-usage/schema) with
-  tables, columns, performance hints and more.
-- The source Python module typically contains optional customizations and data transformations.
-- The source Python module typically contains the authentication and pagination code for particular
-  API.
-
-Examples:
-
-<Tabs
-  groupId="source-type"
-  defaultValue="json"
-  values={[
-    {"label": "from json", "value": "json"},
-    {"label": "from API", "value": "api"},
-]}>
-  <TabItem value="json">
-
-Create tables dynamically using `dlt.resource`:
+Perhaps this is not what you want to do in the examples above.
+For example, if the CSV file is updated, how we can refresh it in the database?
+One method is to tell `dlt` to replace the data in existing tables by using `write_disposition`:
 
 ```python
-import json
-from glob import glob
-from typing import Sequence
-
 import dlt
 
-def load_json(file_path: str) -> dict:
-    with open(file_path, 'r') as file:
-        data = json.load(file)
-    return data
-
-@dlt.source
-def json_source(folders: Sequence[str] = dlt.secrets.value):
-    for folder in folders:
-        yield dlt.resource(json_resource, name=folder.split("/")[-1])(folder)
-
-def json_resource(folder: str) -> dict:
-    files = glob(f'{folder}/**/*.json', recursive=True)
-    for file_path in files:
-        yield load_json(file_path)
+data = [
+    {'id': 1, 'name': 'Alice'},
+    {'id': 2, 'name': 'Bob'}
+]
 
 pipeline = dlt.pipeline(
     pipeline_name='quick_start',
     destination='duckdb',
-    dataset_name='mydata',
-    full_refresh=True,
+    dataset_name='mydata'
 )
-
-data = json_source(["./folder_1", "./folder_2"])
-load_info = pipeline.run()
+load_info = pipeline.run(data, table_name="users", write_disposition="replace")
 print(load_info)
 ```
 
-  </TabItem>
-  <TabItem value="api">
+Run this script twice to see that `users` table still contains only one copy of your data.
 
-Load each endpoint as a different resource:
+:::tip
+What if you added a new column to your CSV?
+`dlt` will migrate your tables!
+See the `replace` mode and table migration in action in our [Colab Demo](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM)
+:::
+
+Learn more:
+
+- [Full load - how to replace your data](https://dlthub.com/docs/general-usage/full-loading)
+- [Append, replace and merge your tables](https://dlthub.com/docs/general-usage/incremental-loading).
+
+
+## Declare loading behavior
+
+You can finetune the loading process by decorating Python functions with `@dlt.resource`.
+
+### Load only new data (incremental loading)
+
+We can supercharge the GitHub API example above and get only issues that were created since last load.
+Instead of using `replace` write_disposition and downloading all issues each time the pipeline is run, we do the following:
 
 ```python
 import dlt
 import requests
 
-@dlt.source
-def get_user_repo(username: str) -> dict:
-    # url to request
-    url = f"https://api.github.com/users/{username}"
-    # make the request and return the json
-    user_data = requests.get(url).json()
-    for k, v in user_data.items():
-        if "url" in k:
-            yield dlt.resource(get_details, name=k)(v)
 
-def get_details(url: str) -> dict:
-    try:
-        details = requests.get(url).json()
-        yield details
-    except requests.exceptions.JSONDecodeError:
-        yield None
+@dlt.resource(table_name="issues", write_disposition="append")
+def get_issues(
+    created_at = dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z")
+):
+    # url to request dlt-hub issues
+    url = f"https://api.github.com/repos/dlt-hub/dlt/issues"
+
+    while True:
+        response = requests.get(url)
+        page_items = response.json()
+
+        if len(page_items) == 0:
+            break
+        yield page_items
+
+        if "next" not in response.links:
+            break
+        url = response.links["next"]["url"]
+
+        # stop requesting pages if the last element was already older than initial value
+        # note: incremental will skip those items anyway, we just do not want to use the api limits
+        if created_at.start_out_of_range:
+            break
+
 
 pipeline = dlt.pipeline(
-    pipeline_name='quick_start',
-    destination='duckdb',
-    dataset_name='mydata',
-    full_refresh=True
+	pipeline_name='github_issues',
+	destination='duckdb',
+	dataset_name='mydata',
+    full_refresh=True,
 )
-load_info = pipeline.run(get_user_repo("dlt-hub"))
+# dlt works with lists of dicts, so wrap data to the list
+load_info = pipeline.run(get_issues)
 print(load_info)
 ```
 
-![Streamlit Load info](img/streamlit2.png)
-Streamlit Load info. Created tables with all available info about dlt-hub repository on GitHub.
+We request issues for dlt-hub/dlt repository ordered by **created_at** descending and yield them page by page in `get_issues` generator function.
 
-  </TabItem>
-</Tabs>
+We use the `@dlt.resource` decorator to declare table name to which data will be loaded and write disposition, which is `append`.
+
+We also use `dlt.sources.incremental` to track `created_at` field present in each issue to filter only the newly created ones.
+
+Now run the script. It loads all the issues from our repo to `duckdb`. Run it again, and you can see that no issues got added (if no issues were created in the meantime).
+
+Now you can run this script on a daily schedule and each day you’ll load only issues created after the time of the previous pipeline run.
+
+:::tip
+Between pipeline runs, `dlt` keeps the state in the same database it loaded data.
+Peek into that state, the tables loaded and get other information with:
+
+```shell
+dlt pipeline -v github_issues info
+```
+:::
+
+Learn more:
+
+- Declare your [resources](../general-usage/resource) and group them in [sources](../general-usage/source) using Python decorators.
+- [Set up "last value" incremental loading.](../general-usage/incremental-loading#incremental-loading-with-last-value)
+- [Inspect pipeline after loading.](../walkthroughs/run-a-pipeline#4-inspect-a-load-process)
+- [`dlt` command line interface.](../reference/command-line-interface)
+
+### Update and deduplicate your data
+
+The script above finds new issues and adds them to the database.
+It will ignore any updates to issue text, emoji reactions etc.
+Get always fresh content of all the issues: combine incremental load with `merge` write disposition,
+like in the script below.
+
+```python
+import dlt
+import requests
 
 
-Read more:
+@dlt.resource(
+    table_name="issues",
+    write_disposition="merge",
+    primary_key="id",
+)
+def get_issues(
+    updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
+):
+    # url to request dlt-hub issues
+    url = f"https://api.github.com/repos/dlt-hub/dlt/issues?since={updated_at.last_value}"
 
-- Glossary: [source](../general-usage/glossary#source) and
-  [resource](../general-usage/glossary#resource).
-- General usage: [source](../general-usage/source) and
-  [resource](../general-usage/resource).
-- [Walkthrough: Create a pipeline](../walkthroughs/create-a-pipeline).
-- [Walkthrough: Run a pipeline](../walkthroughs/run-a-pipeline).
+    while True:
+        response = requests.get(url)
+        page_items = response.json()
 
-### Use existed verified sources
+        if len(page_items) == 0:
+            break
+        yield page_items
 
-To use existed verified source, just run
-the `dlt init` [command](../reference/command-line-interface#dlt-init).
+        if "next" not in response.links:
+            break
+        url = response.links["next"]["url"]
 
-List all verified
-sources:
 
-```bash
-dlt init --list-verified-sources
+pipeline = dlt.pipeline(
+	pipeline_name='github_issues',
+	destination='duckdb',
+	dataset_name='mydata',
+    full_refresh=True,
+)
+# dlt works with lists of dicts, so wrap data to the list
+load_info = pipeline.run(get_issues)
+print(load_info)
 ```
 
-Shows all available verified sources and their short descriptions. For each source, checks if your
-local `dlt` version requires update and prints the relevant warning.
+Above we add `primary_key` hint that tells `dlt` how to identify the issues in the database to find duplicates which content it will merge.
 
-Consider an example of a pipeline for an online platform [chess.com](http://chess.com) that loads
-data about players and games.
+Note that we now track the `updated_at` field - so we filter in all issues **updated** since the last pipeline run (which also includes newly created ones).
 
-This command will
-initialize [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/asana_dlt_pipeline.py) with
-Chess as the source and `duckdb` as
-the [destination](../dlt-ecosystem/destinations):
+Also pay attention how we use **since** [GitHub API](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues)
+and `updated_at.last_value` to tell GitHub which issues we are interested in. `updated_at.last_value` holds the last `updated_at` value from the previous run.
 
-```bash
-dlt init chess duckdb
-```
+Learn more:
 
-Read more:
-
-- [Glossary: Verified source](../general-usage/glossary#verified-source).
-- [The full list of existed sources.](../dlt-ecosystem/verified-sources/)
-- CLI: [`dlt init` command](../reference/command-line-interface#dlt-init)
-- [Walkthrough: Add a verified sources.](../walkthroughs/add-a-verified-source)
-- [Walkthrough: Run a pipeline](../walkthroughs/run-a-pipeline).
-- [Build a pipeline: from basic to advanced.](../getting-started/build-a-data-pipeline)
-
-## Improve your pipeline sources
-
-If you want to take full advantage of the `dlt` library, then we strongly suggest that you build
-your sources out of existing **building blocks:**
-
-- Declare your [resources](../general-usage/resource) and group them in
-  [sources](../general-usage/source) using Python decorators.
-- [Connect the transformers to the resources](../general-usage/resource#feeding-data-from-one-resource-into-another)
-  to load additional data or enrich it.
-- [Create your resources dynamically from data](../general-usage/source#create-resources-dynamically).
-- [Append, replace and merge your tables](../general-usage/incremental-loading).
-- [Transform your data before loading](../general-usage/resource#customize-resources)
-  and see some
-  [examples of customizations like column renames and anonymization](../general-usage/customising-pipelines/renaming_columns).
-- [Set up "last value" incremental loading](../general-usage/incremental-loading#incremental-loading-with-last-value).
-- [Dispatch data to several tables from a single resource](../general-usage/resource#dispatch-data-to-many-tables).
-- [Set primary and merge keys, define the columns nullability and data types](../general-usage/resource#define-schema).
-- [Pass config and credentials into your sources and resources](../general-usage/credentials).
-- Use google oauth2 and service account credentials, database connection strings and define your own
-  complex credentials: see examples below.
-
-Concepts to grasp:
-
-- [Credentials](../general-usage/credentials) and their
-  ["under the hood"](https://github.com/dlt-hub/dlt/blob/devel/docs/technical/secrets_and_config.md).
-- [Incremental loading.](../general-usage/incremental-loading)
-- [Schemas, naming conventions and data normalization](../general-usage/schema).
-- [How we distribute sources to our users](https://github.com/dlt-hub/verified-sources/blob/master/docs/DISTRIBUTION.md).
+- [You can do way more with merge](../general-usage/incremental-loading#merge-incremental-loading)
