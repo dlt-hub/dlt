@@ -1,5 +1,8 @@
 import os
+from typing import List, Optional, Dict, Iterator, Any
+
 import pytest
+from pydantic import BaseModel
 
 import dlt
 from dlt.common.configuration import known_sections
@@ -191,6 +194,51 @@ def test_columns_argument() -> None:
     t = r.table_schema()
 
     assert t["columns"]["tags"]["x-second-extra"] == "x-second-annotation"
+
+
+def test_columns_from_pydantic() -> None:
+    class Columns(BaseModel):
+        tags: List[str]
+        name: Optional[str]
+
+    @dlt.resource(name="user", columns=Columns)
+    def get_users() -> Iterator[Dict[str, Any]]:
+        yield None
+
+    t = get_users().table_schema()
+
+    assert t["columns"]["tags"]["nullable"] is False
+    assert t["columns"]["tags"]["data_type"] == "complex"
+    assert t["columns"]["name"]["nullable"] is True
+    assert t["columns"]["name"]["data_type"] == "text"
+
+    class Columns2(BaseModel):
+        a: int
+        b: str
+
+    # New columns with apply_hints
+    r = get_users()
+    r.apply_hints(columns=Columns2)
+
+    t = r.table_schema()
+    assert t["columns"]["a"]["nullable"] is False
+    assert t["columns"]["a"]["data_type"] == "bigint"
+    assert t["columns"]["b"]["nullable"] is False
+    assert t["columns"]["b"]["data_type"] == "text"
+
+    # Dynamic column hint
+    class Columns3(BaseModel):
+        a: List[int]
+        b: float
+
+    r = get_users()
+    r.apply_hints(columns=lambda item: Columns3)
+    t = r.table_schema()
+
+    assert t["columns"]["a"]["nullable"] is False
+    assert t["columns"]["a"]["data_type"] == "complex"
+    assert t["columns"]["b"]["nullable"] is False
+    assert t["columns"]["b"]["data_type"] == "double"
 
 
 def test_resource_name_from_generator() -> None:

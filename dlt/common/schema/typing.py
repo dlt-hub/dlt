@@ -1,7 +1,14 @@
 from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Set, Type, TypedDict, NewType, Union, get_args
+from typing_extensions import Never
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
+
+try:
+    from pydantic import BaseModel as _PydanticBaseModel
+except ImportError:
+    _PydanticBaseModel = Never  # type: ignore[assignment, misc]
+
 
 # current version of schema engine
 SCHEMA_ENGINE_VERSION = 6
@@ -46,6 +53,10 @@ class TColumnSchema(TColumnSchemaBase, total=False):
 
 TTableSchemaColumns = Dict[str, TColumnSchema]
 """A mapping from column name to column schema, typically part of a table schema"""
+
+
+TAnySchemaColumns = Union[TTableSchemaColumns, Sequence[TColumnSchema], _PydanticBaseModel, Type[_PydanticBaseModel]]
+
 TSimpleRegex = NewType("TSimpleRegex", str)
 TColumnName = NewType("TColumnName", str)
 SIMPLE_REGEX_PREFIX = "re:"

@@ -2,8 +2,9 @@ import itertools
 import logging
 import os
 import random
-from typing import Any
+from typing import Any, Optional, Iterator, Dict, Any
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
+from pydantic import BaseModel
 
 import pytest
 
@@ -1010,3 +1011,46 @@ def test_invalid_data_edge_cases() -> None:
     assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
     assert "dlt.resource" in str(pip_ex.value)
 
+
+@pytest.mark.parametrize('method', ('extract', 'run'))
+def test_column_argument_pydantic(method: str) -> None:
+    """Test columns schema is created from pydantic model"""
+    p = dlt.pipeline(destination='duckdb')
+
+    @dlt.resource
+    def some_data() -> Iterator[Dict[str, Any]]:
+        yield {}
+
+    class Columns(BaseModel):
+        a: Optional[int]
+        b: Optional[str]
+
+    if method == 'run':
+        p.run(some_data(), columns=Columns)
+    else:
+        p.extract(some_data(), columns=Columns)
+
+    assert p.default_schema.tables['some_data']['columns']['a']['data_type'] == 'bigint'
+    assert p.default_schema.tables['some_data']['columns']['a']['nullable'] is True
+    assert p.default_schema.tables['some_data']['columns']['b']['data_type'] == 'text'
+    assert p.default_schema.tables['some_data']['columns']['b']['nullable'] is True
+
+
+def test_extract_pydantic_models() -> None:
+    pipeline = dlt.pipeline(destination='duckdb')
+
+    class User(BaseModel):
+        user_id: int
+        name: str
+
+    @dlt.resource
+    def users() -> Iterator[User]:
+        yield User(user_id=1, name="a")
+        yield User(user_id=2, name="b")
+
+    pipeline.extract(users())
+
+    storage = ExtractorStorage(pipeline._normalize_storage_config)
+    expect_extracted_file(
+        storage, pipeline.default_schema_name, "users", json.dumps([{"user_id": 1, "name": "a"}, {"user_id": 2, "name": "b"}])
+    )

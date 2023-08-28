@@ -7,11 +7,11 @@ from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optio
 
 from dlt.common import json
 from dlt.common.data_types import TDataType
-from dlt.common.exceptions import DictValidationException
+from dlt.common.exceptions import DictValidationException, MissingDependencyException
 from dlt.common.normalizers import explicit_normalizers
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCase
-from dlt.common.typing import DictStrAny, REPattern
+from dlt.common.typing import DictStrAny, REPattern, is_dict_generic_type
 from dlt.common.validation import TCustomValidator, validate_dict, validate_dict_ignoring_xkeys
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TPartialTableSchema, TSchemaTables, TSchemaUpdate,
@@ -21,6 +21,8 @@ from dlt.common.schema.exceptions import (CannotCoerceColumnException, ParentTab
                                           TablePropertiesConflictException, InvalidSchemaName)
 
 from dlt.common.normalizers.utils import import_normalizers
+from dlt.common.schema.typing import TAnySchemaColumns
+
 
 RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
 DEFAULT_WRITE_DISPOSITION: TWriteDisposition = "append"
