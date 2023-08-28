@@ -142,7 +142,6 @@ pipeline = dlt.pipeline(
 	pipeline_name='from_json',
 	destination='duckdb',
 	dataset_name='mydata',
-    full_refresh=True,
 )
 # dlt works with lists of dicts, so wrap data to the list
 load_info = pipeline.run([data], table_name="json_data")
@@ -163,7 +162,6 @@ pipeline = dlt.pipeline(
 	pipeline_name='from_csv',
 	destination='duckdb',
 	dataset_name='mydata',
-    full_refresh=True,
 )
 load_info = pipeline.run(data, table_name="csv_data")
 print(load_info)
@@ -185,7 +183,6 @@ pipeline = dlt.pipeline(
 	pipeline_name='from_api',
 	destination='duckdb',
 	dataset_name='mydata',
-    full_refresh=True,
 )
 # dlt works with lists of dicts, so wrap data to the list
 load_info = pipeline.run([data], table_name="followers")
@@ -220,7 +217,7 @@ data = result.to_dict(orient="records")
 pipeline = dlt.pipeline(
     pipeline_name='from_database',
     destination='duckdb',
-    dataset_name='mydata'
+    dataset_name='mydata',
 )
 load_info = pipeline.run(data)
 print(load_info)
@@ -249,7 +246,7 @@ data = [
 pipeline = dlt.pipeline(
     pipeline_name='replace_data',
     destination='duckdb',
-    dataset_name='mydata'
+    dataset_name='mydata',
 )
 load_info = pipeline.run(data, table_name="users", write_disposition="replace")
 print(load_info)
@@ -312,7 +309,6 @@ pipeline = dlt.pipeline(
 	pipeline_name='github_issues',
 	destination='duckdb',
 	dataset_name='mydata',
-    full_refresh=True,
 )
 # dlt works with lists of dicts, so wrap data to the list
 load_info = pipeline.run(get_issues)
@@ -385,7 +381,6 @@ pipeline = dlt.pipeline(
 	pipeline_name='github_issues_merge',
 	destination='duckdb',
 	dataset_name='mydata',
-    full_refresh=True,
 )
 # dlt works with lists of dicts, so wrap data to the list
 load_info = pipeline.run(get_issues)
