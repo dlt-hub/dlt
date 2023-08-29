@@ -5,14 +5,14 @@
  */
 
 /* You can override the default Infima variables here. */
-@import url('https://fonts.googleapis.com/css2?family=Karla:wght@600&family=Roboto+Mono:wght@400;700&family=Space+Mono:wght@700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Karla:wght@500&family=Roboto+Mono:wght@400;700&family=Space+Mono:wght@700&display=swap');
 
 :root {
 
   --ifm-navbar-background-color: #F7F9FC;
   --ifm-background-color: #F7F9FC;
 
-  --ifm-color-primary: #4C4898;
+  --ifm-color-primary: #000000;
   --ifm-link-color: #191937;
   --ifm-color-primary-dark: #191937;
   --ifm-color-primary-darker: #191937;
@@ -170,6 +170,7 @@ time{
 }
 
 .token.keyword {
+  font-style: normal !important;
   color: #f3ff36 !important
 }
 
@@ -477,7 +478,7 @@ html[data-theme='dark'] .slack-navbar::before {
 
 
 /* tip-block-css start*/
-.theme-admonition-tip {
+/* .theme-admonition-tip {
   background: #f6b7b3;
   border-color: #EE746D;
   color: #191937;
@@ -485,7 +486,7 @@ html[data-theme='dark'] .slack-navbar::before {
 
 .theme-admonition-tip a {
   text-decoration-color: #191937;
-}
+} */
 
 /* tip-block-css end*/
 .theme-doc-sidebar-menu.menu__list>li>a::before,

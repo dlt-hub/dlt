@@ -1,9 +1,3 @@
----
-title: Build a data pipeline
-description: Build a data pipeline - the comprehensive guide
-keywords: [build a data pipeline]
----
-
 ## Building data pipelines with `dlt`, from basic to advanced
 
 This is in-depth overview will take you through the main areas of pipelining with `dlt`. Go to the
