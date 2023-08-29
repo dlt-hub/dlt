@@ -6,7 +6,7 @@
     "docusaurus": "docusaurus",
     "start": "docusaurus start",
     "build": "docusaurus build",
-    "build:netlify": "docusaurus build --out-dir build/docs",
+    "build:netlify": "yarn snipsync && docusaurus build --out-dir build/docs",
     "swizzle": "docusaurus swizzle",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve",
@@ -43,3 +43,4 @@
     "node": ">=16.14"
   }
 }
+  
