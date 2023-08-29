@@ -74,6 +74,7 @@ pipdeptree = {version = ">=2.9.0,<2.10", optional = true}
 pyathena = {version = ">=2.9.6", optional = true}
 weaviate-client = {version = ">=3.22", optional = true}
 pydantic = {version = ">=1.10,<2.0", optional = true}
+adlfs = {version = "^2023.8.0", optional = true}
 
 
 [tool.poetry.extras]
@@ -88,6 +89,7 @@ duckdb = ["duckdb"]
 filesystem = ["s3fs", "boto3"]
 s3 = ["s3fs", "boto3"]
 gs = ["gcsfs"]
+az = ["adlfs"]
 snowflake = ["snowflake-connector-python"]
 motherduck = ["duckdb", "pyarrow"]
 cli = ["pipdeptree", "cron-descriptor"]
