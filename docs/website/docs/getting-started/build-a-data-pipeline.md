@@ -310,7 +310,7 @@ table using the `dlt` SQL client:
 pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
 
 with pipeline.sql_client() as client:
-    client.sql_client.execute_sql(
+    client.execute_sql(
         "INSERT INTO customers VALUES (%s, %s, %s)", 10, "Fred", "fred@fred.com"
     )
 ```
