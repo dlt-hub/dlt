@@ -11,8 +11,10 @@ from tests.load.utils import ALL_FILESYSTEM_DRIVERS
 from tests.common.configuration.utils import environment
 from tests.utils import preserve_environ, autouse_test_storage
 
+if 'az' not in ALL_FILESYSTEM_DRIVERS:
+    pytest.skip('az filesystem driver not configured', allow_module_level=True)
 
-@pytest.mark.skipif('az' not in ALL_FILESYSTEM_DRIVERS, reason='az filesystem driver not configured')
+
 def test_azure_credentials_from_account_key(environment: Dict[str, str]) -> None:
     environment['CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME'] = 'fake_account_name'
     environment['CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY'] = "QWERTYUIOPASDFGHJKLZXCVBNM1234567890"
@@ -29,7 +31,6 @@ def test_azure_credentials_from_account_key(environment: Dict[str, str]) -> None
     assert exp > pendulum.now().add(hours=23)
 
 
-@pytest.mark.skipif('az' not in ALL_FILESYSTEM_DRIVERS, reason='az filesystem driver not configured')
 def test_create_azure_sas_token_with_permissions(environment: Dict[str, str]) -> None:
     environment['CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME'] = 'fake_account_name'
     environment['CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY'] = "QWERTYUIOPASDFGHJKLZXCVBNM1234567890"
@@ -44,7 +45,6 @@ def test_create_azure_sas_token_with_permissions(environment: Dict[str, str]) ->
 
 
 
-@pytest.mark.skipif('az' not in ALL_FILESYSTEM_DRIVERS, reason='az filesystem driver not configured')
 def test_azure_credentials_from_sas_token(environment: Dict[str, str]) -> None:
     environment['CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME'] = 'fake_account_name'
     environment['CREDENTIALS__AZURE_STORAGE_SAS_TOKEN'] = "sp=rwdlacx&se=2021-01-01T00:00:00Z&sv=2019-12-12&sr=c&sig=1234567890"
@@ -62,7 +62,6 @@ def test_azure_credentials_from_sas_token(environment: Dict[str, str]) -> None:
     }
 
 
-@pytest.mark.skipif('az' not in ALL_FILESYSTEM_DRIVERS, reason='az filesystem driver not configured')
 def test_azure_credentials_missing_account_name(environment: Dict[str, str]) -> None:
     with pytest.raises(ConfigFieldMissingException) as excinfo:
         resolve_configuration(AzureCredentials())
@@ -72,7 +71,6 @@ def test_azure_credentials_missing_account_name(environment: Dict[str, str]) -> 
     assert 'azure_storage_account_name' in ex.fields
 
 
-@pytest.mark.skipif('az' not in ALL_FILESYSTEM_DRIVERS, reason='az filesystem driver not configured')
 def test_azure_credentials_from_default(environment: Dict[str, str]) -> None:
     environment['CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME'] = 'fake_account_name'
 
