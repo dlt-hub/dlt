@@ -18,7 +18,7 @@ from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, Des
                                    MissingDependencyException, DestinationUndefinedEntity, DestinationIncompatibleLoaderFileFormatException)
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
-from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition
+from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition, TAnySchemaColumns
 from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
 from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
@@ -36,6 +36,7 @@ from dlt.common.data_writers import TLoaderFileFormat
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, SourceExhausted
 from dlt.extract.extract import ExtractorStorage, extract_with_schema
 from dlt.extract.source import DltResource, DltSource
+from dlt.extract.utils import ensure_table_schema_columns
 from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase
@@ -262,7 +263,7 @@ class Pipeline(SupportsPipeline):
         table_name: str = None,
         parent_table_name: str = None,
         write_disposition: TWriteDisposition = None,
-        columns: Sequence[TColumnSchema] = None,
+        columns: TAnySchemaColumns = None,
         primary_key: TColumnNames = None,
         schema: Schema = None,
         max_parallel_items: int = None,
@@ -387,7 +388,7 @@ class Pipeline(SupportsPipeline):
         credentials: Any = None,
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
-        columns: Sequence[TColumnSchema] = None,
+        columns: TAnySchemaColumns = None,
         primary_key: TColumnNames = None,
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None
@@ -769,14 +770,12 @@ class Pipeline(SupportsPipeline):
         table_name: str = None,
         parent_table_name: str = None,
         write_disposition: TWriteDisposition = None,
-        columns: Sequence[TColumnSchema] = None,
+        columns: TAnySchemaColumns = None,
         primary_key: TColumnNames = None
     ) -> List[DltSource]:
 
         def apply_hint_args(resource: DltResource) -> None:
-            columns_dict = None
-            if columns:
-                columns_dict = {c["name"]:c for c in columns}
+            columns_dict = ensure_table_schema_columns(columns) if columns is not None else None
             # apply hints only if any of the hints is present, table_name must be always present
             if table_name or parent_table_name or write_disposition or columns or primary_key:
                 resource.apply_hints(table_name or resource.table_name or resource.name, parent_table_name, write_disposition, columns_dict, primary_key)
