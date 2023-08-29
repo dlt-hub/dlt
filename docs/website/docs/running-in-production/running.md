@@ -61,13 +61,13 @@ You can also access the last `extract`, `normalize` and `load` infos directly:
 
 ```python
     # print human friendly extract information
-    print(pipeline.last_extract_info)
+    print(pipeline.last_trace.last_extract_info)
     # print human friendly normalization information
-    print(pipeline.last_normalize_info)
+    print(pipeline.last_trace.last_normalize_info)
     # access row counts dictionary of normalize info
-    print(pipeline.last_normalize_info.row_counts)
+    print(pipeline.last_trace.last_normalize_info.row_counts)
     # print human friendly load information
-    print(pipeline.last_load_info)
+    print(pipeline.last_trace.last_load_info)
 ```
 
 Please note that you can inspect the pipeline using

@@ -100,7 +100,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
         "_dlt_version": dlt_versions
     }
     # check trace
-    assert pipeline.last_normalize_info.row_counts == {
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
         "append_items": 12,
         "items": 120,
         "items__sub_items": 240,
@@ -136,7 +136,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
         "_dlt_version": dlt_versions
     }
     # check trace
-    assert pipeline.last_normalize_info.row_counts == {
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
         "append_items": 12,
         "items": 0,
     }
@@ -153,7 +153,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     dlt_loads = increase_loads(dlt_loads)
     dlt_versions = increase_loads(dlt_versions)
     # check trace
-    assert pipeline_2.last_normalize_info.row_counts == {
+    assert pipeline_2.last_trace.last_normalize_info.row_counts == {
         "items_copy": 120,
         "items_copy__sub_items": 240,
         "items_copy__sub_items__sub_sub_items": 120,
@@ -279,7 +279,7 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
     # check trace
-    assert pipeline.last_normalize_info.row_counts == {
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
         "items": 1,
         "items__sub_items": 2,
         "other_items": 1,
@@ -299,7 +299,7 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
     # check trace
-    assert pipeline.last_normalize_info.row_counts == {
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
         "items": 1,
         "other_items": 1
     }
@@ -315,7 +315,7 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
     # check trace
-    assert pipeline.last_normalize_info.row_counts == {
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
         "items": 0,
         "other_items": 0
     }
@@ -330,7 +330,7 @@ def test_replace_table_clearing(destination_config: DestinationTestConfiguration
     assert table_counts["static_items"] == 1
     assert table_counts["static_items__sub_items"] == 2
     # check trace
-    assert pipeline.last_normalize_info.row_counts == {
+    assert pipeline.last_trace.last_normalize_info.row_counts == {
         "items": 1,
         "items__sub_items": 2,
         "other_items": 1,
