@@ -10,7 +10,7 @@ from os import environ
 from types import ModuleType
 import zlib
 
-from typing import Any, ContextManager, Dict, Iterator, Optional, Sequence, Set, Tuple, TypeVar, Mapping, List, Union, Counter
+from typing import Any, ContextManager, Dict, Iterator, Optional, Sequence, Set, Tuple, TypeVar, Mapping, List, Union, Counter, Iterable
 from collections.abc import Mapping as C_Mapping
 
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
@@ -425,3 +425,12 @@ def compressed_b64decode(value: str) -> bytes:
 
 def identity(x: TAny) -> TAny:
     return x
+
+
+def extend_list_deduplicated(original_list: List[Any], extending_list: Iterable[Any]) -> List[Any]:
+    """extends the first list by the second, but does not add duplicates"""
+    list_keys = set(original_list)
+    for item in extending_list:
+        if item not in list_keys:
+            original_list.append(item)
+    return original_list
