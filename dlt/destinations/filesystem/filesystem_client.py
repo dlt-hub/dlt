@@ -28,6 +28,6 @@ def client_from_config(config: FilesystemClientConfiguration) -> Tuple[AbstractF
             fs_kwargs['token'] = dict(config.credentials)
         fs_kwargs['project'] = config.credentials.project_id
     try:
-        return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore[no-any-return]
+        return url_to_fs(config.bucket_url, use_listings_cache=False, **fs_kwargs)  # type: ignore[no-any-return]
     except ModuleNotFoundError as e:
         raise MissingDependencyException("filesystem destination", [f"{version.DLT_PKG_NAME}[{proto}]"]) from e
