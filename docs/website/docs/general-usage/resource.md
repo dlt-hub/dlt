@@ -58,7 +58,7 @@ accepts following arguments:
    which means that it will be loaded as JSON/struct and not as child table.
 
   ```python
-  @dlt.resource(name="user", columns={"tags": {"data_type": "complex"}})
+  @dlt.resource(name="user", columns={"tags": {"name": "tags", "data_type": "complex"}})
   def get_users():
     ...
 
