@@ -201,6 +201,19 @@ def test_normalize_raw_type_hints(caps: DestinationCapabilitiesContext, rasa_nor
     extract_and_normalize_cases(rasa_normalize, ["event.event.user_load_1"])
     assert_timestamp_data_type(rasa_normalize.load_storage, "timestamp")
 
+@pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
+def test_multiprocess_row_counting(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
+    extract_cases(
+        raw_normalize.normalize_storage,
+        ["github.events.load_page_1_duck"]
+    )
+    # use real process pool in tests
+    with Pool(processes=4) as p:
+        raw_normalize.run(p)
+
+    assert raw_normalize._row_counts["events"] == 100
+    assert raw_normalize._row_counts["events__payload__pull_request__requested_reviewers"] == 24
+
 
 @pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
 def test_normalize_many_schemas(caps: DestinationCapabilitiesContext, rasa_normalize: Normalize) -> None:

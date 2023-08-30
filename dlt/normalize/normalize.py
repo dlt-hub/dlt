@@ -18,16 +18,17 @@ from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage, Lo
 from dlt.common.typing import TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
-from dlt.common.utils import chunks
+from dlt.common.pipeline import NormalizeInfo
+from dlt.common.utils import chunks, TRowCount, merge_row_count, increase_row_count
 
 from dlt.normalize.configuration import NormalizeConfiguration
 
 # normalize worker wrapping function (map_parallel, map_single) return type
-TMapFuncRV = Sequence[TSchemaUpdate]
+TMapFuncRV = Tuple[Sequence[TSchemaUpdate], TRowCount]
 # normalize worker wrapping function signature
 TMapFuncType = Callable[[Schema, str, Sequence[str]], TMapFuncRV]  # input parameters: (schema name, load_id, list of files to process)
 # tuple returned by the worker
-TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str]]
+TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str], TRowCount]
 
 
 class Normalize(Runnable[ProcessPool]):
@@ -40,6 +41,7 @@ class Normalize(Runnable[ProcessPool]):
         self.normalize_storage: NormalizeStorage = None
         self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
+        self._row_counts: TRowCount = {}
 
         # setup storages
         self.create_storages()
@@ -75,6 +77,8 @@ class Normalize(Runnable[ProcessPool]):
 
         schema_updates: List[TSchemaUpdate] = []
         total_items = 0
+        row_counts: TRowCount = {}
+
         # process all files with data items and write to buffered item storage
         with Container().injectable_context(destination_caps):
             schema = Schema.from_stored_schema(stored_schema)
@@ -94,14 +98,17 @@ class Normalize(Runnable[ProcessPool]):
                         items_count = 0
                         for line_no, line in enumerate(f):
                             items: List[TDataItem] = json.loads(line)
-                            partial_update, items_count = Normalize._w_normalize_chunk(load_storage, schema, load_id, root_table_name, items)
+                            partial_update, items_count, r_counts = Normalize._w_normalize_chunk(load_storage, schema, load_id, root_table_name, items)
                             schema_updates.append(partial_update)
                             total_items += items_count
+                            merge_row_count(row_counts, r_counts)
                             logger.debug(f"Processed {line_no} items from file {extracted_items_file}, items {items_count} of total {total_items}")
                         # if any item found in the file
                         if items_count > 0:
                             populated_root_tables.add(root_table_name)
                             logger.debug(f"Processed total {line_no + 1} lines from file {extracted_items_file}, total items {total_items}")
+                        # make sure base tables are all covered
+                        increase_row_count(row_counts, root_table_name, 0)
                 # write empty jobs for tables without items if table exists in schema
                 for table_name in root_tables - populated_root_tables:
                     if table_name not in schema.tables:
@@ -117,14 +124,15 @@ class Normalize(Runnable[ProcessPool]):
 
         logger.info(f"Processed total {total_items} items in {len(extracted_items_files)} files")
 
-        return schema_updates, total_items, load_storage.closed_files()
+        return schema_updates, total_items, load_storage.closed_files(), row_counts
 
     @staticmethod
-    def _w_normalize_chunk(load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem]) -> Tuple[TSchemaUpdate, int]:
+    def _w_normalize_chunk(load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem]) -> Tuple[TSchemaUpdate, int, TRowCount]:
         column_schemas: Dict[str, TTableSchemaColumns] = {}  # quick access to column schema for writers below
         schema_update: TSchemaUpdate = {}
         schema_name = schema.name
         items_count = 0
+        row_counts: TRowCount = {}
 
         for item in items:
             for (table_name, parent_table), row in schema.normalize_data_item(item, load_id, root_table_name):
@@ -155,8 +163,9 @@ class Normalize(Runnable[ProcessPool]):
                     load_storage.write_data_item(load_id, schema_name, table_name, row, columns)
                     # count total items
                     items_count += 1
+                    increase_row_count(row_counts, table_name, 1)
             signals.raise_if_signalled()
-        return schema_update, items_count
+        return schema_update, items_count, row_counts
 
     def update_schema(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
         for schema_update in schema_updates:
@@ -190,6 +199,7 @@ class Normalize(Runnable[ProcessPool]):
         config_tuple = (self.normalize_storage.config, self.load_storage.config, self.config.destination_capabilities, schema_dict)
         param_chunk = [[*config_tuple, load_id, files] for files in chunk_files]
         tasks: List[Tuple[AsyncResult[TWorkerRV], List[Any]]] = []
+        row_counts: TRowCount = {}
 
         # return stats
         schema_updates: List[TSchemaUpdate] = []
@@ -214,6 +224,8 @@ class Normalize(Runnable[ProcessPool]):
                             # update metrics
                             self.collector.update("Files", len(result[2]))
                             self.collector.update("Items", result[1])
+                            # merge row counts
+                            merge_row_count(row_counts, result[3])
                         except CannotCoerceColumnException as exc:
                             # schema conflicts resulting from parallel executing
                             logger.warning(f"Parallel schema update conflict, retrying task ({str(exc)}")
@@ -233,7 +245,7 @@ class Normalize(Runnable[ProcessPool]):
                         pending.get()
                         raise AssertionError("unreachable code: pending.get must raise")
 
-        return schema_updates
+        return schema_updates, row_counts
 
     def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
         result = Normalize.w_normalize_files(
@@ -247,13 +259,13 @@ class Normalize(Runnable[ProcessPool]):
         self.update_schema(schema, result[0])
         self.collector.update("Files", len(result[2]))
         self.collector.update("Items", result[1])
-        return result[0]
+        return result[0], result[3]
 
     def spool_files(self, schema_name: str, load_id: str, map_f: TMapFuncType, files: Sequence[str]) -> None:
         schema = Normalize.load_or_create_schema(self.schema_storage, schema_name)
 
         # process files in parallel or in single thread, depending on map_f
-        schema_updates = map_f(schema, load_id, files)
+        schema_updates, row_counts = map_f(schema, load_id, files)
         # logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
         if len(schema_updates) > 0:
             logger.info(f"Saving schema {schema_name} with version {schema.version}, writing manifest files")
@@ -270,9 +282,10 @@ class Normalize(Runnable[ProcessPool]):
         self.load_storage.commit_temp_load_package(load_id)
         # delete item files to complete commit
         for file in files:
-                self.normalize_storage.storage.delete(file)
+            self.normalize_storage.storage.delete(file)
         # log and update metrics
         logger.info(f"Chunk {load_id} processed")
+        self._row_counts = row_counts
 
     def spool_schema_files(self, load_id: str, schema_name: str, files: Sequence[str]) -> str:
         # normalized files will go here before being atomically renamed
@@ -297,6 +310,7 @@ class Normalize(Runnable[ProcessPool]):
     def run(self, pool: ProcessPool) -> TRunMetrics:
         # keep the pool in class instance
         self.pool = pool
+        self._row_counts = {}
         logger.info("Running file normalizing")
         # list files and group by schema name, list must be sorted for group by to actually work
         files = self.normalize_storage.list_files_to_normalize_sorted()
@@ -314,3 +328,6 @@ class Normalize(Runnable[ProcessPool]):
                 self.spool_schema_files(load_id, schema_name, schema_files)
         # return info on still pending files (if extractor saved something in the meantime)
         return TRunMetrics(False, len(self.normalize_storage.list_files_to_normalize_sorted()))
+
+    def get_normalize_info(self) -> NormalizeInfo:
+        return NormalizeInfo(row_counts=self._row_counts)
