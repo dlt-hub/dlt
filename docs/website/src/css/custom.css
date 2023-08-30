@@ -516,9 +516,39 @@ html[data-theme='dark'] .slack-navbar::before {
   background-image: url(../../static/img/Installation-Inactive.svg);
 }*/
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>div>a::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a::before {
   background-image: url(../../static/img/GettingStarted-Inactive.svg);
 }
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>a::before {
+  background-image: url(../../static/img/Pipelines-Inactive.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
+    background-image: url(../../static/img/UsingLoadedData-Inactive.svg);
+  }
+
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>a::before {
+background-image: url(../../static/img/UserGuide-Inactive.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>a::before {
+background-image: url(../../static/img/Walkthrough-Inactive.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
+background-image: url(../../static/img/GeneralUsage-Inactive.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
+background-image: url(../../static/img/RunningInProduction-Inactive.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>a::before {
+    background-image: url(../../static/img/Reference-Inactive.svg);
+  }
+
 
 /*.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>a::before {
   background-image: url(../../static/img/Howdltworks-Inactive.svg);
@@ -532,38 +562,16 @@ html[data-theme='dark'] .slack-navbar::before {
   background-image: url(../../static/img/Destinations-Inactive.svg);
 }*/
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>a::before {
-  background-image: url(../../static/img/UsingLoadedData-Inactive.svg);
-}
-
-
-.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
-  background-image: url(../../static/img/UserGuide-Inactive.svg);
-}
-
-.theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>a::before {
-  background-image: url(../../static/img/Walkthrough-Inactive.svg);
-}
-
-.theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>a::before {
-  background-image: url(../../static/img/GeneralUsage-Inactive.svg);
-}
-
 /*.theme-doc-sidebar-menu.menu__list>li:nth-child(10)>div>a::before {
   background-image: url(../../static/img/Customization-Inactive.svg);
 }
 */
-.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
-  background-image: url(../../static/img/RunningInProduction-Inactive.svg);
-}
+
 
 /*.theme-doc-sidebar-menu.menu__list>li:nth-child(12)>div>a::before {
   background-image: url(../../static/img/UsingLoadedData-Inactive.svg);
 }
 */
-.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
-  background-image: url(../../static/img/Reference-Inactive.svg);
-}
 
 /* siderbar-icons */
 
@@ -578,13 +586,18 @@ html[data-theme='dark'] .slack-navbar::before {
   background-image: url(../../static/img/Installation-Active.svg);
 }*/
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>div>[aria-expanded="true"]::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(2)>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(2)>[aria-expanded="true"]::before {
   background-image: url(../../static/img/GettingStarted-Active.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>[aria-expanded="true"]::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/Pipelines-Active.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/UsingLoadedData-Active.svg);
 }
 
@@ -603,18 +616,18 @@ html[data-theme='dark'] .slack-navbar::before {
   background-image: url(../../static/img/Destinations-Active.svg);
 }*/
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(4)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/UserGuide-Active.svg);
-}
-
 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(5)>div>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/Walkthrough-Active.svg);
+  background-image: url(../../static/img/UserGuide-Active.svg);
 }
 
 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(6)>div>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/Walkthrough-Active.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/GeneralUsage-Active.svg);
 }
 
@@ -623,8 +636,8 @@ html[data-theme='dark'] .slack-navbar::before {
   background-image: url(../../static/img/Customization-Active.svg);
 }
 */
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>[aria-expanded="true"]::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/RunningInProduction-Active.svg);
 }
 
@@ -633,8 +646,8 @@ html[data-theme='dark'] .slack-navbar::before {
   background-image: url(../../static/img/UsingLoadedData-Active.svg);
 }
 */
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(9)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Reference-Active.svg);
 }
 

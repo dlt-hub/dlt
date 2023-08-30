@@ -57,9 +57,12 @@ class NormalizeInfo(NamedTuple):
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
-        msg = "Found data for the following tables:\n"
-        for key, value in self.row_counts.items():
-            msg += f"- {key}: {value} rows\n"
+        if self.row_counts:
+            msg = "Normalized data for the following tables:\n"
+            for key, value in self.row_counts.items():
+                msg += f"- {key}: {value} row(s)\n"
+        else:
+            msg = "No data found to normalize"
         return msg
 
     def __str__(self) -> str:

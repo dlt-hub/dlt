@@ -15,18 +15,8 @@
 const sidebars = {
   tutorialSidebar: [
     'intro',
-    {
-      type: 'category',
-      label: 'Getting Started',
-      link: {
-        type: 'doc',
-        id: 'getting-started/index',
-      },
-      items: [
-        'getting-started/try-in-colab',
-        'getting-started/build-a-data-pipeline'
-      ],
-    },
+    'getting-started',
+    'build-a-pipeline-tutorial',
     {
       type: 'category',
       label: 'dlt Ecosystem',

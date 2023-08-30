@@ -32,5 +32,8 @@ pipeline = dlt.pipeline(
     dataset_name='github_data_append',
 )
 load_info = pipeline.run(get_issues)
+row_counts = pipeline.last_trace.last_normalize_info
+print(row_counts)
+print("------")
 print(load_info)
 # @@@SNIPEND
