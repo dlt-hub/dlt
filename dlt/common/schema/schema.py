@@ -3,6 +3,7 @@ from copy import copy, deepcopy
 from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast
 from dlt.common import json
 
+from dlt.common.utils import extend_list_deduplicated
 from dlt.common.typing import DictStrAny, StrAny, REPattern, SupportsVariant, VARIANT_FIELD_FORMAT, TDataItem
 from dlt.common.normalizers import TNormalizersConfig, explicit_normalizers, import_normalizers
 from dlt.common.normalizers.naming import NamingConvention
@@ -231,8 +232,7 @@ class Schema:
         # add `new_hints` to existing hints
         for h, l in new_hints.items():
             if h in default_hints:
-                # merge if hint of this type exist
-                default_hints[h] = list(set(default_hints[h] + list(l)))
+                extend_list_deduplicated(default_hints[h], l)
             else:
                 # set new hint type
                 default_hints[h] = l  # type: ignore

@@ -5,7 +5,7 @@ import pytest
 
 from dlt.common.runners import Venv
 from dlt.common.utils import (graph_find_scc_nodes, flatten_list_of_str_or_dicts, digest128, graph_edges_to_nodes, map_nested_in_place,
-                              reveal_pseudo_secret, obfuscate_pseudo_secret, get_module_name, concat_strings_with_limit)
+                              reveal_pseudo_secret, obfuscate_pseudo_secret, get_module_name, concat_strings_with_limit, extend_list_deduplicated)
 
 
 def test_flatten_list_of_str_or_dicts() -> None:
@@ -125,3 +125,10 @@ def test_graph_edges_to_nodes() -> None:
     assert graph_edges_to_nodes([]) == {}
     # ignores double edge
     assert graph_edges_to_nodes([('A', 'B'), ('A', 'B')]) == {'A': {'B'}, 'B': set()}
+
+
+def test_extend_list_deduplicated() -> None:
+    assert extend_list_deduplicated(["one", "two", "three"], ["four", "five", "six"]) == ["one", "two", "three", "four", "five", "six"]
+    assert extend_list_deduplicated(["one", "two", "three", "six"], ["two", "four", "five", "six"]) == ["one", "two", "three", "six", "four", "five"]
+    assert extend_list_deduplicated(["one", "two", "three"], ["one", "two", "three"]) == ["one", "two", "three"]
+    assert extend_list_deduplicated([], ["one", "two", "three"]) == ["one", "two", "three"]
