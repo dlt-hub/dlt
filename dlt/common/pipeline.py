@@ -46,11 +46,21 @@ class ExtractInfo(NamedTuple):
 
 class NormalizeInfo(NamedTuple):
     """A tuple holding information on normalized data items. Returned by pipeline `normalize` method."""
+
+    row_counts: Dict[str, int] = {}
+
     def asdict(self) -> DictStrAny:
-        return {}
+        """A dictionary representation of NormalizeInfo that can be loaded with `dlt`"""
+        d = self._asdict()
+        # list representation creates a nice table
+        d["row_counts"] = [(k, v) for k, v in self.row_counts.items()]
+        return d
 
     def asstr(self, verbosity: int = 0) -> str:
-        return ""
+        msg = "Found data for the following tables:\n"
+        for key, value in self.row_counts.items():
+            msg += f"- {key}: {value} rows\n"
+        return msg
 
     def __str__(self) -> str:
         return self.asstr(verbosity=0)

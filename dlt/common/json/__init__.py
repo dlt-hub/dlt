@@ -83,10 +83,10 @@ def custom_encode(obj: Any) -> str:
         return obj.asdict()  # type: ignore
     elif hasattr(obj, '_asdict'):
         return obj._asdict()  # type: ignore
-    elif dataclasses.is_dataclass(obj):
-        return dataclasses.asdict(obj)  # type: ignore
     elif PydanticBaseModel and isinstance(obj, PydanticBaseModel):
         return obj.dict()  # type: ignore[return-value]
+    elif dataclasses.is_dataclass(obj):
+        return dataclasses.asdict(obj)  # type: ignore
     raise TypeError(repr(obj) + " is not JSON serializable")
 
 

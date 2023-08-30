@@ -322,9 +322,9 @@ class Pipeline(SupportsPipeline):
             try:
                 with signals.delayed_signals():
                     runner.run_pool(normalize.config, normalize)
-                return NormalizeInfo()
+                return normalize.get_normalize_info()
             except Exception as n_ex:
-                raise PipelineStepFailed(self, "normalize", n_ex, NormalizeInfo()) from n_ex
+                raise PipelineStepFailed(self, "normalize", n_ex, normalize.get_normalize_info()) from n_ex
 
     @with_runtime_trace
     @with_schemas_sync
