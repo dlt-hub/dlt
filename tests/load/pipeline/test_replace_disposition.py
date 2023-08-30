@@ -178,7 +178,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
         "_dlt_version": increase_loads(dlt_versions)
     }
     # check trace
-    assert pipeline_2.last_normalize_info.row_counts == {
+    assert pipeline_2.last_trace.last_normalize_info.row_counts == {
         "append_items": 12,
     }
 
