@@ -21,16 +21,16 @@ Let's get started!
 
 ## Installation
 
-Install dlt using pip:
+Install dlt using `pip`:
 
 ```bash
-pip install dlt
+pip3 install dlt
 ```
 
 Command above just installs library core, in example below we use `duckdb` as a destination so let's add it:
 
 ```bash
-pip install "dlt[duckdb]"
+pip3 install "dlt[duckdb]"
 ```
 
 :::tip
@@ -81,18 +81,18 @@ Load package 1692364844.460054 is LOADED and contains no failed jobs
 ```bash
 dlt pipeline quick_start show
 ```
-**quick_start** is the name of the pipeline from the script above. If you do not have Streamlit installed yet do
+**quick_start** is the name of the pipeline from the script above. If you do not have Streamlit installed yet do:
 ```bash
-pip install streamlit pandas
+pip3 install streamlit
 ```
 
-Now you should see the **users** table
+Now you should see the **users** table:
 
 ![Streamlit Explore data](/img/streamlit1.png)
 Streamlit Explore data. Schema and data for a test pipeline “quick_start”.
 
 :::tip
-`dlt` works in Jupyter Notebook and Google Colab! See our [Quickstart Colab Demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
+`dlt` works in Jupyter Notebook and Google Colab! See our [Quickstart Colab Demo.](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
 :::
 
 Learn more:
@@ -178,8 +178,8 @@ print(load_info)
 import dlt
 from dlt.sources.helpers import requests
 
-# url to request dlt-hub followers
-url = "https://api.github.com/users/dlt-hub/followers"
+# url to request dlt-hub/dlt issues
+url = "https://api.github.com/repos/dlt-hub/dlt/issues"
 # make the request and check if succeeded
 response = requests.get(url)
 response.raise_for_status()
@@ -189,8 +189,8 @@ pipeline = dlt.pipeline(
     destination='duckdb',
     dataset_name='github_data',
 )
-# the response contains a list of followers
-load_info = pipeline.run(response.json(), table_name="followers")
+# the response contains a list of issues
+load_info = pipeline.run(response.json(), table_name="issues")
 print(load_info)
 ```
 <!--SNIPEND-->
@@ -224,13 +224,13 @@ with engine.connect() as conn:
 
     # here we convert the rows into dictionaries on the fly with a map function
     load_info = pipeline.run(map(dict, rows), table_name="genome")
-print(load_info)
+    print(load_info)
 ```
 <!--SNIPEND-->
 
 Have some fun and run this snippet [with progress bar enabled](walkthroughs/run-a-pipeline.md#2-see-the-progress-during-loading) (we like **enlighten** the best, **tqdm** works as well):
 ```bash
-pip install enlighten
+pip3 install enlighten
 PROGRESS=enlighten python load_from_db.py
 ```
 
@@ -270,12 +270,12 @@ Run this script twice to see that **users** table still contains only one copy o
 :::tip
 What if you added a new column to your CSV?
 `dlt` will migrate your tables!
-See the `replace` mode and table schema migration in action in our [Colab Demo](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM)
+See the `replace` mode and table schema migration in action in our [Colab Demo](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM).
 :::
 
 Learn more:
 
-- [Full load - how to replace your data](general-usage/full-loading)
+- [Full load - how to replace your data](general-usage/full-loading).
 - [Append, replace and merge your tables](general-usage/incremental-loading).
 
 
@@ -415,8 +415,8 @@ Learn more:
 
 ### Dispatch stream of events to tables by event type
 
-This is a fun but practical example that reads Github events from **dlt** repository (such as issue or pull request created, comment added etc.).
-Each event type is sent to a different table in `duckdb.`
+This is a fun but practical example that reads GitHub events from **dlt** repository (such as issue or pull request created, comment added etc.).
+Each event type is sent to a different table in `duckdb`.
 
 <!--SNIPSTART getting_started_index_snippet_table_dispatch -->
 ```py
@@ -474,7 +474,7 @@ dlt pipeline -v github_events info
 dlt pipeline github_events trace
 ```
 
-And preview the data
+And preview the data:
 
 ```shell
 dlt pipeline -v github_events show
@@ -536,7 +536,9 @@ pipeline = dlt.pipeline(
 
 # this constructs a simple pipeline that: (1) reads files from "invoices" folder (2) filters only those ending with ".pdf"
 # (3) sends them to pdf_to_text transformer with pipe (|) operator
-pdf_pipeline = list_files("invoices").add_filter(lambda item: item["file_name"].endswith(".pdf")) | pdf_to_text(separate_pages=True)
+pdf_pipeline = list_files("invoices").add_filter(
+    lambda item: item["file_name"].endswith(".pdf")
+) | pdf_to_text(separate_pages=True)
 
 # set the name of the destination table to receive pages
 # NOTE: Weaviate, dlt's tables are mapped to classes
@@ -568,7 +570,7 @@ Just before load, the `weaviate_adapter` is used to tell `weaviate` destination 
 To run this example you need additional dependencies:
 
 ```shell
-pip install PyPDF2 "dlt[weaviate]"
+pip3 install PyPDF2 "dlt[weaviate]"
 python pdf_to_weaviate.py
 ```
 
@@ -587,13 +589,13 @@ Above we provide URL to local cluster. We also use `contextionary` to vectorize 
 
 :::tip
 
-Change the destination to `duckdb` if you do not have access to Weaviate cluster or not able to run it locally
+Change the destination to `duckdb` if you do not have access to Weaviate cluster or not able to run it locally.
 
 :::
 
 Learn more:
 
-- [Setup Weaviate destination - local or cluster](dlt-ecosystem/destinations/weaviate.md)
+- [Setup Weaviate destination - local or cluster](dlt-ecosystem/destinations/weaviate.md).
 - [Connect the transformers to the resources](general-usage/resource#feeding-data-from-one-resource-into-another)
 to load additional data or enrich it.
 - [Transform your data before loading](general-usage/resource#customize-resources) and see some
@@ -603,9 +605,9 @@ to load additional data or enrich it.
 
 If you want to take full advantage of the `dlt` library, then we strongly suggest that you build your sources out of existing **building blocks:**
 
-- Pick your [destination](dlt-ecosystem/destinations/)
-- Check [verified sources](dlt-ecosystem/verified-sources/)
-- Access your data with [SQL](dlt-ecosystem/transformations/sql) or [Pandas](dlt-ecosystem/transformations/sql)
+- Pick your [destination](dlt-ecosystem/destinations/).
+- Check [verified sources](dlt-ecosystem/verified-sources/).
+- Access your data with [SQL](dlt-ecosystem/transformations/sql) or [Pandas](dlt-ecosystem/transformations/sql).
 - Declare your [resources](general-usage/resource) and group them in [sources](general-usage/source) using Python decorators.
 - [Connect the transformers to the resources](general-usage/resource#feeding-data-from-one-resource-into-another) to load additional data or enrich it.
 - [Create your resources dynamically from data](general-usage/source#create-resources-dynamically).
@@ -614,5 +616,5 @@ If you want to take full advantage of the `dlt` library, then we strongly sugges
 - [Set up "last value" incremental loading](general-usage/incremental-loading#incremental-loading-with-last-value).
 - [Set primary and merge keys, define the columns nullability and data types](general-usage/resource#define-schema).
 - [Pass config and credentials into your sources and resources](general-usage/credentials).
-- [Use built-in requests client](reference/performance#using-the-built-in-requests-client)
-- [Run in production: inspecting, tracing, retry policies and cleaning up](running-in-production/running)
+- [Use built-in requests client](reference/performance#using-the-built-in-requests-client).
+- [Run in production: inspecting, tracing, retry policies and cleaning up](running-in-production/running).

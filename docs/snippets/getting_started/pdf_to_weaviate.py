@@ -38,7 +38,9 @@ pipeline = dlt.pipeline(
 
 # this constructs a simple pipeline that: (1) reads files from "invoices" folder (2) filters only those ending with ".pdf"
 # (3) sends them to pdf_to_text transformer with pipe (|) operator
-pdf_pipeline = list_files("invoices").add_filter(lambda item: item["file_name"].endswith(".pdf")) | pdf_to_text(separate_pages=True)
+pdf_pipeline = list_files("invoices").add_filter(
+    lambda item: item["file_name"].endswith(".pdf")
+) | pdf_to_text(separate_pages=True)
 
 # set the name of the destination table to receive pages
 # NOTE: Weaviate, dlt's tables are mapped to classes
