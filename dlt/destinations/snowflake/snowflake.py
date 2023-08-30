@@ -83,8 +83,13 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                 credentials_clause = f"CREDENTIALS=(AZURE_SAS_TOKEN='?{staging_credentials.azure_storage_sas_token}')"
                 # Converts an az://<container_name>/<path> to azure://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
                 # as required by snowflake
+                _path = "/" + bucket_url.netloc + bucket_url.path
                 bucket_path = urlunparse(
-                    bucket_url._replace(scheme="azure", netloc=f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net")
+                    bucket_url._replace(
+                        scheme="azure",
+                        netloc=f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net",
+                        path=_path
+                    )
                 )
                 from_clause = f"FROM '{bucket_path}'"
             else:
