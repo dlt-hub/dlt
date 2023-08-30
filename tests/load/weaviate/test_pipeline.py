@@ -47,7 +47,7 @@ def test_basic_state_and_schema() -> None:
     )
     assert_load_info(info)
 
-    client, _ = pipeline._get_destination_clients()
+    client, _ = pipeline._get_destination_clients(pipeline._get_schema_or_create())
 
     # check if we can get a stored schema and state
     schema = client.get_stored_schema()

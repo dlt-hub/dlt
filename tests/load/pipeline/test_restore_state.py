@@ -337,12 +337,29 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
         yield param
 
     info = p.run(some_data("fix_1"))
+
     with p._get_destination_clients(p.default_schema)[0] as job_client:
         state = load_state_from_destination(pipeline_name, job_client)
         assert state is not None
         # delete load id
-        load_id =  next(iter(info.loads_ids))
-        job_client.clear_load(load_id)
+        load_id = next(iter(info.loads_ids))
+
+        # sql client
+        if hasattr(job_client, "sql_client"):
+            name = job_client.sql_client.make_qualified_table_name(job_client.schema.loads_table_name)
+            job_client.sql_client.execute_sql(f"DELETE FROM {name} WHERE load_id = %s", load_id)
+        # weaviate
+        elif hasattr(job_client, "db_client"):
+            class_name = job_client.make_full_name(job_client.schema.loads_table_name)
+            job_client.db_client.batch.delete_objects(
+                class_name=class_name,
+                where={
+                    'path': ['load_id'],
+                    'operator': 'Equal',
+                    'valueText': load_id
+                },
+            )
+
         # state without completed load id is not visible
         state = load_state_from_destination(pipeline_name, job_client)
         assert state is None

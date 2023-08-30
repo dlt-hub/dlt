@@ -499,7 +499,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
                         "valueString": load_id,
                      }, limit=1, properties=["load_id", "status"])
                 # if there is a load for this state which was successfull, return the state
-                if len(load_records) and load_records[0]["status"] == 0:
+                if len(load_records):
                     state["dlt_load_id"] = state.pop("_dlt_load_id")
                     return StateInfo(**state)
 
@@ -643,17 +643,6 @@ class WeaviateClient(JobClientBase, WithStateSync):
         }
         self.create_object(properties, self.schema.loads_table_name)
 
-    @wrap_weaviate_error
-    def clear_load(self, load_id: str) -> None:
-        class_name = self.make_full_name(self.schema.loads_table_name)
-        self.db_client.batch.delete_objects(
-            class_name=class_name,
-            where={
-                'path': ['load_id'],
-                'operator': 'Equal',
-                'valueText': load_id
-            },
-        )
 
     def __enter__(self) -> "WeaviateClient":
         return self

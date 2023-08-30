@@ -92,7 +92,7 @@ def assert_dropped_resource_states(pipeline: Pipeline, resources: List[str]) -> 
 
 def assert_destination_state_loaded(pipeline: Pipeline) -> None:
     """Verify stored destination state matches the local pipeline state"""
-    with pipeline._get_destination_clients()[0] as client:
+    with pipeline._get_destination_clients(pipeline._get_schema_or_create())[0] as client:
         destination_state = state_sync.load_state_from_destination(pipeline.pipeline_name, client)
     pipeline_state = dict(pipeline.state)
     del pipeline_state['_local']

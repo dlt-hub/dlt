@@ -261,11 +261,6 @@ class JobClientBase(ABC):
         pass
 
     @abstractmethod
-    def clear_load(self, load_id: str) -> None:
-        """Marks the load package with `load_id` as completed in the destination. Before such commit is done, the data with `load_id` is invalid."""
-        pass
-
-    @abstractmethod
     def __enter__(self) -> "JobClientBase":
         pass
 

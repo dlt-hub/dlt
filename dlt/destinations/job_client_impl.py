@@ -203,10 +203,6 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
             load_id, self.schema.name, 0, now_ts, self.schema.version_hash
         )
 
-    def clear_load(self, load_id: str) -> None:
-        name = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
-        self.sql_client.execute_sql(f"DELETE FROM {name} WHERE load_id = %s", load_id)
-
     def __enter__(self) -> "SqlJobClientBase":
         self.sql_client.open_connection()
         return self

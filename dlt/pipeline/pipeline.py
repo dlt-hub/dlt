@@ -679,21 +679,23 @@ class Pipeline(SupportsPipeline):
         #         "load",
         #         "Sql Client is not available in a pipeline without a default schema. Extract some data first or restore the pipeline from the destination using 'restore_from_destination' flag. There's also `_inject_schema` method for advanced users."
         #     )
-        if schema_name:
-            schema = self.schemas[schema_name]
-        else:
-            schema = self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.pipeline_name))
+        schema = self._get_schema_or_create(schema_name)
         return self._sql_job_client(schema, credentials).sql_client
 
     def _destination_client(self, schema_name: str = None, credentials: Any = None) -> JobClientBase:
         """Get the destination job client for the configured destination"""
-        # TODO: duplicated code from self.sql_client()  ...
-        if schema_name:
-            schema = self.schemas[schema_name]
-        else:
-            schema = self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.pipeline_name))
+        schema = self._get_schema_or_create(schema_name)
         client_config = self._get_destination_client_initial_config(credentials)
         return self._get_destination_clients(schema, client_config)[0]
+
+    def _get_schema_or_create(self, schema_name: str = None) -> Schema:
+        if schema_name:
+            return self.schemas[schema_name]
+        if self.default_schema_name:
+            return self.default_schema
+        with self._maybe_destination_capabilities():
+            return Schema(self.pipeline_name)
+        return self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.pipeline_name))
 
     def _sql_job_client(self, schema: Schema, credentials: Any = None) -> SqlJobClientBase:
         client_config = self._get_destination_client_initial_config(credentials)
@@ -899,12 +901,10 @@ class Pipeline(SupportsPipeline):
         return client_spec(credentials=credentials)
 
     def _get_destination_clients(self,
-        schema: Schema = None,
+        schema: Schema,
         initial_config: DestinationClientConfiguration = None,
         initial_staging_config: DestinationClientConfiguration = None
     ) -> Tuple[JobClientBase, JobClientBase]:
-        if not schema:
-            schema = self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.pipeline_name))
         try:
             # resolve staging config in order to pass it to destination client config
             staging_client = None
@@ -1122,8 +1122,6 @@ class Pipeline(SupportsPipeline):
             schema_name = normalize_schema_name(self.pipeline_name)
             with self._maybe_destination_capabilities():
                 schema = Schema(schema_name)
-                # schema.update_normalizers()
-                # schema._schema_name = schema.naming.normalize_identifier(schema_name)
             with self._get_destination_clients(schema)[0] as job_client:
                 if isinstance(job_client, WithStateSync):
                     state = load_state_from_destination(self.pipeline_name, job_client)
@@ -1145,8 +1143,6 @@ class Pipeline(SupportsPipeline):
         for schema_name in schema_names:
             with self._maybe_destination_capabilities():
                 schema = Schema(schema_name)
-                # schema.update_normalizers()
-                # schema._schema_name = schema.naming.normalize_identifier(schema_name)
             if not self._schema_storage.has_schema(schema.name) or always_download:
                 with self._get_destination_clients(schema)[0] as job_client:
                     if not isinstance(job_client, WithStateSync):
