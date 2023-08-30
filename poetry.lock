@@ -4396,7 +4396,7 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "07b1de32f1e59909a58a107aad6ba53cbf4cc13145f65669e3fe0877ed1e3e6f"
+content-hash = "cce6bfba629efc45258225241df0d2cf95fecfc89db2fabf2a1101cf6fe4d578"
 
 [metadata.files]
 about-time = [

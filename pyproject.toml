@@ -142,10 +142,14 @@ optional = true
 [tool.poetry.group.providers.dependencies]
 google-api-python-client = "^2.86.0"
 
+[tool.poetry.group.sentry-sdk]
+optional = true
 
 [tool.poetry.group.sentry-sdk.dependencies]
 sentry-sdk = "^1.5.6"
 
+[tool.poetry.group.docs]
+optional = true
 
 [tool.poetry.group.docs.dependencies]
 pymysql = "^1.1.0"
