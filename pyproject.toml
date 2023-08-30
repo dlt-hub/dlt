@@ -142,9 +142,6 @@ optional = true
 [tool.poetry.group.providers.dependencies]
 google-api-python-client = "^2.86.0"
 
-[tool.poetry.group.sentry-sdk]
-optional = true
-
 [tool.poetry.group.sentry-sdk.dependencies]
 sentry-sdk = "^1.5.6"
 

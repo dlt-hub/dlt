@@ -124,6 +124,7 @@ The library will create/update tables, infer data types and deal with nested dat
     {"label": "from Database", "value":"database"}
 ]}>
   <TabItem value="json">
+
 <!--SNIPSTART getting_started_index_snippet_json -->
 ```py
 import dlt
@@ -224,7 +225,7 @@ with engine.connect() as conn:
 
     # here we convert the rows into dictionaries on the fly with a map function
     load_info = pipeline.run(map(dict, rows), table_name="genome")
-    print(load_info)
+print(load_info)
 ```
 <!--SNIPEND-->
 
