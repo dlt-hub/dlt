@@ -128,7 +128,6 @@ def test_graph_edges_to_nodes() -> None:
     assert graph_edges_to_nodes([('A', 'B'), ('A', 'B')]) == {'A': {'B'}, 'B': set()}
 
 
-<<<<<<< HEAD
 def test_increase_row_counts() -> None:
     counts = {}
     increase_row_count(counts, "table1", 1)
@@ -178,10 +177,10 @@ def test_merge_row_counts() -> None:
         "table3": 40,
         "table4": 2
     }
-=======
+
+
 def test_extend_list_deduplicated() -> None:
     assert extend_list_deduplicated(["one", "two", "three"], ["four", "five", "six"]) == ["one", "two", "three", "four", "five", "six"]
     assert extend_list_deduplicated(["one", "two", "three", "six"], ["two", "four", "five", "six"]) == ["one", "two", "three", "six", "four", "five"]
     assert extend_list_deduplicated(["one", "two", "three"], ["one", "two", "three"]) == ["one", "two", "three"]
     assert extend_list_deduplicated([], ["one", "two", "three"]) == ["one", "two", "three"]
->>>>>>> devel
