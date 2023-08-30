@@ -124,13 +124,12 @@ The library will create/update tables, infer data types and deal with nested dat
     {"label": "from Database", "value":"database"}
 ]}>
   <TabItem value="json">
-
 <!--SNIPSTART getting_started_index_snippet_json -->
 ```py
-import json
 import dlt
+from dlt.common import json
 
-with open("json_file.json", 'r', encoding="utf-8") as file:
+with open("json_file.json", 'rb') as file:
     data = json.load(file)
 
 pipeline = dlt.pipeline(
@@ -145,6 +144,7 @@ load_info = pipeline.run([data], table_name="json_data")
 print(load_info)
 ```
 <!--SNIPEND-->
+We import **json** from `dlt` namespace. It defaults to `orjson`(otherwise `simplejson`). It can also encode date times, dates, dataclasses and few more datat types.
 
   </TabItem>
   <TabItem value="csv">
@@ -179,7 +179,7 @@ import dlt
 from dlt.sources.helpers import requests
 
 # url to request dlt-hub followers
-url = f"https://api.github.com/users/dlt-hub/followers"
+url = "https://api.github.com/users/dlt-hub/followers"
 # make the request and check if succeeded
 response = requests.get(url)
 response.raise_for_status()
@@ -299,7 +299,7 @@ def get_issues(
     created_at=dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z")
 ):
     # NOTE: we read only open issues to minimize number of calls to the API. There's a limit of ~50 calls for not authenticated Github users
-    url = f"https://api.github.com/repos/dlt-hub/dlt/issues?per_page=100&sort=created&directions=desc&state=open"
+    url = "https://api.github.com/repos/dlt-hub/dlt/issues?per_page=100&sort=created&directions=desc&state=open"
 
     while True:
         response = requests.get(url)
@@ -390,9 +390,9 @@ def get_issues(
         url = response.links["next"]["url"]
 
 pipeline = dlt.pipeline(
-	pipeline_name='github_issues_merge',
-	destination='duckdb',
-	dataset_name='github_data_merge',
+    pipeline_name='github_issues_merge',
+    destination='duckdb',
+    dataset_name='github_data_merge',
 )
 load_info = pipeline.run(get_issues)
 row_counts = pipeline.last_trace.last_normalize_info
@@ -423,7 +423,7 @@ Each event type is sent to a different table in `duckdb.`
 import dlt
 from dlt.sources.helpers import requests
 
-@dlt.resource(primary_key="id", table_name=lambda i: i["type"], write_disposition="append")
+@dlt.resource(primary_key="id", table_name=lambda i: i["type"], write_disposition="append")  # type: ignore
 def repo_events(
     last_created_at = dlt.sources.incremental("created_at")
 ):
@@ -445,9 +445,9 @@ def repo_events(
         url = response.links["next"]["url"]
 
 pipeline = dlt.pipeline(
-	pipeline_name='github_events',
-	destination='duckdb',
-	dataset_name='github_events_data',
+    pipeline_name='github_events',
+    destination='duckdb',
+    dataset_name='github_events_data',
 )
 load_info = pipeline.run(repo_events)
 row_counts = pipeline.last_trace.last_normalize_info

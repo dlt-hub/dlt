@@ -24,9 +24,9 @@ def get_issues(
         url = response.links["next"]["url"]
 
 pipeline = dlt.pipeline(
-	pipeline_name='github_issues_merge',
-	destination='duckdb',
-	dataset_name='github_data_merge',
+    pipeline_name='github_issues_merge',
+    destination='duckdb',
+    dataset_name='github_data_merge',
 )
 load_info = pipeline.run(get_issues)
 row_counts = pipeline.last_trace.last_normalize_info

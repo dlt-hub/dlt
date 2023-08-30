@@ -3,7 +3,7 @@ import dlt
 from dlt.sources.helpers import requests
 
 # url to request dlt-hub followers
-url = f"https://api.github.com/users/dlt-hub/followers"
+url = "https://api.github.com/users/dlt-hub/followers"
 # make the request and check if succeeded
 response = requests.get(url)
 response.raise_for_status()

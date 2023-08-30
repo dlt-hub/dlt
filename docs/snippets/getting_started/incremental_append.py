@@ -8,7 +8,7 @@ def get_issues(
     created_at=dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z")
 ):
     # NOTE: we read only open issues to minimize number of calls to the API. There's a limit of ~50 calls for not authenticated Github users
-    url = f"https://api.github.com/repos/dlt-hub/dlt/issues?per_page=100&sort=created&directions=desc&state=open"
+    url = "https://api.github.com/repos/dlt-hub/dlt/issues?per_page=100&sort=created&directions=desc&state=open"
 
     while True:
         response = requests.get(url)

@@ -1,8 +1,8 @@
 # @@@SNIPSTART getting_started_index_snippet_json
-import json
 import dlt
+from dlt.common import json
 
-with open("json_file.json", 'r', encoding="utf-8") as file:
+with open("json_file.json", 'rb') as file:
     data = json.load(file)
 
 pipeline = dlt.pipeline(

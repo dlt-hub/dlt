@@ -2,7 +2,7 @@
 import dlt
 from dlt.sources.helpers import requests
 
-@dlt.resource(primary_key="id", table_name=lambda i: i["type"], write_disposition="append")
+@dlt.resource(primary_key="id", table_name=lambda i: i["type"], write_disposition="append")  # type: ignore
 def repo_events(
     last_created_at = dlt.sources.incremental("created_at")
 ):
@@ -24,9 +24,9 @@ def repo_events(
         url = response.links["next"]["url"]
 
 pipeline = dlt.pipeline(
-	pipeline_name='github_events',
-	destination='duckdb',
-	dataset_name='github_events_data',
+    pipeline_name='github_events',
+    destination='duckdb',
+    dataset_name='github_events_data',
 )
 load_info = pipeline.run(repo_events)
 row_counts = pipeline.last_trace.last_normalize_info
