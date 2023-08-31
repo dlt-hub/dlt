@@ -104,3 +104,5 @@ class TStoredSchema(TypedDict, total=False):
     settings: Optional[TSchemaSettings]
     tables: TSchemaTables
     normalizers: TNormalizersConfig
+
+TSchemaUpdateMode = Literal["evolve", "freeze-and-trim", "freeze-and-raise", "freeze-and-discard"]

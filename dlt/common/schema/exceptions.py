@@ -69,3 +69,8 @@ class SchemaEngineNoUpgradePathException(SchemaException):
         self.from_engine = from_engine
         self.to_engine = to_engine
         super().__init__(f"No engine upgrade path in schema {schema_name} from {init_engine} to {to_engine}, stopped at {from_engine}")
+
+
+class SchemaFrozenException(SchemaException):
+    def __init__(self, msg: str) -> None:
+        super().__init__(msg)

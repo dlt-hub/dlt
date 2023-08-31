@@ -4,10 +4,10 @@ from dlt.common.utils import uniq_id
 from tests.load.pipeline.utils import load_table_counts
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 from dlt.pipeline.exceptions import PipelineStepFailed
-from dlt.normalize.exceptions import SchemaFrozenException
+from dlt.common.schema.exceptions import SchemaFrozenException
 from dlt.common.schema import utils
 
-SCHEMA_UPDATE_MODES = ["update-schema", "freeze-and-filter", "freeze-and-raise", "freeze-and-discard"]
+SCHEMA_UPDATE_MODES = ["evolve", "freeze-and-trim", "freeze-and-raise", "freeze-and-discard"]
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["duckdb"]), ids=lambda x: x.name)
 @pytest.mark.parametrize("update_mode", SCHEMA_UPDATE_MODES)
@@ -63,7 +63,7 @@ def test_freeze_schema(update_mode: str, destination_config: DestinationTestConf
     assert table_counts["items"] == 20 if update_mode not in ["freeze-and-raise", "freeze-and-discard"] else 10
 
     # frozen schemas should not have changed
-    if update_mode != "update-schema":
+    if update_mode != "evolve":
         assert schema_hash == utils.generate_version_hash(pipeline.default_schema.to_dict())
         assert "items__sub_items" not in table_counts
         # schema was not migrated to contain new attribute

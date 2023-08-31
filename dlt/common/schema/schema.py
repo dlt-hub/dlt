@@ -1,6 +1,6 @@
 import yaml
 from copy import copy, deepcopy
-from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast
+from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast, Literal
 from dlt.common import json
 
 from dlt.common.utils import extend_list_deduplicated
@@ -11,10 +11,13 @@ from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterat
 from dlt.common.schema import utils
 from dlt.common.data_types import py_type_to_sc_type, coerce_value, TDataType
 from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnSchemaBase, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
-                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TWriteDisposition)
+                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TWriteDisposition, TSchemaUpdateMode)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException)
 from dlt.common.validation import validate_dict
+from dlt.common.schema.exceptions import SchemaFrozenException
+
+
 
 
 class Schema:
@@ -174,7 +177,32 @@ class Schema:
                     updated_table_partial["columns"][new_col_name] = new_col_def
 
         return new_row, updated_table_partial
+    
+    def check_schema_update(self, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema, schema_update_mode: TSchemaUpdateMode) -> Tuple[DictStrAny, TPartialTableSchema]:
+        """Checks if schema update mode allows for the requested changes, filter row or reject update, depending on the mode"""
+        has_columns = self.has_data_columns
+        # if there is a schema update and we froze schema and filter additional data, clean up
+        if has_columns and partial_table and schema_update_mode == "freeze-and-trim":
+            # do not create new tables
+            if table_name not in self.tables or not len(self.tables[table_name].get("columns", {})):
+                return None, None
+            # pop unknown values
+            for item in list(row.keys()):
+                if item not in self.tables[table_name]["columns"]:
+                    row.pop(item)
+            return row, None
 
+        # if there is a schema update and we froze schema and discard additional rows, do nothing
+        elif has_columns and partial_table and schema_update_mode == "freeze-and-discard":
+            return None, None
+
+        # if there is a schema update and we disallow any data not fitting the schema, raise!
+        elif has_columns and partial_table and schema_update_mode == "freeze-and-raise":
+            raise SchemaFrozenException(f"Trying to modify table {table_name} but schema is frozen.")
+        
+        return row, partial_table
+        
+        
     def update_schema(self, partial_table: TPartialTableSchema) -> TPartialTableSchema:
         table_name = partial_table["name"]
         parent_table_name = partial_table.get("parent")
@@ -327,7 +355,7 @@ class Schema:
     @property
     def has_data_columns(self) -> bool:
         for table in self.data_tables():
-                return bool(table.get("columns", None))
+            return bool(table.get("columns", None))
         return False
 
     def to_pretty_json(self, remove_defaults: bool = True) -> str:

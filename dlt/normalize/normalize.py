@@ -20,7 +20,6 @@ from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.pipeline import NormalizeInfo
 from dlt.common.utils import chunks, TRowCount, merge_row_count, increase_row_count
-from dlt.normalize.exceptions import SchemaFrozenException
 
 from dlt.normalize.configuration import NormalizeConfiguration
 
@@ -86,8 +85,6 @@ class Normalize(Runnable[ProcessPool]):
             load_storage = LoadStorage(False, destination_caps.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
             normalize_storage = NormalizeStorage(False, normalize_storage_config)
 
-            schema_has_columns = schema.has_data_columns
-
             try:
                 root_tables: Set[str] = set()
                 populated_root_tables: Set[str] = set()
@@ -101,7 +98,7 @@ class Normalize(Runnable[ProcessPool]):
                         items_count = 0
                         for line_no, line in enumerate(f):
                             items: List[TDataItem] = json.loads(line)
-                            partial_update, items_count, r_counts = Normalize._w_normalize_chunk(normalize_config, load_storage, schema, load_id, root_table_name, items, schema_has_columns)
+                            partial_update, items_count, r_counts = Normalize._w_normalize_chunk(normalize_config, load_storage, schema, load_id, root_table_name, items)
                             schema_updates.append(partial_update)
                             total_items += items_count
                             merge_row_count(row_counts, r_counts)
@@ -130,7 +127,7 @@ class Normalize(Runnable[ProcessPool]):
         return schema_updates, total_items, load_storage.closed_files(), row_counts
 
     @staticmethod
-    def _w_normalize_chunk(config: NormalizeConfiguration, load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem], schema_has_columns: bool) -> Tuple[TSchemaUpdate, int, TRowCount]:
+    def _w_normalize_chunk(config: NormalizeConfiguration, load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem]) -> Tuple[TSchemaUpdate, int, TRowCount]:
         column_schemas: Dict[str, TTableSchemaColumns] = {}  # quick access to column schema for writers below
         schema_update: TSchemaUpdate = {}
         schema_name = schema.name
@@ -142,50 +139,38 @@ class Normalize(Runnable[ProcessPool]):
                 # filter row, may eliminate some or all fields
                 row = schema.filter_row(table_name, row)
                 # do not process empty rows
-                if row:
-                    # decode pua types
-                    for k, v in row.items():
-                        row[k] = custom_pua_decode(v)  # type: ignore
-                    # coerce row of values into schema table, generating partial table with new columns if any
-                    row, partial_table = schema.coerce_row(table_name, parent_table, row)
+                if not row:
+                    continue
+                # decode pua types
+                for k, v in row.items():
+                    row[k] = custom_pua_decode(v)  # type: ignore
+                # coerce row of values into schema table, generating partial table with new columns if any
+                row, partial_table = schema.coerce_row(table_name, parent_table, row)
+                # check update
+                row, partial_table = schema.check_schema_update(table_name, row, partial_table, config.schema_update_mode)
 
-                    # if there is a schema update and we froze schema and filter additional data, clean up
-                    if schema_has_columns and partial_table and config.schema_update_mode == "freeze-and-filter":
-                        # do not create new tables
-                        if table_name not in schema.tables or not len(schema.tables[table_name].get("columns", {})):
-                            continue
-                        # pop unknown values
-                        for item in list(row.keys()):
-                            if item not in schema.tables[table_name]["columns"]:
-                                row.pop(item)
+                if not row:
+                    continue
 
-                    # if there is a schema update and we froze schema and discard additional rows, just continue
-                    elif schema_has_columns and partial_table and config.schema_update_mode == "freeze-and-discard":
-                        continue
-
-                    # if there is a schema update and we disallow any data not fitting the schema, raise!
-                    elif schema_has_columns and partial_table and config.schema_update_mode == "freeze-and-raise":
-                        raise SchemaFrozenException(f"Trying to modify table {table_name} but schema is frozen.")
-
-                    # theres a new table or new columns in existing table
-                    elif partial_table:
-                        # update schema and save the change
-                        schema.update_schema(partial_table)
-                        table_updates = schema_update.setdefault(table_name, [])
-                        table_updates.append(partial_table)
-                        # update our columns
-                        column_schemas[table_name] = schema.get_table_columns(table_name)
-                    # get current columns schema
-                    columns = column_schemas.get(table_name)
-                    if not columns:
-                        columns = schema.get_table_columns(table_name)
-                        column_schemas[table_name] = columns
-                    # store row
-                    # TODO: it is possible to write to single file from many processes using this: https://gitlab.com/warsaw/flufl.lock
-                    load_storage.write_data_item(load_id, schema_name, table_name, row, columns)
-                    # count total items
-                    items_count += 1
-                    increase_row_count(row_counts, table_name, 1)
+                # theres a new table or new columns in existing table
+                if partial_table:
+                    # update schema and save the change
+                    schema.update_schema(partial_table)
+                    table_updates = schema_update.setdefault(table_name, [])
+                    table_updates.append(partial_table)
+                    # update our columns
+                    column_schemas[table_name] = schema.get_table_columns(table_name)
+                # get current columns schema
+                columns = column_schemas.get(table_name)
+                if not columns:
+                    columns = schema.get_table_columns(table_name)
+                    column_schemas[table_name] = columns
+                # store row
+                # TODO: it is possible to write to single file from many processes using this: https://gitlab.com/warsaw/flufl.lock
+                load_storage.write_data_item(load_id, schema_name, table_name, row, columns)
+                # count total items
+                items_count += 1
+                increase_row_count(row_counts, table_name, 1)
             signals.raise_if_signalled()
         return schema_update, items_count, row_counts
 
