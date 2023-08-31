@@ -323,11 +323,11 @@ class Schema:
     @property
     def settings(self) -> TSchemaSettings:
         return self._settings
-    
+
     @property
     def has_data_columns(self) -> bool:
         for table in self.data_tables():
-                return True
+                return bool(table.get("columns", None))
         return False
 
     def to_pretty_json(self, remove_defaults: bool = True) -> str:

@@ -148,7 +148,7 @@ class Normalize(Runnable[ProcessPool]):
                         row[k] = custom_pua_decode(v)  # type: ignore
                     # coerce row of values into schema table, generating partial table with new columns if any
                     row, partial_table = schema.coerce_row(table_name, parent_table, row)
-                    
+
                     # if there is a schema update and we froze schema and filter additional data, clean up
                     if schema_has_columns and partial_table and config.schema_update_mode == "freeze-and-filter":
                         # do not create new tables
