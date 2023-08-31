@@ -1,12 +1,13 @@
 {
-  "name": "dltDocs",
+  "name": "dlt-docs",
   "version": "0.0.0",
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "yarn snipsync && node watch_snippets.js & docusaurus start",
-    "build": "docusaurus build",
-    "build:netlify": "yarn snipsync && docusaurus build --out-dir build/docs",
+    "start": "snipsync && node watch_snippets.js & docusaurus start",
+    "snipsync": "snipsync",
+    "build": "snipsync && docusaurus build",
+    "build:netlify": "snipsync && docusaurus build --out-dir build/docs",
     "swizzle": "docusaurus swizzle",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve",

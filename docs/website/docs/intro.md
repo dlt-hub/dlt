@@ -9,16 +9,12 @@ keywords: [introduction, who, what, how]
 ![dlt pacman](/img/dlt-pacman.gif)
 
 ## What is `dlt`?
-
-
-`dlt` is an open-source library that enables you to create a data
-[pipeline](general-usage/glossary.md#pipeline) in a Python script. To use it, `pip install dlt` and
-then `import dlt`. Once set up, it will automatically load any
-[source](general-usage/glossary.md#source) (e.g. an API) into a live dataset stored in the
-[destination](general-usage/glossary.md#destination) of your choice.
-
-To try it out, install `dlt` with DuckDB using `pip install dlt[duckdb]` and run the following
-example:
+`dlt` is an open-source library that you can add to your Python scripts to load data
+from various and often messy data sources into well-structured, live datasets. Install it with:
+```sh
+pip3 install dlt
+```
+There's no need to start any backends or containers. Import `dlt` in your Python script and write a simple pipeline like the one below:
 
 <!--SNIPSTART intro_snippet -->
 ```py
@@ -43,46 +39,33 @@ print(info)
 ```
 <!--SNIPEND-->
 
-[How it works](reference/explainers/how-dlt-works.md): `dlt` extracts data from a
-[source](general-usage/glossary.md#source), inspects its structure to create a
+Now copy this snippet to a file or a Notebook cell and run it. If you do not have it yet, install **duckdb** dependency (default `dlt` installation is really minimal):
+```sh
+pip3 install "dlt[duckdb]"
+```
+
+How the script works?: It extracts data from a
+[source](general-usage/glossary.md#source) (here: **chess.com REST API**), inspects its structure to create a
 [schema](general-usage/glossary.md#schema), structures, normalizes and verifies the data, and then
-loads the data into a [destination](general-usage/glossary.md#destination).
+loads it into a [destination](general-usage/glossary.md#destination) (here: **duckdb** into a database schema **player_data** and table name **player**).
 
-## Who is `dlt` for?
-
-### Why does the data team love `dlt`?
+## Why use `dlt`?
 
 - Automated maintenance - with schema inference and evolution and alerts, and with short declarative
 code, maintenance becomes simple.
-- Run anywhere - Run on Airflow, serverless functions, anywhere that python goes data flows. No
-special requirements, scales on micro and large infra alike.
-- `dlt` offers a user-friendly, declarative interface that removes knowledge obstacles for beginners
+- Run it where Python runs - on Airflow, serverless functions, notebooks. No
+external APIs, backends or containers, scales on micro and large infra alike.
+- User-friendly, declarative interface that removes knowledge obstacles for beginners
 while empowering senior professionals.
 
-### By automating a large core of data engineering work, `dlt` solves different problems for different people
-
-- For organisations: `dlt` unleashes a tidal wave of transformation around usage and curation of
-datasets.
-- For tech leads: `dlt` is a game changer that enables all your team quickly build "masterpiece-grade"
-pipelines faster and more robust than they would build the usual throwaway code.
-- For engineers, `dlt` is a groundbreaking force that streamlines their work, banishes errors,
-notifies contract changes, leaving a trail of awe and amazement in its wake.
-- For data scientists and analysts, `dlt` is the light on the path to data discovery, structuring and
-usage.
-- For data producers, `dlt` serves as an all-in-one "data contract and pipeline solution," that
-enables delivering governed data.
-
-Read more about use cases by persona here: [User guides](user-guides).
-
 ## Getting started with `dlt`
-
 1. Play with the
 [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
-This is the simplest way you could use `dlt`.
-1. Read the docs on [building a pipeline, warehouse or lake with `dlt`](getting-started) or
-[using the existing pipelines](dlt-ecosystem/verified-sources).
-1. Send the [user guides](user-guides) to the rest of your team and discuss use cases.
-1. Ask us on
+This is the simplest way to see `dlt` in action.
+2. Run [Getting Started snippets](getting-started.mdx) and load data from python objects, files, data frames, databases, APIs or PDFs into any [destination](dlt-ecosystem/destinations/).
+3. Read [Pipeline Tutorial](build-a-pipeline-tutorial.md) to start building E(t)LT pipelines from ready components.
+4. We have many interesting [walkthroughs](walkthroughs/) where you create, run, customize and deploy pipelines.
+5. Ask us on
 [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
 if you have any questions about use cases or the library.
 
@@ -91,4 +74,4 @@ if you have any questions about use cases or the library.
 1. Give the library a ⭐ and check out the code on [GitHub](https://github.com/dlt-hub/dlt).
 1. Ask questions and share how you use the library on
 [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g).
-1. Report problems and make feature requests [here](https://github.com/dlt-hub/dlt/issues/new).
+1. Report problems and make feature requests [here](https://github.com/dlt-hub/dlt/issues/new/choose).

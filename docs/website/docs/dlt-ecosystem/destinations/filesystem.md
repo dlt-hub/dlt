@@ -1,5 +1,5 @@
 # Filesystem & buckets
-Filesystem destination stores data in remote file systems and bucket storages like **S3**, **google storage** or **azure blob storage**. Underneath it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging for other destinations but you can also quickly build a [data lake](../../getting-started/build-a-data-platform/build-structured-data-lakehouse.md) with it.
+Filesystem destination stores data in remote file systems and bucket storages like **S3**, **google storage** or **azure blob storage**. Underneath it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging for other destinations but you can also quickly build a data lake with it.
 
 > 💡 Please read the notes on the layout of the data files. Currently we are getting feedback on it. Please join our slack (icon at the top of the page) and help us to find the optimal layout.
 
