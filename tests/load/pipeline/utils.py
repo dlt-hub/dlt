@@ -11,7 +11,6 @@ from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.typing import DictStrAny
 from dlt.pipeline.exceptions import SqlClientNotAvailable
 from dlt.common.schema.typing import LOADS_TABLE_NAME
-from dlt.common.destination.reference import WithStagingDataset
 
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 
@@ -45,13 +44,12 @@ def drop_active_pipeline_data() -> None:
                         # print("dropped")
                     except Exception as exc:
                         print(exc)
-                    if isinstance(c, WithStagingDataset):
-                        with c.with_staging_dataset(staging=True):
-                            try:
-                                c.drop_dataset()
-                                # print("dropped")
-                            except Exception as exc:
-                                print(exc)
+                    with c.with_staging_dataset(staging=True):
+                        try:
+                            c.drop_dataset()
+                            # print("staging dropped")
+                        except Exception as exc:
+                            print(exc)
             except SqlClientNotAvailable:
                 pass
 

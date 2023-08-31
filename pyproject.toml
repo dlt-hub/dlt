@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.3.14"
+version = "0.3.15"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -144,9 +144,15 @@ optional = true
 [tool.poetry.group.providers.dependencies]
 google-api-python-client = "^2.86.0"
 
-
 [tool.poetry.group.sentry-sdk.dependencies]
 sentry-sdk = "^1.5.6"
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+pymysql = "^1.1.0"
+pypdf2 = "^3.0.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]

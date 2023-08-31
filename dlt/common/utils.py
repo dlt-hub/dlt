@@ -19,6 +19,8 @@ from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
 T = TypeVar("T")
 TDict = TypeVar("TDict", bound=DictStrAny)
 
+# row counts
+TRowCount = Dict[str, int]
 
 def chunks(seq: Sequence[T], n: int) -> Iterator[Sequence[T]]:
     for i in range(0, len(seq), n):
@@ -425,6 +427,17 @@ def compressed_b64decode(value: str) -> bytes:
 
 def identity(x: TAny) -> TAny:
     return x
+
+
+def increase_row_count(row_counts: TRowCount, table_name: str, count: int) -> None:
+    row_counts[table_name] = row_counts.get(table_name, 0) + count
+
+
+def merge_row_count(row_counts_1: TRowCount, row_counts_2: TRowCount) -> None:
+    """merges row counts_2 into row_counts_1"""
+    keys = set(row_counts_1.keys()) | set(row_counts_2.keys())
+    for key in keys:
+        row_counts_1[key] = row_counts_1.get(key, 0) + row_counts_2.get(key, 0)
 
 
 def extend_list_deduplicated(original_list: List[Any], extending_list: Iterable[Any]) -> List[Any]:
