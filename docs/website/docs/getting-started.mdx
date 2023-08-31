@@ -24,10 +24,10 @@ Let's get started!
 Install dlt using `pip`:
 
 ```bash
-pip3 install dlt
+pip3 install -U dlt
 ```
 
-Command above just installs library core, in example below we use `duckdb` as a destination so let's add it:
+Command above installs (or upgrades) library core, in example below we use `duckdb` as a destination so let's add it:
 
 ```bash
 pip3 install "dlt[duckdb]"
@@ -35,6 +35,8 @@ pip3 install "dlt[duckdb]"
 
 :::tip
 Use clean virtual environment for your experiments! Here are [detailed instructions](reference/installation).
+
+Make sure that your `dlt` version is **0.3.15** or above. Check it in the terminal with `dlt --version`.
 :::
 
 ## Quick start
