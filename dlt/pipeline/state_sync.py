@@ -9,10 +9,9 @@ import dlt
 from dlt.common import json
 from dlt.common.pipeline import TPipelineState
 from dlt.common.typing import DictStrAny
-from dlt.common.schema.typing import LOADS_TABLE_NAME, TTableSchemaColumns
+from dlt.common.schema.typing import STATE_TABLE_NAME, TTableSchemaColumns
 from dlt.common.destination.reference import JobClientBase, WithStateSync
 
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.extract.source import DltResource
 
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException
@@ -21,8 +20,7 @@ from dlt.common.utils import compressed_b64decode, compressed_b64encode
 
 # allows to upgrade state when restored with a new version of state logic/schema
 STATE_ENGINE_VERSION = 2
-# state table name
-STATE_TABLE_NAME = "_dlt_pipeline_state"
+
 # state table columns
 STATE_TABLE_COLUMNS: TTableSchemaColumns = {
     "version": {
@@ -99,9 +97,7 @@ def state_resource(state: TPipelineState) -> DltResource:
 
 def load_state_from_destination(pipeline_name: str, client: WithStateSync) -> TPipelineState:
     # NOTE: if dataset or table holding state does not exist, the sql_client will rise DestinationUndefinedEntity. caller must handle this
-    # TODO: this must go into job client and STATE_TABLE_NAME + LOADS_TABLE_NAME must get normalized before using in the query
-    table_name = cast(JobClientBase, client).schema.naming.normalize_table_identifier(STATE_TABLE_NAME)
-    state = client.get_stored_state(table_name, pipeline_name)
+    state = client.get_stored_state(pipeline_name)
     if not state:
         return None
     s = decompress_state(state.state)

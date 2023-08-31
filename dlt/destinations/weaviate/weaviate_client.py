@@ -348,7 +348,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         """
         self.db_client.data_object.create(obj, self.make_full_name(class_name))
 
-    def drop_dataset(self) -> None:
+    def drop_storage(self) -> None:
         """Drop the dataset from Weaviate instance.
 
         Deletes all classes in the dataset and all data associated with them.
@@ -470,7 +470,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             table_schema[prop["name"]] = schema_c
         return True, table_schema
 
-    def get_stored_state(self, state_table: str, pipeline_name: str) -> Optional[StateInfo]:
+    def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage"""
 
         # we need to find a stored state that matches a load id that was completed
@@ -478,7 +478,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         stepsize = 10
         offset = 0
         while True:
-            state_records = self.get_records(state_table,
+            state_records = self.get_records(self.schema.state_table_name,
                 sort={
                     "path": ["created_at"],
                     "order": "desc"
@@ -498,27 +498,25 @@ class WeaviateClient(JobClientBase, WithStateSync):
                         "operator": "Equal",
                         "valueString": load_id,
                      }, limit=1, properties=["load_id", "status"])
-                # if there is a load for this state which was successfull, return the state
+                # if there is a load for this state which was successful, return the state
                 if len(load_records):
                     state["dlt_load_id"] = state.pop("_dlt_load_id")
                     return StateInfo(**state)
 
-    def get_stored_states(self, state_table: str) -> List[StateInfo]:
-        state_records = self.get_records(state_table,
-            sort={
-                "path": ["created_at"],
-                "order": "desc"
-            }, properties=self.state_properties)
+    # def get_stored_states(self, state_table: str) -> List[StateInfo]:
+    #     state_records = self.get_records(state_table,
+    #         sort={
+    #             "path": ["created_at"],
+    #             "order": "desc"
+    #         }, properties=self.state_properties)
 
-        for state in state_records:
-            state["dlt_load_id"] = state.pop("_dlt_load_id")
-        return [StateInfo(**state) for state in state_records]
+    #     for state in state_records:
+    #         state["dlt_load_id"] = state.pop("_dlt_load_id")
+    #     return [StateInfo(**state) for state in state_records]
 
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""
         try:
-            # TODO: We might need to change inserted_at to int, now it is pendulum.now() as string
-            # will the sort work correctly on this?
             record = self.get_records(self.schema.version_table_name, sort={
                     "path": ["inserted_at"],
                     "order": "desc"
@@ -656,14 +654,13 @@ class WeaviateClient(JobClientBase, WithStateSync):
         pass
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
-        now_ts = str(pendulum.now())
         schema_str = json.dumps(schema.to_dict())
         properties = {
             "version_hash": schema.stored_version_hash,
             "schema_name": schema.name,
             "version": schema.version,
             "engine_version": schema.ENGINE_VERSION,
-            "inserted_at": now_ts,
+            "inserted_at": str(pendulum.now()),
             "schema": schema_str,
         }
         self.create_object(properties, self.schema.version_table_name)

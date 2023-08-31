@@ -695,7 +695,6 @@ class Pipeline(SupportsPipeline):
             return self.default_schema
         with self._maybe_destination_capabilities():
             return Schema(self.pipeline_name)
-        return self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.pipeline_name))
 
     def _sql_job_client(self, schema: Schema, credentials: Any = None) -> SqlJobClientBase:
         client_config = self._get_destination_client_initial_config(credentials)

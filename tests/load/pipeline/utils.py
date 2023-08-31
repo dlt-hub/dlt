@@ -3,6 +3,7 @@ from typing import Any, Iterator, List, Sequence, TYPE_CHECKING, Optional, Tuple
 import pytest
 
 import dlt
+from dlt.common.destination.reference import WithStagingDataset
 from dlt.pipeline.pipeline import Pipeline
 
 from dlt.common import json
@@ -29,41 +30,32 @@ def drop_active_pipeline_data() -> None:
         # take existing pipeline
         p = dlt.pipeline()
 
-        def _drop_dataset_fs(_: str) -> None:
-            try:
-                client: "FilesystemClient" = p._destination_client()  # type: ignore[assignment]
-                client.fs_client.rm(client.dataset_path, recursive=True)
-            except Exception as exc:
-                print(exc)
-
-        def _drop_dataset_sql(schema_name: str) -> None:
-            try:
-                with p.sql_client(schema_name) as c:
-                    try:
-                        c.drop_dataset()
-                        # print("dropped")
-                    except Exception as exc:
-                        print(exc)
-                    with c.with_staging_dataset(staging=True):
+        def _drop_dataset(schema_name: str) -> None:
+            with p._destination_client(schema_name) as client:
+                try:
+                    client.drop_storage()
+                    print("dropped")
+                except Exception as exc:
+                    print(exc)
+                if isinstance(client, WithStagingDataset):
+                    with client.with_staging_dataset():
                         try:
-                            c.drop_dataset()
-                            # print("staging dropped")
+                            client.drop_storage()
+                            print("staging dropped")
                         except Exception as exc:
                             print(exc)
-            except SqlClientNotAvailable:
-                pass
 
-        drop_func = _drop_dataset_fs if _is_filesystem(p) else _drop_dataset_sql
+        # drop_func = _drop_dataset_fs if _is_filesystem(p) else _drop_dataset_sql
         # take all schemas and if destination was set
         if p.destination:
             if p.config.use_single_dataset:
                 # drop just the dataset for default schema
                 if p.default_schema_name:
-                    drop_func(p.default_schema_name)
+                    _drop_dataset(p.default_schema_name)
             else:
                 # for each schema, drop the dataset
                 for schema_name in p.schema_names:
-                    drop_func(schema_name)
+                    _drop_dataset(schema_name)
 
         p._wipe_working_folder()
         # deactivate context

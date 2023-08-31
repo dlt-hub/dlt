@@ -208,10 +208,6 @@ class JobClientBase(ABC):
         return None
 
     @abstractmethod
-    def drop_dataset(self) -> None:
-        pass
-
-    @abstractmethod
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         """Prepares storage to be used ie. creates database schema or file system folder. Truncates requested tables.
         """
@@ -220,6 +216,11 @@ class JobClientBase(ABC):
     @abstractmethod
     def is_storage_initialized(self) -> bool:
         """Returns if storage is ready to be read/written."""
+        pass
+
+    @abstractmethod
+    def drop_storage(self) -> None:
+        """Brings storage back into not initialized state. Typically data in storage is destroyed."""
         pass
 
     def update_stored_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
@@ -303,14 +304,10 @@ class WithStateSync(ABC):
         pass
 
     @abstractmethod
-    def get_stored_state(self, state_table: str, pipeline_name: str) -> Optional[StateInfo]:
+    def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage"""
         pass
 
-    @abstractmethod
-    def get_stored_states(self, state_table: str) -> List[StateInfo]:
-        """Loads list of compressed states from destination storage"""
-        pass
 
 class WithStagingDataset(ABC):
     """Adds capability to use staging dataset and request it from the loader"""

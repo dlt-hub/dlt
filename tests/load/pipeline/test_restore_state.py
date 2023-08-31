@@ -1,18 +1,18 @@
-import itertools
 import os
 import shutil
-from typing import Any, Dict
+from typing import Any
+from unittest.mock import patch
 import pytest
 
 import dlt
 from dlt.common import pendulum
 from dlt.common.schema.schema import Schema, utils
-from dlt.common.schema.typing import LOADS_TABLE_NAME
 from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.exceptions import DestinationUndefinedEntity
+from dlt.load import Load
 
 from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.state_sync import STATE_TABLE_COLUMNS, STATE_TABLE_NAME, load_state_from_destination, state_resource
+from dlt.pipeline.state_sync import STATE_TABLE_COLUMNS, load_state_from_destination, state_resource
 
 from tests.utils import TEST_STORAGE_ROOT
 from tests.cases import JSON_TYPED_DICT
@@ -64,7 +64,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         # then in database. parquet is created in schema order and in Redshift it must exactly match the order.
         # schema.bump_version()
         p.sync_schema()
-        exists, _ = job_client.get_storage_table(schema.naming.normalize_table_identifier(STATE_TABLE_NAME))
+        exists, _ = job_client.get_storage_table(schema.state_table_name)
         assert exists is True
         # table is there but no state
         assert load_state_from_destination(p.pipeline_name, job_client) is None
@@ -336,30 +336,15 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
         dlt.current.source_state()[param] = param
         yield param
 
-    info = p.run(some_data("fix_1"))
+    def complete_package_mock(self, load_id: str, schema: Schema, aborted: bool = False):
+        # complete in local storage but skip call to the database
+        self.load_storage.complete_load_package(load_id, aborted)
+
+    with patch.object(Load, "complete_package", complete_package_mock):
+        p.run(some_data("fix_1"))
+        # assert complete_package.called
 
     with p._get_destination_clients(p.default_schema)[0] as job_client:
-        state = load_state_from_destination(pipeline_name, job_client)
-        assert state is not None
-        # delete load id
-        load_id = next(iter(info.loads_ids))
-
-        # sql client
-        if hasattr(job_client, "sql_client"):
-            name = job_client.sql_client.make_qualified_table_name(job_client.schema.loads_table_name)
-            job_client.sql_client.execute_sql(f"DELETE FROM {name} WHERE load_id = %s", load_id)
-        # weaviate
-        elif hasattr(job_client, "db_client"):
-            class_name = job_client.make_full_name(job_client.schema.loads_table_name)
-            job_client.db_client.batch.delete_objects(
-                class_name=class_name,
-                where={
-                    'path': ['load_id'],
-                    'operator': 'Equal',
-                    'valueText': load_id
-                },
-            )
-
         # state without completed load id is not visible
         state = load_state_from_destination(pipeline_name, job_client)
         assert state is None
@@ -511,10 +496,10 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     assert ra_production_p.state == prod_state
 
     # get all the states, notice version 4 twice (one from production, the other from local)
-    with p._destination_client(p.default_schema.name) as job_client:
-        schema = p.default_schema
-        states = job_client.get_stored_states(schema.naming.normalize_table_identifier(STATE_TABLE_NAME))
-        assert [5, 4, 4, 3, 2] == [s.version for s in states]
+    # with p._destination_client(p.default_schema.name) as job_client:
+    #     schema = p.default_schema
+    #     states = job_client.get_stored_states(schema.state_table_name)
+    #     assert [5, 4, 4, 3, 2] == [s.version for s in states]
 
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_vector_configs=True), ids=lambda x: x.name)
@@ -538,7 +523,7 @@ def test_reset_pipeline_on_deleted_dataset(destination_config: DestinationTestCo
     assert p.state["_state_version"] == 3
     assert p.first_run is False
     with p._get_destination_clients(p.default_schema)[0] as job_client:
-        job_client.drop_dataset()
+        job_client.drop_storage()
     # next sync will wipe out the pipeline
     p.sync_destination()
     assert p.first_run is True

@@ -55,7 +55,6 @@ def perform_load(
         yield client, jobs, root_path, load_id
     finally:
         try:
-            if client.fs_client.isdir(client.dataset_path):
-                client.fs_client.rm(client.dataset_path, recursive=True)
+            client.drop_storage()
         except Exception:
             print(f"Failed to delete FILESYSTEM dataset: {client.dataset_path}")

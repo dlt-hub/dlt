@@ -41,7 +41,7 @@ def client() -> Iterator[WeaviateClient]:
     try:
         yield _client
     finally:
-        _client.drop_dataset()
+        _client.drop_storage()
 
 
 @pytest.fixture
