@@ -1,7 +1,7 @@
 import os
 import base64
 import dataclasses
-from datetime import date, datetime  # noqa: I251
+from datetime import date, datetime, time  # noqa: I251
 from typing import Any, Callable, List, Protocol, IO, Union
 from uuid import UUID
 from hexbytes import HexBytes
@@ -98,6 +98,7 @@ _UUIDT = '\uF029'
 _HEXBYTES = '\uF02A'
 _B64BYTES = '\uF02B'
 _WEI = '\uF02C'
+_TIME = '\uF02D'
 
 DECODERS: List[Callable[[Any], Any]] = [
     Decimal,
@@ -106,7 +107,8 @@ DECODERS: List[Callable[[Any], Any]] = [
     UUID,
     HexBytes,
     base64.b64decode,
-    Wei
+    Wei,
+    time.fromisoformat,
 ]
 
 
@@ -124,6 +126,8 @@ def custom_pua_encode(obj: Any) -> str:
         return _DATETIME + r
     elif isinstance(obj, date):
         return _DATE + obj.isoformat()
+    elif isinstance(obj, time):
+        return _TIME + obj.isoformat()
     elif isinstance(obj, UUID):
         return _UUIDT + str(obj)
     elif isinstance(obj, HexBytes):
