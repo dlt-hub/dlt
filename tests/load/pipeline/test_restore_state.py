@@ -15,7 +15,7 @@ from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import STATE_TABLE_COLUMNS, STATE_TABLE_NAME, load_state_from_destination, state_resource
 
 from tests.utils import TEST_STORAGE_ROOT
-from tests.cases import JSON_TYPED_DICT
+from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V6, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
 from tests.load.pipeline.utils import assert_query_data, drop_active_pipeline_data
@@ -241,7 +241,7 @@ def test_restore_state_pipeline(destination_config: DestinationTestConfiguration
     def source_four():
         @dlt.resource
         def some_data():
-            dlt.current.source_state()["state5"] = dict(JSON_TYPED_DICT)
+            dlt.current.source_state()["state5"] = dict(JSON_TYPED_DICT_DECODED)
             yield "four"
 
         return some_data()
@@ -280,7 +280,7 @@ def test_restore_state_pipeline(destination_config: DestinationTestConfiguration
     assert p.default_schema_name == "default"
     assert set(p.schema_names) == set(["default", "two", "three", "four"])
     assert p.state["sources"] == {
-        "default": {'state1': 'state1', 'state2': 'state2'}, "two": {'state3': 'state3'}, "three": {'state4': 'state4'}, "four": {"state5": JSON_TYPED_DICT}
+        "default": {'state1': 'state1', 'state2': 'state2'}, "two": {'state3': 'state3'}, "three": {'state4': 'state4'}, "four": {"state5": JSON_TYPED_DICT_DECODED}
     }
     for schema in p.schemas.values():
         assert "some_data" in schema.tables

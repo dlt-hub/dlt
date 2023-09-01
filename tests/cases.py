@@ -20,8 +20,12 @@ JSON_TYPED_DICT: StrAny = {
     # "uuid": UUID(_UUID),
     "hexbytes": HexBytes("0x2137"),
     "bytes": b'2137',
-    "wei": Wei.from_int256(2137, decimals=2)
+    "wei": Wei.from_int256(2137, decimals=2),
+    "time": pendulum.parse("2005-04-02T20:37:37.358236Z").time()
 }
+# TODO: a version after PUA decoder (time is not yet implemented end to end)
+JSON_TYPED_DICT_DECODED = dict(JSON_TYPED_DICT)
+JSON_TYPED_DICT_DECODED["time"] = JSON_TYPED_DICT["time"].isoformat()
 
 JSON_TYPED_DICT_TYPES: Dict[str, TDataType] = {
     "str": "text",
@@ -32,7 +36,8 @@ JSON_TYPED_DICT_TYPES: Dict[str, TDataType] = {
     # "uuid": "text",
     "hexbytes": "binary",
     "bytes": "binary",
-    "wei": "wei"
+    "wei": "wei",
+    "time": "text"
 }
 
 JSON_TYPED_DICT_NESTED = {
@@ -40,6 +45,12 @@ JSON_TYPED_DICT_NESTED = {
     "list_dicts": [dict(JSON_TYPED_DICT), dict(JSON_TYPED_DICT)],
     "list": list(JSON_TYPED_DICT.values()),
     **JSON_TYPED_DICT
+}
+JSON_TYPED_DICT_NESTED_DECODED = {
+    "dict": dict(JSON_TYPED_DICT_DECODED),
+    "list_dicts": [dict(JSON_TYPED_DICT_DECODED), dict(JSON_TYPED_DICT_DECODED)],
+    "list": list(JSON_TYPED_DICT_DECODED.values()),
+    **JSON_TYPED_DICT_DECODED
 }
 
 TABLE_UPDATE: List[TColumnSchema] = [
