@@ -6,6 +6,7 @@ from .gcp_credentials import GcpServiceAccountCredentialsWithoutDefaults, GcpSer
 from .connection_string_credentials import ConnectionStringCredentials  # noqa: F401
 from .api_credentials import OAuth2Credentials  # noqa: F401
 from .aws_credentials import AwsCredentials, AwsCredentialsWithoutDefaults  # noqa: F401
+from .azure_credentials import AzureCredentials, AzureCredentialsWithoutDefaults  # noqa: F401
 
 
 # backward compatibility for service account credentials

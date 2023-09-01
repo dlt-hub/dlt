@@ -115,7 +115,7 @@ class TransactionalFile:
             mtime = self.extract_mtime(lock)
             if now - mtime > timedelta(seconds=TransactionalFile.LOCK_TTL_SECONDS):
                 try: # Janitors can race, so we ignore errors
-                    self._fs.rm_file(name)
+                    self._fs.rm(name)
                 except OSError:
                     pass
                 continue
@@ -146,7 +146,7 @@ class TransactionalFile:
         if self._original_contents is not None:
             self.write(self._original_contents)
         elif self._fs.isfile(self.path):
-            self._fs.rm_file(self.path)
+            self._fs.rm(self.path)
 
     def acquire_lock(self, blocking: bool = True, timeout: float = -1, jitter_mean: float = 0) -> bool:
         """Acquires a lock on a path. Mimics the stdlib's `threading.Lock` interface.
@@ -185,7 +185,7 @@ class TransactionalFile:
 
         while active_lock != self.lock_path:
             if not blocking or (timeout > 0 and time.time() - start > timeout):
-                self._fs.rm_file(self.lock_path)
+                self._fs.rm(self.lock_path)
                 return False
 
             time.sleep(random.random() + TransactionalFile.POLLING_INTERVAL)
@@ -208,7 +208,7 @@ class TransactionalFile:
         """
         if self._is_locked:
             self._stop_heartbeat()
-            self._fs.rm_file(self.lock_path)
+            self._fs.rm(self.lock_path)
             self._is_locked = False
             self._original_contents = None
 

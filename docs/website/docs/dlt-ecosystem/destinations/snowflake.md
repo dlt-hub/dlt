@@ -194,6 +194,37 @@ pipeline = dlt.pipeline(
 )
 ```
 
+### Snowflake and Azure Blob Storage
+
+Please refer to the [Azure Blob Storage filesystem documentation](./filesystem.md#azure-blob-storage) to learn how to set up your bucket with the bucket_url and credentials. For azure the Snowflake loader will use
+the filesystem credentials for your azure blob storage container if not specified otherwise (see config options below). Alternatively you can define an external stage in Snowflake and provide the stage identifier.
+Please consult the snowflake Documentation on [how to create a stage for your Azure Blob Storage Container](https://docs.snowflake.com/en/user-guide/data-load-azure). The basic steps are as follows:
+
+* Create a storage integration linked to Azure Blob Storage and the right container
+* Grant access to this storage integration to the snowflake role you are using to load the data into snowflake.
+* Create a stage from this storage integration in the PUBLIC namespace, or the namespace of the schema of your data.
+* Also grant access to this stage for the role you are using to load data into snowflake.
+* Provide the name of your stage (including the namespace) to dlt like so:
+
+```toml
+[destination]
+stage_name=PUBLIC.my_azure_stage
+```
+
+To run Snowflake with azure as staging destination:
+
+```python
+# Create a dlt pipeline that will load
+# chess player data to the snowflake destination
+# via staging on azure
+pipeline = dlt.pipeline(
+    pipeline_name='chess_pipeline',
+    destination='snowflake',
+    staging='filesystem', # add this to activate the staging location
+    dataset_name='player_data'
+)
+```
+
 ## Additional destination options
 You can define your own stage to PUT files and disable removing of the staged files after loading.
 ```toml
