@@ -81,11 +81,11 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         # extract state again
         with p.managed_state(extract_state=True) as managed_state:
             # this will be saved
-            managed_state["sources"] = {"source": dict(JSON_TYPED_DICT)}
+            managed_state["sources"] = {"source": dict(JSON_TYPED_DICT_DECODED)}
         p.normalize(loader_file_format=destination_config.file_format)
         p.load()
         stored_state = load_state_from_destination(p.pipeline_name, job_client.sql_client)
-        assert stored_state["sources"] == {"source": JSON_TYPED_DICT}
+        assert stored_state["sources"] == {"source": JSON_TYPED_DICT_DECODED}
         local_state = p._get_state()
         local_state.pop("_local")
         assert stored_state == local_state
