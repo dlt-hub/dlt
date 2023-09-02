@@ -33,6 +33,8 @@ def get_py_arrow_datatype(column_type: str, caps: DestinationCapabilitiesContext
         return get_py_arrow_numeric(caps.wei_precision)
     elif column_type == "date":
         return pyarrow.date32()
+    elif column_type == "time":
+        return get_py_arrow_time(caps.timestamp_precision)
     else:
         raise ValueError(column_type)
 
@@ -45,6 +47,16 @@ def get_py_arrow_timestamp(precision: int, tz: str) -> Any:
     if precision <= 6:
         return pyarrow.timestamp("us", tz=tz)
     return pyarrow.timestamp("ns", tz=tz)
+
+
+def get_py_arrow_time(precision: int) -> Any:
+    if precision == 0:
+        return pyarrow.time32("s")
+    elif precision <= 3:
+        return pyarrow.time32("ms")
+    elif precision <= 6:
+        return pyarrow.time64("us")
+    return pyarrow.time64("ns")
 
 
 def get_py_arrow_numeric(precision: Tuple[int, int]) -> Any:

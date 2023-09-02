@@ -11,10 +11,11 @@ try:
 except ImportError:
     PydanticBaseModel = None  # type: ignore[misc]
 
+from dlt.common import pendulum
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
 from dlt.common.utils import map_nested_in_place
-from dlt.common.time import parse_iso_like_datetime
+from dlt.common.time import ensure_pendulum_date, ensure_pendulum_datetime, ensure_pendulum_time
 
 
 class SupportsJson(Protocol):
@@ -106,13 +107,13 @@ _TIME = '\uF02D'
 # define decoder for each prefix
 DECODERS: List[Callable[[Any], Any]] = [
     Decimal,
-    parse_iso_like_datetime,
-    lambda s: parse_iso_like_datetime(s),
+    ensure_pendulum_datetime,
+    ensure_pendulum_date,
     UUID,
     HexBytes,
     base64.b64decode,
     Wei,
-    lambda s: s  # NOTE: we keep iso implementation until we have TIME, time.fromisoformat,
+    ensure_pendulum_time,
 ]
 # how many decoders?
 PUA_CHARACTER_MAX = len(DECODERS)

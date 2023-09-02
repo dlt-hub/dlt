@@ -41,7 +41,8 @@ SCT_TO_HIVET: Dict[TDataType, str] = {
     "timestamp": "timestamp",
     "bigint": "bigint",
     "binary": "binary",
-    "decimal": "decimal(%i,%i)"
+    "decimal": "decimal(%i,%i)",
+    "time": "time"
 }
 
 HIVET_TO_SCT: Dict[str, TDataType] = {
@@ -53,7 +54,8 @@ HIVET_TO_SCT: Dict[str, TDataType] = {
     "bigint": "bigint",
     "binary": "binary",
     "varbinary": "binary",
-    "decimal": "decimal"
+    "decimal": "decimal",
+    "time": "time"
 }
 
 

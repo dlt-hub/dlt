@@ -23,7 +23,8 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "timestamp": "TIMESTAMP WITH TIME ZONE",
     "bigint": "BIGINT",
     "binary": "BLOB",
-    "decimal": "DECIMAL(%i,%i)"
+    "decimal": "DECIMAL(%i,%i)",
+    "time": "TIME"
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
@@ -35,7 +36,8 @@ PGT_TO_SCT: Dict[str, TDataType] = {
     "TIMESTAMP WITH TIME ZONE": "timestamp",
     "BIGINT": "bigint",
     "BLOB": "binary",
-    "DECIMAL": "decimal"
+    "DECIMAL": "decimal",
+    "TIME": "time"
 }
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {

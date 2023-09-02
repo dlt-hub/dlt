@@ -106,6 +106,11 @@ TABLE_UPDATE: List[TColumnSchema] = [
         "nullable": False
     },
     {
+        "name": "col11",
+        "data_type": "time",
+        "nullable": False
+    },
+    {
         "name": "col1_null",
         "data_type": "bigint",
         "nullable": True
@@ -155,7 +160,12 @@ TABLE_UPDATE: List[TColumnSchema] = [
         "name": "col10_null",
         "data_type": "date",
         "nullable": True
-    }
+    },
+    {
+        "name": "col11_null",
+        "data_type": "time",
+        "nullable": True
+    },
 ]
 TABLE_UPDATE_COLUMNS_SCHEMA: TTableSchemaColumns = {t["name"]:t for t in TABLE_UPDATE}
 
@@ -170,6 +180,7 @@ TABLE_ROW_ALL_DATA_TYPES  = {
     "col8": 2**56 + 92093890840,
     "col9": {"complex":[1,2,3,"a"], "link": "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\012 \6 \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"},
     "col10": "2023-02-27",
+    "col11": "13:26:45.176451",
     "col1_null": None,
     "col2_null": None,
     "col3_null": None,
@@ -179,7 +190,8 @@ TABLE_ROW_ALL_DATA_TYPES  = {
     "col7_null": None,
     "col8_null": None,
     "col9_null": None,
-    "col10_null": None
+    "col10_null": None,
+    "col11_null": None,
 }
 
 
@@ -216,6 +228,7 @@ def assert_all_data_types_row(
         db_row[8] = json.loads(db_row[8])
 
     db_row[9] = db_row[9].isoformat()
+    db_row[10] = db_row[10].isoformat()
     # print(db_row)
     # print(expected_rows)
     for expected, actual in zip(expected_rows, db_row):

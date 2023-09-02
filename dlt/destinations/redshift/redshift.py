@@ -41,7 +41,8 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "timestamp": "timestamp with time zone",
     "bigint": "bigint",
     "binary": "varbinary",
-    "decimal": "numeric(%i,%i)"
+    "decimal": "numeric(%i,%i)",
+    "time": "time"
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
@@ -53,7 +54,8 @@ PGT_TO_SCT: Dict[str, TDataType] = {
     "timestamp with time zone": "timestamp",
     "bigint": "bigint",
     "binary varying": "binary",
-    "numeric": "decimal"
+    "numeric": "decimal",
+    "time": "time"
 }
 
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
@@ -192,4 +194,3 @@ class RedshiftClient(InsertValuesJobClient):
             if (precision, scale) == cls.capabilities.wei_precision:
                 return "wei"
         return PGT_TO_SCT.get(pq_t, "text")
-

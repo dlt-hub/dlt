@@ -9,7 +9,7 @@ from dlt.common.json import custom_pua_remove
 from dlt.common.json._simplejson import custom_encode as json_custom_encode
 from dlt.common.arithmetics import InvalidOperation
 from dlt.common.data_types.typing import TDataType
-from dlt.common.time import ensure_pendulum_datetime, parse_iso_like_datetime, ensure_pendulum_date
+from dlt.common.time import ensure_pendulum_datetime, parse_iso_like_datetime, ensure_pendulum_date, ensure_pendulum_time
 from dlt.common.utils import map_nested_in_place, str2bool
 
 
@@ -38,6 +38,8 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
         return "timestamp"
     if issubclass(t, datetime.date):
         return "date"
+    if issubclass(t, datetime.time):
+        return "time"
     # check again for subclassed basic types
     if issubclass(t, str):
         return "text"
@@ -57,45 +59,9 @@ def complex_to_str(value: Any) -> str:
     return json.dumps(map_nested_in_place(custom_pua_remove, value))
 
 
-def coerce_to_date_types(
-    to_type: Literal["timestamp", "date"], from_type: TDataType, value: Any
-) -> Union[datetime.datetime, datetime.date]:
-    result: Union[datetime.datetime, datetime.date]
-    try:
-        if from_type in ["bigint", "double"]:
-            # returns ISO datetime with timezone
-            result = pendulum.from_timestamp(value)
-
-        elif from_type == "text":
-            try:
-                result = parse_iso_like_datetime(value)
-            except ValueError:
-                # try to convert string to integer, or float
-                try:
-                    value = float(value)
-                    result = pendulum.from_timestamp(value)
-                except ValueError:
-                    raise ValueError(value)
-        elif from_type in ["timestamp", "date"]:
-            result = value
-        else:
-            raise ValueError(value)
-    except OverflowError:
-        # when parsed data is converted to integer and must stay within some size
-        # id that is not possible OverflowError is raised and text cannot be represented as datetime
-        raise ValueError(value)
-    except Exception:
-        # catch all problems in pendulum
-        raise ValueError(value)
-    # Pendulum ISO parsing may result in either datetime or date
-    if to_type == "date":
-        return ensure_pendulum_date(result)
-    return ensure_pendulum_datetime(result)
-
-
 def coerce_from_date_types(
     to_type: TDataType, value: datetime.datetime
-) -> Union[datetime.datetime, datetime.date, int, float, str]:
+) -> Union[datetime.datetime, datetime.date, datetime.time, int, float, str]:
     v = ensure_pendulum_datetime(value)
     if to_type == "timestamp":
         return v
@@ -107,6 +73,8 @@ def coerce_from_date_types(
         return v.timestamp()  # type: ignore
     if to_type == "date":
         return ensure_pendulum_date(v)
+    if to_type == "time":
+        return v.time()  # type: ignore[no-any-return]
     raise TypeError(f"Cannot convert timestamp to {to_type}")
 
 
@@ -181,8 +149,19 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
                 except InvalidOperation:
                     raise ValueError(trim_value)
 
-    if to_type in ["timestamp", "date"]:
-        return coerce_to_date_types(cast(Literal["timestamp", "date"], to_type), from_type, value)
+    try:
+        if to_type == "timestamp":
+            return ensure_pendulum_datetime(value)
+
+        if to_type == "date":
+            return ensure_pendulum_date(value)
+
+        if to_type == "time":
+            return ensure_pendulum_time(value)
+    except OverflowError as e:
+        # when parsed data is converted to integer and must stay within some size
+        # id that is not possible OverflowError is raised and text cannot be represented as datetime
+        raise ValueError(value) from e
 
     if to_type == "bool":
         if from_type == "text":

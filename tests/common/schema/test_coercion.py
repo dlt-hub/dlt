@@ -200,6 +200,26 @@ def test_coerce_type_to_date() -> None:
     assert coerce_value("date", "text", "2022-04-26 10:36") == pendulum.parse("2022-04-26", exact=True)
 
 
+def test_coerce_type_to_time() -> None:
+    # from ISO time string
+    assert coerce_value("time", "text", "03:41:31.466000") == pendulum.parse("03:41:31.466000", exact=True)
+    # from datetime object
+    assert coerce_value("time", "timestamp", pendulum.datetime(1995, 5, 6, 00, 1, 1, tz='EST')) == pendulum.parse("00:01:01", exact=True)
+    assert coerce_value("time", "timestamp", pendulum.datetime(1995, 5, 6, 00, 1, 1)) == pendulum.parse("00:01:01", exact=True)
+    # from unix timestamp
+    assert coerce_value("time", "double", 1677546399.494264) == pendulum.parse("01:06:39.494264", exact=True)
+    assert coerce_value("time", "text", " 1677546399 ") == pendulum.parse("01:06:39", exact=True)
+    # ISO date string
+    assert coerce_value("time", "text", "2023-02-27") == pendulum.parse("00:00:00", exact=True)
+    # ISO datetime string
+    assert coerce_value("time", "text", "2022-05-10T03:41:31.466000+00:00") == pendulum.parse("03:41:31.466000", exact=True)
+    assert coerce_value("time", "text", "2022-05-10T03:41:31.466+02:00") == pendulum.parse("03:41:31.466000", exact=True)
+    assert coerce_value("time", "text", "2022-05-10T03:41:31.466+0200") == pendulum.parse("03:41:31.466000", exact=True)
+    # almost ISO compliant string
+    assert coerce_value("time", "text", "2022-04-26 10:36+02") == pendulum.parse("10:36:00", exact=True)
+    assert coerce_value("time", "text", "2022-04-26 10:36") == pendulum.parse("10:36:00", exact=True)
+
+
 def test_coerce_type_to_binary() -> None:
     # from hex string
     assert coerce_value("binary", "text", "0x30") == b'0'
@@ -224,6 +244,7 @@ def test_py_type_to_sc_type() -> None:
     assert py_type_to_sc_type(type(datetime.datetime(1988, 12, 1))) == "timestamp"
     assert py_type_to_sc_type(type(pendulum.date(2023, 2, 27))) == "date"
     assert py_type_to_sc_type(type(datetime.date.today())) == "date"
+    assert py_type_to_sc_type(type(pendulum.time(1, 6, 39))) == "time"
     assert py_type_to_sc_type(type(Decimal(1))) == "decimal"
     assert py_type_to_sc_type(type(HexBytes("0xFF"))) == "binary"
     assert py_type_to_sc_type(type(Wei.from_int256(2137, decimals=2))) == "wei"
