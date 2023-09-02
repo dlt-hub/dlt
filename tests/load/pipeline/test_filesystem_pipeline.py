@@ -42,7 +42,7 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
     info1 = pipeline.run(some_source(), write_disposition='merge')
     info2 = pipeline.run(some_source(), write_disposition='merge')
 
-    client: FilesystemClient = pipeline._destination_client()  # type: ignore[assignment]
+    client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
     layout = client.config.layout
 
     append_glob = list(client._get_table_dirs(["some_data"]))[0]
@@ -112,7 +112,7 @@ def test_pipeline_parquet_filesystem_destination() -> None:
     assert len(package_info.jobs["failed_jobs"]) == 0
     assert len(package_info.jobs["completed_jobs"]) == 3
 
-    client: FilesystemClient = pipeline._destination_client()  # type: ignore[assignment]
+    client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
     some_data_glob = posixpath.join(client.dataset_path, 'some_data/*')
     other_data_glob = posixpath.join(client.dataset_path, 'other_data/*')
 

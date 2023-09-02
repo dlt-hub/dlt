@@ -10,6 +10,7 @@ from dlt.common.schema.schema import Schema, utils
 from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.exceptions import DestinationUndefinedEntity
 from dlt.load import Load
+from dlt.pipeline.exceptions import SqlClientNotAvailable
 
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import STATE_TABLE_COLUMNS, load_state_from_destination, state_resource
@@ -19,7 +20,7 @@ from tests.cases import JSON_TYPED_DICT
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V6, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
 from tests.load.pipeline.utils import assert_query_data, drop_active_pipeline_data
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.utils import destinations_configs, DestinationTestConfiguration, get_normalized_dataset_name
 
 
 @pytest.fixture(autouse=True)
@@ -38,7 +39,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     # inject schema into pipeline, don't do it in production
     p._inject_schema(schema)
     # try with non existing dataset
-    with p._destination_client(p.default_schema.name) as job_client:
+    with p.destination_client(p.default_schema.name) as job_client:
         with pytest.raises(DestinationUndefinedEntity):
             load_state_from_destination(p.pipeline_name, job_client)
         # sync the schema
@@ -161,23 +162,23 @@ def test_get_schemas_from_destination(destination_config: DestinationTestConfigu
 
     default_schema = Schema("state")
     p._inject_schema(default_schema)
-    with p._get_destination_clients(default_schema)[0]  as job_client:
+    with p.destination_client()  as job_client:
         # just sync schema without name - will use default schema
         p.sync_schema()
-        assert job_client.dataset_name == default_schema.naming.normalize_table_identifier(dataset_name)
+        assert get_normalized_dataset_name(job_client) == default_schema.naming.normalize_table_identifier(dataset_name)
     schema_two = Schema("two")
     with p._get_destination_clients(schema_two)[0] as job_client:
         # use the job_client to do that
         job_client.initialize_storage()
         job_client.update_stored_schema()
         # this may be a separate dataset depending in use_single_dataset setting
-        assert job_client.dataset_name == schema_two.naming.normalize_table_identifier(_make_dn_name("two"))
+        assert get_normalized_dataset_name(job_client) == schema_two.naming.normalize_table_identifier(_make_dn_name("two"))
     schema_three = Schema("three")
     p._inject_schema(schema_three)
     with p._get_destination_clients(schema_three)[0] as job_client:
         # sync schema with a name
         p.sync_schema(schema_three.name)
-        assert job_client.dataset_name == schema_three.naming.normalize_table_identifier(_make_dn_name("three"))
+        assert get_normalized_dataset_name(job_client) == schema_three.naming.normalize_table_identifier(_make_dn_name("three"))
 
     # wipe and restore
     p._wipe_working_folder()
@@ -496,10 +497,14 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     assert ra_production_p.state == prod_state
 
     # get all the states, notice version 4 twice (one from production, the other from local)
-    # with p._destination_client(p.default_schema.name) as job_client:
-    #     schema = p.default_schema
-    #     states = job_client.get_stored_states(schema.state_table_name)
-    #     assert [5, 4, 4, 3, 2] == [s.version for s in states]
+    try:
+        assert_query_data(
+            p,
+            f"SELECT version FROM {p.default_schema.state_table_name} ORDER BY created_at DESC",
+            [5, 4, 4, 3, 2]
+        )
+    except SqlClientNotAvailable:
+        pytest.skip(f"destination {destination_config.destination} does not support sql client")
 
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_vector_configs=True), ids=lambda x: x.name)
@@ -522,7 +527,7 @@ def test_reset_pipeline_on_deleted_dataset(destination_config: DestinationTestCo
     p.run(data5, schema=Schema("sch2"))
     assert p.state["_state_version"] == 3
     assert p.first_run is False
-    with p._get_destination_clients(p.default_schema)[0] as job_client:
+    with p.destination_client() as job_client:
         job_client.drop_storage()
     # next sync will wipe out the pipeline
     p.sync_destination()

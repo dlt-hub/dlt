@@ -31,7 +31,7 @@ def drop_active_pipeline_data() -> None:
         p = dlt.pipeline()
 
         def _drop_dataset(schema_name: str) -> None:
-            with p._destination_client(schema_name) as client:
+            with p.destination_client(schema_name) as client:
                 try:
                     client.drop_storage()
                     print("dropped")
@@ -79,7 +79,7 @@ def _assert_table_sql(p: dlt.Pipeline, table_name: str, table_data: List[Any], s
 
 def _assert_table_fs(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
     """Assert table is loaded to filesystem destination"""
-    client: FilesystemClient = p._destination_client(schema_name)  # type: ignore[assignment]
+    client: FilesystemClient = p.destination_client(schema_name)  # type: ignore[assignment]
     # get table directory
     table_dir = list(client._get_table_dirs([table_name]))[0]
     # assumes that each table has a folder
@@ -172,7 +172,7 @@ def load_file(path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
 
 def load_files(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
     """For now this will expect the standard layout in the filesystem destination, if changed the results will not be correct"""
-    client: FilesystemClient = p._destination_client()  # type: ignore[assignment]
+    client: FilesystemClient = p.destination_client()  # type: ignore[assignment]
     result = {}
     for basedir, _dirs, files  in client.fs_client.walk(client.dataset_path, detail=False, refresh=True):
         for file in files:

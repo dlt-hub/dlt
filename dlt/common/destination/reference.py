@@ -203,10 +203,6 @@ class JobClientBase(ABC):
         self.schema = schema
         self.config = config
 
-    @property
-    def dataset_name(self) -> str:
-        return None
-
     @abstractmethod
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         """Prepares storage to be used ie. creates database schema or file system folder. Truncates requested tables.

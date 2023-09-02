@@ -148,9 +148,17 @@ def destinations_configs(
     return destination_configs
 
 
+def get_normalized_dataset_name(client: JobClientBase) -> str:
+    if isinstance(client.config, DestinationClientDwhConfiguration):
+        return client.config.normalize_dataset_name(client.schema)
+    else:
+        raise TypeError(f"{type(client)} client has configuration {type(client.config)} that does not support dataset name")
+
+
 def load_table(name: str) -> TTableSchemaColumns:
     with open(f"./tests/load/cases/{name}.json", "rb") as f:
         return cast(TTableSchemaColumns, json.load(f))
+
 
 def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
     file_name = ParsedLoadJobFileName(table_name, uniq_id(), 0, client.capabilities.preferred_loader_file_format).job_id()
