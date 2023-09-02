@@ -671,8 +671,18 @@ class Pipeline(SupportsPipeline):
         return state["_local"][key]   # type: ignore
 
     def sql_client(self, schema_name: str = None, credentials: Any = None) -> SqlClientBase[Any]:
-        """Returns a sql connection configured to query/change the destination and dataset that were used to load the data."""
-        # if not self.default_schema_name:
+        """Returns a sql client configured to query/change the destination and dataset that were used to load the data.
+           Use the client with `with` statement to manage opening and closing connection to the destination:
+           >>> with pipeline.sql_client() as client:
+           >>>     with client.execute_query(
+           >>>         "SELECT id, name, email FROM customers WHERE id = %s", 10
+           >>>     ) as cursor:
+           >>>         print(cursor.fetchall())
+
+           The client is authenticated and defaults all queries to dataset_name used by the pipeline. You can provide alternative
+           `schema_name` which will be used to normalize dataset name and alternative `credentials`.
+        """
+        # if not self.default_schema_name and not schema_name:
         #     raise PipelineConfigMissing(
         #         self.pipeline_name,
         #         "default_schema_name",
@@ -682,8 +692,15 @@ class Pipeline(SupportsPipeline):
         schema = self._get_schema_or_create(schema_name)
         return self._sql_job_client(schema, credentials).sql_client
 
-    def _destination_client(self, schema_name: str = None, credentials: Any = None) -> JobClientBase:
-        """Get the destination job client for the configured destination"""
+    def destination_client(self, schema_name: str = None, credentials: Any = None) -> JobClientBase:
+        """Get the destination job client for the configured destination
+           Use the client with `with` statement to manage opening and closing connection to the destination:
+           >>> with pipeline.destination_client() as client:
+           >>>     client.drop_storage()  # removes storage which typically wipes all data in it
+
+           The client is authenticated. You can provide alternative `schema_name` which will be used to normalize dataset name and alternative `credentials`.
+           If no schema name is provided and no default schema is present in the pipeline, and ad hoc schema will be created and discarded after use.
+        """
         schema = self._get_schema_or_create(schema_name)
         client_config = self._get_destination_client_initial_config(credentials)
         return self._get_destination_clients(schema, client_config)[0]
