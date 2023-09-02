@@ -126,18 +126,19 @@ coerced in existing column.
 
 ### Data types
 
-| dlt Data Type | Source Value Example |
-| --- | --- |
-| text | `'hello world'` |
-| double | `45.678` |
-| bool | `True` |
-| timestamp | `'2023-07-26T14:45:00Z'`, `datetime.datetime.now()` |
-| date | `datetime.date(2023, 7, 26)` |
-| bigint | `9876543210` |
-| binary | `b'\x00\x01\x02\x03'` |
-| complex | `[4, 5, 6]`, `{'a': 1}` |
-| decimal | `Decimal('4.56')` |
-| wei | `2**56` |
+| dlt Data Type | Source Value Example                                |
+|---------------|-----------------------------------------------------|
+| text          | `'hello world'`                                     |
+| double        | `45.678`                                            |
+| bool          | `True`                                              |
+| timestamp     | `'2023-07-26T14:45:00Z'`, `datetime.datetime.now()` |
+| date          | `datetime.date(2023, 7, 26)`                        |
+| time          | `'14:01:02'`, `datetime.time(14, 1, 2)`             |
+| bigint        | `9876543210`                                        |
+| binary        | `b'\x00\x01\x02\x03'`                               |
+| complex       | `[4, 5, 6]`, `{'a': 1}`                             |
+| decimal       | `Decimal('4.56')`                                   |
+| wei           | `2**56`                                             |
 
 
 > ⛔ You cannot specify scale and precision for bigint, binary, text and decimal.
@@ -148,6 +149,8 @@ precision.
 
 `complex` data type tells `dlt` to load that element as JSON or struct and do not attempt to flatten
 or create a child table out of it.
+
+`time` data type is saved in destination without timezone info, if timezone is included it is stripped. E.g. `'14:01:02+02:00` -> `'14:01:02'`.
 
 ## Schema settings
 
