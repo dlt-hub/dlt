@@ -117,7 +117,7 @@ def ensure_pendulum_time(value: Union[TAnyDateTime, datetime.time]) -> pendulum.
         value = pendulum.instance(value)
         return pendulum.instance(value).time()  # type: ignore[no-any-return]
     elif isinstance(value, datetime.date):
-        return pendulum.datetime(value.year, value.month, value.day)
+        return pendulum.datetime(value.year, value.month, value.day).time()  # type: ignore[no-any-return]
     elif isinstance(value, (int, float, str)):
         result = _datetime_from_ts_or_iso(value)
         if isinstance(result, pendulum.Time):
