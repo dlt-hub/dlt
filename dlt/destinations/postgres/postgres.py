@@ -27,7 +27,7 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "bigint": "bigint",
     "binary": "bytea",
     "decimal": "numeric(%i,%i)",
-    "time": "time"
+    "time": "time without time zone"
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
@@ -40,7 +40,7 @@ PGT_TO_SCT: Dict[str, TDataType] = {
     "bigint": "bigint",
     "bytea": "binary",
     "numeric": "decimal",
-    "time": "time"
+    "time without time zone": "time"
 }
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {
