@@ -72,7 +72,7 @@ def assert_class(
 
 
 def delete_classes(p, class_list):
-    db_client = p._destination_client().db_client
+    db_client = p.destination_client().db_client
     for class_name in class_list:
         db_client.schema.delete_class(class_name)
 

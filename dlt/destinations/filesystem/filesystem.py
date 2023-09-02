@@ -122,7 +122,7 @@ class FilesystemClient(JobClientBase):
                                 # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
                                 logger.info(f"DEL {item}")
                                 # print(f"DEL {item}")
-                                self.fs_client.rm_file(item)
+                                self.fs_client.rm(item)
                 except FileNotFoundError:
                     logger.info(f"Directory or path to truncate tables {truncate_dir} does not exist but it should be created previously!")
 

@@ -5,5 +5,6 @@ sentry_dsn="https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4
 bucket_url_gs="gs://ci-test-bucket"
 bucket_url_s3="s3://dlt-ci-test-bucket"
 bucket_url_file="file://_storage"
+bucket_url_az="az://dlt-ci-test-bucket"
 memory="memory://m"
 # gdrive_url="gdrive://dlt-ci-tests"

@@ -325,7 +325,7 @@ def test_empty_dataset_allowed() -> None:
     info = p.run(weaviate_adapter(["context", "created", "not a stop word"], vectorize=["value"]))
     # dataset in load info is empty
     assert info.dataset_name is None
-    client = p._destination_client()
+    client = p.destination_client()
     assert client.dataset_name is None
     assert client.sentinel_class == "DltSentinelClass"
     # also check trace

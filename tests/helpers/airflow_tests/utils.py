@@ -1,3 +1,4 @@
+from configparser import DuplicateSectionError
 import os
 import argparse
 import pytest
@@ -28,9 +29,14 @@ def initialize_airflow_db():
 
 def setup_airflow() -> None:
     # Disable loading examples
+    try:
+        conf.add_section('core')
+    except DuplicateSectionError:
+        pass
     conf.set('core', 'load_examples', 'False')
     # Prepare the arguments for the initdb function
     args = argparse.Namespace()
+    # becomes database/sql_alchemy_conn in apache 2.7.0
     args.backend = conf.get(section='core', key='sql_alchemy_conn')
 
     # Run Airflow resetdb before running any tests

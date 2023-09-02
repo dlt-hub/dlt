@@ -1,14 +1,14 @@
 ---
-title: Build a data pipeline
-description: Build a data pipeline - the comprehensive guide
-keywords: [build a data pipeline]
+title: Pipeline Tutorial
+description: Build a data pipeline with dlt from scratch
+keywords: [getting started, quick start, basics]
 ---
 
-## Building data pipelines with `dlt`, from basic to advanced
+# Building data pipelines with `dlt`, from basic to advanced
 
 This is in-depth overview will take you through the main areas of pipelining with `dlt`. Go to the
-related pages you are instead looking for the [demo](try-in-colab.md), or the
-[walkthroughs](../walkthroughs).
+related pages you are instead looking for the [quickstart](getting-started.mdx), or the
+[walkthroughs](walkthroughs).
 
 ## Why build pipelines with `dlt`?
 
@@ -49,8 +49,8 @@ normalize, and evolve your data schemas, enabling seamless data integration and 
 For example, let's consider a scenario where you want to load a list of objects into a DuckDB table
 named "three". With `dlt`, you can create a pipeline and run it with just a few lines of code:
 
-1. [Create a pipeline](../walkthroughs/create-a-pipeline.md) to the [destination](../dlt-ecosystem/destinations).
-1. Give this pipeline data and [run it](../walkthroughs/run-a-pipeline.md).
+1. [Create a pipeline](walkthroughs/create-a-pipeline.md) to the [destination](dlt-ecosystem/destinations).
+1. Give this pipeline data and [run it](walkthroughs/run-a-pipeline.md).
 
 ```python
 import dlt
@@ -184,7 +184,7 @@ consistency and allow granular loading.
 
 ## Defining Incremental Loading
 
-[Incremental loading](../general-usage/incremental-loading.md) is a crucial concept in data pipelines that involves loading only new or changed
+[Incremental loading](general-usage/incremental-loading.md) is a crucial concept in data pipelines that involves loading only new or changed
 data instead of reloading the entire dataset. This approach provides several benefits, including
 low-latency data transfer and cost savings.
 
@@ -240,7 +240,7 @@ transformations both before and after loading the data. Here's how you can achie
 Before loading the data, you have the flexibility to perform transformations using Python. You can
 leverage Python's extensive libraries and functions to manipulate and preprocess the data as needed.
 Here's an example of
-[pseudonymizing columns](../general-usage/customising-pipelines/pseudonymizing_columns.md) before
+[pseudonymizing columns](general-usage/customising-pipelines/pseudonymizing_columns.md) before
 loading the data.
 
 In the above example, the `pseudonymize_name` function pseudonymizes the `name` column by
@@ -253,7 +253,7 @@ record.
 
 For transformations after loading the data, you have several options available:
 
-#### [Using dbt](../dlt-ecosystem/transformations/dbt.md)
+#### [Using dbt](dlt-ecosystem/transformations/dbt.md)
 
 dbt is a powerful framework for transforming data. It enables you to structure your transformations
 into DAGs, providing cross-database compatibility and various features such as templating,
@@ -299,7 +299,7 @@ pipeline performs transformations using a dbt package called `pipedrive` after l
 The `dbt.package` function sets up the dbt runner, and `dbt.run_all()` executes the dbt
 models defined in the package.
 
-#### [Using the `dlt` SQL client](../dlt-ecosystem/transformations/sql.md)
+#### [Using the `dlt` SQL client](dlt-ecosystem/transformations/sql.md)
 
 Another option is to leverage the `dlt` SQL client to query the loaded data and perform
 transformations using SQL statements. You can execute SQL statements that change the database schema
@@ -318,7 +318,7 @@ with pipeline.sql_client() as client:
 In this example, the `execute_sql` method of the SQL client allows you to execute SQL
 statements. The statement inserts a row with values into the `customers` table.
 
-#### [Using Pandas](../dlt-ecosystem/transformations/pandas.md)
+#### [Using Pandas](dlt-ecosystem/transformations/pandas.md)
 
 You can fetch query results as Pandas data frames and perform transformations using Pandas
 functionalities. Here's an example of reading data from the `issues` table in DuckDB and
@@ -369,7 +369,7 @@ These customization options enable you to create a schema that aligns with your 
 conventions, data types, and overall data structure. With `dlt`, you have the flexibility to tailor
 the normalization process to meet your unique needs and achieve optimal results.
 
-Read more about how to configure [schema generation.](../general-usage/schema.md)
+Read more about how to configure [schema generation.](general-usage/schema.md)
 
 ### Exporting and Importing Schema Files
 
@@ -378,7 +378,7 @@ processing and loading the data. Exporting schema files enables you to modify th
 adjustments to the schema as needed. You can then import the modified schema files back into `dlt` to
 use them in your pipeline.
 
-Read more: [Adjust a schema docs.](../walkthroughs/adjust-a-schema.md)
+Read more: [Adjust a schema docs.](walkthroughs/adjust-a-schema.md)
 
 ## Governance Support in `dlt` Pipelines
 
@@ -391,7 +391,7 @@ utilization, schema enforcement and curation, and schema change alerts.
 which consist of a timestamp and pipeline name. Load IDs enable incremental transformations and data
 vaulting by tracking data loads and facilitating data lineage and traceability.
 
-Read more about [lineage.](../dlt-ecosystem/visualizations/understanding-the-tables.md#load-ids)
+Read more about [lineage.](dlt-ecosystem/visualizations/understanding-the-tables.md#load-ids)
 
 ### Schema Enforcement and Curation
 
@@ -400,7 +400,7 @@ define the structure of normalized data and guide the processing and loading of 
 predefined schemas, pipelines maintain data integrity and facilitate standardized data handling
 practices.
 
-Read more: [Adjust a schema docs.](../walkthroughs/adjust-a-schema.md)
+Read more: [Adjust a schema docs.](walkthroughs/adjust-a-schema.md)
 
 ### Schema evolution
 
@@ -413,7 +413,7 @@ These governance features in `dlt` pipelines contribute to better data managemen
 compliance adherence, and overall data governance, promoting data consistency, traceability, and
 control throughout the data processing lifecycle.
 
-Read more about [schema evolution.](../reference/explainers/schema-evolution.md)
+Read more about [schema evolution.](reference/explainers/schema-evolution.md)
 
 ### Scaling and finetuning
 
@@ -423,7 +423,7 @@ Read more about [schema evolution.](../reference/explainers/schema-evolution.md)
 - Writing sources and resources that are run in parallel via thread pools and async execution.
 - Finetune the memory buffers, intermediary file sizes and compression options.
 
-Read more about [performance.](../reference/performance.md)
+Read more about [performance.](reference/performance.md)
 
 ### Other advanced topics
 

@@ -1,7 +1,7 @@
 import os
 import base64
 import dataclasses
-from datetime import date, datetime  # noqa: I251
+from datetime import date, datetime, time  # noqa: I251
 from typing import Any, Callable, List, Protocol, IO, Union
 from uuid import UUID
 from hexbytes import HexBytes
@@ -73,6 +73,8 @@ def custom_encode(obj: Any) -> str:
         return r
     elif isinstance(obj, date):
         return obj.isoformat()
+    elif isinstance(obj, time):
+        return obj.isoformat()
     elif isinstance(obj, UUID):
         return str(obj)
     elif isinstance(obj, HexBytes):
@@ -98,7 +100,10 @@ _UUIDT = '\uF029'
 _HEXBYTES = '\uF02A'
 _B64BYTES = '\uF02B'
 _WEI = '\uF02C'
+_TIME = '\uF02D'
 
+
+# define decoder for each prefix
 DECODERS: List[Callable[[Any], Any]] = [
     Decimal,
     parse_iso_like_datetime,
@@ -106,8 +111,11 @@ DECODERS: List[Callable[[Any], Any]] = [
     UUID,
     HexBytes,
     base64.b64decode,
-    Wei
+    Wei,
+    lambda s: s  # NOTE: we keep iso implementation until we have TIME, time.fromisoformat,
 ]
+# how many decoders?
+PUA_CHARACTER_MAX = len(DECODERS)
 
 
 def custom_pua_encode(obj: Any) -> str:
@@ -124,6 +132,8 @@ def custom_pua_encode(obj: Any) -> str:
         return _DATETIME + r
     elif isinstance(obj, date):
         return _DATE + obj.isoformat()
+    elif isinstance(obj, time):
+        return _TIME + obj.isoformat()
     elif isinstance(obj, UUID):
         return _UUIDT + str(obj)
     elif isinstance(obj, HexBytes):
@@ -145,7 +155,7 @@ def custom_pua_decode(obj: Any) -> Any:
     if isinstance(obj, str) and len(obj) > 1:
         c = ord(obj[0]) - 0xF026
         # decode only the PUA space defined in DECODERS
-        if c >=0 and c <= 6:
+        if c >=0 and c <= PUA_CHARACTER_MAX:
             return DECODERS[c](obj[1:])
     return obj
 
@@ -163,7 +173,7 @@ def custom_pua_remove(obj: Any) -> Any:
     if isinstance(obj, str) and len(obj) > 1:
         c = ord(obj[0]) - 0xF026
         # decode only the PUA space defined in DECODERS
-        if c >=0 and c <= 6:
+        if c >=0 and c <= PUA_CHARACTER_MAX:
             return obj[1:]
     return obj
 
