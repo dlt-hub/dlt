@@ -105,7 +105,7 @@ def ensure_pendulum_time(value: Union[TAnyDateTime, datetime.time]) -> pendulum.
         value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date, time, or iso date/time str.
 
     Returns:
-        A timezone aware pendulum.Time object in UTC timezone.
+        A pendulum.Time object
     """
 
     if isinstance(value, datetime.time):
