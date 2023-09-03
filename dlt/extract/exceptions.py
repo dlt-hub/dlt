@@ -62,6 +62,20 @@ class ResourceExtractionError(PipeException):
         super().__init__(pipe_name, f"extraction of resource {pipe_name} in {kind} {self.func_name} caused an exception: {msg}")
 
 
+class PipeGenInvalid(PipeException):
+    def __init__(self, pipe_name: str, gen: Any) -> None:
+        msg = "A pipe generator element must be an Iterator (ie. list or generator function). Generator element is typically created from a `data` argument to pipeline.run or extract method."
+        msg += "dlt will evaluate functions that were passed as data argument. If you passed a function the returned data type is not iterable. "
+        type_name = str(type(gen))
+        msg += f" Generator type is {type_name}."
+        if "DltSource" in type_name:
+            msg += " Did you pass a @dlt.source decorated function without calling it?"
+        if "DltResource" in type_name:
+            msg += " Did you pass a function that returns dlt.resource without calling it?"
+
+        super().__init__(pipe_name, msg)
+
+
 class ResourceNameMissing(DltResourceException):
     def __init__(self) -> None:
         super().__init__(None, """Resource name is missing. If you create a resource directly from data ie. from a list you must pass the name explicitly in `name` argument.

@@ -70,7 +70,7 @@ def assert_dropped_resource_tables(pipeline: Pipeline, resources: List[str]) -> 
 
     # Verify requested tables are dropped from destination
     client: SqlJobClientBase
-    with pipeline._get_destination_clients(pipeline.default_schema)[0] as client:  # type: ignore[assignment]
+    with pipeline.destination_client(pipeline.default_schema_name) as client:  # type: ignore[assignment]
         # Check all tables supposed to be dropped are not in dataset
         for table in dropped_tables:
             exists, _ = client.get_storage_table(table)
@@ -92,8 +92,8 @@ def assert_dropped_resource_states(pipeline: Pipeline, resources: List[str]) -> 
 
 def assert_destination_state_loaded(pipeline: Pipeline) -> None:
     """Verify stored destination state matches the local pipeline state"""
-    with pipeline.sql_client() as sql_client:
-        destination_state = state_sync.load_state_from_destination(pipeline.pipeline_name, sql_client)
+    with pipeline.destination_client() as client:
+        destination_state = state_sync.load_state_from_destination(pipeline.pipeline_name, client)
     pipeline_state = dict(pipeline.state)
     del pipeline_state['_local']
     assert pipeline_state == destination_state

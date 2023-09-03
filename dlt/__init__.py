@@ -4,7 +4,7 @@ How to create a data loading pipeline with dlt in 3 seconds:
 
     1. Write a pipeline script
     >>> import dlt
-    >>> import requests
+    >>> from dlt.sources.helpers import requests
     >>> dlt.run(requests.get("https://api.chess.com/pub/player/magnuscarlsen/games/2022/11").json()["games"], destination="duckdb", table_name="magnus_games")
 
     2. Run your pipeline script

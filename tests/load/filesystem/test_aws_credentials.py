@@ -10,7 +10,10 @@ from tests.common.configuration.utils import environment
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
 from tests.utils import preserve_environ, autouse_test_storage
 
-@pytest.mark.skipif('s3' not in ALL_FILESYSTEM_DRIVERS, reason='s3 filesystem driver not configured')
+if 's3' not in ALL_FILESYSTEM_DRIVERS:
+    pytest.skip('s3 filesystem driver not configured', allow_module_level=True)
+
+
 def test_aws_credentials_resolved_from_default(environment: Dict[str, str]) -> None:
     set_aws_credentials_env(environment)
 

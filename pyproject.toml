@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.3.12"
+version = "0.3.16a0"
 description = "DLT is an open-source python-native scalable data loading framework that does not require any devops efforts to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -73,6 +73,8 @@ cron-descriptor = {version = ">=1.2.32", optional = true}
 pipdeptree = {version = ">=2.9.0,<2.10", optional = true}
 pyathena = {version = ">=2.9.6", optional = true}
 weaviate-client = {version = ">=3.22", optional = true}
+pydantic = {version = ">=1.10,<2.0", optional = true}
+adlfs = {version = ">=2022.4.0", optional = true}
 
 
 [tool.poetry.extras]
@@ -87,11 +89,13 @@ duckdb = ["duckdb"]
 filesystem = ["s3fs", "botocore"]
 s3 = ["s3fs", "botocore"]
 gs = ["gcsfs"]
+az = ["adlfs"]
 snowflake = ["snowflake-connector-python"]
 motherduck = ["duckdb", "pyarrow"]
 cli = ["pipdeptree", "cron-descriptor"]
 athena = ["pyathena", "pyarrow", "s3fs", "botocore"]
 weaviate = ["weaviate-client"]
+pydantic = ["pydantic"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
@@ -140,9 +144,15 @@ optional = true
 [tool.poetry.group.providers.dependencies]
 google-api-python-client = "^2.86.0"
 
-
 [tool.poetry.group.sentry-sdk.dependencies]
 sentry-sdk = "^1.5.6"
+
+[tool.poetry.group.docs]
+optional = true
+
+[tool.poetry.group.docs.dependencies]
+pymysql = "^1.1.0"
+pypdf2 = "^3.0.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]

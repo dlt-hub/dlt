@@ -28,7 +28,16 @@ api_key = "your-weaviate-api-key"
 X-OpenAI-Api-Key = "your-openai-api-key"
 ```
 
-In this setup guide, we are using the [Weaviate Cloud Services](https://console.weaviate.cloud/) to get a Weaviate instance and [OpenAI API](https://platform.openai.com/) for generating embeddings through the [text2vec-openai](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules/text2vec-openai) module. You can host your own weaviate instance using docker compose, kubernetes or embedded. Refer to Weaviate's [How-to: Install](https://weaviate.io/developers/weaviate/installation) for details.
+In this setup guide, we are using the [Weaviate Cloud Services](https://console.weaviate.cloud/) to get a Weaviate instance and [OpenAI API](https://platform.openai.com/) for generating embeddings through the [text2vec-openai](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules/text2vec-openai) module.
+
+You can host your own weaviate instance using docker compose, kubernetes or embedded. Refer to Weaviate's [How-to: Install](https://weaviate.io/developers/weaviate/installation) or [dlt recipe we use for our tests](#run-weaviate-fully-standalone). In that case you can skip the credentials part altogether:
+
+```toml
+[destination.weaviate.credentials.additional_headers]
+X-OpenAI-Api-Key = "your-openai-api-key"
+```
+The `url` will default to **http://localhost:8080** and `api_key` is not defined - which are the defaults for Weaviate container.
+
 
 3. Define the source of the data. For starters, let's load some data from a simple data structure:
 
@@ -223,14 +232,29 @@ Reserved property names like `id` or `additional` are prefixed with underscores 
 
 - `batch_size`: (int) the number of items in the batch insert request. The default is 100.
 - `batch_workers`: (int) the maximal number of concurrent threads to run batch import. The default is 1.
-- batch_consistency: (str) the number of replica nodes in the cluster that must acknowledge a write or read request before it's considered successful. The available consistency levels include:
+- `batch_consistency`: (str) the number of replica nodes in the cluster that must acknowledge a write or read request before it's considered successful. The available consistency levels include:
     - `ONE`: Only one replica node needs to acknowledge.
     - `QUORUM`: Majority of replica nodes (calculated as `replication_factor / 2 + 1`) must acknowledge.
     - `ALL`: All replica nodes in the cluster must send a successful response.
     The default is `ONE`.
-- batch_retries: (int) number of retries to create a batch that failed with ReadTimeout. The default is 5.
-- dataset_separator: (str) the separator to use when generating the class names in Weaviate.
-- vectorizer: (str) the name of [the vectorizer](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules) to use. The default is `text2vec-openai`.
+- `batch_retries`: (int) number of retries to create a batch that failed with ReadTimeout. The default is 5.
+- `dataset_separator`: (str) the separator to use when generating the class names in Weaviate.
+- `conn_timeout` and `read_timeout`: (float) to set timeouts (in seconds) when connecting and reading from REST API. defaults to (10.0, 180.0)
+- `startup_period` (int) - how long to wait for weaviate to start
+- `vectorizer`: (str) the name of [the vectorizer](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules) to use. The default is `text2vec-openai`.
+- `moduleConfig`: (dict) configurations of various Weaviate modules
+
+
+### Run Weaviate fully standalone
+
+Below is an example that configures the **contextionary** vectorizer. You can put this into `config.toml`. This configuration does not need external APIs for vectorization and may be used fully offline.
+```toml
+[destination.weaviate]
+vectorizer="text2vec-contextionary"
+module_config={text2vec-contextionary = { vectorizeClassName = false, vectorizePropertyName = true}}
+```
+You can find docker composer with the instructions to run [here](https://github.com/dlt-hub/dlt/tree/devel/dlt/destinations/weaviate/README.md)
+
 
 ### dbt support
 

@@ -3,13 +3,14 @@ from collections.abc import Mapping as C_Mapping
 from typing import List, TypedDict, cast, Any
 
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
-from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition
+from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns
 from dlt.common.typing import TDataItem
 from dlt.common.validation import validate_dict_ignoring_xkeys
 
 from dlt.extract.incremental import Incremental
 from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, TableNameMissing
+from dlt.extract.utils import ensure_table_schema_columns_hint
 
 
 class TTableSchemaTemplate(TypedDict, total=False):
@@ -34,11 +35,15 @@ class DltResourceSchema:
             self.set_template(table_schema_template)
 
     @property
-    def table_name(self) -> str:
-        """Get table name to which resource loads data. Raises in case of table names derived from data."""
+    def table_name(self) -> TTableHintTemplate[str]:
+        """Get table name to which resource loads data. May return a callable."""
         if self._table_name_hint_fun:
-            raise DataItemRequiredForDynamicTableHints(self._name)
-        return self._table_schema_template["name"] if self._table_schema_template else self._name  # type: ignore
+            return self._table_name_hint_fun
+        return self._table_schema_template["name"] if self._table_schema_template else self._name
+
+    @table_name.setter
+    def table_name(self, value: TTableHintTemplate[str]) -> None:
+        self.apply_hints(table_name=value)
 
     @property
     def write_disposition(self) -> TWriteDisposition:
@@ -79,7 +84,7 @@ class DltResourceSchema:
         table_name: TTableHintTemplate[str] = None,
         parent_table_name: TTableHintTemplate[str] = None,
         write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-        columns: TTableHintTemplate[TTableSchemaColumns] = None,
+        columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
         incremental: Incremental[Any] = None
@@ -97,6 +102,8 @@ class DltResourceSchema:
            In non-aware resources, `dlt` will filter out the loaded values, however the resource will yield all the values again.
         """
         t = None
+        if columns is not None:
+            columns = ensure_table_schema_columns_hint(columns)
         if not self._table_schema_template:
             # if there's no template yet, create and set new one
             t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key)

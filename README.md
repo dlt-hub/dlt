@@ -40,7 +40,7 @@ Load chess game data from chess.com API and save it in DuckDB:
 
 ```python
 import dlt
-import requests
+from dlt.sources.helpers import requests
 # Create a dlt pipeline that will load
 # chess player data to the DuckDB destination
 pipeline = dlt.pipeline(

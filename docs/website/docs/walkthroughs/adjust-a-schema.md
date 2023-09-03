@@ -100,6 +100,12 @@ players_games:
 Run the pipeline script again and make sure that the change is visible in export schema. Then,
 [launch the Streamlit app](../dlt-ecosystem/visualizations/exploring-the-data.md) to see the changed data.
 
+:::note
+Do not rename the tables or columns in the yaml file. `dlt` infers those from the data so the schema will be recreated.
+You can [adjust the schema](../general-usage/resource.md#adjust-schema) in Python before resource is loaded.
+:::
+
+
 ### Load data as json instead of generating child table or columns from flattened dicts
 
 In the export schema, you can see that white and black players properties got flattened into:

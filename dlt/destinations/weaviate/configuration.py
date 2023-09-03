@@ -12,8 +12,8 @@ TWeaviateBatchConsistency = Literal["ONE", "QUORUM", "ALL"]
 
 @configspec
 class WeaviateCredentials(CredentialsConfiguration):
-    url: str
-    api_key: str
+    url: str = "http://localhost:8080"
+    api_key: Optional[str]
     additional_headers: Optional[Dict[str, str]] = None
 
     def __str__(self) -> str:
@@ -32,8 +32,11 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     batch_workers: int = 1
     batch_consistency: TWeaviateBatchConsistency = "ONE"
     batch_retries: int = 5
-    conn_timeout: int = 10
-    read_timeout: int = 3*60
+
+    conn_timeout: float = 10.0
+    read_timeout: float = 3*60.0
+    startup_period: int = 5
+
     dataset_separator: str = "_"
 
     credentials: WeaviateCredentials

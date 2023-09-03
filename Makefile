@@ -42,7 +42,7 @@ has-poetry:
 	poetry --version
 
 dev: has-poetry
-	poetry install --all-extras
+	poetry install --all-extras --with airflow --with docs --with providers
 
 lint:
 	./check-package.sh

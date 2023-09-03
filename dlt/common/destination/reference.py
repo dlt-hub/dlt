@@ -1,8 +1,9 @@
-from abc import ABC, abstractmethod
+from abc import ABC, abstractmethod, abstractproperty
 from importlib import import_module
 from types import TracebackType, ModuleType
-from typing import ClassVar, Final, Optional, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager
+from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager, Dict, Any
 from contextlib import contextmanager
+import datetime  # noqa: 251
 
 from dlt.common import logger
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
@@ -20,6 +21,23 @@ from dlt.common.utils import get_module_name
 from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
+
+
+class StorageSchemaInfo(NamedTuple):
+    version_hash: str
+    schema_name: str
+    version: int
+    engine_version: str
+    inserted_at: datetime.datetime
+    schema: str
+
+class StateInfo(NamedTuple):
+    version: int
+    engine_version: int
+    pipeline_name: str
+    state: str
+    created_at: datetime.datetime
+    dlt_load_id: str = None
 
 @configspec
 class DestinationClientConfiguration(BaseConfiguration):
@@ -54,7 +72,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     def normalize_dataset_name(self, schema: Schema) -> str:
         """Builds full db dataset (schema) name out of configured dataset name and schema name: {dataset_name}_{schema.name}. The resulting name is normalized.
 
-           If default schema name equals schema.name, the schema suffix is skipped.
+           If default schema name is None or equals schema.name, the schema suffix is skipped.
         """
         if not schema.name:
             raise ValueError("schema_name is None or empty")
@@ -196,7 +214,12 @@ class JobClientBase(ABC):
         """Returns if storage is ready to be read/written."""
         pass
 
-    def update_storage_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+    @abstractmethod
+    def drop_storage(self) -> None:
+        """Brings storage back into not initialized state. Typically data in storage is destroyed."""
+        pass
+
+    def update_stored_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
         """Updates storage to the current schema.
 
         Implementations should not assume that `expected_update` is the exact difference between destination state and the self.schema. This is only the case if
@@ -265,7 +288,24 @@ class JobClientBase(ABC):
                     logger.warning(f"A column {column_name} in table {table_name} in schema {self.schema.name} is incomplete. It was not bound to the data during normalizations stage and its data type is unknown. Did you add this column manually in code ie. as a merge key?")
 
 
-class WithStagingDataset:
+class WithStateSync(ABC):
+
+    @abstractmethod
+    def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
+        """Retrieves newest schema from destination storage"""
+        pass
+
+    @abstractmethod
+    def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
+        pass
+
+    @abstractmethod
+    def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
+        """Loads compressed state from destination storage"""
+        pass
+
+
+class WithStagingDataset(ABC):
     """Adds capability to use staging dataset and request it from the loader"""
 
     @abstractmethod

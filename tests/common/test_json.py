@@ -9,7 +9,7 @@ from dlt.common.arithmetics import numeric_default_context
 from dlt.common.json import _DECIMAL, _WEI, custom_pua_decode, _orjson, _simplejson, SupportsJson
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
-from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_NESTED
+from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED, JSON_TYPED_DICT_NESTED, JSON_TYPED_DICT_NESTED_DECODED
 from tests.common.utils import json_case_path, load_json_case
 
 
@@ -188,6 +188,11 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
     # mock hh:mm (incorrect) TZ notation which must serialize to UTC as well
     s_r = json_impl.loads(s[:-3] + '+00:00"}')
     assert pendulum.parse(s_r["t"]) == now
+    # serialize date and time
+    s = json_impl.dumps(JSON_TYPED_DICT)
+    s_r = json_impl.loads(s)
+    assert s_r["date"] == "2022-02-02"
+    assert s_r["time"] == "20:37:37.358236"
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
@@ -219,8 +224,8 @@ def test_json_typed_dumps_loads(json_impl: SupportsJson) -> None:
     s = json_impl.typed_dumps(JSON_TYPED_DICT_NESTED)
     b = json_impl.typed_dumpb(JSON_TYPED_DICT_NESTED)
 
-    assert json_impl.typed_loads(s) == JSON_TYPED_DICT_NESTED
-    assert json_impl.typed_loadb(b) == JSON_TYPED_DICT_NESTED
+    assert json_impl.typed_loads(s) == JSON_TYPED_DICT_NESTED_DECODED
+    assert json_impl.typed_loadb(b) == JSON_TYPED_DICT_NESTED_DECODED
 
     # Test load/dump naked
     dt = pendulum.now()
@@ -240,7 +245,7 @@ def test_json_typed_encode(json_impl: SupportsJson) -> None:
     assert d["wei"][0] == _WEI
     # decode all
     d_d = {k: custom_pua_decode(v) for k,v in d.items()}
-    assert d_d == JSON_TYPED_DICT
+    assert d_d == JSON_TYPED_DICT_DECODED
 
 
 def test_load_and_compare_all_impls() -> None:

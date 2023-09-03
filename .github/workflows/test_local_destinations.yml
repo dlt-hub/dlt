@@ -16,8 +16,11 @@ env:
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_SEGMENT_WRITE_KEY: TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB
-  ACTIVE_DESTINATIONS: "[\"duckdb\", \"postgres\", \"filesystem\"]"
+  ACTIVE_DESTINATIONS: "[\"duckdb\", \"postgres\", \"filesystem\", \"weaviate\"]"
   ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\"]"
+
+  DESTINATION__WEAVIATE__VECTORIZER: text2vec-contextionary
+  DESTINATION__WEAVIATE__MODULE_CONFIG: "{\"text2vec-contextionary\": {\"vectorizeClassName\": false, \"vectorizePropertyName\": true}}"
 
 jobs:
   get_docs_changes:
@@ -58,6 +61,9 @@ jobs:
       - name: Check out
         uses: actions/checkout@master
 
+      - name: Start weaviate
+        run: docker-compose -f ".github/weaviate-compose.yml" up -d
+
       - name: Setup Python
         uses: actions/setup-python@v4
         with:
@@ -78,9 +84,13 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-local-destinations
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E postgres -E duckdb -E parquet -E filesystem -E cli
+        run: poetry install --no-interaction -E postgres -E duckdb -E parquet -E filesystem -E cli -E weaviate
 
       - run: poetry run pytest tests/load tests/cli
         name: Run tests Linux
         env:
           DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader:loader@localhost:5432/dlt_data
+
+      - name: Stop weaviate
+        if: always()
+        run: docker-compose -f ".github/weaviate-compose.yml" down -v

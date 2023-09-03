@@ -142,7 +142,7 @@ def extract(
                             _write_dynamic_table(resource, pipe_item.item)
                     else:
                         # write item belonging to table with static name
-                        table_name = resource.table_name
+                        table_name = resource.table_name  # type: ignore
                         _write_static_table(resource, table_name)
                         _write_item(table_name, resource.name, pipe_item.item)
 
@@ -155,7 +155,9 @@ def extract(
                 if resource.name not in tables_by_resources:
                     continue
                 for table in tables_by_resources[resource.name]:
-                    _write_empty_file(table["name"])
+                    # we only need to write empty files for the top tables
+                    if not table.get("parent", None):
+                        _write_empty_file(table["name"])
 
             if left_gens > 0:
                 # go to 100%
