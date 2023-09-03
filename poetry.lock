@@ -108,7 +108,7 @@ frozenlist = ">=1.1.0"
 
 [[package]]
 name = "alembic"
-version = "1.11.3"
+version = "1.12.0"
 description = "A database migration tool for SQLAlchemy."
 category = "dev"
 optional = false
@@ -515,14 +515,14 @@ domdf-python-tools = ">=2.7.0"
 
 [[package]]
 name = "asttokens"
-version = "2.2.1"
+version = "2.3.0"
 description = "Annotate AST trees with source code positions"
 category = "dev"
 optional = false
 python-versions = "*"
 
 [package.dependencies]
-six = "*"
+six = ">=1.12.0"
 
 [package.extras]
 test = ["astroid", "pytest"]
@@ -734,8 +734,8 @@ crt = ["botocore[crt] (>=1.21.0,<2.0a0)"]
 
 [[package]]
 name = "boto3-stubs"
-version = "1.28.38"
-description = "Type annotations for boto3 1.28.38 generated with mypy-boto3-builder 7.18.2"
+version = "1.28.40"
+description = "Type annotations for boto3 1.28.40 generated with mypy-boto3-builder 7.18.2"
 category = "main"
 optional = false
 python-versions = ">=3.7"
@@ -785,7 +785,7 @@ backup-gateway = ["mypy-boto3-backup-gateway (>=1.28.0,<1.29.0)"]
 backupstorage = ["mypy-boto3-backupstorage (>=1.28.0,<1.29.0)"]
 batch = ["mypy-boto3-batch (>=1.28.0,<1.29.0)"]
 billingconductor = ["mypy-boto3-billingconductor (>=1.28.0,<1.29.0)"]
-boto3 = ["boto3 (==1.28.38)", "botocore (==1.31.38)"]
+boto3 = ["boto3 (==1.28.40)", "botocore (==1.31.40)"]
 braket = ["mypy-boto3-braket (>=1.28.0,<1.29.0)"]
 budgets = ["mypy-boto3-budgets (>=1.28.0,<1.29.0)"]
 ce = ["mypy-boto3-ce (>=1.28.0,<1.29.0)"]
@@ -1127,7 +1127,7 @@ crt = ["awscrt (==0.16.9)"]
 
 [[package]]
 name = "botocore-stubs"
-version = "1.31.38"
+version = "1.31.40"
 description = "Type annotations and code completion for botocore"
 category = "main"
 optional = false
@@ -1952,7 +1952,7 @@ smmap = ">=3.0.1,<6"
 
 [[package]]
 name = "gitpython"
-version = "3.1.32"
+version = "3.1.34"
 description = "GitPython is a Python library used to interact with Git repositories"
 category = "main"
 optional = false
@@ -2605,7 +2605,7 @@ six = ">=1.6.1"
 
 [[package]]
 name = "limits"
-version = "3.5.0"
+version = "3.6.0"
 description = "Rate limiting utilities"
 category = "dev"
 optional = false
@@ -2615,11 +2615,10 @@ python-versions = ">=3.7"
 deprecated = ">=1.2"
 importlib-resources = ">=1.3"
 packaging = ">=21,<24"
-setuptools = "*"
 typing-extensions = "*"
 
 [package.extras]
-all = ["aetcd", "coredis (>=3.4.0,<5)", "emcache (>=0.6.1)", "emcache (>=1)", "etcd3", "motor (>=3,<4)", "pymemcache (>3,<5.0.0)", "pymongo (>4.1,<5)", "redis (>3,!=4.5.2,!=4.5.3,<5.0.0)", "redis (>=4.2.0,!=4.5.2,!=4.5.3)"]
+all = ["aetcd", "coredis (>=3.4.0,<5)", "emcache (>=0.6.1)", "emcache (>=1)", "etcd3", "motor (>=3,<4)", "pymemcache (>3,<5.0.0)", "pymongo (>4.1,<5)", "redis (>3,!=4.5.2,!=4.5.3,<6.0.0)", "redis (>=4.2.0,!=4.5.2,!=4.5.3)"]
 async-etcd = ["aetcd"]
 async-memcached = ["emcache (>=0.6.1)", "emcache (>=1)"]
 async-mongodb = ["motor (>=3,<4)"]
@@ -2627,7 +2626,7 @@ async-redis = ["coredis (>=3.4.0,<5)"]
 etcd = ["etcd3"]
 memcached = ["pymemcache (>3,<5.0.0)"]
 mongodb = ["pymongo (>4.1,<5)"]
-redis = ["redis (>3,!=4.5.2,!=4.5.3,<5.0.0)"]
+redis = ["redis (>3,!=4.5.2,!=4.5.3,<6.0.0)"]
 rediscluster = ["redis (>=4.2.0,!=4.5.2,!=4.5.3)"]
 
 [[package]]
@@ -4146,11 +4145,11 @@ python-versions = "*"
 
 [[package]]
 name = "soupsieve"
-version = "2.4.1"
+version = "2.5"
 description = "A modern CSS selector implementation for Beautiful Soup."
 category = "main"
 optional = true
-python-versions = ">=3.7"
+python-versions = ">=3.8"
 
 [[package]]
 name = "sqlalchemy"
@@ -4626,13 +4625,13 @@ docs = ["furo", "jaraco.packaging (>=9.3)", "jaraco.tidelift (>=1.4)", "rst.link
 testing = ["big-O", "jaraco.functools", "jaraco.itertools", "more-itertools", "pytest (>=6)", "pytest-black (>=0.3.7)", "pytest-checkdocs (>=2.4)", "pytest-cov", "pytest-enabler (>=2.2)", "pytest-ignore-flaky", "pytest-mypy (>=0.9.1)", "pytest-ruff"]
 
 [extras]
-athena = ["pyathena", "pyarrow", "s3fs", "boto3"]
+athena = ["pyathena", "pyarrow", "s3fs", "botocore"]
 az = ["adlfs"]
 bigquery = ["grpcio", "google-cloud-bigquery", "pyarrow", "gcsfs"]
 cli = ["pipdeptree", "cron-descriptor"]
 dbt = ["dbt-core", "dbt-redshift", "dbt-bigquery", "dbt-duckdb", "dbt-snowflake", "dbt-athena-community"]
 duckdb = ["duckdb"]
-filesystem = ["s3fs", "boto3"]
+filesystem = ["s3fs", "botocore"]
 gcp = ["grpcio", "google-cloud-bigquery", "gcsfs"]
 gs = ["gcsfs"]
 motherduck = ["duckdb", "pyarrow"]
@@ -4640,14 +4639,14 @@ parquet = ["pyarrow"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
 pydantic = ["pydantic"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
-s3 = ["s3fs", "boto3"]
+s3 = ["s3fs", "botocore"]
 snowflake = ["snowflake-connector-python"]
 weaviate = ["weaviate-client"]
 
 [metadata]
 lock-version = "1.1"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "ae5cee64b63b04faebd0b684765a3e5627b5734dee73e73b379701c75d0071c9"
+content-hash = "b0720fc7a6862afb8ca0aac38abee85847f6740f45e9e9a32e02f6ac5e604d01"
 
 [metadata.files]
 about-time = [
@@ -4764,8 +4763,8 @@ aiosignal = [
     {file = "aiosignal-1.3.1.tar.gz", hash = "sha256:54cd96e15e1649b75d6c87526a6ff0b6c1b0dd3459f43d9ca11d48c339b68cfc"},
 ]
 alembic = [
-    {file = "alembic-1.11.3-py3-none-any.whl", hash = "sha256:d6c96c2482740592777c400550a523bc7a9aada4e210cae2e733354ddae6f6f8"},
-    {file = "alembic-1.11.3.tar.gz", hash = "sha256:3db4ce81a9072e1b5aa44c2d202add24553182672a12daf21608d6f62a8f9cf9"},
+    {file = "alembic-1.12.0-py3-none-any.whl", hash = "sha256:03226222f1cf943deee6c85d9464261a6c710cd19b4fe867a3ad1f25afda610f"},
+    {file = "alembic-1.12.0.tar.gz", hash = "sha256:8e7645c32e4f200675e69f0745415335eb59a3663f5feb487abfa0b30c45888b"},
 ]
 alive-progress = [
     {file = "alive-progress-3.1.4.tar.gz", hash = "sha256:74a95d8d0d42bc99d3a3725dbd06ebb852245f1b64e301a7c375b92b22663f7b"},
@@ -4828,8 +4827,8 @@ astatine = [
     {file = "astatine-0.3.3.tar.gz", hash = "sha256:0c58a7844b5890ff16da07dbfeb187341d8324cb4378940f89d795cbebebce08"},
 ]
 asttokens = [
-    {file = "asttokens-2.2.1-py2.py3-none-any.whl", hash = "sha256:6b0ac9e93fb0335014d382b8fa9b3afa7df546984258005da0b9e7095b3deb1c"},
-    {file = "asttokens-2.2.1.tar.gz", hash = "sha256:4622110b2a6f30b77e1473affaa97e711bc2f07d3f10848420ff1898edbe94f3"},
+    {file = "asttokens-2.3.0-py2.py3-none-any.whl", hash = "sha256:bef1a51bc256d349e9f94e7e40e44b705ed1162f55294220dd561d24583d9877"},
+    {file = "asttokens-2.3.0.tar.gz", hash = "sha256:2552a88626aaa7f0f299f871479fc755bd4e7c11e89078965e928fb7bb9a6afe"},
 ]
 astunparse = [
     {file = "astunparse-1.6.3-py2.py3-none-any.whl", hash = "sha256:c2652417f2c8b5bb325c885ae329bdf3f86424075c4fd1a128674bc6fba4b8e8"},
@@ -4895,16 +4894,16 @@ boto3 = [
     {file = "boto3-1.26.161.tar.gz", hash = "sha256:662731e464d14af1035f44fc6a46b0e3112ee011ac0a5ed416d205daa3e15f25"},
 ]
 boto3-stubs = [
-    {file = "boto3-stubs-1.28.38.tar.gz", hash = "sha256:ced704f94b275f498c1213d6d5fa912dc97286c835d99809ec40388ee44bc622"},
-    {file = "boto3_stubs-1.28.38-py3-none-any.whl", hash = "sha256:3baa1d11f0cf6a5f15801baab38bb000a5dd7653466be4511ee40a8dcf156f95"},
+    {file = "boto3-stubs-1.28.40.tar.gz", hash = "sha256:76079a82f199087319762c931f13506e02129132e80257dab0888d3da7dc11c7"},
+    {file = "boto3_stubs-1.28.40-py3-none-any.whl", hash = "sha256:bd1d1cbdcbf18902a090d4a746cdecef2a7ebe31cf9a474bbe407d57eaa79a6a"},
 ]
 botocore = [
     {file = "botocore-1.29.161-py3-none-any.whl", hash = "sha256:b906999dd53dda2ef0ef6f7f55fcc81a4b06b9f1c8a9f65c546e0b981f959f5f"},
     {file = "botocore-1.29.161.tar.gz", hash = "sha256:a50edd715eb510343e27849f36483804aae4b871590db4d4996aa53368dcac40"},
 ]
 botocore-stubs = [
-    {file = "botocore_stubs-1.31.38-py3-none-any.whl", hash = "sha256:379afe7834fcadb9dcd6825a0d36eeb0146301b51541211d609d9cbdd912c6a6"},
-    {file = "botocore_stubs-1.31.38.tar.gz", hash = "sha256:66076ec073cfa16f913ccb6e76df06b2080974786040d63a9a8d297459ebcae7"},
+    {file = "botocore_stubs-1.31.40-py3-none-any.whl", hash = "sha256:aab534d7e7949cd543bc9b2fadc1a36712033cb00e6f31e2475eefe8486d19ae"},
+    {file = "botocore_stubs-1.31.40.tar.gz", hash = "sha256:2001a253daf4ae2e171e6137b9982a00a7fbfc7a53449a16856dc049e7cd5214"},
 ]
 cachelib = [
     {file = "cachelib-0.9.0-py3-none-any.whl", hash = "sha256:811ceeb1209d2fe51cd2b62810bd1eccf70feba5c52641532498be5c675493b3"},
@@ -5416,8 +5415,8 @@ gitdb = [
     {file = "gitdb-4.0.10.tar.gz", hash = "sha256:6eb990b69df4e15bad899ea868dc46572c3f75339735663b81de79b06f17eb9a"},
 ]
 gitpython = [
-    {file = "GitPython-3.1.32-py3-none-any.whl", hash = "sha256:e3d59b1c2c6ebb9dfa7a184daf3b6dd4914237e7488a1730a6d8f6f5d0b4187f"},
-    {file = "GitPython-3.1.32.tar.gz", hash = "sha256:8d9b8cb1e80b9735e8717c9362079d3ce4c6e5ddeebedd0361b228c3a67a62f6"},
+    {file = "GitPython-3.1.34-py3-none-any.whl", hash = "sha256:5d3802b98a3bae1c2b8ae0e1ff2e4aa16bcdf02c145da34d092324f599f01395"},
+    {file = "GitPython-3.1.34.tar.gz", hash = "sha256:85f7d365d1f6bf677ae51039c1ef67ca59091c7ebd5a3509aa399d4eda02d6dd"},
 ]
 giturlparse = [
     {file = "giturlparse-0.11.1-py2.py3-none-any.whl", hash = "sha256:6422f25c8ca563e1a3cb6b85862e48614be804cd1334e6d84be5630eb26b343f"},
@@ -5856,8 +5855,8 @@ leather = [
     {file = "leather-0.3.4.tar.gz", hash = "sha256:b43e21c8fa46b2679de8449f4d953c06418666dc058ce41055ee8a8d3bb40918"},
 ]
 limits = [
-    {file = "limits-3.5.0-py3-none-any.whl", hash = "sha256:3ad525faeb7e1c63859ca1cae34c9ed22a8f22c9ea9d96e2f412869f6b36beb9"},
-    {file = "limits-3.5.0.tar.gz", hash = "sha256:b728c9ab3c6163997b1d11a51d252d951efd13f0d248ea2403383952498f8a22"},
+    {file = "limits-3.6.0-py3-none-any.whl", hash = "sha256:32fe29a398352c71bc43d53773117d47e22c5ea4200aef28d3f5fdee10334cd7"},
+    {file = "limits-3.6.0.tar.gz", hash = "sha256:57a9c69fd37ad1e4fa3886dff8d035227e1f6af87f47e9118627e72cf1ced3bf"},
 ]
 linkify-it-py = [
     {file = "linkify-it-py-2.0.2.tar.gz", hash = "sha256:19f3060727842c254c808e99d465c80c49d2c7306788140987a1a7a29b0d6ad2"},
@@ -7366,8 +7365,8 @@ sortedcontainers = [
     {file = "sortedcontainers-2.4.0.tar.gz", hash = "sha256:25caa5a06cc30b6b83d11423433f65d1f9d76c4c6a0c90e3379eaa43b9bfdb88"},
 ]
 soupsieve = [
-    {file = "soupsieve-2.4.1-py3-none-any.whl", hash = "sha256:1c1bfee6819544a3447586c889157365a27e10d88cde3ad3da0cf0ddf646feb8"},
-    {file = "soupsieve-2.4.1.tar.gz", hash = "sha256:89d12b2d5dfcd2c9e8c22326da9d9aa9cb3dfab0a83a024f05704076ee8d35ea"},
+    {file = "soupsieve-2.5-py3-none-any.whl", hash = "sha256:eaa337ff55a1579b6549dc679565eac1e3d000563bcb1c8ab0d0fefbc0c2cdc7"},
+    {file = "soupsieve-2.5.tar.gz", hash = "sha256:5663d5a7b3bfaeee0bc4372e7fc48f9cff4940b3eec54a6451cc5299f1097690"},
 ]
 sqlalchemy = [
     {file = "SQLAlchemy-1.4.49-cp27-cp27m-manylinux_2_5_x86_64.manylinux1_x86_64.whl", hash = "sha256:2e126cf98b7fd38f1e33c64484406b78e937b1a280e078ef558b95bf5b6895f6"},
