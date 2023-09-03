@@ -307,7 +307,7 @@ class Load(Runnable[ThreadPool]):
                 all_tables = set(job.table_name for job in all_jobs)
                 dlt_tables = set(t["name"] for t in schema.dlt_tables())
                 # only update tables that are present in the load package
-                applied_update = job_client.update_storage_schema(only_tables=all_tables | dlt_tables, expected_update=expected_update)
+                applied_update = job_client.update_stored_schema(only_tables=all_tables | dlt_tables, expected_update=expected_update)
                 truncate_tables = self.get_table_chain_tables_for_write_disposition(load_id, schema, job_client.get_truncate_destination_table_dispositions())
                 job_client.initialize_storage(truncate_tables=truncate_tables)
                 # initialize staging storage if needed
@@ -322,7 +322,7 @@ class Load(Runnable[ThreadPool]):
                             logger.info(f"Client for {job_client.config.destination_name} will start initialize STAGING storage")
                             job_client.initialize_storage()
                             logger.info(f"Client for {job_client.config.destination_name} will UPDATE STAGING SCHEMA to package schema")
-                            job_client.update_storage_schema(only_tables=staging_tables | {schema.version_table_name}, expected_update=expected_update)
+                            job_client.update_stored_schema(only_tables=staging_tables | {schema.version_table_name}, expected_update=expected_update)
                             logger.info(f"Client for {job_client.config.destination_name} will TRUNCATE STAGING TABLES: {staging_tables}")
                             job_client.initialize_storage(truncate_tables=staging_tables)
                 self.load_storage.commit_schema_update(load_id, applied_update)

@@ -251,7 +251,7 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
     # test __str__
     print(info)
     # test fingerprint in load
-    assert info.destination_fingerprint == p._destination_client().config.fingerprint()
+    assert info.destination_fingerprint == p.destination_client().config.fingerprint()
     # print(p.default_schema.to_pretty_yaml())
     schema = p.default_schema
     version_history = [schema.stored_version_hash]
@@ -657,7 +657,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     assert len(package_info.jobs["failed_jobs"]) == 0
     assert len(package_info.jobs["completed_jobs"]) == 5  # 3 tables + 1 state + 1 sql merge job
 
-    client = pipeline._destination_client()  # type: ignore[assignment]
+    client = pipeline.destination_client()  # type: ignore[assignment]
     with client.sql_client as sql_client:
         assert [row[0] for row in sql_client.execute_sql("SELECT * FROM other_data")] == [1, 2, 3, 4, 5]
         assert [row[0] for row in sql_client.execute_sql("SELECT * FROM some_data")] == [1, 2, 3]

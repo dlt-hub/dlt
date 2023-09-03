@@ -86,6 +86,7 @@ class DestinationTestConfiguration:
 
 def destinations_configs(
         default_sql_configs: bool = False,
+        default_vector_configs: bool = False,
         default_staging_configs: bool = False,
         all_staging_configs: bool = False,
         local_filesystem_configs: bool = False,
@@ -104,6 +105,11 @@ def destinations_configs(
         destination_configs += [DestinationTestConfiguration(destination=destination) for destination in SQL_DESTINATIONS if destination != "athena"]
         # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
         destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
+
+    if default_vector_configs:
+        # for now only weaviate
+        destination_configs += [DestinationTestConfiguration(destination="weaviate")]
+
 
     if default_staging_configs or all_staging_configs:
         destination_configs += [
@@ -145,9 +151,17 @@ def destinations_configs(
     return destination_configs
 
 
+def get_normalized_dataset_name(client: JobClientBase) -> str:
+    if isinstance(client.config, DestinationClientDwhConfiguration):
+        return client.config.normalize_dataset_name(client.schema)
+    else:
+        raise TypeError(f"{type(client)} client has configuration {type(client.config)} that does not support dataset name")
+
+
 def load_table(name: str) -> TTableSchemaColumns:
     with open(f"./tests/load/cases/{name}.json", "rb") as f:
         return cast(TTableSchemaColumns, json.load(f))
+
 
 def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
     file_name = ParsedLoadJobFileName(table_name, uniq_id(), 0, client.capabilities.preferred_loader_file_format).job_id()
@@ -163,7 +177,7 @@ def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: st
 
 def prepare_table(client: JobClientBase, case_name: str = "event_user", table_name: str = "event_user", make_uniq_table: bool = True) -> None:
     client.schema.bump_version()
-    client.update_storage_schema()
+    client.update_stored_schema()
     user_table = load_table(case_name)[table_name]
     if make_uniq_table:
         user_table_name = table_name + uniq_id()
@@ -171,7 +185,7 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
         user_table_name = table_name
     client.schema.update_schema(new_table(user_table_name, columns=user_table.values()))
     client.schema.bump_version()
-    client.update_storage_schema()
+    client.update_stored_schema()
     return user_table_name
 
 def yield_client(
