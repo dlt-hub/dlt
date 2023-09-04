@@ -25,7 +25,6 @@ JSON_TYPED_DICT: StrAny = {
 }
 # TODO: a version after PUA decoder (time is not yet implemented end to end)
 JSON_TYPED_DICT_DECODED = dict(JSON_TYPED_DICT)
-JSON_TYPED_DICT_DECODED["time"] = JSON_TYPED_DICT["time"]
 
 JSON_TYPED_DICT_TYPES: Dict[str, TDataType] = {
     "str": "text",
