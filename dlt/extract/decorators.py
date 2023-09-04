@@ -14,7 +14,7 @@ from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.pipeline import PipelineContext
 from dlt.common.source import _SOURCES, SourceInfo
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns
+from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TSchemaEvolutionSettings
 from dlt.extract.utils import ensure_table_schema_columns_hint
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
@@ -200,6 +200,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_evolution_settings: TTableHintTemplate[TSchemaEvolutionSettings] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[TResourceFunParams, DltResource]:
@@ -215,6 +216,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_evolution_settings: TTableHintTemplate[TSchemaEvolutionSettings] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]:
@@ -230,6 +232,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_evolution_settings: TTableHintTemplate[TSchemaEvolutionSettings] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> DltResource:
@@ -245,6 +248,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_evolution_settings: TTableHintTemplate[TSchemaEvolutionSettings] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     depends_on: TUnboundDltResource = None,
@@ -311,7 +315,8 @@ def resource(
             write_disposition=write_disposition,
             columns=schema_columns,
             primary_key=primary_key,
-            merge_key=merge_key
+            merge_key=merge_key,
+            schema_evolution_settings=schema_evolution_settings
         )
         return DltResource.from_data(_data, _name, _section, table_template, selected, cast(DltResource, depends_on), incremental=incremental)
 

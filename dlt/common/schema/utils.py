@@ -16,7 +16,7 @@ from dlt.common.validation import TCustomValidator, validate_dict, validate_dict
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TPartialTableSchema, TSchemaTables, TSchemaUpdate,
                                       TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp,
-                                      TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition)
+                                      TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition, TSchemaEvolutionSettings, TSchemaEvolutionModes)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, ParentTableNotFoundException, SchemaEngineNoUpgradePathException, SchemaException,
                                           TablePropertiesConflictException, InvalidSchemaName)
 
@@ -403,6 +403,10 @@ def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TPa
     if table.get('parent') is None and (resource := partial_table.get('resource')):
         table['resource'] = resource
 
+    partial_e_s = partial_table.get("schema_evolution_settings")
+    if partial_e_s:
+        table["schema_evolution_settings"] = partial_e_s
+
     return diff_table
 
 
@@ -568,7 +572,8 @@ def new_table(
     write_disposition: TWriteDisposition = None,
     columns: Sequence[TColumnSchema] = None,
     validate_schema: bool = False,
-    resource: str = None
+    resource: str = None,
+    schema_evolution_settings: TSchemaEvolutionSettings = None,
 ) -> TTableSchema:
 
     table: TTableSchema = {
@@ -579,10 +584,12 @@ def new_table(
         table["parent"] = parent_table_name
         assert write_disposition is None
         assert resource is None
+        assert schema_evolution_settings is None
     else:
         # set write disposition only for root tables
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
         table["resource"] = resource or table_name
+        table["schema_evolution_settings"] = schema_evolution_settings
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,

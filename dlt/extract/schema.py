@@ -3,7 +3,7 @@ from collections.abc import Mapping as C_Mapping
 from typing import List, TypedDict, cast, Any
 
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
-from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns
+from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TSchemaEvolutionSettings
 from dlt.common.typing import TDataItem
 from dlt.common.validation import validate_dict_ignoring_xkeys
 
@@ -23,6 +23,7 @@ class TTableSchemaTemplate(TypedDict, total=False):
     primary_key: TTableHintTemplate[TColumnNames]
     merge_key: TTableHintTemplate[TColumnNames]
     incremental: Incremental[Any]
+    schema_evolution_settings: TSchemaEvolutionSettings
 
 
 class DltResourceSchema:
@@ -181,7 +182,8 @@ class DltResourceSchema:
         write_disposition: TTableHintTemplate[TWriteDisposition] = None,
         columns: TTableHintTemplate[TTableSchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
-        merge_key: TTableHintTemplate[TColumnNames] = None
+        merge_key: TTableHintTemplate[TColumnNames] = None,
+        schema_evolution_settings: TTableHintTemplate[TSchemaEvolutionSettings] = None,
         ) -> TTableSchemaTemplate:
         if not table_name:
             raise TableNameMissing()
@@ -194,8 +196,7 @@ class DltResourceSchema:
                 column["name"] = name
                 column_list.append(column)
             columns = column_list  # type: ignore
-
-        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns)  # type: ignore
+        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_evolution_settings=schema_evolution_settings)  # type: ignore
         if primary_key:
             new_template["primary_key"] = primary_key
         if merge_key:

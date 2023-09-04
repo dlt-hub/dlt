@@ -50,6 +50,9 @@ def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFil
 
     def verify_prop(pk: str, pv: Any, t: Any) -> None:
         if is_optional_type(t):
+            # pass if value actually is none
+            if pv is None:
+                return
             t = extract_optional_type(t)
 
         if is_literal_type(t):

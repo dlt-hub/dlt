@@ -67,7 +67,6 @@ class Normalize(Runnable[ProcessPool]):
 
     @staticmethod
     def w_normalize_files(
-            normalize_config: NormalizeConfiguration,
             normalize_storage_config: NormalizeStorageConfiguration,
             loader_storage_config: LoadStorageConfiguration,
             destination_caps: DestinationCapabilitiesContext,
@@ -98,7 +97,7 @@ class Normalize(Runnable[ProcessPool]):
                         items_count = 0
                         for line_no, line in enumerate(f):
                             items: List[TDataItem] = json.loads(line)
-                            partial_update, items_count, r_counts = Normalize._w_normalize_chunk(normalize_config, load_storage, schema, load_id, root_table_name, items)
+                            partial_update, items_count, r_counts = Normalize._w_normalize_chunk(load_storage, schema, load_id, root_table_name, items)
                             schema_updates.append(partial_update)
                             total_items += items_count
                             merge_row_count(row_counts, r_counts)
@@ -127,7 +126,7 @@ class Normalize(Runnable[ProcessPool]):
         return schema_updates, total_items, load_storage.closed_files(), row_counts
 
     @staticmethod
-    def _w_normalize_chunk(config: NormalizeConfiguration, load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem]) -> Tuple[TSchemaUpdate, int, TRowCount]:
+    def _w_normalize_chunk(load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem]) -> Tuple[TSchemaUpdate, int, TRowCount]:
         column_schemas: Dict[str, TTableSchemaColumns] = {}  # quick access to column schema for writers below
         schema_update: TSchemaUpdate = {}
         schema_name = schema.name
@@ -146,9 +145,9 @@ class Normalize(Runnable[ProcessPool]):
                     row[k] = custom_pua_decode(v)  # type: ignore
                 # coerce row of values into schema table, generating partial table with new columns if any
                 row, partial_table = schema.coerce_row(table_name, parent_table, row)
-                # check update
-                row, partial_table = schema.check_schema_update(table_name, row, partial_table, config.schema_update_mode)
-
+                # if we detect a migration, the check update
+                if partial_table:
+                    row, partial_table = schema.check_schema_update(parent_table, table_name, row, partial_table)
                 if not row:
                     continue
 
@@ -203,7 +202,7 @@ class Normalize(Runnable[ProcessPool]):
         workers = self.pool._processes  # type: ignore
         chunk_files = self.group_worker_files(files, workers)
         schema_dict: TStoredSchema = schema.to_dict()
-        config_tuple = (self.config, self.normalize_storage.config, self.load_storage.config, self.config.destination_capabilities, schema_dict)
+        config_tuple = (self.normalize_storage.config, self.load_storage.config, self.config.destination_capabilities, schema_dict)
         param_chunk = [[*config_tuple, load_id, files] for files in chunk_files]
         tasks: List[Tuple[AsyncResult[TWorkerRV], List[Any]]] = []
         row_counts: TRowCount = {}
@@ -256,7 +255,6 @@ class Normalize(Runnable[ProcessPool]):
 
     def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
         result = Normalize.w_normalize_files(
-            self.config,
             self.normalize_storage.config,
             self.load_storage.config,
             self.config.destination_capabilities,

@@ -4,13 +4,11 @@ from dlt.common.configuration import configspec
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 from dlt.common.storages import LoadStorageConfiguration, NormalizeStorageConfiguration, SchemaStorageConfiguration
-from dlt.common.schema.typing import TSchemaUpdateMode
 
 @configspec
 class NormalizeConfiguration(PoolRunnerConfiguration):
     pool_type: TPoolType = "process"
     destination_capabilities: DestinationCapabilitiesContext = None  # injectable
-    schema_update_mode: TSchemaUpdateMode = "evolve"
     _schema_storage_config: SchemaStorageConfiguration
     _normalize_storage_config: NormalizeStorageConfiguration
     _load_storage_config: LoadStorageConfiguration

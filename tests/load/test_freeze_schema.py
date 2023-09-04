@@ -1,5 +1,6 @@
 import dlt, os, pytest
 from dlt.common.utils import uniq_id
+import duckdb
 
 from tests.load.pipeline.utils import load_table_counts
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
@@ -9,16 +10,14 @@ from dlt.common.schema import utils
 
 SCHEMA_UPDATE_MODES = ["evolve", "freeze-and-trim", "freeze-and-raise", "freeze-and-discard"]
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["duckdb"]), ids=lambda x: x.name)
 @pytest.mark.parametrize("update_mode", SCHEMA_UPDATE_MODES)
-def test_freeze_schema(update_mode: str, destination_config: DestinationTestConfiguration) -> None:
+def test_freeze_schema(update_mode: str) -> None:
 
     # freeze pipeline, drop additional values
     # this will allow for the first run to create the schema, but will not accept further updates after that
-    os.environ['NORMALIZE__SCHEMA_UPDATE_MODE'] = update_mode
-    pipeline = destination_config.setup_pipeline("test_freeze_schema_2", dataset_name="freeze" + uniq_id())
+    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'))
 
-    @dlt.resource(name="items", write_disposition="append")
+    @dlt.resource(name="items", write_disposition="append", schema_evolution_settings=update_mode)
     def load_items():
         global offset
         for _, index in enumerate(range(0, 10), 1):
@@ -27,7 +26,7 @@ def test_freeze_schema(update_mode: str, destination_config: DestinationTestConf
                 "name": f"item {index}"
             }
 
-    @dlt.resource(name="items", write_disposition="append")
+    @dlt.resource(name="items", write_disposition="append", schema_evolution_settings=update_mode)
     def load_items_with_subitems():
         global offset
         for _, index in enumerate(range(0, 10), 1):
@@ -44,7 +43,7 @@ def test_freeze_schema(update_mode: str, destination_config: DestinationTestConf
                 }]
             }
 
-    pipeline.run([load_items], loader_file_format=destination_config.file_format)
+    pipeline.run([load_items])
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     # check data
     assert table_counts["items"] == 10
@@ -53,10 +52,10 @@ def test_freeze_schema(update_mode: str, destination_config: DestinationTestConf
     # on freeze and raise we expect an exception
     if update_mode == "freeze-and-raise":
         with pytest.raises(PipelineStepFailed) as py_ex:
-            pipeline.run([load_items_with_subitems], loader_file_format=destination_config.file_format)
+            pipeline.run([load_items_with_subitems])
             assert isinstance(py_ex.value.__context__, SchemaFrozenException)
     else:
-        pipeline.run([load_items_with_subitems], loader_file_format=destination_config.file_format)
+        pipeline.run([load_items_with_subitems])
 
     # check data
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])

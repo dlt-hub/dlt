@@ -61,6 +61,15 @@ TSimpleRegex = NewType("TSimpleRegex", str)
 TColumnName = NewType("TColumnName", str)
 SIMPLE_REGEX_PREFIX = "re:"
 
+TSchemaEvolutionMode = Literal["evolve", "freeze-and-trim", "freeze-and-raise", "freeze-and-discard"]
+
+class TSchemaEvolutionModes(TypedDict, total=False):
+    """TypedDict defining the schema update settings"""
+    table: TSchemaEvolutionMode
+    column: TSchemaEvolutionMode
+    column_variant: TSchemaEvolutionMode
+
+TSchemaEvolutionSettings = Union[TSchemaEvolutionMode, TSchemaEvolutionModes]
 
 class TRowFilters(TypedDict, total=True):
     excludes: Optional[List[TSimpleRegex]]
@@ -72,7 +81,7 @@ class TTableSchema(TypedDict, total=False):
     name: Optional[str]
     description: Optional[str]
     write_disposition: Optional[TWriteDisposition]
-    table_sealed: Optional[bool]
+    schema_evolution_settings: Optional[TSchemaEvolutionSettings]
     parent: Optional[str]
     filters: Optional[TRowFilters]
     columns: TTableSchemaColumns
@@ -86,8 +95,9 @@ class TPartialTableSchema(TTableSchema):
 TSchemaTables = Dict[str, TTableSchema]
 TSchemaUpdate = Dict[str, List[TPartialTableSchema]]
 
+
 class TSchemaSettings(TypedDict, total=False):
-    schema_sealed: Optional[bool]
+    schema_evolution_settings: Optional[TSchemaEvolutionSettings]
     detections: Optional[List[TTypeDetections]]
     default_hints: Optional[Dict[TColumnHint, List[TSimpleRegex]]]
     preferred_types: Optional[Dict[TSimpleRegex, TDataType]]
@@ -105,4 +115,3 @@ class TStoredSchema(TypedDict, total=False):
     tables: TSchemaTables
     normalizers: TNormalizersConfig
 
-TSchemaUpdateMode = Literal["evolve", "freeze-and-trim", "freeze-and-raise", "freeze-and-discard"]

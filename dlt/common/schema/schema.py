@@ -11,7 +11,7 @@ from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterat
 from dlt.common.schema import utils
 from dlt.common.data_types import py_type_to_sc_type, coerce_value, TDataType
 from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnSchemaBase, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
-                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TWriteDisposition, TSchemaUpdateMode)
+                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TSchemaEvolutionModes)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException)
 from dlt.common.validation import validate_dict
@@ -177,13 +177,23 @@ class Schema:
                     updated_table_partial["columns"][new_col_name] = new_col_def
 
         return new_row, updated_table_partial
-    
-    def check_schema_update(self, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema, schema_update_mode: TSchemaUpdateMode) -> Tuple[DictStrAny, TPartialTableSchema]:
+
+    def check_schema_update(self, parent_table: str, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema) -> Tuple[DictStrAny, TPartialTableSchema]:
         """Checks if schema update mode allows for the requested changes, filter row or reject update, depending on the mode"""
+
+        # for now we defined the schema as new if there are no data columns defined
         has_columns = self.has_data_columns
+        if not has_columns:
+            return row, partial_table
+
+        # resolve evolution settings
+        table_with_settings = parent_table or table_name
+        evolution_settings = self.tables.get(table_with_settings, {}).get("schema_evolution_settings", "evolve")
+        if isinstance(evolution_settings, str):
+            evolution_settings = TSchemaEvolutionModes(table=evolution_settings, column=evolution_settings, column_variant=evolution_settings)
+
         # if there is a schema update and we froze schema and filter additional data, clean up
-        if has_columns and partial_table and schema_update_mode == "freeze-and-trim":
-            # do not create new tables
+        if evolution_settings["table"] == "freeze-and-trim":
             if table_name not in self.tables or not len(self.tables[table_name].get("columns", {})):
                 return None, None
             # pop unknown values
@@ -193,16 +203,15 @@ class Schema:
             return row, None
 
         # if there is a schema update and we froze schema and discard additional rows, do nothing
-        elif has_columns and partial_table and schema_update_mode == "freeze-and-discard":
+        elif evolution_settings["table"] == "freeze-and-discard":
             return None, None
 
         # if there is a schema update and we disallow any data not fitting the schema, raise!
-        elif has_columns and partial_table and schema_update_mode == "freeze-and-raise":
+        elif evolution_settings["table"] == "freeze-and-raise":
             raise SchemaFrozenException(f"Trying to modify table {table_name} but schema is frozen.")
-        
+
         return row, partial_table
-        
-        
+
     def update_schema(self, partial_table: TPartialTableSchema) -> TPartialTableSchema:
         table_name = partial_table["name"]
         parent_table_name = partial_table.get("parent")
