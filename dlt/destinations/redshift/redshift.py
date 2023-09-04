@@ -108,6 +108,8 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         file_type = ""
         dateformat = ""
         compression = ""
+        if table_schema_has_type(table, "time"):
+            raise LoadJobTerminalException(self.file_name(), "Redshift cannot load TIME columns from load files.")
         if ext == "jsonl":
             if table_schema_has_type(table, "binary"):
                 raise LoadJobTerminalException(self.file_name(), "Redshift cannot load VARBYTE columns from json files. Switch to parquet to load binaries.")

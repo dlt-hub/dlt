@@ -105,6 +105,8 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
         if destination_config.destination == "redshift":
             # change the datatype to text which will result in inserting base64 (allow_base64_binary)
             column_schemas["col7_null"]["data_type"] = column_schemas["col7"]["data_type"] = "text"
+            # Redshift COPY doesn't support TIME column
+            column_schemas["col11_null"]["data_type"] = column_schemas["col11"]["data_type"] = "text"
 
     # apply the exact columns definitions so we process complex and wei types correctly!
     @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
