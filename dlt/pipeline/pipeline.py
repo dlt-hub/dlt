@@ -289,7 +289,6 @@ class Pipeline(SupportsPipeline):
                     storage.commit_extract_files(extract_id)
                 return ExtractInfo(describe_extract_data(data))
         except Exception as exc:
-            raise exc
             # TODO: provide metrics from extractor
             raise PipelineStepFailed(self, "extract", exc, ExtractInfo(describe_extract_data(data))) from exc
 

@@ -16,7 +16,6 @@ def items(settings: TSchemaEvolutionSettings) -> Any:
 
     @dlt.resource(name="items", write_disposition="append", schema_evolution_settings=settings)
     def load_items():
-        global offset
         for _, index in enumerate(range(0, 10), 1):
             yield {
                 "id": index,
@@ -30,7 +29,6 @@ def items_with_variant(settings: TSchemaEvolutionSettings) -> Any:
 
     @dlt.resource(name="items", write_disposition="append", schema_evolution_settings=settings)
     def load_items():
-        global offset
         for _, index in enumerate(range(0, 10), 1):
             yield {
                 "id": index,
@@ -44,7 +42,6 @@ def items_with_new_column(settings: TSchemaEvolutionSettings) -> Any:
 
     @dlt.resource(name="items", write_disposition="append", schema_evolution_settings=settings)
     def load_items():
-        global offset
         for _, index in enumerate(range(0, 10), 1):
             yield {
                 "id": index,
@@ -59,7 +56,6 @@ def items_with_subtable(settings: TSchemaEvolutionSettings) -> Any:
 
     @dlt.resource(name="items", write_disposition="append", schema_evolution_settings=settings)
     def load_items():
-        global offset
         for _, index in enumerate(range(0, 10), 1):
             yield {
                 "id": index,
@@ -76,7 +72,6 @@ def new_items(settings: TSchemaEvolutionSettings) -> Any:
 
     @dlt.resource(name="new_items", write_disposition="append", schema_evolution_settings=settings)
     def load_items():
-        global offset
         for _, index in enumerate(range(0, 10), 1):
             yield {
                 "id": index,
@@ -103,6 +98,9 @@ def test_freeze_new_tables(evolution_setting: str) -> None:
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
     assert OLD_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
+    assert pipeline.default_schema.tables["items"]["schema_evolution_settings"] == {
+        "table": evolution_setting
+    }
 
     pipeline.run([items_with_new_column(full_settings)])
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
@@ -148,6 +146,9 @@ def test_freeze_new_columns(evolution_setting: str) -> None:
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
     assert OLD_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
+    assert pipeline.default_schema.tables["items"]["schema_evolution_settings"] == {
+        "column": evolution_setting
+    }
 
     # subtable should work
     pipeline.run([items_with_subtable(full_settings)])
@@ -204,6 +205,9 @@ def test_freeze_variants(evolution_setting: str) -> None:
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
     assert OLD_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
+    assert pipeline.default_schema.tables["items"]["schema_evolution_settings"] == {
+        "column_variant": evolution_setting
+    }
 
     # subtable should work
     pipeline.run([items_with_subtable(full_settings)])
