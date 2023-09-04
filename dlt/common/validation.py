@@ -55,7 +55,10 @@ def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFil
                 return
             t = extract_optional_type(t)
 
-        if is_literal_type(t):
+        # TODO: support for union types?
+        if pk == "schema_evolution_settings":
+            pass
+        elif is_literal_type(t):
             a_l = get_args(t)
             if pv not in a_l:
                 raise DictValidationException(f"In {path}: field {pk} value {pv} not in allowed {a_l}", path, pk, pv)

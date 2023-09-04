@@ -18,7 +18,11 @@ from dlt.common.validation import validate_dict
 from dlt.common.schema.exceptions import SchemaFrozenException
 
 
-
+DEFAULT_SCHEMA_EVOLUTION_MODES: TSchemaEvolutionModes = {
+    "table": "evolve",
+    "column": "evolve",
+    "column_variant": "evolve"
+}
 
 class Schema:
     ENGINE_VERSION: ClassVar[int] = SCHEMA_ENGINE_VERSION
@@ -181,6 +185,8 @@ class Schema:
     def check_schema_update(self, parent_table: str, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema) -> Tuple[DictStrAny, TPartialTableSchema]:
         """Checks if schema update mode allows for the requested changes, filter row or reject update, depending on the mode"""
 
+        assert partial_table
+
         # for now we defined the schema as new if there are no data columns defined
         has_columns = self.has_data_columns
         if not has_columns:
@@ -188,27 +194,42 @@ class Schema:
 
         # resolve evolution settings
         table_with_settings = parent_table or table_name
-        evolution_settings = self.tables.get(table_with_settings, {}).get("schema_evolution_settings", "evolve")
+        evolution_settings = self.tables.get(table_with_settings, {}).get("schema_evolution_settings", DEFAULT_SCHEMA_EVOLUTION_MODES)
         if isinstance(evolution_settings, str):
-            evolution_settings = TSchemaEvolutionModes(table=evolution_settings, column=evolution_settings, column_variant=evolution_settings)
+            evolution_modes = TSchemaEvolutionModes(table=evolution_settings, column=evolution_settings, column_variant=evolution_settings)
+        else:
+            evolution_modes = evolution_settings
+        evolution_modes = {**DEFAULT_SCHEMA_EVOLUTION_MODES, **evolution_modes}  # type: ignore
 
-        # if there is a schema update and we froze schema and filter additional data, clean up
-        if evolution_settings["table"] == "freeze-and-trim":
-            if table_name not in self.tables or not len(self.tables[table_name].get("columns", {})):
+        # default settings allow all evolutions
+        if evolution_modes == DEFAULT_SCHEMA_EVOLUTION_MODES:
+            return row, partial_table
+
+        table_exists = table_name in self.tables and len(self.tables[table_name].get("columns", {}))
+
+        # check case where we have a new table
+        if not table_exists:
+            if evolution_modes == "freeze-and-trim":
                 return None, None
-            # pop unknown values
+            if evolution_modes["table"] in ["freeze-and-discard", "freeze-and-trim"]:
+                return None, None
+            if evolution_modes["table"] == "freeze-and-raise":
+                raise SchemaFrozenException(f"Trying to add table {table_name} but new tables are frozen.")
+
+        # check columns
+        for item in list(row.keys()):
             for item in list(row.keys()):
-                if item not in self.tables[table_name]["columns"]:
-                    row.pop(item)
-            return row, None
-
-        # if there is a schema update and we froze schema and discard additional rows, do nothing
-        elif evolution_settings["table"] == "freeze-and-discard":
-            return None, None
-
-        # if there is a schema update and we disallow any data not fitting the schema, raise!
-        elif evolution_settings["table"] == "freeze-and-raise":
-            raise SchemaFrozenException(f"Trying to modify table {table_name} but schema is frozen.")
+                # if this is a new column for an existing table...
+                if table_exists and item not in self.tables[table_name]["columns"]:
+                    print("in_here " + item)
+                    is_variant = item in partial_table["columns"] and partial_table["columns"][item].get("variant")
+                    if evolution_modes["column"] == "freeze-and-trim" or (is_variant and evolution_modes["column_variant"] == "freeze-and-trim"):
+                        row.pop(item)
+                        partial_table["columns"].pop(item)
+                    if evolution_modes["column"] == "freeze-and-discard" or (is_variant and evolution_modes["column_variant"] == "freeze-and-discard"):
+                        return None, None
+                    if evolution_modes["column"] == "freeze-and-raise" or (is_variant and evolution_modes["column_variant"] == "freeze-and-raise"):
+                        raise SchemaFrozenException(f"Trying to add column {item} to table {table_name}  but columns are frozen.")
 
         return row, partial_table
 
