@@ -6,7 +6,7 @@ import pytest
 
 from dlt.common import json, Decimal, pendulum
 from dlt.common.arithmetics import numeric_default_context
-from dlt.common.json import _DECIMAL, _WEI, custom_pua_decode, _orjson, _simplejson, SupportsJson
+from dlt.common.json import _DECIMAL, _WEI, custom_pua_decode, _orjson, _simplejson, SupportsJson, _DATETIME
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED, JSON_TYPED_DICT_NESTED, JSON_TYPED_DICT_NESTED_DECODED
@@ -182,17 +182,19 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
     now = pendulum.parse("2005-04-02T20:37:37.358236Z")
     s = json_impl.dumps({"t": now})
     # must serialize UTC timezone
-    assert s.endswith('Z"}')
+    assert s.endswith('+00:00"}')
     s_r = json_impl.loads(s)
-    assert pendulum.parse(s_r["t"]) == now
-    # mock hh:mm (incorrect) TZ notation which must serialize to UTC as well
-    s_r = json_impl.loads(s[:-3] + '+00:00"}')
     assert pendulum.parse(s_r["t"]) == now
     # serialize date and time
     s = json_impl.dumps(JSON_TYPED_DICT)
     s_r = json_impl.loads(s)
     assert s_r["date"] == "2022-02-02"
     assert s_r["time"] == "20:37:37.358236"
+    # Decodes zulu notation as well
+    dt_str_z = "2005-04-02T20:37:37.358236Z"
+    s = f'"{_DATETIME + dt_str_z}"'
+    s_r = json_impl.typed_loads(s)
+    assert s_r == pendulum.parse(dt_str_z)
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
