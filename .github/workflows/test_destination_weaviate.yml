@@ -26,7 +26,8 @@ jobs:
   run_loader:
     name: Tests Weaviate loader
     needs: get_docs_changes
-    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    if: !always()
+    # if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
       matrix:

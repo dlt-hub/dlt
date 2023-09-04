@@ -1,5 +1,5 @@
 # Filesystem & buckets
-Filesystem destination stores data in remote file systems and bucket storages like **S3**, **google storage** or **azure blob storage**. Underneath it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging for other destinations but you can also quickly build a [data lake](../../getting-started/build-a-data-platform/build-structured-data-lakehouse.md) with it.
+Filesystem destination stores data in remote file systems and bucket storages like **S3**, **google storage** or **azure blob storage**. Underneath it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging for other destinations but you can also quickly build a data lake with it.
 
 > 💡 Please read the notes on the layout of the data files. Currently we are getting feedback on it. Please join our slack (icon at the top of the page) and help us to find the optimal layout.
 
@@ -19,14 +19,13 @@ The command above creates sample `secrets.toml` and requirements file for AWS S3
 ```
 pip install -r requirements.txt
 ```
-or with `pip install dlt[filesystem]` which will install `s3fs` and `boto3` packages.
+or with `pip install dlt[filesystem]` which will install `s3fs` and `botocore` packages.
 :::caution
 
-We experienced that `s3fs` dependency and `boto3` have conflicting requirements (depending on their release schedule). You may also
+You may also install the dependencies independently
 try
 ```sh
 pip install dlt
-pip install boto3
 pip install s3fs
 ```
 so pip does not fail on backtracking
@@ -112,7 +111,24 @@ if you have default google cloud credentials in your environment (ie. on cloud f
 Use **Cloud Storage** admin to create a new bucket. Then assign the **Storage Object Admin** role to your service account.
 
 #### Azure Blob Storage
-Let us know on our Slack that you need it.
+Run `pip install dlt[az]` which will install the `adlfs` package to interface with Azure Blob Storage.
+
+Edit the credentials in `.dlt/secrets.toml`, you'll see AWS credentials by default replace them with your Azure credentials:
+
+```toml
+[destination.filesystem]
+bucket_url = "az://[your_container name]" # replace with your container name
+
+[destination.filesystem.credentials]
+# The storage account name is always required
+azure_storage_account_name = "account_name" # please set me up!
+# You can set either account_key or sas_token, only one is needed
+azure_storage_account_key = "account_key" # please set me up!
+azure_storage_sas_token = "sas_token" # please set me up!
+```
+
+If you have the correct Azure credentials set up on your machine (e.g. via azure cli) you can omit both `azure_storage_account_key` and `azure_storage_sas_token` and `dlt` will fallback to the available default.
+Note that `azure_storage_account_name` is still required as it can't be inferred from the environment.
 
 #### Local file system
 If for any reason you want to have those files in local folder, setup the `bucket_url` as follows (you are free to use `config.toml` for that as there are no secrets required)

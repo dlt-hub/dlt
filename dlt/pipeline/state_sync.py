@@ -9,9 +9,9 @@ import dlt
 from dlt.common import json
 from dlt.common.pipeline import TPipelineState
 from dlt.common.typing import DictStrAny
-from dlt.common.schema.typing import LOADS_TABLE_NAME, TTableSchemaColumns
+from dlt.common.schema.typing import STATE_TABLE_NAME, TTableSchemaColumns
+from dlt.common.destination.reference import JobClientBase, WithStateSync
 
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.extract.source import DltResource
 
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException
@@ -20,8 +20,7 @@ from dlt.common.utils import compressed_b64decode, compressed_b64encode
 
 # allows to upgrade state when restored with a new version of state logic/schema
 STATE_ENGINE_VERSION = 2
-# state table name
-STATE_TABLE_NAME = "_dlt_pipeline_state"
+
 # state table columns
 STATE_TABLE_COLUMNS: TTableSchemaColumns = {
     "version": {
@@ -93,20 +92,15 @@ def state_resource(state: TPipelineState) -> DltResource:
         "state":  state_str,
         "created_at": pendulum.now()
     }
-
     return dlt.resource([state_doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS)
 
 
-def load_state_from_destination(pipeline_name: str, sql_client: SqlClientBase[Any]) -> TPipelineState:
+def load_state_from_destination(pipeline_name: str, client: WithStateSync) -> TPipelineState:
     # NOTE: if dataset or table holding state does not exist, the sql_client will rise DestinationUndefinedEntity. caller must handle this
-    # TODO: this must go into job client and STATE_TABLE_NAME + LOADS_TABLE_NAME must get normalized before using in the query
-    query = f"SELECT state FROM {STATE_TABLE_NAME} AS s JOIN {LOADS_TABLE_NAME} AS l ON l.load_id = s._dlt_load_id WHERE pipeline_name = %s AND l.status = 0 ORDER BY created_at DESC"
-    with sql_client.execute_query(query, pipeline_name) as cur:
-        row = cur.fetchone()
-    if not row:
+    state = client.get_stored_state(pipeline_name)
+    if not state:
         return None
-    state_str = row[0]
-    s = decompress_state(state_str)
+    s = decompress_state(state.state)
     return migrate_state(pipeline_name, s, s["_state_engine_version"], STATE_ENGINE_VERSION)
 
 

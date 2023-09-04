@@ -21,7 +21,7 @@ def dummy_source(prefix: str = None):
     @dlt.resource
     def dummy_data():
         for _ in range(100):
-            yield {f'Objekt_{_}':{'Größe':_, 'Äquivalenzprüfung':True}}
+            yield {f'Objekt_{_}': {'Größe': _, 'Äquivalenzprüfung': True}}
     return dummy_data(),
 
 def replace_umlauts_in_dict_keys(d):

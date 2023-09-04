@@ -1,9 +1,9 @@
 from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, Any
-from urllib.parse import urlparse
+from urllib.parse import urlparse, urlunparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, CredentialsConfiguration
-from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
+from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults, AzureCredentials, AzureCredentialsWithoutDefaults
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
@@ -68,13 +68,29 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
         stage_file_path = ""
 
         if bucket_path:
-            # referencing an external s3 stage does not require explicit AWS credentials
-            if bucket_path.startswith("s3://") and stage_name:
+            bucket_url = urlparse(bucket_path)
+            bucket_scheme = bucket_url.scheme
+            # referencing an external s3/azure stage does not require explicit AWS credentials
+            if bucket_scheme in ["s3", "az", "abfs"] and stage_name:
                 from_clause = f"FROM '@{stage_name}'"
-                files_clause = f"FILES = ('{urlparse(bucket_path).path.lstrip('/')}')"
+                files_clause = f"FILES = ('{bucket_url.path.lstrip('/')}')"
             # referencing an staged files via a bucket URL requires explicit AWS credentials
-            elif bucket_path.startswith("s3://") and staging_credentials and isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+            elif bucket_scheme == "s3" and staging_credentials and isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
                 credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"""
+                from_clause = f"FROM '{bucket_path}'"
+            elif bucket_scheme in ["az", "abfs"] and staging_credentials and isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
+                # Explicit azure credentials are needed to load from bucket without a named stage
+                credentials_clause = f"CREDENTIALS=(AZURE_SAS_TOKEN='?{staging_credentials.azure_storage_sas_token}')"
+                # Converts an az://<container_name>/<path> to azure://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
+                # as required by snowflake
+                _path = "/" + bucket_url.netloc + bucket_url.path
+                bucket_path = urlunparse(
+                    bucket_url._replace(
+                        scheme="azure",
+                        netloc=f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net",
+                        path=_path
+                    )
+                )
                 from_clause = f"FROM '{bucket_path}'"
             else:
                 # ensure that gcs bucket path starts with gcs://, this is a requirement of snowflake

@@ -6,7 +6,7 @@ import contextlib
 from copy import copy
 import datetime  # noqa: 251
 from types import TracebackType
-from typing import Any, ClassVar, List, NamedTuple, Optional, Sequence, Tuple, Type, Iterable, Iterator, ContextManager
+from typing import Any, ClassVar, List, NamedTuple, Optional, Sequence, Tuple, Type, Iterable, Iterator, ContextManager, cast
 import zlib
 import re
 
@@ -16,7 +16,7 @@ from dlt.common.schema.typing import COLUMN_HINTS, TColumnSchemaBase, TTableSche
 from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
-from dlt.common.destination.reference import DestinationClientConfiguration, DestinationClientDwhConfiguration, DestinationClientDwhWithStagingConfiguration, NewLoadJob, WithStagingDataset, TLoadJobState, LoadJob, JobClientBase, FollowupJob, CredentialsConfiguration
+from dlt.common.destination.reference import StateInfo, StorageSchemaInfo,WithStateSync, DestinationClientConfiguration, DestinationClientDwhConfiguration, DestinationClientDwhWithStagingConfiguration, NewLoadJob, WithStagingDataset, TLoadJobState, LoadJob, JobClientBase, FollowupJob, CredentialsConfiguration
 from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import DatabaseUndefinedRelation, DestinationSchemaTampered, DestinationSchemaWillNotUpdate
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
@@ -25,15 +25,6 @@ from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
-
-
-class StorageSchemaInfo(NamedTuple):
-    version_hash: str
-    schema_name: str
-    version: int
-    engine_version: str
-    inserted_at: datetime.datetime
-    schema: str
 
 # this should suffice for now
 DDL_COMMANDS = [
@@ -94,15 +85,19 @@ class CopyRemoteFileLoadJob(LoadJob, FollowupJob):
         return "completed"
 
 
-class SqlJobClientBase(JobClientBase):
+class SqlJobClientBase(JobClientBase, WithStateSync):
 
     VERSION_TABLE_SCHEMA_COLUMNS: ClassVar[str] = "version_hash, schema_name, version, engine_version, inserted_at, schema"
+    STATE_TABLE_COLUMNS: ClassVar[str] = "version, engine_version, pipeline_name, state, created_at, _dlt_load_id"
 
     def __init__(self, schema: Schema, config: DestinationClientConfiguration,  sql_client: SqlClientBase[TNativeConn]) -> None:
         super().__init__(schema, config)
         self.sql_client = sql_client
         assert isinstance(config, DestinationClientDwhConfiguration)
         self.config: DestinationClientDwhConfiguration = config
+
+    def drop_storage(self) -> None:
+        self.sql_client.drop_dataset()
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
@@ -115,10 +110,10 @@ class SqlJobClientBase(JobClientBase):
     def is_storage_initialized(self) -> bool:
         return self.sql_client.has_dataset()
 
-    def update_storage_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
-        super().update_storage_schema(only_tables, expected_update)
+    def update_stored_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+        super().update_stored_schema(only_tables, expected_update)
         applied_update: TSchemaTables = {}
-        schema_info = self.get_schema_by_hash(self.schema.stored_version_hash)
+        schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is None:
             logger.info(f"Schema with hash {self.schema.stored_version_hash} not found in the storage. upgrading")
 
@@ -151,19 +146,19 @@ class SqlJobClientBase(JobClientBase):
     def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return SqlMergeJob.from_table_chain(table_chain, self.sql_client)
 
-    # update destination tables from staging tables
     def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        """update destination tables from staging tables"""
         return SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
-    # optimized replace strategy, defaults to _create_staging_copy_job for the basic client
-    # for some destinations there are much faster destination updates at the cost of
-    # dropping tables possible
     def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        """optimized replace strategy, defaults to _create_staging_copy_job for the basic client
+           for some destinations there are much faster destination updates at the cost of
+           dropping tables possible"""
         return self._create_staging_copy_job(table_chain)
 
     def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
         jobs = super().create_table_chain_completed_followup_jobs(table_chain)
-        """Creates a list of followup jobs that should be executed after a table chain is completed"""
         write_disposition = table_chain[0]["write_disposition"]
         if write_disposition == "merge":
             jobs.append(self._create_merge_job(table_chain))
@@ -260,12 +255,31 @@ WHERE """
     def _from_db_type(cls, db_type: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         pass
 
-    def get_newest_schema_from_storage(self) -> StorageSchemaInfo:
+    def get_stored_schema(self) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         query = f"SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM {name} WHERE schema_name = %s ORDER BY inserted_at DESC;"
         return self._row_to_schema_info(query, self.schema.name)
 
-    def get_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
+    def get_stored_state(self, pipeline_name: str) -> StateInfo:
+        state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
+        loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
+        query = f"SELECT {self.STATE_TABLE_COLUMNS} FROM {state_table} AS s JOIN {loads_table} AS l ON l.load_id = s._dlt_load_id WHERE pipeline_name = %s AND l.status = 0 ORDER BY created_at DESC"
+        with self.sql_client.execute_query(query, pipeline_name) as cur:
+            row = cur.fetchone()
+        if not row:
+            return None
+        return StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4]))
+
+    # def get_stored_states(self, state_table: str) -> List[StateInfo]:
+    #     """Loads list of compressed states from destination storage, optionally filtered by pipeline name"""
+    #     query = f"SELECT {self.STATE_TABLE_COLUMNS} FROM {state_table} AS s ORDER BY created_at DESC"
+    #     result: List[StateInfo] = []
+    #     with self.sql_client.execute_query(query) as cur:
+    #         for row in cur.fetchall():
+    #             result.append(StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4])))
+    #     return result
+
+    def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         query = f"SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM {name} WHERE version_hash = %s;"
         return self._row_to_schema_info(query, version_hash)

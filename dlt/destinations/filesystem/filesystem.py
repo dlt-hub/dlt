@@ -89,6 +89,10 @@ class FilesystemClient(JobClientBase):
         ds_path = posixpath.join(self.fs_path, self.config.normalize_dataset_name(self.schema))
         return ds_path
 
+    def drop_storage(self) -> None:
+        if self.is_storage_initialized():
+            self.fs_client.rm(self.dataset_path, recursive=True)
+
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # clean up existing files for tables selected for truncating
         if truncate_tables and self.fs_client.isdir(self.dataset_path):
@@ -118,11 +122,11 @@ class FilesystemClient(JobClientBase):
                                 # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
                                 logger.info(f"DEL {item}")
                                 # print(f"DEL {item}")
-                                self.fs_client.rm_file(item)
+                                self.fs_client.rm(item)
                 except FileNotFoundError:
                     logger.info(f"Directory or path to truncate tables {truncate_dir} does not exist but it should be created previously!")
 
-    def update_storage_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> TSchemaTables:
+    def update_stored_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> TSchemaTables:
         # create destination dirs for all tables
         dirs_to_create = self._get_table_dirs(only_tables or self.schema.tables.keys())
         for directory in dirs_to_create:

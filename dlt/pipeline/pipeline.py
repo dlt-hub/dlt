@@ -24,7 +24,7 @@ from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, LoadStorage, SchemaStorage, FileStorage, NormalizeStorageConfiguration, SchemaStorageConfiguration, LoadStorageConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import (DestinationClientDwhConfiguration, DestinationReference, JobClientBase, DestinationClientConfiguration,
+from dlt.common.destination.reference import (DestinationClientDwhConfiguration, WithStateSync, DestinationReference, JobClientBase, DestinationClientConfiguration,
                                               TDestinationReferenceArg, DestinationClientStagingConfiguration,  DestinationClientStagingConfiguration,
                                               DestinationClientDwhWithStagingConfiguration)
 from dlt.common.destination.capabilities import INTERNAL_LOADER_FILE_FORMATS
@@ -540,7 +540,7 @@ class Pipeline(SupportsPipeline):
                     if self.default_schema_name is None:
                         should_wipe = True
                     else:
-                        with self._sql_job_client(self.default_schema) as job_client:
+                        with self._get_destination_clients(self.default_schema)[0] as job_client:
                             # and storage is not initialized
                             should_wipe = not job_client.is_storage_initialized()
                     if should_wipe:
@@ -648,7 +648,7 @@ class Pipeline(SupportsPipeline):
         client_config = self._get_destination_client_initial_config(credentials)
         with self._get_destination_clients(schema, client_config)[0] as client:
             client.initialize_storage()
-            return client.update_storage_schema()
+            return client.update_stored_schema()
 
     def set_local_state_val(self, key: str, value: Any) -> None:
         """Sets value in local state. Local state is not synchronized with destination."""
@@ -671,33 +671,51 @@ class Pipeline(SupportsPipeline):
         return state["_local"][key]   # type: ignore
 
     def sql_client(self, schema_name: str = None, credentials: Any = None) -> SqlClientBase[Any]:
-        """Returns a sql connection configured to query/change the destination and dataset that were used to load the data."""
-        # if not self.default_schema_name:
+        """Returns a sql client configured to query/change the destination and dataset that were used to load the data.
+           Use the client with `with` statement to manage opening and closing connection to the destination:
+           >>> with pipeline.sql_client() as client:
+           >>>     with client.execute_query(
+           >>>         "SELECT id, name, email FROM customers WHERE id = %s", 10
+           >>>     ) as cursor:
+           >>>         print(cursor.fetchall())
+
+           The client is authenticated and defaults all queries to dataset_name used by the pipeline. You can provide alternative
+           `schema_name` which will be used to normalize dataset name and alternative `credentials`.
+        """
+        # if not self.default_schema_name and not schema_name:
         #     raise PipelineConfigMissing(
         #         self.pipeline_name,
         #         "default_schema_name",
         #         "load",
         #         "Sql Client is not available in a pipeline without a default schema. Extract some data first or restore the pipeline from the destination using 'restore_from_destination' flag. There's also `_inject_schema` method for advanced users."
         #     )
-        if schema_name:
-            schema = self.schemas[schema_name]
-        else:
-            schema = self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.pipeline_name))
+        schema = self._get_schema_or_create(schema_name)
         return self._sql_job_client(schema, credentials).sql_client
 
-    def _destination_client(self, schema_name: str = None, credentials: Any = None) -> JobClientBase:
-        """Get the destination job client for the configured destination"""
-        # TODO: duplicated code from self.sql_client()  ...
-        if schema_name:
-            schema = self.schemas[schema_name]
-        else:
-            schema = self.default_schema if self.default_schema_name else Schema(normalize_schema_name(self.pipeline_name))
+    def destination_client(self, schema_name: str = None, credentials: Any = None) -> JobClientBase:
+        """Get the destination job client for the configured destination
+           Use the client with `with` statement to manage opening and closing connection to the destination:
+           >>> with pipeline.destination_client() as client:
+           >>>     client.drop_storage()  # removes storage which typically wipes all data in it
+
+           The client is authenticated. You can provide alternative `schema_name` which will be used to normalize dataset name and alternative `credentials`.
+           If no schema name is provided and no default schema is present in the pipeline, and ad hoc schema will be created and discarded after use.
+        """
+        schema = self._get_schema_or_create(schema_name)
         client_config = self._get_destination_client_initial_config(credentials)
         return self._get_destination_clients(schema, client_config)[0]
 
+    def _get_schema_or_create(self, schema_name: str = None) -> Schema:
+        if schema_name:
+            return self.schemas[schema_name]
+        if self.default_schema_name:
+            return self.default_schema
+        with self._maybe_destination_capabilities():
+            return Schema(self.pipeline_name)
+
     def _sql_job_client(self, schema: Schema, credentials: Any = None) -> SqlJobClientBase:
         client_config = self._get_destination_client_initial_config(credentials)
-        client = self._get_destination_clients(schema , client_config)[0]
+        client = self._get_destination_clients(schema, client_config)[0]
         if isinstance(client, SqlJobClientBase):
             return client
         else:
@@ -1110,38 +1128,27 @@ class Pipeline(SupportsPipeline):
             logger.info("Client not available due to missing credentials")
         return None
 
-    def _restore_state_from_destination(self, raise_on_connection_error: bool = True) -> Optional[TPipelineState]:
+    def _restore_state_from_destination(self) -> Optional[TPipelineState]:
         # if state is not present locally, take the state from the destination
         dataset_name = self.dataset_name
         use_single_dataset = self.config.use_single_dataset
         try:
             # force the main dataset to be used
             self.config.use_single_dataset = True
-            job_client = self._optional_sql_job_client(normalize_schema_name(self.pipeline_name))
-            if job_client:
-                # handle open connection exception silently
-                state = None
-                try:
-                    job_client.sql_client.open_connection()
-                except Exception:
-                    # pass on connection errors
-                    if raise_on_connection_error:
-                        raise
-                    pass
+            schema_name = normalize_schema_name(self.pipeline_name)
+            with self._maybe_destination_capabilities():
+                schema = Schema(schema_name)
+            with self._get_destination_clients(schema)[0] as job_client:
+                if isinstance(job_client, WithStateSync):
+                    state = load_state_from_destination(self.pipeline_name, job_client)
+                    if state is None:
+                        logger.info(f"The state was not found in the destination {self.destination.__name__}:{dataset_name}")
+                    else:
+                        logger.info(f"The state was restored from the destination {self.destination.__name__}:{dataset_name}")
                 else:
-                    # try too get state from destination
-                    state = load_state_from_destination(self.pipeline_name, job_client.sql_client)
-                finally:
-                    job_client.sql_client.close_connection()
-
-                if state is None:
-                    logger.info(f"The state was not found in the destination {self.destination.__name__}:{dataset_name}")
-                else:
-                    logger.info(f"The state was restored from the destination {self.destination.__name__}:{dataset_name}")
-                return state
-
-            else:
-                return None
+                    state = None
+                    logger.info(f"Destination does not support metadata storage {self.destination.__name__}:{dataset_name}")
+            return state
         finally:
             # restore the use_single_dataset option
             self.config.use_single_dataset = use_single_dataset
@@ -1150,18 +1157,22 @@ class Pipeline(SupportsPipeline):
         # check which schemas are present in the pipeline and restore missing schemas
         restored_schemas: List[Schema] = []
         for schema_name in schema_names:
-            if not self._schema_storage.has_schema(schema_name) or always_download:
-                # assume client always exist
-                with self._optional_sql_job_client(schema_name) as job_client:
-                    schema_info = job_client.get_newest_schema_from_storage()
+            with self._maybe_destination_capabilities():
+                schema = Schema(schema_name)
+            if not self._schema_storage.has_schema(schema.name) or always_download:
+                with self._get_destination_clients(schema)[0] as job_client:
+                    if not isinstance(job_client, WithStateSync):
+                        logger.info(f"Destination does not support metadata storage {self.destination.__name__}")
+                        return restored_schemas
+                    schema_info = job_client.get_stored_schema()
                     if schema_info is None:
-                        logger.info(f"The schema {schema_name} was not found in the destination {self.destination.__name__}:{job_client.sql_client.dataset_name}.")
+                        logger.info(f"The schema {schema.name} was not found in the destination {self.destination.__name__}:{self.dataset_name}")
                         # try to import schema
                         with contextlib.suppress(FileNotFoundError):
-                            self._schema_storage.load_schema(schema_name)
+                            self._schema_storage.load_schema(schema.name)
                     else:
                         schema = Schema.from_dict(json.loads(schema_info.schema))
-                        logger.info(f"The schema {schema_name} version {schema.version} hash {schema.stored_version_hash} was restored from the destination {self.destination.__name__}:{job_client.sql_client.dataset_name}")
+                        logger.info(f"The schema {schema.name} version {schema.version} hash {schema.stored_version_hash} was restored from the destination {self.destination.__name__}:{self.dataset_name}")
                         restored_schemas.append(schema)
         return restored_schemas
 
