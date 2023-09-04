@@ -7,6 +7,7 @@ from dlt.common.typing import TimedeltaSeconds, TAnyDateTime
 from pendulum.parsing import parse_iso8601, _parse_common as parse_datetime_common
 from pendulum.tz import UTC
 
+
 PAST_TIMESTAMP: float = 0.0
 FUTURE_TIMESTAMP: float = 9999999999.0
 DAY_DURATION_SEC: float = 24 * 60 * 60.0
@@ -98,11 +99,11 @@ def ensure_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
     raise TypeError(f"Cannot coerce {value} to a pendulum.DateTime object.")
 
 
-def ensure_pendulum_time(value: Union[TAnyDateTime, datetime.time]) -> pendulum.Time:
-    """Coerce a date/time value to a `pendulum.Time` object.
+def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
+    """Coerce a time value to a `pendulum.Time` object.
 
     Args:
-        value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date, time, or iso date/time str.
+        value: The value to coerce. Can be a `pendulum.Time` / `datetime.time` or an iso time string.
 
     Returns:
         A pendulum.Time object
@@ -112,20 +113,12 @@ def ensure_pendulum_time(value: Union[TAnyDateTime, datetime.time]) -> pendulum.
         if isinstance(value, pendulum.Time):
             return value
         return pendulum.time(value.hour, value.minute, value.second, value.microsecond)
-    elif isinstance(value, datetime.datetime):
-        # both py datetime and pendulum datetime are handled here
-        value = pendulum.instance(value)
-        return pendulum.instance(value).time()  # type: ignore[no-any-return]
-    elif isinstance(value, datetime.date):
-        return pendulum.datetime(value.year, value.month, value.day).time()  # type: ignore[no-any-return]
-    elif isinstance(value, (int, float, str)):
-        result = _datetime_from_ts_or_iso(value)
+    elif isinstance(value, str):
+        result = parse_iso_like_datetime(value)
         if isinstance(result, pendulum.Time):
             return result
-        elif isinstance(result, pendulum.DateTime):
-            return result.time()  # type: ignore[no-any-return]
-        elif isinstance(result, pendulum.Date):
-            return pendulum.datetime(result.year, result.month, result.day).time()  # type: ignore[no-any-return]
+        else:
+            raise ValueError(f"{value} is not a valid ISO time string.")
     raise TypeError(f"Cannot coerce {value} to a pendulum.Time object.")
 
 
