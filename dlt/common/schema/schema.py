@@ -196,7 +196,7 @@ class Schema:
 
         # resolve evolution settings
         table_with_settings = parent_table or table_name
-        evolution_settings = self.tables.get(table_with_settings, {}).get("schema_evolution_settings", DEFAULT_SCHEMA_EVOLUTION_MODES)
+        evolution_settings = self.tables.get(table_with_settings, {}).get("schema_evolution_settings", {}) or DEFAULT_SCHEMA_EVOLUTION_MODES
         if isinstance(evolution_settings, str):
             evolution_modes = TSchemaEvolutionModes(table=evolution_settings, column=evolution_settings, column_variant=evolution_settings)
         else:
