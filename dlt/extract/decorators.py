@@ -52,6 +52,7 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
+    schema_evolution_settings: TSchemaEvolutionSettings = None,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[TSourceFunParams, DltSource]:
     ...
@@ -65,6 +66,7 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
+    schema_evolution_settings: TSchemaEvolutionSettings = None,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, DltSource]]:
     ...
@@ -77,6 +79,7 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
+    schema_evolution_settings: TSchemaEvolutionSettings = None,
     spec: Type[BaseConfiguration] = None
 ) -> Any:
     """A decorator that transforms a function returning one or more `dlt resources` into a `dlt source` in order to load it with `dlt`.
@@ -151,6 +154,8 @@ def source(
 
         @wraps(conf_f)
         def _wrap(*args: Any, **kwargs: Any) -> DltSource:
+            nonlocal schema
+
             # make schema available to the source
             with Container().injectable_context(SourceSchemaInjectableContext(schema)):
                 # configurations will be accessed in this section in the source
@@ -163,6 +168,10 @@ def source(
                     # if generator, consume it immediately
                     if inspect.isgenerator(rv):
                         rv = list(rv)
+
+            # prepare schema
+            schema = schema.clone(update_normalizers=True)
+            schema.set_schema_evolution_settings(schema_evolution_settings)
 
             # convert to source
             s = DltSource.from_data(name, source_section, schema.clone(update_normalizers=True), rv)

@@ -83,7 +83,7 @@ def test_doc() -> TTestRecord:
 
 
 def test_validate_schema_cases() -> None:
-    with open("tests/common/cases/schemas/eth/ethereum_schema_v4.yml", mode="r", encoding="utf-8") as f:
+    with open("tests/common/cases/schemas/eth/ethereum_schema_v7.yml", mode="r", encoding="utf-8") as f:
         schema_dict: TStoredSchema = yaml.safe_load(f)
 
     validate_dict_ignoring_xkeys(

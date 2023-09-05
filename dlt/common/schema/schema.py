@@ -11,7 +11,7 @@ from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterat
 from dlt.common.schema import utils
 from dlt.common.data_types import py_type_to_sc_type, coerce_value, TDataType
 from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, STATE_TABLE_NAME, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
-                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TSchemaEvolutionModes, TColumnSchemaBase)
+                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TSchemaEvolutionModes, TSchemaEvolutionSettings)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException)
 from dlt.common.validation import validate_dict
@@ -184,6 +184,26 @@ class Schema:
 
         return new_row, updated_table_partial
 
+    def resolve_evolution_settings_for_table(self, parent_table: str, table_name: str) -> TSchemaEvolutionModes:
+        # find table settings
+        table_with_settings = parent_table or table_name
+        table_evolution_settings = self.tables.get(table_with_settings, {}).get("schema_evolution_settings", {}) or {}
+        if isinstance(table_evolution_settings, str):
+            table_evolution_modes = TSchemaEvolutionModes(table=table_evolution_settings, column=table_evolution_settings, column_variant=table_evolution_settings)
+        else:
+            table_evolution_modes = table_evolution_settings
+
+        # find schema settings
+        schema_evolution_settings = self._settings.get("schema_evolution_settings", {}) or {}
+        if isinstance(schema_evolution_settings, str):
+            schema_evolution_modes = TSchemaEvolutionModes(table=schema_evolution_settings, column=schema_evolution_settings, column_variant=schema_evolution_settings)
+        else:
+            schema_evolution_modes = schema_evolution_settings
+
+        # resolve to correct settings dict
+        return {**DEFAULT_SCHEMA_EVOLUTION_MODES, **schema_evolution_modes, **table_evolution_modes}  # type: ignore
+
+
     def check_schema_update(self, parent_table: str, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema) -> Tuple[DictStrAny, TPartialTableSchema]:
         """Checks if schema update mode allows for the requested changes, filter row or reject update, depending on the mode"""
 
@@ -194,16 +214,9 @@ class Schema:
         if not has_columns:
             return row, partial_table
 
-        # resolve evolution settings
-        table_with_settings = parent_table or table_name
-        evolution_settings = self.tables.get(table_with_settings, {}).get("schema_evolution_settings", {}) or DEFAULT_SCHEMA_EVOLUTION_MODES
-        if isinstance(evolution_settings, str):
-            evolution_modes = TSchemaEvolutionModes(table=evolution_settings, column=evolution_settings, column_variant=evolution_settings)
-        else:
-            evolution_modes = evolution_settings
-        evolution_modes = {**DEFAULT_SCHEMA_EVOLUTION_MODES, **evolution_modes}  # type: ignore
+        evolution_modes = self.resolve_evolution_settings_for_table(parent_table, table_name)
 
-        # default settings allow all evolutions
+        # default settings allow all evolutions, skipp all else
         if evolution_modes == DEFAULT_SCHEMA_EVOLUTION_MODES:
             return row, partial_table
 
@@ -414,6 +427,9 @@ class Schema:
         normalizers["names"] = normalizers["names"] or self._normalizers_config["names"]
         normalizers["json"] = normalizers["json"] or self._normalizers_config["json"]
         self._configure_normalizers(normalizers)
+
+    def set_schema_evolution_settings(self, settings: TSchemaEvolutionSettings) -> None:
+        self._settings["schema_evolution_settings"] = settings
 
     def _infer_column(self, k: str, v: Any, data_type: TDataType = None, is_variant: bool = False) -> TColumnSchema:
         column_schema =  TColumnSchema(

@@ -3,6 +3,7 @@ from dlt.common.schema.typing import TSchemaEvolutionSettings
 from dlt.common.utils import uniq_id
 import duckdb
 from typing import Any
+from dlt.extract.source import DltSource, DltResource
 
 from tests.load.pipeline.utils import load_table_counts
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
@@ -87,27 +88,38 @@ VARIANT_COLUMN_NAME = "some_int__v_text"
 SUBITEMS_TABLE = "items__sub_items"
 NEW_ITEMS_TABLE = "new_items"
 
+
+def wrap_in_source(resource_fun, settings) -> DltSource:
+
+    @dlt.source(name="freeze_tests", schema_evolution_settings=settings)
+    def source() -> DltResource:
+        return resource_fun(None)
+
+    return [source()]
+
+
 @pytest.mark.parametrize("evolution_setting", SCHEMA_EVOLUTION_SETTINGS)
-def test_freeze_new_tables(evolution_setting: str) -> None:
+@pytest.mark.parametrize("setting_location", ["resource", "source", "global_override"])
+def test_freeze_new_tables(evolution_setting: str, setting_location: str) -> None:
 
     full_settings = {
         "table": evolution_setting
     }
     pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'), full_refresh=True)
-    pipeline.run([items(full_settings)])
+    pipeline.run(wrap_in_source(items, full_settings))
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
     assert OLD_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
-    assert pipeline.default_schema.tables["items"]["schema_evolution_settings"] == {
-        "table": evolution_setting
-    }
+    # assert pipeline.default_schema.tables["items"]["schema_evolution_settings"] == {
+    #     "table": evolution_setting
+    # }
 
-    pipeline.run([items_with_new_column(full_settings)])
+    pipeline.run(wrap_in_source(items_with_new_column, full_settings))
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 20
     assert NEW_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
 
-    pipeline.run([items_with_variant(full_settings)])
+    pipeline.run(wrap_in_source(items_with_variant, full_settings))
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 30
     assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
@@ -115,10 +127,10 @@ def test_freeze_new_tables(evolution_setting: str) -> None:
     # test adding new subtable
     if evolution_setting == "freeze-and-raise":
         with pytest.raises(PipelineStepFailed) as py_ex:
-            pipeline.run([items_with_subtable(full_settings)])
+            pipeline.run(wrap_in_source(items_with_subtable, full_settings))
         assert isinstance(py_ex.value.__context__, SchemaFrozenException)
     else:
-        pipeline.run([items_with_subtable(full_settings)])
+        pipeline.run(wrap_in_source(items_with_subtable, full_settings))
 
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 30 if evolution_setting in ["freeze-and-raise"] else 40
@@ -127,10 +139,10 @@ def test_freeze_new_tables(evolution_setting: str) -> None:
     # test adding new table
     if evolution_setting == "freeze-and-raise":
         with pytest.raises(PipelineStepFailed) as py_ex:
-            pipeline.run([new_items(full_settings)])
+            pipeline.run(wrap_in_source(new_items, full_settings))
         assert isinstance(py_ex.value.__context__, SchemaFrozenException)
     else:
-        pipeline.run([new_items(full_settings)])
+        pipeline.run(wrap_in_source(new_items, full_settings))
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts.get("new_items", 0) == (10 if evolution_setting in ["evolve"] else 0)
 

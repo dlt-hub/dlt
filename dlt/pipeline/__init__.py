@@ -175,7 +175,8 @@ def run(
     table_name: str = None,
     write_disposition: TWriteDisposition = None,
     columns: Sequence[TColumnSchema] = None,
-    schema: Schema = None
+    schema: Schema = None,
+    loader_file_format: TLoaderFileFormat = None
 ) -> LoadInfo:
     """Loads the data in `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -235,7 +236,8 @@ def run(
         table_name=table_name,
         write_disposition=write_disposition,
         columns=columns,
-        schema=schema
+        schema=schema,
+        loader_file_format=loader_file_format
     )
 
 # plug default tracking module

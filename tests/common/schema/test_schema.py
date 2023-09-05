@@ -132,7 +132,7 @@ def test_simple_regex_validator() -> None:
 
 
 def test_load_corrupted_schema() -> None:
-    eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v4")
+    eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
     del eth_v4["tables"]["blocks"]
     with pytest.raises(ParentTableNotFoundException):
         utils.validate_stored_schema(eth_v4)
@@ -526,7 +526,7 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema.stored_version == 1
     assert schema.stored_version_hash is not None
     assert schema.version_hash is not None
-    assert schema.ENGINE_VERSION == 6
+    assert schema.ENGINE_VERSION == 7
     assert len(schema.settings["default_hints"]) > 0
     # check settings
     assert utils.standard_type_detections() == schema.settings["detections"] == schema._type_detections
@@ -585,8 +585,8 @@ def test_group_tables_by_resource(schema: Schema) -> None:
     result = utils.group_tables_by_resource(schema.tables, pattern=utils.compile_simple_regex(TSimpleRegex("products")))
     # both tables with resource "products" must be here
     assert result == {'products': [
-        {'columns': {}, 'name': 'c_products', 'resource': 'products', 'write_disposition': 'append'},
-        {'columns': {}, 'name': 'mc_products', 'resource': 'products', 'write_disposition': 'append'},
+        {'columns': {}, 'name': 'c_products', 'resource': 'products', 'write_disposition': 'append', 'schema_evolution_settings': None},
+        {'columns': {}, 'name': 'mc_products', 'resource': 'products', 'write_disposition': 'append', 'schema_evolution_settings': None},
         {'columns': {}, 'name': 'mc_products__sub', 'parent': 'mc_products'}
         ]
     }
