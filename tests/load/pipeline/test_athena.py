@@ -1,5 +1,4 @@
 import pytest
-from copy import deepcopy
 import datetime  # noqa: I251
 from typing import Iterator, Any
 
@@ -122,3 +121,26 @@ def test_athena_all_datatypes_and_timestamps(destination_config: DestinationTest
         assert len(db_rows) == 10
         db_rows = sql_client.execute_sql("SELECT * FROM data_types WHERE col10 = %s", datetime.date(2023, 2, 27))
         assert len(db_rows) == 10
+
+
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["athena"]), ids=lambda x: x.name)
+def test_athena_blocks_time_column(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+
+    column_schemas, data_types = table_update_and_row()
+
+    # apply the exact columns definitions so we process complex and wei types correctly!
+    @dlt.resource(table_name="data_types", write_disposition="append", columns=column_schemas)
+    def my_resource() -> Iterator[Any]:
+        nonlocal data_types
+        yield [data_types]*10
+
+    @dlt.source(max_table_nesting=0)
+    def my_source() -> Any:
+        return my_resource
+
+    info = pipeline.run(my_source())
+
+    assert info.has_failed_jobs
+
+    assert "Athena cannot load TIME columns from parquet tables" in info.load_packages[0].jobs['failed_jobs'][0].failed_message

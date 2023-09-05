@@ -110,7 +110,8 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         compression = ""
         if table_schema_has_type(table, "time"):
             raise LoadJobTerminalException(
-                self.file_name(), "Redshift cannot load TIME columns from staged files."
+                self.file_name(),
+                f"Redshift cannot load TIME columns from {ext} files. Switch to direct INSERT file format or convert `datetime.time` objects in your data to `str` or `datetime.datetime`"
             )
         if ext == "jsonl":
             if table_schema_has_type(table, "binary"):
