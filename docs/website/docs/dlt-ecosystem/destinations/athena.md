@@ -92,7 +92,11 @@ scanning your bucket and reading all relevant parquet files in there.
 `dlt` internal tables are saved as Iceberg tables.
 
 ### Data types
-Athena tables store timestamps with millisecond precision and with that precision we generate parquet files. Mind that Iceberg tables have microsecond precision. Athena does not support JSON filed so JSON is stored as string.
+Athena tables store timestamps with millisecond precision and with that precision we generate parquet files. Mind that Iceberg tables have microsecond precision. 
+
+Athena does not support JSON fields so JSON is stored as string.
+
+> ❗**Athena does not support TIME columns in parquet files**. `dlt` will fail such jobs permanently. Convert `datetime.time` objects to `str` or `datetime.datetime` to load them.
 
 ### Naming Convention
 We follow our snake_case name convention. Mind the following:

@@ -10,6 +10,7 @@ from tests.load.pipeline.test_merge_disposition import github
 from tests.load.pipeline.utils import  load_table_counts
 from tests.pipeline.utils import  assert_load_info
 from tests.load.utils import TABLE_ROW_ALL_DATA_TYPES, TABLE_UPDATE_COLUMNS_SCHEMA, assert_all_data_types_row
+from tests.cases import table_update_and_row
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 
@@ -92,8 +93,12 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
 
     pipeline = destination_config.setup_pipeline('test_stage_loading', dataset_name="test_all_data_types" + uniq_id())
 
-    data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
+    if destination_config.destination in ("redshift", "athena") and destination_config.file_format in ('parquet', 'jsonl'):
+        # Redshift copy doesn't support TIME column
+        column_schemas, data_types = table_update_and_row(exclude_types=['time'])
+    else:
+        column_schemas, data_types = table_update_and_row()
 
     # bigquery cannot load into JSON fields from parquet
     if destination_config.file_format == "parquet":
@@ -116,7 +121,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     def my_source():
         return my_resource
 
-    info = pipeline.run(my_source(), loader_file_format=destination_config.file_format)
+    info = pipeline.run(my_source(), loader_file_format=destination_config.file_format)  # type: ignore[arg-type]
     assert_load_info(info)
 
     with pipeline.sql_client() as sql_client:
@@ -131,5 +136,6 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
             db_row[:-2],
             parse_complex_strings=parse_complex_strings,
             allow_base64_binary=allow_base64_binary,
-            timestamp_precision=sql_client.capabilities.timestamp_precision
+            timestamp_precision=sql_client.capabilities.timestamp_precision,
+            schema=column_schemas
         )

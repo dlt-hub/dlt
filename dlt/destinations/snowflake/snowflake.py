@@ -36,6 +36,7 @@ SCT_TO_SNOW: Dict[TDataType, str] = {
     "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Snowflake has no integer types
     "binary": "BINARY",
     "decimal": "NUMBER(%i,%i)",
+    "time": "TIME",
 }
 
 SNOW_TO_SCT: Dict[str, TDataType] = {
@@ -45,7 +46,8 @@ SNOW_TO_SCT: Dict[str, TDataType] = {
     "DATE": "date",
     "TIMESTAMP_TZ": "timestamp",
     "BINARY": "binary",
-    "VARIANT": "complex"
+    "VARIANT": "complex",
+    "TIME": "time",
 }
 
 

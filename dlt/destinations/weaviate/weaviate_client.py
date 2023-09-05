@@ -55,6 +55,7 @@ SCT_TO_WT: Dict[TDataType, str] = {
     "bool": "boolean",
     "timestamp": "date",
     "date": "date",
+    "time": "text",
     "bigint": "int",
     "binary": "blob",
     "decimal": "text",

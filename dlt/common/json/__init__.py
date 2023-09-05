@@ -11,10 +11,10 @@ try:
 except ImportError:
     PydanticBaseModel = None  # type: ignore[misc]
 
+from dlt.common import pendulum
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
 from dlt.common.utils import map_nested_in_place
-from dlt.common.time import parse_iso_like_datetime
 
 
 class SupportsJson(Protocol):
@@ -63,14 +63,7 @@ def custom_encode(obj: Any) -> str:
         return str(obj)
     # this works both for standard datetime and pendulum
     elif isinstance(obj, datetime):
-        # See "Date Time String Format" in the ECMA-262 specification.
-        r = obj.isoformat()
-        # leave microseconds alone
-        # if obj.microsecond:
-        #     r = r[:23] + r[26:]
-        if r.endswith('+00:00'):
-            r = r[:-6] + 'Z'
-        return r
+        return obj.isoformat()
     elif isinstance(obj, date):
         return obj.isoformat()
     elif isinstance(obj, time):
@@ -103,16 +96,23 @@ _WEI = '\uF02C'
 _TIME = '\uF02D'
 
 
+def _datetime_decoder(obj: str) -> datetime:
+    if obj.endswith('Z'):
+        # Backwards compatibility for data encoded with previous dlt version
+        # fromisoformat does not support Z suffix (until py3.11)
+        obj = obj[:-1] + '+00:00'
+    return pendulum.DateTime.fromisoformat(obj)  # type: ignore[attr-defined, no-any-return]
+
 # define decoder for each prefix
 DECODERS: List[Callable[[Any], Any]] = [
     Decimal,
-    parse_iso_like_datetime,
-    lambda s: parse_iso_like_datetime(s),
+    _datetime_decoder,
+    pendulum.Date.fromisoformat,  # type: ignore[attr-defined]
     UUID,
     HexBytes,
     base64.b64decode,
     Wei,
-    lambda s: s  # NOTE: we keep iso implementation until we have TIME, time.fromisoformat,
+    pendulum.Time.fromisoformat,  # type: ignore[attr-defined]
 ]
 # how many decoders?
 PUA_CHARACTER_MAX = len(DECODERS)
@@ -126,10 +126,7 @@ def custom_pua_encode(obj: Any) -> str:
         return _DECIMAL + str(obj)
     # this works both for standard datetime and pendulum
     elif isinstance(obj, datetime):
-        r = obj.isoformat()
-        if r.endswith('+00:00'):
-            r = r[:-6] + 'Z'
-        return _DATETIME + r
+        return _DATETIME + obj.isoformat()
     elif isinstance(obj, date):
         return _DATE + obj.isoformat()
     elif isinstance(obj, time):
