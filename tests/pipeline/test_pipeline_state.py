@@ -438,7 +438,7 @@ def test_resource_state_name_not_normalized() -> None:
 
     # get state from destination
     from dlt.pipeline.state_sync import load_state_from_destination
-    with pipeline.sql_client() as client:
+    with pipeline.destination_client() as client:
         state = load_state_from_destination(pipeline.pipeline_name, client)
         assert "airtable_emojis" in state["sources"]
         assert state["sources"]["airtable_emojis"]["resources"] == {"🦚Peacock": {"🦚🦚🦚": "🦚"}}

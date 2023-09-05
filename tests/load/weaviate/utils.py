@@ -22,7 +22,7 @@ def assert_class(
     expected_items_count: int = None,
     items: List[Any] = None,
 ) -> None:
-    client: WeaviateClient = pipeline._destination_client()
+    client: WeaviateClient = pipeline.destination_client()
     vectorizer_name: str = client._vectorizer_config["vectorizer"]
 
     # Check if class exists
@@ -72,9 +72,10 @@ def assert_class(
 
 
 def delete_classes(p, class_list):
-    db_client = p._destination_client().db_client
+    db_client = p.destination_client().db_client
     for class_name in class_list:
         db_client.schema.delete_class(class_name)
+
 
 def drop_active_pipeline_data() -> None:
     def schema_has_classes(client):
@@ -84,10 +85,10 @@ def drop_active_pipeline_data() -> None:
     if Container()[PipelineContext].is_active():
         # take existing pipeline
         p = dlt.pipeline()
-        client = p._destination_client()
+        client = p.destination_client()
 
         if schema_has_classes(client):
-            client.drop_dataset()
+            client.drop_storage()
 
         p._wipe_working_folder()
         # deactivate context

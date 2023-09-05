@@ -7,6 +7,7 @@ from dlt.common import pendulum
 from dlt.common.typing import AnyFun
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.destination.reference import WithStateSync
 
 from dlt.helpers.pandas_helper import pd
 from dlt.pipeline import Pipeline
@@ -170,8 +171,9 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         st.dataframe(schemas_df)
 
         st.header("Pipeline state info")
-        with pipeline.sql_client() as client:
-            remote_state = load_state_from_destination(pipeline.pipeline_name, client)
+        with pipeline.destination_client() as client:
+            if isinstance(client, WithStateSync):
+                remote_state = load_state_from_destination(pipeline.pipeline_name, client)
         local_state = pipeline.state
 
         col1, col2 = st.columns(2)

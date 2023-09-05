@@ -39,7 +39,7 @@ def perform_load(
             truncate_tables.append(parts[0])
 
     client.initialize_storage(truncate_tables=truncate_tables)
-    client.update_storage_schema()
+    client.update_stored_schema()
     root_path = posixpath.join(client.fs_path, client.config.dataset_name)
 
     files = load.load_storage.list_new_jobs(load_id)
@@ -55,7 +55,6 @@ def perform_load(
         yield client, jobs, root_path, load_id
     finally:
         try:
-            if client.fs_client.isdir(client.dataset_path):
-                client.fs_client.rm(client.dataset_path, recursive=True)
+            client.drop_storage()
         except Exception:
             print(f"Failed to delete FILESYSTEM dataset: {client.dataset_path}")

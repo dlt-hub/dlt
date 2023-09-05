@@ -3,14 +3,15 @@ from copy import copy, deepcopy
 from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast
 from dlt.common import json
 
+from dlt.common.utils import extend_list_deduplicated
 from dlt.common.typing import DictStrAny, StrAny, REPattern, SupportsVariant, VARIANT_FIELD_FORMAT, TDataItem
 from dlt.common.normalizers import TNormalizersConfig, explicit_normalizers, import_normalizers
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterator
 from dlt.common.schema import utils
 from dlt.common.data_types import py_type_to_sc_type, coerce_value, TDataType
-from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnSchemaBase, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
-                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TWriteDisposition)
+from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, STATE_TABLE_NAME, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
+                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException)
 from dlt.common.validation import validate_dict
@@ -28,6 +29,8 @@ class Schema:
     """Normalized name of the version table"""
     loads_table_name: str
     """Normalized name of the loads table"""
+    state_table_name: str
+    """Normalized name of the dlt state table"""
 
 
     _schema_name: str
@@ -231,8 +234,7 @@ class Schema:
         # add `new_hints` to existing hints
         for h, l in new_hints.items():
             if h in default_hints:
-                # merge if hint of this type exist
-                default_hints[h] = list(set(default_hints[h] + list(l)))
+                extend_list_deduplicated(default_hints[h], l)
             else:
                 # set new hint type
                 default_hints[h] = l  # type: ignore
@@ -460,6 +462,7 @@ class Schema:
         self._dlt_tables_prefix = self.naming.normalize_table_identifier("_dlt")
         self.version_table_name = self.naming.normalize_table_identifier(VERSION_TABLE_NAME)
         self.loads_table_name = self.naming.normalize_table_identifier(LOADS_TABLE_NAME)
+        self.state_table_name = self.naming.normalize_table_identifier(STATE_TABLE_NAME)
         # data item normalization function
         self.data_item_normalizer = item_normalizer_class(self)
         self.data_item_normalizer.extend_schema()

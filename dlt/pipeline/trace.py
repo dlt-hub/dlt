@@ -3,15 +3,15 @@ import pickle
 import datetime  # noqa: 251
 import dataclasses
 from collections.abc import Sequence as C_Sequence
-from typing import Any, List, Tuple, NamedTuple, Optional, Protocol, Sequence
+from typing import Any, List,  NamedTuple, Optional, Protocol, Sequence
 import humanize
 
 from dlt.common import pendulum
 from dlt.common.runtime.logger import suppress_and_warn
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.utils import _RESOLVED_TRACES
-from dlt.common.pipeline import ExtractDataInfo, SupportsPipeline
-from dlt.common.typing import StrAny
+from dlt.common.pipeline import ExtractDataInfo, ExtractInfo, LoadInfo, NormalizeInfo, SupportsPipeline
+from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
 
 from dlt.extract.source import DltResource, DltSource
@@ -45,8 +45,7 @@ class SerializableResolvedValueTrace(NamedTuple):
 
 
 @dataclasses.dataclass(init=True)
-class PipelineStepTrace:
-    """Trace of particular pipeline step, contains timing information, the step outcome info or exception in case of failing step"""
+class _PipelineStepTrace:
     span_id: str
     step: TPipelineStep
     started_at: datetime.datetime
@@ -78,6 +77,17 @@ class PipelineStepTrace:
         return self.asstr(verbosity=0)
 
 
+class PipelineStepTrace(_PipelineStepTrace):
+    """Trace of particular pipeline step, contains timing information, the step outcome info or exception in case of failing step with custom asdict()"""
+    def asdict(self) -> DictStrAny:
+        """A dictionary representation of PipelineStepTrace that can be loaded with `dlt`"""
+        d = dataclasses.asdict(self)
+        if self.step_info:
+            # name property depending on step name - generates nicer data
+            d[f"{self.step}_info"] = d.pop("step_info")
+        return d
+
+
 @dataclasses.dataclass(init=True)
 class PipelineTrace:
     """Pipeline runtime trace containing data on "extract", "normalize" and "load" steps and resolved config and secret values."""
@@ -106,6 +116,33 @@ class PipelineTrace:
         if len(self.steps) > 0:
             msg += "\n" + "\n\n".join([s.asstr(verbosity) for s in self.steps])
         return msg
+
+    def last_pipeline_step_trace(self, step_name: TPipelineStep) -> PipelineStepTrace:
+        for step in self.steps:
+            if step.step == step_name:
+                return step
+        return None
+
+    @property
+    def last_extract_info(self) -> ExtractInfo:
+        step_trace = self.last_pipeline_step_trace("extract")
+        if step_trace and isinstance(step_trace.step_info, ExtractInfo):
+            return step_trace.step_info
+        return None
+
+    @property
+    def last_normalize_info(self) -> NormalizeInfo:
+        step_trace = self.last_pipeline_step_trace("normalize")
+        if step_trace and isinstance(step_trace.step_info, NormalizeInfo):
+            return step_trace.step_info
+        return None
+
+    @property
+    def last_load_info(self) -> LoadInfo:
+        step_trace = self.last_pipeline_step_trace("load")
+        if step_trace and isinstance(step_trace.step_info, LoadInfo):
+            return step_trace.step_info
+        return None
 
     def __str__(self) -> str:
         return self.asstr(verbosity=0)

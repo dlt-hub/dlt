@@ -5,7 +5,8 @@ import pytest
 
 from dlt.common.runners import Venv
 from dlt.common.utils import (graph_find_scc_nodes, flatten_list_of_str_or_dicts, digest128, graph_edges_to_nodes, map_nested_in_place,
-                              reveal_pseudo_secret, obfuscate_pseudo_secret, get_module_name, concat_strings_with_limit)
+                              reveal_pseudo_secret, obfuscate_pseudo_secret, get_module_name, concat_strings_with_limit, increase_row_count,
+                              merge_row_count, extend_list_deduplicated)
 
 
 def test_flatten_list_of_str_or_dicts() -> None:
@@ -125,3 +126,61 @@ def test_graph_edges_to_nodes() -> None:
     assert graph_edges_to_nodes([]) == {}
     # ignores double edge
     assert graph_edges_to_nodes([('A', 'B'), ('A', 'B')]) == {'A': {'B'}, 'B': set()}
+
+
+def test_increase_row_counts() -> None:
+    counts = {}
+    increase_row_count(counts, "table1", 1)
+    increase_row_count(counts, "table2", 0)
+    increase_row_count(counts, "table3", 10)
+
+    assert counts == {
+        "table1": 1,
+        "table2": 0,
+        "table3": 10
+    }
+
+    increase_row_count(counts, "table1", 2)
+    increase_row_count(counts, "table2", 3)
+    increase_row_count(counts, "table3", 4)
+
+    assert counts == {
+        "table1": 3,
+        "table2": 3,
+        "table3": 14
+    }
+
+
+def test_merge_row_counts() -> None:
+    rc1 = {
+        "table1": 3,
+        "table2": 3,
+    }
+
+    merge_row_count(rc1, {
+        "table2": 5,
+        "table3": 20,
+    })
+    assert rc1 == {
+        "table1": 3,
+        "table2": 8,
+        "table3": 20
+    }
+    merge_row_count(rc1, {
+        "table2": 5,
+        "table3": 20,
+        "table4": 2
+    })
+    assert rc1 == {
+        "table1": 3,
+        "table2": 13,
+        "table3": 40,
+        "table4": 2
+    }
+
+
+def test_extend_list_deduplicated() -> None:
+    assert extend_list_deduplicated(["one", "two", "three"], ["four", "five", "six"]) == ["one", "two", "three", "four", "five", "six"]
+    assert extend_list_deduplicated(["one", "two", "three", "six"], ["two", "four", "five", "six"]) == ["one", "two", "three", "six", "four", "five"]
+    assert extend_list_deduplicated(["one", "two", "three"], ["one", "two", "three"]) == ["one", "two", "three"]
+    assert extend_list_deduplicated([], ["one", "two", "three"]) == ["one", "two", "three"]

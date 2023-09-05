@@ -9,6 +9,7 @@ from dlt.common.runtime.telemetry import with_telemetry
 
 try:
     from airflow.configuration import conf
+    from airflow.models import TaskInstance
     from airflow.utils.task_group import TaskGroup
     from airflow.operators.python import PythonOperator
     from airflow.operators.python import get_current_context
@@ -177,7 +178,7 @@ class PipelineTasksGroup(TaskGroup):
 
                     # use task logger
                     if self.use_task_logger:
-                        ti = get_current_context()["ti"]
+                        ti: TaskInstance = get_current_context()["ti"]  # type: ignore
                         logger.LOGGER = ti.log
 
                     # set global number of buffered items

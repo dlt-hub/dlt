@@ -31,13 +31,14 @@ from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_UPDATE, TABLE_ROW_ALL
 # bucket urls
 AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
 GCS_BUCKET = dlt.config.get("tests.bucket_url_gs", str)
+AZ_BUCKET = dlt.config.get("tests.bucket_url_az", str)
 FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
 
-ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or ["s3", "gs", "file", "memory"]
+ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or ["s3", "gs", "az", "file", "memory"]
 
 # Filter out buckets not in all filesystem drivers
-ALL_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET]
+ALL_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET]
 ALL_BUCKETS = [bucket for bucket in ALL_BUCKETS if bucket.split(':')[0] in ALL_FILESYSTEM_DRIVERS]
 
 @dataclass
@@ -85,11 +86,12 @@ class DestinationTestConfiguration:
 
 def destinations_configs(
         default_sql_configs: bool = False,
+        default_vector_configs: bool = False,
         default_staging_configs: bool = False,
         all_staging_configs: bool = False,
         local_filesystem_configs: bool = False,
         all_buckets_filesystem_configs: bool = False,
-        subset: List[str] = "") -> Iterator[DestinationTestConfiguration]:
+        subset: Sequence[str] = ()) -> List[DestinationTestConfiguration]:
 
     # sanity check
     for item in subset:
@@ -104,6 +106,11 @@ def destinations_configs(
         # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
         destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
 
+    if default_vector_configs:
+        # for now only weaviate
+        destination_configs += [DestinationTestConfiguration(destination="weaviate")]
+
+
     if default_staging_configs or all_staging_configs:
         destination_configs += [
             DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, supports_merge=False),
@@ -111,7 +118,9 @@ def destinations_configs(
             DestinationTestConfiguration(destination="bigquery", staging="filesystem", file_format="parquet", bucket_url=GCS_BUCKET, extra_info="gcs-authorization"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, stage_name="PUBLIC.dlt_gcs_stage", extra_info="gcs-integration"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AWS_BUCKET, extra_info="s3-integration"),
-            DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AWS_BUCKET, stage_name="PUBLIC.dlt_s3_stage", extra_info="s3-integration")
+            DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AWS_BUCKET, stage_name="PUBLIC.dlt_s3_stage", extra_info="s3-integration"),
+            DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AZ_BUCKET, stage_name="PUBLIC.dlt_az_stage", extra_info="az-integration"),
+            DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AZ_BUCKET, extra_info="az-authorization"),
         ]
 
     if all_staging_configs:
@@ -142,9 +151,17 @@ def destinations_configs(
     return destination_configs
 
 
+def get_normalized_dataset_name(client: JobClientBase) -> str:
+    if isinstance(client.config, DestinationClientDwhConfiguration):
+        return client.config.normalize_dataset_name(client.schema)
+    else:
+        raise TypeError(f"{type(client)} client has configuration {type(client.config)} that does not support dataset name")
+
+
 def load_table(name: str) -> TTableSchemaColumns:
     with open(f"./tests/load/cases/{name}.json", "rb") as f:
         return cast(TTableSchemaColumns, json.load(f))
+
 
 def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
     file_name = ParsedLoadJobFileName(table_name, uniq_id(), 0, client.capabilities.preferred_loader_file_format).job_id()
@@ -160,7 +177,7 @@ def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: st
 
 def prepare_table(client: JobClientBase, case_name: str = "event_user", table_name: str = "event_user", make_uniq_table: bool = True) -> None:
     client.schema.bump_version()
-    client.update_storage_schema()
+    client.update_stored_schema()
     user_table = load_table(case_name)[table_name]
     if make_uniq_table:
         user_table_name = table_name + uniq_id()
@@ -168,7 +185,7 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
         user_table_name = table_name
     client.schema.update_schema(new_table(user_table_name, columns=user_table.values()))
     client.schema.bump_version()
-    client.update_storage_schema()
+    client.update_stored_schema()
     return user_table_name
 
 def yield_client(

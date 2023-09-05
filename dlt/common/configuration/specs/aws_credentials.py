@@ -35,25 +35,39 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
 
     def on_partial(self) -> None:
         # Try get default credentials
-        session = self._to_session()
+        session = self._to_botocore_session()
         if self._from_session(session) and not self.is_partial():
             self.resolve()
 
-    def _to_session(self) -> Any:
+    def _to_botocore_session(self) -> Any:
         try:
-            import boto3
+            import botocore.session
         except ModuleNotFoundError:
             raise MissingDependencyException(self.__class__.__name__, [f"{version.DLT_PKG_NAME}[s3]"])
-        return boto3.Session(**self.to_native_representation())  # type: ignore
+
+        # taken from boto3 Session
+        session = botocore.session.get_session()
+        if self.profile_name is not None:
+            session.set_config_variable('profile', self.profile_name)
+
+        if self.aws_access_key_id or self.aws_secret_access_key or self.aws_session_token:
+            session.set_credentials(
+                self.aws_access_key_id, self.aws_secret_access_key, self.aws_session_token
+            )
+        if self.region_name is not None:
+            session.set_config_variable('region', self.region_name)
+        return session
 
     def _from_session(self, session: Any) -> Any:
-        """Sets the credentials properties from boto3 `session` and return session's credentials if found"""
-        import boto3
-        assert isinstance(session, boto3.Session)
+        """Sets the credentials properties from botocore or boto3 `session` and return session's credentials if found"""
+        import botocore.session
+        if not isinstance(session, botocore.session.Session):
+            # assume this is boto3 session
+            session = session._session
         # NOTE: we do not set profile name from boto3 session
         # we either pass it explicitly in `_to_session` so we know it is identical
-        # or we make boto3 to guess it which results in wrong values for SSO credential
-        self.region_name = session.region_name
+        # this is what boto3 does: return self._session.profile or 'default' which is obviously wrong (returning default when there's no session)
+        self.region_name = session.get_config_variable('region')
         default = session.get_credentials()
         if not default:
             return None
@@ -63,16 +77,12 @@ class AwsCredentials(AwsCredentialsWithoutDefaults, CredentialsWithDefault):
         return default
 
     def to_native_credentials(self) -> Optional[Any]:
-        return self._to_session().get_credentials()
+        return self._to_botocore_session().get_credentials()
 
     def parse_native_representation(self, native_value: Any) -> None:
-        """Import external boto session"""
+        """Import external boto3 session"""
         try:
-            import boto3
-            if isinstance(native_value, boto3.Session):
-                if self._from_session(native_value):
-                    self.__is_resolved__ = True
-            else:
-                raise InvalidBoto3Session(self.__class__, native_value)
-        except ImportError:
-            pass
+            if self._from_session(native_value):
+                self.__is_resolved__ = True
+        except Exception:
+            raise InvalidBoto3Session(self.__class__, native_value)

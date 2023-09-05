@@ -120,7 +120,7 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
         self.end_out_of_range: bool = False
         """Becomes true on the first item that is out of range of `end_value`. I.e. when using `max` function this means a value that is equal or higher"""
         self.start_out_of_range: bool = False
-        """Becomes true on the first item that is out of range of `initial_value`. I.e. when using `max` this is a value that is lower than `initial_value`"""
+        """Becomes true on the first item that is out of range of `start_value`. I.e. when using `max` this is a value that is lower than `start_value`"""
 
     @classmethod
     def from_existing_state(cls, resource_name: str, cursor_path: str) -> "Incremental[TCursorValue]":

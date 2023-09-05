@@ -41,7 +41,7 @@ def pseudonymize_name(doc):
     return doc
 
 # run it as is
-for row in dummy_source().dummy_data().add_map(pseudonymize_name):
+for row in dummy_source().dummy_data.add_map(pseudonymize_name):
     print(row)
 
 #{'id': 0, 'name': '96259edb2b28b48bebce8278c550e99fbdc4a3fac8189e6b90f183ecff01c442'}
@@ -53,7 +53,7 @@ for row in dummy_source().dummy_data().add_map(pseudonymize_name):
 # 1. Create an instance of the source so you can edit it.
 data_source = dummy_source()
 # 2. Modify this source instance's resource
-data_source = data_source.dummy_data().add_map(pseudonymize_name)
+data_source = data_source.dummy_data.add_map(pseudonymize_name)
 # 3. Inspect your result
 for row in data_source:
     print(row)

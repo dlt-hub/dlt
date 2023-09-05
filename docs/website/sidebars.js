@@ -15,31 +15,8 @@
 const sidebars = {
   tutorialSidebar: [
     'intro',
-    {
-      type: 'category',
-      label: 'Getting Started',
-      link: {
-        type: 'generated-index',
-        title: 'Getting Started',
-        description: 'Learn how to get started with using dlt',
-        slug: 'getting-started',
-        keywords: ['getting started'],
-      },
-      items: [
-        'getting-started/try-in-colab',
-        'getting-started/build-a-data-pipeline',
-        'getting-started/use-an-existing-source',
-        {
-          type: 'category',
-          label: 'Build a data platform',
-          items: [
-            'getting-started/build-a-data-platform/where-does-dlt-fit',
-            'getting-started/build-a-data-platform/building-data-warehouse',
-            'getting-started/build-a-data-platform/build-structured-data-lakehouse',
-          ]
-        },
-      ],
-    },
+    'getting-started',
+    'build-a-pipeline-tutorial',
     {
       type: 'category',
       label: 'dlt Ecosystem',
