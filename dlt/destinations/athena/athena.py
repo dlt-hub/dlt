@@ -16,6 +16,7 @@ from dlt.common import logger
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import LoadJob
 from dlt.common.destination.reference import TLoadJobState
@@ -24,7 +25,7 @@ from dlt.common.data_writers.escape import escape_bigquery_identifier
 
 
 from dlt.destinations.typing import DBApi, DBTransaction
-from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation, LoadJobTerminalException
 from dlt.destinations.athena import capabilities
 from dlt.destinations.sql_client import SqlClientBase, DBApiCursorImpl, raise_database_error, raise_open_connection_error
 from dlt.destinations.typing import DBApiCursor
@@ -42,7 +43,7 @@ SCT_TO_HIVET: Dict[TDataType, str] = {
     "bigint": "bigint",
     "binary": "binary",
     "decimal": "decimal(%i,%i)",
-    "time": "time"
+    "time": "string"
 }
 
 HIVET_TO_SCT: Dict[str, TDataType] = {
@@ -55,7 +56,6 @@ HIVET_TO_SCT: Dict[str, TDataType] = {
     "binary": "binary",
     "varbinary": "binary",
     "decimal": "decimal",
-    "time": "time"
 }
 
 
@@ -321,6 +321,11 @@ class AthenaClient(SqlJobClientBase):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
+        if table_schema_has_type(table, "time"):
+            raise LoadJobTerminalException(
+                file_path,
+                "Athena cannot load TIME columns from parquet tables. Please convert `datetime.time` objects in your data to `str` or `datetime.datetime`."
+            )
         job = super().start_file_load(table, file_path, load_id)
         if not job:
             job = DoNothingJob(file_path)

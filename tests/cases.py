@@ -1,6 +1,7 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Sequence, Tuple
 import base64
 from hexbytes import HexBytes
+from copy import deepcopy
 
 from dlt.common import Decimal, pendulum, json
 from dlt.common.data_types import TDataType
@@ -194,42 +195,70 @@ TABLE_ROW_ALL_DATA_TYPES  = {
 }
 
 
+def table_update_and_row(exclude_types: Sequence[TDataType] = None) -> Tuple[TTableSchemaColumns, StrAny]:
+    """Get a table schema and a row with all possible data types.
+    Optionally exclude some data types from the schema and row.
+    """
+    column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
+    data_row = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
+    if exclude_types:
+        exclude_col_names = [key for key, value in column_schemas.items() if value["data_type"] in exclude_types]
+        for col_name in exclude_col_names:
+            del column_schemas[col_name]
+            del data_row[col_name]
+    return column_schemas, data_row
+
+
 def assert_all_data_types_row(
     db_row: List[Any],
     parse_complex_strings: bool = False,
     allow_base64_binary: bool = False,
-    timestamp_precision:int = 6
+    timestamp_precision:int = 6,
+    schema: TTableSchemaColumns = None,
 ) -> None:
     # content must equal
     # print(db_row)
+    schema = schema or TABLE_UPDATE_COLUMNS_SCHEMA
+
+    # Include only columns requested in schema
+    db_mapping = {col_name: db_row[i] for i, col_name in enumerate(schema)}
+    expected_rows = {key: value for key, value in TABLE_ROW_ALL_DATA_TYPES.items() if key in schema}
     # prepare date to be compared: convert into pendulum instance, adjust microsecond precision
-    expected_rows = list(TABLE_ROW_ALL_DATA_TYPES.values())
-    parsed_date = pendulum.instance(db_row[3])
-    db_row[3] = reduce_pendulum_datetime_precision(parsed_date, timestamp_precision)
-    expected_rows[3] = reduce_pendulum_datetime_precision(ensure_pendulum_datetime(expected_rows[3]), timestamp_precision)
+    if "col4" in expected_rows:
+        parsed_date = pendulum.instance(db_mapping["col4"])
+        db_mapping["col4"] = reduce_pendulum_datetime_precision(parsed_date, timestamp_precision)
+        expected_rows['col4'] = reduce_pendulum_datetime_precision(
+            ensure_pendulum_datetime(expected_rows["col4"]),  # type: ignore[arg-type]
+            timestamp_precision
+        )
 
-    if isinstance(db_row[6], str):
-        try:
-            db_row[6] = bytes.fromhex(db_row[6])  # redshift returns binary as hex string
-        except ValueError:
-            if not allow_base64_binary:
-                raise
-            db_row[6] = base64.b64decode(db_row[6], validate=True)
-    else:
-        db_row[6] = bytes(db_row[6])
+    # binary column
+    if "col7" in db_mapping:
+        if isinstance(db_mapping["col7"], str):
+            try:
+                db_mapping["col7"] = bytes.fromhex(db_mapping["col7"])  # redshift returns binary as hex string
+            except ValueError:
+                if not allow_base64_binary:
+                    raise
+                db_mapping["col7"] = base64.b64decode(db_mapping["col7"], validate=True)
+        else:
+            db_mapping["col7"] = bytes(db_mapping["col7"])
+
     # redshift and bigquery return strings from structured fields
-    if isinstance(db_row[8], str):
-        # then it must be json
-        db_row[8] = json.loads(db_row[8])
-    # parse again
-    if parse_complex_strings and isinstance(db_row[8], str):
-        # then it must be json
-        db_row[8] = json.loads(db_row[8])
+    if "col9" in db_mapping:
+        if isinstance(db_mapping["col9"], str):
+            # then it must be json
+            db_mapping["col9"] = json.loads(db_mapping["col9"])
+        # parse again
+        if parse_complex_strings and isinstance(db_mapping["col9"], str):
+            # then it must be json
+            db_mapping["col9"] = json.loads(db_mapping["col9"])
 
-    db_row[9] = db_row[9].isoformat()
-    db_row[10] = db_row[10].isoformat()
-    # print(db_row)
-    # print(expected_rows)
-    for expected, actual in zip(expected_rows, db_row):
+    if "col10" in db_mapping:
+        db_mapping["col10"] = db_mapping["col10"].isoformat()
+    if "col11" in db_mapping:
+        db_mapping["col11"] = db_mapping["col11"].isoformat()
+
+    for expected, actual in zip(expected_rows.values(), db_mapping.values()):
         assert expected == actual
-    assert db_row == expected_rows
+    assert db_mapping == expected_rows

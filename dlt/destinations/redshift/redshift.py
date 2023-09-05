@@ -42,7 +42,7 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "bigint": "bigint",
     "binary": "varbinary",
     "decimal": "numeric(%i,%i)",
-    "time": "time without time zone"
+    "time": "time with time zone"
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
@@ -55,7 +55,7 @@ PGT_TO_SCT: Dict[str, TDataType] = {
     "bigint": "bigint",
     "binary varying": "binary",
     "numeric": "decimal",
-    "time without time zone": "time"
+    "time with time zone": "time"
 }
 
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
@@ -109,7 +109,9 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         dateformat = ""
         compression = ""
         if table_schema_has_type(table, "time"):
-            raise LoadJobTerminalException(self.file_name(), "Redshift cannot load TIME columns from load files.")
+            raise LoadJobTerminalException(
+                self.file_name(), "Redshift cannot load TIME columns from staged files."
+            )
         if ext == "jsonl":
             if table_schema_has_type(table, "binary"):
                 raise LoadJobTerminalException(self.file_name(), "Redshift cannot load VARBYTE columns from json files. Switch to parquet to load binaries.")
