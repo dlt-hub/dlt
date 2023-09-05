@@ -94,7 +94,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     pipeline = destination_config.setup_pipeline('test_stage_loading', dataset_name="test_all_data_types" + uniq_id())
 
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
-    if destination_config.destination == "redshift" and destination_config.file_format in ('parquet', 'jsonl'):
+    if destination_config.destination in ("redshift", "athena") and destination_config.file_format in ('parquet', 'jsonl'):
         # Redshift copy doesn't support TIME column
         column_schemas, data_types = table_update_and_row(exclude_types=['time'])
     else:
