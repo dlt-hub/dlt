@@ -14,7 +14,7 @@ class MsSqlCredentials(ConnectionStringCredentials):
     drivername: Final[str] = "mssqlql"  # type: ignore
     password: TSecretValue
     host: str
-    port: int = 5432
+    port: int = 1433
     connect_timeout: int = 15
 
     __config_gen_annotations__: ClassVar[List[str]] = ["port", "connect_timeout"]

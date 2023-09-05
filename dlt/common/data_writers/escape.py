@@ -58,6 +58,20 @@ def escape_duckdb_literal(v: Any) -> Any:
     return str(v)
 
 
+def escape_mssql_literal(v: Any) -> Any:
+    if isinstance(v, str):
+        return _escape_extended(v, prefix="'")
+    if isinstance(v, (datetime, date)):
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return _escape_extended(json.dumps(v), prefix="'")
+    if isinstance(v, bytes):
+        return f"CONVERT(VARBINARY, '0x{v.hex()}')"
+    if isinstance(v, bool):
+        return str(int(v))
+    return str(v)
+
+
 def escape_redshift_identifier(v: str) -> str:
     return '"' + v.replace('"', '""').replace("\\", "\\\\") + '"'
 

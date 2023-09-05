@@ -18,26 +18,25 @@ from dlt.destinations.sql_client import SqlClientBase
 
 
 SCT_TO_PGT: Dict[TDataType, str] = {
-    "complex": "jsonb",
+    "complex": "nvarchar(max)",
     "text": "nvarchar(max)",
     "double": "float",
-    "bool": "boolean",
+    "bool": "bit",
     "timestamp": "datetimeoffset",
     "date": "date",
     "bigint": "bigint",
-    "binary": "bytea",
+    "binary": "varbinary(max)",
     "decimal": "decimal(%i,%i)"
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
     "nvarchar": "text",
-    "jsonb": "complex",
     "float": "double",
-    "boolean": "bool",
+    "bit": "bool",
     "datetimeoffset": "timestamp",
     "date": "date",
     "bigint": "bigint",
-    "bytea": "binary",
+    "varbinary": "binary",
     "decimal": "decimal"
 }
 

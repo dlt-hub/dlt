@@ -3,7 +3,7 @@ from typing import Type
 from dlt.common.schema.schema import Schema
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
-from dlt.common.data_writers.escape import escape_postgres_identifier, escape_postgres_literal
+from dlt.common.data_writers.escape import escape_postgres_identifier, escape_mssql_literal
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
@@ -25,9 +25,9 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.preferred_staging_file_format = None
     caps.supported_staging_file_formats = []
     caps.escape_identifier = escape_postgres_identifier
-    caps.escape_literal = escape_postgres_literal
+    caps.escape_literal = escape_mssql_literal
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
-    caps.wei_precision = (2*EVM_DECIMAL_PRECISION, EVM_DECIMAL_PRECISION)
+    caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
     caps.max_identifier_length = 63
     caps.max_column_identifier_length = 63
     caps.max_query_length = 32 * 1024 * 1024
