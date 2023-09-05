@@ -87,7 +87,7 @@ class CopyRemoteFileLoadJob(LoadJob, FollowupJob):
 
 class SqlJobClientBase(JobClientBase, WithStateSync):
 
-    VERSION_TABLE_SCHEMA_COLUMNS: ClassVar[str] = "version_hash, schema_name, version, engine_version, inserted_at, schema"
+    VERSION_TABLE_SCHEMA_COLUMNS: ClassVar[str] = 'version_hash, schema_name, version, engine_version, inserted_at, "schema"'
     STATE_TABLE_COLUMNS: ClassVar[str] = "version, engine_version, pipeline_name, state, created_at, _dlt_load_id"
 
     def __init__(self, schema: Schema, config: DestinationClientConfiguration,  sql_client: SqlClientBase[TNativeConn]) -> None:
