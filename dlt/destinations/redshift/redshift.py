@@ -42,7 +42,7 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "bigint": "bigint",
     "binary": "varbinary",
     "decimal": "numeric(%i,%i)",
-    "time": "time with time zone"
+    "time": "time"
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
@@ -55,7 +55,7 @@ PGT_TO_SCT: Dict[str, TDataType] = {
     "bigint": "bigint",
     "binary varying": "binary",
     "numeric": "decimal",
-    "time with time zone": "time"
+    "time": "time"
 }
 
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
