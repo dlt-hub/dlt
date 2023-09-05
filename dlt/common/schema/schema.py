@@ -201,7 +201,9 @@ class Schema:
         overide_modes = resolve_single(schema_evolution_settings_override)
 
         # resolve to correct settings dict
-        return {**DEFAULT_SCHEMA_EVOLUTION_MODES, **schema_evolution_modes, **table_evolution_modes, **overide_modes}  # type: ignore
+        settings = cast(TSchemaEvolutionModes, {**DEFAULT_SCHEMA_EVOLUTION_MODES, **schema_evolution_modes, **table_evolution_modes, **overide_modes})
+
+        return settings
 
 
     def check_schema_update(self, parent_table: str, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema, schema_evolution_settings_override: TSchemaEvolutionSettings) -> Tuple[DictStrAny, TPartialTableSchema]:
@@ -236,7 +238,6 @@ class Schema:
             for item in list(row.keys()):
                 # if this is a new column for an existing table...
                 if table_exists and item not in self.tables[table_name]["columns"]:
-                    print("in_here " + item)
                     is_variant = item in partial_table["columns"] and partial_table["columns"][item].get("variant")
                     if evolution_modes["column"] == "freeze-and-trim" or (is_variant and evolution_modes["column_variant"] == "freeze-and-trim"):
                         row.pop(item)

@@ -459,7 +459,7 @@ class Pipeline(SupportsPipeline):
 
         # normalize and load pending data
         if self.list_extracted_resources():
-            self.normalize(loader_file_format=loader_file_format)
+            self.normalize(loader_file_format=loader_file_format, schema_evolution_settings=schema_evolution_settings)
         if self.list_normalized_load_packages():
             # if there were any pending loads, load them and **exit**
             if data is not None:

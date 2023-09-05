@@ -26,7 +26,7 @@ from dlt.normalize.configuration import NormalizeConfiguration
 # normalize worker wrapping function (map_parallel, map_single) return type
 TMapFuncRV = Tuple[Sequence[TSchemaUpdate], TRowCount]
 # normalize worker wrapping function signature
-TMapFuncType = Callable[[Schema, str, Sequence[str]], TMapFuncRV]  # input parameters: (schema name, load_id, list of files to process)
+TMapFuncType = Callable[[Schema, str, Sequence[str], TSchemaEvolutionSettings], TMapFuncRV]  # input parameters: (schema name, load_id, list of files to process)
 # tuple returned by the worker
 TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str], TRowCount]
 
