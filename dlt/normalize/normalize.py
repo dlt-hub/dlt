@@ -11,7 +11,7 @@ from dlt.common.json import custom_pua_decode
 from dlt.common.runners import TRunMetrics, Runnable
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
+from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns, TSchemaEvolutionSettings
 from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage, LoadStorageConfiguration, NormalizeStorageConfiguration
@@ -34,7 +34,7 @@ TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str], TRowCount]
 class Normalize(Runnable[ProcessPool]):
 
     @with_config(spec=NormalizeConfiguration, sections=(known_sections.NORMALIZE,))
-    def __init__(self, collector: Collector = NULL_COLLECTOR, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = config.value) -> None:
+    def __init__(self, collector: Collector = NULL_COLLECTOR, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = config.value, schema_evolution_settings: TSchemaEvolutionSettings = None) -> None:
         self.config = config
         self.collector = collector
         self.pool: ProcessPool = None
@@ -42,6 +42,7 @@ class Normalize(Runnable[ProcessPool]):
         self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
         self._row_counts: TRowCount = {}
+        self.schema_evolution_settings = schema_evolution_settings
 
         # setup storages
         self.create_storages()
@@ -73,6 +74,7 @@ class Normalize(Runnable[ProcessPool]):
             stored_schema: TStoredSchema,
             load_id: str,
             extracted_items_files: Sequence[str],
+            schema_evolution_settings: TSchemaEvolutionSettings
         ) -> TWorkerRV:
         schema_updates: List[TSchemaUpdate] = []
         total_items = 0
@@ -97,7 +99,7 @@ class Normalize(Runnable[ProcessPool]):
                         items_count = 0
                         for line_no, line in enumerate(f):
                             items: List[TDataItem] = json.loads(line)
-                            partial_update, items_count, r_counts = Normalize._w_normalize_chunk(load_storage, schema, load_id, root_table_name, items)
+                            partial_update, items_count, r_counts = Normalize._w_normalize_chunk(load_storage, schema, load_id, root_table_name, items, schema_evolution_settings)
                             schema_updates.append(partial_update)
                             total_items += items_count
                             merge_row_count(row_counts, r_counts)
@@ -126,7 +128,7 @@ class Normalize(Runnable[ProcessPool]):
         return schema_updates, total_items, load_storage.closed_files(), row_counts
 
     @staticmethod
-    def _w_normalize_chunk(load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem]) -> Tuple[TSchemaUpdate, int, TRowCount]:
+    def _w_normalize_chunk(load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem], schema_evolution_settings: TSchemaEvolutionSettings) -> Tuple[TSchemaUpdate, int, TRowCount]:
         column_schemas: Dict[str, TTableSchemaColumns] = {}  # quick access to column schema for writers below
         schema_update: TSchemaUpdate = {}
         schema_name = schema.name
@@ -147,7 +149,7 @@ class Normalize(Runnable[ProcessPool]):
                 row, partial_table = schema.coerce_row(table_name, parent_table, row)
                 # if we detect a migration, the check update
                 if partial_table:
-                    row, partial_table = schema.check_schema_update(parent_table, table_name, row, partial_table)
+                    row, partial_table = schema.check_schema_update(parent_table, table_name, row, partial_table, schema_evolution_settings)
                 if not row:
                     continue
 
@@ -198,12 +200,12 @@ class Normalize(Runnable[ProcessPool]):
             l_idx = idx + 1
         return chunk_files
 
-    def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
+    def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str], schema_evolution_settings: TSchemaEvolutionSettings) -> TMapFuncRV:
         workers = self.pool._processes  # type: ignore
         chunk_files = self.group_worker_files(files, workers)
         schema_dict: TStoredSchema = schema.to_dict()
         config_tuple = (self.normalize_storage.config, self.load_storage.config, self.config.destination_capabilities, schema_dict)
-        param_chunk = [[*config_tuple, load_id, files] for files in chunk_files]
+        param_chunk = [[*config_tuple, load_id, files, schema_evolution_settings] for files in chunk_files]
         tasks: List[Tuple[AsyncResult[TWorkerRV], List[Any]]] = []
         row_counts: TRowCount = {}
 
@@ -253,7 +255,7 @@ class Normalize(Runnable[ProcessPool]):
 
         return schema_updates, row_counts
 
-    def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
+    def map_single(self, schema: Schema, load_id: str, files: Sequence[str], schema_evolution_settings: TSchemaEvolutionSettings) -> TMapFuncRV:
         result = Normalize.w_normalize_files(
             self.normalize_storage.config,
             self.load_storage.config,
@@ -261,6 +263,7 @@ class Normalize(Runnable[ProcessPool]):
             schema.to_dict(),
             load_id,
             files,
+            schema_evolution_settings
         )
         self.update_schema(schema, result[0])
         self.collector.update("Files", len(result[2]))
@@ -271,7 +274,7 @@ class Normalize(Runnable[ProcessPool]):
         schema = Normalize.load_or_create_schema(self.schema_storage, schema_name)
 
         # process files in parallel or in single thread, depending on map_f
-        schema_updates, row_counts = map_f(schema, load_id, files)
+        schema_updates, row_counts = map_f(schema, load_id, files, self.schema_evolution_settings)
         # logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
         if len(schema_updates) > 0:
             logger.info(f"Saving schema {schema_name} with version {schema.version}, writing manifest files")

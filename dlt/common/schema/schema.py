@@ -184,27 +184,27 @@ class Schema:
 
         return new_row, updated_table_partial
 
-    def resolve_evolution_settings_for_table(self, parent_table: str, table_name: str) -> TSchemaEvolutionModes:
+    def resolve_evolution_settings_for_table(self, parent_table: str, table_name: str, schema_evolution_settings_override: TSchemaEvolutionSettings) -> TSchemaEvolutionModes:
+
+        def resolve_single(settings: TSchemaEvolutionSettings) -> TSchemaEvolutionModes:
+            settings = settings or {}
+            if isinstance(settings, str):
+                return TSchemaEvolutionModes(table=settings, column=settings, column_variant=settings)
+            return settings
+
         # find table settings
         table_with_settings = parent_table or table_name
-        table_evolution_settings = self.tables.get(table_with_settings, {}).get("schema_evolution_settings", {}) or {}
-        if isinstance(table_evolution_settings, str):
-            table_evolution_modes = TSchemaEvolutionModes(table=table_evolution_settings, column=table_evolution_settings, column_variant=table_evolution_settings)
-        else:
-            table_evolution_modes = table_evolution_settings
 
-        # find schema settings
-        schema_evolution_settings = self._settings.get("schema_evolution_settings", {}) or {}
-        if isinstance(schema_evolution_settings, str):
-            schema_evolution_modes = TSchemaEvolutionModes(table=schema_evolution_settings, column=schema_evolution_settings, column_variant=schema_evolution_settings)
-        else:
-            schema_evolution_modes = schema_evolution_settings
+        # modes
+        table_evolution_modes = resolve_single(self.tables.get(table_with_settings, {}).get("schema_evolution_settings", {}))
+        schema_evolution_modes = resolve_single(self._settings.get("schema_evolution_settings", {}))
+        overide_modes = resolve_single(schema_evolution_settings_override)
 
         # resolve to correct settings dict
-        return {**DEFAULT_SCHEMA_EVOLUTION_MODES, **schema_evolution_modes, **table_evolution_modes}  # type: ignore
+        return {**DEFAULT_SCHEMA_EVOLUTION_MODES, **schema_evolution_modes, **table_evolution_modes, **overide_modes}  # type: ignore
 
 
-    def check_schema_update(self, parent_table: str, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema) -> Tuple[DictStrAny, TPartialTableSchema]:
+    def check_schema_update(self, parent_table: str, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema, schema_evolution_settings_override: TSchemaEvolutionSettings) -> Tuple[DictStrAny, TPartialTableSchema]:
         """Checks if schema update mode allows for the requested changes, filter row or reject update, depending on the mode"""
 
         assert partial_table
@@ -214,7 +214,7 @@ class Schema:
         if not has_columns:
             return row, partial_table
 
-        evolution_modes = self.resolve_evolution_settings_for_table(parent_table, table_name)
+        evolution_modes = self.resolve_evolution_settings_for_table(parent_table, table_name, schema_evolution_settings_override)
 
         # default settings allow all evolutions, skipp all else
         if evolution_modes == DEFAULT_SCHEMA_EVOLUTION_MODES:

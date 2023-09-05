@@ -176,7 +176,7 @@ def extract_with_schema(
     schema: Schema,
     collector: Collector,
     max_parallel_items: int,
-    workers: int
+    workers: int,
 ) -> str:
     # generate extract_id to be able to commit all the sources together later
     extract_id = storage.create_extract_id()
