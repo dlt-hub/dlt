@@ -1,7 +1,6 @@
 import dlt, os, pytest
 from dlt.common.schema.typing import TSchemaEvolutionSettings
 from dlt.common.utils import uniq_id
-import duckdb
 from typing import Any
 from dlt.extract.source import DltSource, DltResource
 
@@ -114,20 +113,26 @@ def run_resource(pipeline, resource_fun, settings) -> DltSource:
     pipeline.run(source(), schema_evolution_settings=settings.get("override"))
 
     # check updated schema
-    # assert pipeline.default_schema._settings["schema_evolution_settings"] == (settings if settings_location == "source" else None)
+    assert pipeline.default_schema._settings["schema_evolution_settings"] == settings.get("source")
 
     # check items table settings
-    # assert pipeline.default_schema.tables["items"]["schema_evolution_settings"] == (settings if settings_location == "resource" else None)
+    assert pipeline.default_schema.tables["items"]["schema_evolution_settings"] == settings.get("resource")
+
+def get_pipeline():
+    import duckdb
+    return dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'), full_refresh=True)
+
 
 @pytest.mark.parametrize("evolution_setting", SCHEMA_EVOLUTION_SETTINGS)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
 def test_freeze_new_tables(evolution_setting: str, setting_location: str) -> None:
 
+    pipeline = get_pipeline()
+
     full_settings = {
         setting_location: {
         "table": evolution_setting
     }}
-    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'), full_refresh=True)
     run_resource(pipeline, items, full_settings)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
@@ -175,7 +180,7 @@ def test_freeze_new_columns(evolution_setting: str, setting_location: str) -> No
         "column": evolution_setting
     }}
 
-    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'))
+    pipeline = get_pipeline()
     run_resource(pipeline, items, full_settings)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
@@ -232,7 +237,7 @@ def test_freeze_variants(evolution_setting: str, setting_location: str) -> None:
         setting_location: {
         "column_variant": evolution_setting
     }}
-    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'))
+    pipeline = get_pipeline()
     run_resource(pipeline, items, full_settings)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
@@ -273,7 +278,7 @@ def test_freeze_variants(evolution_setting: str, setting_location: str) -> None:
 
 
 def test_settings_precedence() -> None:
-    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'))
+    pipeline = get_pipeline()
 
     # load some data
     run_resource(pipeline, items, {})
@@ -291,7 +296,7 @@ def test_settings_precedence() -> None:
 
 
 def test_settings_precedence_2() -> None:
-    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'))
+    pipeline = get_pipeline()
 
     # load some data
     run_resource(pipeline, items, {"source": {
@@ -326,14 +331,14 @@ def test_settings_precedence_2() -> None:
 
 @pytest.mark.parametrize("setting_location", LOCATIONS)
 def test_change_mode(setting_location: str) -> None:
-    pipeline = dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'))
+    pipeline = get_pipeline()
 
     # load some data
     run_resource(pipeline, items, {})
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
 
-    # trying to add variant when forbidden on source will fail
+    # trying to add variant when forbidden will fail
     run_resource(pipeline, items_with_variant, {setting_location: {
         "column_variant": "freeze-and-discard"
     }})
@@ -347,4 +352,26 @@ def test_change_mode(setting_location: str) -> None:
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 20
 
+@pytest.mark.parametrize("setting_location", LOCATIONS)
+def test_single_settings_value(setting_location: str) -> None:
+    pipeline = get_pipeline()
 
+    run_resource(pipeline, items, {})
+    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert table_counts["items"] == 10
+
+    # trying to add variant when forbidden will fail
+    run_resource(pipeline, items_with_variant, {setting_location: "freeze-and-discard"})
+    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert table_counts["items"] == 10
+
+    # trying to add new column will fail
+    run_resource(pipeline, items_with_new_column, {setting_location: "freeze-and-discard"})
+    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert table_counts["items"] == 10
+
+    # trying to add new table will fail
+    run_resource(pipeline, new_items, {setting_location: "freeze-and-discard"})
+    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert table_counts["items"] == 10
+    assert "new_items" not in table_counts
