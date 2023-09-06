@@ -123,10 +123,6 @@ class DltResourceSchema:
             if write_disposition:
                 t["write_disposition"] = write_disposition
             if columns is not None:
-                # ensure name attribute is set from key
-                if type(columns) is dict:
-                    for name, c in columns.items():
-                        c["name"] = name
                 t["columns"] = columns
             if primary_key is not None:
                 t["primary_key"] = primary_key
