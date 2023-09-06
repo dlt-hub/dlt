@@ -879,6 +879,7 @@ class Pipeline(SupportsPipeline):
         # note we are not merging props like max nesting or column propagation
         for table in source_schema.data_tables(include_incomplete=True):
             pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(table))
+            pipeline_schema._settings["schema_evolution_settings"] = source_schema._settings.get("schema_evolution_settings")
 
         return extract_id
 

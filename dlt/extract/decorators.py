@@ -119,7 +119,6 @@ def source(
     Returns:
         `DltSource` instance
     """
-
     if name and schema:
         raise ArgumentsOverloadException("'name' has no effect when `schema` argument is present", source.__name__)
 
