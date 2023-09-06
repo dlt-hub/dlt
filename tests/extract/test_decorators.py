@@ -194,6 +194,8 @@ def test_columns_argument() -> None:
     t = r.table_schema()
 
     assert t["columns"]["tags"]["x-second-extra"] == "x-second-annotation"
+    # make sure column name was set
+    assert t["columns"]["tags"]["name"] == "tags"
 
 
 def test_columns_from_pydantic() -> None:
