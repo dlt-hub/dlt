@@ -107,10 +107,8 @@ class PymssqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
-        # TODO: pyodb errors
-        return DatabaseTerminalException(ex)
         if isinstance(ex, pyodbc.ProgrammingError):
-            if ex.args[0] == 208:
+            if ex.args[0] == "42S02":
                 return DatabaseUndefinedRelation(ex)
         elif isinstance(ex, pyodbc.OperationalError):
             return DatabaseTransientException(ex)
