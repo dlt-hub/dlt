@@ -412,9 +412,8 @@ def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TPa
     if table.get('parent') is None and (resource := partial_table.get('resource')):
         table['resource'] = resource
 
-    partial_e_s = partial_table.get("schema_evolution_settings")
-    if partial_e_s:
-        table["schema_evolution_settings"] = partial_e_s
+    # always update evolution settings
+    table["schema_evolution_settings"] = partial_table.get("schema_evolution_settings")
 
     return diff_table
 
