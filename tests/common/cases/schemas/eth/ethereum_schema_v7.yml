@@ -1,5 +1,5 @@
 version: 14
-version_hash: MuiE8s34Wub6EKLDCIIygZ3nfwXgIwtNDiyji7A6pwY=
+version_hash: 0Z93TpKZOdz5UpHrSDMKdUMUpQld9aP/9ZFYPRAWOI4=
 engine_version: 7
 name: ethereum
 tables:
@@ -146,7 +146,7 @@ tables:
         name: schema
     write_disposition: skip
     description: Created by DLT. Tracks schema updates
-    schema_evolution_settings: {}
+    schema_evolution_settings: null
     name: _dlt_version
     resource: _dlt_version
   blocks:
@@ -410,7 +410,7 @@ tables:
         merge_key: false
         data_type: text
         name: transactions_root
-    schema_evolution_settings: {}
+    schema_evolution_settings: null
     name: blocks
     resource: blocks
   blocks__transactions:
@@ -680,7 +680,7 @@ tables:
         merge_key: false
         data_type: decimal
         name: eth_value
-    schema_evolution_settings: {}
+    schema_evolution_settings: null
     name: blocks__transactions
   blocks__transactions__logs:
     parent: blocks__transactions
@@ -805,7 +805,7 @@ tables:
         merge_key: false
         data_type: text
         name: transaction_hash
-    schema_evolution_settings: {}
+    schema_evolution_settings: null
     name: blocks__transactions__logs
   blocks__transactions__logs__topics:
     parent: blocks__transactions__logs
@@ -870,7 +870,7 @@ tables:
         merge_key: false
         data_type: text
         name: value
-    schema_evolution_settings: {}
+    schema_evolution_settings: null
     name: blocks__transactions__logs__topics
   blocks__transactions__access_list:
     parent: blocks__transactions
@@ -935,7 +935,7 @@ tables:
         merge_key: false
         data_type: text
         name: address
-    schema_evolution_settings: {}
+    schema_evolution_settings: null
     name: blocks__transactions__access_list
   blocks__transactions__access_list__storage_keys:
     parent: blocks__transactions__access_list
@@ -1000,7 +1000,7 @@ tables:
         merge_key: false
         data_type: text
         name: value
-    schema_evolution_settings: {}
+    schema_evolution_settings: null
     name: blocks__transactions__access_list__storage_keys
   blocks__uncles:
     parent: blocks
@@ -1065,7 +1065,7 @@ tables:
         merge_key: false
         data_type: text
         name: value
-    schema_evolution_settings: {}
+    schema_evolution_settings: null
     name: blocks__uncles
 settings:
   default_hints:
@@ -1087,7 +1087,7 @@ settings:
   preferred_types:
     timestamp: timestamp
     block_timestamp: timestamp
-  schema_evolution_settings: evolve
+  schema_evolution_settings: null
 normalizers:
   names: dlt.common.normalizers.names.snake_case
   json:

@@ -1,328 +1,1073 @@
-version: 11
-version_hash: GPHX4B+0xnRuGZM/w3UYVbldRyg8jSJp1G60K4RDcZg=
-engine_version: 5
+version: 14
+version_hash: 0Z93TpKZOdz5UpHrSDMKdUMUpQld9aP/9ZFYPRAWOI4=
+engine_version: 7
 name: ethereum
 tables:
   _dlt_loads:
+    name: _dlt_loads
     columns:
       load_id:
-        data_type: text
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        name: load_id
+        data_type: text
       schema_name:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        name: schema_name
+        data_type: text
       status:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        name: status
         data_type: bigint
-        nullable: false
       inserted_at:
-        data_type: timestamp
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        name: inserted_at
+        data_type: timestamp
+      schema_version_hash:
+        nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        name: schema_version_hash
+        data_type: text
     write_disposition: skip
+    resource: _dlt_loads
+    schema_evolution_settings: null
     description: Created by DLT. Tracks completed loads
   _dlt_version:
     columns:
       version:
-        data_type: bigint
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: bigint
+        name: version
       engine_version:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: bigint
-        nullable: false
+        name: engine_version
       inserted_at:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: timestamp
-        nullable: false
+        name: inserted_at
       schema_name:
-        data_type: text
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: schema_name
       version_hash:
-        data_type: text
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: version_hash
       schema:
-        data_type: text
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: schema
     write_disposition: skip
     description: Created by DLT. Tracks schema updates
+    schema_evolution_settings: null
+    name: _dlt_version
+    resource: _dlt_version
   blocks:
     description: Ethereum blocks
     x-annotation: this will be preserved on save
     write_disposition: append
-    table_sealed: true
     filters:
       includes: []
       excludes: []
     columns:
       _dlt_load_id:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         description: load id coming from the extractor
         data_type: text
-        nullable: false
+        name: _dlt_load_id
       _dlt_id:
+        nullable: false
+        partition: false
+        cluster: false
         unique: true
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: _dlt_id
       number:
-        primary_key: true
-        data_type: bigint
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: true
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: bigint
+        name: number
       parent_hash:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: parent_hash
       hash:
+        nullable: false
+        partition: false
         cluster: true
         unique: true
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: hash
       base_fee_per_gas:
-        data_type: wei
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: wei
+        name: base_fee_per_gas
       difficulty:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: wei
-        nullable: false
+        name: difficulty
       extra_data:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: extra_data
       gas_limit:
-        data_type: bigint
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: bigint
+        name: gas_limit
       gas_used:
-        data_type: bigint
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: bigint
+        name: gas_used
       logs_bloom:
+        nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: binary
-        nullable: true
+        name: logs_bloom
       miner:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: miner
       mix_hash:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: mix_hash
       nonce:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: nonce
       receipts_root:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: receipts_root
       sha3_uncles:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: sha3_uncles
       size:
-        data_type: bigint
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: bigint
+        name: size
       state_root:
-        data_type: text
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: state_root
       timestamp:
+        nullable: false
+        partition: false
+        cluster: false
         unique: true
         sort: true
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: timestamp
-        nullable: false
+        name: timestamp
       total_difficulty:
-        data_type: wei
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: wei
+        name: total_difficulty
       transactions_root:
-        data_type: text
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: transactions_root
+    schema_evolution_settings: null
+    name: blocks
+    resource: blocks
   blocks__transactions:
     parent: blocks
     columns:
       _dlt_id:
-        unique: true
-        data_type: text
         nullable: false
+        partition: false
+        cluster: false
+        unique: true
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: _dlt_id
       block_number:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
         primary_key: true
         foreign_key: true
+        root_key: false
+        merge_key: false
         data_type: bigint
-        nullable: false
+        name: block_number
       transaction_index:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
         primary_key: true
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: bigint
-        nullable: false
+        name: transaction_index
       hash:
+        nullable: false
+        partition: false
+        cluster: false
         unique: true
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: hash
       block_hash:
+        nullable: false
+        partition: false
         cluster: true
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: block_hash
       block_timestamp:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
         sort: true
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: timestamp
-        nullable: false
+        name: block_timestamp
       chain_id:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: chain_id
       from:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: from
       gas:
-        data_type: bigint
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: bigint
+        name: gas
       gas_price:
-        data_type: bigint
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: bigint
+        name: gas_price
       input:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: input
       max_fee_per_gas:
-        data_type: wei
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: wei
+        name: max_fee_per_gas
       max_priority_fee_per_gas:
-        data_type: wei
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: wei
+        name: max_priority_fee_per_gas
       nonce:
-        data_type: bigint
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: bigint
+        name: nonce
       r:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: r
       s:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: s
       status:
-        data_type: bigint
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: bigint
+        name: status
       to:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: to
       type:
+        nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: true
+        name: type
       v:
+        nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: bigint
-        nullable: true
+        name: v
       value:
-        data_type: wei
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: wei
+        name: value
       eth_value:
-        data_type: decimal
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: decimal
+        name: eth_value
+    schema_evolution_settings: null
+    name: blocks__transactions
   blocks__transactions__logs:
     parent: blocks__transactions
     columns:
       _dlt_id:
+        nullable: false
+        partition: false
+        cluster: false
         unique: true
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: _dlt_id
       address:
-        data_type: text
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: address
       block_timestamp:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
         sort: true
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: timestamp
-        nullable: false
+        name: block_timestamp
       block_hash:
+        nullable: false
+        partition: false
         cluster: true
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: block_hash
       block_number:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
         primary_key: true
         foreign_key: true
+        root_key: false
+        merge_key: false
         data_type: bigint
-        nullable: false
+        name: block_number
       transaction_index:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
         primary_key: true
         foreign_key: true
+        root_key: false
+        merge_key: false
         data_type: bigint
-        nullable: false
+        name: transaction_index
       log_index:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
         primary_key: true
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: bigint
-        nullable: false
+        name: log_index
       data:
-        data_type: text
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: data
       removed:
-        data_type: bool
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: bool
+        name: removed
       transaction_hash:
-        data_type: text
         nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: transaction_hash
+    schema_evolution_settings: null
+    name: blocks__transactions__logs
   blocks__transactions__logs__topics:
     parent: blocks__transactions__logs
     columns:
       _dlt_parent_id:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
         foreign_key: true
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: _dlt_parent_id
       _dlt_list_idx:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: bigint
-        nullable: false
+        name: _dlt_list_idx
       _dlt_id:
+        nullable: false
+        partition: false
+        cluster: false
         unique: true
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: _dlt_id
       _dlt_root_id:
-        root_key: true
-        data_type: text
         nullable: false
-      value:
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: true
+        merge_key: false
         data_type: text
+        name: _dlt_root_id
+      value:
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: value
+    schema_evolution_settings: null
+    name: blocks__transactions__logs__topics
   blocks__transactions__access_list:
     parent: blocks__transactions
     columns:
       _dlt_parent_id:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
         foreign_key: true
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: _dlt_parent_id
       _dlt_list_idx:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: bigint
-        nullable: false
+        name: _dlt_list_idx
       _dlt_id:
+        nullable: false
+        partition: false
+        cluster: false
         unique: true
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: _dlt_id
       _dlt_root_id:
-        root_key: true
-        data_type: text
         nullable: false
-      address:
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: true
+        merge_key: false
         data_type: text
+        name: _dlt_root_id
+      address:
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: address
+    schema_evolution_settings: null
+    name: blocks__transactions__access_list
   blocks__transactions__access_list__storage_keys:
     parent: blocks__transactions__access_list
     columns:
       _dlt_parent_id:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
         foreign_key: true
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: _dlt_parent_id
       _dlt_list_idx:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: bigint
-        nullable: false
+        name: _dlt_list_idx
       _dlt_id:
+        nullable: false
+        partition: false
+        cluster: false
         unique: true
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: _dlt_id
       _dlt_root_id:
-        root_key: true
-        data_type: text
         nullable: false
-      value:
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: true
+        merge_key: false
         data_type: text
+        name: _dlt_root_id
+      value:
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: value
+    schema_evolution_settings: null
+    name: blocks__transactions__access_list__storage_keys
   blocks__uncles:
     parent: blocks
     columns:
       _dlt_parent_id:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
         foreign_key: true
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: _dlt_parent_id
       _dlt_list_idx:
+        nullable: false
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: bigint
-        nullable: false
+        name: _dlt_list_idx
       _dlt_id:
+        nullable: false
+        partition: false
+        cluster: false
         unique: true
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
         data_type: text
-        nullable: false
+        name: _dlt_id
       _dlt_root_id:
-        root_key: true
-        data_type: text
         nullable: false
-      value:
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: true
+        merge_key: false
         data_type: text
+        name: _dlt_root_id
+      value:
         nullable: true
+        partition: false
+        cluster: false
+        unique: false
+        sort: false
+        primary_key: false
+        foreign_key: false
+        root_key: false
+        merge_key: false
+        data_type: text
+        name: value
+    schema_evolution_settings: null
+    name: blocks__uncles
 settings:
-  schema_sealed: true
   default_hints:
     foreign_key:
     - _dlt_parent_id
@@ -342,6 +1087,7 @@ settings:
   preferred_types:
     timestamp: timestamp
     block_timestamp: timestamp
+  schema_evolution_settings: null
 normalizers:
   names: dlt.common.normalizers.names.snake_case
   json:
