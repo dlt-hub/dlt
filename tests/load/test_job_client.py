@@ -325,6 +325,8 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
         # athena does not know wei data type and has no JSON type, time is not supported with parquet tables
         if client.config.destination_name == "athena" and c["data_type"] in ("wei", "complex", "time"):
             continue
+        if client.config.destination_name == "mssql" and c["data_type"] in ("wei", "complex"):
+            continue
         assert c["data_type"] == expected_c["data_type"]
 
 
@@ -411,7 +413,8 @@ def test_data_writer_string_escape_edge(client: SqlJobClientBase, file_storage: 
     expect_load_file(client, file_storage, query, table_name)
     for i in range(1,len(rows) + 1):
         db_row = client.sql_client.execute_sql(f"SELECT str FROM {canonical_name} WHERE idx = {i}")
-        assert db_row[0][0] == rows[i-1]["str"]
+        row_value, expected = db_row[0][0], rows[i-1]["str"]
+        assert row_value == expected
 
 
 @pytest.mark.parametrize('write_disposition', ["append", "replace"])

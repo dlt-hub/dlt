@@ -25,7 +25,7 @@ def handle_datetimeoffset(dto_value: bytes) -> datetime:
     )
 
 
-class PymssqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
+class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
 
     dbapi: ClassVar[DBApi] = pyodbc
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -74,6 +74,15 @@ class PymssqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @property
     def native_connection(self) -> pyodbc.Connection:
         return self._conn
+
+    def drop_dataset(self) -> None:
+        # MS Sql doesn't support DROP ... CASCADE, drop tables in the schema first
+        rows = self.execute_sql(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;", self.dataset_name
+        )
+        table_names = [row[0] for row in rows]
+        self.drop_tables(*table_names)
+        self.execute_sql("DROP SCHEMA %s;" % self.fully_qualified_dataset_name())
 
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as curr:

@@ -1,17 +1,23 @@
 import re
 import base64
-from typing import Any
+from typing import Any, Dict
 from datetime import date, datetime  # noqa: I251
 
 from dlt.common.json import json
 
 # use regex to escape characters in single pass
 SQL_ESCAPE_DICT = {"'": "''", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
-SQL_ESCAPE_RE = re.compile("|".join([re.escape(k) for k in sorted(SQL_ESCAPE_DICT, key=len, reverse=True)]), flags=re.DOTALL)
+
+def _make_sql_escape_re(escape_dict: Dict[str, str]) -> re.Pattern[str]:
+    return re.compile("|".join([re.escape(k) for k in sorted(escape_dict, key=len, reverse=True)]), flags=re.DOTALL)
 
 
-def _escape_extended(v: str, prefix:str = "E'") -> str:
-    return "{}{}{}".format(prefix, SQL_ESCAPE_RE.sub(lambda x: SQL_ESCAPE_DICT[x.group(0)], v), "'")
+SQL_ESCAPE_RE = _make_sql_escape_re(SQL_ESCAPE_DICT)
+
+def _escape_extended(v: str, prefix:str = "E'", escape_dict: Dict[str, str] = None, escape_re: re.Pattern[str] = None) -> str:
+    escape_dict = escape_dict or SQL_ESCAPE_DICT
+    escape_re = escape_re or SQL_ESCAPE_RE
+    return "{}{}{}".format(prefix, escape_re.sub(lambda x: escape_dict[x.group(0)], v), "'")
 
 
 def escape_redshift_literal(v: Any) -> Any:
@@ -58,13 +64,21 @@ def escape_duckdb_literal(v: Any) -> Any:
     return str(v)
 
 
+MS_SQL_ESCAPE_DICT = {
+    "'": "''",
+    '\n': "' + CHAR(10) + '",
+    '\r': "' + CHAR(13) + '",
+    '\t': "' + CHAR(9) + '",
+}
+MS_SQL_ESCAPE_RE = _make_sql_escape_re(MS_SQL_ESCAPE_DICT)
+
 def escape_mssql_literal(v: Any) -> Any:
     if isinstance(v, str):
-        return _escape_extended(v, prefix="'")
+         return _escape_extended(v, prefix="N'", escape_dict=MS_SQL_ESCAPE_DICT, escape_re=MS_SQL_ESCAPE_RE)
     if isinstance(v, (datetime, date)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
-        return _escape_extended(json.dumps(v), prefix="'")
+        return _escape_extended(json.dumps(v), prefix="N'")
     if isinstance(v, bytes):
         return f"CONVERT(VARBINARY, '0x{v.hex()}')"
     if isinstance(v, bool):
