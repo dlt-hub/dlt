@@ -9,6 +9,7 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.common.schema.exceptions import SchemaFrozenException
 from dlt.common.schema import utils
+from pydantic import BaseModel
 
 from tests.utils import skip_if_not_active
 
@@ -375,3 +376,65 @@ def test_single_settings_value(setting_location: str) -> None:
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
     assert "new_items" not in table_counts
+
+
+def test_data_contract_interaction() -> None:
+    """
+    ensure data contracts with pydantic are enforced properly
+    """
+    pipeline = get_pipeline()
+
+    class Items(BaseModel):
+        id: int  # noqa: A003
+        name: str
+        amount: int
+
+    @dlt.resource(name="items", columns=Items)
+    def get_items_variant():
+        yield from [{
+            "id": 5,
+            "name": "dave",
+            "amount": "HELLO"
+        }]
+
+    @dlt.resource(name="items", columns=Items)
+    def get_items_new_col():
+        yield from [{
+            "id": 5,
+            "name": "dave",
+            "amount": 6,
+            "new_col": "hello"
+        }]
+
+    @dlt.resource(name="items", columns=Items)
+    def get_items_subtable():
+        yield from [{
+            "id": 5,
+            "name": "dave",
+            "amount": 6,
+            "sub": [{"hello": "dave"}]
+        }]
+
+    # disallow variants
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        pipeline.run([get_items_variant()], schema_evolution_settings={"column_variant": "freeze-and-raise"})
+    assert isinstance(py_ex.value.__context__, SchemaFrozenException)
+
+    # without settings it will pass
+    pipeline.run([get_items_variant()], schema_evolution_settings={"column_variant": "evolve"})
+
+    # disallow new col
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        pipeline.run([get_items_new_col()], schema_evolution_settings={"column": "freeze-and-raise"})
+    assert isinstance(py_ex.value.__context__, SchemaFrozenException)
+
+    # without settings it will pass
+    pipeline.run([get_items_new_col()], schema_evolution_settings={"column": "evolve"})
+
+    # disallow new tables
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        pipeline.run([get_items_subtable()], schema_evolution_settings={"table": "freeze-and-raise"})
+    assert isinstance(py_ex.value.__context__, SchemaFrozenException)
+
+    # without settings it will pass
+    pipeline.run([get_items_subtable()], schema_evolution_settings={"table": "evolve"})
