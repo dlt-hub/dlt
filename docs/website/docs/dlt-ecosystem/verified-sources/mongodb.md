@@ -59,11 +59,12 @@ Here are the typical ways to configure MongoDB and their connection URLs:
 
 #### Grab `database and collections`
 
-1. To grab "database and collections" you must have MongoDB shell installed.
+1. To grab "database and collections" you must have MongoDB shell installed. For installation 
+   guidance, refer to [documentation here.](https://www.mongodb.com/docs/mongodb-shell/install/)
 
 1. Modify the example URLs with your credentials (dbuser & passwd) and host details.
 
-1. Connect to MongoDB
+1. Connect to MongoDB:
 
    ```bash
    mongo "mongodb://dbuser:passwd@your_host:27017"
@@ -92,7 +93,7 @@ Here are the typical ways to configure MongoDB and their connection URLs:
    exit
    ```
 
-Please note the database and collection names for data loading.
+>Note the database and collection names for future source configuration.
 
 ### Prepare your data
 
@@ -103,7 +104,7 @@ nested data. It employs a flexible schema, and its key terms include:
 
 `Collections`: Groups of documents, similar to database tables but without a fixed schema.
 
-`Databases`: Containers for collections; a single MongoDB server can have multiple databases
+`Databases`: Containers for collections; a single MongoDB server can have multiple databases.
 
 The `dlt` converts nested data into relational tables, deduces data types, and defines parent-child
 relationships, creating an adaptive schema for future data adjustments.
@@ -145,7 +146,7 @@ For more information, read the
    connection_url = "mongodb connection_url" # please set me up!
    ```
 
-1. Replace the connection_url value with the [previously copied one](#grab-connectionurl) to ensure
+1. Replace the connection_url value with the [previously copied one](#grab-connection_url) to ensure
    secure access to your MongoDB sources.
 
 1. Next, Follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
@@ -196,7 +197,7 @@ For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs
 
 ### Source `mongodb`
 
-This function loads data from a MongoDB database, yielding collections to be retrieved.
+This function loads data from a MongoDB database, yielding one or multiple collections to be retrieved.
 
 ```python
 @dlt.source
@@ -209,8 +210,6 @@ def mongodb(
 ) -> Iterable[DltResource]:
 ```
 
-Args:
-
 `connection_url`: MongoDB connection URL.
 
 `database`: Database name (defaults if unspecified).
@@ -221,40 +220,10 @@ Args:
 
 `write_disposition`: Writing mode: "replace", "append", or "merge".
 
-Returns:
-
-`Iterable[DltResource]`: A list of DLT resources for each specified collection.
-
-### Resource `collection.name`
-
-This code segment is part of the source "mongodb", processes a list of MongoDB collections
-(collection_list). For each collection, a DLT resource is setup using "dlt.resource", with
-"collection_documents" as the data-yielding function.
-
-```python
-for collection in collection_list:
-    yield dlt.resource(  # type: ignore
-        collection_documents,
-        name=collection.name,
-        primary_key="_id",
-        write_disposition=write_disposition,
-        spec=MongoDbCollectionConfiguration,
-    )(client, collection, incremental=incremental)
-```
-
-`name`: The current collection's name.
-
-`primary_key`: '_id' is the default MongoDB primary key.
-
-`write_disposition`: Writing mode: "replace", "append", or "merge".
-
-The `spec` parameter deploys 'MongoDbCollectionConfiguration' for MongoDB setup. Each resource is
-invoked with the MongoDB client, current collection, and incremental parameter, preparing a DLT
-resource for each item in collection_list.
 
 ### Source `mongo_collection`
 
-This function fetches data from a MongoDB collection, returning resources for each collection to be loaded.
+This function fetches one collection from a MongoDB database using PyMongo.
 
 ```python
 def mongodb_collection(
@@ -266,37 +235,7 @@ def mongodb_collection(
 ) -> Any:
 ```
 
-Args:
-
-The arguments `connection_url`, `database`, `incremental` and `write_disposition` are the same as
-defined for [Source `mongodb`](#source-mongodb).
-
 `collection`: Name of the collection to load.
-
-Returns:
-
-Iterable [DltResource]: A list of DLT resources ("collection_documents") for each collection to be
-loaded.
-
-### Resource `collection_obj.name`
-
-This function, part of the "mongo_collection" source, loads documents from a collection. Each
-resource is invoked with the MongoDB client, collection object, and incremental parameter, preparing
-a DLT resource for each item in the collection.
-
-```python
-return dlt.resource(  # type: ignore
-    collection_documents,
-    name=collection_obj.name,
-    primary_key="_id",
-    write_disposition=write_disposition,
-)(client, collection_obj, incremental=incremental)
-```
-
-`name`: Collection object's name.
-
-Parameters `primary_key` and `write_disposition` are as mentioned in
-[resource `collection_documents`.](#resource-collectiondocuments)
 
 ### Create your own pipeline
 
@@ -324,7 +263,7 @@ verified source.
 1. To load a specific collections from the database:
 
    ```python
-   load_data = mongodb().with_resource("collection_1", "collection_2")
+   load_data = mongodb().with_resources("collection_1", "collection_2")
    load_info = pipeline.run(load_data, write_disposition="replace")
    print(load_info)
    ```
@@ -342,28 +281,32 @@ verified source.
 
    ```python
    load_data = mongodb_collection(
-        collection="movies",
-        incremental=dlt.sources.incremental(
-            "lastupdated", initial_value=pendulum.DateTime(2020, 9, 10, 0, 0, 0)
-      ),
-   )
+     collection="movies",
+     incremental=dlt.sources.incremental(
+         "lastupdated", initial_value=pendulum.DateTime(2020, 9, 10, 0, 0, 0)
+     ))
+   
    load_info = pipeline.run(load_data, write_disposition="merge")
+
    ```
 
-   > The script configures incremental loading from the "movies" collection based on the
+   > The source function "mongodb_collection" loads data from a particular single 
+   > collection, where as source "mongodb" can load data from multiple collections. 
+   > This script configures incremental loading from the "movies" collection based on the
    > "lastupdated" field, starting from midnight on September 10, 2020.
 
 1. To incrementally load a table with an append-only disposition using hints:
 
    ```python
-   # Suitable for tables with new rows added, but not updated.
-   load_data = mongodb().with_resources("collection_1")
-   load_data.collection_1.apply_hints(
-        incremental=dlt.sources.incremental("last_scraped")
+   # Suitable for tables where new rows are added, but existing rows aren't updated.
+   # Load data from the 'listingsAndReviews' collection in MongoDB, using 'last_scraped' for incremental addition.
+   airbnb = mongodb().with_resources("listingsAndReviews")
+   
+   airbnb.listingsAndReviews.apply_hints(
+      incremental=dlt.sources.incremental("last_scraped")
    )
+   info = pipeline.run(airbnb, write_disposition="append")
 
-   load_info = pipeline.run(load_data, write_disposition="append")
-   print(load_info)
    ```
 
    > It applies hint for incremental loading based on the "last_scraped" field, ideal for tables
