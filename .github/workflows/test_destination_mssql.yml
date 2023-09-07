@@ -39,8 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        # os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+        os: ["ubuntu-latest"]
     defaults:
       run:
         shell: bash
@@ -50,6 +49,10 @@ jobs:
 
       - name: Check out
         uses: actions/checkout@master
+
+      - name: Install ODBC driver for SQL Server
+        run: |
+          sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql17
 
       - name: Setup Python
         uses: actions/setup-python@v4
