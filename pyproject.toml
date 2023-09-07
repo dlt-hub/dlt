@@ -97,7 +97,7 @@ cli = ["pipdeptree", "cron-descriptor"]
 athena = ["pyathena", "pyarrow", "s3fs", "botocore"]
 weaviate = ["weaviate-client"]
 pydantic = ["pydantic"]
-mssql = ["pyodbc"]
+mssql = ["pyodbc", "pyarrow"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"

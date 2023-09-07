@@ -7438,7 +7438,7 @@ filesystem = ["botocore", "s3fs"]
 gcp = ["gcsfs", "google-cloud-bigquery", "grpcio"]
 gs = ["gcsfs"]
 motherduck = ["duckdb", "pyarrow"]
-mssql = ["pyodbc"]
+mssql = ["pyarrow", "pyodbc"]
 parquet = ["pyarrow"]
 postgres = ["psycopg2-binary", "psycopg2cffi"]
 pydantic = ["pydantic"]
@@ -7450,4 +7450,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<4.0"
-content-hash = "8f0614c64b2a757c3848bc38a39c7cc907734c6ff2cfbe24b2c837304b51989c"
+content-hash = "7deea2f33ab56daf2955ba8add148e34393fca8f61fbe68baba6c3770aaa5579"
