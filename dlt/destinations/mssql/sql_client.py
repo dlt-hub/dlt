@@ -43,6 +43,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             pwd=self.credentials.password,
             database=self.credentials.database,
             port=self.credentials.port,
+            timeout=self.credentials.connect_timeout
         )
         # https://github.com/mkleehammer/pyodbc/wiki/Using-an-Output-Converter-function
         self._conn.add_output_converter(-155, handle_datetimeoffset)
@@ -81,12 +82,26 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
 
     def drop_dataset(self) -> None:
         # MS Sql doesn't support DROP ... CASCADE, drop tables in the schema first
+        # Drop all views
+        rows = self.execute_sql(
+            "SELECT table_name FROM information_schema.views WHERE table_schema = %s;", self.dataset_name
+        )
+        view_names = [row[0] for row in rows]
+        self._drop_views(*view_names)
+        # Drop all tables
         rows = self.execute_sql(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;", self.dataset_name
         )
         table_names = [row[0] for row in rows]
         self.drop_tables(*table_names)
-        self.execute_sql("DROP SCHEMA %s;" % self.fully_qualified_dataset_name())
+
+        self.execute_sql("DROP SCHEMA IF EXISTS %s;" % self.fully_qualified_dataset_name())
+
+    def _drop_views(self, *tables: str) -> None:
+        if not tables:
+            return
+        statements = [f"DROP VIEW IF EXISTS {self.make_qualified_table_name(table)};" for table in tables]
+        self.execute_fragments(statements)
 
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as curr:
@@ -106,14 +121,14 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         if args:
             # TODO: this is bad. See duckdb & athena also
             query = query.replace("%s", "?")
-        with self._conn.cursor() as curr:
-            try:
-                # unpack because empty tuple gets interpreted as a single argument
-                # https://github.com/mkleehammer/pyodbc/wiki/Features-beyond-the-DB-API#passing-parameters
-                curr.execute(query, *args)
-                yield DBApiCursorImpl(curr)  # type: ignore
-            except pyodbc.Error as outer:
-                raise outer
+        curr = self._conn.cursor()
+        try:
+            # unpack because empty tuple gets interpreted as a single argument
+            # https://github.com/mkleehammer/pyodbc/wiki/Features-beyond-the-DB-API#passing-parameters
+            curr.execute(query, *args)
+            yield DBApiCursorImpl(curr)  # type: ignore[abstract]
+        except pyodbc.Error as outer:
+            raise outer
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         return self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
@@ -123,8 +138,17 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         if isinstance(ex, pyodbc.ProgrammingError):
             if ex.args[0] == "42S02":
                 return DatabaseUndefinedRelation(ex)
+            elif ex.args[1] == "HY000":
+                return DatabaseTransientException(ex)
+            elif ex.args[0] == "42000":
+                if "(15151)" in ex.args[1]:
+                    return DatabaseUndefinedRelation(ex)
+                return DatabaseTransientException(ex)
         elif isinstance(ex, pyodbc.OperationalError):
             return DatabaseTransientException(ex)
+        elif isinstance(ex, pyodbc.Error):
+            if ex.args[0] == "07002":  # incorrect number of arguments supplied
+                return DatabaseTransientException(ex)
         return DatabaseTerminalException(ex)
 
     @staticmethod

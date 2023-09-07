@@ -579,7 +579,8 @@ def test_many_schemas_single_dataset(destination_config: DestinationTestConfigur
             write_dataset(_client, f, [user_row], _client.schema.tables["event_user"]["columns"])
             query = f.getvalue().decode()
         expect_load_file(_client, file_storage, query, "event_user")
-        db_rows = list(_client.sql_client.execute_sql("SELECT * FROM event_user"))
+        qual_table_name = _client.sql_client.make_qualified_table_name("event_user")
+        db_rows = list(_client.sql_client.execute_sql(f"SELECT * FROM {qual_table_name}"))
         assert len(db_rows) == expected_rows
 
     with cm_yield_client_with_storage(destination_config.destination, default_config_values={"default_schema_name": None}) as client:
