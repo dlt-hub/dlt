@@ -52,7 +52,7 @@ jobs:
 
       - name: Install ODBC driver for SQL Server
         run: |
-          sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql17
+          sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18
 
       - name: Setup Python
         uses: actions/setup-python@v4

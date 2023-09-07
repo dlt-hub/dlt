@@ -37,7 +37,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
 
     def open_connection(self) -> pyodbc.Connection:
         self._conn = pyodbc.connect(
-            driver="{ODBC Driver 17 for SQL Server}",
+            driver=f"{{{self.credentials.odbc_driver}}}",
             server=self.credentials.host,
             uid=self.credentials.username,
             pwd=self.credentials.password,
