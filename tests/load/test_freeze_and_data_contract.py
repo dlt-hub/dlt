@@ -9,7 +9,6 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.common.schema.exceptions import SchemaFrozenException
 from dlt.common.schema import utils
-from pydantic import BaseModel
 
 from tests.utils import skip_if_not_active
 
@@ -382,6 +381,7 @@ def test_data_contract_interaction() -> None:
     """
     ensure data contracts with pydantic are enforced properly
     """
+    from pydantic import BaseModel
     pipeline = get_pipeline()
 
     class Items(BaseModel):
