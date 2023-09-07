@@ -1,4 +1,4 @@
-from typing import ClassVar, Dict, Optional, Sequence, List, Any
+from typing import ClassVar, Dict, Optional, Sequence, List, Any, Tuple
 
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 from dlt.common.destination.reference import NewLoadJob
@@ -6,8 +6,9 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema
+from dlt.common.utils import uniq_id
 
-from dlt.destinations.sql_jobs import SqlStagingCopyJob
+from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
@@ -63,6 +64,27 @@ class MsSqlStagingCopyJob(SqlStagingCopyJob):
             sql.append(f"CREATE TABLE {staging_table_name} (like {table_name} including all);")
         return sql
 
+
+class MsSqlMergeJob(SqlMergeJob):
+    @classmethod
+    def gen_key_table_clauses(cls, root_table_name: str, staging_root_table_name: str, key_clauses: Sequence[str], for_delete: bool) -> List[str]:
+        """Generate sql clauses that may be used to select or delete rows in root table of destination dataset
+        """
+        if for_delete:
+            # MS SQL doesn't support alias in DELETE FROM
+            return [f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} WHERE {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"]
+        return SqlMergeJob.gen_key_table_clauses(root_table_name, staging_root_table_name, key_clauses, for_delete)
+
+    @classmethod
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
+        return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t;"
+        return f"WITH cte_{uniq_id()} AS ({select_sql}) SELECT * INTO {temp_table_name} FROM cte_{uniq_id()};"
+
+    @classmethod
+    def _new_temp_table_name(cls, name_prefix: str) -> str:
+        name = SqlMergeJob._new_temp_table_name(name_prefix)
+        return '#' + name
+
 class MsSqlClient(InsertValuesJobClient):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -76,6 +98,9 @@ class MsSqlClient(InsertValuesJobClient):
         self.config: MsSqlClientConfiguration = config
         self.sql_client = sql_client
         self.active_hints = HINT_TO_MSSQL_ATTR if self.config.create_indexes else {}
+
+    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return MsSqlMergeJob.from_table_chain(table_chain, self.sql_client)
 
     def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
         # Override because mssql requires multiple columns in a single ADD COLUMN clause

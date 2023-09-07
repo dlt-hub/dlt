@@ -138,7 +138,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         if isinstance(ex, pyodbc.ProgrammingError):
             if ex.args[0] == "42S02":
                 return DatabaseUndefinedRelation(ex)
-            elif ex.args[1] == "HY000":
+            if ex.args[1] == "HY000":
                 return DatabaseTransientException(ex)
             elif ex.args[0] == "42000":
                 if "(15151)" in ex.args[1]:

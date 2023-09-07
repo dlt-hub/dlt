@@ -196,8 +196,9 @@ def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
 
     # try sql, could be other destination though
     try:
-        query = "\nUNION ALL\n".join([f"SELECT '{name}' as name, COUNT(1) as c FROM {name}" for name in table_names])
         with p.sql_client() as c:
+            qualified_names = [c.make_qualified_table_name(name) for name in table_names]
+            query = "\nUNION ALL\n".join([f"SELECT '{name}' as name, COUNT(1) as c FROM {q_name}" for name, q_name in zip(table_names, qualified_names)])
             with c.execute_query(query) as cur:
                 rows = list(cur.fetchall())
                 return {r[0]: r[1] for r in rows}
