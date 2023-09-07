@@ -39,7 +39,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest"]
+        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         # os: ["ubuntu-latest", "macos-latest", "windows-latest"]
     defaults:
       run:
@@ -78,7 +78,7 @@ jobs:
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/load
+          poetry run pytest tests/load -x
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd
