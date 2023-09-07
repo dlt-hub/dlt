@@ -4,7 +4,10 @@ description: Introduction to dlt
 keywords: [introduction, who, what, how]
 ---
 
+import snippets from '!!raw-loader!./intro-snippets.py';
+
 # Introduction
+
 
 ![dlt pacman](/img/dlt-pacman.gif)
 
@@ -16,36 +19,7 @@ pip3 install dlt
 ```
 There's no need to start any backends or containers. Import `dlt` in your Python script and write a simple pipeline like the one below:
 
-# test
-import MyComponentSource from '!!raw-loader!./intro-snippets.py';
-
-<DltCode language="jsx">{MyComponentSource}</DltCode>
-
-# end test
-
-
-<!--SNIPSTART intro_snippet -->
-```py
-import dlt
-from dlt.sources.helpers import requests
-# Create a dlt pipeline that will load
-# chess player data to the DuckDB destination
-pipeline = dlt.pipeline(
-    pipeline_name='chess_pipeline',
-    destination='duckdb',
-    dataset_name='player_data'
-)
-# Grab some player data from Chess.com API
-data = []
-for player in ['magnuscarlsen', 'rpragchess']:
-    response = requests.get(f'https://api.chess.com/pub/player/{player}')
-    response.raise_for_status()
-    data.append(response.json())
-# Extract, normalize, and load the data
-info = pipeline.run(data, table_name='player')
-print(info)
-```
-<!--SNIPEND-->
+<DltSnippet language="python" snippet="index" snippets={snippets} />
 
 Now copy this snippet to a file or a Notebook cell and run it. If you do not have it yet, install **duckdb** dependency (default `dlt` installation is really minimal):
 ```sh
