@@ -16,6 +16,14 @@ pip3 install dlt
 ```
 There's no need to start any backends or containers. Import `dlt` in your Python script and write a simple pipeline like the one below:
 
+# test
+import MyComponentSource from '!!raw-loader!./intro-snippets.py';
+
+<DltCode language="jsx">{MyComponentSource}</DltCode>
+
+# end test
+
+
 <!--SNIPSTART intro_snippet -->
 ```py
 import dlt
