@@ -46,6 +46,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         )
         # https://github.com/mkleehammer/pyodbc/wiki/Using-an-Output-Converter-function
         self._conn.add_output_converter(-155, handle_datetimeoffset)
+        self._conn.autocommit = True
         return self._conn
 
     @raise_open_connection_error
@@ -57,6 +58,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @contextmanager
     def begin_transaction(self) -> Iterator[DBTransaction]:
         try:
+            self._conn.autocommit = False
             yield self
             self.commit_transaction()
         except Exception:
@@ -66,10 +68,12 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @raise_database_error
     def commit_transaction(self) -> None:
         self._conn.commit()
+        self._conn.autocommit = True
 
     @raise_database_error
     def rollback_transaction(self) -> None:
         self._conn.rollback()
+        self._conn.autocommit = True
 
     @property
     def native_connection(self) -> pyodbc.Connection:
