@@ -87,10 +87,13 @@ class CopyRemoteFileLoadJob(LoadJob, FollowupJob):
 
 class SqlJobClientBase(JobClientBase, WithStateSync):
 
-    VERSION_TABLE_SCHEMA_COLUMNS: ClassVar[str] = 'version_hash, schema_name, version, engine_version, inserted_at, "schema"'
-    STATE_TABLE_COLUMNS: ClassVar[str] = "version, engine_version, pipeline_name, state, created_at, _dlt_load_id"
+    _VERSION_TABLE_SCHEMA_COLUMNS: ClassVar[Tuple[str, ...]] = ('version_hash', 'schema_name', 'version', 'engine_version', 'inserted_at', 'schema')
+    _STATE_TABLE_COLUMNS: ClassVar[Tuple[str, ...]] = ('version', 'engine_version', 'pipeline_name', 'state', 'created_at', '_dlt_load_id')
 
     def __init__(self, schema: Schema, config: DestinationClientConfiguration,  sql_client: SqlClientBase[TNativeConn]) -> None:
+        self.version_table_schema_columns = ", ".join(sql_client.escape_column_name(col) for col in self._VERSION_TABLE_SCHEMA_COLUMNS)
+        self.state_table_columns = ", ".join(sql_client.escape_column_name(col) for col in self._STATE_TABLE_COLUMNS)
+
         super().__init__(schema, config)
         self.sql_client = sql_client
         assert isinstance(config, DestinationClientDwhConfiguration)
@@ -257,13 +260,13 @@ WHERE """
 
     def get_stored_schema(self) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        query = f"SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM {name} WHERE schema_name = %s ORDER BY inserted_at DESC;"
+        query = f"SELECT {self.version_table_schema_columns} FROM {name} WHERE schema_name = %s ORDER BY inserted_at DESC;"
         return self._row_to_schema_info(query, self.schema.name)
 
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
         state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
         loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
-        query = f"SELECT {self.STATE_TABLE_COLUMNS} FROM {state_table} AS s JOIN {loads_table} AS l ON l.load_id = s._dlt_load_id WHERE pipeline_name = %s AND l.status = 0 ORDER BY created_at DESC"
+        query = f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON l.load_id = s._dlt_load_id WHERE pipeline_name = %s AND l.status = 0 ORDER BY created_at DESC"
         with self.sql_client.execute_query(query, pipeline_name) as cur:
             row = cur.fetchone()
         if not row:
@@ -281,7 +284,7 @@ WHERE """
 
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        query = f"SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM {name} WHERE version_hash = %s;"
+        query = f"SELECT {self.version_table_schema_columns} FROM {name} WHERE version_hash = %s;"
         return self._row_to_schema_info(query, version_hash)
 
     def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
@@ -425,7 +428,7 @@ WHERE """
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         # values =  schema.version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(now_ts), schema_str
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}({self.VERSION_TABLE_SCHEMA_COLUMNS}) VALUES (%s, %s, %s, %s, %s, %s);", schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, now_ts, schema_str
+            f"INSERT INTO {name}({self.version_table_schema_columns}) VALUES (%s, %s, %s, %s, %s, %s);", schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, now_ts, schema_str
         )
 
 
