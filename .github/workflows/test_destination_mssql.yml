@@ -74,7 +74,7 @@ jobs:
         run: poetry install --no-interaction -E mssql -E s3 -E gs -E az
 
       - run: |
-          poetry run pytest tests/load
+          poetry run pytest tests/load -x
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
