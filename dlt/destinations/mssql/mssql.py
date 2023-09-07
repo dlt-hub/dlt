@@ -26,7 +26,8 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "date": "date",
     "bigint": "bigint",
     "binary": "varbinary(max)",
-    "decimal": "decimal(%i,%i)"
+    "decimal": "decimal(%i,%i)",
+    "time": "time"
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
@@ -37,7 +38,8 @@ PGT_TO_SCT: Dict[str, TDataType] = {
     "date": "date",
     "bigint": "bigint",
     "varbinary": "binary",
-    "decimal": "decimal"
+    "decimal": "decimal",
+    "time": "time"
 }
 
 HINT_TO_MSSQL_ATTR: Dict[TColumnHint, str] = {
@@ -111,4 +113,3 @@ class MsSqlClient(InsertValuesJobClient):
             if (precision, scale) == cls.capabilities.wei_precision:
                 return "wei"
         return PGT_TO_SCT[pq_t]
-

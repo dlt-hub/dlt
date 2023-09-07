@@ -66,9 +66,9 @@ def escape_duckdb_literal(v: Any) -> Any:
 
 MS_SQL_ESCAPE_DICT = {
     "'": "''",
-    '\n': "' + CHAR(10) + '",
-    '\r': "' + CHAR(13) + '",
-    '\t': "' + CHAR(9) + '",
+    '\n': "' + CHAR(10) + N'",
+    '\r': "' + CHAR(13) + N'",
+    '\t': "' + CHAR(9) + N'",
 }
 MS_SQL_ESCAPE_RE = _make_sql_escape_re(MS_SQL_ESCAPE_DICT)
 
@@ -78,9 +78,9 @@ def escape_mssql_literal(v: Any) -> Any:
     if isinstance(v, (datetime, date)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
-        return _escape_extended(json.dumps(v), prefix="N'")
+        return _escape_extended(json.dumps(v), prefix="N'", escape_dict=MS_SQL_ESCAPE_DICT, escape_re=MS_SQL_ESCAPE_RE)
     if isinstance(v, bytes):
-        return f"CONVERT(VARBINARY, '0x{v.hex()}')"
+        return f"BASE64_DECODE('{base64.b64encode(v).decode('ascii')}')"
     if isinstance(v, bool):
         return str(int(v))
     return str(v)
