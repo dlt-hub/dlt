@@ -223,7 +223,7 @@ def mongodb(
 
 ### Source `mongo_collection`
 
-This function fetches one collection from a MongoDB database using PyMongo.
+This function fetches a single collection from a MongoDB database using PyMongo.
 
 ```python
 def mongodb_collection(
