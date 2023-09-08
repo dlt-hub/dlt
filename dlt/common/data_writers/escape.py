@@ -8,13 +8,15 @@ from dlt.common.json import json
 # use regex to escape characters in single pass
 SQL_ESCAPE_DICT = {"'": "''", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
 
-def _make_sql_escape_re(escape_dict: Dict[str, str]) -> re.Pattern[str]:
+def _make_sql_escape_re(escape_dict: Dict[str, str]) -> re.Pattern:  # type: ignore[type-arg]
     return re.compile("|".join([re.escape(k) for k in sorted(escape_dict, key=len, reverse=True)]), flags=re.DOTALL)
 
 
 SQL_ESCAPE_RE = _make_sql_escape_re(SQL_ESCAPE_DICT)
 
-def _escape_extended(v: str, prefix:str = "E'", escape_dict: Dict[str, str] = None, escape_re: re.Pattern[str] = None) -> str:
+def _escape_extended(
+        v: str, prefix:str = "E'", escape_dict: Dict[str, str] = None, escape_re: re.Pattern = None  # type: ignore[type-arg]
+) -> str:
     escape_dict = escape_dict or SQL_ESCAPE_DICT
     escape_re = escape_re or SQL_ESCAPE_RE
     return "{}{}{}".format(prefix, escape_re.sub(lambda x: escape_dict[x.group(0)], v), "'")
