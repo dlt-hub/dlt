@@ -217,7 +217,7 @@ class SqlMergeJob(SqlBaseJob):
                     uniq_column = unique_column if table.get("parent") is None else root_key_column
                     insert_sql += f" WHERE {uniq_column} IN (SELECT * FROM {insert_temp_table_sql});"
 
-            if insert_sql[-1].strip() != ";":
+            if insert_sql.strip()[-1] != ";":
                 insert_sql += ";"
             sql.append(insert_sql)
             # -- DELETE FROM {staging_table_name} WHERE 1=1;
