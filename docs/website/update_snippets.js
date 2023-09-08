@@ -26,7 +26,8 @@ function *walkSync(dir) {
 const extractSnippetName = (tag, line) => {
     if (line && line.includes(tag)) {
         const words = line.split(" ");
-        return words[words.length-1].trim();
+        const tagIndex = words.findIndex(w => w==tag);
+        return words[tagIndex+1].trim();
     }
     return undefined;
 }
@@ -71,7 +72,11 @@ function getSnippet(fileName, snippetName) {
     }
 
     let result = lines.slice((snippetMap[snippetName]["start"]+1), snippetMap[snippetName]["end"]);
-    return filterDirectives(lines);
+    // dedent works on strings, not on string arrays, so this is very ineffective unfortunately...
+    result = dedent(result.join("\n")).split(/\r?\n/);
+    result.unshift("```python");
+    result.push("```");
+    return filterDirectives(result);
 }
 
 function insertSnippets(lines, fileName, onlyClear) {
@@ -109,7 +114,6 @@ function updateSnippets(dir) {
             continue
         }
         let lines = fs.readFileSync(fileName, 'utf8').split(/\r?\n/);
-        
         lines = insertSnippets(lines, fileName);
         fs.writeFileSync(fileName, lines.join("\n"));
     }
