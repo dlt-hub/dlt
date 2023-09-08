@@ -43,7 +43,8 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             pwd=self.credentials.password,
             database=self.credentials.database,
             port=self.credentials.port,
-            timeout=self.credentials.connect_timeout
+            timeout=self.credentials.connect_timeout,
+            **self.credentials.query
         )
         # https://github.com/mkleehammer/pyodbc/wiki/Using-an-Output-Converter-function
         self._conn.add_output_converter(-155, handle_datetimeoffset)
