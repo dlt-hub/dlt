@@ -195,8 +195,8 @@ def test_run_full_refresh(destination_config: DestinationTestConfiguration) -> N
     p = dlt.attach()
     # restored pipeline should be never put in full refresh
     assert p.full_refresh is False
-    # assert parent table (easy), None Last (db order)
-    assert_table(p, "lists", ["a", None, None], info=info)
+    # assert parent table (easy), None First (db order)
+    assert_table(p, "lists", [None, None, "a"], info=info)
     # child tables contain nested lists
     assert_table(p, "lists__value", sorted(data[1] + data[2]))
 

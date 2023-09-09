@@ -1,5 +1,5 @@
 import posixpath, os
-from typing import Any, Iterator, List, Sequence, TYPE_CHECKING, Optional, Tuple, Dict
+from typing import Any, Iterator, List, Sequence, TYPE_CHECKING, Optional, Tuple, Dict, Callable
 import pytest
 
 import dlt
@@ -76,7 +76,8 @@ def assert_table(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema
 def _assert_table_sql(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
     with p.sql_client(schema_name=schema_name) as c:
         table_name = c.make_qualified_table_name(table_name)
-    assert_query_data(p, f"SELECT * FROM {table_name} ORDER BY 1", table_data, schema_name, info)
+    # Implement NULLS FIRST sort in python
+    assert_query_data(p, f"SELECT * FROM {table_name} ORDER BY 1", table_data, schema_name, info, sort_key=lambda row: row[0] is not None)
 
 
 def _assert_table_fs(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
@@ -99,10 +100,17 @@ def select_data(p: dlt.Pipeline, sql: str, schema_name: str = None) -> List[Sequ
             return list(cur.fetchall())
 
 
-def assert_query_data(p: dlt.Pipeline, sql: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
-    """Asserts that query selecting single column of values matches `table_data`. If `info` is provided, second column must contain one of load_ids in `info`"""
+def assert_query_data(p: dlt.Pipeline, sql: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None, sort_key: Callable[[Any], Any] = None) -> None:
+    """Asserts that query selecting single column of values matches `table_data`. If `info` is provided, second column must contain one of load_ids in `info`
+
+    Args:
+        sort_key: Optional sort key function to sort the query result before comparing
+
+    """
     rows = select_data(p, sql, schema_name)
     assert len(rows) == len(table_data)
+    if sort_key is not None:
+        rows = sorted(rows, key=sort_key)
     for row, d in zip(rows, table_data):
         row = list(row)
         # first element comes from the data
