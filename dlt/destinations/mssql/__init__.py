@@ -18,7 +18,6 @@ def _configure(config: MsSqlClientConfiguration = config.value) -> MsSqlClientCo
 
 
 def capabilities() -> DestinationCapabilitiesContext:
-    # https://www.mssqlql.org/docs/current/limits.html
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "insert_values"
     caps.supported_loader_file_formats = ["insert_values"]
@@ -31,7 +30,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     # https://learn.microsoft.com/en-us/sql/sql-server/maximum-capacity-specifications-for-sql-server?view=sql-server-ver16&redirectedfrom=MSDN
     caps.max_identifier_length = 128
     caps.max_column_identifier_length = 128
-    caps.max_query_length = 4 * 64 * 1024
+    caps.max_query_length = 4 * 1024 * 64 * 1024
     caps.is_max_query_length_in_bytes = True
     caps.max_text_data_type_length = 2 ** 30 - 1
     caps.is_max_text_data_type_length_in_bytes = False

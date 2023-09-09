@@ -57,6 +57,19 @@ class MsSqlCredentials(ConnectionStringCredentials):
             f"See {docs_url} for information on how to install the '{supported_drivers[0]}' on your platform."
         )
 
+    def to_odbc_dsn(self) -> str:
+        params = {
+            "DRIVER": self.odbc_driver,
+            "SERVER": self.host,
+            "PORT": self.port,
+            "DATABASE": self.database,
+            "UID": self.username,
+            "PWD": self.password,
+        }
+        if self.query:
+            params.update(self.query)
+        return ";".join([f"{k}={v}" for k, v in params.items()])
+
 
 
 @configspec

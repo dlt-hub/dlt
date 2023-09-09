@@ -498,9 +498,12 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
 
     # get all the states, notice version 4 twice (one from production, the other from local)
     try:
+        with p.sql_client() as client:
+            state_table = client.make_qualified_table_name(p.default_schema.state_table_name)
+
         assert_query_data(
             p,
-            f"SELECT version FROM {p.default_schema.state_table_name} ORDER BY created_at DESC",
+            f"SELECT version FROM {state_table} ORDER BY created_at DESC",
             [5, 4, 4, 3, 2]
         )
     except SqlClientNotAvailable:

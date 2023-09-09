@@ -195,8 +195,8 @@ def test_run_full_refresh(destination_config: DestinationTestConfiguration) -> N
     p = dlt.attach()
     # restored pipeline should be never put in full refresh
     assert p.full_refresh is False
-    # assert parent table (easy), None first (db order)
-    assert_table(p, "lists", [None, None, "a"], info=info)
+    # assert parent table (easy), None Last (db order)
+    assert_table(p, "lists", ["a", None, None], info=info)
     # child tables contain nested lists
     assert_table(p, "lists__value", sorted(data[1] + data[2]))
 
@@ -284,8 +284,11 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
     # TODO: test export and import schema
     # test data
     id_data = sorted(["level" + str(n) for n in range(10)] + ["level" + str(n) for n in range(100, 110)])
-    assert_query_data(p, "SELECT * FROM simple_rows ORDER BY id", id_data)
-    assert_query_data(p, "SELECT schema_version_hash FROM _dlt_loads ORDER BY inserted_at", version_history)
+    with p.sql_client() as client:
+        simple_rows_table = client.make_qualified_table_name("simple_rows")
+        dlt_loads_table = client.make_qualified_table_name("_dlt_loads")
+    assert_query_data(p, f"SELECT * FROM {simple_rows_table} ORDER BY id", id_data)
+    assert_query_data(p, f"SELECT schema_version_hash FROM {dlt_loads_table} ORDER BY inserted_at", version_history)
 
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
@@ -330,7 +333,9 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
         ], name="complex_cn")
     info = dlt.run(complex_data(), destination=destination_config.destination, staging=destination_config.staging, dataset_name="ds_" + uniq_id())
     print(info)
-    rows = select_data(dlt.pipeline(), "SELECT cn FROM complex_cn")
+    with dlt.pipeline().sql_client() as client:
+        complex_cn_table = client.make_qualified_table_name("complex_cn")
+    rows = select_data(dlt.pipeline(), f"SELECT cn FROM {complex_cn_table}")
     assert len(rows) == 1
     cn_val = rows[0][0]
     if isinstance(cn_val, str):

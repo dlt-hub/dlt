@@ -74,7 +74,9 @@ def assert_table(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema
 
 
 def _assert_table_sql(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
-    assert_query_data(p, f"SELECT * FROM {table_name} ORDER BY 1 NULLS FIRST", table_data, schema_name, info)
+    with p.sql_client(schema_name=schema_name) as c:
+        table_name = c.make_qualified_table_name(table_name)
+    assert_query_data(p, f"SELECT * FROM {table_name} ORDER BY 1", table_data, schema_name, info)
 
 
 def _assert_table_fs(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
@@ -223,8 +225,9 @@ def load_tables_to_dicts(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[D
             columns = p.default_schema.get_table_columns(table_name).keys()
             query_columns = ",".join(columns)
 
-            query = f"SELECT {query_columns} FROM {table_name}"
             with p.sql_client() as c:
+                f_q_table_name = c.make_qualified_table_name(table_name)
+                query = f"SELECT {query_columns} FROM {f_q_table_name}"
                 with c.execute_query(query) as cur:
                     for row in list(cur.fetchall()):
                         table_rows.append(dict(zip(columns, row)))

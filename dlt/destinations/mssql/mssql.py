@@ -59,9 +59,9 @@ class MsSqlStagingCopyJob(SqlStagingCopyJob):
             # drop destination table
             sql.append(f"DROP TABLE IF EXISTS {table_name};")
             # moving staging table to destination schema
-            sql.append(f"ALTER TABLE {staging_table_name} SET SCHEMA {sql_client.fully_qualified_dataset_name()};")
+            sql.append(f"ALTER SCHEMA {sql_client.fully_qualified_dataset_name()} TRANSFER {staging_table_name};")
             # recreate staging table
-            sql.append(f"CREATE TABLE {staging_table_name} (like {table_name} including all);")
+            sql.append(f"SELECT * INTO {staging_table_name} FROM {table_name} WHERE 1 = 0;")
         return sql
 
 

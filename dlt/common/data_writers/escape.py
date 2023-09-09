@@ -82,7 +82,8 @@ def escape_mssql_literal(v: Any) -> Any:
     if isinstance(v, (list, dict)):
         return _escape_extended(json.dumps(v), prefix="N'", escape_dict=MS_SQL_ESCAPE_DICT, escape_re=MS_SQL_ESCAPE_RE)
     if isinstance(v, bytes):
-        return f"BASE64_DECODE('{base64.b64encode(v).decode('ascii')}')"
+        base_64_string = base64.b64encode(v).decode('ascii')
+        return f"""CAST('' AS XML).value('xs:base64Binary("{base_64_string}")', 'VARBINARY(MAX)')"""
     if isinstance(v, bool):
         return str(int(v))
     return str(v)
