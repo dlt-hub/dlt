@@ -78,7 +78,6 @@ class MsSqlMergeJob(SqlMergeJob):
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
         return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t;"
-        return f"WITH cte_{uniq_id()} AS ({select_sql}) SELECT * INTO {temp_table_name} FROM cte_{uniq_id()};"
 
     @classmethod
     def _new_temp_table_name(cls, name_prefix: str) -> str:
