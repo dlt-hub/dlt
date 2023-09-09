@@ -4,10 +4,9 @@
   "private": true,
   "scripts": {
     "docusaurus": "docusaurus",
-    "start": "snipsync && node watch_snippets.js & docusaurus start",
-    "snipsync": "snipsync",
-    "build": "snipsync && docusaurus build",
-    "build:netlify": "snipsync && docusaurus build --out-dir build/docs",
+    "start": "docusaurus start",
+    "build": "docusaurus build",
+    "build:netlify": "docusaurus build --out-dir build/docs",
     "swizzle": "docusaurus swizzle",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve",
@@ -19,12 +18,13 @@
     "@docusaurus/preset-classic": "2.4.1",
     "@mdx-js/react": "^1.6.22",
     "clsx": "^1.2.1",
-    "docusaurus-plugin-snipsync": "^1.0.0",
-    "node-watch": "^0.7.4",
+    "dedent": "^1.5.1",
     "prism-react-renderer": "^1.3.5",
+    "raw-loader": "^4.0.2",
     "react": "^17.0.2",
     "react-dom": "^17.0.2",
-    "react-twitter-embed": "^4.0.4"
+    "react-twitter-embed": "^4.0.4",
+    "string-dedent": "^3.0.1"
   },
   "devDependencies": {
     "@docusaurus/module-type-aliases": "2.4.1"
