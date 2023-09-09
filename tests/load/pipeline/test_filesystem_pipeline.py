@@ -92,6 +92,8 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
 
 def test_pipeline_parquet_filesystem_destination() -> None:
 
+    import pyarrow.parquet as pq  # Module is evaluated by other tests
+
     # store locally
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "file://_storage"
     pipeline = dlt.pipeline(pipeline_name='parquet_test_' + uniq_id(), destination="filesystem",  dataset_name='parquet_test_' + uniq_id())
