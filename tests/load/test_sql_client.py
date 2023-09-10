@@ -468,7 +468,8 @@ def prepare_temp_table(client: SqlJobClientBase) -> str:
     if client.config.destination_name == "athena":
         iceberg_table_suffix = f"LOCATION '{AWS_BUCKET}/ci/{table_name}' TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');"
         coltype = "bigint"
-
-    qualified_table_name = client.sql_client.make_qualified_table_name(table_name)
+        qualified_table_name = table_name
+    else:
+        qualified_table_name = client.sql_client.make_qualified_table_name(table_name)
     client.sql_client.execute_sql(f"CREATE TABLE {qualified_table_name} (col {coltype}) {iceberg_table_suffix};")
     return table_name
