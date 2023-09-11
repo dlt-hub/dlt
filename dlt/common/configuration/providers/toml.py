@@ -89,6 +89,9 @@ class StringTomlProvider(BaseTomlProvider):
     def __init__(self, toml_string: str) -> None:
         super().__init__(StringTomlProvider.loads(toml_string))
 
+    def update(self, toml_string: str) -> None:
+        self._toml = self.loads(toml_string)
+
     def dumps(self) -> str:
         return tomlkit.dumps(self._toml)
 
