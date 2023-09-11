@@ -354,7 +354,12 @@ WHERE """
             for hint in COLUMN_HINTS:
                 if any(c.get(hint, False) is True for c in new_columns):
                     hint_columns = [self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get(hint, False)]
-                    raise DestinationSchemaWillNotUpdate(canonical_name, hint_columns, f"{hint} requested after table was created")
+                    if hint == "not_null":
+                        logger.warning(f"Column(s) {hint_columns} with NOT NULL are being added to existing table {canonical_name}."
+                                       " If there's data in the table the operation will fail.")
+                    else:
+                        logger.warning(f"Column(s) {hint_columns} with hint {hint} are being added to existing table {canonical_name}."
+                                       " Several hint types may not be added to existing tables.")
         return sql_result
 
     @abstractmethod
