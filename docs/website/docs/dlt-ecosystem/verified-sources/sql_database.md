@@ -293,10 +293,8 @@ verified source.
        )      
        # using sql_database source to load family table and pseudonymize the column "rfam_acc"
        source = sql_database().with_resources("family")
-
        # modify this source instance's resource
        source = source.family.add_map(pseudonymize_name)
-
        # Run the pipeline. For a large db this may take a while
        info = pipeline.run(source, write_disposition="replace")
        print(info)
@@ -316,10 +314,8 @@ verified source.
        )
        # using sql_database source to load family table and remove the column "rfam_id"
        source = sql_database().with_resources("family")
-
        # modify this source instance's resource
        source = source.family.add_map(remove_columns)
-
        # Run the pipeline. For a large db this may take a while
        info = pipeline.run(source, write_disposition="replace")
        print(info)
