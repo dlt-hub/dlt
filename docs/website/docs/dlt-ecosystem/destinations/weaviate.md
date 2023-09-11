@@ -244,6 +244,17 @@ Reserved property names like `id` or `additional` are prefixed with underscores 
 - `vectorizer`: (str) the name of [the vectorizer](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules) to use. The default is `text2vec-openai`.
 - `moduleConfig`: (dict) configurations of various Weaviate modules
 
+### Configure Weaviate modules
+
+The default configuration for the Weaviate destination uses `text2vec-openai`.
+To configure another vectorizer or a generative module, replace the default `module_config` value by updating `config.toml`:
+
+```toml
+[destination.weaviate]
+module_config={text2vec-openai = {}, generative-openai = {}}
+```
+
+This ensures the `generative-openai` module is used for generative queries.
 
 ### Run Weaviate fully standalone
 
