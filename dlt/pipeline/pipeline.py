@@ -297,8 +297,8 @@ class Pipeline(SupportsPipeline):
     @with_config_section((known_sections.NORMALIZE,))
     def normalize(self, workers: int = 1, loader_file_format: TLoaderFileFormat = None) -> NormalizeInfo:
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
-        if is_interactive() and workers > 1:
-            raise NotImplementedError("Do not use normalize workers in interactive mode ie. in notebook")
+        if is_interactive():
+            workers = 1
         if loader_file_format and loader_file_format in INTERNAL_LOADER_FILE_FORMATS:
             raise ValueError(f"{loader_file_format} is one of internal dlt file formats.")
         # check if any schema is present, if not then no data was extracted
@@ -310,7 +310,6 @@ class Pipeline(SupportsPipeline):
         # create default normalize config
         normalize_config = NormalizeConfiguration(
             workers=workers,
-            pool_type="none" if workers == 1 else "process",
             _schema_storage_config=self._schema_storage_config,
             _normalize_storage_config=self._normalize_storage_config,
             _load_storage_config=self._load_storage_config
