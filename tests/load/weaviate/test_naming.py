@@ -1,6 +1,7 @@
 import dlt, pytest
 
 from dlt.destinations.weaviate.naming import NamingConvention
+from dlt.destinations.weaviate.ci_naming import NamingConvention as CINamingConvention
 
 from tests.common.utils import load_yml_case
 
@@ -9,8 +10,8 @@ def small():
     return dlt.resource([1,2,3], name="table")
 
 
-def test_table_name_normalization() -> None:
-    n = NamingConvention()
+@pytest.mark.parametrize("n", [NamingConvention(), CINamingConvention()], ids=["naming", "ci_naming"])
+def test_table_name_normalization(n: NamingConvention) -> None:
     assert n.normalize_table_identifier("FlatSpace") == "FlatSpace"
     assert n.normalize_table_identifier("a_snake_case_name") == "ASnakeCaseName"
     assert n.normalize_table_identifier("_a_snake_case_name") == "ASnakeCaseName"
@@ -31,13 +32,30 @@ def test_property_normalization() -> None:
     assert n.normalize_identifier("_camelCase") == "_camelCase"
     assert n.normalize_identifier("_snake_case") == "_snake_case"
     assert n.normalize_identifier("_snake_case_") == "_snake_casex"
-    assert n.normalize_identifier("Snake---🛑case_") == "Snake_casex"
+    assert n.normalize_identifier("Snake---🛑case_") == "snake_casex"
     assert n.normalize_identifier("--🛑Snake---🛑case_") == "___Snake_casex"
     # dashes are compacted
-    assert n.normalize_identifier("Snake-______c__ase_") == "Snake_c_asex"
-    assert n.normalize_identifier("Snake-______c__ase_") == "Snake_c_asex"
+    assert n.normalize_identifier("Snake-______c__ase_") == "snake_c_asex"
+    assert n.normalize_identifier("Snake-______c__ase_") == "snake_c_asex"
     # but not the leading
     assert n.normalize_identifier("-______Snake-______c__ase_") == "_______Snake_c_asex"
+    # starting digit
+    assert n.normalize_identifier("281782918739821") == "p_281782918739821"
+
+
+def test_property_normalization_ci() -> None:
+    n = CINamingConvention()
+    assert n.normalize_identifier("camelCase") == "camelcase"
+    assert n.normalize_identifier("_camelCase") == "_camelcase"
+    assert n.normalize_identifier("_snake_case") == "_snake_case"
+    assert n.normalize_identifier("_snake_case_") == "_snake_casex"
+    assert n.normalize_identifier("Snake---🛑case_") == "snake_casex"
+    assert n.normalize_identifier("--🛑Snake---🛑case_") == "___snake_casex"
+    # dashes are compacted
+    assert n.normalize_identifier("Snake-______c__ase_") == "snake_c_asex"
+    assert n.normalize_identifier("Snake-______c__ase_") == "snake_c_asex"
+    # but not the leading
+    assert n.normalize_identifier("-______Snake-______c__ase_") == "_______snake_c_asex"
     # starting digit
     assert n.normalize_identifier("281782918739821") == "p_281782918739821"
 

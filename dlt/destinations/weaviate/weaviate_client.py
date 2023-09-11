@@ -47,7 +47,7 @@ from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 from dlt.destinations.weaviate import capabilities
 from dlt.destinations.weaviate.configuration import WeaviateClientConfiguration
-from dlt.destinations.weaviate.exceptions import WeaviateBatchError
+from dlt.destinations.weaviate.exceptions import PropertyNameConflict, WeaviateBatchError
 
 SCT_TO_WT: Dict[TDataType, str] = {
     "text": "text",
@@ -95,10 +95,14 @@ def wrap_weaviate_error(f: TFun) -> TFun:
         except weaviate.exceptions.UnexpectedStatusCodeException as status_ex:
             # special handling for non existing objects/classes
             if status_ex.status_code == 404:
-                raise DestinationUndefinedEntity(status_ex) from status_ex
-            # looks like there are no more terminal exceptions
-            if status_ex.status_code in (403, 422):
+                raise DestinationUndefinedEntity(status_ex)
+            if status_ex.status_code == 403:
                 raise DestinationTerminalException(status_ex)
+            if status_ex.status_code == 422:
+                if "conflict for property" in str(status_ex) or "none vectorizer module" in str(status_ex):
+                    raise PropertyNameConflict()
+                raise DestinationTerminalException(status_ex)
+            # looks like there are no more terminal exception
             raise DestinationTransientException(status_ex)
         except weaviate.exceptions.WeaviateBaseError as we_ex:
             # also includes 401 as transient
@@ -119,8 +123,10 @@ def wrap_batch_error(f: TFun) -> TFun:
             # TODO: actually put the job in failed/retry state and prepare exception message with full info on failing item
             if "invalid" in message and "property" in message and "on class" in message:
                 raise DestinationTerminalException(
-                    f"Batch failed {errors} AND WILL BE RETRIED"
+                    f"Batch failed {errors} AND WILL **NOT** BE RETRIED"
                 )
+            if "conflict for property" in message:
+                raise PropertyNameConflict()
             raise DestinationTransientException(
                 f"Batch failed {errors} AND WILL BE RETRIED"
             )
@@ -262,7 +268,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             additional_headers=config.credentials.additional_headers,
         )
 
-    def make_full_name(self, table_name: str) -> str:
+    def make_qualified_class_name(self, table_name: str) -> str:
         """Make a full Weaviate class name from a table name by prepending
         the dataset name if it exists.
         """
@@ -277,7 +283,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
     def get_class_schema(self, table_name: str) -> Dict[str, Any]:
         """Get the Weaviate class schema for a table."""
         return cast(
-            Dict[str, Any], self.db_client.schema.get(self.make_full_name(table_name))
+            Dict[str, Any], self.db_client.schema.get(self.make_qualified_class_name(table_name))
         )
 
     def create_class(
@@ -294,7 +300,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
         updated_schema = class_schema.copy()
         updated_schema["class"] = (
-            self.make_full_name(updated_schema["class"])
+            self.make_qualified_class_name(updated_schema["class"])
             if full_class_name is None
             else full_class_name
         )
@@ -311,7 +317,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             prop_schema: The property schema to create.
         """
         self.db_client.schema.property.create(
-            self.make_full_name(class_name), prop_schema
+            self.make_qualified_class_name(class_name), prop_schema
         )
 
     def delete_class(self, class_name: str) -> None:
@@ -320,7 +326,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         Args:
             class_name: The name of the class to delete.
         """
-        self.db_client.schema.delete_class(self.make_full_name(class_name))
+        self.db_client.schema.delete_class(self.make_qualified_class_name(class_name))
 
     def delete_all_classes(self) -> None:
         """Delete all Weaviate classes from Weaviate instance and all data
@@ -338,7 +344,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         Returns:
             A Weaviate query builder.
         """
-        return self.db_client.query.get(self.make_full_name(class_name), properties)
+        return self.db_client.query.get(self.make_qualified_class_name(class_name), properties)
 
     def create_object(self, obj: Dict[str, Any], class_name: str) -> None:
         """Create a Weaviate object.
@@ -347,7 +353,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             obj: The object to create.
             class_name: The name of the class to create the object on.
         """
-        self.db_client.data_object.create(obj, self.make_full_name(class_name))
+        self.db_client.data_object.create(obj, self.make_qualified_class_name(class_name))
 
     def drop_storage(self) -> None:
         """Drop the dataset from Weaviate instance.
@@ -372,12 +378,12 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 if class_name in class_name_list:
                     self.db_client.schema.delete_class(class_name)
 
-        self.delete_sentinel_class()
+        self._delete_sentinel_class()
 
     @wrap_weaviate_error
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
-            self.create_sentinel_class()
+            self._create_sentinel_class()
         elif truncate_tables:
             for table_name in truncate_tables:
                 try:
@@ -400,11 +406,11 @@ class WeaviateClient(JobClientBase, WithStateSync):
             raise
         return True
 
-    def create_sentinel_class(self) -> None:
+    def _create_sentinel_class(self) -> None:
         """Create an empty class to indicate that the storage is initialized."""
         self.create_class(NON_VECTORIZED_CLASS, full_class_name=self.sentinel_class)
 
-    def delete_sentinel_class(self) -> None:
+    def _delete_sentinel_class(self) -> None:
         """Delete the sentinel class."""
         self.db_client.schema.delete_class(self.sentinel_class)
 
@@ -436,6 +442,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
             exists, existing_columns = self.get_storage_table(table_name)
+            # TODO: detect columns where vectorization was added or removed and modify it. currently we ignore change of hints
             new_columns = self.schema.get_new_table_columns(
                 table_name, existing_columns
             )
@@ -465,7 +472,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         # Convert Weaviate class schema to dlt table schema
         for prop in class_schema["properties"]:
             schema_c: TColumnSchema = {
-                "name": prop["name"],
+                "name": self.schema.naming.normalize_identifier(prop["name"]),
                 "data_type": self._from_db_type(prop["dataType"][0]),
             }
             table_schema[prop["name"]] = schema_c
@@ -562,7 +569,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             query = query.with_offset(offset)
 
         response = query.do()
-        full_class_name = self.make_full_name(table_name)
+        full_class_name = self.make_qualified_class_name(table_name)
         records = response["data"]["Get"][full_class_name]
         return cast(List[Dict[str, Any]],records)
 
@@ -626,7 +633,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             file_path,
             db_client=self.db_client,
             client_config=self.config,
-            class_name=self.make_full_name(table["name"]),
+            class_name=self.make_qualified_class_name(table["name"]),
         )
 
     def restore_file_load(self, file_path: str) -> LoadJob:
@@ -672,4 +679,4 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     @staticmethod
     def _from_db_type(wt_t: str) -> TDataType:
-        return WT_TO_SCT[wt_t]
+        return WT_TO_SCT.get(wt_t, "text")

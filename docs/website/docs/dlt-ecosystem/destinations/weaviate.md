@@ -221,12 +221,21 @@ Here's a summary of the naming normalization approach:
 #### Property names
 
 - Snake case and camel case remain unchanged: `snake_case_name` and `camelCaseName`.
-- Names with multiple underscores, such as Snake-______c__ase_, are compacted to Snake_c_asex. Except for the case when underscores are leading, in which case they are kept: `___snake_case_name` becomes `___snake_case_name`.
+- Names starting with a capital letter have it lowercased: `CamelCase` -> `camelCase`
+- Names with multiple underscores, such as `Snake-______c__ase_``, are compacted to `snake_c_asex`. Except for the case when underscores are leading, in which case they are kept: `___snake_case_name` becomes `___snake_case_name`.
 - Names starting with a number are prefixed with a "p_". For example, `123snake_case_name` becomes `p_123snake_case_name`.
 
 #### Reserved property names
 
 Reserved property names like `id` or `additional` are prefixed with underscores for differentiation. Therefore, `id` becomes `__id` and `_id` is rendered as `___id`.
+
+### Case insensitive naming convention
+The default naming convention described above will preserve the casing of the properties (besides the first letter which is lowercased). This generates nice documents
+in Weaviate but also requires that your input data does not have clashing property names when comparing case insensitive ie. (`caseName` == `casename`). In such case
+Weaviate destination will fail.
+
+You can configure alternative naming convention
+
 
 ## Additional destination options
 
