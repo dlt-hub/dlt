@@ -40,8 +40,8 @@ Make sure that your `dlt` version is **0.3.15** or above. Check it in the termin
 
 Let's load a list of Python objects (dictionaries) into `duckdb` and inspect the created dataset:
 
-<!-- @@@DLT_SNIPPET_START start -->
-```python
+<!--@@@DLT_SNIPPET_START ./getting-started-snippets.py::start-->
+```py
 import dlt
 
 data = [
@@ -58,7 +58,7 @@ load_info = pipeline.run(data, table_name="users")
 
 print(load_info)
 ```
-<!-- @@@DLT_SNIPPET_END start -->
+<!--@@@DLT_SNIPPET_END ./getting-started-snippets.py::start-->
 
 Save this python script with the name `quick_start_pipeline.py` and run the following command:
 
@@ -127,8 +127,8 @@ The library will create/update tables, infer data types and deal with nested dat
 ]}>
   <TabItem value="json">
 
-<!-- @@@DLT_SNIPPET_START json -->
-```python
+<!--@@@DLT_SNIPPET_START json-->
+```py
 import dlt
 
 from dlt.common import json
@@ -148,7 +148,7 @@ load_info = pipeline.run([data], table_name="json_data")
 
 print(load_info)
 ```
-<!-- @@@DLT_SNIPPET_END json -->
+<!--@@@DLT_SNIPPET_END json-->
 
 We import **json** from `dlt` namespace. It defaults to `orjson`(otherwise `simplejson`). It can also encode date times, dates, dataclasses and few more datat types.
 
@@ -157,8 +157,8 @@ We import **json** from `dlt` namespace. It defaults to `orjson`(otherwise `simp
 
   Pass anything that you can load with Pandas to `dlt`
 
-<!-- @@@DLT_SNIPPET_START csv -->
-```python
+<!--@@@DLT_SNIPPET_START csv-->
+```py
 import dlt
 import pandas as pd
 
@@ -175,13 +175,13 @@ load_info = pipeline.run(data, table_name="natural_disasters")
 
 print(load_info)
 ```
-<!-- @@@DLT_SNIPPET_END csv -->
+<!--@@@DLT_SNIPPET_END csv-->
 
   </TabItem>
   <TabItem value="api">
 
-<!-- @@@DLT_SNIPPET_START api -->
-```python
+<!--@@@DLT_SNIPPET_START api-->
+```py
 import dlt
 from dlt.sources.helpers import requests
 
@@ -201,7 +201,7 @@ load_info = pipeline.run(response.json(), table_name="issues")
 
 print(load_info)
 ```
-<!-- @@@DLT_SNIPPET_END api -->
+<!--@@@DLT_SNIPPET_END api-->
 
   </TabItem>
   <TabItem value="database">
@@ -211,8 +211,8 @@ Use our verified [sql database source](dlt-ecosystem/verified-sources/sql_databa
 to sync your databases with warehouses, data lakes, or vector stores.
 :::
 
-<!-- @@@DLT_SNIPPET_START db -->
-```python
+<!--@@@DLT_SNIPPET_START db-->
+```py
 import dlt
 from sqlalchemy import create_engine
 
@@ -235,7 +235,7 @@ with engine.connect() as conn:
 
 print(load_info)
 ```
-<!-- @@@DLT_SNIPPET_END db -->
+<!--@@@DLT_SNIPPET_END db-->
 
 
 Have some fun and run this snippet [with progress bar enabled](walkthroughs/run-a-pipeline.md#2-see-the-progress-during-loading) (we like **enlighten** the best, **tqdm** works as well):
@@ -256,8 +256,8 @@ Perhaps this is not what you want to do in the examples above.
 For example, if the CSV file is updated, how we can refresh it in the database?
 One method is to tell `dlt` to replace the data in existing tables by using `write_disposition`:
 
-<!-- @@@DLT_SNIPPET_START replace -->
-```python
+<!--@@@DLT_SNIPPET_START replace-->
+```py
 import dlt
 
 data = [
@@ -274,7 +274,7 @@ load_info = pipeline.run(data, table_name="users", write_disposition="replace")
 
 print(load_info)
 ```
-<!-- @@@DLT_SNIPPET_END replace -->
+<!--@@@DLT_SNIPPET_END replace-->
 
 Run this script twice to see that **users** table still contains only one copy of your data.
 
@@ -300,8 +300,8 @@ We can improve the GitHub API example above and get only issues that were create
 Instead of using `replace` write_disposition and downloading all issues each time the pipeline is run, we do the following:
 
 
-<!-- @@@DLT_SNIPPET_START incremental -->
-```python
+<!--@@@DLT_SNIPPET_START incremental-->
+```py
 import dlt
 from dlt.sources.helpers import requests
 
@@ -340,7 +340,7 @@ print(row_counts)
 print("------")
 print(load_info)
 ```
-<!-- @@@DLT_SNIPPET_END incremental -->
+<!--@@@DLT_SNIPPET_END incremental-->
 
 
 We request issues for dlt-hub/dlt repository ordered by **created_at** field (descending) and yield them page by page in `get_issues` generator function.
@@ -376,8 +376,8 @@ It will ignore any updates to **existing** issue text, emoji reactions etc.
 To get always fresh content of all the issues you combine incremental load with `merge` write disposition,
 like in the script below.
 
-<!-- @@@DLT_SNIPPET_START incremental_merge -->
-```python
+<!--@@@DLT_SNIPPET_START incremental_merge-->
+```py
 import dlt
 from dlt.sources.helpers import requests
 
@@ -414,7 +414,7 @@ print(row_counts)
 print("------")
 print(load_info)
 ```
-<!-- @@@DLT_SNIPPET_END incremental_merge -->
+<!--@@@DLT_SNIPPET_END incremental_merge-->
 
 Above we add `primary_key` hint that tells `dlt` how to identify the issues in the database to find duplicates which content it will merge.
 
@@ -432,8 +432,8 @@ Learn more:
 This is a fun but practical example that reads GitHub events from **dlt** repository (such as issue or pull request created, comment added etc.).
 Each event type is sent to a different table in `duckdb`.
 
-<!-- @@@DLT_SNIPPET_START table_dispatch -->
-```python
+<!--@@@DLT_SNIPPET_START table_dispatch-->
+```py
 import dlt
 from dlt.sources.helpers import requests
 
@@ -470,7 +470,7 @@ print(row_counts)
 print("------")
 print(load_info)
 ```
-<!-- @@@DLT_SNIPPET_END table_dispatch -->
+<!--@@@DLT_SNIPPET_END table_dispatch-->
 
 Events content never changes so we can use `append` write disposition and track new events using `created_at` field.
 
@@ -510,8 +510,8 @@ Learn more:
 
 Below we extract text from PDFs and load it to [Weaviate](dlt-ecosystem/destinations/weaviate) vector store.
 
-<!-- @@@DLT_SNIPPET_START pdf_to_weaviate -->
-```python
+<!--@@@DLT_SNIPPET_START pdf_to_weaviate-->
+```py
 import os
 
 import dlt
@@ -568,7 +568,7 @@ print(row_counts)
 print("------")
 print(load_info)
 ```
-<!-- @@@DLT_SNIPPET_END pdf_to_weaviate -->
+<!--@@@DLT_SNIPPET_END pdf_to_weaviate-->
 
 We start with a simple resource that lists files in specified folder. To that we add a **filter** function that removes all files that are not pdfs.
 
@@ -590,15 +590,15 @@ python pdf_to_weaviate.py
 ```
 
 Now it is time to query our documents.
-<!-- @@@DLT_SNIPPET_START pdf_to_weaviate_read -->
-```python
+<!--@@@DLT_SNIPPET_START pdf_to_weaviate_read-->
+```py
 import weaviate
 
 client = weaviate.Client("http://localhost:8080")
 # get text of all the invoices in InvoiceText class we just created above
 print(client.query.get("InvoiceText", ["text", "file_name", "mtime", "page_id"]).do())
 ```
-<!-- @@@DLT_SNIPPET_END pdf_to_weaviate_read -->
+<!--@@@DLT_SNIPPET_END pdf_to_weaviate_read-->
 
 Above we provide URL to local cluster. We also use `contextionary` to vectorize data. You may find information on our setup in links below.
 

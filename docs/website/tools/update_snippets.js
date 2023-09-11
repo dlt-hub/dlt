@@ -1,8 +1,9 @@
 const fs = require('fs');
 const path = require('path');
 const dedent = require('dedent');
+var watch = require('node-watch');
 
-const BASE_DIR = "./docs";
+const BASE_DIR = "./docs/";
 const DOCS_EXTENSIONS = [".md", ".mdx"];
 const SNIPPETS_FILE_SUFFIX = "-snippets.py"
 
@@ -25,6 +26,9 @@ function *walkSync(dir) {
 // extract the snippet name from a line
 const extractSnippetName = (tag, line) => {
     if (line && line.includes(tag)) {
+        // strip out md start and end comments
+        line = line.replace("-->", "");
+        line = line.replace("<!--", "");
         const words = line.split(" ");
         const tagIndex = words.findIndex(w => w==tag);
         return words[tagIndex+1].trim();
@@ -63,7 +67,12 @@ function buildSnippetMap(lines, fileName) {
 // get the right snippet for a file
 function getSnippet(fileName, snippetName) {
     const ext = path.extname(fileName);
-    const snippetsFileName = fileName.slice(0, -ext.length) + SNIPPETS_FILE_SUFFIX;
+    const snippetParts = snippetName.split("::");
+    let snippetsFileName = fileName.slice(0, -ext.length) + SNIPPETS_FILE_SUFFIX;
+    if (snippetParts.length > 1) {
+        snippetsFileName = BASE_DIR + snippetParts[0];
+        snippetName = snippetParts[1];
+    }
     const lines = fs.readFileSync(snippetsFileName, 'utf8').split(/\r?\n/);
     const snippetMap = buildSnippetMap(lines, snippetsFileName);
 
@@ -74,7 +83,8 @@ function getSnippet(fileName, snippetName) {
     let result = lines.slice((snippetMap[snippetName]["start"]+1), snippetMap[snippetName]["end"]);
     // dedent works on strings, not on string arrays, so this is very ineffective unfortunately...
     result = dedent(result.join("\n")).split(/\r?\n/);
-    result.unshift("```python");
+    const codeType = path.extname(snippetsFileName).replace(".", "");
+    result.unshift(`\`\`\`${codeType}`);
     result.push("```");
     return filterDirectives(result);
 }
@@ -82,6 +92,7 @@ function getSnippet(fileName, snippetName) {
 function insertSnippets(lines, fileName, onlyClear) {
     const result = [];
     let currentSnippet = undefined;
+    let snippetsUpdated = false;
     for (let line of lines) {
         let snippetName;
         if (snippetName = extractSnippetName(END_MARKER, line)) {
@@ -92,6 +103,7 @@ function insertSnippets(lines, fileName, onlyClear) {
                 const snippet = getSnippet(fileName, currentSnippet)
                 result.push(...snippet)
             }
+            snippetsUpdated = true;
             currentSnippet = undefined;
         }
         if (currentSnippet === undefined) {
@@ -104,20 +116,33 @@ function insertSnippets(lines, fileName, onlyClear) {
             currentSnippet = snippetName;
         }
     }
-    return result;
+    return [result, snippetsUpdated];
 }
 
 // update the snippets
 function updateSnippets(dir) {
+    console.log("Updating Snippets");
+    let processedFiles = 0;
     for (const fileName of walkSync(dir)) {
         if (!DOCS_EXTENSIONS.includes(path.extname(fileName))) {
             continue
         }
-        let lines = fs.readFileSync(fileName, 'utf8').split(/\r?\n/);
-        lines = insertSnippets(lines, fileName);
-        fs.writeFileSync(fileName, lines.join("\n"));
+        const lines  = fs.readFileSync(fileName, 'utf8').split(/\r?\n/);
+        const [updatedLines, snippetsUpdated] = insertSnippets(lines, fileName);
+        if (snippetsUpdated) {
+            processedFiles += 1;
+            fs.writeFileSync(fileName, updatedLines.join("\n"));
+        }
     }
+    console.log(`Processed ${processedFiles} files.`);
 }
 
+updateSnippets(BASE_DIR);
 
-console.log(updateSnippets(BASE_DIR));
+if (process.argv.includes("--watch")) {
+    console.log(`Watching ${BASE_DIR}`)
+    watch(BASE_DIR, { recursive: true, filter: /\.py$/  }, function(evt, name) {
+        console.log('%s changed...', name);
+        updateSnippets(BASE_DIR);
+    });
+}

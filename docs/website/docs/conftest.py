@@ -1,14 +1,34 @@
 import os
 import pytest
+from typing import List
+from unittest.mock import patch
+
+from dlt.common.utils import set_working_dir
+from dlt.common.configuration.container import Container
+
+# patch which providers to enable
+from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, SecretsTomlProvider, ConfigTomlProvider
+from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext, ConfigProvidersConfiguration
 
 from tests.utils import patch_home_dir, autouse_test_storage, preserve_environ, duckdb_pipeline_location, wipe_pipeline
 
+
 @pytest.fixture(autouse=True)
-def set_working_dir():
+def setup_tests(request):
     # always set working dir to main website folder
-    abspath = os.path.abspath(__file__)
-    dname = os.path.dirname(abspath)
-    os.chdir(dname)
+    dname =  os.path.dirname(request.module.__file__)
+    config_dir = dname + "/.dlt"
+
+    # inject provider context so the original providers are restored at the end
+    def _initial_providers():
+        return [EnvironProvider(), SecretsTomlProvider(project_dir=config_dir, add_global_config=False), ConfigTomlProvider(project_dir=config_dir, add_global_config=False)]
+
+    glob_ctx = ConfigProvidersContext()
+    glob_ctx.providers = _initial_providers()
+
+    with set_working_dir(dname), Container().injectable_context(glob_ctx), patch("dlt.common.configuration.specs.config_providers_context.ConfigProvidersContext.initial_providers", _initial_providers):
+        yield
+
 
 def pytest_configure(config):
     # push sentry to ci

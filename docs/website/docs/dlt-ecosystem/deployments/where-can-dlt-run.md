@@ -48,7 +48,7 @@ This way, with `dlt`:
 ### Python env, dependencies
 
 You can run `dlt` directly on your python interpreter, or you could create a venv to isolate its
-dependencies. Read more about [installing dlt](../../reference/installation.mdx) here.
+dependencies. Read more about [installing dlt](../../reference/installation.md) here.
 
 `dlt` is designed with minimal dependency footprint. Once you install `dlt`, you may also need to
 install the destination package. The instructions to do so will appear when you init a pipeline with
