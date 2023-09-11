@@ -1,3 +1,5 @@
+import os
+os.environ["DLT_PROJECT_DIR"] = os.path.dirname(__file__)
 # @@@SNIPSTART parallel_extract_callables
 import dlt
 from time import sleep

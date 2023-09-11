@@ -1,3 +1,5 @@
+import os
+os.environ["DLT_PROJECT_DIR"] = os.path.dirname(__file__)
 # @@@SNIPSTART performance_chunking
 import dlt
 
@@ -22,6 +24,4 @@ def database_cursor_chunked():
 # @@@SNIPEND
 
 assert len(list(database_cursor())) == 10000
-# assert len(list(database_cursor_chunked())) == 10
-for chunk in database_cursor_chunked():
-    assert len(chunk) == 1000
+assert len(list(database_cursor_chunked())) == 10000
