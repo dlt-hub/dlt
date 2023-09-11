@@ -233,7 +233,7 @@ def repo_events(
 dlt.sources.incremental. If no value is given, the default "initial_value" is used. The function
 "last_value_func" determines the most recent 'created_at' value.
 
-Read more about [incremental loading](../../general-usage/incremental-loading#incremental-loading-with-last-value).
+Read more about [incremental loading](../../general-usage/incremental-loading#incremental_loading-with-last-value).
 
 ## Customization
 

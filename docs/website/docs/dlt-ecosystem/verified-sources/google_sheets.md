@@ -380,7 +380,7 @@ dlt.resource(
 
 `merge_key`: Parameter is used to specify the column used to identify records for merging. In this
 case,"spreadsheet_id", means that the records will be merged based on the values in this column.
-[Read more](https://dlthub.com/docs/general-usage/incremental-loading#merge-incremental-loading).
+[Read more](https://dlthub.com/docs/general-usage/incremental-loading#merge-incremental_loading).
 
 ### Create your own pipeline
 

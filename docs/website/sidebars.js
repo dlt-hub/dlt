@@ -247,6 +247,21 @@ const sidebars = {
     },
     {
       type: 'category',
+      label: 'Code Examples',
+      link: {
+        type: 'generated-index',
+        title: 'Code Examples',
+        description: 'A list of comprehensive code examples that teach you how to solve real world problem.',
+        slug: 'examples',
+        keywords: ['examples'],
+      },
+      items: [
+        'examples/transformers_and_parallelism/index',
+        'examples/incremental_loading/index',
+      ],
+    },
+    {
+      type: 'category',
       label: 'Reference',
       link: {
         type: 'generated-index',

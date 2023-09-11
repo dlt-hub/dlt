@@ -279,9 +279,9 @@ assert list(r) == list(range(10))
 You can change the schema of a resource, be it standalone or as a part of a source. Look for method
 named `apply_hints` which takes the same arguments as resource decorator. Obviously you should call
 this method before data is extracted from the resource. Example below converts an `append` resource
-loading the `users` table into [merge](incremental-loading.md#merge-incremental-loading) resource
+loading the `users` table into [merge](incremental-loading.md#merge-incremental_loading) resource
 that will keep just one updated record per `user_id`. It also adds
-["last value" incremental loading](incremental-loading.md#incremental-loading-with-last-value) on
+["last value" incremental loading](incremental-loading.md#incremental_loading-with-last-value) on
 `created_at` column to prevent requesting again the already loaded records:
 
 ```python

@@ -273,37 +273,23 @@ html[data-theme='dark'] .footer--dark {
   text-decoration: none;
 }
 
-.colab-demo {
+.examples-link {
   font-family: 'Karla', sans-serif !important;
   background: var(--ifm-color-primary);
   border-radius: 8px;
   color: #fff;
   margin-right: 2px;
   margin-left: 10px;
-  padding: 6px 10px 6px 17px;
+  padding: 6px 10px 6px 10px;
   display: flex;
 }
 
 
 
-.colab-demo::before {
-  content: '';
-  width: 25px;
-  height: 25px;
-  display: flex;
-  background: url("../../static/img/CO-White.svg") no-repeat;
-  position: relative;
-  left: -5px;
-  top: 0px;
-}
-
-html[data-theme='dark'] .colab-demo:hover {
+html[data-theme='dark'] .examples-link:hover {
   color: #191937;
-  }
-
-html[data-theme='dark'] .colab-demo:hover::before {
-  background: url("../../static/img/CO-Blue.svg") no-repeat;
 }
+
 
 .theme-admonition.theme-admonition-tip.alert svg path{
   fill: #191937;
@@ -318,7 +304,7 @@ html[data-theme='dark'] .colab-demo:hover::before {
   padding: 0 !important;
 } */
 
-.colab-demo:hover {
+.examples-link:hover {
   background: var(--ifm-color-primary-light);
   color: #fff;
 }
@@ -468,7 +454,7 @@ html[data-theme='dark'] .slack-navbar::before {
 
 .menu__link{padding-bottom: 15px !important;}
 
-.colab-demo>svg {
+.examples-link>svg {
   display: none;
 }
 
@@ -672,23 +658,43 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[
   background-image: url(../../static/img/RunningInProduction-Active-1.svg);
 }
 
-/* Reference */
+/* Code Examples */
 
 .theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>a::before {
-  background-image: url(../../static/img/Reference-Inactive.svg);
+  background-image: url(../../static/img/Howdltworks-Inactive.svg);
 }
 
 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(9)>div>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/Reference-Active.svg);
+  background-image: url(../../static/img/Howdltworks-Active.svg);
 }
 
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>a::before {
-  background-image: url(../../static/img/Reference-Inactive-1.svg);
+  background-image: url(../../static/img/Howdltworks-Inactive-1.svg);
 }
 
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(9)>div>a::before,
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/Howdltworks-Active-1.svg);
+}
+
+/* Reference */
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(10)>div>a::before {
+  background-image: url(../../static/img/Reference-Inactive.svg);
+}
+
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(10)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(10)>div>[aria-expanded="true"]::before {
+  background-image: url(../../static/img/Reference-Active.svg);
+}
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(10)>div>a::before {
+  background-image: url(../../static/img/Reference-Inactive-1.svg);
+}
+
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(10)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(10)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Reference-Active-1.svg);
 }
 
@@ -696,9 +702,9 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>[
 /* responsive css :start */
 
 @media(min-width:0px) and (max-width:767px) {
-  .colab-demo {
+  .examples-link {
     font-size: 0;
-    padding: 4px 5px 4px 14px;
+    padding: 4px 5px 4px 5px;
     margin-right: 16px;
     margin-left: 0;
   }
@@ -715,7 +721,7 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>[
     background: var(--ifm-gradient);
   }
 
-  .menu__link.colab-demo {
+  .menu__link.examples-link {
     display: table;
     background: var(--ifm-color-primary) !important;
     padding-bottom: 4px!important;

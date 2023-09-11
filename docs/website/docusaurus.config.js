@@ -78,10 +78,11 @@ const config = {
           },
           { to: 'blog', label: 'Blog', position: 'left' },
           {
-            href:'https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing',
-            label: 'Colab demo',
+            type: 'doc',
+            docId: 'examples',
+            label: 'Code Examples',
             position:'right',
-          className: 'colab-demo',
+            className: 'examples-link',
           },
           {
             href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g',
