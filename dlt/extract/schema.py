@@ -228,5 +228,5 @@ class DltResourceSchema:
     def validate_dynamic_hints(template: TTableSchemaTemplate) -> None:
         table_name = template["name"]
         # if any of the hints is a function then name must be as well
-        if any(callable(v) for k, v in template.items() if k != "name") and not callable(table_name):
+        if any(callable(v) for k, v in template.items() if k not in ["name", "incremental"]) and not callable(table_name):
             raise InconsistentTableTemplate(f"Table name {table_name} must be a function if any other table hint is a function")

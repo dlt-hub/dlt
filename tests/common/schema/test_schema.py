@@ -189,6 +189,7 @@ def test_schema_descriptions_and_annotations(schema_storage: SchemaStorage):
     schema.tables["blocks"]["x-annotation"] += "Saved"
     schema.tables["blocks"]["columns"]["_dlt_load_id"]["description"] += "Saved"
     schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] += "Saved"
+    schema_storage.save_schema(schema)
 
     loaded_schema = schema_storage.load_schema("event")
     assert loaded_schema.tables["blocks"]["description"].endswith("Saved")
@@ -542,9 +543,13 @@ def test_normalize_table_identifiers_merge_columns() -> None:
     # only one column
     assert len(norm_table["columns"]) == 1
     assert norm_table["columns"]["case"] == {
-        'nullable': True,
-        'partition': False,
-        'cluster': False, 'unique': False, 'sort': False, 'primary_key': True, 'foreign_key': False, 'root_key': False, 'merge_key': False, 'name': 'case', 'data_type': 'double', 'x-description': 'desc'}
+        'nullable': False,  # remove default, preserve non default
+        'primary_key': True,
+        'name': 'case',
+        'data_type': 'double',
+        'x-description': 'desc'
+    }
+
 
 def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     # check normalizers config

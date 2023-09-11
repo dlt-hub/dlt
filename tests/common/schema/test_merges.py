@@ -2,7 +2,7 @@ import pytest
 from copy import copy, deepcopy
 
 from dlt.common.schema import Schema, utils
-from dlt.common.schema.exceptions import CannotCoerceNullException, TablePropertiesConflictException
+from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException, TablePropertiesConflictException
 from dlt.common.schema.typing import TStoredSchema, TTableSchema
 
 
@@ -136,7 +136,7 @@ def test_new_incomplete_column() -> None:
 
 def test_merge_columns() -> None:
     # tab_b overrides non default
-    col_a = utils.merge_columns(copy(COL_1_HINTS), copy(COL_2_HINTS))
+    col_a = utils.merge_columns(copy(COL_1_HINTS), copy(COL_2_HINTS), merge_defaults=False)
     # nullable is False - tab_b has it as default and those are not merged
     assert col_a == {
         "name": "test_2",
@@ -226,12 +226,12 @@ def test_diff_tables() -> None:
     assert "test_2" not in partial["columns"]
     assert existing["columns"]["test"] == table["columns"]["test"] != partial["columns"]["test"]
 
-    # but defaults are ignored
+    # defaults are not ignored
     existing = deepcopy(table)
     changed = deepcopy(table)
     changed["columns"]["test"]["foreign_key"] = False
     partial = utils.diff_tables(existing, changed)
-    assert partial["columns"] == {}
+    assert "test" in partial["columns"]
 
     # even if not present in tab_a at all
     existing = deepcopy(table)
@@ -239,7 +239,7 @@ def test_diff_tables() -> None:
     changed["columns"]["test"]["foreign_key"] = False
     del existing["columns"]["test"]["foreign_key"]
     partial = utils.diff_tables(existing, changed)
-    assert partial["columns"] == {}
+    assert "test" in partial["columns"]
 
 
 def test_diff_tables_conflicts() -> None:
@@ -264,7 +264,7 @@ def test_diff_tables_conflicts() -> None:
     # conflict on data types in columns
     changed = deepcopy(table)
     changed["columns"]["test"]["data_type"] = "bigint"
-    with pytest.raises(CannotCoerceNullException):
+    with pytest.raises(CannotCoerceColumnException):
         utils.diff_tables(table, changed)
 
 

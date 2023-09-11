@@ -179,8 +179,8 @@ def test_columns_argument() -> None:
         yield {"u": "u", "tags": [1, 2 ,3]}
 
     t = get_users().compute_table_schema()
-    # nullable is added
-    assert t["columns"]["tags"]["nullable"] is True
+
+    assert "nullable" not in t["columns"]["tags"]
     assert t["columns"]["tags"]["data_type"] == "complex"
     assert t["columns"]["tags"]["x-extra"] == "x-annotation"
 
@@ -333,8 +333,8 @@ def test_columns_from_pydantic() -> None:
         b: float
 
     r = get_users()
-    r.apply_hints(columns=lambda item: Columns3)
-    t = r.compute_table_schema()
+    r.apply_hints(table_name=lambda item: "table", columns=lambda item: Columns3)
+    t = r.compute_table_schema({})
 
     assert t["columns"]["a"]["nullable"] is False
     assert t["columns"]["a"]["data_type"] == "complex"
