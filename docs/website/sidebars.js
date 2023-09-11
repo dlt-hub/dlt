@@ -263,13 +263,7 @@ const sidebars = {
         'reference/explainers/schema-evolution',
         'reference/telemetry',
         'reference/airflow-gcp-cloud-composer',
-        {
-          type: 'category',
-          label: 'API Reference',
-          items: [
-            'api-reference',
-          ]
-        },
+        'reference/api-reference',
       ],
     },
   ]
