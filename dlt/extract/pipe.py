@@ -545,6 +545,7 @@ class PipeIterator(Iterator[PipeItem]):
             if isinstance(item, Awaitable) or callable(item):
                 # do we have a free slot or one of the slots is done?
                 if len(self._futures) < self.max_parallel_items or self._next_future() >= 0:
+                    # check if Awaitable first - awaitable can also be a callable
                     if isinstance(item, Awaitable):
                         future = asyncio.run_coroutine_threadsafe(item, self._ensure_async_pool())
                     elif callable(item):
@@ -631,7 +632,12 @@ class PipeIterator(Iterator[PipeItem]):
             loop.run_forever()
 
         self._async_pool = asyncio.new_event_loop()
-        self._async_pool_thread = Thread(target=start_background_loop, args=(self._async_pool,), daemon=True)
+        self._async_pool_thread = Thread(
+            target=start_background_loop,
+            args=(self._async_pool,),
+            daemon=True,
+            name="DltFuturesThread"
+        )
         self._async_pool_thread.start()
 
         # start or return async pool

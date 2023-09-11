@@ -1,0 +1,16 @@
+# [sources.data_writer]
+# file_max_items=20000
+
+# pipeline name is default source name when loading resources
+[sources.parallel_load.data_writer]
+file_max_items=100000
+
+[normalize]
+workers=3
+
+[normalize.data_writer]
+disable_compression=false
+file_max_items=100000
+
+[load]
+workers=11
