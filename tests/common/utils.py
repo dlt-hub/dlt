@@ -41,11 +41,11 @@ def yml_case_path(name: str) -> str:
 
 
 def row_to_column_schemas(row: StrAny) -> TTableSchemaColumns:
-    return {k: utils.add_missing_hints({
+    return {k: {
                 "name": k,
                 "data_type": "text",
                 "nullable": False
-            }) for k in row.keys()}
+            } for k in row.keys()}
 
 
 @pytest.fixture(autouse=True)

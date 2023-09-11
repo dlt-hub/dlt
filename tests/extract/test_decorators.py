@@ -14,10 +14,10 @@ from dlt.common.exceptions import ArgumentsOverloadException, DictValidationExce
 from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.source import _SOURCES
 from dlt.common.schema import Schema
-from dlt.common.schema.utils import new_table
+from dlt.common.schema.utils import new_table, new_column
 
 from dlt.cli.source_detection import detect_source_configs
-from dlt.extract.exceptions import ExplicitSourceNameInvalid, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ExplicitSourceNameInvalid, InconsistentTableTemplate, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
 from dlt.common.schema.exceptions import InvalidSchemaName
 
@@ -178,7 +178,7 @@ def test_columns_argument() -> None:
     def get_users():
         yield {"u": "u", "tags": [1, 2 ,3]}
 
-    t = get_users().table_schema()
+    t = get_users().compute_table_schema()
     # nullable is added
     assert t["columns"]["tags"]["nullable"] is True
     assert t["columns"]["tags"]["data_type"] == "complex"
@@ -187,15 +187,114 @@ def test_columns_argument() -> None:
     r = get_users()
     r.apply_hints(columns={"invalid": {"data_type": "unk", "wassup": False}})
     with pytest.raises(DictValidationException):
-        r.table_schema()
+        r.compute_table_schema()
 
     r = get_users()
     r.apply_hints(columns={"tags": {"x-second-extra": "x-second-annotation"}})
-    t = r.table_schema()
+    t = r.compute_table_schema()
 
     assert t["columns"]["tags"]["x-second-extra"] == "x-second-annotation"
     # make sure column name was set
     assert t["columns"]["tags"]["name"] == "tags"
+
+
+def test_apply_hints_columns() -> None:
+    @dlt.resource(name="user", columns={"tags": {"data_type": "complex", "primary_key": True}})
+    def get_users():
+        yield {"u": "u", "tags": [1, 2 ,3]}
+
+    users = get_users()
+    assert users.columns == {"tags": {"data_type": "complex", "name": "tags", "primary_key": True}}
+    assert users.columns["tags"] == users.compute_table_schema()["columns"]["tags"]
+
+    # columns property can be changed in place
+    users.columns["tags"]["data_type"] = "text"
+    assert users.compute_table_schema()["columns"]["tags"]["data_type"] == "text"
+
+    # apply column definition - it should be merged with defaults
+    users.apply_hints(columns={"tags": {"primary_key": False, "data_type": "text"}, "things": new_column("things", nullable=False)})
+    assert users.columns["tags"] == {"data_type": "text", "name": "tags", "primary_key": False}
+    assert users.columns["things"] == {"name": "things", "nullable": False}
+
+    # delete columns by passing empty
+    users.apply_hints(columns={})
+    assert users.columns is None
+
+
+def test_apply_hints() -> None:
+    @dlt.resource
+    def empty():
+        yield [1, 2, 3]
+
+    empty_r = empty()
+    assert empty_r.write_disposition == "append"
+    empty_r.apply_hints(write_disposition="replace")
+    assert empty_r.write_disposition == "replace"
+    empty_r.write_disposition = "merge"
+    assert empty_r.compute_table_schema()["write_disposition"] == "merge"
+    # delete hint
+    empty_r.apply_hints(write_disposition="")
+    empty_r.write_disposition = "append"
+    assert empty_r.compute_table_schema()["write_disposition"] == "append"
+
+    empty_r.apply_hints(table_name="table", parent_table_name="parent", primary_key=["a", "b"], merge_key=["c", "a"])
+    table = empty_r.compute_table_schema()
+    assert table["columns"]["a"] == {'merge_key': True, 'name': 'a', 'nullable': False, 'primary_key': True}
+    assert table["columns"]["b"] == {'name': 'b', 'nullable': False, 'primary_key': True}
+    assert table["columns"]["c"] == {'merge_key': True, 'name': 'c', 'nullable': False}
+    assert table["name"] == "table"
+    assert table["parent"] == "parent"
+
+    # reset
+    empty_r.apply_hints(table_name="", parent_table_name="", primary_key=[], merge_key="")
+    table = empty_r.compute_table_schema()
+    assert table["name"] == "empty"
+    assert "parent" not in table
+    assert table["columns"] == {}
+
+    # combine columns with primary key
+
+    empty_r = empty()
+    empty_r.apply_hints(columns={"tags": {"data_type": "complex", "primary_key": False}}, primary_key="tags", merge_key="tags")
+    # primary key not set here
+    assert empty_r.columns["tags"] == {"data_type": "complex", "name": "tags", "primary_key": False}
+    # only in the computed table
+    assert empty_r.compute_table_schema()["columns"]["tags"] == {"data_type": "complex", "name": "tags", "primary_key": True, "merge_key": True}
+
+
+def test_apply_dynamic_hints() -> None:
+    @dlt.resource
+    def empty():
+        yield [1, 2, 3]
+
+    empty_r = empty()
+    with pytest.raises(InconsistentTableTemplate):
+        empty_r.apply_hints(parent_table_name=lambda ev: ev["p"])
+
+    empty_r.apply_hints(table_name=lambda ev: ev["t"], parent_table_name=lambda ev: ev["p"])
+    assert empty_r._table_name_hint_fun is not None
+    assert empty_r._table_has_other_dynamic_hints is True
+
+    with pytest.raises(DataItemRequiredForDynamicTableHints):
+        empty_r.compute_table_schema()
+    table = empty_r.compute_table_schema({"t": "table", "p": "parent"})
+    assert table["name"] == "table"
+    assert table["parent"] == "parent"
+
+    # try write disposition and primary key
+    empty_r.apply_hints(primary_key=lambda ev: ev["pk"], write_disposition=lambda ev: ev["wd"])
+    table = empty_r.compute_table_schema({"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip"})
+    assert table["write_disposition"] == "skip"
+    assert "a" in table["columns"]
+
+    # validate fails
+    with pytest.raises(DictValidationException):
+        empty_r.compute_table_schema({"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "x-skip"})
+
+    # dynamic columns
+    empty_r.apply_hints(columns=lambda ev: ev["c"])
+    table = empty_r.compute_table_schema({"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip", "c": [{"name": "tags"}]})
+    assert table["columns"]["tags"] == {"name": "tags"}
 
 
 def test_columns_from_pydantic() -> None:
@@ -207,7 +306,7 @@ def test_columns_from_pydantic() -> None:
     def get_users() -> Iterator[Dict[str, Any]]:
         yield None
 
-    t = get_users().table_schema()
+    t = get_users().compute_table_schema()
 
     assert t["columns"]["tags"]["nullable"] is False
     assert t["columns"]["tags"]["data_type"] == "complex"
@@ -222,7 +321,7 @@ def test_columns_from_pydantic() -> None:
     r = get_users()
     r.apply_hints(columns=Columns2)
 
-    t = r.table_schema()
+    t = r.compute_table_schema()
     assert t["columns"]["a"]["nullable"] is False
     assert t["columns"]["a"]["data_type"] == "bigint"
     assert t["columns"]["b"]["nullable"] is False
@@ -235,7 +334,7 @@ def test_columns_from_pydantic() -> None:
 
     r = get_users()
     r.apply_hints(columns=lambda item: Columns3)
-    t = r.table_schema()
+    t = r.compute_table_schema()
 
     assert t["columns"]["a"]["nullable"] is False
     assert t["columns"]["a"]["data_type"] == "complex"
@@ -558,7 +657,7 @@ def test_resource_sets_invalid_write_disposition() -> None:
 
     r = invalid_disposition()
     with pytest.raises(DictValidationException) as py_ex:
-        r.table_schema()
+        r.compute_table_schema()
     assert "write_disposition" in str(py_ex.value)
 
 

@@ -18,6 +18,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, PipelineStateNotAvailable, UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, LogCollector, TqdmCollector
+from dlt.common.schema.utils import new_column
 from dlt.common.utils import uniq_id
 
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
@@ -902,10 +903,10 @@ def test_extract_add_tables() -> None:
     # we extract and make sure that tables are added to schema
     s = airtable_emojis()
     assert list(s.resources.keys()) == ["💰Budget", "📆 Schedule", "🦚Peacock", "🦚WidePeacock"]
-    assert s.resources["🦚Peacock"].table_schema()["resource"] == "🦚Peacock"
+    assert s.resources["🦚Peacock"].compute_table_schema()["resource"] == "🦚Peacock"
     # only name will be normalized
-    assert s.resources["🦚Peacock"].table_schema()["name"] == "🦚Peacock"
-    assert s.resources["💰Budget"].table_schema()["columns"]["🔑book_id"]["name"] == "🔑book_id"
+    assert s.resources["🦚Peacock"].compute_table_schema()["name"] == "🦚Peacock"
+    assert s.resources["💰Budget"].compute_table_schema()["columns"]["🔑book_id"]["name"] == "🔑book_id"
     pipeline = dlt.pipeline(pipeline_name="emojis", destination="dummy")
     info = pipeline.extract(s)
     assert info.extract_data_info[0]["name"] == "airtable_emojis"
@@ -969,6 +970,39 @@ def test_emojis_resource_names() -> None:
     assert_load_info(info)
     table = info.load_packages[0].schema_update["_wide_peacock"]
     assert table["resource"] == "🦚WidePeacock"
+
+
+def test_apply_hints_infer_hints() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"
+
+    @dlt.source
+    def infer():
+        yield dlt.resource([{"id": 1, "timestamp": "NOW"}], name="table1", columns=[new_column("timestamp", nullable=True)])
+
+    new_new_hints = {
+        "not_null": ["timestamp"],
+        "primary_key": ["id"]
+    }
+    s = infer()
+    s.schema.merge_hints(new_new_hints)
+    pipeline = dlt.pipeline(pipeline_name="inf", destination="dummy")
+    pipeline.run(s)
+    # check schema
+    table = pipeline.default_schema.get_table("table1")
+    # nullable True coming from hint overrides inferred hint
+    assert table["columns"]["timestamp"] == {"name": "timestamp", "data_type": "text", "nullable": True}
+    # fully from data
+    assert table["columns"]["id"] == {"name": "id", "data_type": "bigint", "nullable": True, "primary_key": True}
+
+    # remove primary key and change nullable
+    s = infer()
+    s.table1.apply_hints(columns=[{"name": "timestamp", "nullable": False}, {"name": "id", "nullable": False, "primary_key": False}])
+    pipeline.run(s)
+    table = pipeline.default_schema.get_table("table1")
+    # hints overwrite pipeline schema
+    assert table["columns"]["timestamp"] == {"name": "timestamp", "data_type": "text", "nullable": False}
+    assert table["columns"]["id"] == {"name": "id", "data_type": "bigint", "nullable": False, "primary_key": False}
+    # print(pipeline.default_schema.to_pretty_yaml())
 
 
 def test_invalid_data_edge_cases() -> None:

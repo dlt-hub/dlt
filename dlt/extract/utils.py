@@ -30,10 +30,9 @@ def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColum
         columns: A dict of column schemas, a list of column schemas, or a pydantic model
     """
     if isinstance(columns, C_Mapping):
-        # Assume dict is already in the correct format
-        # but ensure the name key is set correctly
-        for name, column in columns.items():
-            column["name"] = name
+        # fill missing names in short form was used
+        for col_name in columns:
+            columns[col_name]["name"] = col_name
         return columns
     elif isinstance(columns, Sequence):
         # Assume list of columns

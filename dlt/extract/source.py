@@ -469,7 +469,10 @@ class DltResourceDict(Dict[str, DltResource]):
                         resource = self.find_by_pipe(pipe)
                     except KeyError:
                         # resource for pipe not found: return mock resource
-                        mock_template = DltResourceSchema.new_table_template(pipe.name, write_disposition=resource._table_schema_template.get("write_disposition"))
+                        mock_template = DltResourceSchema.new_table_template(
+                            pipe.name,
+                            write_disposition=resource._table_schema_template.get("write_disposition")
+                        )
                         resource = DltResource(pipe, mock_template, False, section=resource.section)
                         resource.source_name = resource.source_name
                     extracted[resource._name] = resource
@@ -658,7 +661,9 @@ class DltSource(Iterable[TDataItem]):
         for r in self.selected_resources.values():
             # names must be normalized here
             with contextlib.suppress(DataItemRequiredForDynamicTableHints):
-                partial_table = self._schema.normalize_table_identifiers(r.table_schema(item))
+                partial_table = self._schema.normalize_table_identifiers(
+                    r.compute_table_schema(item)
+                )
                 schema.update_schema(partial_table)
         return schema
 

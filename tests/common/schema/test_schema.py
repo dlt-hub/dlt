@@ -190,7 +190,6 @@ def test_schema_descriptions_and_annotations(schema_storage: SchemaStorage):
     schema.tables["blocks"]["columns"]["_dlt_load_id"]["description"] += "Saved"
     schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] += "Saved"
 
-    print(schema_storage.save_schema(schema))
     loaded_schema = schema_storage.load_schema("event")
     assert loaded_schema.tables["blocks"]["description"].endswith("Saved")
     assert loaded_schema.tables["blocks"]["x-annotation"].endswith("Saved")
@@ -245,6 +244,23 @@ def test_save_store_schema_custom_normalizers(cn_schema: Schema, schema_storage:
     schema_storage.save_schema(cn_schema)
     schema_copy = schema_storage.load_schema(cn_schema.name)
     assert_new_schema_values_custom_normalizers(schema_copy)
+
+
+def test_save_load_incomplete_column(schema: Schema, schema_storage_no_import: SchemaStorage) -> None:
+    # make sure that incomplete column is saved and restored without default hints
+    incomplete_col = utils.new_column("I", nullable=False)
+    incomplete_col["primary_key"] = True
+    incomplete_col["x-special"] = "spec"
+    table = utils.new_table("table", columns=[incomplete_col])
+    schema.update_schema(table)
+    schema_storage_no_import.save_schema(schema)
+    schema_copy = schema_storage_no_import.load_schema("event")
+    assert schema_copy.get_table("table")["columns"]["I"] == {
+        'name': 'I',
+        'nullable': False,
+        'primary_key': True,
+        'x-special': 'spec'
+    }
 
 
 def test_upgrade_engine_v1_schema() -> None:
@@ -503,6 +519,32 @@ def test_normalize_table_identifiers() -> None:
     assert schema.tables["issues"] == schema.normalize_table_identifiers(issues_table)
     assert schema.tables["issues"] == schema.normalize_table_identifiers(schema.normalize_table_identifiers(issues_table))
 
+
+def test_normalize_table_identifiers_merge_columns() -> None:
+    # create conflicting columns
+    table_create = [
+        {
+            "name": "case",
+            "data_type": "bigint",
+            "nullable": False,
+            "x-description": "desc"
+        },
+        {
+            "name": "Case",
+            "data_type": "double",
+            "nullable": True,
+            "primary_key": True
+        },
+    ]
+    # schema normalizing to snake case will conflict on case and Case
+    table = utils.new_table("blend", columns=table_create)
+    norm_table = Schema("norm").normalize_table_identifiers(table)
+    # only one column
+    assert len(norm_table["columns"]) == 1
+    assert norm_table["columns"]["case"] == {
+        'nullable': True,
+        'partition': False,
+        'cluster': False, 'unique': False, 'sort': False, 'primary_key': True, 'foreign_key': False, 'root_key': False, 'merge_key': False, 'name': 'case', 'data_type': 'double', 'x-description': 'desc'}
 
 def assert_new_schema_values_custom_normalizers(schema: Schema) -> None:
     # check normalizers config

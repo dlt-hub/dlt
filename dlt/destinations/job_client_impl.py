@@ -13,7 +13,6 @@ import re
 from dlt.common import json, pendulum, logger
 from dlt.common.data_types import TDataType
 from dlt.common.schema.typing import COLUMN_HINTS, TColumnSchemaBase, TTableSchema, TWriteDisposition
-from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import StateInfo, StorageSchemaInfo,WithStateSync, DestinationClientConfiguration, DestinationClientDwhConfiguration, DestinationClientDwhWithStagingConfiguration, NewLoadJob, WithStagingDataset, TLoadJobState, LoadJob, JobClientBase, FollowupJob, CredentialsConfiguration
@@ -242,7 +241,7 @@ WHERE """
                 "nullable": _null_to_bool(c[2]),
                 "data_type": self._from_db_type(c[1], numeric_precision, numeric_scale),
             }
-            schema_table[c[0]] = add_missing_hints(schema_c)
+            schema_table[c[0]] = schema_c  # type: ignore
         return True, schema_table
 
     @classmethod
