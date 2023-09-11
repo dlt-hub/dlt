@@ -270,3 +270,15 @@ class FileStorage:
             return cast(IO[Any], f)
         except (gzip.BadGzipFile, OSError):
             return open(path, origmode, encoding=encoding, **kwargs)
+
+
+    @staticmethod
+    def is_gzipped(path: str) -> bool:
+        """Checks if file under path is gzipped by reading a header"""
+        try:
+            with gzip.open(path, "rt", encoding="utf-8") as f:
+                # Force gzip to read the first few bytes and check the magic number
+                f.read(2)
+                return True
+        except (gzip.BadGzipFile, OSError):
+            return False
