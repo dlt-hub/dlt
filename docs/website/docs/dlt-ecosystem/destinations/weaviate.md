@@ -166,6 +166,7 @@ Internally dlt will use `primary_key` (`document_id` in the example above) to ge
 
 If you are using the merge write disposition, you must set it from the first run of your pipeline, otherwise the data will be duplicated in the database on subsequent loads.
 
+:::
 
 ### Append
 
