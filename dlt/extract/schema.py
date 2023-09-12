@@ -5,12 +5,13 @@ from typing import List, TypedDict, cast, Any
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
 from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns
 from dlt.common.typing import TDataItem
+from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
 
 from dlt.extract.incremental import Incremental
 from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, TableNameMissing
-from dlt.extract.utils import ensure_table_schema_columns_hint
+from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 
 
 class TTableSchemaTemplate(TypedDict, total=False):
@@ -46,16 +47,23 @@ class DltResourceSchema:
         self.apply_hints(table_name=value)
 
     @property
-    def write_disposition(self) -> TWriteDisposition:
+    def write_disposition(self) -> TTableHintTemplate[TWriteDisposition]:
         if self._table_schema_template is None or self._table_schema_template.get("write_disposition") is None:
             return DEFAULT_WRITE_DISPOSITION
-        w_d = self._table_schema_template.get("write_disposition")
-        if callable(w_d):
-            raise DataItemRequiredForDynamicTableHints(self._name)
-        else:
-            return w_d
+        return self._table_schema_template.get("write_disposition")
 
-    def table_schema(self, item: TDataItem =  None) -> TPartialTableSchema:
+    @write_disposition.setter
+    def write_disposition(self, value: TTableHintTemplate[TWriteDisposition]) -> None:
+        self.apply_hints(write_disposition=value)
+
+    @property
+    def columns(self) -> TTableHintTemplate[TTableSchemaColumns]:
+        """Gets columns schema that can be modified in place"""
+        if self._table_schema_template is None:
+            return None
+        return self._table_schema_template.get("columns")
+
+    def compute_table_schema(self, item: TDataItem =  None) -> TPartialTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation. `item` parameter is used to resolve table hints based on data"""
         if not self._table_schema_template:
             return new_table(self._name, resource=self._name)
@@ -102,8 +110,6 @@ class DltResourceSchema:
            In non-aware resources, `dlt` will filter out the loaded values, however the resource will yield all the values again.
         """
         t = None
-        if columns is not None:
-            columns = ensure_table_schema_columns_hint(columns)
         if not self._table_schema_template:
             # if there's no template yet, create and set new one
             t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key)
@@ -114,7 +120,7 @@ class DltResourceSchema:
                 if table_name:
                     t["name"] = table_name
                 else:
-                    t.pop("name", None)
+                    t["name"] = self._name
             if parent_table_name is not None:
                 if parent_table_name:
                     t["parent"] = parent_table_name
@@ -123,15 +129,34 @@ class DltResourceSchema:
             if write_disposition:
                 t["write_disposition"] = write_disposition
             if columns is not None:
-                t["columns"] = columns
+                # if callable then override existing
+                if callable(columns) or callable(t["columns"]):
+                    t["columns"] = ensure_table_schema_columns_hint(columns)
+                elif columns:
+                    # normalize columns
+                    columns = ensure_table_schema_columns(columns)
+                    # this updates all columns with defaults
+                    t["columns"] = update_dict_nested(t["columns"], columns)
+                else:
+                    t.pop("columns", None)
+
             if primary_key is not None:
-                t["primary_key"] = primary_key
+                if primary_key:
+                    t["primary_key"] = primary_key
+                else:
+                    t.pop("primary_key", None)
             if merge_key is not None:
-                t["merge_key"] = merge_key
-            t["incremental"] = incremental
+                if merge_key:
+                    t["merge_key"] = merge_key
+                else:
+                    t.pop("merge_key", None)
+
+        # set properties that cannot be passed to new_table_template
+        t["incremental"] = incremental
         self.set_template(t)
 
     def set_template(self, table_schema_template: TTableSchemaTemplate) -> None:
+        DltResourceSchema.validate_dynamic_hints(table_schema_template)
         # if "name" is callable in the template then the table schema requires actual data item to be inferred
         name_hint = table_schema_template["name"]
         if callable(name_hint):
@@ -179,28 +204,29 @@ class DltResourceSchema:
         table_name: TTableHintTemplate[str],
         parent_table_name: TTableHintTemplate[str] = None,
         write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-        columns: TTableHintTemplate[TTableSchemaColumns] = None,
+        columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None
         ) -> TTableSchemaTemplate:
         if not table_name:
             raise TableNameMissing()
 
+        if columns is not None:
+            columns = ensure_table_schema_columns_hint(columns)
+            if not callable(columns):
+                columns = columns.values()  # type: ignore
         # create a table schema template where hints can be functions taking TDataItem
-        if isinstance(columns, C_Mapping):
-            # new_table accepts a sequence
-            column_list: List[TColumnSchema] = []
-            for name, column in columns.items():
-                column["name"] = name
-                column_list.append(column)
-            columns = column_list  # type: ignore
-
         new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns)  # type: ignore
         if primary_key:
             new_template["primary_key"] = primary_key
         if merge_key:
             new_template["merge_key"] = merge_key
-        # if any of the hints is a function then name must be as well
-        if any(callable(v) for k, v in new_template.items() if k != "name") and not callable(table_name):
-            raise InconsistentTableTemplate(f"Table name {table_name} must be a function if any other table hint is a function")
+        DltResourceSchema.validate_dynamic_hints(new_template)
         return new_template
+
+    @staticmethod
+    def validate_dynamic_hints(template: TTableSchemaTemplate) -> None:
+        table_name = template["name"]
+        # if any of the hints is a function then name must be as well
+        if any(callable(v) for k, v in template.items() if k not in ["name", "incremental"]) and not callable(table_name):
+            raise InconsistentTableTemplate(f"Table name {table_name} must be a function if any other table hint is a function")

@@ -44,7 +44,7 @@ aws_secret_access_key = "please set me up!" # copy the secret access key here
 If you have your credentials stored in `~/.aws/credentials` just remove the **[destination.filesystem.credentials]** section above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the  profile, pass the profile name as follows (here: `dlt-ci-user`):
 ```toml
 [destination.filesystem.credentials]
-aws_profile="dlt-ci-user"
+profile_name="dlt-ci-user"
 ```
 
 You can also pass an aws region:

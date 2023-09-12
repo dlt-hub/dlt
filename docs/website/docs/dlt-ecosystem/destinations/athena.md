@@ -63,10 +63,10 @@ region_name="please set me up!" # set your aws region, for example "eu-central-1
 if you have your credentials stored in `~/.aws/credentials` just remove the **[destination.filesystem.credentials]** and **[destination.athena.credentials]** section above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the  profile, pass the profile name as follows (here: `dlt-ci-user`):
 ```toml
 [destination.filesystem.credentials]
-aws_profile="dlt-ci-user"
+profile_name="dlt-ci-user"
 
 [destination.athena.credentials]
-aws_profile="dlt-ci-user"
+profile_name="dlt-ci-user"
 ```
 
 ## Additional Destination Configuration
@@ -92,7 +92,7 @@ scanning your bucket and reading all relevant parquet files in there.
 `dlt` internal tables are saved as Iceberg tables.
 
 ### Data types
-Athena tables store timestamps with millisecond precision and with that precision we generate parquet files. Mind that Iceberg tables have microsecond precision. 
+Athena tables store timestamps with millisecond precision and with that precision we generate parquet files. Mind that Iceberg tables have microsecond precision.
 
 Athena does not support JSON fields so JSON is stored as string.
 

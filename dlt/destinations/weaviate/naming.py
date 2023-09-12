@@ -18,17 +18,24 @@ class NamingConvention(SnakeCaseNamingConvention):
     _SPLIT_UNDERSCORE_NON_CAP = re.compile("(_[^A-Z])")
 
     def normalize_identifier(self, identifier: str) -> str:
-        """Normalizes Weaviate property name by removing not allowed characters, replacing them by _ and contracting multiple _ into single one"""
+        """Normalizes Weaviate property name by removing not allowed characters, replacing them by _ and contracting multiple _ into single one
+           and lowercasing the first character.
+
+        """
         identifier = BaseNamingConvention.normalize_identifier(self, identifier)
         if identifier in self.RESERVED_PROPERTIES:
             return self.RESERVED_PROPERTIES[identifier]
         norm_identifier = self._base_normalize(identifier)
         if self._STARTS_DIGIT.match(norm_identifier):
             norm_identifier = "p_" + norm_identifier
+        norm_identifier = self._lowercase_property(norm_identifier)
         return self.shorten_identifier(norm_identifier, identifier, self.max_length)
 
     def normalize_table_identifier(self, identifier: str) -> str:
-        """Creates Weaviate class name. Runs property normalization and then creates capitalized case name by splitting on _"""
+        """Creates Weaviate class name. Runs property normalization and then creates capitalized case name by splitting on _
+
+           https://weaviate.io/developers/weaviate/configuration/schema-configuration#create-a-class
+        """
         identifier = BaseNamingConvention.normalize_identifier(self, identifier)
         norm_identifier = self._base_normalize(identifier)
         # norm_identifier = norm_identifier.strip("_")
@@ -37,6 +44,10 @@ class NamingConvention(SnakeCaseNamingConvention):
         if self._STARTS_NON_LETTER.match(norm_identifier):
             norm_identifier = "C" + norm_identifier
         return self.shorten_identifier(norm_identifier, identifier, self.max_length)
+
+    def _lowercase_property(self, identifier: str) -> str:
+        # lowercase the first letter to follow Weaviate guidelines on properties
+        return identifier[0].lower() + identifier[1:]
 
     def _base_normalize(self, identifier: str) -> str:
         # all characters that are not letters digits or a few special chars are replaced with underscore

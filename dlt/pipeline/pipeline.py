@@ -33,10 +33,9 @@ from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
 from dlt.common.data_writers import TLoaderFileFormat
 
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, SourceExhausted
+from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage, extract_with_schema
 from dlt.extract.source import DltResource, DltSource
-from dlt.extract.utils import ensure_table_schema_columns
 from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase
@@ -792,10 +791,9 @@ class Pipeline(SupportsPipeline):
     ) -> List[DltSource]:
 
         def apply_hint_args(resource: DltResource) -> None:
-            columns_dict = ensure_table_schema_columns(columns) if columns is not None else None
             # apply hints only if any of the hints is present, table_name must be always present
             if table_name or parent_table_name or write_disposition or columns or primary_key:
-                resource.apply_hints(table_name or resource.table_name or resource.name, parent_table_name, write_disposition, columns_dict, primary_key)
+                resource.apply_hints(table_name or resource.table_name or resource.name, parent_table_name, write_disposition, columns, primary_key)
 
         def choose_schema() -> Schema:
             """Except of explicitly passed schema, use a clone that will get discarded if extraction fails"""
@@ -876,7 +874,9 @@ class Pipeline(SupportsPipeline):
         # get the current schema and merge tables from source_schema
         # note we are not merging props like max nesting or column propagation
         for table in source_schema.data_tables(include_incomplete=True):
-            pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(table))
+            pipeline_schema.update_schema(
+                pipeline_schema.normalize_table_identifiers(table)
+            )
 
         return extract_id
 

@@ -2,11 +2,14 @@ import pytest
 
 import dlt
 from dlt.common import json
+from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.weaviate import weaviate_adapter
+from dlt.destinations.weaviate.exceptions import PropertyNameConflict
 from dlt.destinations.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
 from dlt.destinations.weaviate.weaviate_client import WeaviateClient
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.pipeline.utils import assert_load_info
 from .utils import assert_class, drop_active_pipeline_data
@@ -22,6 +25,23 @@ def sequence_generator():
     while True:
         yield [{"content": str(count + i)} for i in range(3)]
         count += 3
+
+
+def test_adapter_and_hints() -> None:
+    generator_instance1 = sequence_generator()
+
+    @dlt.resource(columns=[{"name": "content", "data_type": "text"}])
+    def some_data():
+        yield from next(generator_instance1)
+
+    assert some_data.columns["content"] == {"name": "content", "data_type": "text"}
+
+    # adapter merges with existing columns
+    weaviate_adapter(
+        some_data,
+        vectorize=["content"],
+    )
+    assert some_data.columns["content"] == {"name": "content", "data_type": "text", "x-weaviate-vectorize": True}
 
 
 def test_basic_state_and_schema() -> None:
@@ -336,14 +356,35 @@ def test_empty_dataset_allowed() -> None:
 def test_vectorize_property_without_data() -> None:
     # we request to vectorize "content" but property with this name does not appear in the data
     # an incomplete column was created and it can't be created at destination
-    p = dlt.pipeline(destination="weaviate", full_refresh=True)
-    # check if we use localhost
-    client: WeaviateClient = p.destination_client()
-    if "localhost" not in client.config.credentials.url:
-        pytest.skip("skip to avoid race condition with other tests")
+    dataset_name = "without_data_" + uniq_id()
+    p = dlt.pipeline(destination="weaviate", dataset_name=dataset_name)
 
-    assert p.dataset_name is None
     info = p.run(weaviate_adapter(["a", "b", "c"], vectorize=["content"]))
     # dataset in load info is empty
     assert_load_info(info)
     assert_class(p, "Content", expected_items_count=3)
+
+    # here we increase the abuse and try to vectorize a `Value` field, where in the data there's `value`
+    # in standard naming convention this results in property conflict
+    with pytest.raises(PipelineStepFailed) as pipe_ex:
+        p.run(weaviate_adapter(["a", "b", "c"], vectorize="vAlue"), primary_key="vAlue", columns={"vAlue": {"data_type": "text"}})
+    assert isinstance(pipe_ex.value.__context__, PropertyNameConflict)
+
+    # set the naming convention to case insensitive
+    # os.environ["SCHEMA__NAMING"] = "direct"
+    dlt.config["schema.naming"] = "dlt.destinations.weaviate.ci_naming"
+    # create new schema with changed naming convention
+    p = p.drop()
+    info = p.run(weaviate_adapter(["there are", "no stop", "words in here"], vectorize="vAlue"), primary_key="vALue", columns={"vAlue": {"data_type": "text"}})
+    # dataset in load info is empty
+    assert_load_info(info)
+    # print(p.default_schema.to_pretty_yaml())
+    table_schema = p.default_schema.get_table("Content")
+    value_column = table_schema["columns"]["value"]
+    assert value_column["primary_key"] is True
+    assert value_column["x-weaviate-vectorize"] is True
+
+    # we forced schema change in the pipeline but weaviate does not support enabling vectorization on existing properties and classes
+    # so mock the class otherwise the test will not pass
+    value_column["x-weaviate-vectorize"] = False
+    assert_class(p, "Content", expected_items_count=6)

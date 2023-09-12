@@ -175,7 +175,7 @@ class RedshiftClient(InsertValuesJobClient):
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(HINT_TO_REDSHIFT_ATTR.get(h, "") for h in HINT_TO_REDSHIFT_ATTR.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
-        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
+        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""

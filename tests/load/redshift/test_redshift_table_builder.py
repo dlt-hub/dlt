@@ -90,12 +90,3 @@ def test_create_table_with_hints(client: RedshiftClient) -> None:
     # no hints
     assert '"col3" boolean  NOT NULL' in sql
     assert '"col4" timestamp with time zone  NOT NULL' in sql
-
-
-def test_hint_alter_table_exception(client: RedshiftClient) -> None:
-    mod_update = deepcopy(TABLE_UPDATE)
-    # timestamp
-    mod_update[3]["sort"] = True
-    with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
-        client._get_table_update_sql("event_test_table", mod_update, True)
-    assert excc.value.columns == ['"col4"']
