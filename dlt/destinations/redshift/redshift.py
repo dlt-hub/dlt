@@ -41,7 +41,8 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "timestamp": "timestamp with time zone",
     "bigint": "bigint",
     "binary": "varbinary",
-    "decimal": "numeric(%i,%i)"
+    "decimal": "numeric(%i,%i)",
+    "time": "time without time zone"
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
@@ -53,7 +54,8 @@ PGT_TO_SCT: Dict[str, TDataType] = {
     "timestamp with time zone": "timestamp",
     "bigint": "bigint",
     "binary varying": "binary",
-    "numeric": "decimal"
+    "numeric": "decimal",
+    "time without time zone": "time"
 }
 
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
@@ -106,6 +108,11 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         file_type = ""
         dateformat = ""
         compression = ""
+        if table_schema_has_type(table, "time"):
+            raise LoadJobTerminalException(
+                self.file_name(),
+                f"Redshift cannot load TIME columns from {ext} files. Switch to direct INSERT file format or convert `datetime.time` objects in your data to `str` or `datetime.datetime`"
+            )
         if ext == "jsonl":
             if table_schema_has_type(table, "binary"):
                 raise LoadJobTerminalException(self.file_name(), "Redshift cannot load VARBYTE columns from json files. Switch to parquet to load binaries.")
@@ -168,7 +175,7 @@ class RedshiftClient(InsertValuesJobClient):
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(HINT_TO_REDSHIFT_ATTR.get(h, "") for h in HINT_TO_REDSHIFT_ATTR.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
-        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
+        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
@@ -192,4 +199,3 @@ class RedshiftClient(InsertValuesJobClient):
             if (precision, scale) == cls.capabilities.wei_precision:
                 return "wei"
         return PGT_TO_SCT.get(pq_t, "text")
-

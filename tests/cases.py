@@ -1,6 +1,7 @@
-from typing import Dict, List, Any
+from typing import Dict, List, Any, Sequence, Tuple
 import base64
 from hexbytes import HexBytes
+from copy import deepcopy
 
 from dlt.common import Decimal, pendulum, json
 from dlt.common.data_types import TDataType
@@ -25,7 +26,6 @@ JSON_TYPED_DICT: StrAny = {
 }
 # TODO: a version after PUA decoder (time is not yet implemented end to end)
 JSON_TYPED_DICT_DECODED = dict(JSON_TYPED_DICT)
-JSON_TYPED_DICT_DECODED["time"] = JSON_TYPED_DICT["time"].isoformat()
 
 JSON_TYPED_DICT_TYPES: Dict[str, TDataType] = {
     "str": "text",
@@ -37,7 +37,7 @@ JSON_TYPED_DICT_TYPES: Dict[str, TDataType] = {
     "hexbytes": "binary",
     "bytes": "binary",
     "wei": "wei",
-    "time": "text"
+    "time": "time"
 }
 
 JSON_TYPED_DICT_NESTED = {
@@ -106,6 +106,11 @@ TABLE_UPDATE: List[TColumnSchema] = [
         "nullable": False
     },
     {
+        "name": "col11",
+        "data_type": "time",
+        "nullable": False
+    },
+    {
         "name": "col1_null",
         "data_type": "bigint",
         "nullable": True
@@ -155,7 +160,12 @@ TABLE_UPDATE: List[TColumnSchema] = [
         "name": "col10_null",
         "data_type": "date",
         "nullable": True
-    }
+    },
+    {
+        "name": "col11_null",
+        "data_type": "time",
+        "nullable": True
+    },
 ]
 TABLE_UPDATE_COLUMNS_SCHEMA: TTableSchemaColumns = {t["name"]:t for t in TABLE_UPDATE}
 
@@ -170,6 +180,7 @@ TABLE_ROW_ALL_DATA_TYPES  = {
     "col8": 2**56 + 92093890840,
     "col9": {"complex":[1,2,3,"a"], "link": "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\012 \6 \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"},
     "col10": "2023-02-27",
+    "col11": "13:26:45.176451",
     "col1_null": None,
     "col2_null": None,
     "col3_null": None,
@@ -179,45 +190,75 @@ TABLE_ROW_ALL_DATA_TYPES  = {
     "col7_null": None,
     "col8_null": None,
     "col9_null": None,
-    "col10_null": None
+    "col10_null": None,
+    "col11_null": None,
 }
+
+
+def table_update_and_row(exclude_types: Sequence[TDataType] = None) -> Tuple[TTableSchemaColumns, StrAny]:
+    """Get a table schema and a row with all possible data types.
+    Optionally exclude some data types from the schema and row.
+    """
+    column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
+    data_row = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
+    if exclude_types:
+        exclude_col_names = [key for key, value in column_schemas.items() if value["data_type"] in exclude_types]
+        for col_name in exclude_col_names:
+            del column_schemas[col_name]
+            del data_row[col_name]
+    return column_schemas, data_row
 
 
 def assert_all_data_types_row(
     db_row: List[Any],
     parse_complex_strings: bool = False,
     allow_base64_binary: bool = False,
-    timestamp_precision:int = 6
+    timestamp_precision:int = 6,
+    schema: TTableSchemaColumns = None,
 ) -> None:
     # content must equal
     # print(db_row)
+    schema = schema or TABLE_UPDATE_COLUMNS_SCHEMA
+
+    # Include only columns requested in schema
+    db_mapping = {col_name: db_row[i] for i, col_name in enumerate(schema)}
+    expected_rows = {key: value for key, value in TABLE_ROW_ALL_DATA_TYPES.items() if key in schema}
     # prepare date to be compared: convert into pendulum instance, adjust microsecond precision
-    expected_rows = list(TABLE_ROW_ALL_DATA_TYPES.values())
-    parsed_date = pendulum.instance(db_row[3])
-    db_row[3] = reduce_pendulum_datetime_precision(parsed_date, timestamp_precision)
-    expected_rows[3] = reduce_pendulum_datetime_precision(ensure_pendulum_datetime(expected_rows[3]), timestamp_precision)
+    if "col4" in expected_rows:
+        parsed_date = pendulum.instance(db_mapping["col4"])
+        db_mapping["col4"] = reduce_pendulum_datetime_precision(parsed_date, timestamp_precision)
+        expected_rows['col4'] = reduce_pendulum_datetime_precision(
+            ensure_pendulum_datetime(expected_rows["col4"]),  # type: ignore[arg-type]
+            timestamp_precision
+        )
 
-    if isinstance(db_row[6], str):
-        try:
-            db_row[6] = bytes.fromhex(db_row[6])  # redshift returns binary as hex string
-        except ValueError:
-            if not allow_base64_binary:
-                raise
-            db_row[6] = base64.b64decode(db_row[6], validate=True)
-    else:
-        db_row[6] = bytes(db_row[6])
+    # binary column
+    if "col7" in db_mapping:
+        if isinstance(db_mapping["col7"], str):
+            try:
+                db_mapping["col7"] = bytes.fromhex(db_mapping["col7"])  # redshift returns binary as hex string
+            except ValueError:
+                if not allow_base64_binary:
+                    raise
+                db_mapping["col7"] = base64.b64decode(db_mapping["col7"], validate=True)
+        else:
+            db_mapping["col7"] = bytes(db_mapping["col7"])
+
     # redshift and bigquery return strings from structured fields
-    if isinstance(db_row[8], str):
-        # then it must be json
-        db_row[8] = json.loads(db_row[8])
-    # parse again
-    if parse_complex_strings and isinstance(db_row[8], str):
-        # then it must be json
-        db_row[8] = json.loads(db_row[8])
+    if "col9" in db_mapping:
+        if isinstance(db_mapping["col9"], str):
+            # then it must be json
+            db_mapping["col9"] = json.loads(db_mapping["col9"])
+        # parse again
+        if parse_complex_strings and isinstance(db_mapping["col9"], str):
+            # then it must be json
+            db_mapping["col9"] = json.loads(db_mapping["col9"])
 
-    db_row[9] = db_row[9].isoformat()
-    # print(db_row)
-    # print(expected_rows)
-    for expected, actual in zip(expected_rows, db_row):
+    if "col10" in db_mapping:
+        db_mapping["col10"] = db_mapping["col10"].isoformat()
+    if "col11" in db_mapping:
+        db_mapping["col11"] = db_mapping["col11"].isoformat()
+
+    for expected, actual in zip(expected_rows.values(), db_mapping.values()):
         assert expected == actual
-    assert db_row == expected_rows
+    assert db_mapping == expected_rows

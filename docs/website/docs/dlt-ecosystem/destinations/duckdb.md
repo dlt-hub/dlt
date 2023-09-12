@@ -33,7 +33,10 @@ All write dispositions are supported
 You can configure the following file formats to load data to duckdb
 * [insert-values](../file-formats/insert-format.md) is used by default
 * [parquet](../file-formats/parquet.md) is supported
-* [jsonl](../file-formats/jsonl.md) is supported but does not work in practice. the missing keys fail the COPY instead of being interpreted as NULL
+:::note
+`duckdb` cannot COPY many parquet files to a single table from multiple threads. In this situation `dlt` serializes the loads. Still - that may be faster than INSERT
+:::
+* [jsonl](../file-formats/jsonl.md) **is supported but does not work if JSON fields are optional. the missing keys fail the COPY instead of being interpreted as NULL**
 
 ## Supported column hints
 `duckdb` may create unique indexes for all columns with `unique` hints but this behavior **is disabled by default** because it slows the loading down significantly.

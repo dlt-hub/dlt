@@ -26,7 +26,7 @@ from dlt.common.pipeline import PipelineContext
 TEST_STORAGE_ROOT = "_storage"
 
 # destination constants
-IMPLEMENTED_DESTINATIONS = {"athena", "duckdb", "bigquery", "redshift", "postgres", "snowflake", "filesystem", "weaviate", "dummy", "motherduck"}
+IMPLEMENTED_DESTINATIONS = {"athena", "duckdb", "bigquery", "redshift", "postgres", "snowflake", "filesystem", "weaviate", "dummy", "motherduck", "mssql"}
 NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck"}
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
 

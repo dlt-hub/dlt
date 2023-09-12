@@ -72,7 +72,9 @@ When staging is enabled:
 * [jsonl](../file-formats/jsonl.md) is used by default
 * [parquet](../file-formats/parquet.md) is supported
 
-> ❗ **Redshift cannot load VARBYTE columns from `json` files**. `dlt` will fail such jobs permanently. Switch to `parquet` to load binaries.
+> ❗ **Redshift cannot load `VARBYTE` columns from `json` files**. `dlt` will fail such jobs permanently. Switch to `parquet` to load binaries.
+
+> ❗ **Redshift cannot load `TIME` columns from `json` or `parquet` files**. `dlt` will fail such jobs permanently. Switch to direct `insert_values` to load time columns.
 
 > ❗ **Redshift cannot detect compression type from `json` files**. `dlt` assumes that `jsonl` files are gzip compressed which is the default.
 

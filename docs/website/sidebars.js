@@ -45,6 +45,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/hubspot',
             'dlt-ecosystem/verified-sources/jira',
             'dlt-ecosystem/verified-sources/matomo',
+            'dlt-ecosystem/verified-sources/mongodb',
             'dlt-ecosystem/verified-sources/mux',
             'dlt-ecosystem/verified-sources/notion',
             'dlt-ecosystem/verified-sources/pipedrive',

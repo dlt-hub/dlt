@@ -90,11 +90,11 @@ def extract(
             table_name = resource._table_name_hint_fun(item)
             existing_table = dynamic_tables.get(table_name)
             if existing_table is None:
-                dynamic_tables[table_name] = [resource.table_schema(item)]
+                dynamic_tables[table_name] = [resource.compute_table_schema(item)]
             else:
                 # quick check if deep table merge is required
                 if resource._table_has_other_dynamic_hints:
-                    new_table = resource.table_schema(item)
+                    new_table = resource.compute_table_schema(item)
                     # this merges into existing table in place
                     utils.merge_tables(existing_table[0], new_table)
                 else:
@@ -106,7 +106,7 @@ def extract(
         def _write_static_table(resource: DltResource, table_name: str) -> None:
             existing_table = dynamic_tables.get(table_name)
             if existing_table is None:
-                static_table = resource.table_schema()
+                static_table = resource.compute_table_schema()
                 static_table["name"] = table_name
                 dynamic_tables[table_name] = [static_table]
 

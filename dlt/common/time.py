@@ -7,6 +7,7 @@ from dlt.common.typing import TimedeltaSeconds, TAnyDateTime
 from pendulum.parsing import parse_iso8601, _parse_common as parse_datetime_common
 from pendulum.tz import UTC
 
+
 PAST_TIMESTAMP: float = 0.0
 FUTURE_TIMESTAMP: float = 9999999999.0
 DAY_DURATION_SEC: float = 24 * 60 * 60.0
@@ -26,7 +27,7 @@ def timestamp_before(timestamp: float, max_inclusive: Optional[float]) -> bool:
     return timestamp <= (max_inclusive or FUTURE_TIMESTAMP)
 
 
-def parse_iso_like_datetime(value: Any) -> Union[pendulum.DateTime, pendulum.Date]:
+def parse_iso_like_datetime(value: Any) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
     # we use internal pendulum parse function. the generic function, for example, parses string "now" as now()
     # it also tries to parse ISO intervals but the code is very low quality
 
@@ -38,20 +39,10 @@ def parse_iso_like_datetime(value: Any) -> Union[pendulum.DateTime, pendulum.Dat
     if not dtv:
         dtv = parse_datetime_common(value)
     if isinstance(dtv, datetime.time):
-        raise ValueError(value)
+        return pendulum.time(dtv.hour, dtv.minute, dtv.second, dtv.microsecond)
     if isinstance(dtv, datetime.datetime):
-        return pendulum.datetime(
-            dtv.year,
-            dtv.month,
-            dtv.day,
-            dtv.hour,
-            dtv.minute,
-            dtv.second,
-            dtv.microsecond,
-            tz=dtv.tzinfo or UTC  # type: ignore
-        )
-    # no typings for pendulum
-    return dtv  # type: ignore
+        return pendulum.instance(dtv)
+    return pendulum.date(dtv.year, dtv.month, dtv.day)
 
 
 def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
@@ -71,30 +62,14 @@ def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
         return value.in_tz(UTC).date()  # type: ignore
     elif isinstance(value, datetime.date):
         return pendulum.date(value.year, value.month, value.day)
-    elif isinstance(value, (int, float)):
-        return pendulum.from_timestamp(value)
-    elif isinstance(value, str):
-        result = parse_iso_like_datetime(value)
+    elif isinstance(value, (int, float, str)):
+        result = _datetime_from_ts_or_iso(value)
+        if isinstance(result, datetime.time):
+            raise ValueError(f"Cannot coerce {value} to a pendulum.DateTime object.")
         if isinstance(result, pendulum.DateTime):
             return result.in_tz(UTC).date()  # type: ignore
-        return pendulum.datetime(result.year, result.month, result.day)
+        return pendulum.date(result.year, result.month, result.day)
     raise TypeError(f"Cannot coerce {value} to a pendulum.DateTime object.")
-
-
-@overload
-def to_seconds(td: None) -> None:
-    pass
-
-
-@overload
-def to_seconds(td: TimedeltaSeconds) -> float:
-    pass
-
-
-def to_seconds(td: Optional[TimedeltaSeconds]) -> Optional[float]:
-    if isinstance(td, timedelta):
-        return td.total_seconds()
-    return td
 
 
 def ensure_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
@@ -114,12 +89,63 @@ def ensure_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
         return ret.in_tz(UTC)
     elif isinstance(value, datetime.date):
         return pendulum.datetime(value.year, value.month, value.day, tz=UTC)
-    elif isinstance(value, str):
-        result = parse_iso_like_datetime(value)
+    elif isinstance(value, (int, float, str)):
+        result = _datetime_from_ts_or_iso(value)
+        if isinstance(result, datetime.time):
+            raise ValueError(f"Cannot coerce {value} to a pendulum.DateTime object.")
         if isinstance(result, pendulum.DateTime):
             return result.in_tz(UTC)
         return pendulum.datetime(result.year, result.month, result.day, tz=UTC)
     raise TypeError(f"Cannot coerce {value} to a pendulum.DateTime object.")
+
+
+def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
+    """Coerce a time value to a `pendulum.Time` object.
+
+    Args:
+        value: The value to coerce. Can be a `pendulum.Time` / `datetime.time` or an iso time string.
+
+    Returns:
+        A pendulum.Time object
+    """
+
+    if isinstance(value, datetime.time):
+        if isinstance(value, pendulum.Time):
+            return value
+        return pendulum.time(value.hour, value.minute, value.second, value.microsecond)
+    elif isinstance(value, str):
+        result = parse_iso_like_datetime(value)
+        if isinstance(result, pendulum.Time):
+            return result
+        else:
+            raise ValueError(f"{value} is not a valid ISO time string.")
+    raise TypeError(f"Cannot coerce {value} to a pendulum.Time object.")
+
+
+def _datetime_from_ts_or_iso(value: Union[int, float, str]) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
+    if isinstance(value, (int, float)):
+        return pendulum.from_timestamp(value)
+    try:
+        return parse_iso_like_datetime(value)
+    except ValueError:
+        value = float(value)
+        return pendulum.from_timestamp(float(value))
+
+
+@overload
+def to_seconds(td: None) -> None:
+    pass
+
+
+@overload
+def to_seconds(td: TimedeltaSeconds) -> float:
+    pass
+
+
+def to_seconds(td: Optional[TimedeltaSeconds]) -> Optional[float]:
+    if isinstance(td, timedelta):
+        return td.total_seconds()
+    return td
 
 
 def reduce_pendulum_datetime_precision(value: pendulum.DateTime, microsecond_precision: int) -> pendulum.DateTime:

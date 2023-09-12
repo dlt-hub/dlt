@@ -26,7 +26,8 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "date": "date",
     "bigint": "bigint",
     "binary": "bytea",
-    "decimal": "numeric(%i,%i)"
+    "decimal": "numeric(%i,%i)",
+    "time": "time without time zone"
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
@@ -38,7 +39,8 @@ PGT_TO_SCT: Dict[str, TDataType] = {
     "date": "date",
     "bigint": "bigint",
     "bytea": "binary",
-    "numeric": "decimal"
+    "numeric": "decimal",
+    "time without time zone": "time"
 }
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {
@@ -79,7 +81,7 @@ class PostgresClient(InsertValuesJobClient):
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(self.active_hints.get(h, "") for h in self.active_hints.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
-        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
+        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return PostgresStagingCopyJob.from_table_chain(table_chain, self.sql_client)

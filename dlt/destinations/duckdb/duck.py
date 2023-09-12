@@ -1,3 +1,4 @@
+import threading
 from typing import ClassVar, Dict, Optional
 
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -6,6 +7,7 @@ from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.utils import maybe_context
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
@@ -23,7 +25,8 @@ SCT_TO_PGT: Dict[TDataType, str] = {
     "timestamp": "TIMESTAMP WITH TIME ZONE",
     "bigint": "BIGINT",
     "binary": "BLOB",
-    "decimal": "DECIMAL(%i,%i)"
+    "decimal": "DECIMAL(%i,%i)",
+    "time": "TIME"
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
@@ -35,28 +38,42 @@ PGT_TO_SCT: Dict[str, TDataType] = {
     "TIMESTAMP WITH TIME ZONE": "timestamp",
     "BIGINT": "bigint",
     "BLOB": "binary",
-    "DECIMAL": "decimal"
+    "DECIMAL": "decimal",
+    "TIME": "time"
 }
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {
     "unique": "UNIQUE"
 }
 
+# duckdb cannot load PARQUET to the same table in parallel. so serialize it per table
+PARQUET_TABLE_LOCK = threading.Lock()
+TABLES_LOCKS: Dict[str, threading.Lock] = {}
+
 
 class DuckDbCopyJob(LoadJob, FollowupJob):
     def __init__(self, table_name: str, file_path: str, sql_client: DuckDbSqlClient) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
 
+        qualified_table_name = sql_client.make_qualified_table_name(table_name)
         if file_path.endswith("parquet"):
             source_format = "PARQUET"
+            options = ""
+            # lock when creating a new lock
+            with PARQUET_TABLE_LOCK:
+                # create or get lock per table name
+                lock: threading.Lock = TABLES_LOCKS.setdefault(qualified_table_name, threading.Lock())
         elif file_path.endswith("jsonl"):
             # NOTE: loading JSON does not work in practice on duckdb: the missing keys fail the load instead of being interpreted as NULL
             source_format = "JSON"  # newline delimited, compression auto
+            options = ", COMPRESSION GZIP" if FileStorage.is_gzipped(file_path) else ""
+            lock = None
         else:
             raise ValueError(file_path)
-        qualified_table_name = sql_client.make_qualified_table_name(table_name)
-        with sql_client.begin_transaction():
-            sql_client.execute_sql(f"COPY {qualified_table_name} FROM '{file_path}' ( FORMAT {source_format} );")
+
+        with maybe_context(lock):
+            with sql_client.begin_transaction():
+                sql_client.execute_sql(f"COPY {qualified_table_name} FROM '{file_path}' ( FORMAT {source_format} {options});")
 
 
     def state(self) -> TLoadJobState:
@@ -88,7 +105,7 @@ class DuckDbClient(InsertValuesJobClient):
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(self.active_hints.get(h, "") for h in self.active_hints.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
-        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c['nullable'])}"
+        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     @classmethod
     def _to_db_type(cls, sc_t: TDataType) -> str:

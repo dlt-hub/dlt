@@ -447,3 +447,13 @@ def extend_list_deduplicated(original_list: List[Any], extending_list: Iterable[
         if item not in list_keys:
             original_list.append(item)
     return original_list
+
+
+@contextmanager
+def maybe_context(manager: ContextManager[TAny]) -> Iterator[TAny]:
+    """Allows context manager `manager` to be None by creating dummy context. Otherwise `manager` is used"""
+    if manager is None:
+        yield None
+    else:
+        with manager as ctx:
+            yield ctx

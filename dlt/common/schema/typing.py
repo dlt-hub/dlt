@@ -18,8 +18,11 @@ VERSION_TABLE_NAME = "_dlt_version"
 LOADS_TABLE_NAME = "_dlt_loads"
 STATE_TABLE_NAME = "_dlt_pipeline_state"
 
-TColumnHint = Literal["not_null", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique", "root_key", "merge_key"]
 TColumnProp = Literal["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique", "merge_key", "root_key"]
+"""Known properties and hints of the column"""
+# TODO: merge TColumnHint with TColumnProp
+TColumnHint = Literal["not_null", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique", "root_key", "merge_key"]
+"""Known hints of a column used to declare hint regexes."""
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 TTypeDetections = Literal["timestamp", "iso_timestamp", "large_integer", "hexbytes_to_text", "wei_to_double"]
 TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]

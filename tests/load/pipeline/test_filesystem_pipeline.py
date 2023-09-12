@@ -7,7 +7,9 @@ from dlt.common.storages.load_storage import LoadJobInfo
 from dlt.destinations.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
 from dlt.common.schema.typing import LOADS_TABLE_NAME
 
-import pyarrow.parquet as pq
+from tests.utils import skip_if_not_active
+
+skip_if_not_active("filesystem")
 
 
 def assert_file_matches(layout: str, job: LoadJobInfo, load_id: str, client: FilesystemClient) -> None:
@@ -25,6 +27,8 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
     """Run pipeline twice with merge write disposition
     Resource with primary key falls back to append. Resource without keys falls back to replace.
     """
+    import pyarrow.parquet as pq  # Module is evaluated by other tests
+
     pipeline = dlt.pipeline(pipeline_name='test_' + uniq_id(), destination="filesystem", dataset_name='test_' + uniq_id())
 
     @dlt.resource(primary_key='id')
@@ -87,6 +91,8 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
 
 
 def test_pipeline_parquet_filesystem_destination() -> None:
+
+    import pyarrow.parquet as pq  # Module is evaluated by other tests
 
     # store locally
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "file://_storage"

@@ -1,4 +1,5 @@
 import inspect
+import threading
 from functools import wraps
 from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload
 from inspect import Signature, Parameter
@@ -14,6 +15,7 @@ _LAST_DLT_CONFIG = "_dlt_config"
 _ORIGINAL_ARGS = "_dlt_orig_args"
 # keep a registry of all the decorated functions
 _FUNC_SPECS: Dict[int, Type[BaseConfiguration]] = {}
+_RESOLVE_LOCK = threading.Lock()
 
 TConfiguration = TypeVar("TConfiguration", bound=BaseConfiguration)
 
@@ -84,7 +86,6 @@ def with_config(
         kwargs_arg = next((p for p in sig.parameters.values() if p.kind == Parameter.VAR_KEYWORD), None)
         spec_arg: Parameter = None
         pipeline_name_arg: Parameter = None
-        section_context = ConfigSectionContext(sections=sections, merge_style=sections_merge_style)
 
         if spec is None:
             SPEC = spec_from_signature(f, sig, include_defaults)
@@ -117,22 +118,28 @@ def with_config(
                 config = last_config(**kwargs)
             else:
                 # if section derivation function was provided then call it
-                nonlocal sections
                 if section_f:
-                    section_context.sections = (section_f(bound_args.arguments), )
-                # sections may be a string
-                if isinstance(sections, str):
-                    section_context.sections = (sections,)
+                    curr_sections: Tuple[str, ...] = (section_f(bound_args.arguments), )
+                    # sections may be a string
+                elif isinstance(sections, str):
+                    curr_sections = (sections,)
+                else:
+                    curr_sections = sections
 
                 # if one of arguments is spec the use it as initial value
                 if spec_arg:
                     config = bound_args.arguments.get(spec_arg.name, None)
                 # resolve SPEC, also provide section_context with pipeline_name
                 if pipeline_name_arg:
-                    section_context.pipeline_name = bound_args.arguments.get(pipeline_name_arg.name, pipeline_name_arg_default)
-                with inject_section(section_context):
-                    # print(f"RESOLVE CONF in inject: {f.__name__}: {section_context.sections} vs {sections}")
-                    config = resolve_configuration(config or SPEC(), explicit_value=bound_args.arguments)
+                    curr_pipeline_name = bound_args.arguments.get(pipeline_name_arg.name, pipeline_name_arg_default)
+                else:
+                    curr_pipeline_name = None
+                section_context = ConfigSectionContext(pipeline_name=curr_pipeline_name, sections=curr_sections, merge_style=sections_merge_style)
+                # this may be called from many threads so make sure context is not mangled
+                with _RESOLVE_LOCK:
+                    with inject_section(section_context):
+                        # print(f"RESOLVE CONF in inject: {f.__name__}: {section_context.sections} vs {sections}")
+                        config = resolve_configuration(config or SPEC(), explicit_value=bound_args.arguments)
             resolved_params = dict(config)
             # overwrite or add resolved params
             for p in sig.parameters.values():

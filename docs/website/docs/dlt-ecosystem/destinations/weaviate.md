@@ -221,12 +221,32 @@ Here's a summary of the naming normalization approach:
 #### Property names
 
 - Snake case and camel case remain unchanged: `snake_case_name` and `camelCaseName`.
-- Names with multiple underscores, such as Snake-______c__ase_, are compacted to Snake_c_asex. Except for the case when underscores are leading, in which case they are kept: `___snake_case_name` becomes `___snake_case_name`.
+- Names starting with a capital letter have it lowercased: `CamelCase` -> `camelCase`
+- Names with multiple underscores, such as `Snake-______c__ase_``, are compacted to `snake_c_asex`. Except for the case when underscores are leading, in which case they are kept: `___snake_case_name` becomes `___snake_case_name`.
 - Names starting with a number are prefixed with a "p_". For example, `123snake_case_name` becomes `p_123snake_case_name`.
 
 #### Reserved property names
 
 Reserved property names like `id` or `additional` are prefixed with underscores for differentiation. Therefore, `id` becomes `__id` and `_id` is rendered as `___id`.
+
+### Case insensitive naming convention
+The default naming convention described above will preserve the casing of the properties (besides the first letter which is lowercased). This generates nice classes
+in Weaviate but also requires that your input data does not have clashing property names when comparing case insensitive ie. (`caseName` == `casename`). In such case
+Weaviate destination will fail to create classes and report a conflict.
+
+You can configure alternative naming convention which will lowercase all properties. The clashing properties will be merged and the classes created. Still if you have a document where clashing properties like:
+```json
+{"camelCase": 1, "CamelCase": 2}
+```
+it will be normalized to:
+```
+{"camelcase": 2}
+```
+so your best course of action is to clean up the data yourself before loading and use default naming convention. Nevertheless you can configure the alternative in `config.toml`:
+```toml
+[schema]
+naming="dlt.destinations.weaviate.naming"
+```
 
 ## Additional destination options
 
@@ -244,6 +264,17 @@ Reserved property names like `id` or `additional` are prefixed with underscores 
 - `vectorizer`: (str) the name of [the vectorizer](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules) to use. The default is `text2vec-openai`.
 - `moduleConfig`: (dict) configurations of various Weaviate modules
 
+### Configure Weaviate modules
+
+The default configuration for the Weaviate destination uses `text2vec-openai`.
+To configure another vectorizer or a generative module, replace the default `module_config` value by updating `config.toml`:
+
+```toml
+[destination.weaviate]
+module_config={text2vec-openai = {}, generative-openai = {}}
+```
+
+This ensures the `generative-openai` module is used for generative queries.
 
 ### Run Weaviate fully standalone
 
@@ -262,4 +293,4 @@ Currently Weaviate destination does not support dbt.
 
 ### Syncing of `dlt` state
 
-Weaviate destination does not support syncing of the `dlt` state.
+Weaviate destination supports syncing of the `dlt` state.

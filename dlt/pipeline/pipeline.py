@@ -33,10 +33,9 @@ from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
 from dlt.common.data_writers import TLoaderFileFormat
 
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, SourceExhausted
+from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage, extract_with_schema
 from dlt.extract.source import DltResource, DltSource
-from dlt.extract.utils import ensure_table_schema_columns
 from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase
@@ -297,8 +296,8 @@ class Pipeline(SupportsPipeline):
     @with_config_section((known_sections.NORMALIZE,))
     def normalize(self, workers: int = 1, loader_file_format: TLoaderFileFormat = None, schema_evolution_settings: TSchemaEvolutionSettings = None) -> NormalizeInfo:
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
-        if is_interactive() and workers > 1:
-            raise NotImplementedError("Do not use normalize workers in interactive mode ie. in notebook")
+        if is_interactive():
+            workers = 1
         if loader_file_format and loader_file_format in INTERNAL_LOADER_FILE_FORMATS:
             raise ValueError(f"{loader_file_format} is one of internal dlt file formats.")
         # check if any schema is present, if not then no data was extracted
@@ -310,7 +309,6 @@ class Pipeline(SupportsPipeline):
         # create default normalize config
         normalize_config = NormalizeConfiguration(
             workers=workers,
-            pool_type="none" if workers == 1 else "process",
             _schema_storage_config=self._schema_storage_config,
             _normalize_storage_config=self._normalize_storage_config,
             _load_storage_config=self._load_storage_config
@@ -794,10 +792,9 @@ class Pipeline(SupportsPipeline):
     ) -> List[DltSource]:
 
         def apply_hint_args(resource: DltResource) -> None:
-            columns_dict = ensure_table_schema_columns(columns) if columns is not None else None
             # apply hints only if any of the hints is present, table_name must be always present
             if table_name or parent_table_name or write_disposition or columns or primary_key:
-                resource.apply_hints(table_name or resource.table_name or resource.name, parent_table_name, write_disposition, columns_dict, primary_key)
+                resource.apply_hints(table_name or resource.table_name or resource.name, parent_table_name, write_disposition, columns, primary_key)
 
         def choose_schema() -> Schema:
             """Except of explicitly passed schema, use a clone that will get discarded if extraction fails"""
@@ -878,7 +875,9 @@ class Pipeline(SupportsPipeline):
         # get the current schema and merge tables from source_schema
         # note we are not merging props like max nesting or column propagation
         for table in source_schema.data_tables(include_incomplete=True):
-            pipeline_schema.update_schema(pipeline_schema.normalize_table_identifiers(table))
+            pipeline_schema.update_schema(
+                pipeline_schema.normalize_table_identifiers(table)
+            )
             pipeline_schema._settings["schema_evolution_settings"] = source_schema._settings.get("schema_evolution_settings")
 
         return extract_id

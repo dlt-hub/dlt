@@ -13,7 +13,6 @@ import re
 from dlt.common import json, pendulum, logger
 from dlt.common.data_types import TDataType
 from dlt.common.schema.typing import COLUMN_HINTS, TColumnSchemaBase, TTableSchema, TWriteDisposition
-from dlt.common.schema.utils import add_missing_hints
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import StateInfo, StorageSchemaInfo,WithStateSync, DestinationClientConfiguration, DestinationClientDwhConfiguration, DestinationClientDwhWithStagingConfiguration, NewLoadJob, WithStagingDataset, TLoadJobState, LoadJob, JobClientBase, FollowupJob, CredentialsConfiguration
@@ -87,10 +86,13 @@ class CopyRemoteFileLoadJob(LoadJob, FollowupJob):
 
 class SqlJobClientBase(JobClientBase, WithStateSync):
 
-    VERSION_TABLE_SCHEMA_COLUMNS: ClassVar[str] = "version_hash, schema_name, version, engine_version, inserted_at, schema"
-    STATE_TABLE_COLUMNS: ClassVar[str] = "version, engine_version, pipeline_name, state, created_at, _dlt_load_id"
+    _VERSION_TABLE_SCHEMA_COLUMNS: ClassVar[Tuple[str, ...]] = ('version_hash', 'schema_name', 'version', 'engine_version', 'inserted_at', 'schema')
+    _STATE_TABLE_COLUMNS: ClassVar[Tuple[str, ...]] = ('version', 'engine_version', 'pipeline_name', 'state', 'created_at', '_dlt_load_id')
 
     def __init__(self, schema: Schema, config: DestinationClientConfiguration,  sql_client: SqlClientBase[TNativeConn]) -> None:
+        self.version_table_schema_columns = ", ".join(sql_client.escape_column_name(col) for col in self._VERSION_TABLE_SCHEMA_COLUMNS)
+        self.state_table_columns = ", ".join(sql_client.escape_column_name(col) for col in self._STATE_TABLE_COLUMNS)
+
         super().__init__(schema, config)
         self.sql_client = sql_client
         assert isinstance(config, DestinationClientDwhConfiguration)
@@ -242,7 +244,7 @@ WHERE """
                 "nullable": _null_to_bool(c[2]),
                 "data_type": self._from_db_type(c[1], numeric_precision, numeric_scale),
             }
-            schema_table[c[0]] = add_missing_hints(schema_c)
+            schema_table[c[0]] = schema_c  # type: ignore
         return True, schema_table
 
     @classmethod
@@ -257,13 +259,13 @@ WHERE """
 
     def get_stored_schema(self) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        query = f"SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM {name} WHERE schema_name = %s ORDER BY inserted_at DESC;"
+        query = f"SELECT {self.version_table_schema_columns} FROM {name} WHERE schema_name = %s ORDER BY inserted_at DESC;"
         return self._row_to_schema_info(query, self.schema.name)
 
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
         state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
         loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
-        query = f"SELECT {self.STATE_TABLE_COLUMNS} FROM {state_table} AS s JOIN {loads_table} AS l ON l.load_id = s._dlt_load_id WHERE pipeline_name = %s AND l.status = 0 ORDER BY created_at DESC"
+        query = f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON l.load_id = s._dlt_load_id WHERE pipeline_name = %s AND l.status = 0 ORDER BY created_at DESC"
         with self.sql_client.execute_query(query, pipeline_name) as cur:
             row = cur.fetchone()
         if not row:
@@ -281,7 +283,7 @@ WHERE """
 
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        query = f"SELECT {self.VERSION_TABLE_SCHEMA_COLUMNS} FROM {name} WHERE version_hash = %s;"
+        query = f"SELECT {self.version_table_schema_columns} FROM {name} WHERE version_hash = %s;"
         return self._row_to_schema_info(query, version_hash)
 
     def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
@@ -355,7 +357,12 @@ WHERE """
             for hint in COLUMN_HINTS:
                 if any(c.get(hint, False) is True for c in new_columns):
                     hint_columns = [self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get(hint, False)]
-                    raise DestinationSchemaWillNotUpdate(canonical_name, hint_columns, f"{hint} requested after table was created")
+                    if hint == "not_null":
+                        logger.warning(f"Column(s) {hint_columns} with NOT NULL are being added to existing table {canonical_name}."
+                                       " If there's data in the table the operation will fail.")
+                    else:
+                        logger.warning(f"Column(s) {hint_columns} with hint {hint} are being added to existing table {canonical_name}."
+                                       " Several hint types may not be added to existing tables.")
         return sql_result
 
     @abstractmethod
@@ -425,7 +432,7 @@ WHERE """
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         # values =  schema.version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(now_ts), schema_str
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}({self.VERSION_TABLE_SCHEMA_COLUMNS}) VALUES (%s, %s, %s, %s, %s, %s);", schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, now_ts, schema_str
+            f"INSERT INTO {name}({self.version_table_schema_columns}) VALUES (%s, %s, %s, %s, %s, %s);", schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, now_ts, schema_str
         )
 
 

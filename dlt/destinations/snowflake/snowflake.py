@@ -36,6 +36,7 @@ SCT_TO_SNOW: Dict[TDataType, str] = {
     "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Snowflake has no integer types
     "binary": "BINARY",
     "decimal": "NUMBER(%i,%i)",
+    "time": "TIME",
 }
 
 SNOW_TO_SCT: Dict[str, TDataType] = {
@@ -45,7 +46,8 @@ SNOW_TO_SCT: Dict[str, TDataType] = {
     "DATE": "date",
     "TIMESTAMP_TZ": "timestamp",
     "BINARY": "binary",
-    "VARIANT": "complex"
+    "VARIANT": "complex",
+    "TIME": "time",
 }
 
 
@@ -220,7 +222,7 @@ class SnowflakeClient(SqlJobClientWithStaging):
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         name = self.capabilities.escape_identifier(c["name"])
-        return f"{name} {self._to_db_type(c['data_type'])} {self._gen_not_null(c['nullable'])}"
+        return f"{name} {self._to_db_type(c['data_type'])} {self._gen_not_null(c.get('nullable', True))}"
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         table_name = table_name.upper()  # All snowflake tables are uppercased in information schema

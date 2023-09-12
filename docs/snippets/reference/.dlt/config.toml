@@ -1,0 +1,11 @@
+# [extract]
+# max_parallel_items=1
+
+[sources.extract]
+max_parallel_items=1
+
+# [sources.performance_parallel_extract.extract]
+# workers=2
+
+[sources.performance_parallel_extract.get_details.extract]
+workers=2

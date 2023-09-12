@@ -322,8 +322,10 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
         # print(c["name"])
         # print(c["data_type"])
         assert c["name"] == expected_c["name"]
-        # athena does not know wei data type and has no JSON type
-        if client.config.destination_name == "athena" and c["data_type"] in ("wei", "complex"):
+        # athena does not know wei data type and has no JSON type, time is not supported with parquet tables
+        if client.config.destination_name == "athena" and c["data_type"] in ("wei", "complex", "time"):
+            continue
+        if client.config.destination_name == "mssql" and c["data_type"] in ("wei", "complex"):
             continue
         assert c["data_type"] == expected_c["data_type"]
 
@@ -411,7 +413,8 @@ def test_data_writer_string_escape_edge(client: SqlJobClientBase, file_storage: 
     expect_load_file(client, file_storage, query, table_name)
     for i in range(1,len(rows) + 1):
         db_row = client.sql_client.execute_sql(f"SELECT str FROM {canonical_name} WHERE idx = {i}")
-        assert db_row[0][0] == rows[i-1]["str"]
+        row_value, expected = db_row[0][0], rows[i-1]["str"]
+        assert row_value == expected
 
 
 @pytest.mark.parametrize('write_disposition', ["append", "replace"])
@@ -576,7 +579,8 @@ def test_many_schemas_single_dataset(destination_config: DestinationTestConfigur
             write_dataset(_client, f, [user_row], _client.schema.tables["event_user"]["columns"])
             query = f.getvalue().decode()
         expect_load_file(_client, file_storage, query, "event_user")
-        db_rows = list(_client.sql_client.execute_sql("SELECT * FROM event_user"))
+        qual_table_name = _client.sql_client.make_qualified_table_name("event_user")
+        db_rows = list(_client.sql_client.execute_sql(f"SELECT * FROM {qual_table_name}"))
         assert len(db_rows) == expected_rows
 
     with cm_yield_client_with_storage(destination_config.destination, default_config_values={"default_schema_name": None}) as client:

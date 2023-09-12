@@ -73,7 +73,7 @@ class Schema:
         # verify schema
         utils.validate_stored_schema(stored_schema)
         # add defaults
-        utils.apply_defaults(stored_schema)
+        stored_schema = utils.apply_defaults(stored_schema)
 
         # bump version if modified
         utils.bump_version_if_modified(stored_schema)
@@ -159,6 +159,16 @@ class Schema:
         return row
 
     def coerce_row(self, table_name: str, parent_table: str, row: StrAny) -> Tuple[DictStrAny, TPartialTableSchema]:
+        """Fits values of fields present in `row` into a schema of `table_name`. Will coerce values into data types and infer new tables and column schemas.
+
+           Method expects that field names in row are already normalized.
+           * if table schema for `table_name` does not exist, new table is created
+           * if column schema for a field in `row` does not exist, it is inferred from data
+           * if incomplete column schema (no data type) exists, column is inferred from data and existing hints are applied
+           * fields with None value are removed
+
+           Returns tuple with row with coerced values and a partial table containing just the newly added columns or None if no changes were detected
+        """
         # get existing or create a new table
         updated_table_partial: TPartialTableSchema = None
         table = self._schema_tables.get(table_name)
@@ -288,7 +298,7 @@ class Schema:
             for column_name in table:
                 if column_name in row:
                     hint_value = table[column_name][column_prop]
-                    if (hint_value and column_prop != "nullable") or (column_prop == "nullable" and not hint_value):
+                    if not utils.has_default_column_hint_value(column_prop, hint_value):
                         rv_row[column_name] = row[column_name]
         except KeyError:
             for k, v in row.items():
@@ -313,6 +323,15 @@ class Schema:
         self._compile_settings()
 
     def normalize_table_identifiers(self, table: TTableSchema) -> TTableSchema:
+        """Normalizes all table and column names in `table` schema according to current schema naming convention and returns
+           new normalized TTableSchema instance.
+
+           Naming convention like snake_case may produce name clashes with the column names. Clashing column schemas are merged
+           where the column that is defined later in the dictionary overrides earlier column.
+
+           Note that resource name is not normalized.
+
+        """
         # normalize all identifiers in table according to name normalizer of the schema
         table["name"] = self.naming.normalize_tables_path(table["name"])
         parent = table.get("parent")
@@ -320,10 +339,16 @@ class Schema:
             table["parent"] = self.naming.normalize_tables_path(parent)
         columns = table.get("columns")
         if columns:
+            new_columns: TTableSchemaColumns = {}
             for c in columns.values():
-                c["name"] = self.naming.normalize_path(c["name"])
-            # re-index columns as the name changed
-            table["columns"] = {c["name"]:c for c in columns.values()}
+                new_col_name = c["name"] = self.naming.normalize_path(c["name"])
+                # re-index columns as the name changed, if name space was reduced then
+                # some columns now clash with each other. so make sure that we merge columns that are already there
+                if new_col_name in new_columns:
+                    new_columns[new_col_name] = utils.merge_columns(new_columns[new_col_name], c, merge_defaults=False)
+                else:
+                    new_columns[new_col_name] = c
+            table["columns"] = new_columns
         return table
 
     def get_new_table_columns(self, table_name: str, exiting_columns: TTableSchemaColumns, include_incomplete: bool = False) -> List[TColumnSchema]:
@@ -439,7 +464,10 @@ class Schema:
             nullable=not self._infer_hint("not_null", v, k)
         )
         for hint in COLUMN_HINTS:
-            column_schema[utils.hint_to_column_prop(hint)] = self._infer_hint(hint, v, k)
+            column_prop = utils.hint_to_column_prop(hint)
+            hint_value = self._infer_hint(hint, v, k)
+            if not utils.has_default_column_hint_value(column_prop, hint_value):
+                column_schema[column_prop] = hint_value
 
         if is_variant:
             column_schema["variant"] = is_variant
@@ -488,9 +516,10 @@ class Schema:
 
         if not existing_column:
             inferred_column = self._infer_column(col_name, v, data_type=col_type, is_variant=is_variant)
-            # if there's partial new_column then merge it with inferred column
+            # if there's incomplete new_column then merge it with inferred column
             if new_column:
-                new_column = utils.merge_columns(new_column, inferred_column, merge_defaults=True)
+                # use all values present in incomplete column to override inferred column - also the defaults
+                new_column = utils.merge_columns(inferred_column, new_column)
             else:
                 new_column = inferred_column
 

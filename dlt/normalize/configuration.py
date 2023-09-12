@@ -13,6 +13,9 @@ class NormalizeConfiguration(PoolRunnerConfiguration):
     _normalize_storage_config: NormalizeStorageConfiguration
     _load_storage_config: LoadStorageConfiguration
 
+    def on_resolved(self) -> None:
+        self.pool_type = "none" if self.workers == 1 else "process"
+
     if TYPE_CHECKING:
         def __init__(
             self,

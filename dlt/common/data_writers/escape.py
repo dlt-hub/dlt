@@ -1,17 +1,25 @@
 import re
 import base64
-from typing import Any
-from datetime import date, datetime  # noqa: I251
+from typing import Any, Dict
+from datetime import date, datetime, time  # noqa: I251
 
 from dlt.common.json import json
 
 # use regex to escape characters in single pass
 SQL_ESCAPE_DICT = {"'": "''", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
-SQL_ESCAPE_RE = re.compile("|".join([re.escape(k) for k in sorted(SQL_ESCAPE_DICT, key=len, reverse=True)]), flags=re.DOTALL)
+
+def _make_sql_escape_re(escape_dict: Dict[str, str]) -> re.Pattern:  # type: ignore[type-arg]
+    return re.compile("|".join([re.escape(k) for k in sorted(escape_dict, key=len, reverse=True)]), flags=re.DOTALL)
 
 
-def _escape_extended(v: str, prefix:str = "E'") -> str:
-    return "{}{}{}".format(prefix, SQL_ESCAPE_RE.sub(lambda x: SQL_ESCAPE_DICT[x.group(0)], v), "'")
+SQL_ESCAPE_RE = _make_sql_escape_re(SQL_ESCAPE_DICT)
+
+def _escape_extended(
+        v: str, prefix:str = "E'", escape_dict: Dict[str, str] = None, escape_re: re.Pattern = None  # type: ignore[type-arg]
+) -> str:
+    escape_dict = escape_dict or SQL_ESCAPE_DICT
+    escape_re = escape_re or SQL_ESCAPE_RE
+    return "{}{}{}".format(prefix, escape_re.sub(lambda x: escape_dict[x.group(0)], v), "'")
 
 
 def escape_redshift_literal(v: Any) -> Any:
@@ -55,6 +63,29 @@ def escape_duckdb_literal(v: Any) -> Any:
     if isinstance(v, bytes):
         return f"from_base64('{base64.b64encode(v).decode('ascii')}')"
 
+    return str(v)
+
+
+MS_SQL_ESCAPE_DICT = {
+    "'": "''",
+    '\n': "' + CHAR(10) + N'",
+    '\r': "' + CHAR(13) + N'",
+    '\t': "' + CHAR(9) + N'",
+}
+MS_SQL_ESCAPE_RE = _make_sql_escape_re(MS_SQL_ESCAPE_DICT)
+
+def escape_mssql_literal(v: Any) -> Any:
+    if isinstance(v, str):
+         return _escape_extended(v, prefix="N'", escape_dict=MS_SQL_ESCAPE_DICT, escape_re=MS_SQL_ESCAPE_RE)
+    if isinstance(v, (datetime, date, time)):
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return _escape_extended(json.dumps(v), prefix="N'", escape_dict=MS_SQL_ESCAPE_DICT, escape_re=MS_SQL_ESCAPE_RE)
+    if isinstance(v, bytes):
+        base_64_string = base64.b64encode(v).decode('ascii')
+        return f"""CAST('' AS XML).value('xs:base64Binary("{base_64_string}")', 'VARBINARY(MAX)')"""
+    if isinstance(v, bool):
+        return str(int(v))
     return str(v)
 
 

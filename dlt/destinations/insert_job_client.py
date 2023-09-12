@@ -5,6 +5,7 @@ from typing import Any, Iterator, List
 from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import FileStorage
+from dlt.common.utils import chunks
 
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_impl import EmptyLoadJob
@@ -37,10 +38,10 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
             # properly formatted file has a values marker at the beginning
             assert values_mark == "VALUES\n"
 
+            max_rows = self._sql_client.capabilities.max_rows_per_insert
+
             insert_sql = []
             while content := f.read(self._sql_client.capabilities.max_query_length // 2):
-                # write INSERT
-                insert_sql.extend([header.format(qualified_table_name), values_mark, content])
                 # read one more line in order to
                 # 1. complete the content which ends at "random" position, not an end line
                 # 2. to modify its ending without a need to re-allocating the 8MB of "content"
@@ -55,13 +56,35 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                 if not is_eof:
                     # print(f'replace the "," with " {until_nl} {len(insert_sql)}')
                     until_nl = until_nl[:-1] + ";"
+
+                if max_rows is not None:
+                    # mssql has a limit of 1000 rows per INSERT, so we need to split into separate statements
+                    values_rows = content.splitlines(keepends=True)
+                    len_rows = len(values_rows)
+                    processed = 0
+                    # Chunk by max_rows - 1 for simplicity because one more row may be added
+                    for chunk in chunks(values_rows, max_rows - 1):
+                        processed += len(chunk)
+                        insert_sql.extend([header.format(qualified_table_name), values_mark])
+                        if processed == len_rows:
+                            # On the last chunk we need to add the extra row read
+                            insert_sql.append("".join(chunk) + until_nl)
+                        else:
+                            # Replace the , with ;
+                            insert_sql.append("".join(chunk).strip()[:-1] + ";\n")
+                else:
+                    # otherwise write all content in a single INSERT INTO
+                    insert_sql.extend([header.format(qualified_table_name), values_mark, content])
+
+                    if until_nl:
+                        insert_sql.append(until_nl)
+
                 # actually this may be empty if we were able to read a full file into content
-                if until_nl:
-                    insert_sql.append(until_nl)
                 if not is_eof:
                     # execute chunk of insert
                     yield insert_sql
                     insert_sql = []
+
         if insert_sql:
             yield insert_sql
 
@@ -101,4 +124,3 @@ class InsertValuesJobClient(SqlJobClientWithStaging):
     # def _get_out_table_constrains_sql(self, t: TTableSchema) -> str:
     #     # set non unique indexes
     #     pass
-
