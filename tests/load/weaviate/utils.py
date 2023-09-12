@@ -27,7 +27,6 @@ def assert_class(
 
     # Check if class exists
     schema = client.get_class_schema(class_name)
-    print(schema)
     assert schema is not None
 
     columns = pipeline.default_schema.get_table_columns(class_name)

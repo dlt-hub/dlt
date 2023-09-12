@@ -73,7 +73,6 @@ def test_all_data_types(client: WeaviateClient, write_disposition: str, file_sto
         query = f.getvalue().decode()
     expect_load_file(client, file_storage, query, class_name)
     _, table_columns = client.get_storage_table("AllTypes")
-    print(table_columns)
     # for now check if all columns are there
     assert len(table_columns) == len(TABLE_UPDATE_COLUMNS_SCHEMA)
     for col_name in table_columns:
@@ -211,4 +210,5 @@ def test_load_case_sensitive_data_ci(ci_client: WeaviateClient, file_storage: Fi
     expect_load_file(ci_client, file_storage, query, class_name)
     response = ci_client.query_class(class_name, ["col1"]).do()
     objects = response["data"]["Get"][ci_client.make_qualified_class_name(class_name)]
-    print(objects)
+    # the latter of conflicting fields is stored (so data is lost)
+    assert objects == [{'col1': 726171}]
