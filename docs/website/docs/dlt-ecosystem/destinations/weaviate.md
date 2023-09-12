@@ -11,7 +11,7 @@ This destination helps you to load data into Weaviate from [dlt resources](../..
 
 ## Setup Guide
 
-1. To use Weaviate as a destination, make sure dlt is installed with 'weaviate' extra:
+1. To use Weaviate as a destination, make sure dlt is installed with the 'weaviate' extra:
 
 ```bash
 pip install dlt[weaviate]
