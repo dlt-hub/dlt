@@ -3,7 +3,6 @@ from conftest import string_toml_provider
 PARALLEL_CONFIG_TOML = """
 # @@@DLT_SNIPPET_START parallel_config_toml
 # the pipeline name is default source name when loading resources
-chess_url="https://api.chess.com/pub/"
 
 [sources.parallel_load.data_writer]
 file_max_items=100000
@@ -11,17 +10,18 @@ file_max_items=100000
 [normalize]
 workers=3
 
-[normalize.data_writer]
-disable_compression=false
+[data_writer]
 file_max_items=100000
 
 [load]
 workers=11
+
 # @@@DLT_SNIPPET_END parallel_config_toml
 """
 
 def parallel_config_snippet() -> None:
     string_toml_provider.update(PARALLEL_CONFIG_TOML)
+
     # @@@DLT_SNIPPET_START parallel_config
     import os
     import dlt
@@ -39,6 +39,7 @@ def parallel_config_snippet() -> None:
     if __name__ == "__main__" or "PYTEST_CURRENT_TEST" in os.environ:
         pipeline = dlt.pipeline("parallel_load", destination="duckdb", full_refresh=True)
         pipeline.extract(read_table(1000000))
+
         # we should have 11 files (10 pieces for `table` and 1 for state)
         extracted_files = pipeline.list_extracted_resources()
         print(extracted_files)
@@ -240,10 +241,10 @@ request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
 string_toml_provider.update("""
 # @@@DLT_SNIPPET_START item_mode_toml
 [extract] # global setting
-next_item_mode=round_robin
+next_item_mode="round_robin"
 
 [sources.my_pipeline.extract] # setting for the "my_pipeline" pipeline
-next_item_mode=fifo                     
+next_item_mode="fifo"                     
 # @@@DLT_SNIPPET_END item_mode_toml
 """)
                                
