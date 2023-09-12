@@ -72,5 +72,7 @@ class SchemaEngineNoUpgradePathException(SchemaException):
 
 
 class SchemaFrozenException(SchemaException):
-    def __init__(self, msg: str) -> None:
+    def __init__(self, schema_name: str, table_name: str, msg: str) -> None:
         super().__init__(msg)
+        self.schema_name = schema_name
+        self.table_name = table_name

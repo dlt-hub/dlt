@@ -11,17 +11,17 @@ from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterat
 from dlt.common.schema import utils
 from dlt.common.data_types import py_type_to_sc_type, coerce_value, TDataType
 from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, STATE_TABLE_NAME, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
-                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TSchemaEvolutionModes, TSchemaEvolutionSettings)
+                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TSchemaContractModes, TSchemaContractSettings)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException)
 from dlt.common.validation import validate_dict
 from dlt.common.schema.exceptions import SchemaFrozenException
 
 
-DEFAULT_SCHEMA_EVOLUTION_MODES: TSchemaEvolutionModes = {
+DEFAULT_SCHEMA_CONTRACT_MODE: TSchemaContractModes = {
     "table": "evolve",
     "column": "evolve",
-    "column_variant": "evolve"
+    "data_type": "evolve"
 }
 
 class Schema:
@@ -194,68 +194,64 @@ class Schema:
 
         return new_row, updated_table_partial
 
-    def resolve_evolution_settings_for_table(self, parent_table: str, table_name: str, schema_evolution_settings_override: TSchemaEvolutionSettings) -> TSchemaEvolutionModes:
+    def resolve_evolution_settings_for_table(self, parent_table: str, table_name: str, schema_contract_settings_override: TSchemaContractSettings) -> TSchemaContractModes:
 
-        def resolve_single(settings: TSchemaEvolutionSettings) -> TSchemaEvolutionModes:
+        def resolve_single(settings: TSchemaContractSettings) -> TSchemaContractModes:
             settings = settings or {}
             if isinstance(settings, str):
-                return TSchemaEvolutionModes(table=settings, column=settings, column_variant=settings)
+                return TSchemaContractModes(table=settings, column=settings, data_type=settings)
             return settings
 
         # find table settings
         table_with_settings = parent_table or table_name
 
         # modes
-        table_evolution_modes = resolve_single(self.tables.get(table_with_settings, {}).get("schema_evolution_settings", {}))
-        schema_evolution_modes = resolve_single(self._settings.get("schema_evolution_settings", {}))
-        overide_modes = resolve_single(schema_evolution_settings_override)
+        table_contract_modes = resolve_single(self.tables.get(table_with_settings, {}).get("schema_contract_settings", {}))
+        schema_contract_modes = resolve_single(self._settings.get("schema_contract_settings", {}))
+        overide_modes = resolve_single(schema_contract_settings_override)
 
         # resolve to correct settings dict
-        settings = cast(TSchemaEvolutionModes, {**DEFAULT_SCHEMA_EVOLUTION_MODES, **schema_evolution_modes, **table_evolution_modes, **overide_modes})
+        settings = cast(TSchemaContractModes, {**DEFAULT_SCHEMA_CONTRACT_MODE, **schema_contract_modes, **table_contract_modes, **overide_modes})
 
         return settings
 
 
-    def check_schema_update(self, parent_table: str, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema, schema_evolution_settings_override: TSchemaEvolutionSettings) -> Tuple[DictStrAny, TPartialTableSchema]:
+    def check_schema_update(self, contract_modes: TSchemaContractModes, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema, schema_contract_settings_override: TSchemaContractSettings) -> Tuple[DictStrAny, TPartialTableSchema]:
         """Checks if schema update mode allows for the requested changes, filter row or reject update, depending on the mode"""
 
         assert partial_table
 
-        # for now we defined the schema as new if there are no data columns defined
-        has_columns = self.has_data_columns
-        if not has_columns:
-            return row, partial_table
-
-        evolution_modes = self.resolve_evolution_settings_for_table(parent_table, table_name, schema_evolution_settings_override)
-
         # default settings allow all evolutions, skipp all else
-        if evolution_modes == DEFAULT_SCHEMA_EVOLUTION_MODES:
+        if contract_modes == DEFAULT_SCHEMA_CONTRACT_MODE:
             return row, partial_table
 
-        table_exists = table_name in self.tables and len(self.tables[table_name].get("columns", {}))
+        table_exists = table_name in self.tables and self.get_table_columns(table_name, include_incomplete=False)
 
         # check case where we have a new table
         if not table_exists:
-            if evolution_modes == "freeze-and-trim":
+            if contract_modes == "discard-value":
                 return None, None
-            if evolution_modes["table"] in ["freeze-and-discard", "freeze-and-trim"]:
+            if contract_modes["table"] in ["discard-row", "discard-value"]:
                 return None, None
-            if evolution_modes["table"] == "freeze-and-raise":
-                raise SchemaFrozenException(f"Trying to add table {table_name} but new tables are frozen.")
+            if contract_modes["table"] == "freeze":
+                raise SchemaFrozenException(self.name, table_name, f"Trying to add table {table_name} but new tables are frozen.")
 
         # check columns
         for item in list(row.keys()):
             for item in list(row.keys()):
                 # if this is a new column for an existing table...
-                if table_exists and item not in self.tables[table_name]["columns"]:
+                if table_exists and (item not in self.tables[table_name]["columns"] or not utils.is_complete_column(self.tables[table_name]["columns"][item])):
                     is_variant = item in partial_table["columns"] and partial_table["columns"][item].get("variant")
-                    if evolution_modes["column"] == "freeze-and-trim" or (is_variant and evolution_modes["column_variant"] == "freeze-and-trim"):
+                    if contract_modes["column"] == "discard-value" or (is_variant and contract_modes["data_type"] == "discard-value"):
                         row.pop(item)
                         partial_table["columns"].pop(item)
-                    if evolution_modes["column"] == "freeze-and-discard" or (is_variant and evolution_modes["column_variant"] == "freeze-and-discard"):
+                    elif contract_modes["column"] == "discard-row" or (is_variant and contract_modes["data_type"] == "discard-row"):
                         return None, None
-                    if evolution_modes["column"] == "freeze-and-raise" or (is_variant and evolution_modes["column_variant"] == "freeze-and-raise"):
-                        raise SchemaFrozenException(f"Trying to add column {item} to table {table_name}  but columns are frozen.")
+                    elif contract_modes["column"] == "freeze":
+                        raise SchemaFrozenException(self.name, table_name, f"Trying to add column {item} to table {table_name}  but columns are frozen.")
+                    elif is_variant and contract_modes["data_type"] == "freeze":
+                        raise SchemaFrozenException(self.name, table_name, f"Trying to create new variant column {item} to table {table_name}  data_types are frozen.")
+
 
         return row, partial_table
 
@@ -454,8 +450,8 @@ class Schema:
         normalizers["json"] = normalizers["json"] or self._normalizers_config["json"]
         self._configure_normalizers(normalizers)
 
-    def set_schema_evolution_settings(self, settings: TSchemaEvolutionSettings) -> None:
-        self._settings["schema_evolution_settings"] = settings
+    def set_schema_contract_settings(self, settings: TSchemaContractSettings) -> None:
+        self._settings["schema_contract_settings"] = settings
 
     def _infer_column(self, k: str, v: Any, data_type: TDataType = None, is_variant: bool = False) -> TColumnSchema:
         column_schema =  TColumnSchema(

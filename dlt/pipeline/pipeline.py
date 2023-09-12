@@ -18,7 +18,7 @@ from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, Des
                                    MissingDependencyException, DestinationUndefinedEntity, DestinationIncompatibleLoaderFileFormatException)
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
-from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition, TAnySchemaColumns, TSchemaEvolutionSettings
+from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition, TAnySchemaColumns, TSchemaContractSettings
 from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
 from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
@@ -294,7 +294,7 @@ class Pipeline(SupportsPipeline):
     @with_runtime_trace
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
-    def normalize(self, workers: int = 1, loader_file_format: TLoaderFileFormat = None, schema_evolution_settings: TSchemaEvolutionSettings = None) -> NormalizeInfo:
+    def normalize(self, workers: int = 1, loader_file_format: TLoaderFileFormat = None, schema_contract_settings: TSchemaContractSettings = None) -> NormalizeInfo:
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive():
             workers = 1
@@ -316,7 +316,7 @@ class Pipeline(SupportsPipeline):
         # run with destination context
         with self._maybe_destination_capabilities(loader_file_format=loader_file_format):
             # shares schema storage with the pipeline so we do not need to install
-            normalize = Normalize(collector=self.collector, config=normalize_config, schema_storage=self._schema_storage, schema_evolution_settings=schema_evolution_settings)
+            normalize = Normalize(collector=self.collector, config=normalize_config, schema_storage=self._schema_storage, schema_contract_settings=schema_contract_settings)
             try:
                 with signals.delayed_signals():
                     runner.run_pool(normalize.config, normalize)
@@ -390,7 +390,7 @@ class Pipeline(SupportsPipeline):
         primary_key: TColumnNames = None,
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
-        schema_evolution_settings: TSchemaEvolutionSettings = None
+        schema_contract_settings: TSchemaContractSettings = None
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -457,7 +457,7 @@ class Pipeline(SupportsPipeline):
 
         # normalize and load pending data
         if self.list_extracted_resources():
-            self.normalize(loader_file_format=loader_file_format, schema_evolution_settings=schema_evolution_settings)
+            self.normalize(loader_file_format=loader_file_format, schema_contract_settings=schema_contract_settings)
         if self.list_normalized_load_packages():
             # if there were any pending loads, load them and **exit**
             if data is not None:
@@ -467,7 +467,7 @@ class Pipeline(SupportsPipeline):
         # extract from the source
         if data is not None:
             self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, schema=schema)
-            self.normalize(loader_file_format=loader_file_format, schema_evolution_settings=schema_evolution_settings)
+            self.normalize(loader_file_format=loader_file_format, schema_contract_settings=schema_contract_settings)
             return self.load(destination, dataset_name, credentials=credentials)
         else:
             return None
@@ -878,7 +878,7 @@ class Pipeline(SupportsPipeline):
             pipeline_schema.update_schema(
                 pipeline_schema.normalize_table_identifiers(table)
             )
-            pipeline_schema._settings["schema_evolution_settings"] = source_schema._settings.get("schema_evolution_settings")
+            pipeline_schema._settings["schema_contract_settings"] = source_schema._settings.get("schema_contract_settings")
 
         return extract_id
 

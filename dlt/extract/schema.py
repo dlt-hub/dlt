@@ -3,7 +3,7 @@ from collections.abc import Mapping as C_Mapping
 from typing import List, TypedDict, cast, Any
 
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
-from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TSchemaEvolutionSettings
+from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TSchemaContractSettings
 from dlt.common.typing import TDataItem
 from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
@@ -24,7 +24,7 @@ class TTableSchemaTemplate(TypedDict, total=False):
     primary_key: TTableHintTemplate[TColumnNames]
     merge_key: TTableHintTemplate[TColumnNames]
     incremental: Incremental[Any]
-    schema_evolution_settings: TSchemaEvolutionSettings
+    schema_contract_settings: TSchemaContractSettings
 
 
 class DltResourceSchema:
@@ -208,7 +208,7 @@ class DltResourceSchema:
         columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
-        schema_evolution_settings: TTableHintTemplate[TSchemaEvolutionSettings] = None,
+        schema_contract_settings: TTableHintTemplate[TSchemaContractSettings] = None,
         ) -> TTableSchemaTemplate:
         if not table_name:
             raise TableNameMissing()
@@ -218,7 +218,7 @@ class DltResourceSchema:
             if not callable(columns):
                 columns = columns.values()  # type: ignore
         # create a table schema template where hints can be functions taking TDataItem
-        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_evolution_settings=schema_evolution_settings)  # type: ignore
+        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_contract_settings=schema_contract_settings)  # type: ignore
         if primary_key:
             new_template["primary_key"] = primary_key
         if merge_key:

@@ -14,7 +14,7 @@ from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.pipeline import PipelineContext
 from dlt.common.source import _SOURCES, SourceInfo
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TSchemaEvolutionSettings
+from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TSchemaContractSettings
 from dlt.extract.utils import ensure_table_schema_columns_hint
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
@@ -52,7 +52,7 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
-    schema_evolution_settings: TSchemaEvolutionSettings = None,
+    schema_contract_settings: TSchemaContractSettings = None,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[TSourceFunParams, DltSource]:
     ...
@@ -66,7 +66,7 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
-    schema_evolution_settings: TSchemaEvolutionSettings = None,
+    schema_contract_settings: TSchemaContractSettings = None,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, DltSource]]:
     ...
@@ -79,7 +79,7 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
-    schema_evolution_settings: TSchemaEvolutionSettings = None,
+    schema_contract_settings: TSchemaContractSettings = None,
     spec: Type[BaseConfiguration] = None
 ) -> Any:
     """A decorator that transforms a function returning one or more `dlt resources` into a `dlt source` in order to load it with `dlt`.
@@ -170,7 +170,7 @@ def source(
 
             # prepare schema
             schema = schema.clone(update_normalizers=True)
-            schema.set_schema_evolution_settings(schema_evolution_settings)
+            schema.set_schema_contract_settings(schema_contract_settings)
 
             # convert to source
             s = DltSource.from_data(name, source_section, schema.clone(update_normalizers=True), rv)
@@ -208,7 +208,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
-    schema_evolution_settings: TTableHintTemplate[TSchemaEvolutionSettings] = None,
+    schema_contract_settings: TTableHintTemplate[TSchemaContractSettings] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[TResourceFunParams, DltResource]:
@@ -224,7 +224,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
-    schema_evolution_settings: TTableHintTemplate[TSchemaEvolutionSettings] = None,
+    schema_contract_settings: TTableHintTemplate[TSchemaContractSettings] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]:
@@ -240,7 +240,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
-    schema_evolution_settings: TTableHintTemplate[TSchemaEvolutionSettings] = None,
+    schema_contract_settings: TTableHintTemplate[TSchemaContractSettings] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
 ) -> DltResource:
@@ -256,7 +256,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
-    schema_evolution_settings: TTableHintTemplate[TSchemaEvolutionSettings] = None,
+    schema_contract_settings: TTableHintTemplate[TSchemaContractSettings] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     depends_on: TUnboundDltResource = None,
@@ -324,7 +324,7 @@ def resource(
             columns=schema_columns,
             primary_key=primary_key,
             merge_key=merge_key,
-            schema_evolution_settings=schema_evolution_settings
+            schema_contract_settings=schema_contract_settings
         )
         return DltResource.from_data(_data, _name, _section, table_template, selected, cast(DltResource, depends_on), incremental=incremental)
 

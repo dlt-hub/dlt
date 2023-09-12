@@ -3,7 +3,7 @@ from typing import List, Literal, Mapping, MutableMapping, MutableSequence, NewT
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, get_config_if_union_hint
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
 
-from dlt.common.typing import StrAny, extract_inner_type, extract_optional_type, is_dict_generic_type, is_list_generic_type, is_literal_type, is_newtype_type, is_optional_type, is_typeddict
+from dlt.common.typing import StrAny, extract_inner_type, extract_union_types, is_dict_generic_type, is_list_generic_type, is_literal_type, is_newtype_type, is_optional_type, is_typeddict, is_union_type
 
 
 
@@ -14,6 +14,8 @@ class TTestTyDi(TypedDict):
 TTestLi = Literal["a", "b", "c"]
 TOptionalLi = Optional[TTestLi]
 TOptionalTyDi = Optional[TTestTyDi]
+
+TOptionalUnionLiTyDi = Optional[Union[TTestTyDi, TTestLi]]
 
 
 def test_is_typeddict() -> None:
@@ -28,6 +30,7 @@ def test_is_list_generic_type() -> None:
     assert is_list_generic_type(List[str]) is True
     assert is_list_generic_type(Sequence[str]) is True
     assert is_list_generic_type(MutableSequence[str]) is True
+    assert is_list_generic_type(TOptionalUnionLiTyDi) is False
 
 
 def test_is_dict_generic_type() -> None:
@@ -46,8 +49,19 @@ def test_optional() -> None:
     assert is_optional_type(TOptionalLi) is True
     assert is_optional_type(TOptionalTyDi) is True
     assert is_optional_type(TTestTyDi) is False
-    assert extract_optional_type(TOptionalLi) is TTestLi
-    assert extract_optional_type(TOptionalTyDi) is TTestTyDi
+    assert extract_union_types(TOptionalLi) == [TTestLi, type(None)]
+    assert extract_union_types(TOptionalTyDi) == [TTestTyDi, type(None)]
+
+
+def test_union_types() -> None:
+    assert is_optional_type(TOptionalLi) is True
+    assert is_optional_type(TOptionalTyDi) is True
+    assert is_optional_type(TTestTyDi) is False
+    assert extract_union_types(TOptionalLi) == [TTestLi, type(None)]
+    assert extract_union_types(TOptionalTyDi) == [TTestTyDi, type(None)]
+    assert is_optional_type(TOptionalUnionLiTyDi) is True
+    assert extract_union_types(TOptionalUnionLiTyDi) == [TTestTyDi, TTestLi, type(None)]
+    assert is_union_type(MutableSequence[str]) is False
 
 
 def test_is_newtype() -> None:

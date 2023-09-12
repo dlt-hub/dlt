@@ -2,7 +2,7 @@ import functools
 from typing import Callable, Any, Type, get_type_hints, get_args
 
 from dlt.common.exceptions import DictValidationException
-from dlt.common.typing import StrAny, extract_optional_type, is_literal_type, is_optional_type, is_typeddict, is_list_generic_type, is_dict_generic_type, _TypedDict
+from dlt.common.typing import StrAny, is_literal_type, is_optional_type, extract_union_types, is_union_type, is_typeddict, is_list_generic_type, is_dict_generic_type, _TypedDict, is_union
 
 
 TFilterFunc = Callable[[str], bool]
@@ -49,15 +49,26 @@ def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFil
         raise DictValidationException(f"In {path}: following fields are unexpected {unexpected}", path)
 
     def verify_prop(pk: str, pv: Any, t: Any) -> None:
-        if is_optional_type(t):
-            # pass if value actually is none
-            if pv is None:
-                return
-            t = extract_optional_type(t)
-
-        # TODO: support for union types?
-        if pk == "schema_evolution_settings":
+        # covers none in optional and union types
+        if is_optional_type(t) and pv is None:
             pass
+        elif is_union_type(t):
+            # pass if value actually is none
+            union_types = extract_union_types(t, no_none=True)
+            # this is the case for optional fields
+            if len(union_types) == 1:
+                verify_prop(pk, pv, union_types[0])
+            else:
+                has_passed = False
+                for ut in union_types:
+                    try:
+                        verify_prop(pk, pv, ut)
+                        has_passed = True
+                    except DictValidationException:
+                        pass
+                if not has_passed:
+                    type_names = [ut.__name__ for ut in union_types]
+                    raise DictValidationException(f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__}. One of these types expected: {', '.join(type_names)}.", path, pk, pv)
         elif is_literal_type(t):
             a_l = get_args(t)
             if pv not in a_l:

@@ -632,8 +632,8 @@ def test_group_tables_by_resource(schema: Schema) -> None:
     result = utils.group_tables_by_resource(schema.tables, pattern=utils.compile_simple_regex(TSimpleRegex("products")))
     # both tables with resource "products" must be here
     assert result == {'products': [
-        {'columns': {}, 'name': 'c_products', 'resource': 'products', 'write_disposition': 'append', 'schema_evolution_settings': None},
-        {'columns': {}, 'name': 'mc_products', 'resource': 'products', 'write_disposition': 'append', 'schema_evolution_settings': None},
+        {'columns': {}, 'name': 'c_products', 'resource': 'products', 'write_disposition': 'append', 'schema_contract_settings': None},
+        {'columns': {}, 'name': 'mc_products', 'resource': 'products', 'write_disposition': 'append', 'schema_contract_settings': None},
         {'columns': {}, 'name': 'mc_products__sub', 'parent': 'mc_products'}
         ]
     }

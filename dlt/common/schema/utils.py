@@ -16,7 +16,7 @@ from dlt.common.validation import TCustomValidator, validate_dict, validate_dict
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TPartialTableSchema, TSchemaTables, TSchemaUpdate,
                                       TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp,
-                                      TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition, TSchemaEvolutionSettings, TSchemaEvolutionModes)
+                                      TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition, TSchemaContractSettings, TSchemaContractModes)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, ParentTableNotFoundException, SchemaEngineNoUpgradePathException, SchemaException,
                                           TablePropertiesConflictException, InvalidSchemaName)
 
@@ -343,10 +343,10 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
     if from_engine == 6 and to_engine > 6:
         # migrate from sealed properties to schema evolution settings
         schema_dict["settings"].pop("schema_sealed", None)
-        schema_dict["settings"]["schema_evolution_settings"] = None
+        schema_dict["settings"]["schema_contract_settings"] = None
         for table in schema_dict["tables"].values():
             table.pop("table_sealed", None)
-            table["schema_evolution_settings"] = None
+            table["schema_contract_settings"] = None
         from_engine = 7
 
     schema_dict["engine_version"] = from_engine
@@ -476,7 +476,7 @@ def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TPa
     table["columns"] = updated_columns
 
     # always update evolution settings
-    table["schema_evolution_settings"] = partial_table.get("schema_evolution_settings")
+    table["schema_contract_settings"] = partial_table.get("schema_contract_settings")
 
     return diff_table
 
@@ -644,7 +644,7 @@ def new_table(
     columns: Sequence[TColumnSchema] = None,
     validate_schema: bool = False,
     resource: str = None,
-    schema_evolution_settings: TSchemaEvolutionSettings = None,
+    schema_contract_settings: TSchemaContractSettings = None,
 ) -> TTableSchema:
 
     table: TTableSchema = {
@@ -655,12 +655,12 @@ def new_table(
         table["parent"] = parent_table_name
         assert write_disposition is None
         assert resource is None
-        assert schema_evolution_settings is None
+        assert schema_contract_settings is None
     else:
         # set write disposition only for root tables
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
         table["resource"] = resource or table_name
-        table["schema_evolution_settings"] = schema_evolution_settings
+        table["schema_contract_settings"] = schema_contract_settings
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,

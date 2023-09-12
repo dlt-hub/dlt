@@ -1,7 +1,7 @@
 from copy import deepcopy
 import pytest
 import yaml
-from typing import Dict, List, Literal, Mapping, Sequence, TypedDict, Optional
+from typing import Dict, List, Literal, Mapping, Sequence, TypedDict, Optional, Union
 
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
@@ -10,8 +10,12 @@ from dlt.common.schema.utils import simple_regex_validator
 from dlt.common.typing import DictStrStr, StrStr
 from dlt.common.validation import validate_dict, validate_dict_ignoring_xkeys
 
+
+
 TLiteral = Literal["uno", "dos", "tres"]
 
+class TDict(TypedDict):
+    field: TLiteral
 
 class TTestRecord(TypedDict):
     f_bool: bool
@@ -31,6 +35,7 @@ class TTestRecord(TypedDict):
     f_literal: TLiteral
     f_literal_optional: Optional[TLiteral]
     f_seq_literal: Sequence[Optional[TLiteral]]
+    f_optional_union: Optional[Union[TLiteral, TDict]]
 
 
 TEST_COL = {
@@ -74,7 +79,8 @@ TEST_DOC: TTestRecord = {
     "f_column": deepcopy(TEST_COL),
     "f_literal": "uno",
     "f_literal_optional": "dos",
-    "f_seq_literal": ["uno", "dos", "tres"]
+    "f_seq_literal": ["uno", "dos", "tres"],
+    "f_optional_union": {"field": "uno"}
 }
 
 @pytest.fixture
@@ -227,3 +233,23 @@ def test_filter(test_doc: TTestRecord) -> None:
     test_doc["x-extra"] = "x-annotation"
     # remove x-extra with a filter
     validate_dict(TTestRecord, test_doc, ".", filter_f=lambda k: k != "x-extra")
+
+
+def test_nested_union(test_doc: TTestRecord) -> None:
+    test_doc["f_optional_union"] = {"field": "uno"}
+    validate_dict(TTestRecord, TEST_DOC, ".")
+
+    test_doc["f_optional_union"] = {"field": "not valid"}
+    with pytest.raises(DictValidationException) as e:
+        validate_dict(TTestRecord, test_doc, ".")
+    assert e.value.field == "f_optional_union"
+    assert e.value.value == {'field': 'not valid'}
+
+    test_doc["f_optional_union"] = "dos"
+    validate_dict(TTestRecord, test_doc, ".")
+
+    test_doc["f_optional_union"] = "blah"
+    with pytest.raises(DictValidationException) as e:
+        validate_dict(TTestRecord, test_doc, ".")
+    assert e.value.field == "f_optional_union"
+    assert e.value.value == "blah"
