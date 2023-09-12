@@ -77,7 +77,7 @@ class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_name: Final[str] = "mssql"  # type: ignore
     credentials: MsSqlCredentials
 
-    create_indexes: bool = True
+    create_indexes: bool = False
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""
