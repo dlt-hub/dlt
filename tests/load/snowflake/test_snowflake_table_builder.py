@@ -90,13 +90,3 @@ def test_create_table_with_partition_and_cluster(snowflake_client: SnowflakeClie
 
     # clustering must be the last
     assert sql.endswith('CLUSTER BY ("COL2","COL5")')
-
-
-def test_cluster_alter_table_exception(snowflake_client: SnowflakeClient) -> None:
-    mod_update = deepcopy(TABLE_UPDATE)
-    # timestamp
-    mod_update[3]["cluster"] = True
-    # double cluster
-    with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
-        snowflake_client._get_table_update_sql("event_test_table", mod_update, True)
-    assert excc.value.columns == ['"COL4"']

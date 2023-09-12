@@ -230,12 +230,23 @@ Here's a summary of the naming normalization approach:
 Reserved property names like `id` or `additional` are prefixed with underscores for differentiation. Therefore, `id` becomes `__id` and `_id` is rendered as `___id`.
 
 ### Case insensitive naming convention
-The default naming convention described above will preserve the casing of the properties (besides the first letter which is lowercased). This generates nice documents
+The default naming convention described above will preserve the casing of the properties (besides the first letter which is lowercased). This generates nice classes
 in Weaviate but also requires that your input data does not have clashing property names when comparing case insensitive ie. (`caseName` == `casename`). In such case
-Weaviate destination will fail.
+Weaviate destination will fail to create classes and report a conflict.
 
-You can configure alternative naming convention
-
+You can configure alternative naming convention which will lowercase all properties. The clashing properties will be merged and the classes created. Still if you have a document where clashing properties like:
+```json
+{"camelCase": 1, "CamelCase": 2}
+```
+it will be normalized to:
+```
+{"camelcase": 2}
+```
+so your best course of action is to clean up the data yourself before loading and use default naming convention. Nevertheless you can configure the alternative in `config.toml`:
+```toml
+[schema]
+naming="dlt.destinations.weaviate.naming"
+```
 
 ## Additional destination options
 
@@ -282,4 +293,4 @@ Currently Weaviate destination does not support dbt.
 
 ### Syncing of `dlt` state
 
-Weaviate destination does not support syncing of the `dlt` state.
+Weaviate destination supports syncing of the `dlt` state.

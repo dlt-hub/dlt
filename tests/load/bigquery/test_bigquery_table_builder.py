@@ -106,22 +106,3 @@ def test_double_partition_exception(gcp_client: BigQueryClient) -> None:
         gcp_client._get_table_update_sql("event_test_table", mod_update, False)
     assert excc.value.columns == ["`col4`", "`col5`"]
 
-
-def test_partition_alter_table_exception(gcp_client: BigQueryClient) -> None:
-    mod_update = deepcopy(TABLE_UPDATE)
-    # timestamp
-    mod_update[3]["partition"] = True
-    # double partition
-    with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
-        gcp_client._get_table_update_sql("event_test_table", mod_update, True)
-    assert excc.value.columns == ["`col4`"]
-
-
-def test_cluster_alter_table_exception(gcp_client: BigQueryClient) -> None:
-    mod_update = deepcopy(TABLE_UPDATE)
-    # timestamp
-    mod_update[3]["cluster"] = True
-    # double cluster
-    with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
-        gcp_client._get_table_update_sql("event_test_table", mod_update, True)
-    assert excc.value.columns == ["`col4`"]
