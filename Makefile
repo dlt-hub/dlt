@@ -52,9 +52,9 @@ lint:
 	# $(MAKE) lint-security
 
 test-and-lint-snippets:
-	poetry run mypy --config-file mypy.ini docs/website docs/examples
-	poetry run flake8 --max-line-length=200 docs/website docs/examples
-	poetry run pytest docs/website
+	poetry run mypy --config-file mypy.ini docs/snippets docs/examples
+	poetry run flake8 --max-line-length=200 docs/snippets docs/examples
+	poetry run pytest docs/snippets
 
 lint-security:
 	poetry run bandit -r dlt/ -n 3 -l

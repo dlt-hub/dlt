@@ -4,10 +4,7 @@ description: Introduction to dlt
 keywords: [introduction, who, what, how]
 ---
 
-import snippets from '!!raw-loader!./intro-snippets.py';
-
 # Introduction
-
 
 ![dlt pacman](/img/dlt-pacman.gif)
 
@@ -19,10 +16,8 @@ pip3 install dlt
 ```
 There's no need to start any backends or containers. Import `dlt` in your Python script and write a simple pipeline like the one below:
 
-<!-- AUTO-GENERATED-CONTENT:END -->
-
-<!-- @@@DLT_SNIPPET_START index -->
-```python
+<!--SNIPSTART intro_snippet -->
+```py
 import dlt
 from dlt.sources.helpers import requests
 # Create a dlt pipeline that will load
@@ -39,9 +34,10 @@ for player in ['magnuscarlsen', 'rpragchess']:
     response.raise_for_status()
     data.append(response.json())
 # Extract, normalize, and load the data
-load_info = pipeline.run(data, table_name='player')
+info = pipeline.run(data, table_name='player')
+print(info)
 ```
-<!-- @@@DLT_SNIPPET_END index -->
+<!--SNIPEND-->
 
 Now copy this snippet to a file or a Notebook cell and run it. If you do not have it yet, install **duckdb** dependency (default `dlt` installation is really minimal):
 ```sh
