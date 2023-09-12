@@ -6,7 +6,7 @@ import pytest
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import LoadStorage, FileStorage
 
-from dlt.destinations.filesystem.filesystem import LoadFilesystemJob, FilesystemClientConfiguration
+from dlt.destinations.filesystem.filesystem import LoadFilesystemJob, FilesystemDestinationClientConfiguration
 
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
@@ -36,8 +36,8 @@ ALL_LAYOUTS = (
 
 
 def test_filesystem_configuration() -> None:
-    assert FilesystemClientConfiguration().fingerprint() == ""
-    assert FilesystemClientConfiguration(bucket_url="s3://cool").fingerprint() == digest128("s3://cool")
+    assert FilesystemDestinationClientConfiguration().fingerprint() == ""
+    assert FilesystemDestinationClientConfiguration(bucket_url="s3://cool").fingerprint() == digest128("s3://cool")
 
 
 @pytest.mark.parametrize('write_disposition', ('replace', 'append', 'merge'))

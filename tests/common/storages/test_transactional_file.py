@@ -6,6 +6,7 @@ from threading import Thread
 import fsspec
 import pytest
 
+from dlt.common.storages import filesystem
 from dlt.common.storages.transactional_file import TransactionalFile
 
 from tests.utils import skipifwindows
@@ -13,7 +14,7 @@ from tests.utils import skipifwindows
 
 @pytest.fixture(scope="session")
 def fs() -> fsspec.AbstractFileSystem:
-    return fsspec.filesystem("file")
+    return filesystem("file")[0]
 
 
 @pytest.fixture

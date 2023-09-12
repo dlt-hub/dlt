@@ -129,7 +129,7 @@ def configspec(cls: Optional[Type[Any]] = None) -> Union[Type[TAnyClass], Callab
                 except NameError:
                     # Dealing with BaseConfiguration itself before it is defined
                     continue
-            if not att_name.startswith(("__", "_abc_impl")) and not isinstance(att_value, (staticmethod, classmethod, property)):
+            if not att_name.startswith(("__", "_abc_")) and not isinstance(att_value, (staticmethod, classmethod, property)):
                 if att_name not in cls.__annotations__:
                     raise ConfigFieldMissingTypeHintException(att_name, cls)
                 hint = cls.__annotations__[att_name]
