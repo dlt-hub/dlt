@@ -31,6 +31,9 @@ def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColum
     """
     if isinstance(columns, C_Mapping):
         # Assume dict is already in the correct format
+        # but ensure the name key is set correctly
+        for name, column in columns.items():
+            column["name"] = name
         return columns
     elif isinstance(columns, Sequence):
         # Assume list of columns
