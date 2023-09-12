@@ -1,6 +1,6 @@
 ---
 title: Weaviate
-description: Weaviate is an open source vector database that can be used as a destination in the DLT.
+description: Weaviate is an open source vector database that can be used as a destination in dlt.
 keywords: [weaviate, vector database, destination, dlt]
 ---
 
@@ -145,7 +145,7 @@ info = pipeline.run(
 
 ### Merge
 
-The [merge](../../general-usage/incremental-loading.md) disposition merges the data from the resource with the data in the destination.
+The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data in the destination.
 For `merge` disposition you would need to specify a `primary_key` for the resource:
 
 ```python
@@ -160,6 +160,12 @@ info = pipeline.run(
 ```
 
 Internally dlt will use `primary_key` (`document_id` in the example above) to generate a unique identifier ([UUID](https://weaviate.io/developers/weaviate/manage-data/create#id)) for each object in Weaviate. If the object with the same UUID already exists in Weaviate, it will be updated with the new data. Otherwise, a new object will be created.
+
+
+:::caution
+
+If you are using the merge write disposition, you must set it from the first run of your pipeline, otherwise the data will be duplicated in the database on subsequent loads.
+
 
 ### Append
 
