@@ -277,28 +277,14 @@ const sidebars = {
       },
       items: [
         {
-          type: 'category',
+          type: 'doc',
           label: 'pipeline_pdoc',
-          link: {
-            type: 'doc',
-            id: 'api_reference_pdoc/pipeline/index',
-          },
-          items: [
-            'api_reference_pdoc/pipeline/dbt',
-            'api_reference_pdoc/pipeline/exceptions',
-          ],
+          id: 'api_reference_pdoc/pipeline/index',
         },
         {
-          type: 'category',
-          label: 'pipeline_sphinx',
-          link: {
-            type: 'doc',
-            id: 'api_ref_sphinx/markdown/index',
-          },
-          items: [
-            'api_reference_pdoc/pipeline/dbt',
-            'api_reference_pdoc/pipeline/exceptions',
-          ],
+          type: 'doc',
+          label: 'pipeline_pydoc',
+          id: 'api_ref_pydoc/index',
         },
       ],
     },
