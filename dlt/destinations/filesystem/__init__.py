@@ -6,11 +6,11 @@ from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import JobClientBase, DestinationClientDwhWithStagingConfiguration
 
-from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
+from dlt.destinations.filesystem.configuration import FilesystemDestinationClientConfiguration
 
 
-@with_config(spec=FilesystemClientConfiguration, sections=(known_sections.DESTINATION, "filesystem",))
-def _configure(config: FilesystemClientConfiguration = config.value) -> FilesystemClientConfiguration:
+@with_config(spec=FilesystemDestinationClientConfiguration, sections=(known_sections.DESTINATION, "filesystem",))
+def _configure(config: FilesystemDestinationClientConfiguration = config.value) -> FilesystemDestinationClientConfiguration:
     return config
 
 
@@ -25,5 +25,5 @@ def client(schema: Schema, initial_config: DestinationClientDwhWithStagingConfig
     return FilesystemClient(schema, _configure(initial_config))  # type: ignore
 
 
-def spec() -> Type[FilesystemClientConfiguration]:
-    return FilesystemClientConfiguration
+def spec() -> Type[FilesystemDestinationClientConfiguration]:
+    return FilesystemDestinationClientConfiguration

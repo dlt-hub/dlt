@@ -176,6 +176,7 @@ def with_config(
 
 
 def last_config(**kwargs: Any) -> Any:
+    """Get configuration instance used to inject function arguments """
     return kwargs[_LAST_DLT_CONFIG]
 
 

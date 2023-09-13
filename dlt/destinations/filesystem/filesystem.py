@@ -1,19 +1,18 @@
 import posixpath
 import os
 from types import TracebackType
-from typing import ClassVar, List, Optional, Type, Iterable, Set
+from typing import ClassVar, List, Type, Iterable, Set
 from fsspec import AbstractFileSystem
 
 from dlt.common import logger
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
-from dlt.common.storages import FileStorage
+from dlt.common.storages import FileStorage, LoadStorage, filesystem_from_config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob
+
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.filesystem import capabilities
-from dlt.destinations.filesystem.configuration import FilesystemClientConfiguration
-from dlt.destinations.filesystem.filesystem_client import client_from_config
-from dlt.common.storages import LoadStorage
+from dlt.destinations.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations import path_utils
 
@@ -24,7 +23,7 @@ class LoadFilesystemJob(LoadJob):
             local_path: str,
             dataset_path: str,
             *,
-            config: FilesystemClientConfiguration,
+            config: FilesystemDestinationClientConfiguration,
             schema_name: str,
             load_id: str
     ) -> None:
@@ -34,7 +33,7 @@ class LoadFilesystemJob(LoadJob):
         self.destination_file_name = LoadFilesystemJob.make_destination_filename(config.layout, file_name, schema_name, load_id)
 
         super().__init__(file_name)
-        fs_client, _ = client_from_config(config)
+        fs_client, _ = filesystem_from_config(config)
         self.destination_file_name = LoadFilesystemJob.make_destination_filename(config.layout, file_name, schema_name, load_id)
         item = self.make_remote_path()
         logger.info("PUT file {item}")
@@ -76,10 +75,10 @@ class FilesystemClient(JobClientBase):
     fs_client: AbstractFileSystem
     fs_path: str
 
-    def __init__(self, schema: Schema, config: FilesystemClientConfiguration) -> None:
+    def __init__(self, schema: Schema, config: FilesystemDestinationClientConfiguration) -> None:
         super().__init__(schema, config)
-        self.fs_client, self.fs_path = client_from_config(config)
-        self.config: FilesystemClientConfiguration = config
+        self.fs_client, self.fs_path = filesystem_from_config(config)
+        self.config: FilesystemDestinationClientConfiguration = config
         # verify files layout. we need {table_name} and only allow {schema_name} before it, otherwise tables
         # cannot be replaced and we cannot initialize folders consistently
         self.table_prefix_layout = path_utils.get_table_prefix_layout(config.layout)
