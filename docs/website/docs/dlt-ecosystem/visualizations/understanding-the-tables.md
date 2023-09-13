@@ -68,7 +68,7 @@ load_info = pipeline.run(users)
 
 The result will be the same, but the table is implicitly named `users` based on the resource name.
 
-::: note
+:::note
 
 Special tables are created to track the pipeline state. These tables are prefixed with `_dlt_`
 and are not shown in the `show` command of the `dlt pipeline` CLI. However, you can see them when
