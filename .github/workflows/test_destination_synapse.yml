@@ -22,7 +22,7 @@ env:
 jobs:
 
   run_loader:
-    name: Tests MS SQL loader
+    name: Test Synapse loader
     strategy:
       fail-fast: false
       matrix:
