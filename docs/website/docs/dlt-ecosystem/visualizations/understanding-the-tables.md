@@ -185,6 +185,7 @@ package with a new `load_id` and add the data to the existing tables. The `users
 look like this:
 
 **mydata.users**
+
 | id | name | _dlt_id | _dlt_load_id |
 | --- | --- | --- | --- |
 | 1 | Alice | wX3f5vn801W16A | 1234562350.98417 |
@@ -197,8 +198,8 @@ The `_dlt_loads` table will look like this:
 
 | load_id | schema_name | status | inserted_at | schema_version_hash |
 | --- | --- | --- | --- | --- |
-| 1234562350.98417 | quick_start | 0 | 2023-09-12 16:45:51.17865+00 | aOEbMXCa6yHWbBM56qhLlx209rHoe35X1ZbnQekd/58= |
-| **1234563456.12345** | quick_start | 0 | 2023-09-12 16:46:03.10662+00 | aOEbMXCa6yHWbBM56qhLlx209rHoe35X1ZbnQekd/58= |
+| 1234562350.98417 | quick_start | 0 | 2023-09-12 16:45:51.17865+00 | aOEb...Qekd/58= |
+| **1234563456.12345** | quick_start | 0 | 2023-09-12 16:46:03.10662+00 | aOEb...Qekd/58= |
 
 The `_dlt_loads` table tracks complete loads and allows chaining transformations on top of them.
 Many destinations do not support distributed and long-running transactions (e.g. Amazon Redshift).
@@ -267,12 +268,14 @@ If you inspect the tables in this schema, you will find `mydata_staging.users` t
 Here is what the tables may look like after running the pipeline:
 
 **mydata_staging.users**
+
 | id | name | _dlt_id | _dlt_load_id |
 | --- | --- | --- | --- |
 | 1 | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
 | 2 | Bob 2 | rX8ybgTeEmAmmA | 2345672350.98417 |
 
 **mydata.users**
+
 | id | name | _dlt_id | _dlt_load_id |
 | --- | --- | --- | --- |
 | 1 | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
