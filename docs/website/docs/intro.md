@@ -12,7 +12,7 @@ keywords: [introduction, who, what, how]
 `dlt` is an open-source library that you can add to your Python scripts to load data
 from various and often messy data sources into well-structured, live datasets. Install it with:
 ```sh
-pip3 install dlt
+pip install dlt
 ```
 There's no need to start any backends or containers. Import `dlt` in your Python script and write a simple pipeline like the one below:
 
