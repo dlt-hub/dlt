@@ -12,7 +12,7 @@ from dlt.common.destination.reference import DestinationClientDwhWithStagingConf
 
 @configspec
 class SynapseCredentials(ConnectionStringCredentials):
-    drivername: Final[str] = "synapse"  # type: ignore
+    drivername: Final[str] = "mssql"  # type: ignore
     password: TSecretValue
     host: str
     port: int = 1433
