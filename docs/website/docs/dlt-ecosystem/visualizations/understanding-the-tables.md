@@ -6,31 +6,132 @@ keywords: [understanding tables, loaded data, data structure]
 
 # Understanding the tables
 
-## Show tables and data in the destination
+In [Exploring the data](./exploring-the-data.md) you have seen the data that has been loaded into the
+database. Let's take a closer look at the tables that have been created.
 
+We start with a simple dlt pipeline:
+
+```py
+import dlt
+
+data = [
+    {'id': 1, 'name': 'Alice'},
+    {'id': 2, 'name': 'Bob'}
+]
+
+pipeline = dlt.pipeline(
+    pipeline_name='quick_start',
+    destination='duckdb',
+    dataset_name='mydata'
+)
+load_info = pipeline.run(data, table_name="users")
 ```
-dlt pipeline <pipeline name> show
+
+:::note
+
+Here we are using the `duckdb` destination, which is an in-memory database. Other database [destinations](../destinations)
+will behave similarly and have similar concepts.
+
+:::
+
+## Schema
+
+When you run the pipeline, dlt creates a schema in the destination database. The schema is a
+collection of tables that represent the data you loaded. The schema name is the same as the
+`dataset_name` you provided in the pipeline definition. In the example above, we explicitly set the
+`dataset_name` to `mydata`, if you don't set it, it will be set to the pipeline name with a suffix `_dataset`.
+
+## Tables
+
+Each [resource](../../general-usage/resource.md) in your pipeline definition will be represented by a table in
+the destination. In the example above, we have one resource, `users`, so we will have one table, `users`,
+in the destination. Here also, we explicitly set the `table_name` to `users`, if you don't set it, it will be
+set to the resource name.
+
+For example, we can rewrite the pipeline above as:
+
+```py
+@dlt.resource
+def users():
+    yield [
+        {'id': 1, 'name': 'Balice'},
+        {'id': 2, 'name': 'Bob'}
+    ]
+
+pipeline = dlt.pipeline(
+    pipeline_name='quick_start',
+    destination='duckdb',
+    dataset_name='mydata'
+)
+load_info = pipeline.run(users)
 ```
 
-[This command](../../reference/command-line-interface.md#show-tables-and-data-in-the-destination)
-generates and launches a simple Streamlit app that you can use to inspect the schemas
-and data in the destination as well as your pipeline state and loading status / stats. It should be
-executed from the same folder where you ran the pipeline script to access destination credentials.
-It requires `streamlit` and `pandas` to be installed.
+The result will be the same, but the table is implicitly named `users` based on the resource name.
 
-## Table and column names
+::: note
 
-We [normalize table and column names,](../../general-usage/schema.md#naming-convention) so they fit
-what the destination database allows. We convert all the names in your source data into
-`snake_case`, alphanumeric identifiers. Please note that in many cases the names you had in your
-input document will be (slightly) different from identifiers you see in the database.
+Special tables are created to track the pipeline state. These tables are prefixed with `_dlt_`
+and are not shown in the `show` command of the `dlt pipeline` CLI. However, you can see them when
+connecting to the database directly.
+
+:::
 
 ## Child and parent tables
 
-When creating a schema during normalization, `dlt` recursively unpacks this nested structure into
-relational tables, creating and linking children and parent tables.
+Now let's look at a more complex example:
 
-This is how table linking works:
+```py
+import dlt
+
+data = [
+    {
+        'id': 1,
+        'name': 'Alice',
+        'pets': [
+            {'id': 1, 'name': 'Fluffy', 'type': 'cat'},
+            {'id': 2, 'name': 'Spot', 'type': 'dog'}
+        ]
+    },
+    {
+        'id': 2,
+        'name': 'Bob',
+        'pets': [
+            {'id': 3, 'name': 'Fido', 'type': 'dog'}
+        ]
+    }
+]
+
+pipeline = dlt.pipeline(
+    pipeline_name='quick_start',
+    destination='duckdb',
+    dataset_name='mydata'
+)
+load_info = pipeline.run(data, table_name="users")
+```
+
+Running this pipeline will create two tables in the destination, `users` and `users__pets`. The
+`users` table will contain the top level data, and the `users__pets` table will contain the child
+data. Here is what the tables may look like:
+
+**users**
+
+| id | name | _dlt_id | _dlt_load_id |
+| --- | --- | --- | --- |
+| 1 | Alice | wX3f5vn801W16A | 1234562350.98417 |
+| 2 | Bob | rX8ybgTeEmAmmA | 1234562350.98417 |
+
+**users__pets**
+
+| id | name | type | _dlt_id | _dlt_parent_id | _dlt_list_idx |
+| --- | --- | --- | --- | --- | --- |
+| 1 | Fluffy | cat | w1n0PEDzuP3grw | wX3f5vn801W16A | 0 |
+| 2 | Spot | dog | 9uxh36VU9lqKpw | wX3f5vn801W16A | 1 |
+| 3 | Fido | dog | pe3FVtCWz8VuNA | rX8ybgTeEmAmmA | 0 |
+
+When creating a database schema, dlt recursively unpacks nested structures into relational tables,
+creating and linking children and parent tables.
+
+This is how it works:
 
 1. Each row in all (top level and child) data tables created by `dlt` contains UNIQUE column named
    `_dlt_id`.
@@ -41,9 +142,18 @@ This is how table linking works:
 1. For tables that are loaded with the `merge` write disposition, we add a ROOT KEY column
    `_dlt_root_id`, which links child table to a row in top level table.
 
-> 💡 Note: If you define your own primary key in a child table, it will be used to link to parent table
+
+:::note
+
+If you define your own primary key in a child table, it will be used to link to parent table
 and the `_dlt_parent_id` and `_dlt_list_idx` will not be added. `_dlt_id` is always added even in
 case the primary key or other unique columns are defined.
+
+:::
+
+## Naming convention: tables and columns
+
+During a pipeline run, dlt [normalizes both table and column names](../../general-usage/schema.md#naming-convention) to ensure compatibility with the destination database's accepted format. All names from your source data will be transformed into snake_case and will only include alphanumeric characters. Please be aware that the names in the destination database may differ somewhat from those in your original input.
 
 ## Load IDs
 
