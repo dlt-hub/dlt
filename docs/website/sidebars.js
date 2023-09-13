@@ -263,7 +263,43 @@ const sidebars = {
         'reference/explainers/schema-evolution',
         'reference/telemetry',
         'reference/airflow-gcp-cloud-composer',
-        'reference/api-reference',
+      ],
+    },
+    {
+      type: 'category',
+      label: 'API Reference',
+      link: {
+        type: 'generated-index',
+        title: 'API Reference pdoc',
+        description: 'The dlthub API reference.',
+        slug: 'api reference',
+        keywords: ['api reference'],
+      },
+      items: [
+        {
+          type: 'category',
+          label: 'pipeline_pdoc',
+          link: {
+            type: 'doc',
+            id: 'api_reference_pdoc/pipeline/index',
+          },
+          items: [
+            'api_reference_pdoc/pipeline/dbt',
+            'api_reference_pdoc/pipeline/exceptions',
+          ],
+        },
+        {
+          type: 'category',
+          label: 'pipeline_sphinx',
+          link: {
+            type: 'doc',
+            id: 'api_ref_sphinx/markdown/index',
+          },
+          items: [
+            'api_reference_pdoc/pipeline/dbt',
+            'api_reference_pdoc/pipeline/exceptions',
+          ],
+        },
       ],
     },
   ]
