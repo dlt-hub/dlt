@@ -35,7 +35,7 @@ ALL_LAYOUTS = (
 )
 
 
-def test_filesystem_configuration() -> None:
+def test_filesystem_destination_configuration() -> None:
     assert FilesystemDestinationClientConfiguration().fingerprint() == ""
     assert FilesystemDestinationClientConfiguration(bucket_url="s3://cool").fingerprint() == digest128("s3://cool")
 
