@@ -286,7 +286,7 @@ def read_table(limit):
         yield [{"row": _id, "description": "this is row with id {_id}", "timestamp": now} for _id in item_slice]
 
 
-# this prevents the process pool to run the initialization code again
+# this prevents process pool to run the initialization code again
 if __name__ == "__main__" or "PYTEST_CURRENT_TEST" in os.environ:
     pipeline = dlt.pipeline("parallel_load", destination="duckdb", full_refresh=True)
     pipeline.extract(read_table(1000000))

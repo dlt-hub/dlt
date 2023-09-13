@@ -80,16 +80,16 @@ def test_resolve_contract_settings() -> None:
     schema = get_schema()
     schema.tables["table"]["schema_contract_settings"] = {
         "table": "freeze",
-        "column": "discard-value",
+        "column": "discard_value",
     }
     assert schema.resolve_contract_settings_for_table(None, "table") == {
         "table": "freeze",
-        "column": "discard-value",
+        "column": "discard_value",
         "data_type": "evolve"
     }
     assert schema.resolve_contract_settings_for_table("table", "child_table") == {
         "table": "freeze",
-        "column": "discard-value",
+        "column": "discard_value",
         "data_type": "evolve"
     }
 
@@ -111,16 +111,16 @@ def test_resolve_contract_settings() -> None:
     schema = get_schema()
     schema._settings["schema_contract_settings"] = {
         "table": "freeze",
-        "column": "discard-value",
+        "column": "discard_value",
     }
     assert schema.resolve_contract_settings_for_table(None, "table") == {
         "table": "freeze",
-        "column": "discard-value",
+        "column": "discard_value",
         "data_type": "evolve"
     }
     assert schema.resolve_contract_settings_for_table("table", "child_table") == {
         "table": "freeze",
-        "column": "discard-value",
+        "column": "discard_value",
         "data_type": "evolve"
     }
 
@@ -129,16 +129,16 @@ def test_resolve_contract_settings() -> None:
     schema._settings["schema_contract_settings"] = "freeze"
     schema.tables["table"]["schema_contract_settings"] = {
         "table": "evolve",
-        "column": "discard-value",
+        "column": "discard_value",
     }
     assert schema.resolve_contract_settings_for_table(None, "table") == {
         "table": "evolve",
-        "column": "discard-value",
+        "column": "discard_value",
         "data_type": "freeze"
     }
     assert schema.resolve_contract_settings_for_table("table", "child_table") == {
         "table": "evolve",
-        "column": "discard-value",
+        "column": "discard_value",
         "data_type": "freeze"
     }
 
@@ -149,13 +149,13 @@ base_settings = [{
     "column": "evolve",
     "data_type": "evolve"
     },{
-        "table": "discard-row",
-        "column": "discard-row",
-        "data_type": "discard-row"
+        "table": "discard_row",
+        "column": "discard_row",
+        "data_type": "discard_row"
     }, {
-        "table": "discard-value",
-        "column": "discard-value",
-        "data_type": "discard-value"
+        "table": "discard_value",
+        "column": "discard_value",
+        "data_type": "discard_value"
     }, {
         "table": "freeze",
         "column": "freeze",
@@ -179,8 +179,8 @@ def test_check_adding_table(base_settings) -> None:
     # check adding new table
     #
     assert schema.check_schema_update({**base_settings, **{"table": "evolve"}}, "new_table", data, new_table) == (data, new_table)
-    assert schema.check_schema_update({**base_settings, **{"table": "discard-row"}}, "new_table", data, new_table) == (None, None)
-    assert schema.check_schema_update({**base_settings, **{"table": "discard-value"}}, "new_table", data, new_table) == (None, None)
+    assert schema.check_schema_update({**base_settings, **{"table": "discard_row"}}, "new_table", data, new_table) == (None, None)
+    assert schema.check_schema_update({**base_settings, **{"table": "discard_value"}}, "new_table", data, new_table) == (None, None)
 
     with pytest.raises(SchemaFrozenException):
         schema.check_schema_update({**base_settings, **{"table": "freeze"}}, "new_table", data, new_table)
@@ -214,8 +214,8 @@ def test_check_adding_new_columns(base_settings) -> None:
     popped_table_update["columns"].pop("new_column")
 
     assert schema.check_schema_update({**base_settings, **{"column": "evolve"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (data_with_new_row, table_update)
-    assert schema.check_schema_update({**base_settings, **{"column": "discard-row"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (None, None)
-    assert schema.check_schema_update({**base_settings, **{"column": "discard-value"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (data, popped_table_update)
+    assert schema.check_schema_update({**base_settings, **{"column": "discard_row"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (None, None)
+    assert schema.check_schema_update({**base_settings, **{"column": "discard_value"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (data, popped_table_update)
 
     with pytest.raises(SchemaFrozenException):
         schema.check_schema_update({**base_settings, **{"column": "freeze"}}, "table", copy.deepcopy(data_with_new_row), table_update)
@@ -246,8 +246,8 @@ def test_check_adding_new_columns(base_settings) -> None:
 
     # incomplete columns should be treated like new columns
     assert schema.check_schema_update({**base_settings, **{"column": "evolve"}}, "mixed_table", copy.deepcopy(data_with_new_row), table_update) == (data_with_new_row, table_update)
-    assert schema.check_schema_update({**base_settings, **{"column": "discard-row"}}, "mixed_table", copy.deepcopy(data_with_new_row), table_update) == (None, None)
-    assert schema.check_schema_update({**base_settings, **{"column": "discard-value"}}, "mixed_table", copy.deepcopy(data_with_new_row), table_update) == (data, popped_table_update)
+    assert schema.check_schema_update({**base_settings, **{"column": "discard_row"}}, "mixed_table", copy.deepcopy(data_with_new_row), table_update) == (None, None)
+    assert schema.check_schema_update({**base_settings, **{"column": "discard_value"}}, "mixed_table", copy.deepcopy(data_with_new_row), table_update) == (data, popped_table_update)
 
     with pytest.raises(SchemaFrozenException):
         schema.check_schema_update({**base_settings, **{"column": "freeze"}}, "mixed_table", copy.deepcopy(data_with_new_row), table_update)
@@ -282,8 +282,8 @@ def test_check_adding_new_variant() -> None:
     popped_table_update["columns"].pop("column_2_variant")
 
     assert schema.check_schema_update({**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (data_with_new_row, table_update)
-    assert schema.check_schema_update({**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard-row"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (None, None)
-    assert schema.check_schema_update({**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard-value"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (data, popped_table_update)
+    assert schema.check_schema_update({**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard_row"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (None, None)
+    assert schema.check_schema_update({**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard_value"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (data, popped_table_update)
 
     with pytest.raises(SchemaFrozenException):
         schema.check_schema_update({**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}, "table", copy.deepcopy(data_with_new_row), table_update)
@@ -292,5 +292,5 @@ def test_check_adding_new_variant() -> None:
     with pytest.raises(SchemaFrozenException):
         assert schema.check_schema_update({**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve", "column": "freeze"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (data_with_new_row, table_update)
 
-    assert schema.check_schema_update({**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve", "column": "discard-row"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (None, None)
-    assert schema.check_schema_update({**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve", "column": "discard-value"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (data, popped_table_update)
+    assert schema.check_schema_update({**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve", "column": "discard_row"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (None, None)
+    assert schema.check_schema_update({**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve", "column": "discard_value"}}, "table", copy.deepcopy(data_with_new_row), table_update) == (data, popped_table_update)

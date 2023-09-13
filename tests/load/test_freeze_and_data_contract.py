@@ -14,7 +14,7 @@ from tests.utils import skip_if_not_active
 
 skip_if_not_active("duckdb")
 
-schema_contract_settings = ["evolve", "discard-value", "discard-row", "freeze"]
+schema_contract_settings = ["evolve", "discard_value", "discard_row", "freeze"]
 LOCATIONS = ["source", "resource", "override"]
 SCHEMA_ELEMENTS = ["table", "column", "data_type"]
 
@@ -211,7 +211,7 @@ def test_freeze_new_columns(contract_setting: str, setting_location: str) -> Non
     else:
         assert NEW_COLUMN_NAME not in pipeline.default_schema.tables["items"]["columns"]
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == (30 if contract_setting in ["evolve", "discard-value"] else 20)
+    assert table_counts["items"] == (30 if contract_setting in ["evolve", "discard_value"] else 20)
 
     # test adding variant column
     if contract_setting == "freeze":
@@ -226,7 +226,7 @@ def test_freeze_new_columns(contract_setting: str, setting_location: str) -> Non
     else:
         assert VARIANT_COLUMN_NAME not in pipeline.default_schema.tables["items"]["columns"]
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == (40 if contract_setting in ["evolve", "discard-value"] else 20)
+    assert table_counts["items"] == (40 if contract_setting in ["evolve", "discard_value"] else 20)
 
 
 @pytest.mark.parametrize("contract_setting", schema_contract_settings)
@@ -274,7 +274,7 @@ def test_freeze_variants(contract_setting: str, setting_location: str) -> None:
     else:
         assert VARIANT_COLUMN_NAME not in pipeline.default_schema.tables["items"]["columns"]
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == (40 if contract_setting in ["evolve", "discard-value"] else 30)
+    assert table_counts["items"] == (40 if contract_setting in ["evolve", "discard_value"] else 30)
 
 
 def test_settings_precedence() -> None:
@@ -285,7 +285,7 @@ def test_settings_precedence() -> None:
 
     # trying to add new column when forbidden on resource will fail
     run_resource(pipeline, items_with_new_column, {"resource": {
-        "column": "discard-row"
+        "column": "discard_row"
     }})
 
     # when allowed on override it will work
@@ -300,14 +300,14 @@ def test_settings_precedence_2() -> None:
 
     # load some data
     run_resource(pipeline, items, {"source": {
-        "data_type": "discard-row"
+        "data_type": "discard_row"
     }})
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
 
     # trying to add variant when forbidden on source will fail
     run_resource(pipeline, items_with_variant, {"source": {
-        "data_type": "discard-row"
+        "data_type": "discard_row"
     }})
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
@@ -315,15 +315,15 @@ def test_settings_precedence_2() -> None:
     # if allowed on resource it will pass
     run_resource(pipeline, items_with_variant, {
         "resource": {"data_type": "evolve"},
-        "source": {"data_type": "discard-row"}
+        "source": {"data_type": "discard_row"}
     })
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 20
 
     # if allowed on override it will also pass
     run_resource(pipeline, items_with_variant, {
-        "resource": {"data_type": "discard-row"},
-        "source": {"data_type": "discard-row"},
+        "resource": {"data_type": "discard_row"},
+        "source": {"data_type": "discard_row"},
         "override": {"data_type": "evolve"},
     })
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
@@ -340,7 +340,7 @@ def test_change_mode(setting_location: str) -> None:
 
     # trying to add variant when forbidden will fail
     run_resource(pipeline, items_with_variant, {setting_location: {
-        "data_type": "discard-row"
+        "data_type": "discard_row"
     }})
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
@@ -361,17 +361,17 @@ def test_single_settings_value(setting_location: str) -> None:
     assert table_counts["items"] == 10
 
     # trying to add variant when forbidden will fail
-    run_resource(pipeline, items_with_variant, {setting_location: "discard-row"})
+    run_resource(pipeline, items_with_variant, {setting_location: "discard_row"})
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
 
     # trying to add new column will fail
-    run_resource(pipeline, items_with_new_column, {setting_location: "discard-row"})
+    run_resource(pipeline, items_with_new_column, {setting_location: "discard_row"})
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
 
     # trying to add new table will fail
-    run_resource(pipeline, new_items, {setting_location: "discard-row"})
+    run_resource(pipeline, new_items, {setting_location: "discard_row"})
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
     assert "new_items" not in table_counts

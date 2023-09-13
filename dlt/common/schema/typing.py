@@ -65,7 +65,7 @@ TSimpleRegex = NewType("TSimpleRegex", str)
 TColumnName = NewType("TColumnName", str)
 SIMPLE_REGEX_PREFIX = "re:"
 
-TSchemaEvolutionMode = Literal["evolve", "discard-value", "freeze", "discard-row"]
+TSchemaEvolutionMode = Literal["evolve", "discard_value", "freeze", "discard_row"]
 
 class TSchemaContractModes(TypedDict, total=False):
     """TypedDict defining the schema update settings"""

@@ -229,7 +229,7 @@ class Schema:
 
         # check case where we have a new table
         if not table_exists:
-            if contract_modes["table"] in ["discard-row", "discard-value"]:
+            if contract_modes["table"] in ["discard_row", "discard_value"]:
                 return None, None
             if contract_modes["table"] == "freeze":
                 raise SchemaFrozenException(self.name, table_name, f"Trying to add table {table_name} but new tables are frozen.")
@@ -241,11 +241,11 @@ class Schema:
 
                 if table_exists and (item not in self.tables[table_name]["columns"] or not utils.is_complete_column(self.tables[table_name]["columns"][item])):
                     is_variant = (item in partial_table["columns"]) and partial_table["columns"][item].get("variant")
-                    if contract_modes["column"] == "discard-value" or (is_variant and contract_modes["data_type"] == "discard-value"):
+                    if contract_modes["column"] == "discard_value" or (is_variant and contract_modes["data_type"] == "discard_value"):
                         row.pop(item)
                         partial_table = deepcopy(partial_table)
                         partial_table["columns"].pop(item)
-                    elif contract_modes["column"] == "discard-row" or (is_variant and contract_modes["data_type"] == "discard-row"):
+                    elif contract_modes["column"] == "discard_row" or (is_variant and contract_modes["data_type"] == "discard_row"):
                         return None, None
                     elif contract_modes["column"] == "freeze":
                         raise SchemaFrozenException(self.name, table_name, f"Trying to add column {item} to table {table_name}  but columns are frozen.")
