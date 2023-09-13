@@ -284,8 +284,8 @@ the current one.
 
 ## Versioned datasets
 
-When you use the `full_refresh` option, `dlt` creates a versioned dataset. This means that each
-time you run the pipeline, the data is loaded into a new dataset (a new database schema).
+When you set the `full_refresh` argument to `True` in `dlt.pipeline` call, dlt creates a versioned dataset.
+This means that each time you run the pipeline, the data is loaded into a new dataset (a new database schema).
 The dataset name is the same as the `dataset_name` you provided in the pipeline definition with a
 datetime-based suffix.
 
