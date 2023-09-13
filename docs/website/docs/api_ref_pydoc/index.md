@@ -196,7 +196,7 @@ def run(data: Any,
 
 Loads the data in `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
-Summary
+### Summary
 This method will `extract` the data from the `data` argument, infer the schema, `normalize` the data into a load package (ie. jsonl or PARQUET files representing tables) and then `load` such packages into the `destination`.
 
 The data may be supplied in several forms:
