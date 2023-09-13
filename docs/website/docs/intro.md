@@ -41,7 +41,7 @@ print(info)
 
 Now copy this snippet to a file or a Notebook cell and run it. If you do not have it yet, install **duckdb** dependency (default `dlt` installation is really minimal):
 ```sh
-pip3 install "dlt[duckdb]"
+pip install "dlt[duckdb]"
 ```
 
 How the script works?: It extracts data from a
