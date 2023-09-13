@@ -194,7 +194,7 @@ class Schema:
 
         return new_row, updated_table_partial
 
-    def resolve_evolution_settings_for_table(self, parent_table: str, table_name: str, schema_contract_settings_override: TSchemaContractSettings) -> TSchemaContractModes:
+    def resolve_contract_settings_for_table(self, parent_table: str, table_name: str) -> TSchemaContractModes:
 
         def resolve_single(settings: TSchemaContractSettings) -> TSchemaContractModes:
             settings = settings or {}
@@ -208,15 +208,14 @@ class Schema:
         # modes
         table_contract_modes = resolve_single(self.tables.get(table_with_settings, {}).get("schema_contract_settings", {}))
         schema_contract_modes = resolve_single(self._settings.get("schema_contract_settings", {}))
-        overide_modes = resolve_single(schema_contract_settings_override)
 
         # resolve to correct settings dict
-        settings = cast(TSchemaContractModes, {**DEFAULT_SCHEMA_CONTRACT_MODE, **schema_contract_modes, **table_contract_modes, **overide_modes})
+        settings = cast(TSchemaContractModes, {**DEFAULT_SCHEMA_CONTRACT_MODE, **schema_contract_modes, **table_contract_modes})
 
         return settings
 
 
-    def check_schema_update(self, contract_modes: TSchemaContractModes, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema, schema_contract_settings_override: TSchemaContractSettings) -> Tuple[DictStrAny, TPartialTableSchema]:
+    def check_schema_update(self, contract_modes: TSchemaContractModes, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema) -> Tuple[DictStrAny, TPartialTableSchema]:
         """Checks if schema update mode allows for the requested changes, filter row or reject update, depending on the mode"""
 
         assert partial_table
@@ -450,8 +449,11 @@ class Schema:
         normalizers["json"] = normalizers["json"] or self._normalizers_config["json"]
         self._configure_normalizers(normalizers)
 
-    def set_schema_contract_settings(self, settings: TSchemaContractSettings) -> None:
+    def set_schema_contract_settings(self, settings: TSchemaContractSettings, update_table_settings: bool = False) -> None:
         self._settings["schema_contract_settings"] = settings
+        if update_table_settings:
+            for table in self.tables.values():
+                table["schema_contract_settings"] = settings
 
     def _infer_column(self, k: str, v: Any, data_type: TDataType = None, is_variant: bool = False) -> TColumnSchema:
         column_schema =  TColumnSchema(

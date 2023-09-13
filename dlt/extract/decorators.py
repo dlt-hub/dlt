@@ -170,13 +170,13 @@ def source(
 
             # prepare schema
             schema = schema.clone(update_normalizers=True)
-            schema.set_schema_contract_settings(schema_contract_settings)
 
             # convert to source
             s = DltSource.from_data(name, source_section, schema.clone(update_normalizers=True), rv)
             # apply hints
             if max_table_nesting is not None:
                 s.max_table_nesting = max_table_nesting
+            s.schema_contract_settings = schema_contract_settings
             # enable root propagation
             s.root_key = root_key
             return s

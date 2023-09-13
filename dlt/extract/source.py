@@ -11,7 +11,7 @@ from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer, RelationalNormalizerConfigPropagation
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnName
+from dlt.common.schema.typing import TColumnName, TSchemaContractSettings
 from dlt.common.typing import AnyFun, StrAny, TDataItem, TDataItems, NoneType
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, resource_state, source_state, pipeline_state
@@ -604,6 +604,14 @@ class DltSource(Iterable[TDataItem]):
     @max_table_nesting.setter
     def max_table_nesting(self, value: int) -> None:
         RelationalNormalizer.update_normalizer_config(self._schema, {"max_nesting": value})
+
+    @property
+    def schema_contract_settings(self) -> TSchemaContractSettings:
+        return self.schema.settings["schema_contract_settings"]
+
+    @schema_contract_settings.setter
+    def schema_contract_settings(self, settings: TSchemaContractSettings) -> None:
+        self.schema.set_schema_contract_settings(settings)
 
     @property
     def exhausted(self) -> bool:

@@ -77,7 +77,7 @@ def is_final_type(t: Type[Any]) -> bool:
 
 def extract_union_types(t: Type[Any], no_none: bool = False) -> List[Any]:
     if no_none:
-        return [arg for arg in get_args(t) if arg is not type(None)]
+        return [arg for arg in get_args(t) if arg is not type(None)]  # noqa: E721
     return list(get_args(t))
 
 def is_literal_type(hint: Type[Any]) -> bool:

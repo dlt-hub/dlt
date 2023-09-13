@@ -113,25 +113,25 @@ def run_resource(pipeline, resource_fun, settings) -> DltSource:
     pipeline.run(source(), schema_contract_settings=settings.get("override"))
 
     # check updated schema
-    assert pipeline.default_schema._settings["schema_contract_settings"] == settings.get("source")
+    assert pipeline.default_schema._settings["schema_contract_settings"] == (settings.get("override") or settings.get("source"))
 
     # check items table settings
-    assert pipeline.default_schema.tables["items"]["schema_contract_settings"] == settings.get("resource")
+    assert pipeline.default_schema.tables["items"]["schema_contract_settings"] == (settings.get("override") or settings.get("resource"))
 
 def get_pipeline():
     import duckdb
     return dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'), full_refresh=True)
 
 
-@pytest.mark.parametrize("evolution_setting", schema_contract_settings)
+@pytest.mark.parametrize("contract_setting", schema_contract_settings)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
-def test_freeze_new_tables(evolution_setting: str, setting_location: str) -> None:
+def test_freeze_new_tables(contract_setting: str, setting_location: str) -> None:
 
     pipeline = get_pipeline()
 
     full_settings = {
         setting_location: {
-        "table": evolution_setting
+        "table": contract_setting
     }}
     run_resource(pipeline, items, {})
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
@@ -149,7 +149,7 @@ def test_freeze_new_tables(evolution_setting: str, setting_location: str) -> Non
     assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
 
     # test adding new subtable
-    if evolution_setting == "freeze":
+    if contract_setting == "freeze":
         with pytest.raises(PipelineStepFailed) as py_ex:
             run_resource(pipeline, items_with_subtable, full_settings)
         assert isinstance(py_ex.value.__context__, SchemaFrozenException)
@@ -157,27 +157,27 @@ def test_freeze_new_tables(evolution_setting: str, setting_location: str) -> Non
         run_resource(pipeline, items_with_subtable, full_settings)
 
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == 30 if evolution_setting in ["freeze"] else 40
-    assert table_counts.get(SUBITEMS_TABLE, 0) == (10 if evolution_setting in ["evolve"] else 0)
+    assert table_counts["items"] == 30 if contract_setting in ["freeze"] else 40
+    assert table_counts.get(SUBITEMS_TABLE, 0) == (10 if contract_setting in ["evolve"] else 0)
 
     # test adding new table
-    if evolution_setting == "freeze":
+    if contract_setting == "freeze":
         with pytest.raises(PipelineStepFailed) as py_ex:
             run_resource(pipeline, new_items, full_settings)
         assert isinstance(py_ex.value.__context__, SchemaFrozenException)
     else:
         run_resource(pipeline, new_items, full_settings)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts.get("new_items", 0) == (10 if evolution_setting in ["evolve"] else 0)
+    assert table_counts.get("new_items", 0) == (10 if contract_setting in ["evolve"] else 0)
 
 
-@pytest.mark.parametrize("evolution_setting", schema_contract_settings)
+@pytest.mark.parametrize("contract_setting", schema_contract_settings)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
-def test_freeze_new_columns(evolution_setting: str, setting_location: str) -> None:
+def test_freeze_new_columns(contract_setting: str, setting_location: str) -> None:
 
     full_settings = {
         setting_location: {
-        "column": evolution_setting
+        "column": contract_setting
     }}
 
     pipeline = get_pipeline()
@@ -199,43 +199,43 @@ def test_freeze_new_columns(evolution_setting: str, setting_location: str) -> No
     assert table_counts[NEW_ITEMS_TABLE] == 10
 
     # test adding new column
-    if evolution_setting == "freeze":
+    if contract_setting == "freeze":
         with pytest.raises(PipelineStepFailed) as py_ex:
             run_resource(pipeline, items_with_new_column, full_settings)
         assert isinstance(py_ex.value.__context__, SchemaFrozenException)
     else:
         run_resource(pipeline, items_with_new_column, full_settings)
 
-    if evolution_setting == "evolve":
+    if contract_setting == "evolve":
         assert NEW_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
     else:
         assert NEW_COLUMN_NAME not in pipeline.default_schema.tables["items"]["columns"]
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == (30 if evolution_setting in ["evolve", "discard-value"] else 20)
+    assert table_counts["items"] == (30 if contract_setting in ["evolve", "discard-value"] else 20)
 
     # test adding variant column
-    if evolution_setting == "freeze":
+    if contract_setting == "freeze":
         with pytest.raises(PipelineStepFailed) as py_ex:
             run_resource(pipeline, items_with_variant, full_settings)
         assert isinstance(py_ex.value.__context__, SchemaFrozenException)
     else:
         run_resource(pipeline, items_with_variant, full_settings)
 
-    if evolution_setting == "evolve":
+    if contract_setting == "evolve":
         assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
     else:
         assert VARIANT_COLUMN_NAME not in pipeline.default_schema.tables["items"]["columns"]
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == (40 if evolution_setting in ["evolve", "discard-value"] else 20)
+    assert table_counts["items"] == (40 if contract_setting in ["evolve", "discard-value"] else 20)
 
 
-@pytest.mark.parametrize("evolution_setting", schema_contract_settings)
+@pytest.mark.parametrize("contract_setting", schema_contract_settings)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
-def test_freeze_variants(evolution_setting: str, setting_location: str) -> None:
+def test_freeze_variants(contract_setting: str, setting_location: str) -> None:
 
     full_settings = {
         setting_location: {
-        "data_type": evolution_setting
+        "data_type": contract_setting
     }}
     pipeline = get_pipeline()
     run_resource(pipeline, items, {})
@@ -262,19 +262,19 @@ def test_freeze_variants(evolution_setting: str, setting_location: str) -> None:
     assert NEW_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
 
     # test adding variant column
-    if evolution_setting == "freeze":
+    if contract_setting == "freeze":
         with pytest.raises(PipelineStepFailed) as py_ex:
             run_resource(pipeline, items_with_variant, full_settings)
         assert isinstance(py_ex.value.__context__, SchemaFrozenException)
     else:
         run_resource(pipeline, items_with_variant, full_settings)
 
-    if evolution_setting == "evolve":
+    if contract_setting == "evolve":
         assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
     else:
         assert VARIANT_COLUMN_NAME not in pipeline.default_schema.tables["items"]["columns"]
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == (40 if evolution_setting in ["evolve", "discard-value"] else 30)
+    assert table_counts["items"] == (40 if contract_setting in ["evolve", "discard-value"] else 30)
 
 
 def test_settings_precedence() -> None:

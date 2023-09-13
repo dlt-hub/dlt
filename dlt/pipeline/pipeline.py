@@ -304,6 +304,10 @@ class Pipeline(SupportsPipeline):
         if not self.default_schema_name:
             return None
 
+        # update global schema contract settings, could be moved into def normalize()
+        if schema_contract_settings is not None:
+            self.default_schema.set_schema_contract_settings(schema_contract_settings, True)
+
         # make sure destination capabilities are available
         self._get_destination_capabilities()
         # create default normalize config
@@ -316,7 +320,7 @@ class Pipeline(SupportsPipeline):
         # run with destination context
         with self._maybe_destination_capabilities(loader_file_format=loader_file_format):
             # shares schema storage with the pipeline so we do not need to install
-            normalize = Normalize(collector=self.collector, config=normalize_config, schema_storage=self._schema_storage, schema_contract_settings=schema_contract_settings)
+            normalize = Normalize(collector=self.collector, config=normalize_config, schema_storage=self._schema_storage)
             try:
                 with signals.delayed_signals():
                     runner.run_pool(normalize.config, normalize)
