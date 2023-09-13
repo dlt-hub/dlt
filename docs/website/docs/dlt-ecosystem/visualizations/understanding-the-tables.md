@@ -29,7 +29,7 @@ load_info = pipeline.run(data, table_name="users")
 
 :::note
 
-Here we are using the `duckdb` destination, which is an in-memory database. Other database [destinations](../destinations)
+Here we are using the [DuckDb destination](../destinations/duckdb.md), which is an in-memory database. Other database destinations
 will behave similarly and have similar concepts.
 
 :::
