@@ -39,7 +39,7 @@ will behave similarly and have similar concepts.
 When you run the pipeline, dlt creates a schema in the destination database. The schema is a
 collection of tables that represent the data you loaded into the database. The schema name is the same as the
 `dataset_name` you provided in the pipeline definition. In the example above, we explicitly set the
-`dataset_name` to `mydata`, if you don't set it, it will be set to the pipeline name with a suffix `_dataset`.
+`dataset_name` to `mydata`. If you don't set it, it will be set to the pipeline name with a suffix `_dataset`.
 
 Be aware that the schema referred to in this section is distinct from the [dlt Schema](../../general-usage/schema.md).
 The database schema pertains to the structure and organization of data within the database, including table
@@ -50,8 +50,8 @@ and structure of normalized data within the dlt pipeline.
 
 Each [resource](../../general-usage/resource.md) in your pipeline definition will be represented by a table in
 the destination. In the example above, we have one resource, `users`, so we will have one table, `mydata.users`,
-in the destination. `mydata` is the schema name, and `users` is the table name. Here also, we explicitly set
-the `table_name` to `users`, if you don't set it, it will be set to the resource name.
+in the destination. Where `mydata` is the schema name, and `users` is the table name. Here also, we explicitly set
+the `table_name` to `users`. When `table_name` is not set, the table name will be set to the resource name.
 
 For example, we can rewrite the pipeline above as:
 
