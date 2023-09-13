@@ -95,7 +95,7 @@ def test_preserve_version_on_load() -> None:
 
 @pytest.mark.parametrize("remove_defaults", [True, False])
 def test_version_preserve_on_reload(remove_defaults: bool) -> None:
-    eth_v6: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v6")
+    eth_v6: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
     schema = Schema.from_dict(eth_v6)
 
     to_save_dict = schema.to_dict(remove_defaults=remove_defaults)

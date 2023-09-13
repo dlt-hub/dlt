@@ -882,7 +882,7 @@ class Pipeline(SupportsPipeline):
             pipeline_schema.update_schema(
                 pipeline_schema.normalize_table_identifiers(table)
             )
-            pipeline_schema._settings["schema_contract_settings"] = source_schema._settings.get("schema_contract_settings")
+            pipeline_schema.set_schema_contract_settings(source_schema._settings.get("schema_contract_settings", {}))
 
         return extract_id
 

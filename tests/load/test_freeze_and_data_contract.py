@@ -113,10 +113,10 @@ def run_resource(pipeline, resource_fun, settings) -> DltSource:
     pipeline.run(source(), schema_contract_settings=settings.get("override"))
 
     # check updated schema
-    assert pipeline.default_schema._settings["schema_contract_settings"] == (settings.get("override") or settings.get("source"))
+    assert pipeline.default_schema._settings.get("schema_contract_settings", {}) == (settings.get("override") or settings.get("source"))
 
     # check items table settings
-    assert pipeline.default_schema.tables["items"]["schema_contract_settings"] == (settings.get("override") or settings.get("resource"))
+    assert pipeline.default_schema.tables["items"]["schema_contract_settings"] == (settings.get("override") or settings.get("resource") or {})
 
 def get_pipeline():
     import duckdb

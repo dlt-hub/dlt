@@ -68,6 +68,7 @@ def test_load_schema_for_callable() -> None:
     schema = s.schema
     assert schema.name == "ethereum" == s.name
     # the schema in the associated file has this hash
+    import json
     assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V7
 
 

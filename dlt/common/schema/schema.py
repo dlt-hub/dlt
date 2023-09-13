@@ -68,6 +68,7 @@ class Schema:
 
     @classmethod
     def from_dict(cls, d: DictStrAny) -> "Schema":
+
         # upgrade engine if needed
         stored_schema = utils.migrate_schema(d, d["engine_version"], cls.ENGINE_VERSION)
         # verify schema
@@ -453,7 +454,8 @@ class Schema:
         self._settings["schema_contract_settings"] = settings
         if update_table_settings:
             for table in self.tables.values():
-                table["schema_contract_settings"] = settings
+                if not table.get("parent"):
+                    table["schema_contract_settings"] = settings
 
     def _infer_column(self, k: str, v: Any, data_type: TDataType = None, is_variant: bool = False) -> TColumnSchema:
         column_schema =  TColumnSchema(

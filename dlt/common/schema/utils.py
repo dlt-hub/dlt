@@ -343,10 +343,11 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
     if from_engine == 6 and to_engine > 6:
         # migrate from sealed properties to schema evolution settings
         schema_dict["settings"].pop("schema_sealed", None)
-        schema_dict["settings"]["schema_contract_settings"] = None
+        schema_dict["settings"]["schema_contract_settings"] = {}
         for table in schema_dict["tables"].values():
             table.pop("table_sealed", None)
-            table["schema_contract_settings"] = None
+            if not table.get("parent"):
+                table["schema_contract_settings"] = {}
         from_engine = 7
 
     schema_dict["engine_version"] = from_engine
@@ -660,7 +661,7 @@ def new_table(
         # set write disposition only for root tables
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
         table["resource"] = resource or table_name
-        table["schema_contract_settings"] = schema_contract_settings
+        table["schema_contract_settings"] = schema_contract_settings or {}
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,
