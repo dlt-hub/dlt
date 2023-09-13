@@ -24,13 +24,13 @@ Let's get started!
 Install dlt using `pip`:
 
 ```bash
-pip3 install -U dlt
+pip install -U dlt
 ```
 
 Command above installs (or upgrades) library core, in example below we use `duckdb` as a destination so let's add it:
 
 ```bash
-pip3 install "dlt[duckdb]"
+pip install "dlt[duckdb]"
 ```
 
 :::tip
@@ -65,7 +65,7 @@ print(load_info)
 Save this python script with the name `quick_start_pipeline.py` and run the following command:
 
 ```bash
-python3 quick_start_pipeline.py
+python quick_start_pipeline.py
 ```
 
 The output should look like:
@@ -85,7 +85,7 @@ dlt pipeline quick_start show
 ```
 **quick_start** is the name of the pipeline from the script above. If you do not have Streamlit installed yet do:
 ```bash
-pip3 install streamlit
+pip install streamlit
 ```
 
 Now you should see the **users** table:
@@ -235,7 +235,7 @@ print(load_info)
 
 Have some fun and run this snippet [with progress bar enabled](walkthroughs/run-a-pipeline.md#2-see-the-progress-during-loading) (we like **enlighten** the best, **tqdm** works as well):
 ```bash
-pip3 install enlighten
+pip install enlighten
 PROGRESS=enlighten python load_from_db.py
 ```
 
@@ -575,7 +575,7 @@ Just before load, the `weaviate_adapter` is used to tell `weaviate` destination 
 To run this example you need additional dependencies:
 
 ```shell
-pip3 install PyPDF2 "dlt[weaviate]"
+pip install PyPDF2 "dlt[weaviate]"
 python pdf_to_weaviate.py
 ```
 
