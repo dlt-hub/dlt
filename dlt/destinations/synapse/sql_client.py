@@ -36,7 +36,6 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         self.credentials = credentials
 
     def open_connection(self) -> pyodbc.Connection:
-        sql_count = 0
         self._conn = pyodbc.connect(
             self.credentials.to_odbc_dsn(),
             timeout=self.credentials.connect_timeout,
@@ -119,8 +118,7 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             query = query.replace("%s", "?")
         curr = self._conn.cursor()
         try:
-            print(f"Executing query {self.sql_count}: {query}")
-            self.sql_count = self.sql_count + 1
+            print(f"Executing query : {query}")
             # unpack because empty tuple gets interpreted as a single argument
             # https://github.com/mkleehammer/pyodbc/wiki/Features-beyond-the-DB-API#passing-parameters
             curr.execute(query, *args)
