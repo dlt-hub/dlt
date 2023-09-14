@@ -118,7 +118,8 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             query = query.replace("%s", "?")
         curr = self._conn.cursor()
         try:
-            print(f"Executing query : {query}")
+            print("Executing query:")
+            print(query)
             # unpack because empty tuple gets interpreted as a single argument
             # https://github.com/mkleehammer/pyodbc/wiki/Features-beyond-the-DB-API#passing-parameters
             curr.execute(query, *args)
