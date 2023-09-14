@@ -25,7 +25,7 @@ Sources and resources that can be loaded using this verified source are:
 ### Grab Airtable personal access tokens
 
 1. Click your account icon top-right.
-1. Choose "\<> Developer Hub" from the dropdown.
+1. Choose "Developer Hub" from the dropdown.
 1. Select "Personal access token" on the left, then "Create new token".
 1. Name it appropriately.
 1. Add read scopes for "data records" and "schema bases".
