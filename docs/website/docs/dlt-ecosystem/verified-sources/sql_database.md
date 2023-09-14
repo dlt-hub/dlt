@@ -114,17 +114,15 @@ For more information, read the
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
    information securely, like access tokens. Keep this file safe.
 
-   Here's what the `secrets.toml` looks like
-
-   You can pass the credentials
+   Here's what the `secrets.toml` looks like:
 
    ```toml
    [sources.sql_database.credentials]
-   drivername = "please set me up!" # driver name for the database
-   database = "please set me up!" # database name
-   username = "please set me up!" # username associated with the database
-   host = "please set me up!" # host address
-   port = "please set me up!" # port required for connection
+   drivername = "mysql+pymysql" # driver name for the database
+   database = "Rfam" # database name
+   username = "rfamro" # username associated with the database
+   host = "mysql-rfam-public.ebi.ac.uk" # host address
+   port = "4497" # port required for connection
    ```
 
 1. Alternatively, you can also provide credentials in "secrets.toml" as:
@@ -191,7 +189,7 @@ def sql_database(
 ) -> Iterable[DltResource]:
 ```
 
-`credentials`: Database details or an 'sqlalchemy.Engine' instance.
+`credentials`: Database details or a 'sqlalchemy.Engine' instance.
 
 `schema`: Database schema name (default if unspecified).
 
@@ -286,39 +284,35 @@ verified source.
       doc['rfam_acc'] = hashed_string
       return doc
 
-   def load_table_with_pseudonymized_columns():
-
-       pipeline = dlt.pipeline(
-           # Configure the pipeline
-       )      
-       # using sql_database source to load family table and pseudonymize the column "rfam_acc"
-       source = sql_database().with_resources("family")
-       # modify this source instance's resource
-       source = source.family.add_map(pseudonymize_name)
-       # Run the pipeline. For a large db this may take a while
-       info = pipeline.run(source, write_disposition="replace")
-       print(info)
+   pipeline = dlt.pipeline(
+       # Configure the pipeline
+   )
+   # using sql_database source to load family table and pseudonymize the column "rfam_acc"
+   source = sql_database().with_resources("family")
+   # modify this source instance's resource
+   source = source.family.add_map(pseudonymize_name)
+   # Run the pipeline. For a large db this may take a while
+   info = pipeline.run(source, write_disposition="replace")
+   print(info)
    ```
 
-1. To exclude the columns, for eg. "rfam_id" column from the "family" table before loading:
+1. To exclude the columns, for e.g. "rfam_id" column from the "family" table before loading:
 
    ```python
    def remove_columns(doc):
        del doc["rfam_id"]
        return doc
 
-   def load_table_with_deleted_columns():
-       
-       pipeline = dlt.pipeline(
-           # Configure the pipeline
-       )
-       # using sql_database source to load family table and remove the column "rfam_id"
-       source = sql_database().with_resources("family")
-       # modify this source instance's resource
-       source = source.family.add_map(remove_columns)
-       # Run the pipeline. For a large db this may take a while
-       info = pipeline.run(source, write_disposition="replace")
-       print(info)
+   pipeline = dlt.pipeline(
+       # Configure the pipeline
+   )
+   # using sql_database source to load family table and remove the column "rfam_id"
+   source = sql_database().with_resources("family")
+   # modify this source instance's resource
+   source = source.family.add_map(remove_columns)
+   # Run the pipeline. For a large db this may take a while
+   info = pipeline.run(source, write_disposition="replace")
+   print(info)
    ```
 
 1. To incrementally load the "family" table using the sql_database source method:
@@ -333,7 +327,7 @@ verified source.
    ```
 
    > In this example, we load the "family" table and set the "updated" column for incremental
-   > loading. In first run it loads all the data from January 1, 2022, at midnight (00:00:00) and
+   > loading. In the first run, it loads all the data from January 1, 2022, at midnight (00:00:00) and
    > then loads incrementally in subsequent runs using "updated" field.
 
 1. To incrementally load the "family" table using the 'sql_table' resource.
