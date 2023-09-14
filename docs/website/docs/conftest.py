@@ -12,7 +12,6 @@ from dlt.common.configuration.specs.config_providers_context import ConfigProvid
 
 from tests.utils import patch_home_dir, autouse_test_storage, preserve_environ, duckdb_pipeline_location, wipe_pipeline
 
-string_toml_provider = StringTomlProvider("""""")
 
 @pytest.fixture(autouse=True)
 def setup_tests(request):
@@ -22,7 +21,7 @@ def setup_tests(request):
 
     # inject provider context so the original providers are restored at the end
     def _initial_providers():
-        return [EnvironProvider(), SecretsTomlProvider(project_dir=config_dir, add_global_config=False), ConfigTomlProvider(project_dir=config_dir, add_global_config=False), string_toml_provider]
+        return [EnvironProvider(), SecretsTomlProvider(project_dir=config_dir, add_global_config=False), ConfigTomlProvider(project_dir=config_dir, add_global_config=False)]
 
     glob_ctx = ConfigProvidersContext()
     glob_ctx.providers = _initial_providers()
@@ -30,8 +29,6 @@ def setup_tests(request):
     with set_working_dir(dname), Container().injectable_context(glob_ctx), patch("dlt.common.configuration.specs.config_providers_context.ConfigProvidersContext.initial_providers", _initial_providers):
         yield
 
-    # clear string toml provider
-    string_toml_provider.update("")
 
 
 def pytest_configure(config):

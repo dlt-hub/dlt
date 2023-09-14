@@ -227,7 +227,7 @@ with engine.connect() as conn:
     pipeline = dlt.pipeline(
         pipeline_name='from_database',
         destination='duckdb',
-        dataset_name='genome_da ta',
+        dataset_name='genome_data',
     )
 
     # here we convert the rows into dictionaries on the fly with a map function

@@ -54,7 +54,7 @@ lint:
 test-and-lint-snippets:
 	poetry run mypy --config-file mypy.ini docs/website docs/examples
 	poetry run flake8 --max-line-length=200 docs/website docs/examples
-	poetry run pytest docs/website --ignore=docs/website/node_modules
+	cd docs/website/docs && poetry run pytest --ignore=node_modules
 
 lint-security:
 	poetry run bandit -r dlt/ -n 3 -l

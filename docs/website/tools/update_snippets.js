@@ -70,7 +70,7 @@ function getSnippet(fileName, snippetName) {
     const snippetParts = snippetName.split("::");
     let snippetsFileName = fileName.slice(0, -ext.length) + SNIPPETS_FILE_SUFFIX;
     if (snippetParts.length > 1) {
-        snippetsFileName = BASE_DIR + snippetParts[0];
+        snippetsFileName = path. dirname(fileName) + "/" + snippetParts[0];
         snippetName = snippetParts[1];
     }
     const lines = fs.readFileSync(snippetsFileName, 'utf8').split(/\r?\n/);
