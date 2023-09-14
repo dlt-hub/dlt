@@ -6,7 +6,8 @@ keywords: [airtable api, airtable verified source, airtable]
 
 # Airtable
 
-Airtable is a cloud-based platform that merges spreadsheet and database functionalities for easy data management and collaboration.
+Airtable is a cloud-based platform that merges spreadsheet and database functionalities for easy
+data management and collaboration.
 
 This Airtable `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/airtable_pipeline.py)
@@ -24,12 +25,12 @@ Sources and resources that can be loaded using this verified source are:
 ### Grab Airtable personal access tokens
 
 1. Click your account icon top-right.
-1. Choose "<> Developer Hub" from the dropdown.
+1. Choose "\<> Developer Hub" from the dropdown.
 1. Select "Personal access token" on the left, then "Create new token".
 1. Name it appropriately.
 1. Add read scopes for "data records" and "schema bases".
 1. Add a base to specify the desired base for data access.
-1. Hit "Create token" and save the displayed token securely for credential use. 
+1. Hit "Create token" and save the displayed token securely for credential use.
 
 ### Grab Airtable IDs
 
@@ -42,11 +43,14 @@ https://airtable.com/appve10kl227BIT4GV/tblOUnZVLFWbemTP1/viw3qtF76bRQC3wKx/rec9
 Between each slash, you'll find identifiers for the base, table, and view:
 
 - Base IDs start with "app", currently set to "appve10kl227BIT4GV".
+
 - Table IDs start with "tbl", currently set to "tblOUnZVLFWbemTP1".
+
 - View IDs start with "viw", currently set to "viw3qtF76bRQC3wKx".
+
 - Record ID start with "rec" ,currently set to "rec9khXgeTotgCQ62".
 
-   ![Airtable IDs](docs_images/Airtable_ids.jpeg)
+  ![Airtable IDs](docs_images/Airtable_ids.jpeg)
 
 ### Initialize the verified source
 
@@ -92,7 +96,9 @@ For more information, read the
    base_id = "Please set me up!"       # The id of the base.
    table_names = ["Table1","Table2"]   # A list of table IDs or table names to load.
    ```
-   > Optionally, you can also input "base_id" and "table_names" in the script, as in the pipeline example.
+
+   > Optionally, you can also input "base_id" and "table_names" in the script, as in the pipeline
+   > example.
 
 ## Sources and resources
 
