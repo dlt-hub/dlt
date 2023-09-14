@@ -95,7 +95,7 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     def _drop_views(self, *tables: str) -> None:
         if not tables:
             return
-        statements = [f"DROP VIEW IF EXISTS {self.make_qualified_table_name(table)};" for table in tables]
+        statements = [f"DROP VIEW {self.make_qualified_table_name(table)};" for table in tables]
         self.execute_fragments(statements)
 
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
