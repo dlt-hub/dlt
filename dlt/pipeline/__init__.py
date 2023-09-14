@@ -29,7 +29,7 @@ def pipeline(
 ) -> Pipeline:
     """Creates a new instance of `dlt` pipeline, which moves the data from the source ie. a REST API to a destination ie. database or a data lake.
 
-    Summary
+    #### Summary
         The `pipeline` functions allows you to pass the destination name to which the data should be loaded, the name of the dataset and several other options that govern loading of the data.
         The created `Pipeline` object lets you load the data from any source with `run` method or to have more granular control over the loading process with `extract`, `normalize` and `load` methods.
 
@@ -38,7 +38,7 @@ def pipeline(
             - Pipeline architecture and data loading steps: https://dlthub.com/docs/reference
             - List of supported destinations: https://dlthub.com/docs/dlt-ecosystem/destinations
 
-    Args:
+    #### Args:
         pipeline_name (str, optional): A name of the pipeline that will be used to identify it in monitoring events and to restore its state and data schemas on subsequent runs.
         Defaults to the file name of pipeline script with `dlt_` prefix added.
 
@@ -222,7 +222,7 @@ def run(
 ) -> LoadInfo:
     """Loads the data in `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
-    ### Summary
+    #### Summary
         This method will `extract` the data from the `data` argument, infer the schema, `normalize` the data into a load package (ie. jsonl or PARQUET files representing tables) and then `load` such packages into the `destination`.
 
     The data may be supplied in several forms:
@@ -233,12 +233,12 @@ def run(
 
     Please note that `dlt` deals with `bytes`, `datetime`, `decimal` and `uuid` objects so you are free to load binary data or documents containing dates.
 
-    Execution
+    #### Execution
         The `run` method will first use `sync_destination` method to synchronize pipeline state and schemas with the destination. You can disable this behavior with `restore_from_destination` configuration option.
         Next it will make sure that data from the previous is fully processed. If not, `run` method normalizes and loads pending data items.
         Only then the new data from `data` argument is extracted, normalized and loaded.
 
-    Args:
+    #### Args:
         data (Any): Data to be loaded to destination
 
         destination (str | DestinationReference, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
