@@ -3,6 +3,7 @@ import base64
 import datetime  # noqa: I251
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from typing import Any, Type, Literal, Union, cast
+from enum import Enum
 
 from dlt.common import pendulum, json, Decimal, Wei
 from dlt.common.json import custom_pua_remove
@@ -51,6 +52,13 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
         return "binary"
     if issubclass(t, (C_Mapping, C_Sequence)):
         return "complex"
+    # Enum is coerced to str or int respectively
+    if issubclass(t, Enum):
+        if issubclass(t, int):
+            return "bigint"
+        else:
+            # str subclass and unspecified enum type translates to text
+            return "text"
 
     raise TypeError(t)
 
@@ -83,6 +91,13 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
         if to_type == "complex":
             # complex types need custom encoding to be removed
             return map_nested_in_place(custom_pua_remove, value)
+        # Make sure we use enum value instead of the object itself
+        # This check is faster than `isinstance(value, Enum)` for non-enum types
+        if hasattr(value, 'value'):
+            if to_type == "text":
+                return str(value.value)
+            elif to_type == "bigint":
+                return int(value.value)
         return value
 
     if to_type == "text":
@@ -91,7 +106,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
         else:
             # use the same string encoding as in json
             try:
-                return json_custom_encode(value)
+                return str(json_custom_encode(value))
             except TypeError:
                 # for other types use internal conversion
                 return str(value)
