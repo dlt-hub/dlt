@@ -1,3 +1,6 @@
+import base64
+import binascii
+
 from typing import Final, Optional, Any, Dict, ClassVar, List
 
 from sqlalchemy.engine import URL
@@ -23,9 +26,17 @@ def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes
     except ModuleNotFoundError as e:
         raise MissingDependencyException("SnowflakeCredentials with private key", dependencies=[f"{version.DLT_PKG_NAME}[snowflake]"]) from e
 
+    try:
+        # decode base64 encoded private key
+        private_key_decoded = base64.b64decode(private_key).decode('utf-8')
+    except binascii.Error:
+        # key is already provided as decoded string
+        private_key_decoded = private_key
+    
     pkey = serialization.load_pem_private_key(
-        private_key.encode(), password.encode() if password is not None else None, backend=default_backend()
+        private_key_decoded.encode(), password.encode() if password is not None else None, backend=default_backend()
     )
+    
     return pkey.private_bytes(
         encoding=serialization.Encoding.DER,
         format=serialization.PrivateFormat.PKCS8,
