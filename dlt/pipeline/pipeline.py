@@ -266,8 +266,10 @@ class Pipeline(SupportsPipeline):
         primary_key: TColumnNames = None,
         schema: Schema = None,
         max_parallel_items: int = None,
-        workers: int = None
+        workers: int = None,
+        schema_contract_settings: TSchemaContractSettings = None
     ) -> ExtractInfo:
+        print(schema_contract_settings)
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         # create extract storage to which all the sources will be extracted
         storage = ExtractorStorage(self._normalize_storage_config)
@@ -286,6 +288,11 @@ class Pipeline(SupportsPipeline):
                 # TODO: if we fail here we should probably wipe out the whole extract folder
                 for extract_id in extract_ids:
                     storage.commit_extract_files(extract_id)
+
+                # update global schema contract settings
+                if schema_contract_settings is not None:
+                    self.default_schema.set_schema_contract_settings(schema_contract_settings, True)
+
                 return ExtractInfo(describe_extract_data(data))
         except Exception as exc:
             # TODO: provide metrics from extractor
@@ -294,7 +301,7 @@ class Pipeline(SupportsPipeline):
     @with_runtime_trace
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
-    def normalize(self, workers: int = 1, loader_file_format: TLoaderFileFormat = None, schema_contract_settings: TSchemaContractSettings = None) -> NormalizeInfo:
+    def normalize(self, workers: int = 1, loader_file_format: TLoaderFileFormat = None) -> NormalizeInfo:
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive():
             workers = 1
@@ -303,10 +310,6 @@ class Pipeline(SupportsPipeline):
         # check if any schema is present, if not then no data was extracted
         if not self.default_schema_name:
             return None
-
-        # update global schema contract settings, could be moved into def normalize()
-        if schema_contract_settings is not None:
-            self.default_schema.set_schema_contract_settings(schema_contract_settings, True)
 
         # make sure destination capabilities are available
         self._get_destination_capabilities()
@@ -444,6 +447,8 @@ class Pipeline(SupportsPipeline):
 
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional). The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
 
+            schema_contract_settings (TSchemaContractSettings, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
+
         ### Raises:
             PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
         ### Returns:
@@ -452,7 +457,6 @@ class Pipeline(SupportsPipeline):
         signals.raise_if_signalled()
         self._set_destinations(destination, staging)
         self._set_dataset_name(dataset_name)
-
         # sync state with destination
         if self.config.restore_from_destination and not self.full_refresh and not self._state_restored and (self.destination or destination):
             self.sync_destination(destination, staging, dataset_name)
@@ -461,17 +465,18 @@ class Pipeline(SupportsPipeline):
 
         # normalize and load pending data
         if self.list_extracted_resources():
-            self.normalize(loader_file_format=loader_file_format, schema_contract_settings=schema_contract_settings)
+            self.normalize(loader_file_format=loader_file_format)
         if self.list_normalized_load_packages():
             # if there were any pending loads, load them and **exit**
             if data is not None:
                 logger.warn("The pipeline `run` method will now load the pending load packages. The data you passed to the run function will not be loaded. In order to do that you must run the pipeline again")
             return self.load(destination, dataset_name, credentials=credentials)
 
+
         # extract from the source
         if data is not None:
-            self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, schema=schema)
-            self.normalize(loader_file_format=loader_file_format, schema_contract_settings=schema_contract_settings)
+            self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, schema=schema, schema_contract_settings=schema_contract_settings)
+            self.normalize(loader_file_format=loader_file_format)
             return self.load(destination, dataset_name, credentials=credentials)
         else:
             return None
@@ -877,12 +882,7 @@ class Pipeline(SupportsPipeline):
         self._schema_storage.save_import_schema_if_not_exists(source_schema)
 
         # get the current schema and merge tables from source_schema
-        # note we are not merging props like max nesting or column propagation
-        for table in source_schema.data_tables(include_incomplete=True):
-            pipeline_schema.update_schema(
-                pipeline_schema.normalize_table_identifiers(table)
-            )
-            pipeline_schema.set_schema_contract_settings(source_schema._settings.get("schema_contract_settings", {}))
+        pipeline_schema.update_schema(source_schema)
 
         return extract_id
 

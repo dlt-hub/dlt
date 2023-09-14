@@ -78,7 +78,7 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     # evolve schema
     row = {"floatX": 78172.128, "confidenceX": 1.2, "strX": "STR"}
     _, new_table = storage_schema.coerce_row("event_user", None, row)
-    storage_schema.update_schema(new_table)
+    storage_schema.update_table(new_table)
     storage.save_schema(storage_schema)
     # now use synced storage to load schema again
     reloaded_schema = synced_storage.load_schema("ethereum")

@@ -187,7 +187,7 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
         user_table_name = table_name + uniq_id()
     else:
         user_table_name = table_name
-    client.schema.update_schema(new_table(user_table_name, columns=user_table.values()))
+    client.schema.update_table(new_table(user_table_name, columns=user_table.values()))
     client.schema.bump_version()
     client.update_stored_schema()
     return user_table_name

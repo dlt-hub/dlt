@@ -389,6 +389,16 @@ def test_data_contract_interaction() -> None:
         name: str
         amount: int
 
+
+    @dlt.resource(name="items", columns=Items)
+    def get_items():
+        yield from [{
+            "id": 5,
+            "name": "dave",
+            "amount": 50
+        }]
+
+
     @dlt.resource(name="items", columns=Items)
     def get_items_variant():
         yield from [{
@@ -415,26 +425,29 @@ def test_data_contract_interaction() -> None:
             "sub": [{"hello": "dave"}]
         }]
 
+    pipeline.run([get_items()])
+    pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
+
     # disallow variants
-    with pytest.raises(PipelineStepFailed) as py_ex:
-        pipeline.run([get_items_variant()], schema_contract_settings={"data_type": "freeze"})
-    assert isinstance(py_ex.value.__context__, SchemaFrozenException)
+    pipeline.run([get_items_variant()], schema_contract_settings={"data_type": "discard_row"})
+    pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
 
     # without settings it will pass
-    pipeline.run([get_items_variant()], schema_contract_settings={"data_type": "evolve"})
+    pipeline.run([get_items_variant()], schema_contract_settings="evolve")
+    pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
 
     # disallow new col
-    with pytest.raises(PipelineStepFailed) as py_ex:
-        pipeline.run([get_items_new_col()], schema_contract_settings={"column": "freeze"})
-    assert isinstance(py_ex.value.__context__, SchemaFrozenException)
+    pipeline.run([get_items_new_col()], schema_contract_settings={"column": "discard_row"})
+    pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
 
     # without settings it will pass
-    pipeline.run([get_items_new_col()], schema_contract_settings={"column": "evolve"})
+    pipeline.run([get_items_new_col()], schema_contract_settings="evolve")
+    pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
 
     # disallow new tables
-    with pytest.raises(PipelineStepFailed) as py_ex:
-        pipeline.run([get_items_subtable()], schema_contract_settings={"table": "freeze"})
-    assert isinstance(py_ex.value.__context__, SchemaFrozenException)
+    pipeline.run([get_items_subtable()], schema_contract_settings={"table": "discard_row"})
+    pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
 
     # without settings it will pass
-    pipeline.run([get_items_subtable()], schema_contract_settings={"table": "evolve"})
+    pipeline.run([get_items_subtable()], schema_contract_settings="evolve")
+    pipeline.last_trace.last_normalize_info.row_counts["items"] == 1

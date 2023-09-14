@@ -253,7 +253,7 @@ def test_save_load_incomplete_column(schema: Schema, schema_storage_no_import: S
     incomplete_col["primary_key"] = True
     incomplete_col["x-special"] = "spec"
     table = utils.new_table("table", columns=[incomplete_col])
-    schema.update_schema(table)
+    schema.update_table(table)
     schema_storage_no_import.save_schema(schema)
     schema_copy = schema_storage_no_import.load_schema("event")
     assert schema_copy.get_table("table")["columns"]["I"] == {
@@ -307,7 +307,7 @@ def test_unknown_engine_upgrade() -> None:
 def test_preserve_column_order(schema: Schema, schema_storage: SchemaStorage) -> None:
     # python dicts are ordered from v3.6, add 50 column with random names
     update: List[TColumnSchema] = [schema._infer_column(uniq_id(), pendulum.now().timestamp()) for _ in range(50)]
-    schema.update_schema(utils.new_table("event_test_order", columns=update))
+    schema.update_table(utils.new_table("event_test_order", columns=update))
 
     def verify_items(table, update) -> None:
         assert [i[0] for i in table.items()] == list(table.keys()) == [u["name"] for u in update]
@@ -322,7 +322,7 @@ def test_preserve_column_order(schema: Schema, schema_storage: SchemaStorage) ->
     verify_items(table, update)
     # add more columns
     update2: List[TColumnSchema] = [schema._infer_column(uniq_id(), pendulum.now().timestamp()) for _ in range(50)]
-    loaded_schema.update_schema(utils.new_table("event_test_order", columns=update2))
+    loaded_schema.update_table(utils.new_table("event_test_order", columns=update2))
     table = loaded_schema.get_table_columns("event_test_order")
     verify_items(table, update + update2)
     # save and load
@@ -400,7 +400,7 @@ def test_filter_hints_no_table(schema_storage: SchemaStorage) -> None:
 
     # infer table, update schema for the empty bot table
     coerced_row, update = schema.coerce_row("event_bot", None, bot_case)
-    schema.update_schema(update)
+    schema.update_table(update)
     # not empty anymore
     assert schema.get_table_columns("event_bot") is not None
 
@@ -471,7 +471,7 @@ def test_write_disposition(schema_storage: SchemaStorage) -> None:
 
     # child tables
     schema.get_table("event_user")["write_disposition"] = "replace"
-    schema.update_schema(utils.new_table("event_user__intents", "event_user"))
+    schema.update_table(utils.new_table("event_user__intents", "event_user"))
     assert schema.get_table("event_user__intents").get("write_disposition") is None
     assert utils.get_write_disposition(schema.tables, "event_user__intents") == "replace"
     schema.get_table("event_user__intents")["write_disposition"] = "append"
@@ -479,7 +479,7 @@ def test_write_disposition(schema_storage: SchemaStorage) -> None:
 
     # same but with merge
     schema.get_table("event_bot")["write_disposition"] = "merge"
-    schema.update_schema(utils.new_table("event_bot__message", "event_bot"))
+    schema.update_table(utils.new_table("event_bot__message", "event_bot"))
     assert utils.get_write_disposition(schema.tables, "event_bot__message") == "merge"
     schema.get_table("event_bot")["write_disposition"] = "skip"
     assert utils.get_write_disposition(schema.tables, "event_bot__message") == "skip"
@@ -601,12 +601,12 @@ def assert_new_schema_values(schema: Schema) -> None:
 
 
 def test_group_tables_by_resource(schema: Schema) -> None:
-    schema.update_schema(utils.new_table("a_events", columns=[]))
-    schema.update_schema(utils.new_table("b_events", columns=[]))
-    schema.update_schema(utils.new_table("c_products", columns=[], resource="products"))
-    schema.update_schema(utils.new_table("a_events__1", columns=[], parent_table_name="a_events"))
-    schema.update_schema(utils.new_table("a_events__1__2", columns=[], parent_table_name="a_events__1"))
-    schema.update_schema(utils.new_table("b_events__1", columns=[], parent_table_name="b_events"))
+    schema.update_table(utils.new_table("a_events", columns=[]))
+    schema.update_table(utils.new_table("b_events", columns=[]))
+    schema.update_table(utils.new_table("c_products", columns=[], resource="products"))
+    schema.update_table(utils.new_table("a_events__1", columns=[], parent_table_name="a_events"))
+    schema.update_table(utils.new_table("a_events__1__2", columns=[], parent_table_name="a_events__1"))
+    schema.update_table(utils.new_table("b_events__1", columns=[], parent_table_name="b_events"))
 
     # All resources without filter
     expected_tables = {
@@ -627,8 +627,8 @@ def test_group_tables_by_resource(schema: Schema) -> None:
     }
 
     # With resources that has many top level tables
-    schema.update_schema(utils.new_table("mc_products", columns=[], resource="products"))
-    schema.update_schema(utils.new_table("mc_products__sub", columns=[], parent_table_name="mc_products"))
+    schema.update_table(utils.new_table("mc_products", columns=[], resource="products"))
+    schema.update_table(utils.new_table("mc_products__sub", columns=[], parent_table_name="mc_products"))
     result = utils.group_tables_by_resource(schema.tables, pattern=utils.compile_simple_regex(TSimpleRegex("products")))
     # both tables with resource "products" must be here
     assert result == {'products': [

@@ -151,14 +151,14 @@ class Normalize(Runnable[ProcessPool]):
                 row, partial_table = schema.coerce_row(table_name, parent_table, row)
                 # if we detect a migration, the check update
                 if partial_table:
-                    row, partial_table = schema.check_schema_update(schema_contract_modes, table_name, row, partial_table)
+                    row, partial_table = schema.apply_schema_contract(schema_contract_modes, table_name, row, partial_table)
                 if not row:
                     continue
 
                 # theres a new table or new columns in existing table
                 if partial_table:
                     # update schema and save the change
-                    schema.update_schema(partial_table)
+                    schema.update_table(partial_table)
                     table_updates = schema_update.setdefault(table_name, [])
                     table_updates.append(partial_table)
                     # update our columns
@@ -177,13 +177,13 @@ class Normalize(Runnable[ProcessPool]):
             signals.raise_if_signalled()
         return schema_update, items_count, row_counts
 
-    def update_schema(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
+    def update_table(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
         for schema_update in schema_updates:
             for table_name, table_updates in schema_update.items():
                 logger.info(f"Updating schema for table {table_name} with {len(table_updates)} deltas")
                 for partial_table in table_updates:
                     # merge columns
-                    schema.update_schema(partial_table)
+                    schema.update_table(partial_table)
 
     @staticmethod
     def group_worker_files(files: Sequence[str], no_groups: int) -> List[Sequence[str]]:
@@ -229,7 +229,7 @@ class Normalize(Runnable[ProcessPool]):
                         result: TWorkerRV = pending.get()
                         try:
                             # gather schema from all manifests, validate consistency and combine
-                            self.update_schema(schema, result[0])
+                            self.update_table(schema, result[0])
                             schema_updates.extend(result[0])
                             # update metrics
                             self.collector.update("Files", len(result[2]))
@@ -266,7 +266,7 @@ class Normalize(Runnable[ProcessPool]):
             load_id,
             files
         )
-        self.update_schema(schema, result[0])
+        self.update_table(schema, result[0])
         self.collector.update("Files", len(result[2]))
         self.collector.update("Items", result[1])
         return result[0], result[3]

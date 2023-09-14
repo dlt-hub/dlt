@@ -238,7 +238,8 @@ def run(
         write_disposition=write_disposition,
         columns=columns,
         schema=schema,
-        loader_file_format=loader_file_format
+        loader_file_format=loader_file_format,
+        schema_contract_settings=schema_contract_settings
     )
 
 # plug default tracking module

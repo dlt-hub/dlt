@@ -114,6 +114,8 @@ def source(
 
         schema (Schema, optional): An explicit `Schema` instance to be associated with the source. If not present, `dlt` creates a new `Schema` object with provided `name`. If such `Schema` already exists in the same folder as the module containing the decorated function, such schema will be loaded from file.
 
+        schema_contract_settings (TSchemaContractSettings, optional): Schema contract settings that will be applied to this resource.
+
         spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
 
     Returns:
@@ -153,7 +155,6 @@ def source(
 
         @wraps(conf_f)
         def _wrap(*args: Any, **kwargs: Any) -> DltSource:
-            nonlocal schema
 
             # make schema available to the source
             with Container().injectable_context(SourceSchemaInjectableContext(schema)):
@@ -167,9 +168,6 @@ def source(
                     # if generator, consume it immediately
                     if inspect.isgenerator(rv):
                         rv = list(rv)
-
-            # prepare schema
-            schema = schema.clone(update_normalizers=True)
 
             # convert to source
             s = DltSource.from_data(name, source_section, schema.clone(update_normalizers=True), rv)
@@ -302,6 +300,8 @@ def resource(
 
         merge_key (str | Sequence[str]): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+
+        schema_contract_settings (TSchemaContractSettings, optional): Schema contract settings that will be applied to all resources of this source (if not overriden in the resource itself)
 
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 

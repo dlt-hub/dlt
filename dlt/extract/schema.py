@@ -96,7 +96,8 @@ class DltResourceSchema:
         columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
-        incremental: Incremental[Any] = None
+        incremental: Incremental[Any] = None,
+        schema_contract_settings: TTableHintTemplate[TSchemaContractSettings] = None,
     ) -> None:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 
@@ -113,7 +114,7 @@ class DltResourceSchema:
         t = None
         if not self._table_schema_template:
             # if there's no template yet, create and set new one
-            t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key)
+            t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key, schema_contract_settings)
         else:
             # set single hints
             t = deepcopy(self._table_schema_template)
@@ -129,6 +130,8 @@ class DltResourceSchema:
                     t.pop("parent", None)
             if write_disposition:
                 t["write_disposition"] = write_disposition
+            if schema_contract_settings:
+                t["schema_contract_settings"] = schema_contract_settings  # type: ignore
             if columns is not None:
                 # if callable then override existing
                 if callable(columns) or callable(t["columns"]):

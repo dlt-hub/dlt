@@ -672,7 +672,7 @@ class DltSource(Iterable[TDataItem]):
                 partial_table = self._schema.normalize_table_identifiers(
                     r.compute_table_schema(item)
                 )
-                schema.update_schema(partial_table)
+                schema.update_table(partial_table)
         return schema
 
     def with_resources(self, *resource_names: str) -> "DltSource":

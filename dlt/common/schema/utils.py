@@ -435,7 +435,6 @@ def diff_tables(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTabl
             continue
         existing_v = tab_a.get(k)
         if existing_v != v:
-            print(f"{k} ==? {v} ==? {existing_v}")
             partial_table[k] = v  # type: ignore
 
     # this should not really happen
@@ -475,9 +474,6 @@ def merge_tables(table: TTableSchema, partial_table: TPartialTableSchema) -> TPa
     updated_columns = table["columns"]
     table.update(diff_table)
     table["columns"] = updated_columns
-
-    # always update evolution settings
-    table["schema_contract_settings"] = partial_table.get("schema_contract_settings")
 
     return diff_table
 
