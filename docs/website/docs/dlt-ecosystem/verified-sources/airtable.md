@@ -6,8 +6,7 @@ keywords: [airtable api, airtable verified source, airtable]
 
 # Airtable
 
-Airtable, a cloud-based platform, seamlessly blends spreadsheet ease with database capabilities,
-allowing users to create, manage, and collaborate on structured data with simplicity.
+Airtable is a cloud-based platform that merges spreadsheet and database functionalities for easy data management and collaboration.
 
 This Airtable `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/airtable_pipeline.py)
@@ -22,23 +21,32 @@ Sources and resources that can be loaded using this verified source are:
 
 ## Setup Guide
 
-### Grab Air table personal access tokens
+### Grab Airtable personal access tokens
 
--- Write steps necessary
+1. Click your account icon top-right.
+1. Choose "<> Developer Hub" from the dropdown.
+1. Select "Personal access token" on the left, then "Create new token".
+1. Name it appropriately.
+1. Add read scopes for "data records" and "schema bases".
+1. Add a base to specify the desired base for data access.
+1. Hit "Create token" and save the displayed token securely for credential use. 
 
 ### Grab Airtable IDs
 
-In your web browser's address bar, you'll see a URL like this:
+Upon logging into Airtable, you'll notice a URL in your browser's address bar resembling:
 
 ```bash
-airtable url
+https://airtable.com/appve10kl227BIT4GV/tblOUnZVLFWbemTP1/viw3qtF76bRQC3wKx/rec9khXgeTotgCQ62?blocks=hide
 ```
 
 Between each slash, you'll find identifiers for the base, table, and view:
 
-- Base IDs start with "app" (currently set to "").
-- Table IDs start with "tbl" (currently set to "").
-- View IDs start with "viw" (currently set to "").
+- Base IDs start with "app", currently set to "appve10kl227BIT4GV".
+- Table IDs start with "tbl", currently set to "tblOUnZVLFWbemTP1".
+- View IDs start with "viw", currently set to "viw3qtF76bRQC3wKx".
+- Record ID start with "rec" ,currently set to "rec9khXgeTotgCQ62".
+
+   ![Airtable IDs](docs_images/Airtable_ids.jpeg)
 
 ### Initialize the verified source
 
@@ -81,10 +89,10 @@ For more information, read the
 
    ```toml
    [sources.airtable]
-   base_id = "Please set me up!"
+   base_id = "Please set me up!"       # The id of the base.
+   table_names = ["Table1","Table2"]   # A list of table IDs or table names to load.
    ```
-
-   > Optionally: you can also pass "base_id" and "table_name#" in the pipeline script.
+   > Optionally, you can also input "base_id" and "table_names" in the script, as in the pipeline example.
 
 ## Sources and resources
 
