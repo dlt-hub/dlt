@@ -84,6 +84,7 @@ const sidebars = {
           items: [
             'dlt-ecosystem/destinations/bigquery',
             'dlt-ecosystem/destinations/duckdb',
+            'dlt-ecosystem/destinations/mssql',
             'dlt-ecosystem/destinations/filesystem',
             'dlt-ecosystem/destinations/postgres',
             'dlt-ecosystem/destinations/redshift',
