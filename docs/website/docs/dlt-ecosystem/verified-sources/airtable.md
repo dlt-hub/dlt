@@ -1,0 +1,188 @@
+---
+title: Airtable
+description: dlt verified source for Airtable
+keywords: [airtable api, airtable verified source, airtable]
+---
+
+# Airtable
+
+Airtable, a cloud-based platform, seamlessly blends spreadsheet ease with database capabilities,
+allowing users to create, manage, and collaborate on structured data with simplicity.
+
+This Airtable `dlt` verified source and
+[pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/airtable_pipeline.py)
+loads data using “Airtable API” to the destination of your choice.
+
+Sources and resources that can be loaded using this verified source are:
+
+| Name              | Description                                |
+| ----------------- | ------------------------------------------ |
+| airtable_source   | Retrieves tables from an airtable base     |
+| airtable_resource | Retrives data from a single airtable table |
+
+## Setup Guide
+
+### Grab Air table personal access tokens
+
+-- Write steps necessary
+
+### Grab Airtable IDs
+
+In your web browser's address bar, you'll see a URL like this:
+
+```bash
+airtable url
+```
+
+Between each slash, you'll find identifiers for the base, table, and view:
+
+- Base IDs start with "app" (currently set to "").
+- Table IDs start with "tbl" (currently set to "").
+- View IDs start with "viw" (currently set to "").
+
+### Initialize the verified source
+
+To get started with your data pipeline, follow these steps:
+
+1. Enter the following command:
+
+   ```bash
+   dlt init airtable duckdb
+   ```
+
+   [This command](../../reference/command-line-interface) will initialize
+   [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/airtable_pipeline.py)
+   with Airtable as the [source](../../general-usage/source) and [duckdb](../destinations/duckdb.md)
+   as the [destination](../destinations).
+
+1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
+   preferred [destination](../destinations).
+
+1. After running this command, a new directory will be created with the necessary files and
+   configuration settings to get started.
+
+For more information, read the
+[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
+
+### Add credentials
+
+1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
+   information securely, like access tokens. Keep this file safe. Here's its format for service
+   account authentication:
+
+   ```toml
+   [sources.airtable]
+   access_token = "Please set me up!" # please set me up!
+   ```
+
+1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
+
+1. Next you need to configure ".dlt/config.toml", which looks like:
+
+   ```toml
+   [sources.airtable]
+   base_id = "Please set me up!"
+   ```
+
+   > Optionally: you can also pass "base_id" and "table_name#" in the pipeline script.
+
+## Sources and resources
+
+`dlt` works on the principle of [sources](../../general-usage/source) and
+[resources](../../general-usage/resource).
+
+### Source `airtable_source`
+
+This function retrives tables from given airtable base.
+
+```python
+@dlt.source
+def airtable_source(
+    base_id: str = dlt.config.value,
+    table_names: Optional[List[str]] = None,
+    access_token: str = dlt.secrets.value,
+) -> Iterable[DltResource]:
+```
+
+`base_id`: The base's unique identifier.
+
+`table_names`: A list of either table IDs or user-defined table names to load. If not specified, all
+tables in the schema are loaded.
+
+`access_token`: Your personal access token for authentication.
+
+### Resource `airtable_resource`
+
+This function retrives data from a single Airtable table.
+
+```python
+def airtable_resource(
+    api: pyairtable.Api,
+    base_id: str,
+    table: Dict[str, Any],
+) -> DltResource:
+```
+
+`table`: Airtable metadata, excluding actual records.
+
+### Create your own pipeline
+
+If you wish to create your own pipelines, you can leverage source and resource methods from this
+verified source.
+
+1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
+
+   ```python
+   pipeline = dlt.pipeline(
+        pipeline_name="airtable",  # Use a custom name if desired
+        destination="duckdb",      # Choose the appropriate destination (e.g., duckdb, redshift, post)
+        dataset_name="google_spreadsheet_data"  # Use a custom name if desired
+   )
+   ```
+
+1. To load the entire base:
+
+   ```python
+   base_id = "Please set me up!"     # The id of the base.
+
+   airtables = airtable_source(base_id=base_id))
+   load_info = pipeline.run(load_data, write_disposition="replace")
+   ```
+
+1. To load selected tables from a base table:
+
+   ```python
+   base_id = "Please set me up!"     # The id of the base.
+   table_names = ["Table1","Table2"] # A list of table IDs or table names to load.
+
+   airtables = airtable_source(
+      base_id = base_id,
+      table_names = table_names
+   )
+   load_info = pipeline.run(airtables, write_deposition = "replace")
+   ```
+
+   > You have option to use table names or table IDs in the code above, in place of "Table1" and
+   > "Table2"s.
+
+1. To load data and apply hints to a specific column:
+
+   ```python
+   base_id = "Please set me up!"       # The id of the base.
+   table_names = ["Table1","Table2"]   # A list of table IDs or table names to load.
+   resource_name = "Please set me up!" # The table name we want to apply hints.
+   field_name = "Please set me up!"    # The table field name for which we want to apply hints.
+   airtables = airtable_source(
+        base_id="Please set me up!",
+        table_names=["Table1","Table2"],
+   )
+
+   airtables.resources[resource_name].apply_hints(
+        primary_key=field_name,
+        columns={field_name: {"data_type": "text"}},
+   )
+   load_info = pipeline.run(airtables, write_disposition="replace")
+   print(load_info)
+   ```
+
+   > You can also choose "write_disposition" as "merge" using field name.
