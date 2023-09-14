@@ -57,7 +57,7 @@ class SynapseStagingCopyJob(SqlStagingCopyJob):
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
             # drop destination table
-            sql.append(f"DROP TABLE IF EXISTS {table_name};")
+            sql.append(f"DROP TABLE {table_name};")
             # moving staging table to destination schema
             sql.append(f"ALTER SCHEMA {sql_client.fully_qualified_dataset_name()} TRANSFER {staging_table_name};")
             # recreate staging table
