@@ -114,5 +114,5 @@ class TStoredSchema(TypedDict, total=False):
 
 class ColumnValidator(ABC):
     @abstractmethod
-    def __call__(self, item: TDataItem) -> TDataItem:
+    def __call__(self, item: TDataItem, meta: Any = None) -> TDataItem:
         ...

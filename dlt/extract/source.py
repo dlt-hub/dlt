@@ -151,7 +151,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         if step_no >= 0:
             self._pipe.remove_step(step_no)
         if validator:
-            self.add_map(validator, insert_at=step_no if step_no >= 0 else None)
+            self.add_step(validator, insert_at=step_no if step_no >= 0 else None)
 
     def pipe_data_from(self, data_from: Union["DltResource", Pipe]) -> None:
         """Replaces the parent in the transformer resource pipe from which the data is piped."""

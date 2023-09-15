@@ -1,11 +1,11 @@
-from typing import Optional, Protocol, TypeVar, Generic, Type, Union
+from typing import Optional, Protocol, TypeVar, Generic, Type, Union, Any
 
 try:
-    from pydantic import BaseModel as PydanticBaseModel
+    from pydantic import BaseModel as PydanticBaseModel, ValidationError as PydanticValidationError
 except ModuleNotFoundError:
     PydanticBaseModel = None  # type: ignore[misc]
 
-from dlt.common.exceptions import MissingDependencyException
+from dlt.extract.exceptions import ValidationError
 from dlt.common.typing import TDataItem
 from dlt.common.schema.typing import TAnySchemaColumns, ColumnValidator
 from dlt.extract.typing import TTableHintTemplate
@@ -19,11 +19,14 @@ class PydanticValidator(ColumnValidator, Generic[_TPydanticModel]):
     def __init__(self, model: Type[_TPydanticModel]) -> None:
         self.model = model
 
-    def __call__(self, item: TDataItem) -> _TPydanticModel:
+    def __call__(self, item: TDataItem, meta: Any = None) -> _TPydanticModel:
         """Validate a data item agains the pydantic model"""
         if item is None:
             return None
-        return self.model.parse_obj(item)
+        try:
+            return self.model.parse_obj(item)
+        except PydanticValidationError as e:
+            raise ValidationError(e) from e
 
 
 def get_column_validator(columns: TTableHintTemplate[TAnySchemaColumns]) -> Optional[ColumnValidator]:
