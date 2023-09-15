@@ -6,8 +6,9 @@ keywords: [destination tables, loaded data, data structure, schema, table, child
 
 # Destination tables
 
-In [Exploring the data](../dlt-ecosystem/visualizations/exploring-the-data.md) you have seen the data that has been loaded into the
-database. Let's take a closer look at the tables that have been created.
+When you run a [pipeline](pipeline.md), dlt creates tables in the destination database and loads the data
+from your [source](source.md) into these tables. In this section, we will take a closer look at what
+destination tables look like and how they are organized.
 
 We start with a simple dlt pipeline:
 
@@ -27,6 +28,8 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(data, table_name="users")
 ```
 
+Running this pipeline will create a database schema in the destination database (DuckDB) along with a table named `users`.
+
 :::note
 
 Here we are using the [DuckDb destination](../dlt-ecosystem/destinations/duckdb.md), which is an in-memory database. Other database destinations
@@ -34,12 +37,18 @@ will behave similarly and have similar concepts.
 
 :::
 
+:::tip
+
+You can use the [Streamlit app](../dlt-ecosystem/visualizations/exploring-the-data.md#exploring-the-data) to explore the data in your destination database.
+
+:::
+
 ## Database schema
 
-When you run the pipeline, dlt creates a schema in the destination database. The schema is a
-collection of tables that represent the data you loaded into the database. The schema name is the same as the
-`dataset_name` you provided in the pipeline definition. In the example above, we explicitly set the
-`dataset_name` to `mydata`. If you don't set it, it will be set to the pipeline name with a suffix `_dataset`.
+The database schema is a collection of tables that represent the data you loaded into the database.
+The schema name is the same as the `dataset_name` you provided in the pipeline definition.
+In the example above, we explicitly set the `dataset_name` to `mydata`. If you don't set it,
+it will be set to the pipeline name with a suffix `_dataset`.
 
 Be aware that the schema referred to in this section is distinct from the [dlt Schema](schema.md).
 The database schema pertains to the structure and organization of data within the database, including table
