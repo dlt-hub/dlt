@@ -19,14 +19,14 @@ from dlt.destinations.sql_client import SqlClientBase
 
 
 SCT_TO_PGT: Dict[TDataType, str] = {
-    "complex": "nvarchar(4000)",
-    "text": "nvarchar(4000)",
+    "complex": "nvarchar(max)",
+    "text": "nvarchar(max)",
     "double": "float",
     "bool": "bit",
     "timestamp": "datetimeoffset",
     "date": "date",
     "bigint": "bigint",
-    "binary": "varbinary(8000)",
+    "binary": "varbinary(max)",
     "decimal": "decimal(%i,%i)",
     "time": "time"
 }
