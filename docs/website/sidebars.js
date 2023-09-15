@@ -132,7 +132,6 @@ const sidebars = {
             'dlt-ecosystem/transformations/dbt',
             'dlt-ecosystem/transformations/sql',
             'dlt-ecosystem/transformations/pandas',
-            ,
           ]
         },
         {
