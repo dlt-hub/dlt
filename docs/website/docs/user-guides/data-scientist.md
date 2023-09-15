@@ -53,7 +53,7 @@ with the production environment, leading to smoother integration and deployment 
 ### `dlt` is optimized for local use on laptops
 
 - It offers a seamless
-  [integration with Streamlit](../dlt-ecosystem/visualizations/understanding-the-tables#show-tables-and-data-in-the-destination).
+  [integration with Streamlit](../dlt-ecosystem/visualizations/exploring-the-data.md).
   This integration enables a smooth and interactive data analysis experience, where Data Scientists
   can leverage the power of `dlt` alongside Streamlit's intuitive interface and visualization
   capabilities.
@@ -107,7 +107,7 @@ analysis process.
 Besides, having a schema imposed on the data acts as a technical description of the data,
 accelerating the discovery process.
 
-See [Understanding the tables](../dlt-ecosystem/visualizations/understanding-the-tables),
+See [Destination tables](../general-usage/destination-tables.md) and
 [Exploring the data](../dlt-ecosystem/visualizations/exploring-the-data) in our documentation.
 
 ## Use case #3: Data Preprocessing and Transformation

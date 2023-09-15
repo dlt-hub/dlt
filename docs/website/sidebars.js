@@ -140,7 +140,6 @@ const sidebars = {
           label: 'Visualizations',
           items: [
             'dlt-ecosystem/visualizations/exploring-the-data',
-            'dlt-ecosystem/visualizations/understanding-the-tables'
           ]
         },
       ],
@@ -215,6 +214,7 @@ const sidebars = {
         'general-usage/state',
         'general-usage/incremental-loading',
         'general-usage/full-loading',
+        'general-usage/destination-tables',
         'general-usage/credentials',
         'general-usage/schema',
         'general-usage/configuration',

@@ -102,7 +102,7 @@ open source communities can.
   involved in curation. This makes both the engineer and the others happy.
 - Better governance with end to end pipelining via dbt:
   [run dbt packages on the fly](../dlt-ecosystem/transformations/dbt.md),
-  [lineage out of the box](../dlt-ecosystem/visualizations/understanding-the-tables).
+  [lineage out of the box](../general-usage/destination-tables.md#data-lineage).
 - Zero learning curve: Declarative loading, simple functional programming. By using `dlt`'s
   declarative, standard approach to loading data, there is no complicated code to maintain, and the
   analysts can thus maintain the code.
@@ -144,7 +144,7 @@ The implications:
 - Rapid Data Exploration and Prototyping: By running in Colab with DuckDB, you can explore
   semi-structured data much faster by structuring it with `dlt` and analysing it in SQL.
   [Schema inference](../general-usage/schema#data-normalizer),
-  [exploring the loaded data](../dlt-ecosystem/visualizations/understanding-the-tables#show-tables-and-data-in-the-destination).
+  [exploring the loaded data](../dlt-ecosystem/visualizations/exploring-the-data.md).
 - No vendor limits: `dlt` is forever free, with no vendor strings. We do not create value by creating
   a pain for you and solving it. We create value by supporting you beyond.
 - `dlt` removes complexity: You can use `dlt` in your existing stack, no overheads, no race conditions,
