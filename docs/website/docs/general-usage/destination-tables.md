@@ -6,7 +6,7 @@ keywords: [destination tables, loaded data, data structure, schema, table, child
 
 # Destination tables
 
-In [Exploring the data](./exploring-the-data.md) you have seen the data that has been loaded into the
+In [Exploring the data](../dlt-ecosystem/visualizations/exploring-the-data.md) you have seen the data that has been loaded into the
 database. Let's take a closer look at the tables that have been created.
 
 We start with a simple dlt pipeline:
