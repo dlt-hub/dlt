@@ -413,8 +413,6 @@ These governance features in `dlt` pipelines contribute to better data managemen
 compliance adherence, and overall data governance, promoting data consistency, traceability, and
 control throughout the data processing lifecycle.
 
-Read more about [schema evolution.](reference/explainers/schema-evolution.md)
-
 ### Scaling and finetuning
 
 `dlt` offers several mechanism and configuration options to scale up and finetune pipelines:

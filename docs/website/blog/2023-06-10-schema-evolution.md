@@ -1,7 +1,12 @@
 ---
-title: Schema evolution
-description: Schema evolution with dlt
-keywords: [schema evolution, schema versioning, data contracts]
+slug: schema-evolution
+title: "Schema Evolution"
+authors:
+  name: Adrian Brudaru
+  title: Schema Evolution
+  url: https://github.com/adrianbr
+  image_url: https://avatars.githubusercontent.com/u/5762770?v=4
+tags: [data engineer shortage, structured data, schema evolution]
 ---
 
 # Schema evolution
@@ -131,10 +136,10 @@ business-logic tests, you would still need to implement them in a custom way.
 ## The implementation recipe
 
 1. Use `dlt`. It will automatically infer and version schemas, so you can simply check if there are
-   changes. You can just use the [normaliser + loader](../../general-usage/pipeline.md) or
-   [build extraction with dlt](../../general-usage/resource.md). If you want to define additional
-   constraints, you can do so in the [schema](../../general-usage/schema.md).
-1. [Define your slack hook](../../running-in-production/running.md#using-slack-to-send-messages) or
+   changes. You can just use the [normaliser + loader](https://dlthub.com/docs/general-usage/pipeline.md) or
+   [build extraction with dlt](https://dlthub.com/docs/general-usage/resource.md). If you want to define additional
+   constraints, you can do so in the [schema](https://dlthub.com/docs/general-usage/schema.md).
+1. [Define your slack hook](https://dlthub.com/docs/running-in-production/running.md#using-slack-to-send-messages) or
    create your own notification function. Make sure the slack channel contains the data producer and
    any stakeholders.
-1. [Capture the load job info and send it to the hook](../../running-in-production/running#inspect-save-and-alert-on-schema-changes).
+1. [Capture the load job info and send it to the hook](https://dlthub.com/docs/running-in-production/running#inspect-save-and-alert-on-schema-changes).
