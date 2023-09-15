@@ -1,8 +1,10 @@
-from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Set, Type, TypedDict, NewType, Union, get_args
+from abc import ABC, abstractmethod
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Set, Type, TypedDict, NewType, Union, get_args, Protocol
 from typing_extensions import Never
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
+from dlt.common.typing import TDataItem
 
 try:
     from pydantic import BaseModel as _PydanticBaseModel
@@ -108,3 +110,9 @@ class TStoredSchema(TypedDict, total=False):
     settings: Optional[TSchemaSettings]
     tables: TSchemaTables
     normalizers: TNormalizersConfig
+
+
+class ColumnValidator(ABC):
+    @abstractmethod
+    def __call__(self, item: TDataItem) -> TDataItem:
+        ...

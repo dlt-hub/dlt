@@ -3,7 +3,7 @@ from collections.abc import Mapping as C_Mapping
 from typing import List, TypedDict, cast, Any
 
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
-from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns
+from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, ColumnValidator
 from dlt.common.typing import TDataItem
 from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
@@ -12,6 +12,7 @@ from dlt.extract.incremental import Incremental
 from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, TableNameMissing
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
+from dlt.extract.validation import get_column_validator
 
 
 class TTableSchemaTemplate(TypedDict, total=False):
@@ -24,6 +25,7 @@ class TTableSchemaTemplate(TypedDict, total=False):
     primary_key: TTableHintTemplate[TColumnNames]
     merge_key: TTableHintTemplate[TColumnNames]
     incremental: Incremental[Any]
+    validator: ColumnValidator
 
 
 class DltResourceSchema:
@@ -78,6 +80,7 @@ class DltResourceSchema:
         # resolve
         resolved_template: TTableSchemaTemplate = {k: self._resolve_hint(item, v) for k, v in table_template.items()}  # type: ignore
         resolved_template.pop("incremental", None)
+        resolved_template.pop("validator", None)
         table_schema = self._merge_keys(resolved_template)
         table_schema["resource"] = self._name
         validate_dict_ignoring_xkeys(
@@ -129,6 +132,7 @@ class DltResourceSchema:
             if write_disposition:
                 t["write_disposition"] = write_disposition
             if columns is not None:
+                t['validator'] = get_column_validator(columns)
                 # if callable then override existing
                 if callable(columns) or callable(t["columns"]):
                     t["columns"] = ensure_table_schema_columns_hint(columns)
@@ -206,21 +210,28 @@ class DltResourceSchema:
         write_disposition: TTableHintTemplate[TWriteDisposition] = None,
         columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
-        merge_key: TTableHintTemplate[TColumnNames] = None
+        merge_key: TTableHintTemplate[TColumnNames] = None,
         ) -> TTableSchemaTemplate:
         if not table_name:
             raise TableNameMissing()
 
         if columns is not None:
+            validator = get_column_validator(columns)
             columns = ensure_table_schema_columns_hint(columns)
             if not callable(columns):
                 columns = columns.values()  # type: ignore
+        else:
+            validator = None
         # create a table schema template where hints can be functions taking TDataItem
-        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns)  # type: ignore
+        new_template: TTableSchemaTemplate = new_table(
+            table_name, parent_table_name, write_disposition=write_disposition, columns=columns  # type: ignore
+        )
         if primary_key:
             new_template["primary_key"] = primary_key
         if merge_key:
             new_template["merge_key"] = merge_key
+        if validator:
+            new_template["validator"] = validator
         DltResourceSchema.validate_dynamic_hints(new_template)
         return new_template
 
@@ -228,5 +239,5 @@ class DltResourceSchema:
     def validate_dynamic_hints(template: TTableSchemaTemplate) -> None:
         table_name = template["name"]
         # if any of the hints is a function then name must be as well
-        if any(callable(v) for k, v in template.items() if k not in ["name", "incremental"]) and not callable(table_name):
+        if any(callable(v) for k, v in template.items() if k not in ["name", "incremental", "validator"]) and not callable(table_name):
             raise InconsistentTableTemplate(f"Table name {table_name} must be a function if any other table hint is a function")
