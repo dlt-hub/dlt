@@ -92,6 +92,12 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
 
         self.execute_sql("DROP SCHEMA %s;" % self.fully_qualified_dataset_name())
 
+    def drop_tables(self, *tables: str) -> None:
+        if not tables:
+            return
+        statements = [f"DROP TABLE {self.make_qualified_table_name(table)};" for table in tables]
+        self.execute_fragments(statements)    
+    
     def _drop_views(self, *tables: str) -> None:
         if not tables:
             return
