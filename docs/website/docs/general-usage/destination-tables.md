@@ -29,7 +29,7 @@ load_info = pipeline.run(data, table_name="users")
 
 :::note
 
-Here we are using the [DuckDb destination](../destinations/duckdb.md), which is an in-memory database. Other database destinations
+Here we are using the [DuckDb destination](../dlt-ecosystem/destinations/duckdb.md), which is an in-memory database. Other database destinations
 will behave similarly and have similar concepts.
 
 :::
@@ -41,14 +41,14 @@ collection of tables that represent the data you loaded into the database. The s
 `dataset_name` you provided in the pipeline definition. In the example above, we explicitly set the
 `dataset_name` to `mydata`. If you don't set it, it will be set to the pipeline name with a suffix `_dataset`.
 
-Be aware that the schema referred to in this section is distinct from the [dlt Schema](../../general-usage/schema.md).
+Be aware that the schema referred to in this section is distinct from the [dlt Schema](schema.md).
 The database schema pertains to the structure and organization of data within the database, including table
 definitions and relationships. On the other hand, the "dlt Schema" specifically refers to the format
 and structure of normalized data within the dlt pipeline.
 
 ## Tables
 
-Each [resource](../../general-usage/resource.md) in your pipeline definition will be represented by a table in
+Each [resource](resource.md) in your pipeline definition will be represented by a table in
 the destination. In the example above, we have one resource, `users`, so we will have one table, `mydata.users`,
 in the destination. Where `mydata` is the schema name, and `users` is the table name. Here also, we explicitly set
 the `table_name` to `users`. When `table_name` is not set, the table name will be set to the resource name.
@@ -158,12 +158,12 @@ case the primary key or other unique columns are defined.
 
 ## Naming convention: tables and columns
 
-During a pipeline run, dlt [normalizes both table and column names](../../general-usage/schema.md#naming-convention) to ensure compatibility with the destination database's accepted format. All names from your source data will be transformed into snake_case and will only include alphanumeric characters. Please be aware that the names in the destination database may differ somewhat from those in your original input.
+During a pipeline run, dlt [normalizes both table and column names](schema.md#naming-convention) to ensure compatibility with the destination database's accepted format. All names from your source data will be transformed into snake_case and will only include alphanumeric characters. Please be aware that the names in the destination database may differ somewhat from those in your original input.
 
 ## Load Packages and Load IDs
 
 Each execution of the pipeline generates one or more load packages. A load package typically contains data retrieved from
-all the [resources](../../general-usage/glossary.md#resource) of a particular [source](../../general-usage/glossary.md#source).
+all the [resources](glossary.md#resource) of a particular [source](glossary.md#source).
 These packages are uniquely identified by a `load_id`. The `load_id` of a particular package is added to the top data tables
 (referenced as `_dlt_load_id` column in the example above) and to the special `_dlt_loads` table with a status 0
 (when the load process is fully completed).
@@ -207,12 +207,12 @@ In that case, the user may see the partially loaded data. It is possible to filt
 row with a `load_id` that does not exist in `_dlt_loads` is not yet completed. The same procedure may be used to identify
 and delete data for packages that never got completed.
 
-For each load, you can test and [alert](../../running-in-production/alerting.md) on anomalies (e.g.
+For each load, you can test and [alert](../running-in-production/alerting.md) on anomalies (e.g.
 no data, too much loaded to a table). There are also some useful load stats in the `Load info` tab
-of the [Streamlit app](exploring-the-data.md#exploring-the-data)
+of the [Streamlit app](../dlt-ecosystem/visualizations/exploring-the-data.md#exploring-the-data)
 mentioned above.
 
-You can add [transformations](../transformations) and chain them together
+You can add [transformations](../dlt-ecosystem/transformations/) and chain them together
 using the `status` column. You start the transformation for all the data with a particular
 `load_id` with a status of 0 and then update it to 1. The next transformation starts with the status
 of 1 and is then updated to 2. This can be repeated for every additional transformation.
@@ -226,7 +226,7 @@ same process across multiple systems, which adds data lineage requirements. Usin
 and `load_id` provided out of the box by `dlt`, you are able to identify the source and time of
 data.
 
-You can [save](../../running-in-production/running.md#inspect-and-save-the-load-info-and-trace)
+You can [save](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace)
 complete lineage info for a particular `load_id` including a list of loaded files, error messages
 (if any), elapsed times, schema changes. This can be helpful, for example, when troubleshooting
 problems.
