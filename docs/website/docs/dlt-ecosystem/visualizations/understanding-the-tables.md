@@ -1,10 +1,10 @@
 ---
-title: Understanding the tables
-description: Understanding the tables that have been loaded
-keywords: [understanding tables, loaded data, data structure]
+title: Destination tables
+description: Understanding the tables created in the destination database
+keywords: [destination tables, loaded data, data structure, schema, table, child table, load package, load id, lineage, staging dataset, versioned dataset]
 ---
 
-# Understanding the tables
+# Destination tables
 
 In [Exploring the data](./exploring-the-data.md) you have seen the data that has been loaded into the
 database. Let's take a closer look at the tables that have been created.
