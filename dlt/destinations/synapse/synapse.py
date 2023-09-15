@@ -34,6 +34,7 @@ SCT_TO_PGT: Dict[TDataType, str] = {
 
 PGT_TO_SCT: Dict[str, TDataType] = {
     "nvarchar": "text",
+    "ntext": "text", 
     "float": "double",
     "bit": "bool",
     "datetimeoffset": "timestamp",
