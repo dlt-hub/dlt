@@ -34,7 +34,7 @@ will behave similarly and have similar concepts.
 
 :::
 
-## Schema
+## Database schema
 
 When you run the pipeline, dlt creates a schema in the destination database. The schema is a
 collection of tables that represent the data you loaded into the database. The schema name is the same as the
@@ -59,7 +59,7 @@ For example, we can rewrite the pipeline above as:
 @dlt.resource
 def users():
     yield [
-        {'id': 1, 'name': 'Balice'},
+        {'id': 1, 'name': 'Alice'},
         {'id': 2, 'name': 'Bob'}
     ]
 
