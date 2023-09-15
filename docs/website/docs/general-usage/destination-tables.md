@@ -28,8 +28,6 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(data, table_name="users")
 ```
 
-Running this pipeline will create a database schema in the destination database (DuckDB) along with a table named `users`.
-
 :::note
 
 Here we are using the [DuckDb destination](../dlt-ecosystem/destinations/duckdb.md), which is an in-memory database. Other database destinations
@@ -37,11 +35,7 @@ will behave similarly and have similar concepts.
 
 :::
 
-:::tip
-
-You can use the [Streamlit app](../dlt-ecosystem/visualizations/exploring-the-data.md#exploring-the-data) to explore the data in your destination database.
-
-:::
+Running this pipeline will create a database schema in the destination database (DuckDB) along with a table named `users`. Quick tip: you can use the `show` command of the `dlt pipeline` CLI [to see the tables](../dlt-ecosystem/visualizations/exploring-the-data.md#exploring-the-data) in the destination database.
 
 ## Database schema
 
