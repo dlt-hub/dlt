@@ -26,6 +26,10 @@ def pydantic_to_table_schema_columns(model: Union[BaseModel, Type[BaseModel]], s
     fields = model.__fields__
     for field_name, field in fields.items():
         annotation = field.annotation
+        if inner_annotation := getattr(annotation, 'inner_type', None):
+            # This applies to pydantic.Json fields, the inner type is the type after json parsing
+            # (In pydantic 2 the outer annotation is the final type)
+            annotation = inner_annotation
         nullable = is_optional_type(annotation)
 
         if is_union(annotation):

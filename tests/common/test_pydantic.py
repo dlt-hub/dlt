@@ -4,8 +4,9 @@ from enum import Enum
 
 from datetime import datetime, date, time  # noqa: I251
 from dlt.common import Decimal
+from dlt.common import json
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Json, AnyHttpUrl
 from dlt.common.libs.pydantic import pydantic_to_table_schema_columns
 
 
@@ -56,6 +57,10 @@ class Model(BaseModel):
     mixed_enum_int_field: MixedEnum
     mixed_enum_str_field: MixedEnum
 
+    json_field: Json[List[str]]
+
+    url_field: AnyHttpUrl
+
 
 @pytest.mark.parametrize('instance', [True, False])
 def test_pydantic_model_to_columns(instance: bool) -> None:
@@ -74,6 +79,8 @@ def test_pydantic_model_to_columns(instance: bool) -> None:
             int_enum_field=IntEnum.a,
             mixed_enum_int_field=MixedEnum.a_int,
             mixed_enum_str_field=MixedEnum.b_str,
+            json_field=json.dumps(["a", "b", "c"]),  # type: ignore[arg-type]
+            url_field="https://example.com"
         )
     else:
         model = Model  # type: ignore[assignment]
@@ -98,6 +105,8 @@ def test_pydantic_model_to_columns(instance: bool) -> None:
     assert result['int_enum_field']['data_type'] == 'bigint'
     assert result['mixed_enum_int_field']['data_type'] == 'text'
     assert result['mixed_enum_str_field']['data_type'] == 'text'
+    assert result['json_field']['data_type'] == 'complex'
+    assert result['url_field']['data_type'] == 'text'
 
 
 def test_pydantic_model_skip_complex_types() -> None:
@@ -109,6 +118,7 @@ def test_pydantic_model_skip_complex_types() -> None:
     assert "list_field" not in result
     assert "blank_dict_field" not in result
     assert "parametrized_dict_field" not in result
+    assert "json_field" not in result
     assert result["bigint_field"]["data_type"] == "bigint"
     assert result["text_field"]["data_type"] == "text"
     assert result["timestamp_field"]["data_type"] == "timestamp"

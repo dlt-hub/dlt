@@ -282,8 +282,10 @@ def resource(
         write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
-        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+        columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas.
+            Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
+            This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+            When the argument is a pydantic model, the model will be used to validate the data yielded by the resource as well.
 
         primary_key (str | Sequence[str]): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
