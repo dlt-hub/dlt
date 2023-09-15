@@ -100,6 +100,33 @@ For more information, read the
    > Optionally, you can also input "base_id" and "table_names" in the script, as in the pipeline
    > example.
 
+## Run the pipeline
+
+1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
+   running the command:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+1. You're now ready to run the pipeline! To get started, run the following command:
+
+   ```bash
+   python3 airtable_pipeline.py
+   ```
+
+1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+   the following command:
+
+   ```bash
+   dlt pipeline <pipeline_name> show
+   ```
+
+   For example, the `pipeline_name` for the above pipeline example is `airtable`, you
+   may also use any custom name instead.
+
+For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/run-a-pipeline).
+
 ## Sources and resources
 
 `dlt` works on the principle of [sources](../../general-usage/source) and
