@@ -21,6 +21,7 @@ from dlt.destinations.sql_client import SqlClientBase
 SCT_TO_PGT: Dict[TDataType, str] = {
     "complex": "nvarchar(4000)",
     "text": "nvarchar(4000)",
+    "ntext": "nvarchar(4000)",
     "double": "float",
     "bool": "bit",
     "timestamp": "datetimeoffset",
@@ -32,7 +33,7 @@ SCT_TO_PGT: Dict[TDataType, str] = {
 }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
-    "nvarchar": "nvarchar",
+    "nvarchar": "text",
     "float": "double",
     "bit": "bool",
     "datetimeoffset": "timestamp",
