@@ -133,7 +133,6 @@ const sidebars = {
             'dlt-ecosystem/transformations/dbt',
             'dlt-ecosystem/transformations/sql',
             'dlt-ecosystem/transformations/pandas',
-            ,
           ]
         },
         {
@@ -141,7 +140,6 @@ const sidebars = {
           label: 'Visualizations',
           items: [
             'dlt-ecosystem/visualizations/exploring-the-data',
-            'dlt-ecosystem/visualizations/understanding-the-tables'
           ]
         },
       ],
@@ -213,6 +211,7 @@ const sidebars = {
         'general-usage/resource',
         'general-usage/source',
         'general-usage/pipeline',
+        'general-usage/destination-tables',
         'general-usage/state',
         'general-usage/incremental-loading',
         'general-usage/full-loading',
