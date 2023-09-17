@@ -254,7 +254,6 @@ class Schema:
         for item in list(row.keys()):
             for item in list(row.keys()):
                 # if this is a new column for an existing table...
-
                 if table_exists and (item not in self.tables[table_name]["columns"] or not utils.is_complete_column(self.tables[table_name]["columns"][item])):
                     is_variant = (item in partial_table["columns"]) and partial_table["columns"][item].get("variant")
                     if contract_modes["column"] == "discard_value" or (is_variant and contract_modes["data_type"] == "discard_value"):

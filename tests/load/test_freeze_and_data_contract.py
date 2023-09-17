@@ -451,3 +451,90 @@ def test_data_contract_interaction() -> None:
     # without settings it will pass
     pipeline.run([get_items_subtable()], schema_contract_settings="evolve")
     pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
+
+
+def test_different_objects_in_one_load() -> None:
+
+    pipeline = get_pipeline()
+
+    @dlt.resource(name="items", schema_contract_settings={"column": "freeze", "table":"evolve"})
+    def get_items():
+        yield {
+            "id": 1,
+            "name": "dave",
+            "amount": 50
+        }
+        yield {
+            "id": 2,
+            "name": "dave",
+            "amount": 50,
+            "new_column": "some val"
+        }
+
+    pipeline.run([get_items()])
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 2
+
+
+@pytest.mark.parametrize("table_mode", ["discard_row", "evolve"])
+def test_dynamic_tables(table_mode: str) -> None:
+
+    pipeline = get_pipeline()
+
+    @dlt.resource(name="items", table_name=lambda i: i["table"], schema_contract_settings={"table": table_mode})
+    def get_items():
+        yield {
+            "id": 1,
+            "table": "one",
+        }
+        yield {
+            "id": 2,
+            "table": "two",
+            "new_column": "some val"
+        }
+
+    pipeline.run([get_items()])
+    assert pipeline.last_trace.last_normalize_info.row_counts["one"] == (1 if table_mode == "evolve" else 0)
+    assert pipeline.last_trace.last_normalize_info.row_counts["two"] == (1 if table_mode == "evolve" else 0)
+
+
+@pytest.mark.parametrize("column_mode", ["discard_row", "evolve"])
+def test_defined_column_in_new_table(column_mode: str) -> None:
+    pipeline = get_pipeline()
+
+    @dlt.resource(name="items", columns=[{"name": "id", "data_type": "bigint", "nullable": False}], schema_contract_settings={"column": column_mode})
+    def get_items():
+        yield {
+            "id": 1,
+            "key": "value",
+        }
+
+    pipeline.run([get_items()])
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
+
+
+@pytest.mark.parametrize("column_mode", ["discard_row", "evolve"])
+def test_dynamic_columns(column_mode: str) -> None:
+
+    pipeline = get_pipeline()
+
+    def columns(item):
+        if item["id"] == 1:
+            return [{"name": "col1", "data_type": "text", "nullable": True}]
+        if item["id"] == 2:
+            return [{"name": "col2", "data_type": "bigint", "nullable": True}]
+
+    @dlt.resource(name="items", table_name=lambda i: "items", schema_contract_settings={"column": column_mode})
+    def get_items():
+        yield {
+            "id": 1,
+            "key": "value",
+        }
+        yield {
+            "id": 2,
+            "key": "value",
+        }
+
+    items = get_items()
+    items.apply_hints(columns=columns)
+    pipeline.run([get_items()])
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 2

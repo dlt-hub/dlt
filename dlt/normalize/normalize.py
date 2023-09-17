@@ -133,6 +133,7 @@ class Normalize(Runnable[ProcessPool]):
         items_count = 0
         row_counts: TRowCount = {}
         schema_contract_modes: TSchemaContractModes = None
+        original_schema = schema.clone()
 
         for item in items:
             for (table_name, parent_table), row in schema.normalize_data_item(item, load_id, root_table_name):
@@ -151,7 +152,7 @@ class Normalize(Runnable[ProcessPool]):
                 row, partial_table = schema.coerce_row(table_name, parent_table, row)
                 # if we detect a migration, the check update
                 if partial_table:
-                    row, partial_table = schema.apply_schema_contract(schema_contract_modes, table_name, row, partial_table)
+                    row, partial_table = original_schema.apply_schema_contract(schema_contract_modes, table_name, row, partial_table)
                 if not row:
                     continue
 
