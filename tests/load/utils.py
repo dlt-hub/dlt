@@ -91,7 +91,9 @@ def destinations_configs(
         all_staging_configs: bool = False,
         local_filesystem_configs: bool = False,
         all_buckets_filesystem_configs: bool = False,
-        subset: Sequence[str] = ()) -> List[DestinationTestConfiguration]:
+        subset: Sequence[str] = (),
+        exclude: Sequence[str] = (),
+) -> List[DestinationTestConfiguration]:
 
     # sanity check
     for item in subset:
@@ -147,6 +149,8 @@ def destinations_configs(
     # filter out destinations not in subset
     if subset:
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
+    if exclude:
+        destination_configs = [conf for conf in destination_configs if conf.destination not in exclude]
 
     return destination_configs
 

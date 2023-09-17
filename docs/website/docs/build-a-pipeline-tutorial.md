@@ -391,7 +391,7 @@ utilization, schema enforcement and curation, and schema change alerts.
 which consist of a timestamp and pipeline name. Load IDs enable incremental transformations and data
 vaulting by tracking data loads and facilitating data lineage and traceability.
 
-Read more about [lineage.](dlt-ecosystem/visualizations/understanding-the-tables.md#load-ids)
+Read more about [lineage](general-usage/destination-tables.md#data-lineage).
 
 ### Schema Enforcement and Curation
 
@@ -412,8 +412,6 @@ processes, or performing impact analysis.
 These governance features in `dlt` pipelines contribute to better data management practices,
 compliance adherence, and overall data governance, promoting data consistency, traceability, and
 control throughout the data processing lifecycle.
-
-Read more about [schema evolution.](reference/explainers/schema-evolution.md)
 
 ### Scaling and finetuning
 

@@ -690,7 +690,7 @@ def test_resource_returning_resource() -> None:
     # this will return internal resource
     r_i = s.res_in_res("table", "merge")
     assert r_i.name == "table"
-    assert r_i.table_schema()["write_disposition"] == "merge"
+    assert r_i.compute_table_schema()["write_disposition"] == "merge"
     assert list(r_i("ABC")) == ["A", "B", "C"]
 
 

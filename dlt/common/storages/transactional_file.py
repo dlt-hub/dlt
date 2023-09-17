@@ -12,10 +12,11 @@ import typing as t
 from pathlib import Path
 import posixpath
 from contextlib import contextmanager
-from dlt.common.pendulum import pendulum, timedelta
 from threading import Timer
-
 import fsspec
+
+from dlt.common.pendulum import pendulum, timedelta
+from dlt.common.storages.filesystem import MTIME_DISPATCH
 
 
 def lock_id(k: int = 4) -> str:
@@ -44,19 +45,6 @@ class Heartbeat(Timer):
 class TransactionalFile:
     """A transaction handler which wraps a file path."""
 
-    # Map of protocol to mtime resolver
-    # we only need to support a small finite set of protocols
-    _mtime_dispatch = {
-        "s3": lambda f: pendulum.parser.parse(f["LastModified"]),
-        "adl": lambda f: pendulum.parser.parse(f["LastModified"]),
-        "gcs": lambda f: pendulum.parser.parse(f["updated"]),
-        "file": lambda f: pendulum.from_timestamp(f["mtime"]),
-    }
-    # Support aliases
-    _mtime_dispatch["gs"] = _mtime_dispatch["gcs"]
-    _mtime_dispatch["s3a"] = _mtime_dispatch["s3"]
-    _mtime_dispatch["azure"] = _mtime_dispatch["adl"]
-
     POLLING_INTERVAL = 0.5
     LOCK_TTL_SECONDS = 30.0
 
@@ -68,7 +56,7 @@ class TransactionalFile:
             fs: The fsspec file system.
         """
         proto = fs.protocol[0] if isinstance(fs.protocol, (list, tuple)) else fs.protocol
-        self.extract_mtime = self._mtime_dispatch.get(proto, self._mtime_dispatch["file"])
+        self.extract_mtime = MTIME_DISPATCH.get(proto, MTIME_DISPATCH["file"])
 
         parsed_path = Path(path)
         if not parsed_path.is_absolute():

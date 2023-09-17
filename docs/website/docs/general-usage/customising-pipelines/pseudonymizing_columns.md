@@ -6,8 +6,6 @@ keywords: [pseudonymize, anonymize, columns, special characters]
 
 # Pseudonymizing columns
 
-## Pseudonymizing (or anonymizing) columns by replacing the special characters
-
 Pseudonymization is a deterministic way to hide personally identifiable info (PII), enabling us to
 consistently achieve the same mapping. If instead you wish to anonymize, you can delete the data, or
 replace it with a constant. In the example below, we create a dummy source with a PII column called

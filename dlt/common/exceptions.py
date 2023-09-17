@@ -90,6 +90,10 @@ You must install additional dependencies to run {self.caller}. If you use pip yo
         return "\n".join([f"pip install \"{d}\"" for d in self.dependencies])
 
 
+class SystemConfigurationException(DltException):
+    pass
+
+
 class DestinationException(DltException):
     pass
 

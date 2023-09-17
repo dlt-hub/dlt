@@ -107,7 +107,7 @@ Learn more:
 - [The full list of available destinations.](dlt-ecosystem/destinations/)
 - [Exploring the data](dlt-ecosystem/visualizations/exploring-the-data).
 - What happens after loading?
-  [Understanding the tables](dlt-ecosystem/visualizations/understanding-the-tables).
+  [Destination tables](general-usage/destination-tables).
 
 ## Load your data
 

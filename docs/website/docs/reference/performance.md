@@ -327,6 +327,40 @@ if __name__ == "__main__" or "PYTEST_CURRENT_TEST" in os.environ:
 <!--@@@DLT_SNIPPET_END ./performance_snippets/performance-snippets.py::parallel_config-->
 
 
+### Source decomposition for serial and parallel resource execution
+
+You can decompose a pipeline into strongly connected components with
+`source().decompose(strategy="scc")`. The method returns a list of dlt sources each containing a
+single component. Method makes sure that no resource is executed twice.
+
+**Serial decomposition:**
+
+You can load such sources as tasks serially in order present of the list. Such DAG is safe for
+pipelines that use the state internally.
+[It is used internally by our Airflow mapper to construct DAGs.](https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py)
+
+**Parallel decomposition**
+
+If you are using only the resource state (which most of the pipelines really should!) you can run
+your tasks in parallel.
+
+- Perform the `scc` decomposition.
+- Run each component in a pipeline with different but deterministic `pipeline_name` (same component
+  \- same pipeline, you can use names of selected resources in source to construct unique id).
+
+Each pipeline will have its private state in the destination and there won't be any clashes. As all
+the components write to the same schema you may observe a that loader stage is attempting to migrate
+the schema, that should be a problem though as long as your data does not create variant columns.
+
+**Custom decomposition**
+
+- When decomposing pipelines into tasks, be mindful of shared state.
+- Dependent resources pass data to each other via generators - so they need to run on the same
+  worker. Group them in a task that runs them together - otherwise some resources will be extracted twice.
+- State is per-pipeline. The pipeline identifier is the pipeline name. A single pipeline state
+  should be accessed serially to avoid losing details on parallel runs.
+
+
 ## Resources extraction, `fifo` vs. `round robin`
 
 When extracting from resources, you have two options to determine what the order of queries to your

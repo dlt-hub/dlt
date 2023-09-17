@@ -229,7 +229,7 @@ class BigQueryClient(SqlJobClientWithStaging):
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         name = self.capabilities.escape_identifier(c["name"])
-        return f"{name} {self._to_db_type(c['data_type'])} {self._gen_not_null(c['nullable'])}"
+        return f"{name} {self._to_db_type(c['data_type'])} {self._gen_not_null(c.get('nullable', True))}"
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         schema_table: TTableSchemaColumns = {}

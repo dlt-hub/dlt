@@ -345,7 +345,8 @@ def test_merge_with_dispatch_and_incremental(destination_config: DestinationTest
         return
     # but we have it updated
     with p.sql_client() as c:
-        with c.execute_query("SELECT node_id FROM watch_event WHERE node_id = 'new_node_X'") as q:
+        qual_name = c.make_qualified_table_name("watch_event")
+        with c.execute_query(f"SELECT node_id FROM {qual_name} WHERE node_id = 'new_node_X'") as q:
             assert len(list(q.fetchall())) == 1
 
 
@@ -362,7 +363,8 @@ def test_deduplicate_single_load(destination_config: DestinationTestConfiguratio
     counts = load_table_counts(p, "duplicates", "duplicates__child")
     assert counts["duplicates"] == 1 if destination_config.supports_merge else 2
     assert counts["duplicates__child"] == 3 if destination_config.supports_merge else 6
-    select_data(p, "SELECT * FROM duplicates")[0]
+    qual_name = p.sql_client().make_qualified_table_name("duplicates")
+    select_data(p, f"SELECT * FROM {qual_name}")[0]
 
 
     @dlt.resource(write_disposition="merge", primary_key=("id", "subkey"))

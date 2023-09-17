@@ -102,23 +102,41 @@ class SqlMergeJob(SqlBaseJob):
            Returns temp table name for cases where special names are required like SQLServer.
         """
         sql: List[str] = []
-        temp_table_name = f"delete_{uniq_id()}"
-        sql.append(f"CREATE TEMP TABLE {temp_table_name} AS SELECT d.{unique_column} {key_table_clauses[0]};")
+        temp_table_name = cls._new_temp_table_name("delete")
+        select_statement = f"SELECT d.{unique_column} {key_table_clauses[0]}"
+        sql.append(cls._to_temp_table(select_statement, temp_table_name))
         for clause in key_table_clauses[1:]:
             sql.append(f"INSERT INTO {temp_table_name} SELECT {unique_column} {clause};")
         return sql, temp_table_name
 
     @classmethod
     def gen_insert_temp_table_sql(cls, staging_root_table_name: str, primary_keys: Sequence[str], unique_column: str) -> Tuple[List[str], str]:
-        sql: List[str] = []
-        temp_table_name = f"insert_{uniq_id()}"
-        sql.append(f"""CREATE TEMP TABLE {temp_table_name} AS
-            WITH _dlt_dedup_numbered AS (
-                SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY (SELECT NULL)) AS _dlt_dedup_rn, {unique_column}
-                FROM {staging_root_table_name}
-            )
-            SELECT {unique_column} FROM _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1;""")
-        return sql, temp_table_name
+        temp_table_name = cls._new_temp_table_name("insert")
+        select_statement = f"""
+        SELECT {unique_column}
+        FROM (
+            SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY (SELECT NULL)) AS _dlt_dedup_rn, {unique_column}
+            FROM {staging_root_table_name}
+        ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1
+        """
+        return [cls._to_temp_table(select_statement, temp_table_name)], temp_table_name
+
+    @classmethod
+    def _new_temp_table_name(cls, name_prefix: str) -> str:
+        return f"{name_prefix}_{uniq_id()}"
+
+    @classmethod
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
+        """Generate sql that creates temp table from select statement. May return several statements.
+
+        Args:
+            select_sql: select statement to create temp table from
+            temp_table_name: name of the temp table (unqualified)
+
+        Returns:
+            sql statement that inserts data from selects into temp table
+        """
+        return f"CREATE TEMP TABLE {temp_table_name} AS {select_sql};"
 
     @classmethod
     def gen_merge_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
@@ -190,16 +208,16 @@ class SqlMergeJob(SqlBaseJob):
             if len(primary_keys) > 0:
                 if len(table_chain) == 1:
                     insert_sql = f"""INSERT INTO {table_name}({columns})
-                        WITH _dlt_dedup_numbered AS (
+                        SELECT {columns} FROM (
                             SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY (SELECT NULL)) AS _dlt_dedup_rn, {columns}
                             FROM {staging_table_name}
-                            )
-                        SELECT {columns} FROM _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1;"""
+                        ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1;
+                    """
                 else:
                     uniq_column = unique_column if table.get("parent") is None else root_key_column
                     insert_sql += f" WHERE {uniq_column} IN (SELECT * FROM {insert_temp_table_sql});"
 
-            if insert_sql[-1].strip() != ";":
+            if insert_sql.strip()[-1] != ";":
                 insert_sql += ";"
             sql.append(insert_sql)
             # -- DELETE FROM {staging_table_name} WHERE 1=1;
