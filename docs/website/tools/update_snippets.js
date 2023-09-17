@@ -141,8 +141,14 @@ updateSnippets(BASE_DIR);
 
 if (process.argv.includes("--watch")) {
     console.log(`Watching ${BASE_DIR}`)
-    watch(BASE_DIR, { recursive: true, filter: /\.py$/  }, function(evt, name) {
+    let lastUpdate = Date.now();
+    watch(BASE_DIR, { recursive: true, filter: /\.(py|toml|md)$/  }, function(evt, name) {
+        // break update loop
+        if (Date.now() - lastUpdate < 500) {
+            return;
+        }
         console.log('%s changed...', name);
         updateSnippets(BASE_DIR);
+        lastUpdate = Date.now();
     });
 }
