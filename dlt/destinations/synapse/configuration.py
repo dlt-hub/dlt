@@ -65,6 +65,7 @@ class SynapseCredentials(ConnectionStringCredentials):
             "DATABASE": self.database,
             "UID": self.username,
             "PWD": self.password,
+            "LongAsMax": "True"
         }
         if self.query:
             params.update(self.query)
