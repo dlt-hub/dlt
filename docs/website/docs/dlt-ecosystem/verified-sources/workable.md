@@ -226,4 +226,4 @@ To create your data pipeline using single loading and [incremental data loading]
 
 > Note: In the pipeline run mentioned above, we are loading two [dependent endpoints](workable.md#dependent-endpoints). “jobs_activities” and “jobs_application_form”. To ensure that these endpoints are loaded properly, the **`load_details`** parameter is set as **`True`**.
 
-That’s it! Enjoy running your Workable DLT pipeline!
+That’s it! Enjoy running your Workable dlt pipeline!

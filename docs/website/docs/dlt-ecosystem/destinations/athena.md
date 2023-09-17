@@ -6,7 +6,7 @@ keywords: [aws, athena, glue catalog]
 
 # AWS Athena / Glue Catalog
 
-The athena destination stores data as parquet files in s3 buckets and creates [external tables in aws athena](https://docs.aws.amazon.com/athena/latest/ug/creating-tables.html). You can then query those tables with athena sql commands which will then scan the whole folder of parquet files and return the results. This destination works very similar to other sql based destinations, with the exception of the merge write disposition not being supported at this time. DLT metadata will be stored in the same bucket as the parquet files, but as iceberg tables.
+The athena destination stores data as parquet files in s3 buckets and creates [external tables in aws athena](https://docs.aws.amazon.com/athena/latest/ug/creating-tables.html). You can then query those tables with athena sql commands which will then scan the whole folder of parquet files and return the results. This destination works very similar to other sql based destinations, with the exception of the merge write disposition not being supported at this time. dlt metadata will be stored in the same bucket as the parquet files, but as iceberg tables.
 
 ## Setup Guide
 ### 1. Initialize the dlt project

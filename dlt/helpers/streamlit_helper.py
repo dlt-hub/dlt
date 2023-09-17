@@ -208,7 +208,7 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
     ### Args:
         pipeline (Pipeline): Pipeline instance to use.
         schema_name (str, optional): Name of the schema to display. If None, default schema is used.
-        show_dlt_tables (bool, optional): Should show DLT internal tables. Defaults to False.
+        show_dlt_tables (bool, optional): Should show dlt internal tables. Defaults to False.
         example_query (str, optional): Example query to be displayed in the SQL Query box.
         show_charts (bool, optional): Should automatically show charts for the queries from SQL Query box. Defaults to True.
 

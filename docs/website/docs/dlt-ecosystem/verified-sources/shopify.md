@@ -107,4 +107,4 @@ Note that in the above command, replace **`<pipeline_name>`** with the name of y
 
 **`dlt pipeline shopify show`**
 
-That's it! Enjoy running your Shopify DLT pipeline!
+That's it! Enjoy running your Shopify dlt pipeline!

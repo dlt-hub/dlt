@@ -129,7 +129,7 @@ Names of tables and columns in [schemas](../../general-usage/schema.md) are kept
 
 ## Staging support
 
-Snowflake supports s3 and gcs as a file staging destinations. DLT will upload files in the parquet format to the bucket provider and will ask snowflake to copy their data directly into the db.
+Snowflake supports s3 and gcs as a file staging destinations. dlt will upload files in the parquet format to the bucket provider and will ask snowflake to copy their data directly into the db.
 
 Alternavitely to parquet files, you can also specify jsonl as the staging file format. For this set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 

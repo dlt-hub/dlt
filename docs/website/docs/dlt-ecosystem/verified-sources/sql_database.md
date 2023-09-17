@@ -129,7 +129,7 @@ load_info = pipeline.run(load_source, write_disposition="replace")
 print(info)
 ```
 
-3. To load data from the "family" table in incremental mode, utilizing the "updated" field, you can employ the `sql_table` resource. In the provided code, the last value of the "updated" field is stored in the DLT state, initially set to January 1, 2022, at midnight (00:00:00). During subsequent runs, only the new data created after the last recorded "updated" value will be loaded. This ensures efficient and targeted data retrieval, optimizing the processing of your pipeline.
+3. To load data from the "family" table in incremental mode, utilizing the "updated" field, you can employ the `sql_table` resource. In the provided code, the last value of the "updated" field is stored in the dlt state, initially set to January 1, 2022, at midnight (00:00:00). During subsequent runs, only the new data created after the last recorded "updated" value will be loaded. This ensures efficient and targeted data retrieval, optimizing the processing of your pipeline.
 
 ```python
 family = sql_table(
@@ -176,4 +176,4 @@ Here we use `mysql` and `pymysql` dialect to set up ssl connection to a server. 
 sources.sql_database.credentials="'mysql+pymysql://root:8P5gyDPNo9zo582rQG6a@35.203.96.191:3306/mysql?ssl_ca=&ssl_cert=client-cert.pem&ssl_key=client-key.pem')
 ```
 
-That's it! Enjoy running your SQL Database DLT pipeline!
+That's it! Enjoy running your SQL Database dlt pipeline!
