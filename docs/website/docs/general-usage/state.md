@@ -53,15 +53,17 @@ to their displayable names. You can take a look at our
 [pipedrive source](https://github.com/dlt-hub/verified-sources/blob/master/sources/pipedrive/__init__.py#L118)
 for an example of state passed across resources.
 
-> 💡 Avoid the use of shared state if you plan to
-> [decompose your source](../dlt-ecosystem/deployments/orchestrators/choosing-an-orchestrator.md#source---resource-decomposition)
-> in order to, for example run it on Airflow in parallel. If you cannot avoid that, designate one of
-> the resources as state writer and all the other as state readers. This is exactly what `pipedrive`
-> pipeline does. With such structure you will still be able to run some of your resources in
-> parallel.
-
-> ❗ The `dlt.state()` is a deprecated alias to `dlt.current.source_state()` and will be soon
-> removed.
+:::tip
+[decompose your source](../reference/performance.md#source-decomposition-for-serial-and-parallel-resource-execution)
+in order to, for example run it on Airflow in parallel. If you cannot avoid that, designate one of
+the resources as state writer and all the other as state readers. This is exactly what `pipedrive`
+pipeline does. With such structure you will still be able to run some of your resources in
+parallel.
+:::
+:::caution
+The `dlt.state()` is a deprecated alias to `dlt.current.source_state()` and will be soon
+removed.
+:::
 
 ## Syncing state with destination
 

@@ -99,24 +99,14 @@ const sidebars = {
           type: 'category',
           label: 'Deployments',
           link: {
-            type: 'generated-index',
-            title: 'Deployments',
-            description: 'Overview over where you can deploy dlt.',
-            slug: 'dlt-ecosystem/deployments',
-            keywords: ['deployments'],
+            type: 'doc',
+            id: 'dlt-ecosystem/deployments/index',
           },
           items: [
-            'dlt-ecosystem/deployments/where-can-dlt-run',
-            'dlt-ecosystem/deployments/running-in-cloud-functions',
-            {
-              type: 'category',
-              label: 'Orchestrators',
-              items: [
-                'dlt-ecosystem/deployments/orchestrators/choosing-an-orchestrator',
-                'dlt-ecosystem/deployments/orchestrators/airflow-deployment',
-                'dlt-ecosystem/deployments/orchestrators/github-actions',
-              ]
-            },
+            'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
+            'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
+            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
+            'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
           ]
         },
         {
@@ -142,23 +132,6 @@ const sidebars = {
             'dlt-ecosystem/visualizations/exploring-the-data',
           ]
         },
-      ],
-    },
-    {
-      type: 'category',
-      label: 'User Guides',
-      link: {
-        type: 'generated-index',
-        title: 'User Guides',
-        slug: 'user-guides',
-        keywords: ['user guides'],
-      },
-      items: [
-        'user-guides/analytics-engineer',
-        'user-guides/data-beginner',
-        'user-guides/data-engineer',
-        'user-guides/data-scientist',
-        'user-guides/engineering-manager',
       ],
     },
     {
@@ -206,8 +179,6 @@ const sidebars = {
         keywords: ['general usage'],
       },
       items: [
-        'general-usage/glossary',
-        'general-usage/import-dlt',
         'general-usage/resource',
         'general-usage/source',
         'general-usage/pipeline',
@@ -218,6 +189,7 @@ const sidebars = {
         'general-usage/credentials',
         'general-usage/schema',
         'general-usage/configuration',
+        'general-usage/glossary',
         {
           type: 'category',
           label: 'Customising pipelines',
@@ -259,10 +231,9 @@ const sidebars = {
         'reference/installation',
         'reference/command-line-interface',
         'reference/performance',
-        'reference/explainers/how-dlt-works',
-        'reference/explainers/schema-evolution',
         'reference/telemetry',
-        'reference/airflow-gcp-cloud-composer',
+        'reference/explainers/how-dlt-works',
+        'reference/explainers/airflow-gcp-cloud-composer',
       ],
     },
   ]
