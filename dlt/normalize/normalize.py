@@ -133,6 +133,7 @@ class Normalize(Runnable[ProcessPool]):
         items_count = 0
         row_counts: TRowCount = {}
         schema_contract_modes: TSchemaContractModes = None
+        # TODO: better to mark tables as new and not clone
         original_schema = schema.clone()
 
         for item in items:

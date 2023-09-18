@@ -475,12 +475,16 @@ def test_different_objects_in_one_load() -> None:
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 2
 
 
-@pytest.mark.parametrize("table_mode", ["discard_row", "evolve"])
+@pytest.mark.parametrize("table_mode", ["discard_row", "evolve", "raise"])
 def test_dynamic_tables(table_mode: str) -> None:
 
     pipeline = get_pipeline()
 
-    @dlt.resource(name="items", table_name=lambda i: i["table"], schema_contract_settings={"table": table_mode})
+    # adding columns with a data type makes this columns complete which makes this table complete -> it fails in the normalize because
+    #   the tables is NOT new according to normalizer so the row is not discarded
+    # remove that and it will pass because the table contains just one incomplete column so it is incomplete so it is treated as new
+    # if you uncomment update code in the extract the problem probably goes away
+    @dlt.resource(name="items", table_name=lambda i: i["table"], schema_contract_settings={"table": table_mode}, columns={"id": {"data_type": "bigint"}})
     def get_items():
         yield {
             "id": 1,
@@ -512,16 +516,66 @@ def test_defined_column_in_new_table(column_mode: str) -> None:
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
 
 
-@pytest.mark.parametrize("column_mode", ["discard_row", "evolve"])
-def test_dynamic_columns(column_mode: str) -> None:
+@pytest.mark.parametrize("column_mode", ["freeze", "discard_row", "evolve"])
+def test_new_column_from_hint_and_data(column_mode: str) -> None:
 
     pipeline = get_pipeline()
 
+    # we define complete column on id, this creates a complete table
+    # normalizer does not know that it is a new table and discards the row
+    # and it also excepts on column freeze
+
+    @dlt.resource(
+        name="items",
+        schema_contract_settings={"column": column_mode},
+        columns=[{"name": "id", "data_type": "bigint", "nullable": False}])
+    def get_items():
+        yield {
+            "id": 1,
+            "key": "value",
+        }
+    pipeline.run([get_items()])
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
+
+
+@pytest.mark.parametrize("column_mode", ["freeze", "discard_row", "evolve"])
+def test_two_new_columns_from_two_rows(column_mode: str) -> None:
+
+    pipeline = get_pipeline()
+
+    # this creates a complete table in first row
+    # and adds a new column to complete tables in 2nd row
+    # the test does not fail only because you clone schema in normalize
+
+    @dlt.resource(
+        schema_contract_settings={"column": column_mode}
+    )
+    def items():
+        yield {
+            "id": 1,
+        }
+        yield {
+            "id": 1,
+            "key": "value",
+        }
+    pipeline.run([items()])
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 2
+
+
+@pytest.mark.parametrize("column_mode", ["freeze", "discard_row", "evolve"])
+def test_dynamic_new_columns(column_mode: str) -> None:
+
+    pipeline = get_pipeline()
+
+    # fails because dlt is not able to add _dlt_load_id to tables. I think we should do an exception for those
+    # 1. schema.dlt_tables() - everything evolve
+    # 2. is_dlt_column (I hope we have helper) - column evolve, data_type freeze
+
     def columns(item):
         if item["id"] == 1:
-            return [{"name": "col1", "data_type": "text", "nullable": True}]
+            return [{"name": "key", "data_type": "text", "nullable": True}]
         if item["id"] == 2:
-            return [{"name": "col2", "data_type": "bigint", "nullable": True}]
+            return [{"name": "id", "data_type": "bigint", "nullable": True}]
 
     @dlt.resource(name="items", table_name=lambda i: "items", schema_contract_settings={"column": column_mode})
     def get_items():
@@ -536,5 +590,6 @@ def test_dynamic_columns(column_mode: str) -> None:
 
     items = get_items()
     items.apply_hints(columns=columns)
-    pipeline.run([get_items()])
+    # apply hints apply to `items` not the original resource, so doing get_items() below removed them completely
+    pipeline.run(items)
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 2

@@ -67,7 +67,7 @@ def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFil
                     except DictValidationException:
                         pass
                 if not has_passed:
-                    type_names = [ut.__name__ for ut in union_types]
+                    type_names = [str(get_args(ut)) if is_literal_type(ut) else ut.__name__ for ut in union_types]
                     raise DictValidationException(f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__}. One of these types expected: {', '.join(type_names)}.", path, pk, pv)
         elif is_literal_type(t):
             a_l = get_args(t)

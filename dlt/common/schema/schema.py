@@ -241,7 +241,7 @@ class Schema:
         if contract_modes == DEFAULT_SCHEMA_CONTRACT_MODE:
             return row, partial_table
 
-        table_exists = table_name in self.tables and self.get_table_columns(table_name, include_incomplete=False)
+        table_exists = table_name in self.tables and len(self.get_table_columns(table_name, include_incomplete=False)) > 0
 
         # check case where we have a new table
         if not table_exists:
@@ -294,9 +294,11 @@ class Schema:
         table = self._schema_tables.get(table_name)
         if table is None:
             # add the whole new table to SchemaTables
+            print(f"NEW update_table: {table}")
             self._schema_tables[table_name] = partial_table
         else:
             # merge tables performing additional checks
+            print(f"MERGE merge_table: {table}")
             partial_table = utils.merge_tables(table, partial_table)
         return partial_table
 

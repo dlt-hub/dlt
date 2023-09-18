@@ -657,7 +657,12 @@ def new_table(
         # set write disposition only for root tables
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
         table["resource"] = resource or table_name
-        table["schema_contract_settings"] = schema_contract_settings or {}
+        # TODO: do not write empty settings or they land in the schema file like this
+        #     description: Created by DLT. Tracks completed loads
+        #     schema_contract_settings: {}
+        # alternatively use apply/remove defaults in utils to remove/add on save!
+        if schema_contract_settings:
+            table["schema_contract_settings"] = schema_contract_settings
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,
