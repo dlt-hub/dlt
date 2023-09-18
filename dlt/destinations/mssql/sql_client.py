@@ -123,6 +123,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             curr.execute(query, *args)
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
         except pyodbc.Error as outer:
+            print(f"Error in query: {query}")
             raise outer
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
