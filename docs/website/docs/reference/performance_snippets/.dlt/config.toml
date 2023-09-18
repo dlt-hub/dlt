@@ -1,0 +1,16 @@
+# @@@DLT_SNIPPET_START parallel_config_toml
+# the pipeline name is default source name when loading resources
+
+[sources.parallel_load.data_writer]
+file_max_items=100000
+
+[normalize]
+workers=3
+
+[data_writer]
+file_max_items=100000
+
+[load]
+workers=11
+
+# @@@DLT_SNIPPET_END parallel_config_toml

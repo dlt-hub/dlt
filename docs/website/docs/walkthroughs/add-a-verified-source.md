@@ -9,7 +9,7 @@ keywords: [how to, add a verified source]
 Follow the steps below to create a [pipeline](../general-usage/glossary.md#pipeline) from a
 [verified source](../general-usage/glossary.md#verified-source) contributed by `dlt` users.
 
-Please make sure you have [installed `dlt`](../reference/installation.mdx) before following the
+Please make sure you have [installed `dlt`](../reference/installation.md) before following the
 steps below.
 
 ## 1. Initialize project

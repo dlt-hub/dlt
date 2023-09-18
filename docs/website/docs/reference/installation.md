@@ -4,8 +4,6 @@ description: How to install dlt
 keywords: [installation, environment, pip install]
 ---
 
-import Tabs from "@theme/Tabs";
-
 # Installation
 
 ## Set up environment
