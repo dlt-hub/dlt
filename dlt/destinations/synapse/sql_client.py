@@ -131,6 +131,8 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             curr.execute(query, *args)
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
         except pyodbc.Error as outer:
+            print(f"Error in query:")
+            pritn(query)
             raise outer
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
