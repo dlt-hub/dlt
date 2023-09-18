@@ -43,6 +43,7 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         # https://github.com/mkleehammer/pyodbc/wiki/Using-an-Output-Converter-function
         self._conn.add_output_converter(-155, handle_datetimeoffset)
         self._conn.autocommit = True
+        print("Conn string: ", self.credentials.to_odbc_dsn())
         return self._conn
 
     @raise_open_connection_error
