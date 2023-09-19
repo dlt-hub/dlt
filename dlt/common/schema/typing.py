@@ -1,10 +1,8 @@
-from abc import ABC, abstractmethod
-from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Set, Type, TypedDict, NewType, Union, get_args, Protocol
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Set, Type, TypedDict, NewType, Union, get_args
 from typing_extensions import Never
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
-from dlt.common.typing import TDataItem
 
 try:
     from pydantic import BaseModel as _PydanticBaseModel
