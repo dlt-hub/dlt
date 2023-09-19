@@ -110,9 +110,3 @@ class TStoredSchema(TypedDict, total=False):
     settings: Optional[TSchemaSettings]
     tables: TSchemaTables
     normalizers: TNormalizersConfig
-
-
-class ColumnValidator(ABC):
-    @abstractmethod
-    def __call__(self, item: TDataItem, meta: Any = None) -> TDataItem:
-        ...

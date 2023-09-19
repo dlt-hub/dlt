@@ -7,8 +7,8 @@ except ModuleNotFoundError:
 
 from dlt.extract.exceptions import ValidationError
 from dlt.common.typing import TDataItems
-from dlt.common.schema.typing import TAnySchemaColumns, ColumnValidator
-from dlt.extract.typing import TTableHintTemplate
+from dlt.common.schema.typing import TAnySchemaColumns
+from dlt.extract.typing import TTableHintTemplate, ColumnValidator
 
 
 _TPydanticModel = TypeVar("_TPydanticModel", bound=PydanticBaseModel)
@@ -26,7 +26,7 @@ class PydanticValidator(ColumnValidator, Generic[_TPydanticModel]):
         )
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Union[_TPydanticModel, List[_TPydanticModel]]:
-        """Validate a data item agains the pydantic model"""
+        """Validate a data item against the pydantic model"""
         if item is None:
             return None
         try:

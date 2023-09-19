@@ -124,3 +124,14 @@ class YieldMapItem(ItemTransform[Iterator[TDataItem]]):
                 yield from self._f_meta(item, meta)
             else:
                 yield from self._f(item)
+
+
+class ColumnValidator(ABC):
+    """Base class for validators of data items.
+
+    Subclass should implement the `__call__` method to either return the data item(s) or raise `extract.exceptions.ValidationError`.
+    See `PydanticValidator` for possible implementation.
+    """
+    @abstractmethod
+    def __call__(self, item: TDataItem, meta: Any = None) -> TDataItem:
+        ...

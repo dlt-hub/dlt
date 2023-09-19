@@ -4,7 +4,7 @@ import typing as t
 
 import pytest
 import dlt
-from dlt.common.schema.typing import ColumnValidator
+from dlt.extract.typing import ColumnValidator
 from dlt.common.typing import TDataItems
 from dlt.extract.validation import PydanticValidator
 from dlt.extract.exceptions import ValidationError, ResourceExtractionError
