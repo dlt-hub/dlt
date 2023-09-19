@@ -155,6 +155,7 @@ optional = true
 [tool.poetry.group.docs.dependencies]
 pymysql = "^1.1.0"
 pypdf2 = "^3.0.1"
+pydoc-markdown = "^4.8.2"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]
