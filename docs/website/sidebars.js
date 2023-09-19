@@ -52,6 +52,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/salesforce',
             'dlt-ecosystem/verified-sources/shopify',
             'dlt-ecosystem/verified-sources/sql_database',
+            'dlt-ecosystem/verified-sources/slack',
             'dlt-ecosystem/verified-sources/strapi',
             'dlt-ecosystem/verified-sources/stripe',
             'dlt-ecosystem/verified-sources/workable',
