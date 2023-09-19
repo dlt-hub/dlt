@@ -16,11 +16,11 @@ path to volume with default schemas
 
 #### import\_schema\_path
 
-import schema from external location
+the import schema from external location
 
 #### export\_schema\_path
 
-export schema to external location
+the export schema to external location
 
 #### external\_schema\_format
 
