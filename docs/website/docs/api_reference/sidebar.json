@@ -1,0 +1,20 @@
+{
+  "items": [
+    {
+      "items": [
+        "api_reference/__init__/__init__"
+      ],
+      "label": "__init__",
+      "type": "category"
+    },
+    "api_reference/configuration",
+    "api_reference/current",
+    "api_reference/dbt",
+    "api_reference/helpers",
+    "api_reference/pipeline",
+    "api_reference/trace",
+    "api_reference/track"
+  ],
+  "label": "dlt",
+  "type": "category"
+}
