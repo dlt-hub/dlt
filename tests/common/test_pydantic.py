@@ -1,5 +1,5 @@
 import pytest
-from typing import Union, Optional, List, Dict
+from typing import Union, Optional, List, Dict, Any
 from enum import Enum
 
 from datetime import datetime, date, time  # noqa: I251
@@ -61,6 +61,10 @@ class Model(BaseModel):
 
     url_field: AnyHttpUrl
 
+    any_field: Any
+    json_any_field: Json[Any]
+
+
 
 @pytest.mark.parametrize('instance', [True, False])
 def test_pydantic_model_to_columns(instance: bool) -> None:
@@ -80,7 +84,9 @@ def test_pydantic_model_to_columns(instance: bool) -> None:
             mixed_enum_int_field=MixedEnum.a_int,
             mixed_enum_str_field=MixedEnum.b_str,
             json_field=json.dumps(["a", "b", "c"]),  # type: ignore[arg-type]
-            url_field="https://example.com"
+            url_field="https://example.com",  # type: ignore[arg-type]
+            any_field="any_string",
+            json_any_field=json.dumps("any_string"),
         )
     else:
         model = Model  # type: ignore[assignment]
@@ -107,6 +113,10 @@ def test_pydantic_model_to_columns(instance: bool) -> None:
     assert result['mixed_enum_str_field']['data_type'] == 'text'
     assert result['json_field']['data_type'] == 'complex'
     assert result['url_field']['data_type'] == 'text'
+
+    # Any type fields are excluded from schema
+    assert 'any_field' not in result
+    assert 'json_any_field' not in result
 
 
 def test_pydantic_model_skip_complex_types() -> None:
