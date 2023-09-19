@@ -1,0 +1,15 @@
+loaders:
+  - type: python
+    search_path: [../dlt/pipeline]
+processors:
+  - type: filter
+    skip_empty_modules: true
+  - type: smart
+  - type: crossref
+renderer:
+  type: docusaurus
+  docs_base_path: website/docs
+  relative_output_path: api_reference
+  relative_sidebar_path: sidebar.json
+  sidebar_top_level_label: dlt
+  sidebar_top_level_module_label: null

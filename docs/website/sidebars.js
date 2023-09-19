@@ -236,6 +236,11 @@ const sidebars = {
         'reference/explainers/airflow-gcp-cloud-composer',
       ],
     },
+    {
+      "API Documentation": [
+      require("./docs/api_reference/sidebar.json")
+    ],
+    }
   ]
 };
 

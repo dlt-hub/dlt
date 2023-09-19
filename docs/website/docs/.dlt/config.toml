@@ -1,3 +1,0 @@
-[destination.weaviate]
-vectorizer="text2vec-contextionary"
-module_config={text2vec-contextionary = { vectorizeClassName = false, vectorizePropertyName = true}}
