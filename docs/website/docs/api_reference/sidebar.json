@@ -7,14 +7,356 @@
       "label": "__init__",
       "type": "category"
     },
-    "api_reference/configuration",
-    "api_reference/current",
-    "api_reference/dbt",
-    "api_reference/helpers",
-    "api_reference/pipeline",
-    "api_reference/trace",
-    "api_reference/track"
+    {
+      "items": [
+        "api_reference/cli/echo",
+        "api_reference/cli/pipeline_files",
+        "api_reference/cli/requirements"
+      ],
+      "label": "cli",
+      "type": "category"
+    },
+    {
+      "items": [
+        {
+          "items": [
+            {
+              "items": [
+                "api_reference/common/configuration/providers/toml"
+              ],
+              "label": "common.configuration.providers",
+              "type": "category"
+            },
+            {
+              "items": [
+                "api_reference/common/configuration/specs/api_credentials",
+                "api_reference/common/configuration/specs/aws_credentials",
+                "api_reference/common/configuration/specs/azure_credentials",
+                "api_reference/common/configuration/specs/base_configuration",
+                "api_reference/common/configuration/specs/config_providers_context",
+                "api_reference/common/configuration/specs/config_section_context",
+                "api_reference/common/configuration/specs/gcp_credentials",
+                "api_reference/common/configuration/specs/known_sections",
+                "api_reference/common/configuration/specs/run_configuration"
+              ],
+              "label": "common.configuration.specs",
+              "type": "category"
+            },
+            "api_reference/common/configuration/accessors",
+            "api_reference/common/configuration/container",
+            "api_reference/common/configuration/exceptions",
+            "api_reference/common/configuration/inject",
+            "api_reference/common/configuration/paths",
+            "api_reference/common/configuration/resolve",
+            "api_reference/common/configuration/utils"
+          ],
+          "label": "common.configuration",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/common/destination/capabilities",
+            "api_reference/common/destination/reference"
+          ],
+          "label": "common.destination",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/common/json/__init__"
+          ],
+          "label": "common.json",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/common/libs/pydantic"
+          ],
+          "label": "common.libs",
+          "type": "category"
+        },
+        {
+          "items": [
+            {
+              "items": [
+                "api_reference/common/normalizers/json/__init__",
+                "api_reference/common/normalizers/json/relational"
+              ],
+              "label": "common.normalizers.json",
+              "type": "category"
+            },
+            {
+              "items": [
+                "api_reference/common/normalizers/naming/naming"
+              ],
+              "label": "common.normalizers.naming",
+              "type": "category"
+            },
+            "api_reference/common/normalizers/configuration",
+            "api_reference/common/normalizers/typing",
+            "api_reference/common/normalizers/utils"
+          ],
+          "label": "common.normalizers",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/common/reflection/utils"
+          ],
+          "label": "common.reflection",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/common/runners/configuration",
+            "api_reference/common/runners/runnable",
+            "api_reference/common/runners/stdout",
+            "api_reference/common/runners/synth_pickle",
+            "api_reference/common/runners/venv"
+          ],
+          "label": "common.runners",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/common/runtime/collector",
+            "api_reference/common/runtime/exec_info",
+            "api_reference/common/runtime/logger",
+            "api_reference/common/runtime/segment",
+            "api_reference/common/runtime/sentry",
+            "api_reference/common/runtime/signals",
+            "api_reference/common/runtime/slack",
+            "api_reference/common/runtime/telemetry"
+          ],
+          "label": "common.runtime",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/common/schema/schema",
+            "api_reference/common/schema/typing",
+            "api_reference/common/schema/utils"
+          ],
+          "label": "common.schema",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/common/storages/configuration",
+            "api_reference/common/storages/file_storage",
+            "api_reference/common/storages/filesystem",
+            "api_reference/common/storages/load_storage",
+            "api_reference/common/storages/normalize_storage",
+            "api_reference/common/storages/transactional_file"
+          ],
+          "label": "common.storages",
+          "type": "category"
+        },
+        "api_reference/common/exceptions",
+        "api_reference/common/git",
+        "api_reference/common/jsonpath",
+        "api_reference/common/pipeline",
+        "api_reference/common/source",
+        "api_reference/common/time",
+        "api_reference/common/typing",
+        "api_reference/common/utils",
+        "api_reference/common/validation"
+      ],
+      "label": "common",
+      "type": "category"
+    },
+    {
+      "items": [
+        {
+          "items": [
+            "api_reference/destinations/athena/athena",
+            "api_reference/destinations/athena/configuration"
+          ],
+          "label": "destinations.athena",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/destinations/bigquery/bigquery",
+            "api_reference/destinations/bigquery/configuration",
+            "api_reference/destinations/bigquery/sql_client"
+          ],
+          "label": "destinations.bigquery",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/destinations/duckdb/configuration",
+            "api_reference/destinations/duckdb/sql_client"
+          ],
+          "label": "destinations.duckdb",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/destinations/dummy/dummy"
+          ],
+          "label": "destinations.dummy",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/destinations/filesystem/configuration",
+            "api_reference/destinations/filesystem/filesystem"
+          ],
+          "label": "destinations.filesystem",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/destinations/motherduck/configuration"
+          ],
+          "label": "destinations.motherduck",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/destinations/mssql/configuration",
+            "api_reference/destinations/mssql/mssql"
+          ],
+          "label": "destinations.mssql",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/destinations/postgres/configuration"
+          ],
+          "label": "destinations.postgres",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/destinations/redshift/configuration",
+            "api_reference/destinations/redshift/redshift"
+          ],
+          "label": "destinations.redshift",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/destinations/snowflake/configuration",
+            "api_reference/destinations/snowflake/sql_client"
+          ],
+          "label": "destinations.snowflake",
+          "type": "category"
+        },
+        {
+          "items": [
+            "api_reference/destinations/weaviate/configuration",
+            "api_reference/destinations/weaviate/naming",
+            "api_reference/destinations/weaviate/weaviate_adapter",
+            "api_reference/destinations/weaviate/weaviate_client"
+          ],
+          "label": "destinations.weaviate",
+          "type": "category"
+        },
+        "api_reference/destinations/insert_job_client",
+        "api_reference/destinations/job_client_impl",
+        "api_reference/destinations/job_impl",
+        "api_reference/destinations/path_utils",
+        "api_reference/destinations/sql_client",
+        "api_reference/destinations/sql_jobs",
+        "api_reference/destinations/typing"
+      ],
+      "label": "destinations",
+      "type": "category"
+    },
+    {
+      "items": [
+        "api_reference/extract/decorators",
+        "api_reference/extract/incremental",
+        "api_reference/extract/pipe",
+        "api_reference/extract/schema",
+        "api_reference/extract/source",
+        "api_reference/extract/typing",
+        "api_reference/extract/utils"
+      ],
+      "label": "extract",
+      "type": "category"
+    },
+    {
+      "items": [
+        {
+          "items": [
+            "api_reference/helpers/dbt/configuration",
+            "api_reference/helpers/dbt/runner"
+          ],
+          "label": "helpers.dbt",
+          "type": "category"
+        },
+        "api_reference/helpers/airflow_helper",
+        "api_reference/helpers/pandas_helper",
+        "api_reference/helpers/streamlit_helper"
+      ],
+      "label": "helpers",
+      "type": "category"
+    },
+    {
+      "items": [
+        "api_reference/load/configuration",
+        "api_reference/load/load"
+      ],
+      "label": "load",
+      "type": "category"
+    },
+    {
+      "items": [
+        "api_reference/normalize/configuration",
+        "api_reference/normalize/normalize"
+      ],
+      "label": "normalize",
+      "type": "category"
+    },
+    {
+      "items": [
+        "api_reference/pipeline/__init__",
+        "api_reference/pipeline/configuration",
+        "api_reference/pipeline/current",
+        "api_reference/pipeline/dbt",
+        "api_reference/pipeline/helpers",
+        "api_reference/pipeline/pipeline",
+        "api_reference/pipeline/trace",
+        "api_reference/pipeline/track"
+      ],
+      "label": "pipeline",
+      "type": "category"
+    },
+    {
+      "items": [
+        "api_reference/reflection/script_inspector"
+      ],
+      "label": "reflection",
+      "type": "category"
+    },
+    {
+      "items": [
+        {
+          "items": [
+            {
+              "items": [
+                "api_reference/sources/helpers/requests/__init__",
+                "api_reference/sources/helpers/requests/retry",
+                "api_reference/sources/helpers/requests/session"
+              ],
+              "label": "sources.helpers.requests",
+              "type": "category"
+            },
+            "api_reference/sources/helpers/transform"
+          ],
+          "label": "sources.helpers",
+          "type": "category"
+        }
+      ],
+      "label": "sources",
+      "type": "category"
+    },
+    "api_reference/version"
   ],
-  "label": "Reference",
+  "label": "dlt",
   "type": "category"
 }

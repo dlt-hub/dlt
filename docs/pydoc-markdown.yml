@@ -1,6 +1,6 @@
 loaders:
   - type: python
-    search_path: [../dlt/pipeline]
+    search_path: [../dlt]
 processors:
   - type: filter
     skip_empty_modules: true
@@ -12,6 +12,5 @@ renderer:
   relative_output_path: api_reference
   relative_sidebar_path: sidebar.json
   sidebar_top_level_label: dlt
-  sidebar_top_level_module_label: pipeline
   markdown:
     escape_html_in_docstring: false
