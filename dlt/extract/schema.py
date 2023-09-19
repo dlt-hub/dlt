@@ -9,7 +9,7 @@ from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
 
 from dlt.extract.incremental import Incremental
-from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate, ColumnValidator
+from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate, ValidateItem
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, TableNameMissing
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import get_column_validator
@@ -25,7 +25,7 @@ class TTableSchemaTemplate(TypedDict, total=False):
     primary_key: TTableHintTemplate[TColumnNames]
     merge_key: TTableHintTemplate[TColumnNames]
     incremental: Incremental[Any]
-    validator: ColumnValidator
+    validator: ValidateItem
 
 
 class DltResourceSchema:

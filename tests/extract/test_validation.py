@@ -4,7 +4,7 @@ import typing as t
 
 import pytest
 import dlt
-from dlt.extract.typing import ColumnValidator
+from dlt.extract.typing import ValidateItem
 from dlt.common.typing import TDataItems
 from dlt.extract.validation import PydanticValidator
 from dlt.extract.exceptions import ValidationError, ResourceExtractionError
@@ -100,7 +100,7 @@ def test_replace_validator_model(yield_list: bool) -> None:
     steps = resource._pipe.steps
     assert len(steps) == 2
 
-    assert isinstance(steps[-1], ColumnValidator)
+    assert isinstance(steps[-1], ValidateItem)
     assert steps[-1].model is AnotherModel
 
 

@@ -8,13 +8,13 @@ except ModuleNotFoundError:
 from dlt.extract.exceptions import ValidationError
 from dlt.common.typing import TDataItems
 from dlt.common.schema.typing import TAnySchemaColumns
-from dlt.extract.typing import TTableHintTemplate, ColumnValidator
+from dlt.extract.typing import TTableHintTemplate, ValidateItem
 
 
 _TPydanticModel = TypeVar("_TPydanticModel", bound=PydanticBaseModel)
 
 
-class PydanticValidator(ColumnValidator, Generic[_TPydanticModel]):
+class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
     model: Type[_TPydanticModel]
     def __init__(self, model: Type[_TPydanticModel]) -> None:
         self.model = model
@@ -37,7 +37,7 @@ class PydanticValidator(ColumnValidator, Generic[_TPydanticModel]):
             raise ValidationError(e) from e
 
 
-def get_column_validator(columns: TTableHintTemplate[TAnySchemaColumns]) -> Optional[ColumnValidator]:
+def get_column_validator(columns: TTableHintTemplate[TAnySchemaColumns]) -> Optional[ValidateItem]:
     if PydanticBaseModel is not None and isinstance(columns, type) and issubclass(columns, PydanticBaseModel):
         return PydanticValidator(columns)
     return None
