@@ -4,7 +4,7 @@ loaders:
 processors:
   - type: filter
     skip_empty_modules: true
-  - type: docs.website.pydoc_markdown_dlt.DltProcessor
+  - type: pydoc_markdown_dlt.DltProcessor
   - type: crossref
 renderer:
   type: docusaurus
