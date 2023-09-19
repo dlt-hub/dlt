@@ -553,7 +553,6 @@ class DltResourceDict(Dict[str, DltResource]):
 class DltSource(Iterable[TDataItem]):
     """Groups several `dlt resources` under a single schema and allows to perform operations on them.
 
-    ### Summary
     The instance of this class is created whenever you call the `dlt.source` decorated function. It automates several functions for you:
     * You can pass this instance to `dlt` `run` method in order to load all data present in the `dlt resources`.
     * You can select and deselect resources that you want to load via `with_resources` method

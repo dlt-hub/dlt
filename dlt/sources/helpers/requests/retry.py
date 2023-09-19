@@ -116,11 +116,11 @@ def _make_retry(
 class Client:
     """Wrapper for `requests` to create a `Session` with configurable retry functionality.
 
-    ### Summary
+    #### Note:
     Create a  `requests.Session` which automatically retries requests in case of error.
     By default retries are triggered for `5xx` and `429` status codes and when the server is unreachable or drops connection.
 
-    ### Custom retry condition
+    #### Custom retry condition
     You can provide one or more custom predicates for specific retry condition. The predicate is called after every request with the resulting response and/or exception.
     For example, this will trigger a retry when the response text is `error`:
 
@@ -134,7 +134,7 @@ class Client:
 
     The retry is triggered when either any of the predicates or the default conditions based on status code/exception are `True`.
 
-    ### Args:
+    #### Args:
         request_timeout: Timeout for requests in seconds. May be passed as `timedelta` or `float/int` number of seconds.
         max_connections: Max connections per host in the HTTPAdapter pool
         raise_for_status: Whether to raise exception on error status codes (using `response.raise_for_status()`)

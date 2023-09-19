@@ -393,7 +393,7 @@ class Pipeline(SupportsPipeline):
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
-        ### Summary
+        #### Note:
         This method will `extract` the data from the `data` argument, infer the schema, `normalize` the data into a load package (ie. jsonl or PARQUET files representing tables) and then `load` such packages into the `destination`.
 
         The data may be supplied in several forms:
@@ -404,12 +404,12 @@ class Pipeline(SupportsPipeline):
 
         Please note that `dlt` deals with `bytes`, `datetime`, `decimal` and `uuid` objects so you are free to load documents containing ie. binary data or dates.
 
-        ### Execution
+        #### Execution:
         The `run` method will first use `sync_destination` method to synchronize pipeline state and schemas with the destination. You can disable this behavior with `restore_from_destination` configuration option.
         Next it will make sure that data from the previous is fully processed. If not, `run` method normalizes, loads pending data items and **exits**
         If there was no pending data, new data from `data` argument is extracted, normalized and loaded.
 
-        ### Args:
+        #### Args:
             data (Any): Data to be loaded to destination
 
             destination (str | DestinationReference, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
@@ -439,9 +439,9 @@ class Pipeline(SupportsPipeline):
 
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional). The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
 
-        ### Raises:
+        Raises:
             PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
-        ### Returns:
+        Returns:
             LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
         """
         signals.raise_if_signalled()
@@ -475,7 +475,7 @@ class Pipeline(SupportsPipeline):
     def sync_destination(self, destination: TDestinationReferenceArg = None, staging: TDestinationReferenceArg = None, dataset_name: str = None) -> None:
         """Synchronizes pipeline state with the `destination`'s state kept in `dataset_name`
 
-        ### Summary
+        #### Note:
         Attempts to restore pipeline state and schemas from the destination. Requires the state that is present at the destination to have a higher version number that state kept locally in working directory.
         In such a situation the local state, schemas and intermediate files with the data will be deleted and replaced with the state and schema present in the destination.
 

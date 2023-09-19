@@ -81,13 +81,13 @@ def source(
 ) -> Any:
     """A decorator that transforms a function returning one or more `dlt resources` into a `dlt source` in order to load it with `dlt`.
 
-    ### Summary
+    #### Note:
     A `dlt source` is a logical grouping of resources that are often extracted and loaded together. A source is associated with a schema, which describes the structure of the loaded data and provides instructions how to load it.
     Such schema contains table schemas that describe the structure of the data coming from the resources.
 
     Please refer to https://dlthub.com/docs/general-usage/source for a complete documentation.
 
-    ### Passing credentials
+    #### Credentials:
     Another important function of the source decorator is to provide credentials and other configuration to the code that extracts data. The decorator may automatically bind the source function arguments to the secret and config values.
     >>> @dlt.source
     >>> def chess(username, chess_url: str = dlt.config.value, api_secret = dlt.secrets.value, title: str = "GM"):
@@ -98,7 +98,7 @@ def source(
     Here `username` is a required, explicit python argument, `chess_url` is a required argument, that if not explicitly passed will be taken from configuration ie. `config.toml`, `api_secret` is a required argument, that if not explicitly passed will be taken from dlt secrets ie. `secrets.toml`.
     See https://dlthub.com/docs/general-usage/credentials for details.
 
-    ### Args:
+    #### Args:
         func: A function that returns a dlt resource or a list of those or a list of any data items that can be loaded by `dlt`.
 
         name (str, optional): A name of the source which is also the name of the associated schema. If not present, the function name will be used.
@@ -251,14 +251,14 @@ def resource(
 ) -> Any:
     """When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
 
-    ### Summary
+    #### Note:
     A `resource`is a location within a `source` that holds the data with specific structure (schema) or coming from specific origin. A resource may be a rest API endpoint, table in the database or a tab in Google Sheets.
     A `dlt resource` is python representation of a `resource` that combines both data and metadata (table schema) that describes the structure and instructs the loading of the data.
     A `dlt resource` is also an `Iterable` and can used like any other iterable object ie. list or tuple.
 
     Please refer to https://dlthub.com/docs/general-usage/resource for a complete documentation.
 
-    ### Passing credentials
+    #### Credentials:
     If used as a decorator (`data` argument is a `Generator`), it may automatically bind the source function arguments to the secret and config values.
     >>> @dlt.resource
     >>> def user_games(username, chess_url: str = dlt.config.value, api_secret = dlt.secrets.value):
@@ -270,7 +270,7 @@ def resource(
     See https://dlthub.com/docs/general-usage/credentials for details.
     Note that if decorated function is an inner function, passing of the credentials will be disabled.
 
-    ### Args:
+    #### Args:
         data (Callable | Any, optional): a function to be decorated or a data compatible with `dlt` `run`.
 
         name (str, optional): A name of the resource that by default also becomes the name of the table to which the data is loaded.
@@ -297,7 +297,7 @@ def resource(
 
         depends_on (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
 
-    ### Raises
+    Raises:
         ResourceNameMissing: indicates that name of the resource cannot be inferred from the `data` being passed.
         InvalidResourceDataType: indicates that the `data` argument cannot be converted into `dlt resource`
 
@@ -428,7 +428,7 @@ def transformer(  # type: ignore
     You can bind the transformer early by specifying resource in `data_from` when the transformer is created or create dynamic bindings later with | operator
     which is demonstrated in example below:
 
-    ### Example
+    Example:
     >>> @dlt.resource
     >>> def players(title, chess_url=dlt.config.value):
     >>>     r = requests.get(f"{chess_url}titled/{title}")
@@ -444,7 +444,7 @@ def transformer(  # type: ignore
     >>> # pipes the data from players into player profile to produce a list of player profiles
     >>> list(players("GM") | player_profile)
 
-    ### Args:
+    Args:
         f: (Callable): a function taking minimum one argument of TDataItems type which will receive data yielded from `data_from` resource.
 
         data_from (Callable | Any, optional): a resource that will send data to the decorated function `f`
