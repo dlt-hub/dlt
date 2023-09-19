@@ -48,7 +48,7 @@ Between each slash, you'll find identifiers for the base, table, and view:
 
 - View IDs start with "viw", currently set to "viw3qtF76bRQC3wKx".
 
-- Record ID start with "rec" ,currently set to "rec9khXgeTotgCQ62".
+- Record IDs start with "rec", currently set to "rec9khXgeTotgCQ62".
 
   ![Airtable IDs](docs_images/Airtable_ids.jpeg)
 
@@ -166,6 +166,8 @@ def airtable_resource(
 
 `table`: Airtable metadata, excluding actual records.
 
+## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this
@@ -177,7 +179,7 @@ verified source.
    pipeline = dlt.pipeline(
         pipeline_name="airtable",  # Use a custom name if desired
         destination="duckdb",      # Choose the appropriate destination (e.g., duckdb, redshift, post)
-        dataset_name="google_spreadsheet_data"  # Use a custom name if desired
+        dataset_name="airtable_data"  # Use a custom name if desired
    )
    ```
 
@@ -203,8 +205,8 @@ verified source.
    load_info = pipeline.run(airtables, write_deposition = "replace")
    ```
 
-   > You have option to use table names or table IDs in the code above, in place of "Table1" and
-   > "Table2"s.
+   > You have the option to use table names or table IDs in the code above, in place of "Table1" and
+   > "Table2".
 
 1. To load data and apply hints to a specific column:
 
@@ -213,6 +215,7 @@ verified source.
    table_names = ["Table1","Table2"]   # A list of table IDs or table names to load.
    resource_name = "Please set me up!" # The table name we want to apply hints.
    field_name = "Please set me up!"    # The table field name for which we want to apply hints.
+
    airtables = airtable_source(
         base_id="Please set me up!",
         table_names=["Table1","Table2"],
@@ -225,5 +228,3 @@ verified source.
    load_info = pipeline.run(airtables, write_disposition="replace")
    print(load_info)
    ```
-
-   > You can also choose "write_disposition" as "merge" using field name.
