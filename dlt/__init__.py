@@ -21,16 +21,17 @@ Or start with our pipeline template with sample PokeAPI (pokeapi.co) data loaded
 For more detailed info, see https://dlthub.com/docs/getting-started
 """
 
-from dlt import sources
+from dlt.version import __version__
 from dlt.common.configuration.accessors import config, secrets
+from dlt.common.typing import TSecretValue as _TSecretValue
 from dlt.common.configuration.specs import CredentialsConfiguration as _CredentialsConfiguration
 from dlt.common.pipeline import source_state as state
 from dlt.common.schema import Schema
-from dlt.common.typing import TSecretValue as _TSecretValue
+
+from dlt import sources
 from dlt.extract.decorators import source, resource, transformer, defer
 from dlt.pipeline import pipeline as _pipeline, run, attach, Pipeline, dbt, current as _current, mark as _mark
 from dlt.pipeline import progress
-from dlt.version import __version__
 
 pipeline = _pipeline
 current = _current
