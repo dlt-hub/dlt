@@ -23,10 +23,10 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_loader_file_formats = ["insert_values"]
     #caps.preferred_loader_file_format = "batch_copy"
     #caps.supported_loader_file_formats = ["batch_copy"]
-    #caps.preferred_staging_file_format = None
-    #caps.supported_staging_file_formats = []
-    caps.preferred_staging_file_format = "blob_storage"
-    caps.supported_staging_file_formats = ["blob_storage","parquet"]
+    caps.preferred_staging_file_format = None
+    caps.supported_staging_file_formats = []
+    #caps.preferred_staging_file_format = "blob_storage"
+    #caps.supported_staging_file_formats = ["blob_storage","parquet"]
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_mssql_literal
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
