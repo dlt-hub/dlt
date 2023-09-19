@@ -57,7 +57,7 @@ A dictionary representation of PipelineStepTrace that can be loaded with `dlt`
 class PipelineTrace()
 ```
 
-Pipeline runtime trace containing data on &quot;extract&quot;, &quot;normalize&quot; and &quot;load&quot; steps and resolved config and secret values.
+Pipeline runtime trace containing data on "extract", "normalize" and "load" steps and resolved config and secret values.
 
 #### steps
 

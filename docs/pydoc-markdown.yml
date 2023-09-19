@@ -12,4 +12,6 @@ renderer:
   relative_output_path: api_reference
   relative_sidebar_path: sidebar.json
   sidebar_top_level_label: dlt
-  sidebar_top_level_module_label: null
+  sidebar_top_level_module_label: pipeline
+  markdown:
+    escape_html_in_docstring: false

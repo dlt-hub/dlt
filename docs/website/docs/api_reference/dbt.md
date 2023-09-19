@@ -22,8 +22,8 @@ as required by `pipeline`.
 
 - `pipeline` _Pipeline_ - A pipeline for which the required dbt dependencies are inferred
 - `venv_path` _str, optional_ - A path where virtual environment is created or restored from.
-  If relative path is provided, the environment will be created within pipeline&#x27;s working directory. Defaults to &quot;dbt&quot;.
-- `dbt_version` _str, optional_ - Version of dbt to be used. Exact version (ie. &quot;1.2.4&quot;) or pip requirements string (ie. &quot;&gt;=1.1&lt;1.5&quot; may be provided).
+  If relative path is provided, the environment will be created within pipeline's working directory. Defaults to "dbt".
+- `dbt_version` _str, optional_ - Version of dbt to be used. Exact version (ie. "1.2.4") or pip requirements string (ie. ">=1.1<1.5" may be provided).
   
 
 **Returns**:
@@ -54,14 +54,14 @@ The wrapper creates a `dbt` profile from `dlt` pipeline configuration. Specifica
 
 - `pipeline` _Pipeline_ - A pipeline containing destination, credentials and dataset_name used to configure the dbt package.
 - `package_location` _str_ - A git repository url to be cloned or a local path where dbt package is present
-- `dbt`0 _str, optional_ - A branch name, tag name or commit-id to check out. Defaults to None.
-- `dbt`1 _TSecretValue, optional_ - SSH key to be used to clone private repositories. Defaults to TSecretValue(&quot;&quot;).
-- `dbt`2 _bool, optional_ - If set to True (default), the wrapper will automatically fall back to full-refresh mode when schema is out of sync
-- `dbt`3 - https://docs.getdbt.com/docs/build/incremental-models#what-if-the-columns-of-my-incremental-model-change
+- `package_repository_branch` _str, optional_ - A branch name, tag name or commit-id to check out. Defaults to None.
+- `package_repository_ssh_key` _TSecretValue, optional_ - SSH key to be used to clone private repositories. Defaults to TSecretValue("").
+- `auto_full_refresh_when_out_of_sync` _bool, optional_ - If set to True (default), the wrapper will automatically fall back to full-refresh mode when schema is out of sync
+- `See` - https://docs.getdbt.com/docs/build/incremental-models#what-if-the-columns-of-my-incremental-model-change
 - `venv` _Venv, optional_ - A virtual environment with required dbt dependencies. Defaults to None which will execute dbt package in current environment.
   
 
 **Returns**:
 
-- `dbt`5 - A configured and authenticated Python `dbt` wrapper
+- `DBTPackageRunner` - A configured and authenticated Python `dbt` wrapper
 
