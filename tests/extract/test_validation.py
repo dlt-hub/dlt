@@ -5,6 +5,7 @@ import typing as t
 import pytest
 import dlt
 from dlt.common.schema.typing import ColumnValidator
+from dlt.common.typing import TDataItems
 from dlt.extract.validation import PydanticValidator
 from dlt.extract.exceptions import ValidationError, ResourceExtractionError
 
@@ -16,26 +17,33 @@ class SimpleModel(BaseModel):
     b: str
 
 
-def test_validator_model_in_decorator() -> None:
+@pytest.mark.parametrize("yield_list", [True, False])
+def test_validator_model_in_decorator(yield_list: bool) -> None:
     # model passed in decorator
     @dlt.resource(columns=SimpleModel)
-    def some_data() -> t.Iterator[t.Dict[str, t.Any]]:
-        yield {"a": 1, "b": "2"}
-        yield {"a": 2, "b": "3"}
+    def some_data() -> t.Iterator[TDataItems]:
+        items = [{"a": 1, "b": "2"}, {"a": 2, "b": "3"}]
+        if yield_list:
+            yield items
+        else:
+            yield from items
 
     # Items are passed through model
     data = list(some_data())
     assert data == [SimpleModel(a=1, b="2"), SimpleModel(a=2, b="3")]
 
 
-
-def test_validator_model_in_apply_hints() -> None:
+@pytest.mark.parametrize("yield_list", [True, False])
+def test_validator_model_in_apply_hints(yield_list: bool) -> None:
     # model passed in apply_hints
 
     @dlt.resource
-    def some_data() -> t.Iterator[t.Dict[str, t.Any]]:
-        yield {"a": 1, "b": "2"}
-        yield {"a": 2, "b": "3"}
+    def some_data() -> t.Iterator[TDataItems]:
+        items = [{"a": 1, "b": "2"}, {"a": 2, "b": "3"}]
+        if yield_list:
+            yield items
+        else:
+            yield from items
 
     resource = some_data()
     resource.apply_hints(columns=SimpleModel)
@@ -45,12 +53,16 @@ def test_validator_model_in_apply_hints() -> None:
     assert data == [SimpleModel(a=1, b="2"), SimpleModel(a=2, b="3")]
 
 
-def test_remove_validator() -> None:
+@pytest.mark.parametrize("yield_list", [True, False])
+def test_remove_validator(yield_list: bool) -> None:
 
     @dlt.resource(columns=SimpleModel)
-    def some_data() -> t.Iterator[t.Dict[str, t.Any]]:
-        yield {"a": 1, "b": "2"}
-        yield {"a": 2, "b": "3"}
+    def some_data() -> t.Iterator[TDataItems]:
+        items = [{"a": 1, "b": "2"}, {"a": 2, "b": "3"}]
+        if yield_list:
+            yield items
+        else:
+            yield from items
 
     resource = some_data()
     resource.validator = None
@@ -59,12 +71,16 @@ def test_remove_validator() -> None:
     assert data == [{"a": 1, "b": "2"}, {"a": 2, "b": "3"}]
 
 
-def test_replace_validator_model() -> None:
+@pytest.mark.parametrize("yield_list", [True, False])
+def test_replace_validator_model(yield_list: bool) -> None:
 
     @dlt.resource(columns=SimpleModel)
-    def some_data() -> t.Iterator[t.Dict[str, t.Any]]:
-        yield {"a": 1, "b": "2"}
-        yield {"a": 2, "b": "3"}
+    def some_data() -> t.Iterator[TDataItems]:
+        items = [{"a": 1, "b": "2"}, {"a": 2, "b": "3"}]
+        if yield_list:
+            yield items
+        else:
+            yield from items
 
     resource = some_data()
 
@@ -88,11 +104,16 @@ def test_replace_validator_model() -> None:
     assert steps[-1].model is AnotherModel
 
 
-def test_validator_property_setter() -> None:
+@pytest.mark.parametrize("yield_list", [True, False])
+def test_validator_property_setter(yield_list: bool) -> None:
+
     @dlt.resource(columns=SimpleModel)
-    def some_data() -> t.Iterator[t.Dict[str, t.Any]]:
-        yield {"a": 1, "b": "2"}
-        yield {"a": 2, "b": "3"}
+    def some_data() -> t.Iterator[TDataItems]:
+        items = [{"a": 1, "b": "2"}, {"a": 2, "b": "3"}]
+        if yield_list:
+            yield items
+        else:
+            yield from items
 
     resource = some_data()
 
@@ -112,12 +133,16 @@ def test_validator_property_setter() -> None:
     assert data == [AnotherModel(a=1, b="2", c=0.5), AnotherModel(a=2, b="3", c=0.5)]
 
 
-def test_failed_validation() -> None:
+@pytest.mark.parametrize("yield_list", [True, False])
+def test_failed_validation(yield_list: bool) -> None:
     @dlt.resource(columns=SimpleModel)
-    def some_data() -> t.Iterator[t.Dict[str, t.Any]]:
-        yield {"a": 1, "b": "z"}
+    def some_data() -> t.Iterator[TDataItems]:
         # yield item that fails schema validation
-        yield {"a": "not_int", "b": "x"}
+        items = [{"a": 1, "b": "z"}, {"a": "not_int", "b": "x"}]
+        if yield_list:
+            yield items
+        else:
+            yield from items
 
     # extraction fails with ValidationError
     with pytest.raises(ResourceExtractionError) as exinfo:
