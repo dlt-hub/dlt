@@ -101,7 +101,7 @@ def test_replace_validator_model(yield_list: bool) -> None:
     assert len(steps) == 2
 
     assert isinstance(steps[-1], ValidateItem)
-    assert steps[-1].model is AnotherModel
+    assert steps[-1].model is AnotherModel  # type: ignore[attr-defined]
 
 
 @pytest.mark.parametrize("yield_list", [True, False])
@@ -149,3 +149,4 @@ def test_failed_validation(yield_list: bool) -> None:
         list(some_data())
 
     assert isinstance(exinfo.value.__cause__, ValidationError)
+    assert str(PydanticValidator(SimpleModel)) in str(exinfo.value)

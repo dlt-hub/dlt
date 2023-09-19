@@ -34,7 +34,10 @@ class PydanticValidator(ValidateItem, Generic[_TPydanticModel]):
                 return self.list_model(items=item).items  # type: ignore[attr-defined, no-any-return]
             return self.model.parse_obj(item)
         except PydanticValidationError as e:
-            raise ValidationError(e) from e
+            raise ValidationError(self, item, e) from e
+
+    def __str__(self, *args: Any, **kwargs: Any) -> str:
+        return f"PydanticValidator(model={self.model.__qualname__})"
 
 
 def get_column_validator(columns: TTableHintTemplate[TAnySchemaColumns]) -> Optional[ValidateItem]:

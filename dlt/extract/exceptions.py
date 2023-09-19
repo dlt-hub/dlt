@@ -3,6 +3,7 @@ from typing import Any, Set, Type
 
 from dlt.common.exceptions import DltException
 from dlt.common.utils import get_callable_name
+from dlt.extract.typing import ValidateItem, TDataItems
 
 
 class ExtractorException(DltException):
@@ -262,6 +263,8 @@ class IncrementalUnboundError(DltResourceException):
 
 
 class ValidationError(ValueError, DltException):
-    def __init__(self, original_exception: Exception) ->None:
+    def __init__(self, validator: ValidateItem, data_item: TDataItems, original_exception: Exception) ->None:
         self.original_exception = original_exception
-        super().__init__(f"Schema validation failed: {original_exception}")
+        self.validator = validator
+        self.data_item = data_item
+        super().__init__(f"Extracted data item could not be validated with {validator}. Original message: {original_exception}")
