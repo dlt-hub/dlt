@@ -16,13 +16,15 @@ loads data using “Airtable API” to the destination of your choice.
 Sources and resources that can be loaded using this verified source are:
 
 | Name              | Description                                |
-| ----------------- | ------------------------------------------ |
-| airtable_source   | Retrieves tables from an airtable base     |
-| airtable_resource | Retrives data from a single airtable table |
+| ----------------- |--------------------------------------------|
+| airtable_source   | Retrieves tables from an Airtable base     |
+| airtable_resource | Retrives data from a single Airtable table |
 
 ## Setup Guide
 
 ### Grab Airtable personal access tokens
+
+
 
 1. Click your account icon top-right.
 1. Choose "Developer Hub" from the dropdown.
@@ -32,6 +34,9 @@ Sources and resources that can be loaded using this verified source are:
 1. Add a base to specify the desired base for data access.
 1. Hit "Create token" and save the displayed token securely for credential use.
 
+Note: The Airtable UI, which is described here, might change.
+The full guide is available at [this link.](https://airtable.com/developers/web/guides/personal-access-tokens)
+
 ### Grab Airtable IDs
 
 Upon logging into Airtable, you'll notice a URL in your browser's address bar resembling:
@@ -40,8 +45,8 @@ Upon logging into Airtable, you'll notice a URL in your browser's address bar re
 https://airtable.com/appve10kl227BIT4GV/tblOUnZVLFWbemTP1/viw3qtF76bRQC3wKx/rec9khXgeTotgCQ62?blocks=hide
 ```
 
-Between each slash, you'll find identifiers for the base, table, and view:
-
+Between each slash, you'll find identifiers for the base, table, and view
+as explained in [this documentation on finding Airtable IDs](https://support.airtable.com/docs/finding-airtable-ids):
 - Base IDs start with "app", currently set to "appve10kl227BIT4GV".
 
 - Table IDs start with "tbl", currently set to "tblOUnZVLFWbemTP1".
@@ -79,13 +84,14 @@ For more information, read the
 ### Add credentials
 
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
-   information securely, like access tokens. Keep this file safe. Here's its format for service
-   account authentication:
+   information securely, like access tokens. Keep this file safe.
 
-   ```toml
-   [sources.airtable]
-   access_token = "Please set me up!" # please set me up!
-   ```
+   Use the following format for service account authentication:
+
+      ```toml
+      [sources.airtable]
+      access_token = "Please set me up!" # please set me up!
+      ```
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
@@ -134,7 +140,7 @@ For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/
 
 ### Source `airtable_source`
 
-This function retrives tables from given airtable base.
+This function retrieves tables from given Airtable base.
 
 ```python
 @dlt.source
@@ -154,7 +160,7 @@ tables in the schema are loaded.
 
 ### Resource `airtable_resource`
 
-This function retrives data from a single Airtable table.
+This function retrieves data from a single Airtable table.
 
 ```python
 def airtable_resource(
