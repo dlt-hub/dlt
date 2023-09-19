@@ -3,6 +3,7 @@ from typing import Any, Set, Type
 
 from dlt.common.exceptions import DltException
 from dlt.common.utils import get_callable_name
+from dlt.extract.typing import ValidateItem, TDataItems
 
 
 class ExtractorException(DltException):
@@ -259,3 +260,11 @@ class ExplicitSourceNameInvalid(DltSourceException):
 class IncrementalUnboundError(DltResourceException):
     def __init__(self, cursor_path: str) -> None:
         super().__init__("", f"The incremental definition with cursor path {cursor_path} is used without being bound to the resource. This most often happens when you create dynamic resource from a generator function that uses incremental. See https://dlthub.com/docs/general-usage/incremental-loading#incremental-loading-with-last-value for an example.")
+
+
+class ValidationError(ValueError, DltException):
+    def __init__(self, validator: ValidateItem, data_item: TDataItems, original_exception: Exception) ->None:
+        self.original_exception = original_exception
+        self.validator = validator
+        self.data_item = data_item
+        super().__init__(f"Extracted data item could not be validated with {validator}. Original message: {original_exception}")

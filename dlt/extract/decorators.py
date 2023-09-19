@@ -282,8 +282,10 @@ def resource(
         write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
-        This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+        columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas.
+            Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
+            This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
+            When the argument is a pydantic model, the model will be used to validate the data yielded by the resource as well.
 
         primary_key (str | Sequence[str]): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
@@ -305,13 +307,12 @@ def resource(
         DltResource instance which may be loaded, iterated or combined with other resources into a pipeline.
     """
     def make_resource(_name: str, _section: str, _data: Any, incremental: IncrementalResourceWrapper = None) -> DltResource:
-        schema_columns = ensure_table_schema_columns_hint(columns) if columns is not None else None
         table_template = DltResource.new_table_template(
             table_name or _name,
             write_disposition=write_disposition,
-            columns=schema_columns,
+            columns=columns,
             primary_key=primary_key,
-            merge_key=merge_key
+            merge_key=merge_key,
         )
         return DltResource.from_data(_data, _name, _section, table_template, selected, cast(DltResource, depends_on), incremental=incremental)
 

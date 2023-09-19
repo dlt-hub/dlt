@@ -143,7 +143,7 @@ class Pipe(SupportsPipe):
 
     def find(self, *step_type: AnyType) -> int:
         """Finds a step with object of type `step_type`"""
-        return next((i for i,v in enumerate(self._steps) if type(v) in step_type), -1)
+        return next((i for i,v in enumerate(self._steps) if isinstance(v, step_type)), -1)
 
     def __getitem__(self, i: int) -> TPipeStep:
         return self._steps[i]

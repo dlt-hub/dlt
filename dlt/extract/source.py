@@ -3,7 +3,7 @@ import contextlib
 from copy import copy
 import makefun
 import inspect
-from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, ContextManager, Dict, Iterable, Iterator, List, Sequence, Tuple, Union, Any
+from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, ContextManager, Dict, Iterable, Iterator, List, Sequence, Tuple, Union, Any, Optional
 import types
 
 from dlt.common.configuration.resolve import inject_section
@@ -17,7 +17,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, resource_state, source_state, pipeline_state
 from dlt.common.utils import graph_find_scc_nodes, flatten_list_or_items, get_callable_name, graph_edges_to_nodes, multi_context_manager, uniq_id
 
-from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TDecompositionStrategy, TableNameMeta, FilterItem, MapItem, YieldMapItem
+from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TDecompositionStrategy, TableNameMeta, FilterItem, MapItem, YieldMapItem, ValidateItem
 from dlt.extract.pipe import Pipe, ManagedPipeIterator, TPipeStep
 from dlt.extract.schema import DltResourceSchema, TTableSchemaTemplate
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
@@ -134,6 +134,24 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         if step_no >= 0:
             incremental = self._pipe.steps[step_no]  # type: ignore
         return incremental
+
+    @property
+    def validator(self) -> Optional[ValidateItem]:
+        """Gets validator transform if it is in the pipe"""
+        validator: ValidateItem = None
+        step_no = self._pipe.find(ValidateItem)
+        if step_no >= 0:
+            validator = self._pipe.steps[step_no]  # type: ignore[assignment]
+        return validator
+
+    @validator.setter
+    def validator(self, validator: Optional[ValidateItem]) -> None:
+        """Add/remove or replace the validator in pipe"""
+        step_no = self._pipe.find(ValidateItem)
+        if step_no >= 0:
+            self._pipe.remove_step(step_no)
+        if validator:
+            self.add_step(validator, insert_at=step_no if step_no >= 0 else None)
 
     def pipe_data_from(self, data_from: Union["DltResource", Pipe]) -> None:
         """Replaces the parent in the transformer resource pipe from which the data is piped."""
@@ -272,6 +290,9 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             primary_key = table_schema_template.get("primary_key", incremental.primary_key)
             if primary_key is not None:
                 incremental.primary_key = primary_key
+
+        if table_schema_template.get('validator') is not None:
+            self.validator = table_schema_template['validator']
 
     def bind(self, *args: Any, **kwargs: Any) -> "DltResource":
         """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""
