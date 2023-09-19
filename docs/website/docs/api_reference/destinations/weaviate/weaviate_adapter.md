@@ -56,5 +56,5 @@ https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules
 
   >>> data = [{"name": "Alice", "description": "Software developer"}]
   >>> weaviate_adapter(data, vectorize="description", tokenization={"description": "word"})
-  <DltResource with hints applied>
+  [DltResource with hints applied]
 
