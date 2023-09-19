@@ -11,6 +11,8 @@ def configspec(
 ) -> Union[Type[TAnyClass], Callable[[Type[TAnyClass]], Type[TAnyClass]]]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L94)
+
 Converts (via derivation) any decorated class to a Python dataclass that may be used as a spec to resolve configurations
 
 In comparison the Python dataclass, a spec implements full dictionary interface for its attributes, allows instance creation from ie. strings
@@ -23,6 +25,8 @@ more information.
 @configspec
 class BaseConfiguration(MutableMapping[str, Any])
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L170)
 
 #### \_\_is\_resolved\_\_
 
@@ -50,6 +54,8 @@ Typing for dataclass fields
 def parse_native_representation(native_value: Any) -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L185)
+
 Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
 or credentials, for example database connection string or JSON serialized GCP service credentials file.
 
@@ -66,6 +72,8 @@ native_value (Any): A native representation of the configuration
 ```python
 def to_native_representation() -> Any
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L198)
 
 Represents the configuration instance in its native form ie. database connection string or JSON serialized GCP service credentials file.
 
@@ -85,6 +93,8 @@ Represents the configuration instance in its native form ie. database connection
 def get_resolvable_fields(cls) -> Dict[str, type]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L219)
+
 Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned
 
 #### is\_partial
@@ -92,6 +102,8 @@ Returns a mapping of fields to their type hints. Dunders should not be resolved 
 ```python
 def is_partial() -> bool
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L226)
 
 Returns True when any required resolvable field has its value missing.
 
@@ -101,6 +113,8 @@ Returns True when any required resolvable field has its value missing.
 def copy() -> _T
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L239)
+
 Returns a deep copy of the configuration instance
 
 #### \_\_iter\_\_
@@ -108,6 +122,8 @@ Returns a deep copy of the configuration instance
 ```python
 def __iter__() -> Iterator[str]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L266)
 
 Iterator or valid key names
 
@@ -118,6 +134,8 @@ Iterator or valid key names
 class CredentialsConfiguration(BaseConfiguration)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L307)
+
 Base class for all credentials. Credentials are configurations that may be stored only by providers supporting secrets.
 
 #### \_\_init\_\_
@@ -125,6 +143,8 @@ Base class for all credentials. Credentials are configurations that may be store
 ```python
 def __init__(init_value: Any = None) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L312)
 
 Initializes credentials from `init_value`
 
@@ -140,6 +160,8 @@ Credentials will be marked as resolved if all required fields are set.
 def to_native_credentials() -> Any
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L330)
+
 Returns native credentials object.
 
 By default calls `to_native_representation` method.
@@ -150,6 +172,8 @@ By default calls `to_native_representation` method.
 def __str__() -> str
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L337)
+
 Get string representation of credentials to be displayed, with all secret parts removed
 
 ## CredentialsWithDefault Objects
@@ -157,6 +181,8 @@ Get string representation of credentials to be displayed, with all secret parts 
 ```python
 class CredentialsWithDefault()
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L342)
 
 A mixin for credentials that can be instantiated from default ie. from well known env variable with credentials
 
@@ -166,6 +192,8 @@ A mixin for credentials that can be instantiated from default ie. from well know
 @configspec
 class ContainerInjectableContext(BaseConfiguration)
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L358)
 
 Base class for all configurations that may be injected from a Container. Injectable configuration is called a context
 
@@ -178,6 +206,8 @@ If True, `Container` is allowed to create default context instance, if none exis
 ```python
 def add_extras() -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/base_configuration.py#L364)
 
 Called right after context was added to the container. Benefits mostly the config provider injection context which adds extra providers using the initial ones.
 

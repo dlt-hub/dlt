@@ -9,6 +9,8 @@ title: helpers.airflow_helper
 class PipelineTasksGroup(TaskGroup)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/helpers/airflow_helper.py#L39)
+
 Represents a DLT Airflow pipeline task group.
 
 #### \_\_init\_\_
@@ -29,6 +31,8 @@ def __init__(pipeline_name: str,
              save_trace_info: bool = False,
              **kwargs: Any) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/helpers/airflow_helper.py#L44)
 
 Creates a task group to which you can add pipeline runs
 
@@ -75,6 +79,8 @@ def add_run(pipeline: Pipeline,
             **kwargs: Any) -> List[PythonOperator]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/helpers/airflow_helper.py#L124)
+
 Creates a task or a group of tasks to run `data` with `pipeline`
 
 Creates an Airflow task that extracts, normalizes and loads `data` with the passed pipeline instance `pipeline`. If `data` is a source
@@ -102,6 +108,8 @@ The `kwargs` are passed as arguments to all Airflow task instances created.
 ```python
 def add_fun(f: Callable[..., Any], **kwargs: Any) -> Any
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/helpers/airflow_helper.py#L257)
 
 Will execute a function `f` inside an Airflow task. It is up to the function to create pipeline and source(s)
 

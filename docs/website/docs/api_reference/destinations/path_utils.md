@@ -10,6 +10,8 @@ def create_path(layout: str, schema_name: str, table_name: str, load_id: str,
                 file_id: str, ext: str) -> str
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/destinations/path_utils.py#L35)
+
 create a filepath from the layout and our default params
 
 #### get\_table\_prefix\_layout
@@ -21,6 +23,8 @@ def get_table_prefix_layout(
         str] = SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS
 ) -> str
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/destinations/path_utils.py#L52)
 
 get layout fragment that defines positions of the table, cutting other placeholders
 

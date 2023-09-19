@@ -9,12 +9,16 @@ title: common.runners.runnable
 class Runnable(ABC, Generic[TPool])
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runners/runnable.py#L13)
+
 #### \_\_new\_\_
 
 ```python
 def __new__(cls: Type["Runnable[TPool]"], *args: Any,
             **kwargs: Any) -> "Runnable[TPool]"
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runners/runnable.py#L22)
 
 Registers Runnable instance as running for a time when context is active.
 Used with `~workermethod` decorator to pass a class instance to decorator function that must be static thus avoiding pickling such instance.
@@ -33,6 +37,8 @@ Used with `~workermethod` decorator to pass a class instance to decorator functi
 ```python
 def workermethod(f: TFun) -> TFun
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runners/runnable.py#L41)
 
 Decorator to be used on static method of Runnable to make it behave like instance method.
 Expects that first parameter to decorated function is an instance `id` of Runnable that gets translated into Runnable instance.

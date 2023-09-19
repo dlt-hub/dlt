@@ -14,3 +14,10 @@ renderer:
   sidebar_top_level_label: dlt
   markdown:
     escape_html_in_docstring: false
+    classdef_with_decorators: true
+    signature_with_decorators: true
+    format_code: true
+    source_linker:
+      type: github
+      repo: dlt-hub/dlt
+      root: ..

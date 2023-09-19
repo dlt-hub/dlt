@@ -10,6 +10,8 @@ title: extract.incremental
 class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue])
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/incremental.py#L52)
+
 Adds incremental extraction for a resource by storing a cursor value in persistent state.
 
 The cursor could for example be a timestamp for when the record was created and you can use this to load only
@@ -55,6 +57,8 @@ def from_existing_state(cls, resource_name: str,
                         cursor_path: str) -> "Incremental[TCursorValue]"
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/incremental.py#L126)
+
 Create Incremental instance from existing state.
 
 #### merge
@@ -62,6 +66,8 @@ Create Incremental instance from existing state.
 ```python
 def merge(other: "Incremental[TCursorValue]") -> "Incremental[TCursorValue]"
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/incremental.py#L145)
 
 Create a new incremental instance which merges the two instances.
 Only properties which are not `None` from `other` override the current instance properties.
@@ -78,6 +84,8 @@ This supports use cases with partial overrides, such as:
 def get_state() -> IncrementalColumnState
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/incremental.py#L200)
+
 Returns an Incremental state for a particular cursor column
 
 #### get\_incremental\_value\_type
@@ -85,6 +93,8 @@ Returns an Incremental state for a particular cursor column
 ```python
 def get_incremental_value_type() -> Type[Any]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/incremental.py#L304)
 
 Infers the type of incremental value from a class of an instance if those preserve the Generic arguments information.
 
@@ -94,6 +104,8 @@ Infers the type of incremental value from a class of an instance if those preser
 def bind(pipe: SupportsPipe) -> "Incremental[TCursorValue]"
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/incremental.py#L360)
+
 Called by pipe just before evaluation
 
 ## IncrementalResourceWrapper Objects
@@ -101,6 +113,8 @@ Called by pipe just before evaluation
 ```python
 class IncrementalResourceWrapper(FilterItem)
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/incremental.py#L380)
 
 #### \_\_init\_\_
 
@@ -110,6 +124,8 @@ def __init__(
         primary_key: Optional[TTableHintTemplate[TColumnNames]] = None
 ) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/incremental.py#L384)
 
 Creates a wrapper over a resource function that accepts Incremental instance in its argument to perform incremental loading.
 
@@ -128,6 +144,8 @@ Note that wrapper implements `FilterItem` transform interface and functions as a
 def wrap(sig: inspect.Signature, func: TFun) -> TFun
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/incremental.py#L415)
+
 Wrap the callable to inject an `Incremental` object configured for the resource.
 
 #### allow\_external\_schedulers
@@ -136,6 +154,8 @@ Wrap the callable to inject an `Incremental` object configured for the resource.
 @property
 def allow_external_schedulers() -> bool
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/incremental.py#L466)
 
 Allows the Incremental instance to get its initial and end values from external schedulers like Airflow
 

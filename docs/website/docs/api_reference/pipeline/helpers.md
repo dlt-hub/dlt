@@ -10,6 +10,8 @@ def retry_load(retry_on_pipeline_steps: Sequence[TPipelineStep] = (
     "load", )) -> Callable[[BaseException], bool]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/helpers.py#L19)
+
 A retry strategy for Tenacity that, with default setting, will repeat `load` step for all exceptions that are not terminal
 
 Use this condition with tenacity `retry_if_exception`. Terminal exceptions are exceptions that will not go away when operations is repeated.

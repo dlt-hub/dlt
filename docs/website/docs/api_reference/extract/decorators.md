@@ -10,6 +10,8 @@ title: extract.decorators
 class SourceSchemaInjectableContext(ContainerInjectableContext)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/decorators.py#L32)
+
 A context containing the source schema, present when decorated function is executed
 
 #### source
@@ -23,6 +25,8 @@ def source(func: Optional[AnyFun] = None,
            schema: Schema = None,
            spec: Type[BaseConfiguration] = None) -> Any
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/decorators.py#L72)
 
 A decorator that transforms a function returning one or more `dlt resources` into a `dlt source` in order to load it with `dlt`.
 
@@ -76,6 +80,8 @@ def resource(data: Optional[Any] = None,
              spec: Type[BaseConfiguration] = None,
              depends_on: TUnboundDltResource = None) -> Any
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/decorators.py#L239)
 
 When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
 
@@ -152,6 +158,8 @@ def transformer(
               Callable[TResourceFunParams, DltResource]]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/decorators.py#L409)
+
 A form of `dlt resource` that takes input from other resources via `data_from` argument in order to enrich or transform the data.
 
 The decorated function `f` must take at least one argument of type TDataItems (a single item or list of items depending on the resource `data_from`). `dlt` will pass
@@ -209,6 +217,8 @@ spec (Type[BaseConfiguration], optional): A specification of configuration and s
 ```python
 def get_source_schema() -> Schema
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/decorators.py#L513)
 
 When executed from the function decorated with @dlt.source, returns a writable source Schema
 

@@ -9,6 +9,8 @@ title: helpers.streamlit_helper
 def write_load_status_page(pipeline: Pipeline) -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/helpers/streamlit_helper.py#L96)
+
 Display pipeline loading information. Will be moved to dlt package once tested
 
 #### write\_data\_explorer\_page
@@ -20,6 +22,8 @@ def write_data_explorer_page(pipeline: Pipeline,
                              example_query: str = "",
                              show_charts: bool = True) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/helpers/streamlit_helper.py#L205)
 
 Writes Streamlit app page with a schema and live data preview.
 

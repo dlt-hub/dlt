@@ -9,6 +9,8 @@ title: common.storages.filesystem
 class FileItem(TypedDict)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/filesystem.py#L16)
+
 A DataItem representing a file
 
 #### filesystem
@@ -20,6 +22,8 @@ def filesystem(
 ) -> Tuple[AbstractFileSystem, str]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/filesystem.py#L41)
+
 Instantiates an authenticated fsspec `FileSystem` for a given `protocol` and credentials.
 
 Please supply credentials instance corresponding to the protocol
@@ -30,6 +34,8 @@ Please supply credentials instance corresponding to the protocol
 def filesystem_from_config(
         config: FilesystemConfiguration) -> Tuple[AbstractFileSystem, str]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/filesystem.py#L50)
 
 Instantiates an authenticated fsspec `FileSystem` from `config` argument.
 

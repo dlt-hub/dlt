@@ -11,6 +11,8 @@ def pydantic_to_table_schema_columns(
         skip_complex_types: bool = False) -> TTableSchemaColumns
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/libs/pydantic.py#L14)
+
 Convert a pydantic model to a table schema columns dict
 
 **Arguments**:

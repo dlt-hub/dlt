@@ -10,6 +10,8 @@ title: destinations.motherduck.configuration
 class MotherDuckCredentials(DuckDbBaseCredentials)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/destinations/motherduck/configuration.py#L15)
+
 #### drivername
 
 type: ignore
@@ -26,6 +28,8 @@ class MotherDuckClientConfiguration(
         DestinationClientDwhWithStagingConfiguration)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/destinations/motherduck/configuration.py#L42)
+
 #### destination\_name
 
 type: ignore
@@ -39,6 +43,8 @@ should unique indexes be created, this slows loading down massively
 ```python
 def fingerprint() -> str
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/destinations/motherduck/configuration.py#L48)
 
 Returns a fingerprint of user access token
 

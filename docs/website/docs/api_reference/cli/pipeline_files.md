@@ -14,5 +14,7 @@ def find_conflict_files(
         dest_storage: FileStorage) -> Tuple[List[str], List[str]]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/cli/pipeline_files.py#L221)
+
 Use files index from .sources to identify modified files via sha3 content hash
 

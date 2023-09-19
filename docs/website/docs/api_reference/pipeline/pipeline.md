@@ -9,6 +9,8 @@ title: pipeline.pipeline
 class Pipeline(SupportsPipeline)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L149)
+
 #### pipeline\_name
 
 Name of the pipeline
@@ -49,6 +51,8 @@ def __init__(pipeline_name: str, pipelines_dir: str,
              config: PipelineConfiguration, runtime: RunConfiguration) -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L180)
+
 Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance.
 
 #### drop
@@ -56,6 +60,8 @@ Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipe
 ```python
 def drop() -> "Pipeline"
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L232)
 
 Deletes local pipeline state, schemas and any working files
 
@@ -78,6 +84,8 @@ def extract(data: Any,
             workers: int = None) -> ExtractInfo
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L258)
+
 Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description.
 
 #### normalize
@@ -89,6 +97,8 @@ Extracts the `data` and prepare it for the normalization. Does not require desti
 def normalize(workers: int = 1,
               loader_file_format: TLoaderFileFormat = None) -> NormalizeInfo
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L297)
 
 Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known.
 
@@ -106,6 +116,8 @@ def load(destination: TDestinationReferenceArg = None,
          workers: int = 20,
          raise_on_failed_jobs: bool = False) -> LoadInfo
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L331)
 
 Loads the packages prepared by `normalize` method into the `dataset_name` at `destination`, using provided `credentials`
 
@@ -127,6 +139,8 @@ def run(data: Any = None,
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None) -> LoadInfo
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L379)
 
 Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -190,6 +204,8 @@ def sync_destination(destination: TDestinationReferenceArg = None,
                      dataset_name: str = None) -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L475)
+
 Synchronizes pipeline state with the `destination`'s state kept in `dataset_name`
 
 ### Summary
@@ -205,6 +221,8 @@ Note: this method is executed by the `run` method before any operation on data. 
 ```python
 def activate() -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L560)
 
 Activates the pipeline
 
@@ -229,6 +247,8 @@ Pipeline created or attached with `dlt.pipeline`/'dlt.attach` is automatically a
 def deactivate() -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L580)
+
 Deactivates the pipeline
 
 Pipeline must be active in order to use this method. Please refer to `activate()` method for the explanation of active pipeline concept.
@@ -240,6 +260,8 @@ Pipeline must be active in order to use this method. Please refer to `activate()
 def has_data() -> bool
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L590)
+
 Tells if the pipeline contains any data: schemas, extracted files, load packages or loaded packages in the destination
 
 #### has\_pending\_data
@@ -248,6 +270,8 @@ Tells if the pipeline contains any data: schemas, extracted files, load packages
 @property
 def has_pending_data() -> bool
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L595)
 
 Tells if the pipeline contains any extracted files or pending load packages
 
@@ -258,6 +282,8 @@ Tells if the pipeline contains any extracted files or pending load packages
 def state() -> TPipelineState
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L608)
+
 Returns a dictionary with the pipeline state
 
 #### last\_trace
@@ -267,6 +293,8 @@ Returns a dictionary with the pipeline state
 def last_trace() -> PipelineTrace
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L613)
+
 Returns or loads last trace generated by pipeline. The trace is loaded from standard location.
 
 #### list\_extracted\_resources
@@ -274,6 +302,8 @@ Returns or loads last trace generated by pipeline. The trace is loaded from stan
 ```python
 def list_extracted_resources() -> Sequence[str]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L619)
 
 Returns a list of all the files with extracted resources that will be normalized.
 
@@ -283,6 +313,8 @@ Returns a list of all the files with extracted resources that will be normalized
 def list_normalized_load_packages() -> Sequence[str]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L623)
+
 Returns a list of all load packages ids that are or will be loaded.
 
 #### list\_completed\_load\_packages
@@ -290,6 +322,8 @@ Returns a list of all load packages ids that are or will be loaded.
 ```python
 def list_completed_load_packages() -> Sequence[str]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L627)
 
 Returns a list of all load package ids that are completely loaded
 
@@ -299,6 +333,8 @@ Returns a list of all load package ids that are completely loaded
 def get_load_package_info(load_id: str) -> LoadPackageInfo
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L631)
+
 Returns information on normalized/completed package with given load_id, all jobs and their statuses.
 
 #### list\_failed\_jobs\_in\_package
@@ -306,6 +342,8 @@ Returns information on normalized/completed package with given load_id, all jobs
 ```python
 def list_failed_jobs_in_package(load_id: str) -> Sequence[LoadJobInfo]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L635)
 
 List all failed jobs and associated error messages for a specified `load_id`
 
@@ -317,6 +355,8 @@ def sync_schema(schema_name: str = None,
                 credentials: Any = None) -> TSchemaTables
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L640)
+
 Synchronizes the schema `schema_name` with the destination. If no name is provided, the default schema will be synchronized.
 
 #### set\_local\_state\_val
@@ -324,6 +364,8 @@ Synchronizes the schema `schema_name` with the destination. If no name is provid
 ```python
 def set_local_state_val(key: str, value: Any) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L651)
 
 Sets value in local state. Local state is not synchronized with destination.
 
@@ -333,6 +375,8 @@ Sets value in local state. Local state is not synchronized with destination.
 def get_local_state_val(key: str) -> Any
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L662)
+
 Gets value from local state. Local state is not synchronized with destination.
 
 #### sql\_client
@@ -341,6 +385,8 @@ Gets value from local state. Local state is not synchronized with destination.
 def sql_client(schema_name: str = None,
                credentials: Any = None) -> SqlClientBase[Any]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L671)
 
 Returns a sql client configured to query/change the destination and dataset that were used to load the data.
 Use the client with `with` statement to manage opening and closing connection to the destination:
@@ -359,6 +405,8 @@ The client is authenticated and defaults all queries to dataset_name used by the
 def destination_client(schema_name: str = None,
                        credentials: Any = None) -> JobClientBase
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/pipeline.py#L693)
 
 Get the destination job client for the configured destination
 Use the client with `with` statement to manage opening and closing connection to the destination:

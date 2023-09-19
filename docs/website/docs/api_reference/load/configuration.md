@@ -10,6 +10,8 @@ title: load.configuration
 class LoaderConfiguration(PoolRunnerConfiguration)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/load/configuration.py#L9)
+
 #### workers
 
 how many parallel loads can be executed

@@ -50,6 +50,8 @@ value of type None indicating argument that may be injected by config provider
 class SupportsVariant(Protocol, Generic[TVariantBase])
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/typing.py#L49)
+
 Defines variant type protocol that should be recognized by normalizers
 
 Variant types behave like TVariantBase type (ie. Decimal) but also implement the protocol below that is used to extract the variant value from it.
@@ -61,11 +63,15 @@ See `Wei` type declaration which returns Decimal or str for values greater than 
 class SupportsHumanize(Protocol)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/typing.py#L59)
+
 #### asdict
 
 ```python
 def asdict() -> DictStrAny
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/typing.py#L60)
 
 Represents object as dict with a schema loadable by dlt
 
@@ -75,6 +81,8 @@ Represents object as dict with a schema loadable by dlt
 def asstr(verbosity: int = 0) -> str
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/typing.py#L64)
+
 Represents object as human readable string
 
 #### extract\_inner\_type
@@ -83,6 +91,8 @@ Represents object as human readable string
 def extract_inner_type(hint: Type[Any],
                        preserve_new_types: bool = False) -> Type[Any]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/typing.py#L111)
 
 Gets the inner type from Literal, Optional, Final and NewType
 
@@ -102,6 +112,8 @@ Gets the inner type from Literal, Optional, Final and NewType
 def get_generic_type_argument_from_instance(
         instance: Any, sample_value: Optional[Any]) -> Type[Any]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/typing.py#L137)
 
 Infers type argument of a Generic class from an `instance` of that class using optional `sample_value` of the argument type
 

@@ -9,6 +9,8 @@ title: helpers.dbt.runner
 class DBTPackageRunner()
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/helpers/dbt/runner.py#L25)
+
 A Python wrapper over a dbt package
 
 The created wrapper minimizes the required effort to run `dbt` packages on datasets created with `dlt`. It clones the package repo and keeps it up to data,
@@ -22,6 +24,8 @@ passed via DBTRunnerConfiguration instance
 def ensure_newest_package() -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/helpers/dbt/runner.py#L87)
+
 Clones or brings the dbt package at `package_location` up to date.
 
 #### run
@@ -31,6 +35,8 @@ def run(cmd_params: Sequence[str] = ("--fail-fast", ),
         additional_vars: StrAny = None,
         destination_dataset_name: str = None) -> Sequence[DBTNodeResult]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/helpers/dbt/runner.py#L137)
 
 Runs `dbt` package
 
@@ -58,6 +64,8 @@ def test(cmd_params: Sequence[str] = None,
          destination_dataset_name: str = None) -> Sequence[DBTNodeResult]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/helpers/dbt/runner.py#L159)
+
 Tests `dbt` package
 
 Executes `dbt test` on previously cloned package.
@@ -84,6 +92,8 @@ def run_all(run_params: Sequence[str] = ("--fail-fast", ),
             source_tests_selector: str = None,
             destination_dataset_name: str = None) -> Sequence[DBTNodeResult]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/helpers/dbt/runner.py#L212)
 
 Prepares and runs a dbt package.
 

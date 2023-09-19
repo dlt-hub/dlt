@@ -16,6 +16,8 @@ def query_results_to_df(client: SqlClientBase[Any],
                         dtype: Any = None) -> pd.DataFrame
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/helpers/pandas_helper.py#L16)
+
 A helper function that executes a query in the destination and returns the result as Pandas `DataFrame`
 
 This method reuses `read_sql` method of `Pandas` with the sql client obtained from `Pipeline.sql_client` method.

@@ -13,6 +13,8 @@ replace empty keys with this
 class TDataItemRowChild(TDataItemRow)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/normalizers/json/relational.py#L26)
+
 #### value
 
 for lists of simple types

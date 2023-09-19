@@ -10,6 +10,8 @@ title: pipeline.configuration
 class PipelineConfiguration(BaseConfiguration)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/configuration.py#L11)
+
 #### restore\_from\_destination
 
 Enables the `run` method of the `Pipeline` object to restore the pipeline state and schemas from the destination

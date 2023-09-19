@@ -15,6 +15,8 @@ def weaviate_adapter(data: Any,
                      tokenization: TTokenizationSetting = None) -> DltResource
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/destinations/weaviate/weaviate_adapter.py#L16)
+
 Prepares data for the Weaviate destination by specifying which columns
 should be vectorized and which tokenization method to use.
 

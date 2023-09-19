@@ -9,6 +9,8 @@ title: common.schema.schema
 class Schema()
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L20)
+
 #### naming
 
 Naming convention used by the schema to normalize identifiers
@@ -36,6 +38,8 @@ def coerce_row(table_name: str, parent_table: str,
                row: StrAny) -> Tuple[DictStrAny, TPartialTableSchema]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L154)
+
 Fits values of fields present in `row` into a schema of `table_name`. Will coerce values into data types and infer new tables and column schemas.
 
 Method expects that field names in row are already normalized.
@@ -52,6 +56,8 @@ Returns tuple with row with coerced values and a partial table containing just t
 def bump_version() -> Tuple[int, str]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L209)
+
 Computes schema hash in order to check if schema content was modified. In such case the schema ``stored_version`` and ``stored_version_hash`` are updated.
 
 Should not be used in production code. The method ``to_dict`` will generate TStoredSchema with correct value, only once before persisting schema to storage.
@@ -65,6 +71,8 @@ Should not be used in production code. The method ``to_dict`` will generate TSto
 ```python
 def normalize_table_identifiers(table: TTableSchema) -> TTableSchema
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L253)
 
 Normalizes all table and column names in `table` schema according to current schema naming convention and returns
 new normalized TTableSchema instance.
@@ -83,6 +91,8 @@ def get_new_table_columns(
         include_incomplete: bool = False) -> List[TColumnSchema]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L282)
+
 Gets new columns to be added to `exiting_columns` to bring them up to date with `table_name` schema. Optionally includes incomplete columns (without data type)
 
 #### get\_table\_columns
@@ -92,6 +102,8 @@ def get_table_columns(table_name: str,
                       include_incomplete: bool = False) -> TTableSchemaColumns
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L294)
+
 Gets columns of `table_name`. Optionally includes incomplete columns
 
 #### data\_tables
@@ -99,6 +111,8 @@ Gets columns of `table_name`. Optionally includes incomplete columns
 ```python
 def data_tables(include_incomplete: bool = False) -> List[TTableSchema]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L301)
 
 Gets list of all tables, that hold the loaded data. Excludes dlt tables. Excludes incomplete tables (ie. without columns)
 
@@ -108,6 +122,8 @@ Gets list of all tables, that hold the loaded data. Excludes dlt tables. Exclude
 def dlt_tables() -> List[TTableSchema]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L305)
+
 Gets dlt tables
 
 #### version
@@ -116,6 +132,8 @@ Gets dlt tables
 @property
 def version() -> int
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L313)
 
 Version of the schema content that takes into account changes from the time of schema loading/creation.
 The stored version is increased by one if content was modified
@@ -131,6 +149,8 @@ The stored version is increased by one if content was modified
 def stored_version() -> int
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L323)
+
 Version of the schema content form the time of schema loading/creation.
 
 **Returns**:
@@ -144,6 +164,8 @@ Version of the schema content form the time of schema loading/creation.
 def version_hash() -> str
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L332)
+
 Current version hash of the schema, recomputed from the actual content
 
 #### stored\_version\_hash
@@ -152,6 +174,8 @@ Current version hash of the schema, recomputed from the actual content
 @property
 def stored_version_hash() -> str
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L337)
 
 Version hash of the schema content form the time of schema loading/creation.
 
@@ -162,6 +186,8 @@ Version hash of the schema content form the time of schema loading/creation.
 def tables() -> TSchemaTables
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L346)
+
 Dictionary of schema tables
 
 #### clone
@@ -170,6 +196,8 @@ Dictionary of schema tables
 def clone(update_normalizers: bool = False) -> "Schema"
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L362)
+
 Make a deep copy of the schema, possibly updating normalizers and identifiers in the schema if `update_normalizers` is True
 
 #### update\_normalizers
@@ -177,6 +205,8 @@ Make a deep copy of the schema, possibly updating normalizers and identifiers in
 ```python
 def update_normalizers() -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/schema.py#L371)
 
 Looks for new normalizer configuration or for destination capabilities context and updates all identifiers in the schema
 

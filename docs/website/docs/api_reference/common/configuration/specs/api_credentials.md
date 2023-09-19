@@ -10,6 +10,8 @@ title: common.configuration.specs.api_credentials
 class OAuth2Credentials(CredentialsConfiguration)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/api_credentials.py#L8)
+
 #### token
 
 Access token
@@ -20,6 +22,8 @@ Access token
 def auth(scopes: Union[str, List[str]] = None,
          redirect_url: str = None) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/api_credentials.py#L21)
 
 Authorizes the client using the available credentials
 

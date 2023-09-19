@@ -10,6 +10,8 @@ title: destinations.duckdb.configuration
 class DuckDbBaseCredentials(ConnectionStringCredentials)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/destinations/duckdb/configuration.py#L19)
+
 #### read\_only
 
 open database read/write
@@ -21,6 +23,8 @@ open database read/write
 class DuckDbCredentials(DuckDbBaseCredentials)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/destinations/duckdb/configuration.py#L92)
+
 #### drivername
 
 type: ignore
@@ -31,6 +35,8 @@ type: ignore
 @configspec
 class DuckDbClientConfiguration(DestinationClientDwhWithStagingConfiguration)
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/destinations/duckdb/configuration.py#L178)
 
 #### destination\_name
 

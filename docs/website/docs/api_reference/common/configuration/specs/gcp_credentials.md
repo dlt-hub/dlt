@@ -10,6 +10,8 @@ title: common.configuration.specs.gcp_credentials
 class GcpCredentials(CredentialsConfiguration)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/gcp_credentials.py#L15)
+
 #### location
 
 DEPRECATED! and present only for backward compatibility. please set bigquery location in BigQuery configuration
@@ -20,6 +22,8 @@ DEPRECATED! and present only for backward compatibility. please set bigquery loc
 def to_native_credentials() -> Any
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/gcp_credentials.py#L30)
+
 Returns respective native credentials for service account or oauth2 that can be passed to google clients
 
 ## GcpServiceAccountCredentialsWithoutDefaults Objects
@@ -28,6 +32,8 @@ Returns respective native credentials for service account or oauth2 that can be 
 @configspec
 class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials)
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/gcp_credentials.py#L42)
 
 #### type
 
@@ -39,6 +45,8 @@ noqa: A003
 def parse_native_representation(native_value: Any) -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/gcp_credentials.py#L47)
+
 Accepts ServiceAccountCredentials as native value. In other case reverts to serialized services.json
 
 #### to\_native\_credentials
@@ -46,6 +54,8 @@ Accepts ServiceAccountCredentials as native value. In other case reverts to seri
 ```python
 def to_native_credentials() -> Any
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/gcp_credentials.py#L83)
 
 Returns google.oauth2.service_account.Credentials
 
@@ -56,11 +66,15 @@ Returns google.oauth2.service_account.Credentials
 class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/gcp_credentials.py#L98)
+
 #### parse\_native\_representation
 
 ```python
 def parse_native_representation(native_value: Any) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/gcp_credentials.py#L103)
 
 Accepts Google OAuth2 credentials as native value. In other case reverts to serialized oauth client secret json
 
@@ -70,6 +84,8 @@ Accepts Google OAuth2 credentials as native value. In other case reverts to seri
 def on_partial() -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/gcp_credentials.py#L151)
+
 Allows for an empty refresh token if the session is interactive or tty is attached
 
 #### to\_native\_credentials
@@ -77,6 +93,8 @@ Allows for an empty refresh token if the session is interactive or tty is attach
 ```python
 def to_native_credentials() -> Any
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/gcp_credentials.py#L183)
 
 Returns google.oauth2.credentials.Credentials
 
@@ -87,11 +105,15 @@ Returns google.oauth2.credentials.Credentials
 class GcpDefaultCredentials(CredentialsWithDefault, GcpCredentials)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/gcp_credentials.py#L213)
+
 #### parse\_native\_representation
 
 ```python
 def parse_native_representation(native_value: Any) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/gcp_credentials.py#L217)
 
 Accepts google credentials as native value
 
@@ -100,6 +122,8 @@ Accepts google credentials as native value
 ```python
 def on_partial() -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/gcp_credentials.py#L248)
 
 Looks for default google credentials and resolves configuration if found. Otherwise continues as partial
 

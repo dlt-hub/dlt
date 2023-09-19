@@ -10,6 +10,8 @@ title: common.storages.configuration
 class SchemaStorageConfiguration(BaseConfiguration)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/configuration.py#L15)
+
 #### schema\_volume\_path
 
 path to volume with default schemas
@@ -37,6 +39,8 @@ remove default values when exporting schema
 class NormalizeStorageConfiguration(BaseConfiguration)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/configuration.py#L28)
+
 #### normalize\_volume\_path
 
 path to volume where normalized loader files will be stored
@@ -47,6 +51,8 @@ path to volume where normalized loader files will be stored
 @configspec
 class LoadStorageConfiguration(BaseConfiguration)
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/configuration.py#L37)
 
 #### load\_volume\_path
 
@@ -62,6 +68,8 @@ if set to true the folder with completed jobs will be deleted
 @configspec
 class FilesystemConfiguration(BaseConfiguration)
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/configuration.py#L49)
 
 A configuration defining filesystem location and access credentials.
 
@@ -79,6 +87,8 @@ When configuration is resolved, `bucket_url` is used to extract a protocol and r
 def protocol() -> str
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/configuration.py#L74)
+
 `bucket_url` protocol
 
 #### fingerprint
@@ -87,6 +97,8 @@ def protocol() -> str
 def fingerprint() -> str
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/configuration.py#L93)
+
 Returns a fingerprint of bucket_url
 
 #### \_\_str\_\_
@@ -94,6 +106,8 @@ Returns a fingerprint of bucket_url
 ```python
 def __str__() -> str
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/configuration.py#L99)
 
 Return displayable destination location
 

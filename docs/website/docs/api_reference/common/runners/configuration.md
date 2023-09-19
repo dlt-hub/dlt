@@ -10,6 +10,8 @@ title: common.runners.configuration
 class PoolRunnerConfiguration(BaseConfiguration)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runners/configuration.py#L10)
+
 #### pool\_type
 
 type of pool to run, must be set in derived configs

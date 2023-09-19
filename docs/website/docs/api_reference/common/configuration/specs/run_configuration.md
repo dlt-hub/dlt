@@ -10,6 +10,8 @@ title: common.configuration.specs.run_configuration
 class RunConfiguration(BaseConfiguration)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/specs/run_configuration.py#L13)
+
 #### sentry\_dsn
 
 keep None to disable Sentry

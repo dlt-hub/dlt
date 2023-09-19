@@ -9,6 +9,8 @@ title: common.schema.utils
 def is_valid_schema_name(name: str) -> bool
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L31)
+
 Schema name must be a valid python identifier and have max len of 64
 
 #### normalize\_schema\_name
@@ -17,6 +19,8 @@ Schema name must be a valid python identifier and have max len of 64
 def normalize_schema_name(name: str) -> str
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L36)
+
 Normalizes schema name by using snake case naming convention. The maximum length is 64 characters
 
 #### apply\_defaults
@@ -24,6 +28,8 @@ Normalizes schema name by using snake case naming convention. The maximum length
 ```python
 def apply_defaults(stored_schema: TStoredSchema) -> TStoredSchema
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L42)
 
 Applies default hint values to `stored_schema` in place
 
@@ -35,6 +41,8 @@ Updates only complete column hints, incomplete columns are preserved intact
 def remove_defaults(stored_schema: TStoredSchema) -> TStoredSchema
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L66)
+
 Removes default values from `stored_schema` in place, returns the input for chaining
 
 Default values are removed from table schemas and complete column schemas. Incomplete columns are preserved intact.
@@ -45,6 +53,8 @@ Default values are removed from table schemas and complete column schemas. Incom
 def has_default_column_hint_value(hint: str, value: Any) -> bool
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L89)
+
 Checks if `value` is a default for `hint`. Only known column hints (COLUMN_HINTS) are checked
 
 #### remove\_column\_defaults
@@ -52,6 +62,8 @@ Checks if `value` is a default for `hint`. Only known column hints (COLUMN_HINTS
 ```python
 def remove_column_defaults(column_schema: TColumnSchema) -> TColumnSchema
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L99)
 
 Removes default values from `column_schema` in place, returns the input for chaining
 
@@ -61,6 +73,8 @@ Removes default values from `column_schema` in place, returns the input for chai
 def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L110)
+
 Adds default boolean hints to column
 
 #### compile\_simple\_regexes
@@ -68,6 +82,8 @@ Adds default boolean hints to column
 ```python
 def compile_simple_regexes(r: Iterable[TSimpleRegex]) -> REPattern
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L234)
 
 Compile multiple patterns as one
 
@@ -77,6 +93,8 @@ Compile multiple patterns as one
 def is_complete_column(col: TColumnSchemaBase) -> bool
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L362)
+
 Returns true if column contains enough data to be created at the destination. Must contain a name and a data type. Other hints have defaults.
 
 #### compare\_complete\_columns
@@ -84,6 +102,8 @@ Returns true if column contains enough data to be created at the destination. Mu
 ```python
 def compare_complete_columns(a: TColumnSchema, b: TColumnSchema) -> bool
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L367)
 
 Compares mandatory fields of complete columns
 
@@ -95,6 +115,8 @@ def merge_columns(col_a: TColumnSchema,
                   merge_defaults: bool = True) -> TColumnSchema
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L374)
+
 Merges `col_b` into `col_a`. if `merge_defaults` is True, only hints from `col_b` that are not default in `col_a` will be set.
 
 Modifies col_a in place and returns it
@@ -105,6 +127,8 @@ Modifies col_a in place and returns it
 def diff_tables(tab_a: TTableSchema,
                 tab_b: TPartialTableSchema) -> TPartialTableSchema
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L386)
 
 Creates a partial table that contains properties found in `tab_b` that are not present or different in `tab_a`.
 The name is always present in returned partial.
@@ -122,6 +146,8 @@ def merge_tables(table: TTableSchema,
                  partial_table: TPartialTableSchema) -> TPartialTableSchema
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L452)
+
 Merges "partial_table" into "table". `table` is merged in place. Returns the diff partial table.
 
 `table` and `partial_table` names must be identical. A table diff is generated and applied to `table`:
@@ -136,6 +162,8 @@ def get_write_disposition(tables: TSchemaTables,
                           table_name: str) -> TWriteDisposition
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L496)
+
 Returns write disposition of a table if present. If not, looks up into parent table
 
 #### table\_schema\_has\_type
@@ -143,6 +171,8 @@ Returns write disposition of a table if present. If not, looks up into parent ta
 ```python
 def table_schema_has_type(table: TTableSchema, _typ: TDataType) -> bool
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L510)
 
 Checks if `table` schema contains column with type _typ
 
@@ -153,6 +183,8 @@ def get_top_level_table(tables: TSchemaTables,
                         table_name: str) -> TTableSchema
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L515)
+
 Finds top level (without parent) of a `table_name` following the ancestry hierarchy.
 
 #### get\_child\_tables
@@ -161,6 +193,8 @@ Finds top level (without parent) of a `table_name` following the ancestry hierar
 def get_child_tables(tables: TSchemaTables,
                      table_name: str) -> List[TTableSchema]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L524)
 
 Get child tables for table name and return a list of tables ordered by ancestry so the child tables are always after their parents
 
@@ -171,6 +205,8 @@ def group_tables_by_resource(
         tables: TSchemaTables,
         pattern: Optional[REPattern] = None) -> Dict[str, List[TTableSchema]]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/schema/utils.py#L539)
 
 Create a dict of resources and their associated tables and descendant tables
 If `pattern` is supplied, the result is filtered to only resource names matching the pattern.

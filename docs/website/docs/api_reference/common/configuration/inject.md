@@ -15,6 +15,8 @@ def with_config(func: Optional[AnyFun] = None,
                 include_defaults: bool = True) -> Callable[[TFun], TFun]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/inject.py#L53)
+
 Injects values into decorated function arguments following the specification in `spec` or by deriving one from function's signature.
 
 The synthesized spec contains the arguments marked with `dlt.secrets.value` and `dlt.config.value` which are required to be injected at runtime.
@@ -39,6 +41,8 @@ Optionally (and by default) arguments with default values are included in spec a
 ```python
 def last_config(**kwargs: Any) -> Any
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/inject.py#L178)
 
 Get configuration instance used to inject function arguments
 

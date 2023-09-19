@@ -10,6 +10,8 @@ def timestamp_within(timestamp: float, min_exclusive: Optional[float],
                      max_inclusive: Optional[float]) -> bool
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/time.py#L16)
+
 check if timestamp within range uniformly treating none and range inclusiveness
 
 #### timestamp\_before
@@ -18,6 +20,8 @@ check if timestamp within range uniformly treating none and range inclusiveness
 def timestamp_before(timestamp: float, max_inclusive: Optional[float]) -> bool
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/time.py#L23)
+
 check if timestamp is before max timestamp, inclusive
 
 #### ensure\_pendulum\_date
@@ -25,6 +29,8 @@ check if timestamp is before max timestamp, inclusive
 ```python
 def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/time.py#L48)
 
 Coerce a date/time value to a `pendulum.Date` object.
 
@@ -45,6 +51,8 @@ UTC is assumed if the value is not timezone aware. Other timezones are shifted t
 def ensure_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/time.py#L75)
+
 Coerce a date/time value to a `pendulum.DateTime` object.
 
 UTC is assumed if the value is not timezone aware. Other timezones are shifted to UTC
@@ -63,6 +71,8 @@ UTC is assumed if the value is not timezone aware. Other timezones are shifted t
 ```python
 def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/time.py#L102)
 
 Coerce a time value to a `pendulum.Time` object.
 

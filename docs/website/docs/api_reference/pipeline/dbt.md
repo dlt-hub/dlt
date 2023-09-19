@@ -11,6 +11,8 @@ def get_venv(pipeline: Pipeline,
              dbt_version: str = _DEFAULT_DBT_VERSION) -> Venv
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/dbt.py#L13)
+
 Creates or restores a virtual environment in which the `dbt` packages are executed.
 
 The recommended way to execute dbt package is to use a separate virtual environment where only the dbt-core
@@ -40,6 +42,8 @@ def package(pipeline: Pipeline,
             auto_full_refresh_when_out_of_sync: bool = None,
             venv: Venv = None) -> DBTPackageRunner
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/dbt.py#L44)
 
 Creates a Python wrapper over `dbt` package present at specified location, that allows to control it (ie. run and test) from Python code.
 

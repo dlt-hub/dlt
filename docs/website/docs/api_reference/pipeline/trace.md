@@ -9,6 +9,8 @@ title: pipeline.trace
 class SerializableResolvedValueTrace(NamedTuple)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/trace.py#L26)
+
 Information on resolved secret and config values
 
 #### asdict
@@ -16,6 +18,8 @@ Information on resolved secret and config values
 ```python
 def asdict() -> StrAny
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/trace.py#L36)
 
 A dictionary representation that is safe to load.
 
@@ -25,6 +29,8 @@ A dictionary representation that is safe to load.
 @dataclasses.dataclass(init=True)
 class _PipelineStepTrace()
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/trace.py#L48)
 
 #### step\_info
 
@@ -40,6 +46,8 @@ For failing steps contains exception string
 class PipelineStepTrace(_PipelineStepTrace)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/trace.py#L80)
+
 Trace of particular pipeline step, contains timing information, the step outcome info or exception in case of failing step with custom asdict()
 
 #### asdict
@@ -47,6 +55,8 @@ Trace of particular pipeline step, contains timing information, the step outcome
 ```python
 def asdict() -> DictStrAny
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/trace.py#L82)
 
 A dictionary representation of PipelineStepTrace that can be loaded with `dlt`
 
@@ -56,6 +66,8 @@ A dictionary representation of PipelineStepTrace that can be loaded with `dlt`
 @dataclasses.dataclass(init=True)
 class PipelineTrace()
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/trace.py#L92)
 
 Pipeline runtime trace containing data on "extract", "normalize" and "load" steps and resolved config and secret values.
 
@@ -74,6 +86,8 @@ def merge_traces(last_trace: PipelineTrace,
                  new_trace: PipelineTrace) -> PipelineTrace
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/trace.py#L226)
+
 Merges `new_trace` into `last_trace` by combining steps and timestamps. `new_trace` replace the `last_trace` if it has more than 1 step.`
 
 #### describe\_extract\_data
@@ -81,6 +95,8 @@ Merges `new_trace` into `last_trace` by combining steps and timestamps. `new_tra
 ```python
 def describe_extract_data(data: Any) -> List[ExtractDataInfo]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/pipeline/trace.py#L255)
 
 Extract source and resource names from data passed to extract
 

@@ -10,6 +10,8 @@ def initialize_credentials(hint: Any,
                            initial_value: Any) -> CredentialsConfiguration
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/resolve.py#L39)
+
 Instantiate credentials of type `hint` with `initial_value`. The initial value must be a native representation (typically string)
 or a dictionary corresponding to credential's fields. In case of union of credentials, the first configuration in the union fully resolved by
 initial value will be instantiated.
@@ -21,6 +23,8 @@ def inject_section(
         section_context: ConfigSectionContext,
         merge_existing: bool = True) -> ContextManager[ConfigSectionContext]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/resolve.py#L66)
 
 Context manager that sets section specified in `section_context` to be used during configuration resolution. Optionally merges the context already in the container with the one provided
 

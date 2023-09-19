@@ -9,11 +9,15 @@ title: destinations.insert_job_client
 class InsertValuesJobClient(SqlJobClientWithStaging)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/destinations/insert_job_client.py#L92)
+
 #### restore\_file\_load
 
 ```python
 def restore_file_load(file_path: str) -> LoadJob
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/destinations/insert_job_client.py#L94)
 
 Returns a completed SqlLoadJob or InsertValuesJob
 

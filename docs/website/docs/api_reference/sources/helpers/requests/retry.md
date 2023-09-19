@@ -9,6 +9,8 @@ title: sources.helpers.requests.retry
 class retry_if_status(retry_base)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/sources/helpers/requests/retry.py#L36)
+
 Retry for given response status codes
 
 ## Client Objects
@@ -16,6 +18,8 @@ Retry for given response status codes
 ```python
 class Client()
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/sources/helpers/requests/retry.py#L116)
 
 Wrapper for `requests` to create a `Session` with configurable retry functionality.
 
@@ -56,6 +60,8 @@ session_attrs: Extra attributes that will be set on the session instance, e.g. `
 ```python
 def update_from_config(config: RunConfiguration) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/sources/helpers/requests/retry.py#L203)
 
 Update session/retry settings from RunConfiguration
 

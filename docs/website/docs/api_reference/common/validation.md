@@ -13,6 +13,8 @@ def validate_dict(spec: Type[_TypedDict],
                   validator_f: TCustomValidator = None) -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/validation.py#L12)
+
 Validate the `doc` dictionary based on the given typed dictionary specification `spec`.
 
 **Arguments**:

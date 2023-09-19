@@ -9,6 +9,8 @@ title: destinations.typing
 class DBApiCursor(Protocol)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/destinations/typing.py#L24)
+
 Protocol for DBAPI cursor
 
 #### native\_cursor
@@ -20,6 +22,8 @@ Cursor implementation native to current destination
 ```python
 def df(chunk_size: int = None, **kwargs: None) -> Optional[DataFrame]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/destinations/typing.py#L42)
 
 Fetches the results as data frame. For large queries the results may be chunked
 

@@ -9,6 +9,8 @@ title: common.runtime.collector
 class Collector(ABC)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/collector.py#L22)
+
 #### update
 
 ```python
@@ -19,6 +21,8 @@ def update(name: str,
            message: str = None,
            label: str = None) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/collector.py#L27)
 
 Creates or updates a counter
 
@@ -39,6 +43,8 @@ Depending on implementation `label` may be used to create nested counters and me
 def __call__(step: str) -> TCollector
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/collector.py#L52)
+
 Syntactic sugar for nicer context managers
 
 ## NullCollector Objects
@@ -46,6 +52,8 @@ Syntactic sugar for nicer context managers
 ```python
 class NullCollector(Collector)
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/collector.py#L65)
 
 A default counter that does not count anything.
 
@@ -55,6 +63,8 @@ A default counter that does not count anything.
 class DictCollector(Collector)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/collector.py#L78)
+
 A collector that just counts
 
 ## LogCollector Objects
@@ -62,6 +72,8 @@ A collector that just counts
 ```python
 class LogCollector(Collector)
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/collector.py#L95)
 
 A Collector that shows progress by writing to a Python logger or a console
 
@@ -73,6 +85,8 @@ def __init__(log_period: float = 1.0,
              log_level: int = logging.INFO,
              dump_system_stats: bool = True) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/collector.py#L106)
 
 Collector writing to a `logger` every `log_period` seconds. The logger can be a Python logger instance, text stream, or None that will attach `dlt` logger
 
@@ -89,6 +103,8 @@ Collector writing to a `logger` every `log_period` seconds. The logger can be a 
 class TqdmCollector(Collector)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/collector.py#L212)
+
 A Collector that shows progress with `tqdm` progress bars
 
 #### \_\_init\_\_
@@ -96,6 +112,8 @@ A Collector that shows progress with `tqdm` progress bars
 ```python
 def __init__(single_bar: bool = False, **tqdm_kwargs: Any) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/collector.py#L215)
 
 A Collector that uses tqdm to display counters as progress bars. Set `single_bar` to True to show just the main progress bar. Pass any config to tqdm in kwargs
 
@@ -105,6 +123,8 @@ A Collector that uses tqdm to display counters as progress bars. Set `single_bar
 class AliveCollector(Collector)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/collector.py#L256)
+
 A Collector that shows progress with `alive-progress` progress bars
 
 #### \_\_init\_\_
@@ -112,6 +132,8 @@ A Collector that shows progress with `alive-progress` progress bars
 ```python
 def __init__(single_bar: bool = True, **alive_kwargs: Any) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/collector.py#L259)
 
 Collector that uses alive_progress to display counters as progress bars. Set `single_bar` to True to show just the main progress bar. Pass any config to alive_progress in kwargs
 
@@ -121,6 +143,8 @@ Collector that uses alive_progress to display counters as progress bars. Set `si
 class EnlightenCollector(Collector)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/collector.py#L303)
+
 A Collector that shows progress with `enlighten` progress and status bars that also allow for logging.
 
 #### \_\_init\_\_
@@ -128,6 +152,8 @@ A Collector that shows progress with `enlighten` progress and status bars that a
 ```python
 def __init__(single_bar: bool = False, **enlighten_kwargs: Any) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/collector.py#L310)
 
 Collector that uses Enlighten to display counters as progress bars. Set `single_bar` to True to show just the main progress bar. Pass any config to Enlighten in kwargs
 

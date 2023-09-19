@@ -9,6 +9,8 @@ title: common.pipeline
 class ExtractInfo(NamedTuple)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L32)
+
 A tuple holding information on extracted data items. Returned by pipeline `extract` method.
 
 ## NormalizeInfo Objects
@@ -16,6 +18,8 @@ A tuple holding information on extracted data items. Returned by pipeline `extra
 ```python
 class NormalizeInfo(NamedTuple)
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L47)
 
 A tuple holding information on normalized data items. Returned by pipeline `normalize` method.
 
@@ -25,6 +29,8 @@ A tuple holding information on normalized data items. Returned by pipeline `norm
 def asdict() -> DictStrAny
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L52)
+
 A dictionary representation of NormalizeInfo that can be loaded with `dlt`
 
 ## LoadInfo Objects
@@ -32,6 +38,8 @@ A dictionary representation of NormalizeInfo that can be loaded with `dlt`
 ```python
 class LoadInfo(NamedTuple)
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L72)
 
 A tuple holding the information on recently loaded packages. Returned by pipeline `run` and `load` methods
 
@@ -49,6 +57,8 @@ Information on loaded packages
 def asdict() -> DictStrAny
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L88)
+
 A dictionary representation of LoadInfo that can be loaded with `dlt`
 
 #### has\_failed\_jobs
@@ -58,6 +68,8 @@ A dictionary representation of LoadInfo that can be loaded with `dlt`
 def has_failed_jobs() -> bool
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L125)
+
 Returns True if any of the load packages has a failed job.
 
 #### raise\_on\_failed\_jobs
@@ -66,6 +78,8 @@ Returns True if any of the load packages has a failed job.
 def raise_on_failed_jobs() -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L132)
+
 Raises `DestinationHasFailedJobs` exception if any of the load packages has a failed job.
 
 ## TPipelineLocalState Objects
@@ -73,6 +87,8 @@ Raises `DestinationHasFailedJobs` exception if any of the load packages has a fa
 ```python
 class TPipelineLocalState(TypedDict)
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L142)
 
 #### first\_run
 
@@ -83,6 +99,8 @@ Indicates a first run of the pipeline, where run ends with successful loading of
 ```python
 class TPipelineState(TypedDict)
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L149)
 
 Schema for a pipeline state that is stored within the pipeline working directory
 
@@ -99,6 +117,8 @@ All the schemas present within the pipeline working directory
 ```python
 class SupportsPipeline(Protocol)
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L171)
 
 A protocol with core pipeline operations that lets high level abstractions ie. sources to access pipeline methods and properties
 
@@ -141,6 +161,8 @@ Indicates a first run of the pipeline, where run ends with successful loading of
 def state() -> TPipelineState
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L191)
+
 Returns dictionary with pipeline state
 
 #### set\_local\_state\_val
@@ -149,6 +171,8 @@ Returns dictionary with pipeline state
 def set_local_state_val(key: str, value: Any) -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L194)
+
 Sets value in local state. Local state is not synchronized with destination.
 
 #### get\_local\_state\_val
@@ -156,6 +180,8 @@ Sets value in local state. Local state is not synchronized with destination.
 ```python
 def get_local_state_val(key: str) -> Any
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L197)
 
 Gets value from local state. Local state is not synchronized with destination.
 
@@ -166,11 +192,15 @@ Gets value from local state. Local state is not synchronized with destination.
 class PipelineContext(ContainerInjectableContext)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L240)
+
 #### pipeline
 
 ```python
 def pipeline() -> SupportsPipeline
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L246)
 
 Creates or returns exiting pipeline
 
@@ -179,6 +209,8 @@ Creates or returns exiting pipeline
 ```python
 def __init__(deferred_pipeline: Callable[..., SupportsPipeline]) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L269)
 
 Initialize the context with a function returning the Pipeline object to allow creation on first use
 
@@ -189,6 +221,8 @@ def pipeline_state(
         container: Container,
         initial_default: TPipelineState = None) -> Tuple[TPipelineState, bool]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L285)
 
 Gets value of the state from context or active pipeline, if none found returns `initial_default`
 
@@ -202,6 +236,8 @@ Returns tuple (state, writable)
 ```python
 def source_state() -> DictStrAny
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L324)
 
 Returns a dictionary with the source-scoped state. Source-scoped state may be shared across the resources of a particular source. Please avoid using source scoped state. Check
 the `resource_state` function for resource-scoped state that is visible within particular resource. Dlt state is preserved across pipeline runs and may be used to implement incremental loads.
@@ -222,6 +258,8 @@ When using the state:
 def resource_state(resource_name: str = None,
                    source_state_: Optional[DictStrAny] = None) -> DictStrAny
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L371)
 
 Returns a dictionary with the resource-scoped state. Resource-scoped state is visible only to resource requesting the access. Dlt state is preserved across pipeline runs and may be used to implement incremental loads.
 
@@ -278,6 +316,8 @@ Up to few thousand archives we should be good though.
 def get_dlt_pipelines_dir() -> str
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L444)
+
 Gets default directory where pipelines' data will be stored
 1. in user home directory ~/.dlt/pipelines/
 2. if current user is root in /var/dlt/pipelines
@@ -288,6 +328,8 @@ Gets default directory where pipelines' data will be stored
 ```python
 def get_dlt_repos_dir() -> str
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/pipeline.py#L453)
 
 Gets default directory where command repositories will be stored
 

@@ -12,6 +12,8 @@ def track(event_category: TEventCategory, event_name: str,
           properties: DictStrAny) -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/segment.py#L54)
+
 Tracks a telemetry event.
 
 The segment event name will be created as "{event_category}_{event_name}
@@ -28,6 +30,8 @@ The segment event name will be created as "{event_category}_{event_name}
 def before_send(event: DictStrAny) -> Optional[DictStrAny]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/segment.py#L83)
+
 Called before sending event. Does nothing, patch this function in the module for custom behavior
 
 #### get\_anonymous\_id
@@ -35,6 +39,8 @@ Called before sending event. Does nothing, patch this function in the module for
 ```python
 def get_anonymous_id() -> str
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/runtime/segment.py#L114)
 
 Creates or reads a anonymous user id
 

@@ -9,12 +9,16 @@ title: extract.schema
 class DltResourceSchema()
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/schema.py#L29)
+
 #### table\_name
 
 ```python
 @property
 def table_name() -> TTableHintTemplate[str]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/schema.py#L39)
 
 Get table name to which resource loads data. May return a callable.
 
@@ -25,6 +29,8 @@ Get table name to which resource loads data. May return a callable.
 def columns() -> TTableHintTemplate[TTableSchemaColumns]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/schema.py#L60)
+
 Gets columns schema that can be modified in place
 
 #### compute\_table\_schema
@@ -32,6 +38,8 @@ Gets columns schema that can be modified in place
 ```python
 def compute_table_schema(item: TDataItem = None) -> TPartialTableSchema
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/schema.py#L66)
 
 Computes the table schema based on hints and column definitions passed during resource creation. `item` parameter is used to resolve table hints based on data
 
@@ -47,6 +55,8 @@ def apply_hints(
         merge_key: TTableHintTemplate[TColumnNames] = None,
         incremental: Incremental[Any] = None) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/extract/schema.py#L90)
 
 Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 

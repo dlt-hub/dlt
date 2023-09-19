@@ -9,6 +9,8 @@ title: common.storages.load_storage
 class LoadStorage(DataItemStorage, VersionedStorage)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/load_storage.py#L125)
+
 #### NORMALIZED\_FOLDER
 
 folder within the volume where load packages are stored
@@ -40,6 +42,8 @@ def list_failed_jobs_in_completed_package(
         load_id: str) -> Sequence[LoadJobInfo]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/load_storage.py#L246)
+
 List all failed jobs and associated error messages for a completed load package with `load_id`
 
 #### get\_load\_package\_info
@@ -48,6 +52,8 @@ List all failed jobs and associated error messages for a completed load package 
 def get_load_package_info(load_id: str) -> LoadPackageInfo
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/load_storage.py#L258)
+
 Gets information on normalized/completed package with given load_id, all jobs and their statuses.
 
 #### commit\_schema\_update
@@ -55,6 +61,8 @@ Gets information on normalized/completed package with given load_id, all jobs an
 ```python
 def commit_schema_update(load_id: str, applied_update: TSchemaTables) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/load_storage.py#L300)
 
 Marks schema update as processed and stores the update that was applied at the destination
 
@@ -65,6 +73,8 @@ def add_new_job(load_id: str,
                 job_file_path: str,
                 job_state: TJobState = "new_jobs") -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/load_storage.py#L310)
 
 Adds new job by moving the `job_file_path` into `new_jobs` of package `load_id`
 

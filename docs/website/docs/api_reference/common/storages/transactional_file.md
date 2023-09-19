@@ -16,6 +16,8 @@ creating a lock file that resolves to an agreed upon path across processes.
 def lock_id(k: int = 4) -> str
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/transactional_file.py#L22)
+
 Generate a time based random id.
 
 **Arguments**:
@@ -33,6 +35,8 @@ Generate a time based random id.
 class Heartbeat(Timer)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/transactional_file.py#L35)
+
 A thread designed to periodically execute a fn.
 
 ## TransactionalFile Objects
@@ -41,6 +45,8 @@ A thread designed to periodically execute a fn.
 class TransactionalFile()
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/transactional_file.py#L45)
+
 A transaction handler which wraps a file path.
 
 #### \_\_init\_\_
@@ -48,6 +54,8 @@ A transaction handler which wraps a file path.
 ```python
 def __init__(path: str, fs: fsspec.AbstractFileSystem) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/transactional_file.py#L51)
 
 Creates a new FileTransactionHandler.
 
@@ -62,6 +70,8 @@ Creates a new FileTransactionHandler.
 def read() -> t.Optional[bytes]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/transactional_file.py#L116)
+
 Reads data from the file if it exists.
 
 #### write
@@ -70,6 +80,8 @@ Reads data from the file if it exists.
 def write(content: bytes) -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/transactional_file.py#L122)
+
 Writes data within the transaction.
 
 #### rollback
@@ -77,6 +89,8 @@ Writes data within the transaction.
 ```python
 def rollback() -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/transactional_file.py#L130)
 
 Rolls back the transaction.
 
@@ -87,6 +101,8 @@ def acquire_lock(blocking: bool = True,
                  timeout: float = -1,
                  jitter_mean: float = 0) -> bool
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/transactional_file.py#L139)
 
 Acquires a lock on a path. Mimics the stdlib's `threading.Lock` interface.
 
@@ -117,6 +133,8 @@ not (for example if the timeout expired).
 def release_lock() -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/transactional_file.py#L192)
+
 Releases a lock on a key.
 
 This is idempotent and safe to call multiple times.
@@ -127,6 +145,8 @@ This is idempotent and safe to call multiple times.
 @contextmanager
 def lock(timeout: t.Optional[float] = None) -> t.Iterator[None]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/transactional_file.py#L204)
 
 A context manager that acquires and releases a lock on a path.
 
@@ -153,6 +173,8 @@ manager, the transaction will be rolled back.
 ```python
 def __del__() -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/storages/transactional_file.py#L234)
 
 Stop the heartbeat thread on gc. Locks should be released explicitly.
 

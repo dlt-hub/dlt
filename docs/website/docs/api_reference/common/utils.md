@@ -9,6 +9,8 @@ title: common.utils
 def uniq_id(len_: int = 16) -> str
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L30)
+
 Returns a hex encoded crypto-grade string of random bytes with desired len_
 
 #### uniq\_id\_base64
@@ -16,6 +18,8 @@ Returns a hex encoded crypto-grade string of random bytes with desired len_
 ```python
 def uniq_id_base64(len_: int = 16) -> str
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L35)
 
 Returns a base64 encoded crypto-grade string of random bytes with desired len_
 
@@ -25,6 +29,8 @@ Returns a base64 encoded crypto-grade string of random bytes with desired len_
 def digest128(v: str, len_: int = 15) -> str
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L40)
+
 Returns a base64 encoded shake128 hash of str `v` with digest of length `len_` (default: 15 bytes = 20 characters length)
 
 #### digest128b
@@ -32,6 +38,8 @@ Returns a base64 encoded shake128 hash of str `v` with digest of length `len_` (
 ```python
 def digest128b(v: bytes, len_: int = 15) -> str
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L45)
 
 Returns a base64 encoded shake128 hash of bytes `v` with digest of length `len_` (default: 15 bytes = 20 characters length)
 
@@ -41,6 +49,8 @@ Returns a base64 encoded shake128 hash of bytes `v` with digest of length `len_`
 def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> StrAny
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L80)
+
 Transforms a list of objects or strings [{K: {...}}, L, ...] -> {K: {...}, L: None, ...}
 
 #### concat\_strings\_with\_limit
@@ -49,6 +59,8 @@ Transforms a list of objects or strings [{K: {...}}, L, ...] -> {K: {...}, L: No
 def concat_strings_with_limit(strings: List[str], separator: str,
                               limit: int) -> Iterator[str]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L143)
 
 Generator function to concatenate strings.
 
@@ -74,6 +86,8 @@ def graph_edges_to_nodes(edges: Sequence[Tuple[TAny, TAny]],
                          directed: bool = True) -> Dict[TAny, Set[TAny]]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L178)
+
 Converts a directed graph represented as a sequence of edges to a graph represented as a mapping from nodes a set of connected nodes.
 
 Isolated nodes are represented as edges to itself. If `directed` is `False`, each edge is duplicated but going in opposite direction.
@@ -83,6 +97,8 @@ Isolated nodes are represented as edges to itself. If `directed` is `False`, eac
 ```python
 def graph_find_scc_nodes(undag: Dict[TAny, Set[TAny]]) -> List[Set[TAny]]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L197)
 
 Finds and returns a list of sets of nodes in strongly connected components of a `undag` which is undirected
 
@@ -94,6 +110,8 @@ To obtain undirected graph from edges use `graph_edges_to_nodes` function with `
 def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L226)
+
 Updates values that are both in `dest` and `update` and deletes `dest` values that are None in `update`
 
 #### map\_nested\_in\_place
@@ -102,6 +120,8 @@ Updates values that are both in `dest` and `update` and deletes `dest` values th
 def map_nested_in_place(func: AnyFun, _complex: TAny) -> TAny
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L259)
+
 Applies `func` to all elements in `_dict` recursively, replacing elements in nested dictionaries and lists in place.
 
 #### is\_interactive
@@ -109,6 +129,8 @@ Applies `func` to all elements in `_dict` recursively, replacing elements in nes
 ```python
 def is_interactive() -> bool
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L284)
 
 Determine if the current environment is interactive.
 
@@ -123,6 +145,8 @@ Determine if the current environment is interactive.
 def custom_environ(env: StrStr) -> Iterator[None]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L305)
+
 Temporarily set environment variables inside the context manager and
 fully restore previous environment afterwards
 
@@ -134,6 +158,8 @@ def multi_context_manager(
         managers: Sequence[ContextManager[Any]]) -> Iterator[Any]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L360)
+
 A context manager holding several other context managers. Enters and exists all of them. Yields from the last in the list
 
 #### is\_inner\_callable
@@ -141,6 +167,8 @@ A context manager holding several other context managers. Enters and exists all 
 ```python
 def is_inner_callable(f: AnyFun) -> bool
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L388)
 
 Checks if f is defined within other function
 
@@ -150,6 +178,8 @@ Checks if f is defined within other function
 def get_module_name(m: ModuleType) -> str
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L402)
+
 Gets module name from module with a fallback for executing module __main__
 
 #### derives\_from\_class\_of\_name
@@ -157,6 +187,8 @@ Gets module name from module with a fallback for executing module __main__
 ```python
 def derives_from_class_of_name(o: object, name: str) -> bool
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L411)
 
 Checks if object o has class of name in its derivation tree
 
@@ -166,6 +198,8 @@ Checks if object o has class of name in its derivation tree
 def compressed_b64encode(value: bytes) -> str
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L417)
+
 Compress and b64 encode the given bytestring
 
 #### compressed\_b64decode
@@ -174,6 +208,8 @@ Compress and b64 encode the given bytestring
 def compressed_b64decode(value: str) -> bytes
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L422)
+
 Decode a bytestring encoded with `compressed_b64encode`
 
 #### merge\_row\_count
@@ -181,6 +217,8 @@ Decode a bytestring encoded with `compressed_b64encode`
 ```python
 def merge_row_count(row_counts_1: TRowCount, row_counts_2: TRowCount) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L436)
 
 merges row counts_2 into row_counts_1
 
@@ -191,6 +229,8 @@ def extend_list_deduplicated(original_list: List[Any],
                              extending_list: Iterable[Any]) -> List[Any]
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L443)
+
 extends the first list by the second, but does not add duplicates
 
 #### maybe\_context
@@ -199,6 +239,8 @@ extends the first list by the second, but does not add duplicates
 @contextmanager
 def maybe_context(manager: ContextManager[TAny]) -> Iterator[TAny]
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/utils.py#L453)
 
 Allows context manager `manager` to be None by creating dummy context. Otherwise `manager` is used
 

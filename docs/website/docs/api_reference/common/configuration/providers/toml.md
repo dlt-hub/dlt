@@ -9,6 +9,8 @@ title: common.configuration.providers.toml
 class VaultTomlProvider(BaseTomlProvider)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/providers/toml.py#L111)
+
 A toml-backed Vault abstract config provider.
 
 This provider allows implementation of providers that store secrets in external vaults: like Hashicorp, Google Secrets or Airflow Metadata.
@@ -29,6 +31,8 @@ them with the
 def __init__(only_secrets: bool, only_toml_fragments: bool) -> None
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/providers/toml.py#L128)
+
 Initializes the toml backed Vault provider by loading a toml fragment from `dlt_secrets_toml` key and using it as initial configuration.
 
 _extended_summary_
@@ -44,6 +48,8 @@ _extended_summary_
 class TomlFileProvider(BaseTomlProvider)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/providers/toml.py#L219)
+
 #### \_\_init\_\_
 
 ```python
@@ -51,6 +57,8 @@ def __init__(file_name: str,
              project_dir: str = None,
              add_global_config: bool = False) -> None
 ```
+
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/common/configuration/providers/toml.py#L220)
 
 Creates config provider from a `toml` file
 

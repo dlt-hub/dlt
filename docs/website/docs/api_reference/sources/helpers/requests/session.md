@@ -9,6 +9,8 @@ title: sources.helpers.requests.session
 class Session(BaseSession)
 ```
 
+[[view_source]](https://github.com/dlt-hub/dlt/blob/30d0f64fb2cdbacc2e88fdb304371650f417e1f0/dlt/sources/helpers/requests/session.py#L21)
+
 Requests session which by default adds a timeout to all requests and calls `raise_for_status()` on response
 
 ### Args
