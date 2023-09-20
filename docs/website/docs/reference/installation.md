@@ -11,8 +11,8 @@ keywords: [installation, environment, pip install]
 ### Make sure you are using **Python 3.8-3.11** and have `pip` installed
 
 ```bash
-python3 --version
-pip3 --version
+python --version
+pip --version
 ```
 
 ### If not, then please follow the instructions below to install it
@@ -60,7 +60,7 @@ C:\> pip3 install -U pip
 Create a new virtual environment by making a `./env` directory to hold it.
 
 ```bash
-python3 -m venv ./env
+python -m venv ./env
 ```
 
 Activate the virtual environment:
@@ -75,7 +75,7 @@ source ./env/bin/activate
 Create a new virtual environment by making a `./env` directory to hold it.
 
 ```bash
-python3 -m venv ./env
+python -m venv ./env
 ```
 
 Activate the virtual environment:
@@ -90,7 +90,7 @@ source ./env/bin/activate
 Create a new virtual environment by making a `./env` directory to hold it.
 
 ```bat
-C:\> python3 -m venv ./env
+C:\> python -m venv ./env
 ```
 
 Activate the virtual environment:
@@ -107,5 +107,5 @@ C:\> .\env\Scripts\activate
 You can install `dlt` in your virtual environment by running:
 
 ```bash
-pip3 install -U dlt
+pip install -U dlt
 ```

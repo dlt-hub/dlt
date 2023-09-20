@@ -15,7 +15,7 @@ import snippets from '!!raw-loader!./intro-snippets.py';
 `dlt` is an open-source library that you can add to your Python scripts to load data
 from various and often messy data sources into well-structured, live datasets. Install it with:
 ```sh
-pip3 install dlt
+pip install dlt
 ```
 There's no need to start any backends or containers. Import `dlt` in your Python script and write a simple pipeline like the one below:
 
@@ -45,7 +45,7 @@ load_info = pipeline.run(data, table_name='player')
 
 Now copy this snippet to a file or a Notebook cell and run it. If you do not have it yet, install **duckdb** dependency (default `dlt` installation is really minimal):
 ```sh
-pip3 install "dlt[duckdb]"
+pip install "dlt[duckdb]"
 ```
 
 How the script works?: It extracts data from a
