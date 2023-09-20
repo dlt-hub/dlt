@@ -32,7 +32,7 @@ def pipeline(
 ) -> Pipeline:
     """Creates a new instance of `dlt` pipeline, which moves the data from the source ie. a REST API to a destination ie. database or a data lake.
 
-    ### Summary
+    #### Note:
     The `pipeline` functions allows you to pass the destination name to which the data should be loaded, the name of the dataset and several other options that govern loading of the data.
     The created `Pipeline` object lets you load the data from any source with `run` method or to have more granular control over the loading process with `extract`, `normalize` and `load` methods.
 
@@ -41,7 +41,7 @@ def pipeline(
     - Pipeline architecture and data loading steps: https://dlthub.com/docs/reference
     - List of supported destinations: https://dlthub.com/docs/dlt-ecosystem/destinations
 
-    ### Args:
+    #### Args:
         pipeline_name (str, optional): A name of the pipeline that will be used to identify it in monitoring events and to restore its state and data schemas on subsequent runs.
         Defaults to the file name of pipeline script with `dlt_` prefix added.
 
@@ -73,7 +73,7 @@ def pipeline(
         `extract`, `normalize` and `load` stage. Pass a string with a collector name or configure your own by choosing from `dlt.progress` module.
         We support most of the progress libraries: try passing `tqdm`, `enlighten` or `alive_progress` or `log` to write to console/log.
 
-    ### Returns:
+    #### Returns:
         Pipeline: An instance of `Pipeline` class with. Please check the documentation of `run` method for information on what to do with it.
     """
 
@@ -179,7 +179,7 @@ def run(
 ) -> LoadInfo:
     """Loads the data in `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
-    ### Summary
+    #### Note:
     This method will `extract` the data from the `data` argument, infer the schema, `normalize` the data into a load package (ie. jsonl or PARQUET files representing tables) and then `load` such packages into the `destination`.
 
     The data may be supplied in several forms:
@@ -190,12 +190,12 @@ def run(
 
     Please note that `dlt` deals with `bytes`, `datetime`, `decimal` and `uuid` objects so you are free to load binary data or documents containing dates.
 
-    ### Execution
+    #### Execution:
     The `run` method will first use `sync_destination` method to synchronize pipeline state and schemas with the destination. You can disable this behavior with `restore_from_destination` configuration option.
     Next it will make sure that data from the previous is fully processed. If not, `run` method normalizes and loads pending data items.
     Only then the new data from `data` argument is extracted, normalized and loaded.
 
-    ### Args:
+    #### Args:
         data (Any): Data to be loaded to destination
 
         destination (str | DestinationReference, optional): A name of the destination to which dlt will load the data, or a destination module imported from `dlt.destination`.
@@ -220,9 +220,9 @@ def run(
 
         schema (Schema, optional): An explicit `Schema` object in which all table schemas will be grouped. By default `dlt` takes the schema from the source (if passed in `data` argument) or creates a default one itself.
 
-    ### Raises:
+    Raises:
         PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
-    ### Returns:
+    Returns:
         LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
     """
     destination = DestinationReference.from_name(destination)

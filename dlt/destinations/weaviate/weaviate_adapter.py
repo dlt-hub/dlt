@@ -52,7 +52,7 @@ def weaviate_adapter(
     Examples:
         >>> data = [{"name": "Alice", "description": "Software developer"}]
         >>> weaviate_adapter(data, vectorize="description", tokenization={"description": "word"})
-        <DltResource with hints applied>
+        [DltResource with hints applied]
     """
     # wrap `data` in a resource if not an instance already
     resource: DltResource

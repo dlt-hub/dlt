@@ -229,6 +229,7 @@ const sidebars = {
         keywords: ['reference'],
       },
       items: [
+        require("./docs/api_reference/sidebar.json"),
         'reference/installation',
         'reference/command-line-interface',
         'reference/performance',
@@ -237,6 +238,11 @@ const sidebars = {
         'reference/explainers/airflow-gcp-cloud-composer',
       ],
     },
+    // {
+    //   "API Documentation": [
+    //   require("./docs/api_reference/sidebar.json")
+    // ],
+    // }
   ]
 };
 
