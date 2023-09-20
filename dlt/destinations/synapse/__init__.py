@@ -3,7 +3,7 @@ from typing import Type
 from dlt.common.schema.schema import Schema
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
-from dlt.common.data_writers.escape import escape_postgres_identifier, _escape_extended, MS_SQL_ESCAPE_DICT, MS_SQL_ESCAPE_RE, date, datetime, time, json, base64, Any, Dict
+from dlt.common.data_writers.escape import escape_postgres_identifier, _escape_extended, _make_sql_escape_re, date, datetime, time, json, base64, Any, Dict
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
@@ -39,7 +39,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.max_text_data_type_length = 4000
     caps.is_max_text_data_type_length_in_bytes = False
     caps.supports_ddl_transactions = True
-    caps.max_rows_per_insert = 3000
+    caps.max_rows_per_insert = 1000
 
     return caps
 
@@ -68,3 +68,12 @@ def escape_mssql_literal(v: Any) -> Any:
     if isinstance(v, bool):
         return str(int(v))
     return str(v)
+
+MS_SQL_ESCAPE_DICT = {
+    "'": "''",
+    '\n': '\n',
+    '\r': '\r',
+    '\t': '\t',
+}
+
+MS_SQL_ESCAPE_RE = _make_sql_escape_re(MS_SQL_ESCAPE_DICT)
