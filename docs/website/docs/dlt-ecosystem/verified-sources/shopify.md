@@ -6,7 +6,7 @@
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
-Shopify is a user-friendly e-commerce solution that enables anyone to easily create and manage their
+[Shopify](https://www.shopify.com/) is a user-friendly e-commerce solution that enables anyone to easily create and manage their
 own online store.
 
 This Shopify `dlt` verified source and
@@ -17,9 +17,9 @@ The resources that this verified source supports are:
 
 | Name      | Description                                                                         |
 |-----------|-------------------------------------------------------------------------------------|
-| customers | individuals or entities who have created accounts on a Shopify-powered online store |
-| orders    | transactions made by customers on an online store                                   |
-| products  | the individual items or goods that are available for sale                           |
+| customers | Individuals or entities who have created accounts on a Shopify-powered online store |
+| orders    | Transactions made by customers on an online store                                   |
+| products  | The individual items or goods that are available for sale                           |
 
 ## Setup Guide
 
@@ -37,6 +37,9 @@ The resources that this verified source supports are:
 1. Save the configuration.
 1. Hit “Install app” and confirm.
 1. Reveal and copy the Admin API token from “secrets.toml”. Store safely; it's shown only once.
+
+Note: The Shopify UI, which is described here, might change.
+The full guide is available at [this link.](https://www.shopify.com/partners/blog/17056443-how-to-generate-a-shopify-api-token)
 
 ### Initialize the verified source
 
@@ -66,13 +69,15 @@ For more information, read the
 
 1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can
    securely store your access tokens and other sensitive information. It's important to handle this
-   file with care and keep it safe. Here's what the file looks like:
+   file with care and keep it safe.
 
-   ```toml
-   #shopify
-   [sources.shopify_dlt]
-   private_app_password=" Please set me up !" #Admin API access token copied above
-   ```
+   Here's what the file looks like:
+
+      ```toml
+      #shopify
+      [sources.shopify_dlt]
+      private_app_password=" Please set me up !" #Admin API access token copied above
+      ```
 
 1. Update `private_app_password` with the `API access token` that
    [you copied above](shopify.md#grab-api-token).
@@ -162,17 +167,17 @@ loading and pagination.
 
 ```python
 @dlt.resource(primary_key="id", write_disposition="merge")
-   def products(
-       updated_at: dlt.sources.incremental[
-           pendulum.DateTime
-       ] = dlt.sources.incremental(
-           "updated_at",
-           initial_value=start_date_obj,
-           end_value=end_date_obj,
-           allow_external_schedulers=True,
-       ),
-       created_at_min: pendulum.DateTime = created_at_min_obj,
-       items_per_page: int = items_per_page,
+def products(
+    updated_at: dlt.sources.incremental[
+        pendulum.DateTime
+    ] = dlt.sources.incremental(
+        "updated_at",
+        initial_value=start_date_obj,
+        end_value=end_date_obj,
+        allow_external_schedulers=True,
+    ),
+    created_at_min: pendulum.DateTime = created_at_min_obj,
+    items_per_page: int = items_per_page,
 ) -> Iterable[TDataItem]:
 ```
 
@@ -207,6 +212,7 @@ verified source.
    # Add your desired resources to the list...
    resources = ["products", "orders", "customers"]
    start_date="2023-01-01"
+
    load_data = shopify_source(start_date=start_date).with_resources(*resources)
    load_info = pipeline.run(load_data)
    print(load_info)
