@@ -64,6 +64,7 @@ def escape_mssql_literal(v: Any) -> Any:
     if isinstance(v, bytes):
         # Updated: azure synapse doesn't have XML
         base_64_string = base64.b64encode(v).decode('ascii')
+        return f"""CAST('' AS XML).value('xs:base64Binary("{base_64_string}")', 'VARBINARY(MAX)')"""
     if isinstance(v, bool):
         return str(int(v))
     return str(v)
