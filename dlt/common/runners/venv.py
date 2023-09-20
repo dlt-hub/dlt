@@ -59,8 +59,8 @@ class Venv():
             venv = cls.restore(os.environ["VIRTUAL_ENV"], current=True)
         except KeyError:
             import sys
-            bin_path, _ = os.path.split(sys.executable)
-            context = types.SimpleNamespace(bin_path=bin_path, env_exe=sys.executable)
+            # do not set bin path because it is not known
+            context = types.SimpleNamespace(bin_path="", env_exe=sys.executable)
             venv = cls(context, current=True)
         return venv
 
