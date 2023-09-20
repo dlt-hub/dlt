@@ -4,6 +4,7 @@ from typing import Any, Type
 import pytest
 import datetime  # noqa: I251
 from hexbytes import HexBytes
+from enum import Enum
 
 from pendulum.tz import UTC
 
@@ -32,6 +33,24 @@ def test_coerce_type_to_text() -> None:
     assert coerce_value("text", "binary", b'binary string') == "YmluYXJ5IHN0cmluZw=="
     # HexBytes to text (hex with prefix)
     assert coerce_value("text", "binary", HexBytes(b'binary string')) == "0x62696e61727920737472696e67"
+    # Str enum value
+    class StrEnum(Enum):
+        a = "a_value"
+        b = "b_value"
+
+    str_enum_result = coerce_value("text", "text", StrEnum.b)
+    # Make sure we get the bare str value, not the enum instance
+    assert not isinstance(str_enum_result, Enum)
+    assert str_enum_result == "b_value"
+    # Mixed enum value
+    class MixedEnum(Enum):
+        a = "a_value"
+        b = 1
+
+    mixed_enum_result = coerce_value("text", "text", MixedEnum.b)
+    # Make sure we get the bare str value, not the enum instance
+    assert not isinstance(mixed_enum_result, Enum)
+    assert mixed_enum_result == "1"
 
 
 def test_coerce_type_to_bool() -> None:
@@ -92,6 +111,16 @@ def test_coerce_type_to_bigint() -> None:
         coerce_value("bigint", "text", "f912.12")
     with pytest.raises(ValueError):
         coerce_value("bigint", "text", "912.12")
+
+    # Int enum value
+    class IntEnum(int, Enum):
+        a = 1
+        b = 2
+
+    int_enum_result = coerce_value("bigint", "bigint", IntEnum.b)
+    # Make sure we get the bare int value, not the enum instance
+    assert not isinstance(int_enum_result, Enum)
+    assert int_enum_result == 2
 
 
 @pytest.mark.parametrize("dec_cls,data_type", [
@@ -279,6 +308,22 @@ def test_py_type_to_sc_type() -> None:
     assert py_type_to_sc_type(tuple) == "complex"
     assert py_type_to_sc_type(Mapping) == "complex"
     assert py_type_to_sc_type(MutableSequence) == "complex"
+
+    class IntEnum(int, Enum):
+        a = 1
+        b = 2
+
+    class StrEnum(str, Enum):
+        a = "a"
+        b = "b"
+
+    class MixedEnum(Enum):
+        a = 1
+        b = "b"
+
+    assert py_type_to_sc_type(IntEnum) == "bigint"
+    assert py_type_to_sc_type(StrEnum) == "text"
+    assert py_type_to_sc_type(MixedEnum) == "text"
 
 
 def test_coerce_type_complex() -> None:

@@ -4,7 +4,10 @@ description: Introduction to dlt
 keywords: [introduction, who, what, how]
 ---
 
+import snippets from '!!raw-loader!./intro-snippets.py';
+
 # Introduction
+
 
 ![dlt pacman](/img/dlt-pacman.gif)
 
@@ -16,7 +19,9 @@ pip install dlt
 ```
 There's no need to start any backends or containers. Import `dlt` in your Python script and write a simple pipeline like the one below:
 
-<!--SNIPSTART intro_snippet -->
+<!--AUTO-GENERATED-CONTENT:END-->
+
+<!--@@@DLT_SNIPPET_START index-->
 ```py
 import dlt
 from dlt.sources.helpers import requests
@@ -34,10 +39,9 @@ for player in ['magnuscarlsen', 'rpragchess']:
     response.raise_for_status()
     data.append(response.json())
 # Extract, normalize, and load the data
-info = pipeline.run(data, table_name='player')
-print(info)
+load_info = pipeline.run(data, table_name='player')
 ```
-<!--SNIPEND-->
+<!--@@@DLT_SNIPPET_END index-->
 
 Now copy this snippet to a file or a Notebook cell and run it. If you do not have it yet, install **duckdb** dependency (default `dlt` installation is really minimal):
 ```sh
@@ -62,7 +66,7 @@ while empowering senior professionals.
 1. Play with the
 [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
 This is the simplest way to see `dlt` in action.
-2. Run [Getting Started snippets](getting-started.mdx) and load data from python objects, files, data frames, databases, APIs or PDFs into any [destination](dlt-ecosystem/destinations/).
+2. Run [Getting Started snippets](getting-started.md) and load data from python objects, files, data frames, databases, APIs or PDFs into any [destination](dlt-ecosystem/destinations/).
 3. Read [Pipeline Tutorial](build-a-pipeline-tutorial.md) to start building E(t)LT pipelines from ready components.
 4. We have many interesting [walkthroughs](walkthroughs/) where you create, run, customize and deploy pipelines.
 5. Ask us on

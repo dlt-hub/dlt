@@ -36,6 +36,7 @@ const sidebars = {
             id: 'dlt-ecosystem/verified-sources/index',
           },
           items: [
+            'dlt-ecosystem/verified-sources/airtable',
             'dlt-ecosystem/verified-sources/asana',
             'dlt-ecosystem/verified-sources/chess',
             'dlt-ecosystem/verified-sources/facebook_ads',
@@ -84,6 +85,7 @@ const sidebars = {
           items: [
             'dlt-ecosystem/destinations/bigquery',
             'dlt-ecosystem/destinations/duckdb',
+            'dlt-ecosystem/destinations/mssql',
             'dlt-ecosystem/destinations/filesystem',
             'dlt-ecosystem/destinations/postgres',
             'dlt-ecosystem/destinations/redshift',
@@ -98,24 +100,14 @@ const sidebars = {
           type: 'category',
           label: 'Deployments',
           link: {
-            type: 'generated-index',
-            title: 'Deployments',
-            description: 'Overview over where you can deploy dlt.',
-            slug: 'dlt-ecosystem/deployments',
-            keywords: ['deployments'],
+            type: 'doc',
+            id: 'dlt-ecosystem/deployments/index',
           },
           items: [
-            'dlt-ecosystem/deployments/where-can-dlt-run',
-            'dlt-ecosystem/deployments/running-in-cloud-functions',
-            {
-              type: 'category',
-              label: 'Orchestrators',
-              items: [
-                'dlt-ecosystem/deployments/orchestrators/choosing-an-orchestrator',
-                'dlt-ecosystem/deployments/orchestrators/airflow-deployment',
-                'dlt-ecosystem/deployments/orchestrators/github-actions',
-              ]
-            },
+            'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
+            'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
+            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
+            'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
           ]
         },
         {
@@ -132,7 +124,6 @@ const sidebars = {
             'dlt-ecosystem/transformations/dbt',
             'dlt-ecosystem/transformations/sql',
             'dlt-ecosystem/transformations/pandas',
-            ,
           ]
         },
         {
@@ -140,26 +131,8 @@ const sidebars = {
           label: 'Visualizations',
           items: [
             'dlt-ecosystem/visualizations/exploring-the-data',
-            'dlt-ecosystem/visualizations/understanding-the-tables'
           ]
         },
-      ],
-    },
-    {
-      type: 'category',
-      label: 'User Guides',
-      link: {
-        type: 'generated-index',
-        title: 'User Guides',
-        slug: 'user-guides',
-        keywords: ['user guides'],
-      },
-      items: [
-        'user-guides/analytics-engineer',
-        'user-guides/data-beginner',
-        'user-guides/data-engineer',
-        'user-guides/data-scientist',
-        'user-guides/engineering-manager',
       ],
     },
     {
@@ -207,17 +180,17 @@ const sidebars = {
         keywords: ['general usage'],
       },
       items: [
-        'general-usage/glossary',
-        'general-usage/import-dlt',
         'general-usage/resource',
         'general-usage/source',
         'general-usage/pipeline',
+        'general-usage/destination-tables',
         'general-usage/state',
         'general-usage/incremental-loading',
         'general-usage/full-loading',
         'general-usage/credentials',
         'general-usage/schema',
         'general-usage/configuration',
+        'general-usage/glossary',
         {
           type: 'category',
           label: 'Customising pipelines',
@@ -256,15 +229,20 @@ const sidebars = {
         keywords: ['reference'],
       },
       items: [
+        require("./docs/api_reference/sidebar.json"),
         'reference/installation',
         'reference/command-line-interface',
         'reference/performance',
-        'reference/explainers/how-dlt-works',
-        'reference/explainers/schema-evolution',
         'reference/telemetry',
-        'reference/airflow-gcp-cloud-composer',
+        'reference/explainers/how-dlt-works',
+        'reference/explainers/airflow-gcp-cloud-composer',
       ],
     },
+    // {
+    //   "API Documentation": [
+    //   require("./docs/api_reference/sidebar.json")
+    // ],
+    // }
   ]
 };
 

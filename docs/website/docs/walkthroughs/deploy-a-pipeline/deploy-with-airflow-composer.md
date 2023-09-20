@@ -6,7 +6,7 @@ keywords: [how to, deploy a pipeline, airflow, gcp]
 
 # Deploy a pipeline with Airflow and Google Composer
 
-Before you can deploy a pipeline, you will need to [install dlt](../../reference/installation.mdx)
+Before you can deploy a pipeline, you will need to [install dlt](../../reference/installation.md)
 and [create a pipeline](../create-a-pipeline.md).
 
 ## 1. Add your `dlt` project directory to GitHub
@@ -390,7 +390,7 @@ There are two ways to pass the credentials
 ### 5. Configure `build/cloudbuild.yaml` to run it with Google Cloud Platform \[[Cloud Composer](https://console.cloud.google.com/composer/environments)\]
 
 - Read our doc
-  [How to deploy the main branch of your airflow project from GitHub to Cloud Composer](../../reference/airflow-gcp-cloud-composer.md).
+  [How to deploy the main branch of your airflow project from GitHub to Cloud Composer](../../reference/explainers/airflow-gcp-cloud-composer.md).
 
   There you can find:
 

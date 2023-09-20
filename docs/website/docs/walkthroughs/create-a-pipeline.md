@@ -11,7 +11,7 @@ WeatherAPI.com API to DuckDB from scratch. The same steps can be repeated for an
 destination of your choice—use `dlt init <source> <destination>` and then build the pipeline for
 that API instead.
 
-Please make sure you have [installed `dlt`](../reference/installation.mdx) before following the
+Please make sure you have [installed `dlt`](../reference/installation.md) before following the
 steps below.
 
 ## 1. Initialize project
