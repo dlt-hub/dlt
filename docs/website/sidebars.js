@@ -36,6 +36,7 @@ const sidebars = {
             id: 'dlt-ecosystem/verified-sources/index',
           },
           items: [
+            'dlt-ecosystem/verified-sources/airtable',
             'dlt-ecosystem/verified-sources/asana',
             'dlt-ecosystem/verified-sources/chess',
             'dlt-ecosystem/verified-sources/facebook_ads',
