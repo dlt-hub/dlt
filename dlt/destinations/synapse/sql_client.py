@@ -134,6 +134,8 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         except pyodbc.Error as outer:
             print(f"Error in query:")
             print(query)
+            print("Query error:")
+            print(outer)
             raise outer
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
