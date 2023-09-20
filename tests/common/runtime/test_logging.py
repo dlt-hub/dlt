@@ -4,6 +4,7 @@ from importlib.metadata import version as pkg_version
 
 from dlt.common import logger
 from dlt.common.runtime import exec_info
+from dlt.common.runtime.logger import is_logging
 from dlt.common.typing import StrStr
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RunConfiguration
@@ -81,6 +82,34 @@ def test_json_logger_init(environment: StrStr) -> None:
         1 / 0
     except ZeroDivisionError:
         logger.exception("DIV")
+
+
+@pytest.mark.forked
+def test_double_log_init(environment: StrStr) -> None:
+
+    mock_image_env(environment)
+    mock_pod_env(environment)
+
+    assert not is_logging()
+    # from regular logger
+    init_test_logging(PureBasicConfiguration())
+    assert is_logging()
+    # caplog does not capture the formatted output of loggers below
+    # so I'm not able to test the exact output
+    # comment out @pytest.mark.forked and use -s option to see the log messages
+    # logger.LOGGER.propagate = True
+    logger.error("test warning", extra={"metrics": "props"})
+    # normal logger
+    # to json
+    init_test_logging(JsonLoggerConfiguration())
+    json_logging.COMPONENT_NAME = "logger"
+    logger.error("test json warning", extra={"metrics": "props"})
+    # to regular
+    init_test_logging(PureBasicConfiguration())
+    logger.error("test warning", extra={"metrics": "props"})
+    # to json
+    init_test_logging(JsonLoggerConfiguration())
+    logger.error("test warning", extra={"metrics": "props"})
 
 
 def test_cleanup(environment: StrStr) -> None:

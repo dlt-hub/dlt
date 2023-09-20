@@ -29,6 +29,8 @@ def __getattr__(name: str) -> LogMethod:
                 # exception has one more frame
                 stacklevel = 3
             getattr(LOGGER, name)(msg, *args, **kwargs, stacklevel=stacklevel)
+        else:
+            raise RuntimeError()
     return wrapper
 
 
@@ -113,7 +115,8 @@ def _init_logging(logger_name: str, level: str, fmt: str, component: str, versio
     if is_json_logging(fmt):
         json_logging.COMPONENT_NAME = component
         json_logging.JSON_SERIALIZER = json.dumps
-        json_logging.RECORD_ATTR_SKIP_LIST.remove("process")
+        if "process" in json_logging.RECORD_ATTR_SKIP_LIST:
+            json_logging.RECORD_ATTR_SKIP_LIST.remove("process")
         # set version as class variable as we cannot pass custom constructor parameters
         _CustomJsonFormatter.version = version
         # the only thing method above effectively does is to replace the formatter
