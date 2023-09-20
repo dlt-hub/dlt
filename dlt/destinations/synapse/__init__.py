@@ -3,7 +3,7 @@ from typing import Type
 from dlt.common.schema.schema import Schema
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
-from dlt.common.data_writers.escape import escape_postgres_identifier, escape_mssql_literal
+from dlt.common.data_writers.escape import escape_postgres_identifier, _escape_extended, MS_SQL_ESCAPE_DICT, MS_SQL_ESCAPE_RE, date, datetime, time, json, base64, Any
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
@@ -53,3 +53,17 @@ def client(schema: Schema, initial_config: DestinationClientConfiguration = conf
 
 def spec() -> Type[DestinationClientConfiguration]:
     return SynapseClientConfiguration
+
+def escape_mssql_literal(v: Any) -> Any:
+    if isinstance(v, str):
+         return _escape_extended(v, prefix="N'", escape_dict=MS_SQL_ESCAPE_DICT, escape_re=MS_SQL_ESCAPE_RE)
+    if isinstance(v, (datetime, date, time)):
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return _escape_extended(json.dumps(v), prefix="N'", escape_dict=MS_SQL_ESCAPE_DICT, escape_re=MS_SQL_ESCAPE_RE)
+    if isinstance(v, bytes):
+        # Updated: azure synapse doesn't have XML
+        base_64_string = base64.b64encode(v).decode('ascii')
+    if isinstance(v, bool):
+        return str(int(v))
+    return str(v)
