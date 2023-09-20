@@ -21,23 +21,25 @@ from dlt.destinations.sql_jobs import SqlStagingCopyJob
 from dlt.destinations.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.type_mapping import TypeMapper
+
 
 BIGINT_PRECISION = 19
-MAX_NUMERIC_PRECISION = 38
+# MAX_NUMERIC_PRECISION = 38
 
 
-SCT_TO_SNOW: Dict[TDataType, str] = {
-    "complex": "VARIANT",
-    "text": "VARCHAR",
-    "double": "FLOAT",
-    "bool": "BOOLEAN",
-    "date": "DATE",
-    "timestamp": "TIMESTAMP_TZ",
-    "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Snowflake has no integer types
-    "binary": "BINARY",
-    "decimal": "NUMBER(%i,%i)",
-    "time": "TIME",
-}
+# SCT_TO_SNOW: Dict[TDataType, str] = {
+#     "complex": "VARIANT",
+#     "text": "VARCHAR",
+#     "double": "FLOAT",
+#     "bool": "BOOLEAN",
+#     "date": "DATE",
+#     "timestamp": "TIMESTAMP_TZ",
+#     "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Snowflake has no integer types
+#     "binary": "BINARY",
+#     "decimal": "NUMBER(%i,%i)",
+#     "time": "TIME",
+# }
 
 SNOW_TO_SCT: Dict[str, TDataType] = {
     "VARCHAR": "text",
@@ -49,6 +51,30 @@ SNOW_TO_SCT: Dict[str, TDataType] = {
     "VARIANT": "complex",
     "TIME": "time",
 }
+
+
+class SnowflakeTypeMapper(TypeMapper):
+    BIGINT_PRECISION = 19
+    MAX_NUMERIC_PRECISION = 38
+    sct_to_unbound_dbt = {
+        "complex": "VARIANT",
+        "text": "VARCHAR",
+        "double": "FLOAT",
+        "bool": "BOOLEAN",
+        "date": "DATE",
+        "timestamp": "TIMESTAMP_TZ",
+        "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Snowflake has no integer types
+        "binary": "BINARY",
+        "time": "TIME",
+    }
+
+    sct_to_dbt = {
+        "text": "VARCHAR(%i)",
+        "timestamp": "TIMESTAMP_TZ(%i)",
+        "decimal": "NUMBER(%i,%i)",
+        "time": "TIME(%i)",
+        "wei": "NUMBER(%i,%i)",
+    }
 
 
 class SnowflakeLoadJob(LoadJob, FollowupJob):
@@ -155,7 +181,6 @@ class SnowflakeStagingCopyJob(SqlStagingCopyJob):
 
 
 class SnowflakeClient(SqlJobClientWithStaging):
-
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: SnowflakeClientConfiguration) -> None:
@@ -166,6 +191,7 @@ class SnowflakeClient(SqlJobClientWithStaging):
         super().__init__(schema, config, sql_client)
         self.config: SnowflakeClientConfiguration = config
         self.sql_client: SnowflakeSqlClient = sql_client  # type: ignore
+        self.type_mapper = SnowflakeTypeMapper(self.capabilities)
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
@@ -203,14 +229,6 @@ class SnowflakeClient(SqlJobClientWithStaging):
         return sql
 
     @classmethod
-    def _to_db_type(cls, sc_t: TDataType) -> str:
-        if sc_t == "wei":
-            return SCT_TO_SNOW["decimal"] % cls.capabilities.wei_precision
-        if sc_t == "decimal":
-            return SCT_TO_SNOW["decimal"] % cls.capabilities.decimal_precision
-        return SCT_TO_SNOW[sc_t]
-
-    @classmethod
     def _from_db_type(cls, bq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         if bq_t == "NUMBER":
             if precision == BIGINT_PRECISION and scale == 0:
@@ -222,7 +240,7 @@ class SnowflakeClient(SqlJobClientWithStaging):
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         name = self.capabilities.escape_identifier(c["name"])
-        return f"{name} {self._to_db_type(c['data_type'])} {self._gen_not_null(c.get('nullable', True))}"
+        return f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         table_name = table_name.upper()  # All snowflake tables are uppercased in information schema

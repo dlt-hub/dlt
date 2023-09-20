@@ -53,6 +53,8 @@ class TColumnSchema(TColumnSchemaBase, total=False):
     root_key: Optional[bool]
     merge_key: Optional[bool]
     variant: Optional[bool]
+    precision: Optional[int]
+    scale: Optional[int]
 
 
 TTableSchemaColumns = Dict[str, TColumnSchema]

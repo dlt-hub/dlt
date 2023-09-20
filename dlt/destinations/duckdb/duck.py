@@ -14,20 +14,21 @@ from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.duckdb import capabilities
 from dlt.destinations.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration
+from dlt.destinations.type_mapping import TypeMapper
 
 
-SCT_TO_PGT: Dict[TDataType, str] = {
-    "complex": "JSON",
-    "text": "VARCHAR",
-    "double": "DOUBLE",
-    "bool": "BOOLEAN",
-    "date": "DATE",
-    "timestamp": "TIMESTAMP WITH TIME ZONE",
-    "bigint": "BIGINT",
-    "binary": "BLOB",
-    "decimal": "DECIMAL(%i,%i)",
-    "time": "TIME"
-}
+# SCT_TO_PGT: Dict[TDataType, str] = {
+#     "complex": "JSON",
+#     "text": "VARCHAR",
+#     "double": "DOUBLE",
+#     "bool": "BOOLEAN",
+#     "date": "DATE",
+#     "timestamp": "TIMESTAMP WITH TIME ZONE",
+#     "bigint": "BIGINT",
+#     "binary": "BLOB",
+#     "decimal": "DECIMAL(%i,%i)",
+#     "time": "TIME"
+# }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
     "VARCHAR": "text",
@@ -50,6 +51,27 @@ HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {
 PARQUET_TABLE_LOCK = threading.Lock()
 TABLES_LOCKS: Dict[str, threading.Lock] = {}
 
+
+class DuckDbTypeMapper(TypeMapper):
+    sct_to_unbound_dbt = {
+        "complex": "JSON",
+        "text": "VARCHAR",
+        "double": "DOUBLE",
+        "bool": "BOOLEAN",
+        "date": "DATE",
+        # Duck does not allow specifying precision on timestamp with tz
+        "timestamp": "TIMESTAMP WITH TIME ZONE",
+        "bigint": "BIGINT",
+        "binary": "BLOB",
+        "time": "TIME"
+    }
+
+    sct_to_dbt = {
+        # VARCHAR(n) is alias for VARCHAR in duckdb
+        # "text": "VARCHAR(%i)",
+        "decimal": "DECIMAL(%i,%i)",
+        "wei": "DECIMAL(%i,%i)",
+    }
 
 class DuckDbCopyJob(LoadJob, FollowupJob):
     def __init__(self, table_name: str, file_path: str, sql_client: DuckDbSqlClient) -> None:
@@ -95,6 +117,7 @@ class DuckDbClient(InsertValuesJobClient):
         self.config: DuckDbClientConfiguration = config
         self.sql_client: DuckDbSqlClient = sql_client  # type: ignore
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
+        self.type_mapper = DuckDbTypeMapper(self.capabilities)
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
@@ -105,15 +128,15 @@ class DuckDbClient(InsertValuesJobClient):
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(self.active_hints.get(h, "") for h in self.active_hints.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
-        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+        return f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
-    @classmethod
-    def _to_db_type(cls, sc_t: TDataType) -> str:
-        if sc_t == "wei":
-            return SCT_TO_PGT["decimal"] % cls.capabilities.wei_precision
-        if sc_t == "decimal":
-            return SCT_TO_PGT["decimal"] % cls.capabilities.decimal_precision
-        return SCT_TO_PGT[sc_t]
+    # @classmethod
+    # def _to_db_type(cls, sc_t: TDataType) -> str:
+    #     if sc_t == "wei":
+    #         return SCT_TO_PGT["decimal"] % cls.capabilities.wei_precision
+    #     if sc_t == "decimal":
+    #         return SCT_TO_PGT["decimal"] % cls.capabilities.decimal_precision
+    #     return SCT_TO_PGT[sc_t]
 
     @classmethod
     def _from_db_type(cls, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:

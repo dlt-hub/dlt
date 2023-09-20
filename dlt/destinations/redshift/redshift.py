@@ -29,21 +29,8 @@ from dlt.destinations.redshift import capabilities
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.type_mapping import TypeMapper
 
-
-
-SCT_TO_PGT: Dict[TDataType, str] = {
-    "complex": "super",
-    "text": "varchar(max)",
-    "double": "double precision",
-    "bool": "boolean",
-    "date": "date",
-    "timestamp": "timestamp with time zone",
-    "bigint": "bigint",
-    "binary": "varbinary",
-    "decimal": "numeric(%i,%i)",
-    "time": "time without time zone"
-}
 
 PGT_TO_SCT: Dict[str, TDataType] = {
     "super": "complex",
@@ -64,6 +51,27 @@ HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
     # "primary_key": "PRIMARY KEY",
     "sort": "SORTKEY"
 }
+
+
+class RedshiftTypeMapper(TypeMapper):
+    sct_to_unbound_dbt = {
+        "complex": "super",
+        "text": "varchar(max)",
+        "double": "double precision",
+        "bool": "boolean",
+        "date": "date",
+        "timestamp": "timestamp with time zone",
+        "bigint": "bigint",
+        "binary": "varbinary",
+        "time": "time without time zone"
+    }
+
+    sct_to_dbt = {
+        "decimal": "numeric(%i,%i)",
+        "wei": "numeric(%i,%i)",
+        "text": "varchar(%i)",
+        "binary": "varbinary(%i)",
+    }
 
 
 class RedshiftSqlClient(Psycopg2SqlClient):
@@ -168,6 +176,7 @@ class RedshiftClient(InsertValuesJobClient):
         super().__init__(schema, config, sql_client)
         self.sql_client = sql_client
         self.config: RedshiftClientConfiguration = config
+        self.type_mapper = RedshiftTypeMapper(self.capabilities)
 
     def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)
@@ -175,7 +184,7 @@ class RedshiftClient(InsertValuesJobClient):
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(HINT_TO_REDSHIFT_ATTR.get(h, "") for h in HINT_TO_REDSHIFT_ATTR.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
-        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+        return f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
@@ -185,13 +194,13 @@ class RedshiftClient(InsertValuesJobClient):
             job = RedshiftCopyFileLoadJob(table, file_path, self.sql_client, staging_credentials=self.config.staging_config.credentials, staging_iam_role=self.config.staging_iam_role)
         return job
 
-    @classmethod
-    def _to_db_type(cls, sc_t: TDataType) -> str:
-        if sc_t == "wei":
-            return SCT_TO_PGT["decimal"] % cls.capabilities.wei_precision
-        if sc_t == "decimal":
-            return SCT_TO_PGT["decimal"] % cls.capabilities.decimal_precision
-        return SCT_TO_PGT[sc_t]
+    # @classmethod
+    # def _to_db_type(cls, sc_t: TDataType) -> str:
+    #     if sc_t == "wei":
+    #         return SCT_TO_PGT["decimal"] % cls.capabilities.wei_precision
+    #     if sc_t == "decimal":
+    #         return SCT_TO_PGT["decimal"] % cls.capabilities.decimal_precision
+    #     return SCT_TO_PGT[sc_t]
 
     @classmethod
     def _from_db_type(cls, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:

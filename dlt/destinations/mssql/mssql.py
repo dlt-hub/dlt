@@ -16,20 +16,21 @@ from dlt.destinations.mssql import capabilities
 from dlt.destinations.mssql.sql_client import PyOdbcMsSqlClient
 from dlt.destinations.mssql.configuration import MsSqlClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.type_mapping import TypeMapper
 
 
-SCT_TO_PGT: Dict[TDataType, str] = {
-    "complex": "nvarchar(max)",
-    "text": "nvarchar(max)",
-    "double": "float",
-    "bool": "bit",
-    "timestamp": "datetimeoffset",
-    "date": "date",
-    "bigint": "bigint",
-    "binary": "varbinary(max)",
-    "decimal": "decimal(%i,%i)",
-    "time": "time"
-}
+# SCT_TO_PGT: Dict[TDataType, str] = {
+#     "complex": "nvarchar(max)",
+#     "text": "nvarchar(max)",
+#     "double": "float",
+#     "bool": "bit",
+#     "timestamp": "datetimeoffset",
+#     "date": "date",
+#     "bigint": "bigint",
+#     "binary": "varbinary(max)",
+#     "decimal": "decimal(%i,%i)",
+#     "time": "time"
+# }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
     "nvarchar": "text",
@@ -46,6 +47,27 @@ PGT_TO_SCT: Dict[str, TDataType] = {
 HINT_TO_MSSQL_ATTR: Dict[TColumnHint, str] = {
     "unique": "UNIQUE"
 }
+
+
+class MsSqlTypeMapper(TypeMapper):
+    sct_to_unbound_dbt = {
+        "complex": "nvarchar(max)",
+        "text": "nvarchar(max)",
+        "double": "float",
+        "bool": "bit",
+        "bigint": "bigint",
+        "binary": "varbinary(max)",
+    }
+
+    sct_to_dbt = {
+        "complex": "nvarchar(%i)",
+        "text": "nvarchar(%i)",
+        "timestamp": "datetimeoffset(%i)",
+        "binary": "varbinary(%i)",
+        "decimal": "decimal(%i,%i)",
+        "time": "time(%i)"
+    }
+
 
 class MsSqlStagingCopyJob(SqlStagingCopyJob):
 
@@ -97,6 +119,7 @@ class MsSqlClient(InsertValuesJobClient):
         self.config: MsSqlClientConfiguration = config
         self.sql_client = sql_client
         self.active_hints = HINT_TO_MSSQL_ATTR if self.config.create_indexes else {}
+        self.type_mapper = MsSqlTypeMapper(self.capabilities)
 
     def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return MsSqlMergeJob.from_table_chain(table_chain, self.sql_client)
@@ -109,9 +132,9 @@ class MsSqlClient(InsertValuesJobClient):
         sc_type = c["data_type"]
         if sc_type == "text" and c.get("unique"):
             # MSSQL does not allow index on large TEXT columns
-            db_type = "nvarchar(900)"
+            db_type = "nvarchar(%i)" % (c.get("precision") or 900)
         else:
-            db_type = self._to_db_type(sc_type)
+            db_type = self.type_mapper.to_db_type(c)
 
         hints_str = " ".join(self.active_hints.get(h, "") for h in self.active_hints.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
@@ -120,16 +143,16 @@ class MsSqlClient(InsertValuesJobClient):
     def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return MsSqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
-    @classmethod
-    def _to_db_type(cls, sc_t: TDataType) -> str:
-        if sc_t == "wei":
-            return SCT_TO_PGT["decimal"] % cls.capabilities.wei_precision
-        if sc_t == "decimal":
-            return SCT_TO_PGT["decimal"] % cls.capabilities.decimal_precision
+    # @classmethod
+    # def _to_db_type(cls, sc_t: TDataType) -> str:
+    #     if sc_t == "wei":
+    #         return SCT_TO_PGT["decimal"] % cls.capabilities.wei_precision
+    #     if sc_t == "decimal":
+    #         return SCT_TO_PGT["decimal"] % cls.capabilities.decimal_precision
 
-        if sc_t == "wei":
-            return f"numeric({2*EVM_DECIMAL_PRECISION},{EVM_DECIMAL_PRECISION})"
-        return SCT_TO_PGT[sc_t]
+    #     if sc_t == "wei":
+    #         return f"numeric({2*EVM_DECIMAL_PRECISION},{EVM_DECIMAL_PRECISION})"
+    #     return SCT_TO_PGT[sc_t]
 
     @classmethod
     def _from_db_type(cls, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:

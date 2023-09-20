@@ -22,6 +22,7 @@ from dlt.destinations.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_
 from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.type_mapping import TypeMapper
 
 from dlt.common.schema.utils import table_schema_has_type
 
@@ -52,6 +53,27 @@ BQT_TO_SCT: Dict[str, TDataType] = {
     "JSON": "complex",
     "TIME": "time",
 }
+
+
+class BigQueryTypeMapper(TypeMapper):
+    sct_to_unbound_dbt = {
+        "complex": "JSON",
+        "text": "STRING",
+        "double": "FLOAT64",
+        "bool": "BOOLEAN",
+        "date": "DATE",
+        "timestamp": "TIMESTAMP",
+        "bigint": "INTEGER",
+        "binary": "BYTES",
+        "wei": "BIGNUMERIC",  # non parametrized should hold wei values
+        "time": "TIME",
+    }
+
+    sct_to_dbt = {
+        "text": "STRING(%i)",
+        "binary": "BYTES(%i)",
+        "decimal": "NUMERIC(%i,%i)",
+    }
 
 class BigQueryLoadJob(LoadJob, FollowupJob):
     def __init__(
@@ -146,6 +168,7 @@ class BigQueryClient(SqlJobClientWithStaging):
         super().__init__(schema, config, sql_client)
         self.config: BigQueryClientConfiguration = config
         self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
+        self.type_mapper = BigQueryTypeMapper(self.capabilities)
 
     def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)
@@ -229,7 +252,7 @@ class BigQueryClient(SqlJobClientWithStaging):
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         name = self.capabilities.escape_identifier(c["name"])
-        return f"{name} {self._to_db_type(c['data_type'])} {self._gen_not_null(c.get('nullable', True))}"
+        return f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         schema_table: TTableSchemaColumns = {}
@@ -311,11 +334,11 @@ class BigQueryClient(SqlJobClientWithStaging):
         job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
         return cast(bigquery.LoadJob, self.sql_client.native_connection.get_job(job_id))
 
-    @classmethod
-    def _to_db_type(cls, sc_t: TDataType) -> str:
-        if sc_t == "decimal":
-            return SCT_TO_BQT["decimal"] % cls.capabilities.decimal_precision
-        return SCT_TO_BQT[sc_t]
+    # @classmethod
+    # def _to_db_type(cls, sc_t: TDataType) -> str:
+    #     if sc_t == "decimal":
+    #         return SCT_TO_BQT["decimal"] % cls.capabilities.decimal_precision
+    #     return SCT_TO_BQT[sc_t]
 
     @classmethod
     def _from_db_type(cls, bq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:

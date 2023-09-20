@@ -249,11 +249,6 @@ WHERE """
 
     @classmethod
     @abstractmethod
-    def _to_db_type(cls, schema_type: TDataType) -> str:
-        pass
-
-    @classmethod
-    @abstractmethod
     def _from_db_type(cls, db_type: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         pass
 

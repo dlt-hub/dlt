@@ -29,7 +29,7 @@ def test_create_table(client: PostgresClient) -> None:
     assert '"col1" bigint  NOT NULL' in sql
     assert '"col2" double precision  NOT NULL' in sql
     assert '"col3" boolean  NOT NULL' in sql
-    assert '"col4" timestamp with time zone  NOT NULL' in sql
+    assert '"col4" timestamp (6) with time zone  NOT NULL' in sql
     assert '"col5" varchar' in sql
     assert '"col6" numeric(38,9)  NOT NULL' in sql
     assert '"col7" bytea' in sql
@@ -49,7 +49,7 @@ def test_alter_table(client: PostgresClient) -> None:
     assert '"col1" bigint  NOT NULL' in sql
     assert '"col2" double precision  NOT NULL' in sql
     assert '"col3" boolean  NOT NULL' in sql
-    assert '"col4" timestamp with time zone  NOT NULL' in sql
+    assert '"col4" timestamp (6) with time zone  NOT NULL' in sql
     assert '"col5" varchar' in sql
     assert '"col6" numeric(38,9)  NOT NULL' in sql
     assert '"col7" bytea' in sql
@@ -72,7 +72,7 @@ def test_create_table_with_hints(client: PostgresClient) -> None:
     assert '"col5" varchar ' in sql
     # no hints
     assert '"col3" boolean  NOT NULL' in sql
-    assert '"col4" timestamp with time zone  NOT NULL' in sql
+    assert '"col4" timestamp (6) with time zone  NOT NULL' in sql
 
     # same thing without indexes
     client = PostgresClient(client.schema, PostgresClientConfiguration(dataset_name="test_" + uniq_id(), create_indexes=False, credentials=PostgresCredentials()))

@@ -31,20 +31,10 @@ from dlt.destinations.sql_client import SqlClientBase, DBApiCursorImpl, raise_da
 from dlt.destinations.typing import DBApiCursor
 from dlt.destinations.job_client_impl import SqlJobClientBase, StorageSchemaInfo
 from dlt.destinations.athena.configuration import AthenaClientConfiguration
+from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations import path_utils
 
-SCT_TO_HIVET: Dict[TDataType, str] = {
-    "complex": "string",
-    "text": "string",
-    "double": "double",
-    "bool": "boolean",
-    "date": "date",
-    "timestamp": "timestamp",
-    "bigint": "bigint",
-    "binary": "binary",
-    "decimal": "decimal(%i,%i)",
-    "time": "string"
-}
+
 
 HIVET_TO_SCT: Dict[str, TDataType] = {
     "varchar": "text",
@@ -57,6 +47,25 @@ HIVET_TO_SCT: Dict[str, TDataType] = {
     "varbinary": "binary",
     "decimal": "decimal",
 }
+
+
+class AthenaTypeMapper(TypeMapper):
+    sct_to_unbound_dbt = {
+        "complex": "string",
+        "text": "string",
+        "double": "double",
+        "bool": "boolean",
+        "date": "date",
+        "timestamp": "timestamp",
+        "bigint": "bigint",
+        "binary": "binary",
+        "time": "string"
+    }
+
+    sct_to_dbt = {
+        "decimal": "decimal(%i,%i)",
+        "wei": "decimal(%i,%i)"
+    }
 
 
 # add a formatter for pendulum to be used by pyathen dbapi
@@ -265,18 +274,11 @@ class AthenaClient(SqlJobClientBase):
         super().__init__(schema, config, sql_client)
         self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config
+        self.type_mapper = AthenaTypeMapper(self.capabilities)
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # never truncate tables in athena
         super().initialize_storage([])
-
-    @classmethod
-    def _to_db_type(cls, sc_t: TDataType) -> str:
-        if sc_t == "wei":
-            return SCT_TO_HIVET["decimal"] % cls.capabilities.wei_precision
-        if sc_t == "decimal":
-            return SCT_TO_HIVET["decimal"] % cls.capabilities.decimal_precision
-        return SCT_TO_HIVET[sc_t]
 
     @classmethod
     def _from_db_type(cls, hive_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
@@ -286,7 +288,7 @@ class AthenaClient(SqlJobClientBase):
         return None
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
-        return f"{self.sql_client.escape_ddl_identifier(c['name'])} {self._to_db_type(c['data_type'])}"
+        return f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c)}"
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
 
