@@ -21,8 +21,10 @@ class TypeMapper:
         precision, scale = column.get("precision"), column.get("scale")
         sc_t = column["data_type"]
         bounded_template = self.sct_to_dbt.get(sc_t)
+        if not bounded_template:
+            return self.sct_to_unbound_dbt[sc_t]
         precision_tuple = self.precision_tuple_or_default(sc_t, precision, scale)
-        if not precision_tuple or not bounded_template:
+        if not precision_tuple:
             return self.sct_to_unbound_dbt[sc_t]
         return self.sct_to_dbt[sc_t] % precision_tuple
 
@@ -40,17 +42,23 @@ class TypeMapper:
             return (precision, )
         return (precision, scale)
 
-    def decimal_precision(self, precision: Optional[int], scale: Optional[int]) -> Tuple[int, int]:
-        default_precision, default_scale = self.capabilities.decimal_precision
+    def decimal_precision(self, precision: Optional[int], scale: Optional[int]) -> Optional[Tuple[int, int]]:
+        defaults = self.capabilities.decimal_precision
+        if not defaults:
+            return None
+        default_precision, default_scale = defaults
         return (
             precision if precision is not None else default_precision, scale if scale is not None else default_scale
         )
 
-    def wei_precision(self, precision: Optional[int], scale: Optional[int]) -> Tuple[int, int]:
-        default_precision, default_scale = self.capabilities.wei_precision
+    def wei_precision(self, precision: Optional[int], scale: Optional[int]) -> Optional[Tuple[int, int]]:
+        defaults = self.capabilities.wei_precision
+        if not defaults:
+            return None
+        default_precision, default_scale = defaults
         return (
             precision if precision is not None else default_precision, scale if scale is not None else default_scale
         )
 
-    def timestamp_precision(self, precision: Optional[int]) -> int:
+    def timestamp_precision(self, precision: Optional[int]) -> Optional[int]:
         return precision or self.capabilities.timestamp_precision
