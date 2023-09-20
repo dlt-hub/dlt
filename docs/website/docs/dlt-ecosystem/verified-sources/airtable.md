@@ -34,12 +34,12 @@ Sources and resources that can be loaded using this verified source are:
 1. Add a base to specify the desired base for data access.
 1. Hit "Create token" and save the displayed token securely for credential use.
 
-Note: The Airtable UI, which is described here, might change.
-The full guide is available at [this link.](https://airtable.com/developers/web/guides/personal-access-tokens)
+> Note: The Airtable UI, which is described here, might change.
+> The full guide is available at [this link.](https://airtable.com/developers/web/guides/personal-access-tokens)
 
 ### Grab Airtable IDs
 
-Upon logging into Airtable, you'll notice a URL in your browser's address bar resembling:
+Upon logging into Airtable and accessing your base or table, you'll notice a URL in your browser's address bar resembling:
 
 ```bash
 https://airtable.com/appve10kl227BIT4GV/tblOUnZVLFWbemTP1/viw3qtF76bRQC3wKx/rec9khXgeTotgCQ62?blocks=hide
