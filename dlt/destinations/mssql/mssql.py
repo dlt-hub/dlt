@@ -65,7 +65,8 @@ class MsSqlTypeMapper(TypeMapper):
         "timestamp": "datetimeoffset(%i)",
         "binary": "varbinary(%i)",
         "decimal": "decimal(%i,%i)",
-        "time": "time(%i)"
+        "time": "time(%i)",
+        "wei": "decimal(%i,%i)"
     }
 
 
