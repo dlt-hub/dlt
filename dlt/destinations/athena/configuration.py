@@ -14,3 +14,10 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     aws_data_catalog: Optional[str] = "awsdatacatalog"
 
     __config_gen_annotations__: ClassVar[List[str]] = ["athena_work_group"]
+
+    def __str__(self) -> str:
+        """Return displayable destination location"""
+        if self.staging_config:
+            return str(self.staging_config.credentials)
+        else:
+            return "[no staging set]"
