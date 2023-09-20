@@ -62,8 +62,9 @@ def escape_mssql_literal(v: Any) -> Any:
     if isinstance(v, (list, dict)):
         return _escape_extended(json.dumps(v), prefix="N'", escape_dict=MS_SQL_ESCAPE_DICT, escape_re=MS_SQL_ESCAPE_RE)
     if isinstance(v, bytes):
-        hex_string = v.hex()  # Convert bytes to hex
-        return f"CONVERT(VARBINARY(MAX), 0x{hex_string})"
+        # Updated to hex: azure synapse doesn't have XML and base64Binary
+        hex_string = v.hex()
+        return f"0x{hex_string}"
     if isinstance(v, bool):
         return str(int(v))
     return str(v)
