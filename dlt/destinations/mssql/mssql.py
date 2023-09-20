@@ -57,6 +57,7 @@ class MsSqlTypeMapper(TypeMapper):
         "bool": "bit",
         "bigint": "bigint",
         "binary": "varbinary(max)",
+        "date": "date",
     }
 
     sct_to_dbt = {
