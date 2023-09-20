@@ -38,7 +38,7 @@ The resources that this verified source supports are:
 1. Hit “Install app” and confirm.
 1. Reveal and copy the Admin API token from “secrets.toml”. Store safely; it's shown only once.
 
-Note: The Shopify UI, which is described here, might change.
+> Note: The Shopify UI, which is described here, might change.
 The full guide is available at [this link.](https://www.shopify.com/partners/blog/17056443-how-to-generate-a-shopify-api-token)
 
 ### Initialize the verified source
@@ -94,7 +94,7 @@ For more information, read the
 1. Update `shop_url` with the URL of your Shopify store. For example
    ”https://shop-123.myshopify.com/%E2%80%9D.
 
-1. Next, Follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
+1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
