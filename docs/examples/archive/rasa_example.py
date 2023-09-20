@@ -3,10 +3,10 @@ import os
 import dlt
 from dlt.destinations import bigquery, postgres
 
-from docs.examples.sources.jsonl import jsonl_files
-from docs.examples.sources.rasa import rasa
+from .sources.jsonl import jsonl_files
+from .sources.rasa import rasa
 
-from docs.examples._helpers import pub_bigquery_credentials
+from ._helpers import pub_bigquery_credentials
 
 # let's load to bigquery, here we provide the credentials for our public project
 # credentials = pub_bigquery_credentials

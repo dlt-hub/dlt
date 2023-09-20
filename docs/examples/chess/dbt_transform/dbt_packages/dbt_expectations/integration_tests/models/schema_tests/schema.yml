@@ -1,0 +1,638 @@
+version: 2
+models:
+  - name: data_text
+    columns:
+      - name: email_address
+        tests:
+            # match email address
+          - dbt_expectations.expect_column_values_to_match_regex:
+              regex: "@[^.]*"
+            # does not match email address, should fail
+          - dbt_expectations.expect_column_values_to_match_regex:
+              regex: "&[^.]*"
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+            # match all uppercase, but match case-insensitive
+          - dbt_expectations.expect_column_values_to_match_regex:
+              regex: "[A-Z]"
+              flags: i
+            # match all uppercase with inline case-insensitive flag and case-insensitive flag parameter (where implemented)
+            # check that adapters handling flags by inlining them don't break because of the flag duplication
+          - dbt_expectations.expect_column_values_to_match_regex:
+              regex: "(?i)[A-Z]"
+              flags: i
+              config:
+                enabled: "{{ target.type == 'bigquery' }}"
+            # match all uppercase, case-sensitive (where implemented), should fail
+          - dbt_expectations.expect_column_values_to_match_regex:
+              regex: "[A-Z]"
+              flags: c
+              config:
+                enabled: "{{ target.type in ['postgres', 'snowflake', 'redshift' ] }}"
+                error_if: "=0"
+                warn_if: "<4"
+            # do not match other non-email string, should pass
+          - dbt_expectations.expect_column_values_to_not_match_regex:
+              regex: "&[^.]*"
+            # match email address, should fail
+          - dbt_expectations.expect_column_values_to_not_match_regex:
+              regex: "@[^.]*"
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+            # match all uppercase, case-sensitive (default), should pass
+          - dbt_expectations.expect_column_values_to_not_match_regex:
+              regex: "[A-Z]"
+            # match all lowercase, case-sensitive (default), should fail
+          - dbt_expectations.expect_column_values_to_not_match_regex:
+              regex: "[a-z]"
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+            # do match one of email address or other non-email string
+          - dbt_expectations.expect_column_values_to_match_regex_list:
+              regex_list: ["@[^.]*", "&[^.]*"]
+            # do not match other non-email strings, should fail
+          - dbt_expectations.expect_column_values_to_match_regex_list:
+              regex_list: ["#[^.]*", "&[^.]*"]
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+            # match all uppercase, but match case-insensitive
+          - dbt_expectations.expect_column_values_to_match_regex_list:
+              regex_list: ["[A-G]", "[H-Z]"]
+              flags: i
+            # match all uppercase, but match case-sensitive (where implemented), should fail
+          - dbt_expectations.expect_column_values_to_match_regex_list:
+              regex_list: ["[A-G]", "[H-Z]"]
+              flags: c
+              config:
+                enabled: "{{ target.type in ['postgres', 'snowflake', 'redshift' ] }}"
+                error_if: "=0"
+                warn_if: "<4"
+            # match email address or other string
+          - dbt_expectations.expect_column_values_to_not_match_regex_list:
+              regex_list: ["@[^.]*", "&[^.]*"]
+            # match email address, should fail
+          - dbt_expectations.expect_column_values_to_not_match_regex_list:
+              regex_list: ["@[^.]*", "@[^.]*"]
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+            # do not match any of other non-email string
+          - dbt_expectations.expect_column_values_to_not_match_regex_list:
+              regex_list: ["&[^.]*", "&[^.]*"]
+              match_on: all
+            # do not match any of email or other non-email string, should fail
+          - dbt_expectations.expect_column_values_to_not_match_regex_list:
+              regex_list: ["@[^.]*", "&[^.]*"]
+              match_on: all
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+            # do not match all uppercase
+          - dbt_expectations.expect_column_values_to_not_match_regex_list:
+              regex_list: ["[A-G]", "[H-Z]"]
+            # do not match all uppercase or numbers, case-insensitive
+          - dbt_expectations.expect_column_values_to_not_match_regex_list:
+              regex_list: ["[A-Z]", "[0-9]"]
+              flags: i
+            # do not match all uppercase and numbers, case-insensitive
+          - dbt_expectations.expect_column_values_to_not_match_regex_list:
+              regex_list: ["[A-Z]", "[0-9]"]
+              flags: i
+              match_on: all
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+            # match '@' anywhere in string
+          - dbt_expectations.expect_column_values_to_match_like_pattern:
+              like_pattern: "%@%"
+            # match '&' anywhere in string, should fail
+          - dbt_expectations.expect_column_values_to_match_like_pattern:
+              like_pattern: "%&%"
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+            # do not match '&' anywhere in string
+          - dbt_expectations.expect_column_values_to_not_match_like_pattern:
+              like_pattern: "%&%"
+            # do not match '@' anywhere in string, should fail
+          - dbt_expectations.expect_column_values_to_not_match_like_pattern:
+              like_pattern: "%@%"
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+            # match at least one of '@' or '&' anywhere in string
+          - dbt_expectations.expect_column_values_to_match_like_pattern_list:
+              like_pattern_list: ["%@%", "%&%"]
+            # match both '@' or '&' anywhere in string, should fail
+          - dbt_expectations.expect_column_values_to_match_like_pattern_list:
+              like_pattern_list: ["%@%", "%&%"]
+              match_on: all
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+            # do not match at least one of '@' or '&' anywhere in string
+          - dbt_expectations.expect_column_values_to_not_match_like_pattern_list:
+              like_pattern_list: ["%@%", "%&%"]
+            # do not match either of '@' or '&' anywhere in string, should fail
+          - dbt_expectations.expect_column_values_to_not_match_like_pattern_list:
+              like_pattern_list: ["%@%", "%&%"]
+              match_on: all
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+      - name: postal_code_5
+        tests:
+          - dbt_expectations.expect_column_values_to_match_regex:
+              regex: "^\\d{5}"
+              is_raw: True
+          - dbt_expectations.expect_column_values_to_match_regex:
+              regex: "^\\d{55}"
+              is_raw: True
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+          - dbt_expectations.expect_column_values_to_not_match_regex:
+              regex: "@[^.]*"
+              is_raw: True
+          - dbt_expectations.expect_column_values_to_not_match_regex:
+              regex: "^\\d{5}"
+              is_raw: True
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+          - dbt_expectations.expect_column_values_to_match_regex_list:
+              regex_list: ["^\\d{5}"]
+              is_raw: True
+          - dbt_expectations.expect_column_values_to_match_regex_list:
+              regex_list: ["^\\d{5}", "@[^.]*"]
+              is_raw: True
+          - dbt_expectations.expect_column_values_to_match_regex_list:
+              regex_list: ["^\\d{5}", "@[^.]*"]
+              is_raw: True
+              match_on: all
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+          - dbt_expectations.expect_column_values_to_not_match_regex_list:
+              regex_list: ["@[^.]*"]
+              is_raw: True
+          - dbt_expectations.expect_column_values_to_not_match_regex_list:
+              regex_list: ["^\\d{5}", "@[^.]*"]
+              is_raw: True
+          - dbt_expectations.expect_column_values_to_not_match_regex_list:
+              regex_list: ["^\\d{5}", "@[^.]*"]
+              is_raw: True
+              match_on: all
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+      - name: postal_code_5_3
+        tests:
+          - dbt_expectations.expect_column_values_to_match_regex:
+              regex: "^\\d{5}-\\d{3}"
+              is_raw: True
+          - dbt_expectations.expect_column_values_to_match_regex:
+              regex: "^\\d{5}-\\d{9}"
+              is_raw: True
+              config:
+                error_if: "=0"
+                warn_if: "<4"
+
+
+  - name: timeseries_data
+    tests:
+      - dbt_expectations.expect_table_columns_to_match_ordered_list:
+          column_list: ["date_day", "date_datetime", "date_timestamp", "row_value", "row_value_log"]
+      - dbt_expectations.expect_column_distinct_count_to_equal_other_table:
+          column_name: date_day
+          compare_model: ref("timeseries_data_extended")
+          compare_column_name: date_day
+      - dbt_expectations.expect_column_distinct_count_to_equal_other_table:
+          column_name: date_day
+      - dbt_expectations.expect_row_values_to_have_data_for_every_n_datepart:
+          date_col: date_day
+          date_part: day
+      - dbt_expectations.expect_row_values_to_have_data_for_every_n_datepart:
+          date_col: date_day
+          date_part: day
+          exclusion_condition: not(date_day = '2021-10-19')
+      - dbt_expectations.expect_row_values_to_have_data_for_every_n_datepart:
+          date_col: date_day
+          date_part: day
+          test_start_date: '{{ modules.datetime.date.today() - modules.datetime.timedelta(365) }}'
+          test_end_date: '{{ modules.datetime.date.today() - modules.datetime.timedelta(2) }}'
+
+
+    columns:
+      - name: date_day
+        tests:
+          - dbt_expectations.expect_row_values_to_have_recent_data:
+              datepart: day
+              interval: 1
+          - dbt_expectations.expect_column_values_to_be_in_type_list:
+              column_type_list: [date, "{{ dbt_expectations.type_timestamp() }}"]
+          - dbt_expectations.expect_column_values_to_be_increasing:
+              sort_column: date_day
+          - dbt_expectations.expect_column_distinct_count_to_equal_other_table:
+              compare_model: ref("timeseries_data_extended")
+
+      - name: date_datetime
+        tests:
+          - dbt_expectations.expect_row_values_to_have_recent_data:
+              datepart: day
+              interval: 1
+          - dbt_expectations.expect_column_values_to_be_in_type_list:
+              column_type_list: [date, "{{ dbt_expectations.type_datetime() }}"]
+
+      - name: date_timestamp
+        tests:
+          - dbt_expectations.expect_row_values_to_have_recent_data:
+              datepart: day
+              interval: 1
+          - dbt_expectations.expect_column_values_to_be_in_type_list:
+              column_type_list: [date, "{{ dbt_expectations.type_timestamp() }}"]
+
+      - name: row_value
+        tests:
+          - dbt_expectations.expect_column_values_to_be_within_n_stdevs:
+              sigma_threshold: 6
+          - dbt_expectations.expect_column_values_to_be_within_n_stdevs:
+              group_by: ["date_day"]
+              sigma_threshold: 6
+          - dbt_expectations.expect_column_values_to_be_within_n_moving_stdevs:
+              date_column_name: date_day
+              sigma_threshold: 6
+              take_logs: true
+              severity: warn
+          - dbt_expectations.expect_column_values_to_be_within_n_moving_stdevs:
+              date_column_name: date_day
+              sigma_threshold: 6
+              take_diffs: false
+              take_logs: true
+              severity: warn
+
+  - name: timeseries_data_extended
+    tests:
+      - dbt_expectations.expect_table_columns_to_match_ordered_list:
+          column_list: ["date_day", "row_value", "row_value_log"]
+      - dbt_expectations.expect_row_values_to_have_data_for_every_n_datepart:
+          date_col: date_day
+          date_part: day
+      - dbt_expectations.expect_row_values_to_have_data_for_every_n_datepart:
+          date_col: date_day
+          date_part: day
+          interval: 7
+      - dbt_expectations.expect_table_aggregation_to_equal_other_table:
+          expression: count(distinct date_day)
+          compare_expression: count(*)
+          compare_model: ref("timeseries_data")
+
+    columns:
+      - name: date_day
+        tests:
+          - dbt_expectations.expect_row_values_to_have_recent_data:
+              datepart: day
+              interval: 1
+
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: "{{ dbt_expectations.type_datetime() }}"
+          - dbt_expectations.expect_column_values_to_be_in_type_list:
+              column_type_list: [date, "{{ dbt_expectations.type_datetime() }}"]
+
+      - name: row_value
+        tests:
+          - dbt_expectations.expect_column_distinct_count_to_equal:
+              row_condition: date_day = {{ dbt_date.yesterday() }}
+              value: 10
+          - dbt_expectations.expect_column_distinct_count_to_be_greater_than:
+              row_condition: date_day = {{ dbt_date.yesterday() }}
+              value: 1
+          - dbt_expectations.expect_column_distinct_count_to_be_less_than:
+              value: 11
+              row_condition: date_day = {{ dbt_date.yesterday() }}
+
+
+
+      - name: row_value_log
+        tests:
+          - dbt_expectations.expect_column_values_to_be_within_n_moving_stdevs:
+              date_column_name: cast(date_day as {{ dbt_expectations.type_datetime() }})
+              sigma_threshold: 6
+              take_logs: false
+              severity: warn
+
+  - name: timeseries_hourly_data_extended
+    tests:
+      - dbt_expectations.expect_row_values_to_have_data_for_every_n_datepart:
+          date_col: date_hour
+          date_part: hour
+
+    columns:
+      - name: date_hour
+        tests:
+          - dbt_expectations.expect_row_values_to_have_recent_data:
+              datepart: hour
+              interval: 24
+          - dbt_expectations.expect_column_values_to_be_of_type:
+              column_type: "{{ dbt_expectations.type_datetime() }}"
+          - dbt_expectations.expect_column_values_to_be_in_type_list:
+              column_type_list: ["{{ dbt_expectations.type_datetime() }}"]
+
+
+      - name: row_value_log
+        tests:
+          - dbt_expectations.expect_column_values_to_be_within_n_moving_stdevs:
+              date_column_name: cast(date_hour as {{ dbt_expectations.type_datetime() }})
+              period: hour
+              trend_periods: 48
+              test_periods: 12
+              sigma_threshold: 6
+              take_logs: false
+              severity: warn
+
+
+  - name: data_test
+    tests:
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["date_col", "col_string_b"]
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["date_col", "col_string_b"]
+          row_condition: 2=2
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["date_col", "col_string_b"]
+          ignore_row_if: "any_value_is_missing"
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["date_col", "col_string_b"]
+          ignore_row_if: "all_values_are_missing"
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["date_col", "col_null"]
+          ignore_row_if: "any_value_is_missing"
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["date_col", "col_null"]
+          ignore_row_if: "all_values_are_missing"
+          config:
+            # this should fail, so we flip the fail condition
+            fail_calc: 'cast((count(*)=0) as int)'
+      - dbt_expectations.expect_compound_columns_to_be_unique:
+          column_list: ["col_null", "col_null_2"]
+          ignore_row_if: "all_values_are_missing"
+      - dbt_expectations.expect_table_row_count_to_equal:
+          value: 4
+      - dbt_expectations.expect_table_row_count_to_be_between:
+          min_value: 1
+          max_value: 4
+      - dbt_expectations.expect_table_row_count_to_be_between:
+          min_value: 1
+      - dbt_expectations.expect_table_row_count_to_be_between:
+          max_value: 4
+      - dbt_expectations.expect_table_row_count_to_equal_other_table:
+          compare_model: ref("data_test")
+          row_condition: 1=1
+          compare_row_condition: 1=1
+      - dbt_expectations.expect_table_column_count_to_equal:
+          value: 8
+      - dbt_expectations.expect_table_column_count_to_be_between:
+          min_value: 1
+          max_value: 10
+      - dbt_expectations.expect_table_column_count_to_be_between:
+          min_value: 1
+      - dbt_expectations.expect_table_column_count_to_be_between:
+          max_value: 10
+      - dbt_expectations.expect_table_columns_to_contain_set:
+          column_list: ["col_numeric_b", "col_string_a"]
+      - dbt_expectations.expect_table_columns_to_match_set:
+          column_list: ["idx", "date_col", "col_numeric_a", "col_numeric_b", "col_string_a", "col_string_b", "col_null", "col_null_2"]
+      - dbt_expectations.expect_table_columns_to_match_ordered_list:
+          column_list: ["idx", "date_col", "col_numeric_a", "col_numeric_b", "col_string_a", "col_string_b", "col_null", "col_null_2"]
+      - dbt_expectations.expect_table_column_count_to_equal_other_table:
+          compare_model: ref("data_test")
+      - dbt_expectations.expect_table_columns_to_not_contain_set:
+          column_list: ["col_numeric_c", "col_string_d"]
+      - dbt_expectations.expression_is_true:
+          expression: (col_numeric_a + col_numeric_b = 1)
+      - dbt_expectations.equal_expression:
+          expression: sum(col_numeric_a)
+          compare_model: ref("data_test")
+          group_by: [idx]
+      - dbt_expectations.equal_expression:
+          expression: sum(col_numeric_a)
+          compare_expression: sum(col_numeric_a * .5)
+          compare_model: ref("data_test")
+          group_by: [idx]
+          tolerance_percent: .5
+      - dbt_expectations.expect_table_aggregation_to_equal_other_table:
+          expression: sum(col_numeric_a)
+          compare_expression: sum(col_numeric_a * .99)
+          compare_model: ref("data_test")
+          group_by: [idx]
+          tolerance_percent: .95
+      - dbt_expectations.expect_column_pair_values_to_be_in_set:
+          column_A: col_numeric_a
+          column_B: col_numeric_b
+          value_pairs_set: [[0, 1], [1, 0], [0.5, 0.5], [0.5, 0.5]]
+      - dbt_expectations.equal_expression:
+          expression: sum(col_numeric_a)
+          compare_model: ref("data_test")
+          compare_expression: sum(col_numeric_b)
+      - dbt_expectations.expect_column_pair_values_A_to_be_greater_than_B:
+          column_A: col_numeric_a+10
+          column_B: col_numeric_a
+      - dbt_expectations.expect_column_pair_values_A_to_be_greater_than_B:
+          column_A: col_numeric_a
+          column_B: col_numeric_a
+          or_equal: True
+      - dbt_expectations.expect_column_pair_values_to_be_equal:
+          column_A: col_numeric_a
+          column_B: col_numeric_a
+      - dbt_expectations.expect_select_column_values_to_be_unique_within_record:
+          column_list: ["col_string_a", "col_string_b"]
+          ignore_row_if: "any_value_is_missing"
+      - dbt_expectations.expect_multicolumn_sum_to_equal:
+          column_list: ["col_numeric_a", "col_numeric_b"]
+          sum_total: 4
+
+
+
+    columns:
+      - name: idx
+        tests:
+          - dbt_expectations.expect_column_to_exist:
+              column_index: 1
+          - dbt_expectations.expect_column_values_to_be_unique
+          - dbt_expectations.expect_column_values_to_be_increasing:
+              sort_column: idx
+
+      - name: col_numeric_a
+        tests:
+          - dbt_expectations.expect_column_to_exist
+          - dbt_expectations.expect_column_to_exist:
+              column_index: 3
+          - dbt_expectations.expect_column_values_to_not_be_null
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+              max_value: 1
+          - dbt_expectations.expect_column_values_to_be_between:
+              min_value: 0
+          - dbt_expectations.expect_column_sum_to_be_between:
+              min_value: 1
+              max_value: 3
+          - dbt_expectations.expect_column_min_to_be_between:
+              min_value: 0
+              max_value: 0
+          - dbt_expectations.expect_column_max_to_be_between:
+              min_value: 1
+              max_value: 1
+          - dbt_expectations.expect_column_mean_to_be_between:
+              min_value: 0
+              max_value: 1.5
+          - dbt_expectations.expect_column_unique_value_count_to_be_between:
+              min_value: 3
+              max_value: 3
+          - dbt_expectations.expect_column_proportion_of_unique_values_to_be_between:
+              min_value: 0
+              max_value: .75
+          - dbt_expectations.expect_column_stdev_to_be_between:
+              min_value: 0
+              max_value: 2
+          - dbt_expectations.expect_column_stdev_to_be_between:
+              min_value: 0
+              strictly: true
+          - dbt_expectations.expect_column_most_common_value_to_be_in_set:
+              value_set: [0.5]
+              top_n: 1
+              quote_values: false
+          - dbt_expectations.expect_column_values_to_be_increasing:
+              sort_column: col_numeric_a
+              strictly: false
+
+
+      - name: col_string_a
+        tests:
+          - dbt_expectations.expect_column_values_to_be_in_set:
+              value_set: ['a', 'b', 'c']
+              quote_values: true
+          - dbt_expectations.expect_column_values_to_not_be_in_set:
+              value_set: ['2','3']
+              quote_values: true
+          - dbt_expectations.expect_column_distinct_values_to_equal_set:
+              value_set: ['a','b','c','c']
+          - dbt_expectations.expect_column_distinct_values_to_be_in_set:
+              value_set: ['a','b','c','d']
+              quote_values: true
+          - dbt_expectations.expect_column_distinct_values_to_contain_set:
+              value_set: ['a','b']
+          - dbt_expectations.expect_column_value_lengths_to_equal:
+              value: 1
+          - dbt_expectations.expect_column_values_to_have_consistent_casing
+          - dbt_expectations.expect_column_values_to_have_consistent_casing:
+              display_inconsistent_columns: true
+          - dbt_expectations.expect_column_distinct_count_to_be_less_than:
+              value: 4
+
+      - name: col_string_b
+        tests:
+          - dbt_expectations.expect_column_values_to_not_be_in_set:
+              value_set: ['a','c']
+              quote_values: true
+          - dbt_expectations.expect_column_value_lengths_to_be_between:
+              min_value: 1
+              max_value: 4
+          - dbt_expectations.expect_column_value_lengths_to_be_between:
+              min_value: 1
+          - dbt_expectations.expect_column_value_lengths_to_be_between:
+              max_value: 4
+
+      - name: col_null
+        tests:
+          - dbt_expectations.expect_column_values_to_be_null
+
+  - name : data_test_factored
+    tests :
+      - dbt_expectations.expect_table_row_count_to_equal_other_table_times_factor:
+          compare_model: ref("data_test")
+          factor: 2
+      - dbt_expectations.expect_table_row_count_to_equal_other_table_times_factor:
+          compare_model: ref("data_test")
+          group_by: [date_col]
+          factor: 2
+      - dbt_expectations.expect_table_row_count_to_equal_other_table_times_factor:
+          compare_model: ref("data_test")
+          group_by: [date_col, idx]
+          factor: 2
+
+  - name : timeseries_data_grouped
+    tests :
+      - dbt_expectations.expect_table_row_count_to_be_between:
+          min_value: 10
+      - dbt_expectations.expect_table_row_count_to_be_between:
+          min_value: 10
+          group_by: [date_day]
+      - dbt_expectations.expect_table_row_count_to_be_between:
+          max_value: 10000
+          group_by: [group_id]
+          strictly: True
+      - dbt_expectations.expect_grouped_row_values_to_have_recent_data:
+          group_by: [group_id]
+          timestamp_column: date_timestamp
+          datepart: day
+          interval: 1
+      - dbt_expectations.expect_grouped_row_values_to_have_recent_data:
+          group_by: [group_id]
+          timestamp_column: date_timestamp
+          datepart: day
+          interval: 1
+          row_condition: group_id = 4
+      - dbt_expectations.expect_grouped_row_values_to_have_recent_data:
+          timestamp_column: date_timestamp
+          datepart: day
+          interval: 1
+      - dbt_expectations.expect_grouped_row_values_to_have_recent_data:
+          group_by: [date_day]
+          timestamp_column: date_timestamp
+          datepart: day
+          interval: 1
+          config:
+              # this should fail, so we flip the fail condition
+            fail_calc: 'cast((count(*)=0) as int)'
+
+    columns:
+      - name: row_value
+        tests:
+          - dbt_expectations.expect_column_values_to_be_within_n_moving_stdevs:
+              date_column_name: date_day
+              group_by: [group_id]
+              sigma_threshold: 6
+              take_logs: true
+              severity: warn
+          - dbt_expectations.expect_column_values_to_be_within_n_stdevs:
+              group_by: [group_id]
+              sigma_threshold: 6
+          - dbt_expectations.expect_column_values_to_be_within_n_stdevs:
+              sigma_threshold: 6
+          - dbt_expectations.expect_column_values_to_be_within_n_stdevs:
+              group_by: [group_id]
+              sigma_threshold: 1
+              config:
+                  # this should fail, so we flip the fail condition
+                  fail_calc: 'cast((count(*)=0) as int)'
+
+
+  - name: window_function_test
+    columns:
+      - name: rolling_sum_increasing
+        tests :
+          - dbt_expectations.expect_column_values_to_be_increasing:
+              group_by: ['idx']
+              strictly: true
+              sort_column: date_col
+
+      - name: rolling_sum_decreasing
+        tests :
+          - dbt_expectations.expect_column_values_to_be_decreasing:
+              group_by: ['idx']
+              strictly: true
+              sort_column: date_col

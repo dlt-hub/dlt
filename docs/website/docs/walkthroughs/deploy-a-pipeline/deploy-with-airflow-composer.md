@@ -390,7 +390,7 @@ There are two ways to pass the credentials
 ### 5. Configure `build/cloudbuild.yaml` to run it with Google Cloud Platform \[[Cloud Composer](https://console.cloud.google.com/composer/environments)\]
 
 - Read our doc
-  [How to deploy the main branch of your airflow project from GitHub to Cloud Composer](../../reference/airflow-gcp-cloud-composer.md).
+  [How to deploy the main branch of your airflow project from GitHub to Cloud Composer](../../reference/explainers/airflow-gcp-cloud-composer.md).
 
   There you can find:
 

@@ -16,7 +16,8 @@ DEFAULT_DBT_VERSION = ">=1.1,<1.6"
 # a map of destination names to dbt package names in case they don't match the pure destination name
 DBT_DESTINATION_MAP = {
     "athena": "athena-community",
-    "motherduck": "duckdb"
+    "motherduck": "duckdb",
+    "mssql": "sqlserver",
 }
 
 

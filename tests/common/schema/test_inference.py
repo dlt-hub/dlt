@@ -54,7 +54,6 @@ def test_map_column_preferred_type(schema: Schema) -> None:
     assert schema._infer_column_type("AA", "confidence", skip_preferred=True) == "text"
 
 
-
 def test_map_column_type(schema: Schema) -> None:
     # default mappings
     assert schema._infer_column_type("18271.11", "_column_name") == "text"
@@ -498,3 +497,32 @@ def test_autodetect_convert_type(schema: Schema) -> None:
     assert c_row["evm2"] == 22.2
     assert isinstance(c_row["evm2"], float)
 
+
+def test_infer_on_incomplete_column(schema: Schema) -> None:
+    # if incomplete column is present, dlt still infers column schema from the data
+    # but overrides it with incomplete column
+    incomplete_col = utils.new_column("I", nullable=False)
+    incomplete_col["primary_key"] = True
+    incomplete_col["x-special"] = "spec"
+    table = utils.new_table("table", columns=[incomplete_col])
+    schema.update_schema(table)
+    # make sure that column is still incomplete and has no default hints
+    assert schema.get_table("table")["columns"]["I"] == {
+        'name': 'I',
+        'nullable': False,
+        'primary_key': True,
+        'x-special': 'spec'
+    }
+
+    timestamp_float = 78172.128
+    # add new column with preferred
+    row_1 = {"timestamp": timestamp_float, "confidence": "0.1", "I": "0xFF", "number": Decimal("128.67")}
+    _, new_table = schema.coerce_row("table", None, row_1)
+    assert "I" in new_table["columns"]
+    i_column = new_table["columns"]["I"]
+    assert utils.is_complete_column(i_column)
+    # has default hints and overrides
+    assert i_column["nullable"] is False
+    assert i_column["x-special"] == "spec"
+    assert i_column["primary_key"] is True
+    assert i_column["data_type"] == "text"

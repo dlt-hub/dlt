@@ -1,0 +1,33 @@
+[sqlfluff]
+verbose = 1
+nocolor = False
+dialect = postgres
+templater = dbt
+rules = None
+exclude_rules = L003,L011,L022,L031
+recurse = 0
+output_line_length = 100
+
+[sqlfluff:templater:dbt]
+profiles_dir = ci
+target = postgres
+
+[sqlfluff:indentation]
+indented_joins = True
+
+# Some rules can be configured directly from the config common to other rules.
+[sqlfluff:rules]
+tab_space_size = 4
+max_line_length = 100
+indent_unit = space
+
+# Some rules have their own specific config.
+[sqlfluff:rules:L010]
+capitalisation_policy = lower
+
+[sqlfluff:rules:L011]
+# Aliasing preference for tables
+aliasing = explicit
+
+[sqlfluff:rules:L019]
+comma_style = trailing

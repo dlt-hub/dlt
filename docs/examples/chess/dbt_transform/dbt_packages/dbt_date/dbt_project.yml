@@ -1,0 +1,20 @@
+name: 'dbt_date'
+version: '0.5.0'
+
+config-version: 2
+
+target-path: "target"
+clean-targets: ["target", "dbt_packages"]
+macro-paths: ["macros"]
+log-path: "logs"
+
+require-dbt-version: [">=1.2.0", "<2.0.0"]
+profile: integration_tests
+
+quoting:
+    identifier: false
+    schema: false
+
+vars:
+    'dbt_date:time_zone': 'America/Los_Angeles'
+

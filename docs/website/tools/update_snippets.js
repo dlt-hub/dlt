@@ -36,7 +36,7 @@ function *listDirsSync(dir) {
     for (const file of files) {
       if (file.isDirectory()) {
         yield path.join(dir, file.name);
-      } 
+      }
     }
 }
 
@@ -74,7 +74,7 @@ function buildSnippetMap(lines, fileName) {
         }
         if (snippetName = extractSnippetName(END_MARKER, line)) {
             if (snippetName in snippetMap) {
-                snippetMap[snippetName]["end"] = parseInt(lineIndex); 
+                snippetMap[snippetName]["end"] = parseInt(lineIndex);
             } else {
                 throw new Error(`Found end tag for snippet "${snippetName}" but start tag not found! File ${fileName}.`);
             }
@@ -107,7 +107,7 @@ function getSnippet(fileName, snippetName) {
         snippetName = snippetParts[1];
     }
     const snippet = getSnippetFromFile(snippetsFileName, snippetName);
-    if (!snippet) {
+    if (!snippet) {
         throw new Error(`Could not find requested snippet "${snippetName}" requested in file ${fileName} in file ${snippetsFileName}.`);
     }
 
@@ -177,7 +177,7 @@ function syncExamples() {
         // create __init__.py
         fs.mkdirSync(exampleDestinationDir, { recursive: true });
         fs.writeFileSync(exampleDestinationDir + "/__init__.py", "");
-        
+
         // walk all files of example and copy to example destination
         const exampleCodeDir = exampleDir + EXAMPLES_CODE_SUBDIR;
         for (const fileName of walkSync(exampleCodeDir)) {
@@ -185,7 +185,7 @@ function syncExamples() {
             if (!lines) {
                 continue;
             }
-    
+
             // write file
             const destinationFileName =  exampleDestinationDir + fileName.replace(exampleCodeDir, "").replace("-snippets", "");
             fs.mkdirSync(path.dirname(destinationFileName), { recursive: true });

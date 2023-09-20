@@ -1,0 +1,96 @@
+version: 2.1
+
+jobs:
+
+  integration-tests:
+    docker:
+      - image: cimg/python:3.9.9
+      - image: cimg/postgres:14.0
+
+    resource_class: small
+
+    environment:
+      DBT_PROFILES_DIR: ./integration_tests/ci
+      DBT_PROJECT_DIR: ./integration_tests
+      BIGQUERY_SERVICE_KEY_PATH: "/home/circleci/bigquery-service-key.json"
+      DBT_VERSION: 1.6.0
+
+    steps:
+      - checkout
+      - run:
+          name: Install Python packages
+          command: |
+            python3 -m venv venv
+            . venv/bin/activate
+            pip install -U pip setuptools wheel
+            pip install dbt-core==$DBT_VERSION dbt-postgres==$DBT_VERSION dbt-bigquery==$DBT_VERSION dbt-snowflake==$DBT_VERSION dbt-duckdb==$DBT_VERSION
+
+      - run:
+          name: Install dbt dependencies
+          command: |
+            . venv/bin/activate
+              dbt deps --project-dir $DBT_PROJECT_DIR
+
+      # - run:
+      #     name: "Run SQLFluff"
+      #     environment:
+      #       POSTGRES_HOST: localhost
+      #       POSTGRES_TEST_USER: postgres
+      #       POSTGRES_TEST_PASSWORD: ''
+      #       POSTGRES_TEST_PORT: 5432
+      #       POSTGRES_TEST_DATABASE: circle_test
+      #       POSTGRES_TEST_SCHEMA: dbt_expectations_integration_tests
+      #     command: |
+      #       . venv/bin/activate
+      #       cd $DBT_PROJECT_DIR
+      #       sqlfluff lint models
+
+      - run:
+          name: "Run Tests - Postgres"
+          environment:
+            POSTGRES_HOST: localhost
+            POSTGRES_TEST_USER: postgres
+            POSTGRES_TEST_PASSWORD: ''
+            POSTGRES_TEST_PORT: 5432
+            POSTGRES_TEST_DATABASE: circle_test
+            POSTGRES_TEST_SCHEMA: dbt_expectations_integration_tests
+          command: |
+            . venv/bin/activate
+            dbt build -t postgres --project-dir $DBT_PROJECT_DIR
+
+      - run:
+          name: "Set up GCP credentials"
+          command: |
+            echo "Writing to $BIGQUERY_SERVICE_KEY_PATH"
+            echo $BIGQUERY_SERVICE_KEY > $BIGQUERY_SERVICE_KEY_PATH
+
+      - run:
+          name: "Run Tests - BigQuery"
+          command: |
+            . venv/bin/activate
+            dbt build -t bigquery --project-dir $DBT_PROJECT_DIR
+
+      - run:
+          name: "Run Tests - Snowflake"
+          command: |
+            . venv/bin/activate
+            dbt build -t snowflake --project-dir $DBT_PROJECT_DIR
+
+      - run:
+          name: "Run Tests - DuckDB"
+          command: |
+            . venv/bin/activate
+            dbt build -t duckdb --project-dir $DBT_PROJECT_DIR
+
+      - store_artifacts:
+          path: ./logs
+
+workflows:
+  version: 2
+  test-all:
+    jobs:
+      - hold:
+          type: approval
+      - integration-tests:
+          requires:
+            - hold

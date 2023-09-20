@@ -45,6 +45,7 @@ class AzureCredentialsWithoutDefaults(CredentialsConfiguration):
         if not self.is_partial():
             self.resolve()
 
+
 @configspec
 class AzureCredentials(AzureCredentialsWithoutDefaults, CredentialsWithDefault):
     def on_partial(self) -> None:

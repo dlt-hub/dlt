@@ -45,6 +45,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_truncate_command: bool = True
     schema_supports_numeric_precision: bool = True
     timestamp_precision: int = 6
+    max_rows_per_insert: Optional[int] = None
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False

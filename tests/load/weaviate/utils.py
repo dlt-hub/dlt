@@ -52,7 +52,7 @@ def assert_class(
 
     # response = db_client.query.get(class_name, list(properties.keys())).do()
     response = client.query_class(class_name, list(properties.keys())).do()
-    objects = response["data"]["Get"][client.make_full_name(class_name)]
+    objects = response["data"]["Get"][client.make_qualified_class_name(class_name)]
 
     if expected_items_count is not None:
         assert expected_items_count == len(objects)

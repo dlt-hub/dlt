@@ -44,7 +44,7 @@ aws_secret_access_key = "please set me up!" # copy the secret access key here
 If you have your credentials stored in `~/.aws/credentials` just remove the **[destination.filesystem.credentials]** section above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the  profile, pass the profile name as follows (here: `dlt-ci-user`):
 ```toml
 [destination.filesystem.credentials]
-aws_profile="dlt-ci-user"
+profile_name="dlt-ci-user"
 ```
 
 You can also pass an aws region:
@@ -155,7 +155,7 @@ All the files are stored in a single folder with the name of the dataset that yo
 The name of each file contains essential metadata on the content:
 
 - **schema_name** and **table_name** identify the [schema](../../general-usage/schema.md) and table that define the file structure (column names, data types etc.)
-- **load_id** is the [id of the load package](https://dlthub.com/docs/dlt-ecosystem/visualizations/understanding-the-tables#load-ids) form which the file comes from.
+- **load_id** is the [id of the load package](../../general-usage/destination-tables.md#load-packages-and-load-ids) form which the file comes from.
 - **file_id** is there are many files with data for a single table, they are copied with different file id.
 - **ext** a format of the file ie. `jsonl` or `parquet`
 

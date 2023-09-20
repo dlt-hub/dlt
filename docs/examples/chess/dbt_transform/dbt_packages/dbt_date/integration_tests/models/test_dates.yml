@@ -1,0 +1,73 @@
+version: 2
+models:
+  - name: test_dates
+    tests:
+        - expression_is_true:
+            expression: "prior_date_day = {{ dbt_date.yesterday('date_day') }}"
+        - expression_is_true:
+            expression: "next_date_day = {{ dbt_date.tomorrow('date_day') }}"
+        - expression_is_true:
+            expression: "day_name = {{ dbt_date.day_name('date_day', short=False) }}"
+        - expression_is_true:
+            expression: "day_name_short = {{ dbt_date.day_name('date_day', short=True) }}"
+        - expression_is_true:
+            expression: "day_of_month = {{ dbt_date.day_of_month('date_day') }}"
+        - expression_is_true:
+            expression: "day_of_week = {{ dbt_date.day_of_week('date_day', isoweek=False) }}"
+        - expression_is_true:
+            expression: "iso_day_of_week = {{ dbt_date.day_of_week('date_day', isoweek=True) }}"
+        - expression_is_true:
+            expression: "day_of_year = {{ dbt_date.day_of_year('date_day') }}"
+
+        - expression_is_true:
+            expression: "week_start_date = {{ dbt_date.week_start('date_day') }}"
+        - expression_is_true:
+            expression: "week_end_date = {{ dbt_date.week_end('date_day') }}"
+        - expression_is_true:
+            expression: "week_of_year = {{ dbt_date.week_of_year('date_day') }}"
+        - expression_is_true:
+            expression: "iso_week_start_date = {{ dbt_date.iso_week_start('date_day') }}"
+        - expression_is_true:
+            expression: "iso_week_end_date = {{ dbt_date.iso_week_end('date_day') }}"
+        - expression_is_true:
+            expression: "iso_week_of_year = {{ dbt_date.iso_week_of_year('date_day') }}"
+        - expression_is_true:
+            expression: "month_number = {{ dbt_date.date_part('month', 'date_day') }}"
+        - expression_is_true:
+            expression: "month_name = {{ dbt_date.month_name('date_day', short=False) }}"
+        - expression_is_true:
+            expression: "month_name_short = {{ dbt_date.month_name('date_day', short=True) }}"
+        - expression_is_true:
+            expression: "time_stamp_utc = {{ dbt_date.from_unixtimestamp('unix_epoch') }}"
+        - expression_is_true:
+            expression: "unix_epoch = {{ dbt_date.to_unixtimestamp('time_stamp_utc') }}"
+        - expression_is_true:
+            expression: "time_stamp = {{ dbt_date.convert_timezone('time_stamp_utc') }}"
+        - expression_is_true:
+            expression: "time_stamp = {{ dbt_date.convert_timezone('time_stamp_utc', source_tz='UTC') }}"
+        # - expression_is_true:
+        #     expression: "time_stamp_utc = {{ dbt_date.convert_timezone('time_stamp', source_tz='America/Los_Angeles', target_tz='UTC') }}"
+        # - expression_is_true:
+        #     expression: "time_stamp = {{ dbt_date.convert_timezone('time_stamp', source_tz='America/Los_Angeles', target_tz='America/Los_Angeles') }}"
+        - expression_is_true:
+            expression: "rounded_timestamp = {{ dbt_date.round_timestamp('time_stamp') }}"
+        - expression_is_true:
+            expression: "rounded_timestamp_utc = {{ dbt_date.round_timestamp('time_stamp_utc') }}"
+        - expression_is_true:
+            expression: "last_month_number = {{ dbt_date.last_month_number() }}"
+        - expression_is_true:
+            expression: "last_month_name = {{ dbt_date.last_month_name(short=False) }}"
+        - expression_is_true:
+            expression: "last_month_name_short = {{ dbt_date.last_month_name(short=True) }}"
+        - expression_is_true:
+            expression: "next_month_number = {{ dbt_date.next_month_number() }}"
+        - expression_is_true:
+            expression: "next_month_name = {{ dbt_date.next_month_name(short=False) }}"
+        - expression_is_true:
+            expression: "next_month_name_short = {{ dbt_date.next_month_name(short=True) }}"
+
+
+    columns:
+      - name: date_day
+      - name: prior_date_day
+
