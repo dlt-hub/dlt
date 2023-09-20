@@ -12,7 +12,7 @@ keywords: [strapi api, strapi verified source, strapi]
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
-Strapi is a headless CMS (Content Management System) that allows developers to create API-driven
+[Strapi](https://strapi.io/) is a headless CMS (Content Management System) that allows developers to create API-driven
 content management systems without having to write a lot of custom code.
 
 Since Strapi's available endpoints vary based on your Strapi setup, ensure you recognize the ones
@@ -37,9 +37,12 @@ Sources and resources that can be loaded using this verified source are:
 1. Go to API tokens under global settings.
 1. Create a new API token.
 1. Fill in Name, Description, and Duration.
-1. Choose token type: Read Only, Full Access, or custom (with find and findOne selected).
+1. Choose a token type: Read Only, Full Access, or custom (with find and findOne selected).
 1. Save to view your API token.
 1. Copy it for DLT secrets setup.
+
+> Note: The Strapi UI, which is described here, might change.
+> The full guide is available at [this link.](https://docs.strapi.io/user-docs/settings/API-tokens)
 
 ### Initialize the verified source
 
@@ -139,6 +142,7 @@ def strapi_source(
 `endpoints`: Collections to fetch data from.
 
 `api_secret_key`: API secret key for authentication, defaults to dlt secrets.
+
 `domain`: Strapi API domain name, defaults to dlt secrets.
 
 ### Create your own pipeline
@@ -159,7 +163,7 @@ verified source.
 1. To load the specified endpoints:
 
    ```python
-   endpoints = ["athletes"] or endpoints
+   endpoints = ["athletes"]
    load_data = strapi_source(endpoints=endpoints)
 
    load_info = pipeline.run(load_data)
