@@ -3,7 +3,7 @@ from typing import Type
 from dlt.common.schema.schema import Schema
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
-from dlt.common.data_writers.escape import escape_postgres_identifier, _escape_extended, _make_sql_escape_re, date, datetime, time, json, base64, Any, Dict
+from dlt.common.data_writers.escape import escape_postgres_identifier, _escape_extended, SYNAPSE_ESCAPE_DICT, SYNAPSE_ESCAPE_RE, date, datetime, time, json, base64, Any
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
@@ -28,7 +28,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     #caps.preferred_staging_file_format = "blob_storage"
     #caps.supported_staging_file_formats = ["blob_storage","parquet"]
     caps.escape_identifier = escape_postgres_identifier
-    caps.escape_literal = escape_mssql_literal
+    caps.escape_literal = escape_synapse_literal
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
     # https://learn.microsoft.com/en-us/sql/sql-server/maximum-capacity-specifications-for-sql-server?view=sql-server-ver16&redirectedfrom=MSDN
@@ -54,26 +54,3 @@ def client(schema: Schema, initial_config: DestinationClientConfiguration = conf
 def spec() -> Type[DestinationClientConfiguration]:
     return SynapseClientConfiguration
 
-def escape_mssql_literal(v: Any) -> Any:
-    if isinstance(v, str):
-         return _escape_extended(v, prefix="N'", escape_dict=MS_SQL_ESCAPE_DICT, escape_re=MS_SQL_ESCAPE_RE)
-    if isinstance(v, (datetime, date, time)):
-        return f"'{v.isoformat()}'"
-    if isinstance(v, (list, dict)):
-        return _escape_extended(json.dumps(v), prefix="N'", escape_dict=MS_SQL_ESCAPE_DICT, escape_re=MS_SQL_ESCAPE_RE)
-    if isinstance(v, bytes):
-        # Updated to hex: azure synapse doesn't have XML and base64Binary
-        hex_string = v.hex()
-        return f"0x{hex_string}"
-    if isinstance(v, bool):
-        return str(int(v))
-    return str(v)
-
-MS_SQL_ESCAPE_DICT = {
-    "'": "''",
-    '\n': '\n',
-    '\r': '\r',
-    '\t': '\t',
-}
-
-MS_SQL_ESCAPE_RE = _make_sql_escape_re(MS_SQL_ESCAPE_DICT)
