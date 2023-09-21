@@ -1,5 +1,4 @@
 import pytest
-import json_logging
 from importlib.metadata import version as pkg_version
 
 from dlt.common import logger
@@ -70,11 +69,13 @@ def test_text_logger_init(environment: StrStr) -> None:
 
 @pytest.mark.forked
 def test_json_logger_init(environment: StrStr) -> None:
+    from dlt.common.runtime import json_logging
+
     mock_image_env(environment)
     mock_pod_env(environment)
     init_test_logging(JsonLoggerConfiguration())
     # correct component was set
-    json_logging.COMPONENT_NAME = "logger"
+    assert json_logging.COMPONENT_NAME == "logger"
     logger.metrics("test health", extra={"metrics": "props"})
     logger.metrics("test", extra={"metrics": "props"})
     logger.warning("Warning message here")
@@ -102,7 +103,6 @@ def test_double_log_init(environment: StrStr) -> None:
     # normal logger
     # to json
     init_test_logging(JsonLoggerConfiguration())
-    json_logging.COMPONENT_NAME = "logger"
     logger.error("test json warning", extra={"metrics": "props"})
     # to regular
     init_test_logging(PureBasicConfiguration())

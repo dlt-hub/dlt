@@ -426,7 +426,7 @@ def diff_tables(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTabl
             continue
         existing_v = tab_a.get(k)
         if existing_v != v:
-            print(f"{k} ==? {v} ==? {existing_v}")
+            # print(f"{k} ==? {v} ==? {existing_v}")
             partial_table[k] = v  # type: ignore
 
     # this should not really happen
