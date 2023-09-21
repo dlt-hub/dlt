@@ -71,7 +71,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                             insert_sql.append("".join(chunk) + until_nl)
                         else:
                             # Replace the , with ;
-                            insert_sql.append("".join(chunk).strip()[:-1] + ";\n")           
+                            insert_sql.append("".join(chunk).strip()[:-1] + ";\n")
                 else:
                     # otherwise write all content in a single INSERT INTO
                     insert_sql.extend([header.format(qualified_table_name), values_mark, content])
