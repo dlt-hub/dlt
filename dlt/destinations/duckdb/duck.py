@@ -67,11 +67,31 @@ class DuckDbTypeMapper(TypeMapper):
         "BOOLEAN": "bool",
         "DATE": "date",
         "TIMESTAMP WITH TIME ZONE": "timestamp",
-        "BIGINT": "bigint",
         "BLOB": "binary",
         "DECIMAL": "decimal",
-        "TIME": "time"
+        "TIME": "time",
+        # Int types
+        "TINYINT": "bigint",
+        "SMALLINT": "bigint",
+        "INTEGER": "bigint",
+        "BIGINT": "bigint",
+        "HUGEINT": "bigint",
     }
+
+    def to_db_integer_type(self, precision: Optional[int]) -> str:
+        if precision is None:
+            return "BIGINT"
+        # Precision is number of bits
+        if precision <= 8:
+            return "TINYINT"
+        elif precision <= 16:
+            return "SMALLINT"
+        elif precision <= 32:
+            return "INTEGER"
+        elif precision <= 64:
+            return "BIGINT"
+        return "HUGEINT"
+
 
     def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
         # duckdb provides the types with scale and precision

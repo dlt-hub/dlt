@@ -38,7 +38,6 @@ SNOW_TO_SCT: Dict[str, TDataType] = {
 
 class SnowflakeTypeMapper(TypeMapper):
     BIGINT_PRECISION = 19
-    MAX_NUMERIC_PRECISION = 38
     sct_to_unbound_dbt = {
         "complex": "VARIANT",
         "text": "VARCHAR",

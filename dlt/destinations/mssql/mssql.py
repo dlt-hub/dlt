@@ -19,18 +19,6 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
 
 
-PGT_TO_SCT: Dict[str, TDataType] = {
-    "nvarchar": "text",
-    "float": "double",
-    "bit": "bool",
-    "datetimeoffset": "timestamp",
-    "date": "date",
-    "bigint": "bigint",
-    "varbinary": "binary",
-    "decimal": "decimal",
-    "time": "time"
-}
-
 HINT_TO_MSSQL_ATTR: Dict[TColumnHint, str] = {
     "unique": "UNIQUE"
 }
@@ -56,6 +44,32 @@ class MsSqlTypeMapper(TypeMapper):
         "time": "time(%i)",
         "wei": "decimal(%i,%i)"
     }
+
+    dbt_to_sct = {
+        "nvarchar": "text",
+        "float": "double",
+        "bit": "bool",
+        "datetimeoffset": "timestamp",
+        "date": "date",
+        "bigint": "bigint",
+        "varbinary": "binary",
+        "decimal": "decimal",
+        "time": "time",
+        "tinyint": "bigint",
+        "smallint": "bigint",
+        "int": "bigint",
+    }
+
+    def to_db_integer_type(self, precision: Optional[int]) -> str:
+        if precision is None:
+            return "bigint"
+        if precision <= 8:
+            return "tinyint"
+        if precision <= 16:
+            return "smallint"
+        if precision <= 32:
+            return "int"
+        return "bigint"
 
     def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
         if db_type == "numeric":

@@ -63,7 +63,21 @@ class AthenaTypeMapper(TypeMapper):
         "binary": "binary",
         "varbinary": "binary",
         "decimal": "decimal",
+        "tinyint": "bigint",
+        "smallint": "bigint",
+        "int": "bigint",
     }
+
+    def to_db_integer_type(self, precision: Optional[int]) -> str:
+        if precision is None:
+            return "bigint"
+        if precision <= 8:
+            return "tinyint"
+        elif precision <= 16:
+            return "smallint"
+        elif precision <= 32:
+            return "int"
+        return "bigint"
 
     def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
         for key, val in self.dbt_to_sct.items():

@@ -72,7 +72,18 @@ class RedshiftTypeMapper(TypeMapper):
         "numeric": "decimal",
         "time without time zone": "time",
         "varchar": "text",
+        "smallint": "bigint",
+        "integer": "bigint",
     }
+
+    def to_db_integer_type(self, precision: Optional[int]) -> str:
+        if precision is None:
+            return "bigint"
+        if precision <= 16:
+            return "smallint"
+        elif precision <= 32:
+            return "integer"
+        return "bigint"
 
     def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
         if db_type == "numeric":

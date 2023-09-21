@@ -28,7 +28,7 @@ from dlt.common import json, pendulum, logger
 from dlt.common.typing import StrAny, TFun
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns
-from dlt.common.schema.typing import TColumnSchema
+from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -50,15 +50,6 @@ from dlt.destinations.weaviate.configuration import WeaviateClientConfiguration
 from dlt.destinations.weaviate.exceptions import PropertyNameConflict, WeaviateBatchError
 from dlt.destinations.type_mapping import TypeMapper
 
-
-WT_TO_SCT: Dict[str, TDataType] = {
-    "text": "text",
-    "number": "double",
-    "boolean": "bool",
-    "date": "timestamp",
-    "int": "bigint",
-    "blob": "binary",
-}
 
 NON_VECTORIZED_CLASS = {
     "vectorizer": "none",
@@ -84,6 +75,15 @@ class WeaviateTypeMapper(TypeMapper):
     }
 
     sct_to_dbt = {}
+
+    dbt_to_sct = {
+        "text": "text",
+        "number": "double",
+        "boolean": "bool",
+        "date": "timestamp",
+        "int": "bigint",
+        "blob": "binary",
+    }
 
 
 def wrap_weaviate_error(f: TFun) -> TFun:
@@ -480,7 +480,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         for prop in class_schema["properties"]:
             schema_c: TColumnSchema = {
                 "name": self.schema.naming.normalize_identifier(prop["name"]),
-                "data_type": self._from_db_type(prop["dataType"][0]),
+                **self._from_db_type(prop["dataType"][0], None, None),  # type: ignore[misc]
             }
             table_schema[prop["name"]] = schema_c
         return True, table_schema
@@ -680,6 +680,5 @@ class WeaviateClient(JobClientBase, WithStateSync):
         }
         self.create_object(properties, self.schema.version_table_name)
 
-    @staticmethod
-    def _from_db_type(wt_t: str) -> TDataType:
-        return WT_TO_SCT.get(wt_t, "text")
+    def _from_db_type(self, wt_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        return self.type_mapper.from_db_type(wt_t, precision, scale)

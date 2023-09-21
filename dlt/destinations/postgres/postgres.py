@@ -54,7 +54,19 @@ class PostgresTypeMapper(TypeMapper):
         "numeric": "decimal",
         "time without time zone": "time",
         "character varying": "text",
+        "smallint": "bigint",
+        "integer": "bigint",
     }
+
+    def to_db_integer_type(self, precision: Optional[int]) -> str:
+        if precision is None:
+            return "bigint"
+        # Precision is number of bits
+        if precision <= 16:
+            return "smallint"
+        elif precision <= 32:
+            return "integer"
+        return "bigint"
 
     def from_db_type(self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None) -> TColumnType:
         if db_type == "numeric":

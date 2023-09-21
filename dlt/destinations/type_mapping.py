@@ -19,9 +19,15 @@ class TypeMapper:
     def __init__(self, capabilities: DestinationCapabilitiesContext) -> None:
         self.capabilities = capabilities
 
+    def to_db_integer_type(self, precision: Optional[int]) -> str:
+        # Default is always bigint
+        return self.sct_to_unbound_dbt["bigint"]
+
     def to_db_type(self, column: TColumnSchema) -> str:
         precision, scale = column.get("precision"), column.get("scale")
         sc_t = column["data_type"]
+        if sc_t == "bigint":
+            return self.to_db_integer_type(precision)
         bounded_template = self.sct_to_dbt.get(sc_t)
         if not bounded_template:
             return self.sct_to_unbound_dbt[sc_t]
