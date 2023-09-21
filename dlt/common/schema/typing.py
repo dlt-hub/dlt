@@ -34,10 +34,15 @@ COLUMN_HINTS: Set[TColumnHint] = set(["partition", "cluster", "primary_key", "fo
 WRITE_DISPOSITIONS: Set[TWriteDisposition] = set(get_args(TWriteDisposition))
 
 
-class TColumnSchemaBase(TypedDict, total=False):
+class TColumnType(TypedDict, total=False):
+    data_type: Optional[TDataType]
+    precision: Optional[int]
+    scale: Optional[int]
+
+
+class TColumnSchemaBase(TColumnType, total=False):
     """TypedDict that defines basic properties of a column: name, data type and nullable"""
     name: Optional[str]
-    data_type: Optional[TDataType]
     nullable: Optional[bool]
 
 
@@ -53,8 +58,6 @@ class TColumnSchema(TColumnSchemaBase, total=False):
     root_key: Optional[bool]
     merge_key: Optional[bool]
     variant: Optional[bool]
-    precision: Optional[int]
-    scale: Optional[int]
 
 
 TTableSchemaColumns = Dict[str, TColumnSchema]

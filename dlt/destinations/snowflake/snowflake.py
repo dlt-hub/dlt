@@ -7,7 +7,7 @@ from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults, AzureC
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TTableSchema, TColumnType
 
 
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
@@ -23,23 +23,6 @@ from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
 
-
-BIGINT_PRECISION = 19
-# MAX_NUMERIC_PRECISION = 38
-
-
-# SCT_TO_SNOW: Dict[TDataType, str] = {
-#     "complex": "VARIANT",
-#     "text": "VARCHAR",
-#     "double": "FLOAT",
-#     "bool": "BOOLEAN",
-#     "date": "DATE",
-#     "timestamp": "TIMESTAMP_TZ",
-#     "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Snowflake has no integer types
-#     "binary": "BINARY",
-#     "decimal": "NUMBER(%i,%i)",
-#     "time": "TIME",
-# }
 
 SNOW_TO_SCT: Dict[str, TDataType] = {
     "VARCHAR": "text",
@@ -75,6 +58,26 @@ class SnowflakeTypeMapper(TypeMapper):
         "time": "TIME(%i)",
         "wei": "NUMBER(%i,%i)",
     }
+
+    dbt_to_sct = {
+        "VARCHAR": "text",
+        "FLOAT": "double",
+        "BOOLEAN": "bool",
+        "DATE": "date",
+        "TIMESTAMP_TZ": "timestamp",
+        "BINARY": "binary",
+        "VARIANT": "complex",
+        "TIME": "time"
+    }
+
+    def from_db_type(self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None) -> TColumnType:
+        if db_type == "NUMBER":
+            if precision == self.BIGINT_PRECISION and scale == 0:
+                return dict(data_type='bigint', precision=precision, scale=scale)
+            elif (precision, scale) == self.capabilities.wei_precision:
+                return dict(data_type='wei', precision=precision, scale=scale)
+            return dict(data_type='decimal', precision=precision, scale=scale)
+        return super().from_db_type(db_type, precision, scale)
 
 
 class SnowflakeLoadJob(LoadJob, FollowupJob):
@@ -228,15 +231,8 @@ class SnowflakeClient(SqlJobClientWithStaging):
 
         return sql
 
-    @classmethod
-    def _from_db_type(cls, bq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
-        if bq_t == "NUMBER":
-            if precision == BIGINT_PRECISION and scale == 0:
-                return 'bigint'
-            elif (precision, scale) == cls.capabilities.wei_precision:
-                return 'wei'
-            return 'decimal'
-        return SNOW_TO_SCT.get(bq_t, "text")
+    def _from_db_type(self, bq_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        return self.type_mapper.from_db_type(bq_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         name = self.capabilities.escape_identifier(c["name"])

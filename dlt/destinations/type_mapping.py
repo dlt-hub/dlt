@@ -1,6 +1,6 @@
 from typing import Tuple, ClassVar, Dict, Optional
 
-from dlt.common.schema.typing import TColumnSchema, TDataType
+from dlt.common.schema.typing import TColumnSchema, TDataType, TColumnType
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 
 
@@ -13,6 +13,8 @@ class TypeMapper:
     """Data types that require a precision or scale (e.g. `"text": "varchar(%i)"` or `"decimal": "numeric(%i,%i)"` in postgres).
     Values should have printf placeholders for precision (and scale if applicable)
     """
+
+    dbt_to_sct: Dict[str, TDataType]
 
     def __init__(self, capabilities: DestinationCapabilitiesContext) -> None:
         self.capabilities = capabilities
@@ -42,7 +44,7 @@ class TypeMapper:
             return (precision, )
         return (precision, scale)
 
-    def decimal_precision(self, precision: Optional[int], scale: Optional[int]) -> Optional[Tuple[int, int]]:
+    def decimal_precision(self, precision: Optional[int] = None, scale: Optional[int] = None) -> Optional[Tuple[int, int]]:
         defaults = self.capabilities.decimal_precision
         if not defaults:
             return None
@@ -51,7 +53,7 @@ class TypeMapper:
             precision if precision is not None else default_precision, scale if scale is not None else default_scale
         )
 
-    def wei_precision(self, precision: Optional[int], scale: Optional[int]) -> Optional[Tuple[int, int]]:
+    def wei_precision(self, precision: Optional[int] = None, scale: Optional[int] = None) -> Optional[Tuple[int, int]]:
         defaults = self.capabilities.wei_precision
         if not defaults:
             return None
@@ -62,3 +64,10 @@ class TypeMapper:
 
     def timestamp_precision(self, precision: Optional[int]) -> Optional[int]:
         return precision or self.capabilities.timestamp_precision
+
+    def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        return dict(
+            data_type=self.dbt_to_sct[db_type],
+            precision=precision,
+            scale=scale
+        )

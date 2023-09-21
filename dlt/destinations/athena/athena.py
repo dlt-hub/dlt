@@ -15,7 +15,7 @@ from pyathena.formatter import DefaultParameterFormatter, _DEFAULT_FORMATTERS, F
 from dlt.common import logger
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, Schema
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TTableSchema, TColumnType
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import LoadJob
@@ -35,20 +35,6 @@ from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations import path_utils
 
 
-
-HIVET_TO_SCT: Dict[str, TDataType] = {
-    "varchar": "text",
-    "double": "double",
-    "boolean": "bool",
-    "date": "date",
-    "timestamp": "timestamp",
-    "bigint": "bigint",
-    "binary": "binary",
-    "varbinary": "binary",
-    "decimal": "decimal",
-}
-
-
 class AthenaTypeMapper(TypeMapper):
     sct_to_unbound_dbt = {
         "complex": "string",
@@ -66,6 +52,24 @@ class AthenaTypeMapper(TypeMapper):
         "decimal": "decimal(%i,%i)",
         "wei": "decimal(%i,%i)"
     }
+
+    dbt_to_sct = {
+        "varchar": "text",
+        "double": "double",
+        "boolean": "bool",
+        "date": "date",
+        "timestamp": "timestamp",
+        "bigint": "bigint",
+        "binary": "binary",
+        "varbinary": "binary",
+        "decimal": "decimal",
+    }
+
+    def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        for key, val in self.dbt_to_sct.items():
+            if db_type.startswith(key):
+                return dict(data_type=val, precision=precision, scale=scale)
+        return dict(data_type=None)
 
 
 # add a formatter for pendulum to be used by pyathen dbapi
@@ -280,12 +284,8 @@ class AthenaClient(SqlJobClientBase):
         # never truncate tables in athena
         super().initialize_storage([])
 
-    @classmethod
-    def _from_db_type(cls, hive_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
-        for key, val in HIVET_TO_SCT.items():
-            if hive_t.startswith(key):
-                return val
-        return None
+    def _from_db_type(self, hive_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        return self.type_mapper.from_db_type(hive_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         return f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c)}"

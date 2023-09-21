@@ -5,7 +5,7 @@ from dlt.common.destination.reference import NewLoadJob
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TTableSchema, TColumnType
 
 from dlt.destinations.sql_jobs import SqlStagingCopyJob
 
@@ -17,19 +17,6 @@ from dlt.destinations.postgres.configuration import PostgresClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
 
-
-PGT_TO_SCT: Dict[str, TDataType] = {
-    "varchar": "text",
-    "jsonb": "complex",
-    "double precision": "double",
-    "boolean": "bool",
-    "timestamp with time zone": "timestamp",
-    "date": "date",
-    "bigint": "bigint",
-    "bytea": "binary",
-    "numeric": "decimal",
-    "time without time zone": "time"
-}
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {
     "unique": "UNIQUE"
@@ -54,6 +41,26 @@ class PostgresTypeMapper(TypeMapper):
         "time": "time (%i) without time zone",
         "wei": "numeric(%i,%i)"
     }
+
+    dbt_to_sct = {
+        "varchar": "text",
+        "jsonb": "complex",
+        "double precision": "double",
+        "boolean": "bool",
+        "timestamp with time zone": "timestamp",
+        "date": "date",
+        "bigint": "bigint",
+        "bytea": "binary",
+        "numeric": "decimal",
+        "time without time zone": "time",
+        "character varying": "text",
+    }
+
+    def from_db_type(self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None) -> TColumnType:
+        if db_type == "numeric":
+            if (precision, scale) == self.capabilities.wei_precision:
+                return dict(data_type="wei", precision=precision, scale=scale)
+        return super().from_db_type(db_type, precision, scale)
 
 
 class PostgresStagingCopyJob(SqlStagingCopyJob):
@@ -97,31 +104,5 @@ class PostgresClient(InsertValuesJobClient):
     def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return PostgresStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
-    # @classmethod
-    # def _to_db_type(cls, column: TColumnSchema) -> str:
-    #     sc_t = column["data_type"]
-    #     precision, scale = column.get("precision"), column.get("scale")
-    #     if sc_t in ("timestamp", "time"):
-    #         return SCT_TO_PGT[sc_t] % (precision or cls.capabilities.timestamp_precision)
-    #     if sc_t == "wei":
-    #         default_precision, default_scale = cls.capabilities.wei_precision
-    #         precision = precision if precision is not None else default_precision
-    #         scale = scale if scale is not None else default_scale
-    #         return SCT_TO_PGT["decimal"] % (precision, scale)
-    #     if sc_t == "decimal":
-    #         default_precision, default_scale = cls.capabilities.decimal_precision
-    #         precision = precision if precision is not None else default_precision
-    #         scale = scale if scale is not None else default_scale
-    #         return SCT_TO_PGT["decimal"] % (precision, scale)
-    #     if sc_t == "text":
-    #         if precision is not None:
-    #             return "varchar (%i)" % precision
-    #         return "varchar"
-    #     return SCT_TO_PGT[sc_t]
-
-    @classmethod
-    def _from_db_type(cls, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
-        if pq_t == "numeric":
-            if (precision, scale) == cls.capabilities.wei_precision:
-                return "wei"
-        return PGT_TO_SCT.get(pq_t, "text")
+    def _from_db_type(self, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        return self.type_mapper.from_db_type(pq_t, precision, scale)

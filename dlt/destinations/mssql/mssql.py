@@ -5,7 +5,7 @@ from dlt.common.destination.reference import NewLoadJob
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TTableSchema, TColumnType
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob
@@ -18,19 +18,6 @@ from dlt.destinations.mssql.configuration import MsSqlClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
 
-
-# SCT_TO_PGT: Dict[TDataType, str] = {
-#     "complex": "nvarchar(max)",
-#     "text": "nvarchar(max)",
-#     "double": "float",
-#     "bool": "bit",
-#     "timestamp": "datetimeoffset",
-#     "date": "date",
-#     "bigint": "bigint",
-#     "binary": "varbinary(max)",
-#     "decimal": "decimal(%i,%i)",
-#     "time": "time"
-# }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
     "nvarchar": "text",
@@ -70,6 +57,12 @@ class MsSqlTypeMapper(TypeMapper):
         "wei": "decimal(%i,%i)"
     }
 
+    def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        if db_type == "numeric":
+            if (precision, scale) == self.capabilities.wei_precision:
+                return dict(data_type="wei", precision=precision, scale=scale)
+        return super().from_db_type(db_type, precision, scale)
+
 
 class MsSqlStagingCopyJob(SqlStagingCopyJob):
 
@@ -108,6 +101,7 @@ class MsSqlMergeJob(SqlMergeJob):
         name = SqlMergeJob._new_temp_table_name(name_prefix)
         return '#' + name
 
+
 class MsSqlClient(InsertValuesJobClient):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -145,20 +139,5 @@ class MsSqlClient(InsertValuesJobClient):
     def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return MsSqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
-    # @classmethod
-    # def _to_db_type(cls, sc_t: TDataType) -> str:
-    #     if sc_t == "wei":
-    #         return SCT_TO_PGT["decimal"] % cls.capabilities.wei_precision
-    #     if sc_t == "decimal":
-    #         return SCT_TO_PGT["decimal"] % cls.capabilities.decimal_precision
-
-    #     if sc_t == "wei":
-    #         return f"numeric({2*EVM_DECIMAL_PRECISION},{EVM_DECIMAL_PRECISION})"
-    #     return SCT_TO_PGT[sc_t]
-
-    @classmethod
-    def _from_db_type(cls, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
-        if pq_t == "numeric":
-            if (precision, scale) == cls.capabilities.wei_precision:
-                return "wei"
-        return PGT_TO_SCT[pq_t]
+    def _from_db_type(self, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        return self.type_mapper.from_db_type(pq_t, precision, scale)

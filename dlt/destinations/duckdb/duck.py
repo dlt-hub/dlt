@@ -5,7 +5,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TTableSchema, TColumnType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import maybe_context
 
@@ -16,19 +16,6 @@ from dlt.destinations.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.type_mapping import TypeMapper
 
-
-# SCT_TO_PGT: Dict[TDataType, str] = {
-#     "complex": "JSON",
-#     "text": "VARCHAR",
-#     "double": "DOUBLE",
-#     "bool": "BOOLEAN",
-#     "date": "DATE",
-#     "timestamp": "TIMESTAMP WITH TIME ZONE",
-#     "bigint": "BIGINT",
-#     "binary": "BLOB",
-#     "decimal": "DECIMAL(%i,%i)",
-#     "time": "TIME"
-# }
 
 PGT_TO_SCT: Dict[str, TDataType] = {
     "VARCHAR": "text",
@@ -72,6 +59,28 @@ class DuckDbTypeMapper(TypeMapper):
         "decimal": "DECIMAL(%i,%i)",
         "wei": "DECIMAL(%i,%i)",
     }
+
+    dbt_to_sct = {
+        "VARCHAR": "text",
+        "JSON": "complex",
+        "DOUBLE": "double",
+        "BOOLEAN": "bool",
+        "DATE": "date",
+        "TIMESTAMP WITH TIME ZONE": "timestamp",
+        "BIGINT": "bigint",
+        "BLOB": "binary",
+        "DECIMAL": "decimal",
+        "TIME": "time"
+    }
+
+    def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        # duckdb provides the types with scale and precision
+        db_type = db_type.split("(")[0].upper()
+        if db_type == "DECIMAL":
+            if precision == 38 and scale == 0:
+                return dict(data_type="wei", precision=precision, scale=scale)
+        return super().from_db_type(db_type, precision, scale)
+
 
 class DuckDbCopyJob(LoadJob, FollowupJob):
     def __init__(self, table_name: str, file_path: str, sql_client: DuckDbSqlClient) -> None:
@@ -130,19 +139,5 @@ class DuckDbClient(InsertValuesJobClient):
         column_name = self.capabilities.escape_identifier(c["name"])
         return f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
-    # @classmethod
-    # def _to_db_type(cls, sc_t: TDataType) -> str:
-    #     if sc_t == "wei":
-    #         return SCT_TO_PGT["decimal"] % cls.capabilities.wei_precision
-    #     if sc_t == "decimal":
-    #         return SCT_TO_PGT["decimal"] % cls.capabilities.decimal_precision
-    #     return SCT_TO_PGT[sc_t]
-
-    @classmethod
-    def _from_db_type(cls, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
-        # duckdb provides the types with scale and precision
-        pq_t = pq_t.split("(")[0].upper()
-        if pq_t == "DECIMAL":
-            if precision == 38 and scale == 0:
-                return "wei"
-        return PGT_TO_SCT[pq_t]
+    def _from_db_type(self, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        return self.type_mapper.from_db_type(pq_t, precision, scale)

@@ -11,7 +11,7 @@ from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobSt
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TTableSchema, TColumnType
 
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, DestinationTransientException, LoadJobNotExistsException, LoadJobTerminalException, LoadJobUnknownTableException
@@ -26,32 +26,8 @@ from dlt.destinations.type_mapping import TypeMapper
 
 from dlt.common.schema.utils import table_schema_has_type
 
-SCT_TO_BQT: Dict[TDataType, str] = {
-    "complex": "JSON",
-    "text": "STRING",
-    "double": "FLOAT64",
-    "bool": "BOOLEAN",
-    "date": "DATE",
-    "timestamp": "TIMESTAMP",
-    "bigint": "INTEGER",
-    "binary": "BYTES",
-    "decimal": "NUMERIC(%i,%i)",
-    "wei": "BIGNUMERIC",  # non parametrized should hold wei values
-    "time": "TIME",
-}
-
 BQT_TO_SCT: Dict[str, TDataType] = {
-    "STRING": "text",
-    "FLOAT": "double",
-    "BOOLEAN": "bool",
-    "DATE": "date",
-    "TIMESTAMP": "timestamp",
-    "INTEGER": "bigint",
-    "BYTES": "binary",
-    "NUMERIC": "decimal",
-    "BIGNUMERIC": "decimal",
-    "JSON": "complex",
-    "TIME": "time",
+
 }
 
 
@@ -74,6 +50,27 @@ class BigQueryTypeMapper(TypeMapper):
         "binary": "BYTES(%i)",
         "decimal": "NUMERIC(%i,%i)",
     }
+
+    dbt_to_sct = {
+        "STRING": "text",
+        "FLOAT": "double",
+        "BOOLEAN": "bool",
+        "DATE": "date",
+        "TIMESTAMP": "timestamp",
+        "INTEGER": "bigint",
+        "BYTES": "binary",
+        "NUMERIC": "decimal",
+        "BIGNUMERIC": "decimal",
+        "JSON": "complex",
+        "TIME": "time",
+    }
+
+    def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        if db_type == "BIGNUMERIC":
+            if precision is None:  # biggest numeric possible
+                return dict(data_type="wei")
+        return super().from_db_type(db_type, precision, scale)
+
 
 class BigQueryLoadJob(LoadJob, FollowupJob):
     def __init__(
@@ -267,13 +264,13 @@ class BigQueryClient(SqlJobClientWithStaging):
                 schema_c: TColumnSchema = {
                     "name": c.name,
                     "nullable": c.is_nullable,
-                    "data_type": self._from_db_type(c.field_type, c.precision, c.scale),
                     "unique": False,
                     "sort": False,
                     "primary_key": False,
                     "foreign_key": False,
                     "cluster": c.name in (table.clustering_fields or []),
-                    "partition": c.name == partition_field
+                    "partition": c.name == partition_field,
+                    **self._from_db_type(c.field_type, c.precision, c.scale)  # type: ignore[misc]
                 }
                 schema_table[c.name] = schema_c
             return True, schema_table
@@ -334,17 +331,5 @@ class BigQueryClient(SqlJobClientWithStaging):
         job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
         return cast(bigquery.LoadJob, self.sql_client.native_connection.get_job(job_id))
 
-    # @classmethod
-    # def _to_db_type(cls, sc_t: TDataType) -> str:
-    #     if sc_t == "decimal":
-    #         return SCT_TO_BQT["decimal"] % cls.capabilities.decimal_precision
-    #     return SCT_TO_BQT[sc_t]
-
-    @classmethod
-    def _from_db_type(cls, bq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
-        if bq_t == "BIGNUMERIC":
-            if precision is None:  # biggest numeric possible
-                return "wei"
-        return BQT_TO_SCT.get(bq_t, "text")
-
-
+    def _from_db_type(self, bq_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        return self.type_mapper.from_db_type(bq_t, precision, scale)
