@@ -21,19 +21,15 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "insert_values"
     caps.supported_loader_file_formats = ["insert_values"]
-    #TODO: Add a batch_copy for azure synapse if needed for preferred_loader_file_format
-    #caps.preferred_loader_file_format = "batch_copy"
-    #caps.supported_loader_file_formats = ["batch_copy"]
     caps.preferred_staging_file_format = None
     caps.supported_staging_file_formats = []
-    #TODO: Add a blob_storage for azure synapse if needed for preferred_staging_file_format
+    #TODO: Add a blob_storage preferred_staging_file_format capability for azure synapse
     #caps.preferred_staging_file_format = "blob_storage"
     #caps.supported_staging_file_formats = ["blob_storage","parquet"]
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_synapse_literal
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
-    # https://learn.microsoft.com/en-us/sql/sql-server/maximum-capacity-specifications-for-sql-server?view=sql-server-ver16&redirectedfrom=MSDN
     caps.max_identifier_length = 128
     caps.max_column_identifier_length = 128
     caps.max_query_length = 4 * 1024 * 64 * 1024
@@ -43,7 +39,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supports_ddl_transactions = True
     caps.max_rows_per_insert = 1000
 
-    #TODO: Add capability for truncate if needed for azure synapse
+    #TODO: Add and test supports_truncate_command capability in azure synapse (TRUNCATE works in some cases for synapse)
 
 
     return caps

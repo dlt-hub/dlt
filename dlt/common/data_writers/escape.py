@@ -89,7 +89,7 @@ def escape_mssql_literal(v: Any) -> Any:
     return str(v)
 
 def escape_synapse_literal(v: Any) -> Any:
-    #TODO: Add a function for sql we have in the values of insert sql (example: DROP SCHEMA Public --)
+    #TODO: Add handling for sql statements inside of INSERT queries (example: DROP SCHEMA Public --)
     if isinstance(v, str):
          return _escape_extended(v, prefix="N'", escape_dict=SYNAPSE_ESCAPE_DICT, escape_re=SYNAPSE_ESCAPE_RE)
     if isinstance(v, (datetime, date, time)):
