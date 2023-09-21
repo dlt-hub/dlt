@@ -57,7 +57,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                     # print(f'replace the "," with " {until_nl} {len(insert_sql)}')
                     until_nl = until_nl[:-1] + ";"
 
-                if max_rows is not None and max_rows<1000:
+                if max_rows is not None:
                     # mssql has a limit of 1000 rows per INSERT, so we need to split into separate statements
                     values_rows = content.splitlines(keepends=True)
                     len_rows = len(values_rows)
@@ -72,24 +72,6 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                         else:
                             # Replace the , with ;
                             insert_sql.append("".join(chunk).strip()[:-1] + ";\n")
-                # azure synapse
-                elif max_rows > 1000:
-                    values_rows = content.splitlines(keepends=True)
-                    select_statements = []
-
-                    # Convert each value row to a SELECT statement
-                    for row in values_rows:
-                        # Assuming the row looks like (val1, val2, ...), remove the surrounding parentheses
-                        cleaned_row = row.strip("\n").strip(",").strip("()") 
-                        select_statements.append("SELECT " + cleaned_row)
-
-                    # Join all the SELECT statements with UNION ALL
-                    unionized_content = " UNION ALL ".join(select_statements)
-
-                    insert_sql.extend([header.format(qualified_table_name), unionized_content])
-
-                    if until_nl:
-                        insert_sql.append(until_nl)
                 else:
                     # otherwise write all content in a single INSERT INTO
                     insert_sql.extend([header.format(qualified_table_name), values_mark, content])
