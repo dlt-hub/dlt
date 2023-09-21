@@ -43,6 +43,9 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supports_ddl_transactions = True
     caps.max_rows_per_insert = 1000
 
+    #TODO: Add capability for truncate if needed for azure synapse
+
+
     return caps
 
 
