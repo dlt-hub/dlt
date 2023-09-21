@@ -129,7 +129,7 @@ def test_case_insensitive_properties_create(ci_client: WeaviateClient) -> None:
     ci_client.update_stored_schema()
     _, table_columns = ci_client.get_storage_table("ColClass")
     # later column overwrites earlier one so: double
-    assert table_columns == {'col1': {'name': 'col1', 'data_type': 'double'}}
+    assert table_columns == {'col1': {'name': 'col1', 'data_type': 'double', 'precision': None, 'scale': None}}
 
 
 def test_case_sensitive_properties_add(client: WeaviateClient) -> None:
