@@ -72,6 +72,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                         else:
                             # Replace the , with ;
                             insert_sql.append("".join(chunk).strip()[:-1] + ";\n")
+                 #TODO: Add a function to update multiple values in insert sql to individual insert sql           
                 else:
                     # otherwise write all content in a single INSERT INTO
                     insert_sql.extend([header.format(qualified_table_name), values_mark, content])
