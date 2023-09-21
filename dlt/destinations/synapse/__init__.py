@@ -11,6 +11,7 @@ from dlt.common.wei import EVM_DECIMAL_PRECISION
 
 from dlt.destinations.synapse.configuration import SynapseClientConfiguration
 
+# TODO: Organize imports and capabilities
 
 @with_config(spec=SynapseClientConfiguration, sections=(known_sections.DESTINATION, "synapse",))
 def _configure(config: SynapseClientConfiguration = config.value) -> SynapseClientConfiguration:
@@ -18,6 +19,7 @@ def _configure(config: SynapseClientConfiguration = config.value) -> SynapseClie
 
 
 def capabilities() -> DestinationCapabilitiesContext:
+    # https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-service-capacity-limits
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "insert_values"
     caps.supported_loader_file_formats = ["insert_values"]

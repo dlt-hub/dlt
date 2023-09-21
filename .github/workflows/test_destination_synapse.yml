@@ -1,6 +1,6 @@
 
 
-name: test SYNAPSE
+name: test synapse
 
 on:
   push:
@@ -22,7 +22,7 @@ env:
 jobs:
 
   run_loader:
-    name: Test Synapse loader
+    name: Tests Synapse loader
     strategy:
       fail-fast: false
       matrix:
