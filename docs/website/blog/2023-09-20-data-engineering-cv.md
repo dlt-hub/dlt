@@ -99,4 +99,4 @@ The rest is a matter of opportunities, depending on your location and the job ma
 
 Screening CVs is a rapid process, so you need to ensure you check off the requirements while removing (not adding) any doubts. Any hire is a risk, so the screener wants to minimize that - help them do it by showing a good understanding of your role and what is expected of you. Don’t add info that isn’t needed, as that might add doubts.
 
-I wish you good luck on your application process and encourane you to ask for feedback from the community if you get stuck.
+I wish you good luck on your application process and encourage you to ask for feedback from the community if you get stuck.
