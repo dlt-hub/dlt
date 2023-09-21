@@ -69,9 +69,6 @@ class TypeMapper:
             precision if precision is not None else default_precision, scale if scale is not None else default_scale
         )
 
-    def timestamp_precision(self, precision: Optional[int]) -> Optional[int]:
-        return precision or self.capabilities.timestamp_precision
-
     def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
         return without_none(dict(  # type: ignore[return-value]
             data_type=self.dbt_to_sct.get(db_type, "text"),
