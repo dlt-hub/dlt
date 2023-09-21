@@ -79,7 +79,9 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
 
                     # Convert each value row to a SELECT statement
                     for row in values_rows:
-                        select_statements.append("SELECT " + row.strip("\n").strip(","))
+                        # Assuming the row looks like (val1, val2, ...), remove the surrounding parentheses
+                        cleaned_row = row.strip("\n").strip(",").strip("()") 
+                        select_statements.append("SELECT " + cleaned_row)
 
                     # Join all the SELECT statements with UNION ALL
                     unionized_content = " UNION ALL ".join(select_statements)
