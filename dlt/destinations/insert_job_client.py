@@ -57,7 +57,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                     # print(f'replace the "," with " {until_nl} {len(insert_sql)}')
                     until_nl = until_nl[:-1] + ";"
 
-                if max_rows is not None:
+                if max_rows is not None and max_rows<1000:
                     # mssql has a limit of 1000 rows per INSERT, so we need to split into separate statements
                     values_rows = content.splitlines(keepends=True)
                     len_rows = len(values_rows)
