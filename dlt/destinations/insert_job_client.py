@@ -72,6 +72,12 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                         else:
                             # Replace the , with ;
                             insert_sql.append("".join(chunk).strip()[:-1] + ";\n")
+                # azure synapse
+                elif max_rows > 1000:
+                    all_rows = content.splitlines(keepends=True)
+                    for i in range(0, len(all_rows), max_rows):
+                        chunk = all_rows[i:i+max_rows]
+                        insert_sql.extend([header.format(qualified_table_name), values_mark, "".join(chunk).strip() + ";"])
                 else:
                     # otherwise write all content in a single INSERT INTO
                     insert_sql.extend([header.format(qualified_table_name), values_mark, content])
