@@ -2,6 +2,7 @@ from typing import Tuple, ClassVar, Dict, Optional
 
 from dlt.common.schema.typing import TColumnSchema, TDataType, TColumnType
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.utils import without_none
 
 
 class TypeMapper:
@@ -72,8 +73,8 @@ class TypeMapper:
         return precision or self.capabilities.timestamp_precision
 
     def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
-        return dict(
-            data_type=self.dbt_to_sct[db_type],
+        return without_none(dict(  # type: ignore[return-value]
+            data_type=self.dbt_to_sct.get(db_type, "text"),
             precision=precision,
             scale=scale
-        )
+        ))

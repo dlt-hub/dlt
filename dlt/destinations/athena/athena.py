@@ -13,6 +13,7 @@ from pyathena.error import OperationalError, DatabaseError, ProgrammingError, In
 from pyathena.formatter import DefaultParameterFormatter, _DEFAULT_FORMATTERS, Formatter, _format_date
 
 from dlt.common import logger
+from dlt.common.utils import without_none
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType
@@ -82,7 +83,7 @@ class AthenaTypeMapper(TypeMapper):
     def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
         for key, val in self.dbt_to_sct.items():
             if db_type.startswith(key):
-                return dict(data_type=val, precision=precision, scale=scale)
+                return without_none(dict(data_type=val, precision=precision, scale=scale))  # type: ignore[return-value]
         return dict(data_type=None)
 
 

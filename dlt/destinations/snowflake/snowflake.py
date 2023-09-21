@@ -72,9 +72,9 @@ class SnowflakeTypeMapper(TypeMapper):
     def from_db_type(self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None) -> TColumnType:
         if db_type == "NUMBER":
             if precision == self.BIGINT_PRECISION and scale == 0:
-                return dict(data_type='bigint', precision=precision, scale=scale)
+                return dict(data_type='bigint')
             elif (precision, scale) == self.capabilities.wei_precision:
-                return dict(data_type='wei', precision=precision, scale=scale)
+                return dict(data_type='wei')
             return dict(data_type='decimal', precision=precision, scale=scale)
         return super().from_db_type(db_type, precision, scale)
 
