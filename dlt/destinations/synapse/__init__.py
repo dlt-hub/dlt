@@ -21,10 +21,12 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "insert_values"
     caps.supported_loader_file_formats = ["insert_values"]
+    #TODO: Add a batch_copy for azure synapse if needed for preferred_loader_file_format
     #caps.preferred_loader_file_format = "batch_copy"
     #caps.supported_loader_file_formats = ["batch_copy"]
     caps.preferred_staging_file_format = None
     caps.supported_staging_file_formats = []
+    #TODO: Add a blob_storage for azure synapse if needed for preferred_staging_file_format
     #caps.preferred_staging_file_format = "blob_storage"
     #caps.supported_staging_file_formats = ["blob_storage","parquet"]
     caps.escape_identifier = escape_postgres_identifier
