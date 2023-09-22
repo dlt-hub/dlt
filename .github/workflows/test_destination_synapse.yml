@@ -74,7 +74,7 @@ jobs:
         shell: cmd
 
   matrix_job_required_check:
-    name: MS SQL loader tests
+    name: Synapse loader tests
     needs: run_loader
     runs-on: ubuntu-latest
     if: always()
