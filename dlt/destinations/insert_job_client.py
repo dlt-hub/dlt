@@ -72,6 +72,14 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                         else:
                             # Replace the , with ;
                             insert_sql.append("".join(chunk).strip()[:-1] + ";\n")
+                elif max_rows >= 1000:
+                    values_rows = content.splitlines(keepends=True)
+                    sql_rows = []
+                    for row in values_rows:
+                        row = row.strip(",\n")
+                        sql_rows.append(f"SELECT {row}")
+                    individual_insert = " UNION ALL ".join(sql_rows)
+                    insert_sql.extend([header.format(qualified_table_name), individual_insert + ";"])            
                 else:
                     # otherwise write all content in a single INSERT INTO
                     insert_sql.extend([header.format(qualified_table_name), values_mark, content])
