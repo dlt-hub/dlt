@@ -39,7 +39,8 @@ class TypeMapper:
 
     def precision_tuple_or_default(self, data_type: TDataType, precision: Optional[int], scale: Optional[int]) -> Optional[Tuple[int, ...]]:
         if data_type in ("timestamp", "time"):
-            return (precision or self.capabilities.timestamp_precision, )
+            if precision is None:
+                return None  # Use default which is usually the max
         elif data_type == "decimal":
             return self.decimal_precision(precision, scale)
         elif data_type == "wei":

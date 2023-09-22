@@ -31,6 +31,8 @@ class PostgresTypeMapper(TypeMapper):
         "date": "date",
         "bigint": "bigint",
         "binary": "bytea",
+        "timestamp": "timestamp with time zone",
+        "time": "time without time zone",
     }
 
     sct_to_dbt = {

@@ -35,7 +35,7 @@ def test_create_table(snowflake_client: SnowflakeClient) -> None:
     assert '"COL1" NUMBER(19,0) NOT NULL' in sql
     assert '"COL2" FLOAT NOT NULL' in sql
     assert '"COL3" BOOLEAN NOT NULL' in sql
-    assert '"COL4" TIMESTAMP_TZ(9) NOT NULL' in sql
+    assert '"COL4" TIMESTAMP_TZ NOT NULL' in sql
     assert '"COL5" VARCHAR' in sql
     assert '"COL6" NUMBER(38,9) NOT NULL' in sql
     assert '"COL7" BINARY' in sql
@@ -59,7 +59,7 @@ def test_alter_table(snowflake_client: SnowflakeClient) -> None:
     assert '"COL1" NUMBER(19,0) NOT NULL' in sql
     assert '"COL2" FLOAT NOT NULL' in sql
     assert '"COL3" BOOLEAN NOT NULL' in sql
-    assert '"COL4" TIMESTAMP_TZ(9) NOT NULL' in sql
+    assert '"COL4" TIMESTAMP_TZ NOT NULL' in sql
     assert '"COL5" VARCHAR' in sql
     assert '"COL6" NUMBER(38,9) NOT NULL' in sql
     assert '"COL7" BINARY' in sql

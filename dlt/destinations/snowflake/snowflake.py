@@ -24,18 +24,6 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
 
 
-SNOW_TO_SCT: Dict[str, TDataType] = {
-    "VARCHAR": "text",
-    "FLOAT": "double",
-    "BOOLEAN": "bool",
-    "DATE": "date",
-    "TIMESTAMP_TZ": "timestamp",
-    "BINARY": "binary",
-    "VARIANT": "complex",
-    "TIME": "time",
-}
-
-
 class SnowflakeTypeMapper(TypeMapper):
     BIGINT_PRECISION = 19
     sct_to_unbound_dbt = {

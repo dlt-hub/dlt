@@ -17,19 +17,6 @@ from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.type_mapping import TypeMapper
 
 
-PGT_TO_SCT: Dict[str, TDataType] = {
-    "VARCHAR": "text",
-    "JSON": "complex",
-    "DOUBLE": "double",
-    "BOOLEAN": "bool",
-    "DATE": "date",
-    "TIMESTAMP WITH TIME ZONE": "timestamp",
-    "BIGINT": "bigint",
-    "BLOB": "binary",
-    "DECIMAL": "decimal",
-    "TIME": "time"
-}
-
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {
     "unique": "UNIQUE"
 }
