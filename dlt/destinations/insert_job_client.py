@@ -57,7 +57,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                     # print(f'replace the "," with " {until_nl} {len(insert_sql)}')
                     until_nl = until_nl[:-1] + ";"
 
-                if max_rows is not None and max_rows<1000:
+                if max_rows is not None:
                     # mssql has a limit of 1000 rows per INSERT, so we need to split into separate statements
                     values_rows = content.splitlines(keepends=True)
                     len_rows = len(values_rows)
@@ -72,33 +72,6 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                         else:
                             # Replace the , with ;
                             insert_sql.append("".join(chunk).strip()[:-1] + ";\n")
-                elif max_rows >= 1000:
-                    # This part breaks the multiple values in an insert statement into individual insert statements 
-                    # combined with SELECT and UNION ALL
-
-                    values_rows = content.splitlines(keepends=True)
-                    sql_rows = []
-
-                    for row in values_rows:
-                        # Remove potential leading and trailing characters such as brackets, commas, and newlines
-                        row = row.strip(",\n() ;")
-                        
-                        # Separate out the individual values within the row
-                        columns = row.split(",")
-                        
-                        # Ensure there are no stray parentheses in columns
-                        columns = [col.strip("()") for col in columns]
-                        
-                        # Create the SELECT for this particular row, keeping the values as they are
-                        sql_rows.append(f"SELECT {', '.join(columns)}")
-
-                    individual_insert = " UNION ALL ".join(sql_rows)
-                    
-                    # If individual_insert ends with a semicolon, remove it
-                    if individual_insert.endswith(";"):
-                        individual_insert = individual_insert[:-1]
-                    
-                    insert_sql.extend([header.format(qualified_table_name), individual_insert + ";"])
                 else:
                     # otherwise write all content in a single INSERT INTO
                     insert_sql.extend([header.format(qualified_table_name), values_mark, content])
