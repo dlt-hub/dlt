@@ -7,7 +7,7 @@ from dlt.common import Decimal, pendulum, json
 from dlt.common.data_types import TDataType
 from dlt.common.typing import StrAny
 from dlt.common.wei import Wei
-from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision
+from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision, ensure_pendulum_time
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
 
 
@@ -273,6 +273,21 @@ def assert_all_data_types_row(
         expected_rows['col4'] = reduce_pendulum_datetime_precision(
             ensure_pendulum_datetime(expected_rows["col4"]),  # type: ignore[arg-type]
             timestamp_precision
+        )
+    if "col4_precision" in expected_rows:
+        parsed_date = pendulum.instance(db_mapping["col4_precision"])
+        db_mapping["col4_precision"] = reduce_pendulum_datetime_precision(parsed_date, 3)
+        expected_rows['col4_precision'] = reduce_pendulum_datetime_precision(
+            ensure_pendulum_datetime(expected_rows["col4_precision"]),  # type: ignore[arg-type]
+            3
+        )
+
+    if "col11_precision" in expected_rows:
+        parsed_time = ensure_pendulum_time(db_mapping["col11_precision"])
+        db_mapping["col11_precision"] = reduce_pendulum_datetime_precision(parsed_time, 3)
+        expected_rows['col11_precision'] = reduce_pendulum_datetime_precision(
+            ensure_pendulum_time(expected_rows["col11_precision"]),  # type: ignore[arg-type]
+            3
         )
 
     # binary column

@@ -1,5 +1,5 @@
 import contextlib
-from typing import Any, Optional, Union, overload  # noqa
+from typing import Any, Optional, Union, overload, TypeVar  # noqa
 import datetime  # noqa: I251
 
 from dlt.common.pendulum import pendulum, timedelta
@@ -148,5 +148,7 @@ def to_seconds(td: Optional[TimedeltaSeconds]) -> Optional[float]:
     return td
 
 
-def reduce_pendulum_datetime_precision(value: pendulum.DateTime, microsecond_precision: int) -> pendulum.DateTime:
-    return value.set(microsecond=value.microsecond // 10**(6 - microsecond_precision) * 10**(6 - microsecond_precision))  # type: ignore
+T = TypeVar("T", bound=Union[pendulum.DateTime, pendulum.Time])
+
+def reduce_pendulum_datetime_precision(value: T, microsecond_precision: int) -> T:
+    return value.replace(microsecond=value.microsecond // 10**(6 - microsecond_precision) * 10**(6 - microsecond_precision))  # type: ignore
