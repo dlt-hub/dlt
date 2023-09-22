@@ -176,4 +176,3 @@ If you interested in learning more about Weaviate support in dlt, check out the 
 
 - [Loading PDF data into Weaviate](https://github.com/dlt-hub/dlt_demos/blob/main/pdf_to_weaviate.ipynb)
 - [Loading data from SQL database into Weaviate](https://github.com/dlt-hub/dlt_demos/blob/main/sql_to_weaviate.ipynb)
-
