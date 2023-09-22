@@ -78,14 +78,24 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
 
                     values_rows = content.splitlines(keepends=True)
                     sql_rows = []
+
                     for row in values_rows:
-                        row = row.strip(",\n")
+                        # Remove the enclosing brackets from the row
+                        row = row.strip(",\n()")
+                        
+                        # Separate out the individual values within the row
                         columns = row.split(",")
+                        
+                        # Create the SELECT for this particular row, keeping the values as they are
                         sql_rows.append(f"SELECT {', '.join(columns)}")
+
                     individual_insert = " UNION ALL ".join(sql_rows)
+                    
+                    # If individual_insert ends with a semicolon, remove it
                     if individual_insert.endswith(";"):
                         individual_insert = individual_insert[:-1]
-                    insert_sql.extend([header.format(qualified_table_name), individual_insert + ";"])            
+                    
+                    insert_sql.extend([header.format(qualified_table_name), individual_insert + ";"])
                 else:
                     # otherwise write all content in a single INSERT INTO
                     insert_sql.extend([header.format(qualified_table_name), values_mark, content])
