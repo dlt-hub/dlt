@@ -83,6 +83,8 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                         columns = row.split(",")
                         sql_rows.append(f"SELECT {', '.join(columns)}")
                     individual_insert = " UNION ALL ".join(sql_rows)
+                    if individual_insert.endswith(";"):
+                        individual_insert = individual_insert[:-1]
                     insert_sql.extend([header.format(qualified_table_name), individual_insert + ";"])            
                 else:
                     # otherwise write all content in a single INSERT INTO
