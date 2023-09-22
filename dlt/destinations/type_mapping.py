@@ -21,7 +21,7 @@ class TypeMapper:
         self.capabilities = capabilities
 
     def to_db_integer_type(self, precision: Optional[int]) -> str:
-        # Default is always bigint
+        # Override in subclass if db supports other integer types (e.g. smallint, integer, tinyint, etc.)
         return self.sct_to_unbound_dbt["bigint"]
 
     def to_db_type(self, column: TColumnSchema) -> str:

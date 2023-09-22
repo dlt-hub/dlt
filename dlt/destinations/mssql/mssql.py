@@ -33,7 +33,7 @@ class MsSqlTypeMapper(TypeMapper):
         "bigint": "bigint",
         "binary": "varbinary(max)",
         "date": "date",
-        "datetimeoffset": "datetimeoffset",
+        "timestamp": "datetimeoffset",
         "time": "time",
     }
 
