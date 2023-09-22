@@ -80,11 +80,14 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                     sql_rows = []
 
                     for row in values_rows:
-                        # Remove the enclosing brackets from the row
-                        row = row.strip(",\n()")
+                        # Remove potential leading and trailing characters such as brackets, commas, and newlines
+                        row = row.strip(",\n() ;")
                         
                         # Separate out the individual values within the row
                         columns = row.split(",")
+                        
+                        # Ensure there are no stray parentheses in columns
+                        columns = [col.strip("()") for col in columns]
                         
                         # Create the SELECT for this particular row, keeping the values as they are
                         sql_rows.append(f"SELECT {', '.join(columns)}")
