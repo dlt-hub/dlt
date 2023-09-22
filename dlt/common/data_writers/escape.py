@@ -105,10 +105,12 @@ def escape_synapse_literal(v: Any) -> Any:
     return str(v)
 
 SYNAPSE_ESCAPE_DICT = {
-"'": "''",
-'\n': '\n',
-'\r': '\r',
-'\t': '\t',
+    "'": "''",
+    '\n': '\n',
+    '\r': '\r',
+    '\t': '\t',
+    '--': '- -', 
+    ';': '\\;',  
 }
 
 SYNAPSE_ESCAPE_RE = _make_sql_escape_re(SYNAPSE_ESCAPE_DICT)
