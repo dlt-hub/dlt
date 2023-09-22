@@ -93,6 +93,8 @@ def test_parquet_writer_all_data_fields() -> None:
     data["col4"] = ensure_pendulum_datetime(data["col4"])
     data["col10"] = ensure_pendulum_date(data["col10"])
     data["col11"] = pendulum.Time.fromisoformat(data["col11"])
+    data["col4_precision"] = ensure_pendulum_datetime(data["col4_precision"])
+    data["col11_precision"] = pendulum.Time.fromisoformat(data["col11_precision"])
 
     with get_writer("parquet") as writer:
         writer.write_data_item([data], TABLE_UPDATE_COLUMNS_SCHEMA)

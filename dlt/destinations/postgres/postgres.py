@@ -38,7 +38,6 @@ class PostgresTypeMapper(TypeMapper):
     sct_to_dbt = {
         "text": "varchar(%i)",
         "timestamp": "timestamp (%i) with time zone",
-        "binary": "bytea(%i)",
         "decimal": "numeric(%i,%i)",
         "time": "time (%i) without time zone",
         "wei": "numeric(%i,%i)"

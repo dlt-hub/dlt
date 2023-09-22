@@ -29,13 +29,20 @@ def test_create_table(client: PostgresClient) -> None:
     assert '"col1" bigint  NOT NULL' in sql
     assert '"col2" double precision  NOT NULL' in sql
     assert '"col3" boolean  NOT NULL' in sql
-    assert '"col4" timestamp (6) with time zone  NOT NULL' in sql
+    assert '"col4" timestamp with time zone  NOT NULL' in sql
     assert '"col5" varchar' in sql
     assert '"col6" numeric(38,9)  NOT NULL' in sql
     assert '"col7" bytea' in sql
     assert '"col8" numeric(156,78)' in sql
     assert '"col9" jsonb  NOT NULL' in sql
     assert '"col10" date  NOT NULL' in sql
+    assert '"col11" time without time zone  NOT NULL' in sql
+    assert '"col1_precision" smallint  NOT NULL' in sql
+    assert '"col4_precision" timestamp (3) with time zone  NOT NULL' in sql
+    assert '"col5_precision" varchar(21)' in sql
+    assert '"col6_precision" numeric(6,2)  NOT NULL' in sql
+    assert '"col7_precision" bytea' in sql
+    assert '"col11_precision" time (3) without time zone  NOT NULL' in sql
 
 
 def test_alter_table(client: PostgresClient) -> None:
@@ -49,13 +56,20 @@ def test_alter_table(client: PostgresClient) -> None:
     assert '"col1" bigint  NOT NULL' in sql
     assert '"col2" double precision  NOT NULL' in sql
     assert '"col3" boolean  NOT NULL' in sql
-    assert '"col4" timestamp (6) with time zone  NOT NULL' in sql
+    assert '"col4" timestamp with time zone  NOT NULL' in sql
     assert '"col5" varchar' in sql
     assert '"col6" numeric(38,9)  NOT NULL' in sql
     assert '"col7" bytea' in sql
     assert '"col8" numeric(156,78)' in sql
     assert '"col9" jsonb  NOT NULL' in sql
     assert '"col10" date  NOT NULL' in sql
+    assert '"col11" time without time zone  NOT NULL' in sql
+    assert '"col1_precision" smallint  NOT NULL' in sql
+    assert '"col4_precision" timestamp (3) with time zone  NOT NULL' in sql
+    assert '"col5_precision" varchar(21)' in sql
+    assert '"col6_precision" numeric(6,2)  NOT NULL' in sql
+    assert '"col7_precision" bytea' in sql
+    assert '"col11_precision" time (3) without time zone  NOT NULL' in sql
 
 
 def test_create_table_with_hints(client: PostgresClient) -> None:
@@ -72,7 +86,7 @@ def test_create_table_with_hints(client: PostgresClient) -> None:
     assert '"col5" varchar ' in sql
     # no hints
     assert '"col3" boolean  NOT NULL' in sql
-    assert '"col4" timestamp (6) with time zone  NOT NULL' in sql
+    assert '"col4" timestamp with time zone  NOT NULL' in sql
 
     # same thing without indexes
     client = PostgresClient(client.schema, PostgresClientConfiguration(dataset_name="test_" + uniq_id(), create_indexes=False, credentials=PostgresCredentials()))

@@ -166,6 +166,43 @@ TABLE_UPDATE: List[TColumnSchema] = [
         "data_type": "time",
         "nullable": True
     },
+    {
+        "name": "col1_precision",
+        "data_type": "bigint",
+        "precision": 16,
+        "nullable": False
+    },
+    {
+        "name": "col4_precision",
+        "data_type": "timestamp",
+        "precision": 3,
+        "nullable": False
+    },
+    {
+        "name": "col5_precision",
+        "data_type": "text",
+        "precision": 21,
+        "nullable": False
+    },
+    {
+        "name": "col6_precision",
+        "data_type": "decimal",
+        "precision": 6,
+        "scale": 2,
+        "nullable": False
+    },
+    {
+        "name": "col7_precision",
+        "data_type": "binary",
+        "precision": 19,
+        "nullable": False
+    },
+    {
+        "name": "col11_precision",
+        "data_type": "time",
+        "precision": 3,
+        "nullable": False
+    },
 ]
 TABLE_UPDATE_COLUMNS_SCHEMA: TTableSchemaColumns = {t["name"]:t for t in TABLE_UPDATE}
 
@@ -192,6 +229,12 @@ TABLE_ROW_ALL_DATA_TYPES  = {
     "col9_null": None,
     "col10_null": None,
     "col11_null": None,
+    "col1_precision": 22324,
+    "col4_precision": "2022-05-23T13:26:46.167231+00:00",
+    "col5_precision": "string data 2 \n \r \x8e 🦆",
+    "col6_precision": Decimal("2323.34"),
+    "col7_precision": b'binary data 2 \n \r \x8e',
+    "col11_precision": "13:26:45.176451",
 }
 
 
