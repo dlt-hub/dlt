@@ -94,8 +94,8 @@ def main():
     tickets = zendesk_source.tickets
 
     info = pipeline.run(
-        # 3. Here we use a special function to tell Weaviate to
-        # tell Weaviate which fields to vectorize
+        # 3. Here we use a special function to tell Weaviate
+        # which fields to vectorize
         weaviate_adapter(
             tickets,
             vectorize=["subject", "description"],
