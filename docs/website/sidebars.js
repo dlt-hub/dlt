@@ -65,7 +65,7 @@ const sidebars = {
           link: {
             type: 'generated-index',
             title: 'File formats',
-            description: 'Overview over our loader file formats',
+            description: 'Overview of our loader file formats',
             slug: 'dlt-ecosystem/file-formats',
             keywords: ['destination'],
           },
@@ -141,7 +141,7 @@ const sidebars = {
       link: {
         type: 'generated-index',
         title: 'Walktroughs',
-        description: 'Overview over our walkthroughs. Learn how to use and deploy dlt.',
+        description: 'Overview of our walkthroughs. Learn how to use and deploy dlt.',
         slug: 'walkthroughs',
         keywords: ['walkthrough'],
       },
