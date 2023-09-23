@@ -55,7 +55,7 @@ def test_create_table(client: RedshiftClient) -> None:
     assert '"col11" time without time zone  NOT NULL' in sql
     assert '"col1_precision" smallint  NOT NULL' in sql
     assert '"col4_precision" timestamp with time zone  NOT NULL' in sql
-    assert '"col5_precision" varchar(21)' in sql
+    assert '"col5_precision" varchar(25)' in sql
     assert '"col6_precision" numeric(6,2)  NOT NULL' in sql
     assert '"col7_precision" varbinary(19)' in sql
     assert '"col11_precision" time without time zone  NOT NULL' in sql
@@ -82,7 +82,7 @@ def test_alter_table(client: RedshiftClient) -> None:
     assert '"col11" time without time zone  NOT NULL' in sql
     assert '"col1_precision" smallint  NOT NULL' in sql
     assert '"col4_precision" timestamp with time zone  NOT NULL' in sql
-    assert '"col5_precision" varchar(21)' in sql
+    assert '"col5_precision" varchar(25)' in sql
     assert '"col6_precision" numeric(6,2)  NOT NULL' in sql
     assert '"col7_precision" varbinary(19)' in sql
     assert '"col11_precision" time without time zone  NOT NULL' in sql

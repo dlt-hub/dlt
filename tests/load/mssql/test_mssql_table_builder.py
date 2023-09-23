@@ -39,7 +39,7 @@ def test_create_table(client: MsSqlClient) -> None:
     assert '"col11" time  NOT NULL' in sql
     assert '"col1_precision" smallint  NOT NULL' in sql
     assert '"col4_precision" datetimeoffset(3)  NOT NULL' in sql
-    assert '"col5_precision" nvarchar(21)' in sql
+    assert '"col5_precision" nvarchar(25)' in sql
     assert '"col6_precision" decimal(6,2)  NOT NULL' in sql
     assert '"col7_precision" varbinary(19)' in sql
     assert '"col11_precision" time(3)  NOT NULL' in sql
@@ -65,7 +65,7 @@ def test_alter_table(client: MsSqlClient) -> None:
     assert '"col11" time  NOT NULL' in sql
     assert '"col1_precision" smallint  NOT NULL' in sql
     assert '"col4_precision" datetimeoffset(3)  NOT NULL' in sql
-    assert '"col5_precision" nvarchar(21)' in sql
+    assert '"col5_precision" nvarchar(25)' in sql
     assert '"col6_precision" decimal(6,2)  NOT NULL' in sql
     assert '"col7_precision" varbinary(19)' in sql
     assert '"col11_precision" time(3)  NOT NULL' in sql

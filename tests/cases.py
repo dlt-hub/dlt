@@ -181,7 +181,7 @@ TABLE_UPDATE: List[TColumnSchema] = [
     {
         "name": "col5_precision",
         "data_type": "text",
-        "precision": 21,
+        "precision": 25,
         "nullable": False
     },
     {
@@ -290,17 +290,22 @@ def assert_all_data_types_row(
             3
         )
 
-    # binary column
-    if "col7" in db_mapping:
-        if isinstance(db_mapping["col7"], str):
-            try:
-                db_mapping["col7"] = bytes.fromhex(db_mapping["col7"])  # redshift returns binary as hex string
-            except ValueError:
-                if not allow_base64_binary:
-                    raise
-                db_mapping["col7"] = base64.b64decode(db_mapping["col7"], validate=True)
-        else:
-            db_mapping["col7"] = bytes(db_mapping["col7"])
+    # redshift and bigquery return strings from structured fields
+    for binary_col in ["col7", "col7_precision"]:
+        if binary_col in db_mapping:
+            if isinstance(db_mapping[binary_col], str):
+                try:
+                    db_mapping[binary_col] = bytes.fromhex(
+                        db_mapping[binary_col]
+                    )  # redshift returns binary as hex string
+                except ValueError:
+                    if not allow_base64_binary:
+                        raise
+                    db_mapping[binary_col] = base64.b64decode(
+                        db_mapping[binary_col], validate=True
+                    )
+            else:
+                db_mapping[binary_col] = bytes(db_mapping[binary_col])
 
     # redshift and bigquery return strings from structured fields
     if "col9" in db_mapping:
