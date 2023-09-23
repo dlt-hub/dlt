@@ -90,6 +90,7 @@ class TTableSchema(TypedDict, total=False):
     filters: Optional[TRowFilters]
     columns: TTableSchemaColumns
     resource: Optional[str]
+    populated: Optional[bool]
 
 
 class TPartialTableSchema(TTableSchema):

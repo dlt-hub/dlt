@@ -205,6 +205,7 @@ class Schema:
             return settings
 
         # find table settings
+        # TODO: get root table...
         table_with_settings = parent_table or table_name
 
         # modes
@@ -216,8 +217,10 @@ class Schema:
 
         return settings
 
+    def is_table_populated(self, table_name: str) -> bool:
+        return table_name in self.tables and (self.tables[table_name].get("populated") is True)
 
-    def apply_schema_contract(self, contract_modes: TSchemaContractModes, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema) -> Tuple[DictStrAny, TPartialTableSchema]:
+    def apply_schema_contract(self, contract_modes: TSchemaContractModes, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema, table_populated: bool) -> Tuple[DictStrAny, TPartialTableSchema]:
         """
         Checks if contract mode allows for the requested changes to the data and the schema. It will allow all changes to pass, filter out the row filter out
         columns for both the data and the schema_update or reject the update completely, depending on the mode. An example settings could be:
@@ -241,10 +244,8 @@ class Schema:
         if contract_modes == DEFAULT_SCHEMA_CONTRACT_MODE:
             return row, partial_table
 
-        table_exists = table_name in self.tables and len(self.get_table_columns(table_name, include_incomplete=False)) > 0
-
         # check case where we have a new table
-        if not table_exists:
+        if not table_populated:
             if contract_modes["table"] in ["discard_row", "discard_value"]:
                 return None, None
             if contract_modes["table"] == "freeze":
@@ -254,7 +255,7 @@ class Schema:
         for item in list(row.keys()):
             for item in list(row.keys()):
                 # if this is a new column for an existing table...
-                if table_exists and (item not in self.tables[table_name]["columns"] or not utils.is_complete_column(self.tables[table_name]["columns"][item])):
+                if table_populated and (item not in self.tables[table_name]["columns"] or not utils.is_complete_column(self.tables[table_name]["columns"][item])):
                     is_variant = (item in partial_table["columns"]) and partial_table["columns"][item].get("variant")
                     if contract_modes["column"] == "discard_value" or (is_variant and contract_modes["data_type"] == "discard_value"):
                         row.pop(item)
@@ -262,7 +263,6 @@ class Schema:
                     elif contract_modes["column"] == "discard_row" or (is_variant and contract_modes["data_type"] == "discard_row"):
                         return None, None
                     elif is_variant and contract_modes["data_type"] == "freeze":
-                        print(contract_modes)
                         raise SchemaFrozenException(self.name, table_name, f"Trying to create new variant column {item} to table {table_name} data_types are frozen.")
                     elif contract_modes["column"] == "freeze":
                         raise SchemaFrozenException(self.name, table_name, f"Trying to add column {item} to table {table_name} but columns are frozen.")
@@ -294,11 +294,9 @@ class Schema:
         table = self._schema_tables.get(table_name)
         if table is None:
             # add the whole new table to SchemaTables
-            print(f"NEW update_table: {table}")
             self._schema_tables[table_name] = partial_table
         else:
             # merge tables performing additional checks
-            print(f"MERGE merge_table: {table}")
             partial_table = utils.merge_tables(table, partial_table)
         return partial_table
 

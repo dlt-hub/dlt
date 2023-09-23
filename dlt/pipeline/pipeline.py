@@ -269,7 +269,6 @@ class Pipeline(SupportsPipeline):
         workers: int = None,
         schema_contract_settings: TSchemaContractSettings = None
     ) -> ExtractInfo:
-        print(schema_contract_settings)
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         # create extract storage to which all the sources will be extracted
         storage = ExtractorStorage(self._normalize_storage_config)

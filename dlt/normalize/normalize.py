@@ -16,7 +16,7 @@ from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage, LoadStorageConfiguration, NormalizeStorageConfiguration
 from dlt.common.typing import TDataItem
-from dlt.common.schema import TSchemaUpdate, Schema
+from dlt.common.schema import TSchemaUpdate, Schema, utils
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.pipeline import NormalizeInfo
 from dlt.common.utils import chunks, TRowCount, merge_row_count, increase_row_count
@@ -133,13 +133,13 @@ class Normalize(Runnable[ProcessPool]):
         items_count = 0
         row_counts: TRowCount = {}
         schema_contract_modes: TSchemaContractModes = None
-        # TODO: better to mark tables as new and not clone
-        original_schema = schema.clone()
+        is_table_populated: bool = False
 
         for item in items:
             for (table_name, parent_table), row in schema.normalize_data_item(item, load_id, root_table_name):
                 if not schema_contract_modes:
                     schema_contract_modes = schema.resolve_contract_settings_for_table(parent_table, table_name)
+                    is_table_populated = schema.is_table_populated(table_name)
 
                 # filter row, may eliminate some or all fields
                 row = schema.filter_row(table_name, row)
@@ -151,9 +151,9 @@ class Normalize(Runnable[ProcessPool]):
                     row[k] = custom_pua_decode(v)  # type: ignore
                 # coerce row of values into schema table, generating partial table with new columns if any
                 row, partial_table = schema.coerce_row(table_name, parent_table, row)
-                # if we detect a migration, the check update
+                # if we detect a migration, check schema contract
                 if partial_table:
-                    row, partial_table = original_schema.apply_schema_contract(schema_contract_modes, table_name, row, partial_table)
+                    row, partial_table = schema.apply_schema_contract(schema_contract_modes, table_name, row, partial_table, is_table_populated)
                 if not row:
                     continue
 
@@ -275,11 +275,16 @@ class Normalize(Runnable[ProcessPool]):
 
     def spool_files(self, schema_name: str, load_id: str, map_f: TMapFuncType, files: Sequence[str]) -> None:
         schema = Normalize.load_or_create_schema(self.schema_storage, schema_name)
-
         # process files in parallel or in single thread, depending on map_f
         schema_updates, row_counts = map_f(schema, load_id, files)
+        # set all populated tables to populated
+        populated_updated = False
+        for table_name, count in row_counts.items():
+            if count > 0 and schema.tables[table_name]["populated"] is not True:
+                schema.tables[table_name]["populated"] = True
+                populated_updated = True
         # logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
-        if len(schema_updates) > 0:
+        if len(schema_updates) > 0 or populated_updated:
             logger.info(f"Saving schema {schema_name} with version {schema.version}, writing manifest files")
             # schema is updated, save it to schema volume
             self.schema_storage.save_schema(schema)

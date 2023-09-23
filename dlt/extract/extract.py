@@ -191,13 +191,15 @@ def extract_with_schema(
 
             extractor = extract(extract_id, source, storage, collector, max_parallel_items=max_parallel_items, workers=workers)
             # iterate over all items in the pipeline and update the schema if dynamic table hints were present
-            # original_schema = schema.clone()
+            original_schema = schema.clone()
             for _, partials in extractor.items():
                 for partial in partials:
                     normalized_partial = schema.normalize_table_identifiers(partial)
-                    # contract_modes = schema.resolve_contract_settings_for_table(normalized_partial.get("parent"), normalized_partial["name"])
-                    # _, normalized_partial = original_schema.apply_schema_contract(contract_modes, normalized_partial["name"], {}, normalized_partial)
-                    schema.update_table(normalized_partial)
+                    contract_modes = schema.resolve_contract_settings_for_table(normalized_partial.get("parent"), normalized_partial["name"])
+                    table_populated = schema.is_table_populated(normalized_partial["name"])
+                    _, normalized_partial = original_schema.apply_schema_contract(contract_modes, normalized_partial["name"], {}, normalized_partial, table_populated)
+                    if normalized_partial:
+                        schema.update_table(normalized_partial)
 
     return extract_id
 

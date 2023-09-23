@@ -24,7 +24,8 @@ class TTableSchemaTemplate(TypedDict, total=False):
     primary_key: TTableHintTemplate[TColumnNames]
     merge_key: TTableHintTemplate[TColumnNames]
     incremental: Incremental[Any]
-    schema_contract_settings: TSchemaContractSettings
+    schema_contract_settings: TTableHintTemplate[TSchemaContractSettings]
+    populated: TTableHintTemplate[bool]
 
 
 class DltResourceSchema:
@@ -98,6 +99,7 @@ class DltResourceSchema:
         merge_key: TTableHintTemplate[TColumnNames] = None,
         incremental: Incremental[Any] = None,
         schema_contract_settings: TTableHintTemplate[TSchemaContractSettings] = None,
+        populated: TTableHintTemplate[bool] = None
     ) -> None:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 
@@ -114,7 +116,7 @@ class DltResourceSchema:
         t = None
         if not self._table_schema_template:
             # if there's no template yet, create and set new one
-            t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key, schema_contract_settings)
+            t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key, schema_contract_settings, populated)
         else:
             # set single hints
             t = deepcopy(self._table_schema_template)
@@ -128,10 +130,12 @@ class DltResourceSchema:
                     t["parent"] = parent_table_name
                 else:
                     t.pop("parent", None)
+            if populated is not None:
+                t["populated"] = populated
             if write_disposition:
                 t["write_disposition"] = write_disposition
             if schema_contract_settings:
-                t["schema_contract_settings"] = schema_contract_settings  # type: ignore
+                t["schema_contract_settings"] = schema_contract_settings
             if columns is not None:
                 # if callable then override existing
                 if callable(columns) or callable(t["columns"]):
@@ -212,6 +216,7 @@ class DltResourceSchema:
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
         schema_contract_settings: TTableHintTemplate[TSchemaContractSettings] = None,
+        populated: TTableHintTemplate[bool] = None
         ) -> TTableSchemaTemplate:
         if not table_name:
             raise TableNameMissing()
@@ -221,7 +226,7 @@ class DltResourceSchema:
             if not callable(columns):
                 columns = columns.values()  # type: ignore
         # create a table schema template where hints can be functions taking TDataItem
-        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_contract_settings=schema_contract_settings)  # type: ignore
+        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_contract_settings=schema_contract_settings, populated=populated)  # type: ignore
         if primary_key:
             new_template["primary_key"] = primary_key
         if merge_key:

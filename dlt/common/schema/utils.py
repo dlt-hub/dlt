@@ -498,6 +498,8 @@ def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTabl
                 # aggregate schema updates
                 aggregated_table = aggregated_update.setdefault(table_name, partial_table)
                 aggregated_table["columns"].update(partial_table["columns"])
+                if partial_table.get("populated") is True:
+                    aggregated_table["populated"] = True
     return aggregated_update
 
 
@@ -642,6 +644,7 @@ def new_table(
     validate_schema: bool = False,
     resource: str = None,
     schema_contract_settings: TSchemaContractSettings = None,
+    populated: bool = None
 ) -> TTableSchema:
 
     table: TTableSchema = {
@@ -663,6 +666,7 @@ def new_table(
         # alternatively use apply/remove defaults in utils to remove/add on save!
         if schema_contract_settings:
             table["schema_contract_settings"] = schema_contract_settings
+    table["populated"] = populated
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,

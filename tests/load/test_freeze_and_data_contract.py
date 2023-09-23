@@ -3,6 +3,7 @@ from dlt.common.schema.typing import TSchemaContractSettings
 from dlt.common.utils import uniq_id
 from typing import Any
 from dlt.extract.source import DltSource, DltResource
+import contextlib
 
 from tests.load.pipeline.utils import load_table_counts
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
@@ -17,6 +18,15 @@ skip_if_not_active("duckdb")
 schema_contract_settings = ["evolve", "discard_value", "discard_row", "freeze"]
 LOCATIONS = ["source", "resource", "override"]
 SCHEMA_ELEMENTS = ["table", "column", "data_type"]
+
+@contextlib.contextmanager
+def raises_frozen_exception(check_raise: bool = True) -> Any:
+    if not check_raise:
+        yield
+        return
+    with pytest.raises(PipelineStepFailed) as py_exc:
+        yield
+    assert isinstance(py_exc.value.__context__, SchemaFrozenException)
 
 def items(settings: TSchemaContractSettings) -> Any:
 
@@ -116,7 +126,7 @@ def run_resource(pipeline, resource_fun, settings) -> DltSource:
     assert pipeline.default_schema._settings.get("schema_contract_settings", {}) == (settings.get("override") or settings.get("source"))
 
     # check items table settings
-    assert pipeline.default_schema.tables["items"]["schema_contract_settings"] == (settings.get("override") or settings.get("resource") or {})
+    assert pipeline.default_schema.tables["items"].get("schema_contract_settings", {}) == (settings.get("override") or settings.get("resource") or {})
 
 def get_pipeline():
     import duckdb
@@ -149,11 +159,7 @@ def test_freeze_new_tables(contract_setting: str, setting_location: str) -> None
     assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
 
     # test adding new subtable
-    if contract_setting == "freeze":
-        with pytest.raises(PipelineStepFailed) as py_ex:
-            run_resource(pipeline, items_with_subtable, full_settings)
-        assert isinstance(py_ex.value.__context__, SchemaFrozenException)
-    else:
+    with raises_frozen_exception(contract_setting == "freeze"):
         run_resource(pipeline, items_with_subtable, full_settings)
 
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
@@ -161,11 +167,7 @@ def test_freeze_new_tables(contract_setting: str, setting_location: str) -> None
     assert table_counts.get(SUBITEMS_TABLE, 0) == (10 if contract_setting in ["evolve"] else 0)
 
     # test adding new table
-    if contract_setting == "freeze":
-        with pytest.raises(PipelineStepFailed) as py_ex:
-            run_resource(pipeline, new_items, full_settings)
-        assert isinstance(py_ex.value.__context__, SchemaFrozenException)
-    else:
+    with raises_frozen_exception(contract_setting == "freeze"):
         run_resource(pipeline, new_items, full_settings)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts.get("new_items", 0) == (10 if contract_setting in ["evolve"] else 0)
@@ -199,11 +201,7 @@ def test_freeze_new_columns(contract_setting: str, setting_location: str) -> Non
     assert table_counts[NEW_ITEMS_TABLE] == 10
 
     # test adding new column
-    if contract_setting == "freeze":
-        with pytest.raises(PipelineStepFailed) as py_ex:
-            run_resource(pipeline, items_with_new_column, full_settings)
-        assert isinstance(py_ex.value.__context__, SchemaFrozenException)
-    else:
+    with raises_frozen_exception(contract_setting == "freeze"):
         run_resource(pipeline, items_with_new_column, full_settings)
 
     if contract_setting == "evolve":
@@ -214,11 +212,7 @@ def test_freeze_new_columns(contract_setting: str, setting_location: str) -> Non
     assert table_counts["items"] == (30 if contract_setting in ["evolve", "discard_value"] else 20)
 
     # test adding variant column
-    if contract_setting == "freeze":
-        with pytest.raises(PipelineStepFailed) as py_ex:
-            run_resource(pipeline, items_with_variant, full_settings)
-        assert isinstance(py_ex.value.__context__, SchemaFrozenException)
-    else:
+    with raises_frozen_exception(contract_setting == "freeze"):
         run_resource(pipeline, items_with_variant, full_settings)
 
     if contract_setting == "evolve":
@@ -262,11 +256,7 @@ def test_freeze_variants(contract_setting: str, setting_location: str) -> None:
     assert NEW_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
 
     # test adding variant column
-    if contract_setting == "freeze":
-        with pytest.raises(PipelineStepFailed) as py_ex:
-            run_resource(pipeline, items_with_variant, full_settings)
-        assert isinstance(py_ex.value.__context__, SchemaFrozenException)
-    else:
+    with raises_frozen_exception(contract_setting == "freeze"):
         run_resource(pipeline, items_with_variant, full_settings)
 
     if contract_setting == "evolve":
@@ -475,7 +465,7 @@ def test_different_objects_in_one_load() -> None:
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 2
 
 
-@pytest.mark.parametrize("table_mode", ["discard_row", "evolve", "raise"])
+@pytest.mark.parametrize("table_mode", ["discard_row", "evolve", "freeze"])
 def test_dynamic_tables(table_mode: str) -> None:
 
     pipeline = get_pipeline()
@@ -484,7 +474,7 @@ def test_dynamic_tables(table_mode: str) -> None:
     #   the tables is NOT new according to normalizer so the row is not discarded
     # remove that and it will pass because the table contains just one incomplete column so it is incomplete so it is treated as new
     # if you uncomment update code in the extract the problem probably goes away
-    @dlt.resource(name="items", table_name=lambda i: i["table"], schema_contract_settings={"table": table_mode}, columns={"id": {"data_type": "bigint"}})
+    @dlt.resource(name="items", table_name=lambda i: i["table"], schema_contract_settings={"table": table_mode}, columns={"id": {}})
     def get_items():
         yield {
             "id": 1,
@@ -497,11 +487,11 @@ def test_dynamic_tables(table_mode: str) -> None:
         }
 
     pipeline.run([get_items()])
-    assert pipeline.last_trace.last_normalize_info.row_counts["one"] == (1 if table_mode == "evolve" else 0)
-    assert pipeline.last_trace.last_normalize_info.row_counts["two"] == (1 if table_mode == "evolve" else 0)
+    assert pipeline.last_trace.last_normalize_info.row_counts.get("one", 0) == (1 if table_mode == "evolve" else 0)
+    assert pipeline.last_trace.last_normalize_info.row_counts.get("two", 0) == (1 if table_mode == "evolve" else 0)
 
 
-@pytest.mark.parametrize("column_mode", ["discard_row", "evolve"])
+@pytest.mark.parametrize("column_mode", ["discard_row", "evolve", "freeze"])
 def test_defined_column_in_new_table(column_mode: str) -> None:
     pipeline = get_pipeline()
 
@@ -511,9 +501,8 @@ def test_defined_column_in_new_table(column_mode: str) -> None:
             "id": 1,
             "key": "value",
         }
-
     pipeline.run([get_items()])
-    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
+    assert pipeline.last_trace.last_normalize_info.row_counts.get("items", 0) == 1
 
 
 @pytest.mark.parametrize("column_mode", ["freeze", "discard_row", "evolve"])
@@ -534,8 +523,9 @@ def test_new_column_from_hint_and_data(column_mode: str) -> None:
             "id": 1,
             "key": "value",
         }
+
     pipeline.run([get_items()])
-    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
+    assert pipeline.last_trace.last_normalize_info.row_counts.get("items", 0) == 1
 
 
 @pytest.mark.parametrize("column_mode", ["freeze", "discard_row", "evolve"])
@@ -592,4 +582,4 @@ def test_dynamic_new_columns(column_mode: str) -> None:
     items.apply_hints(columns=columns)
     # apply hints apply to `items` not the original resource, so doing get_items() below removed them completely
     pipeline.run(items)
-    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 2
+    assert pipeline.last_trace.last_normalize_info.row_counts.get("items", 0) == 2
