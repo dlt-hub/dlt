@@ -161,57 +161,23 @@ The above code instantiates a Weaviate client and does a similarity search on th
 
 ```json
 {
-   "data":{
-      "Get":{
-         "ZendeskData_Tickets":[
+   "data": {
+      "Get": {
+         "ZendeskData_Tickets": [
             {
-               "subject":"How do I change the password for my account?",
-               "description":"I forgot my password and I can't log in."
+               "subject": "How do I change the password for my account?",
+               "description": "I forgot my password and I can't log in.",
+                "_additional": {
+                   "distance": 0.235,
+                },
             },
             {
-               "subject":"How to update my account information?",
-               "description":"I also want to change my email and password."
+               "subject": "I can't log in to my account.",
+               "description": "The credentials I use to log in don't work.",
+               "_additional": {
+                   "distance": 0.247,
+               },
             }
-         ]
-      }
-   }
-}
-```
-
-Another option is to search for similar tickets based on the ticket ID.
-The code below selects all tickets similar to the ticket with the ID `56b9449e-65db-5df4-887b-0a4773f52aa7` with the subject of the ticket is “How do I change the password for my account?”
-
-```python
-# Select all tickets similar to the ticket with the ID.
-response = (
-    client.query
-    .get("ZendeskData_Tickets", ["subject", "description"])
-    .with_near_object({
-        "id": "56b9449e-65db-5df4-887b-0a4773f52aa7"
-    })
-    .with_additional(["distance"])
-    .do()
-)
-
-print(response)
-```
-
-The output should be similar to:
-
-```json
-{
-   "data":{
-      "Get":{
-         "ZendeskData_Tickets":[
-            {
-               "subject":"How to update my account information?",
-               "description":"I also want to change my email and password."
-            },
-            {
-               "subject":"What are the steps to reset the password for my account?",
-               "description":"I can't access my account because I've forgotten my password."
-            },
-            ...
          ]
       }
    }
