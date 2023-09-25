@@ -10,6 +10,8 @@ Zendesk is a cloud-based customer service and support platform. Zendesk Support 
 
 In this walkthrough, we’ll show you how to import Zendesk ticket data to one of the vector databases, Weaviate. We’ll use dlt to connect to the Zendesk API, extract the data, and load it into Weaviate.
 
+For our example we will use "subject" and "description" fields from a ticket as a text content to perform vector search.
+
 ## Prerequisites
 
 We're going to use some ready-made components from the [dlt ecosystem](https://dlthub.com/docs/dlt-ecosystem) to make this process easier:
@@ -71,7 +73,7 @@ api_key = "api_key"
 X-OpenAI-Api-Key = "sk-..
 ```
 
-### Configuring the pipeline
+### Customizing the pipeline
 
 When you run `dlt init zendesk weaviate`, dlt creates a file called `zendesk_pipeline.py` in the current directory. This file contains an example pipeline that you can use to load data from Zendesk source. Let's edit this file to make it work for our use case:
 
@@ -109,9 +111,16 @@ if __name__ == "__main__":
     print(load_info)
 ```
 
+Let's go through the code above step by step:
+
+1. We create a pipeline with the name `weaviate_zendesk_pipeline` and the destination `weaviate`.
+2. We initialize the Zendesk verified source. We only need to load the tickets data, so we get `tickets` resource from the source by getting the `tickets` attribute.
+3. Weaviate is a special kind of destination that requires vectorizing (or [embedding](https://en.wikipedia.org/wiki/Word_embedding)) the data before loading it. Here, we use the `weaviate_adapter()` function to tell dlt which fields Weaviate should vectorize. In our case, we vectorize the `subject` and `description` fields from each ticket. That means that Weaviate will be able to perform vector search (or similarity search) on content of these fields.
+4. `pipeline.run()` runs the pipeline and returns information about the load process.
+
 ### Running the pipeline
 
-Now that we have the pipeline configured, we can run it:
+Now that we have the pipeline configured, we can run the Python script:
 
 ```bash
 python zendesk_pipeline.py
