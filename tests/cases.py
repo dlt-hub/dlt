@@ -238,17 +238,18 @@ TABLE_ROW_ALL_DATA_TYPES  = {
 }
 
 
-def table_update_and_row(exclude_types: Sequence[TDataType] = None) -> Tuple[TTableSchemaColumns, StrAny]:
+def table_update_and_row(exclude_types: Sequence[TDataType] = None, exclude_columns: Sequence[str] = None) -> Tuple[TTableSchemaColumns, StrAny]:
     """Get a table schema and a row with all possible data types.
     Optionally exclude some data types from the schema and row.
     """
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
     data_row = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
+    exclude_col_names = list(exclude_columns or [])
     if exclude_types:
-        exclude_col_names = [key for key, value in column_schemas.items() if value["data_type"] in exclude_types]
-        for col_name in exclude_col_names:
-            del column_schemas[col_name]
-            del data_row[col_name]
+        exclude_col_names.extend([key for key, value in column_schemas.items() if value["data_type"] in exclude_types])
+    for col_name in set(exclude_col_names):
+        del column_schemas[col_name]
+        del data_row[col_name]
     return column_schemas, data_row
 
 

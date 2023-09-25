@@ -3,7 +3,7 @@ import os
 
 from dlt.destinations.postgres.sql_client import Psycopg2SqlClient
 
-from dlt.common.schema.utils import table_schema_has_type
+from dlt.common.schema.utils import table_schema_has_type, table_schema_has_type_with_precision
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
     # from psycopg2cffi.sql import SQL, Composed
@@ -146,6 +146,11 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             dateformat = "dateformat 'auto' timeformat 'auto'"
             compression = "GZIP"
         elif ext == "parquet":
+            if table_schema_has_type_with_precision(table, "binary"):
+                raise LoadJobTerminalException(
+                    self.file_name(),
+                    f"Redshift cannot load fixed width VARBYTE columns from {ext} files. Switch to direct INSERT file format or use binary columns without precision."
+                )
             file_type = "PARQUET"
             # if table contains complex types then SUPER field will be used.
             # https://docs.aws.amazon.com/redshift/latest/dg/ingest-super.html
