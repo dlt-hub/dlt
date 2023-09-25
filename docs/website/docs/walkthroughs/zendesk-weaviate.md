@@ -8,9 +8,9 @@ keywords: [how to, zendesk, weaviate, vector database, vector search]
 
 Zendesk is a cloud-based customer service and support platform. Zendesk Support API, which is also known as the Ticketing API lets’s you access support tickets data. By analyzing this data, businesses can gain insights into customer needs, behavior, trends, and make data-driven decisions. The newest type of databases, vector databases, can help in advanced analysis of tickets data such as identifying common issues and sentiment analysis.
 
-In this walkthrough, we’ll show you how to import Zendesk ticket data to one of the vector databases, Weaviate. We’ll use dlt to connect to the Zendesk API, extract the data, and load it into Weaviate.
+In this walkthrough, we’ll show you how to import Zendesk ticket data to one of the vector databases, Weaviate. We’ll use dlt to connect to the Zendesk API, extract the ticket data, and load it into Weaviate for querying.
 
-For our example we will use "subject" and "description" fields from a ticket as a text content to perform vector search.
+For our example we will use "subject" and "description" fields from a ticket as a text content to perform vector search on.
 
 ## Prerequisites
 
@@ -114,7 +114,7 @@ if __name__ == "__main__":
 Let's go through the code above step by step:
 
 1. We create a pipeline with the name `weaviate_zendesk_pipeline` and the destination `weaviate`.
-2. We initialize the Zendesk verified source. We only need to load the tickets data, so we get `tickets` resource from the source by getting the `tickets` attribute.
+2. Then, we initialize the Zendesk verified source. We only need to load the tickets data, so we get `tickets` resource from the source by getting the `tickets` attribute.
 3. Weaviate is a special kind of destination that requires vectorizing (or [embedding](https://en.wikipedia.org/wiki/Word_embedding)) the data before loading it. Here, we use the `weaviate_adapter()` function to tell dlt which fields Weaviate should vectorize. In our case, we vectorize the `subject` and `description` fields from each ticket. That means that Weaviate will be able to perform vector search (or similarity search) on content of these fields.
 4. `pipeline.run()` runs the pipeline and returns information about the load process.
 
@@ -130,54 +130,97 @@ We have successfully loaded the data from Zendesk to Weaviate. Let's check it ou
 
 ## Query the data
 
-Let's query the Weaviate to select all tickets similar to the ticket with the ID `56b9449e-65db-5df4-887b-0a4773f52aa7` with the subject of the ticket is “How do I change the password for my account?”
+We can now run a vector search query on the data we loaded into Weaviate. Create a new Python file called `query.py` and add the following code:
 
 ```python
-    import weaviate
-    client = weaviate.Client(
-        url='YOUR_WEAVIATE_URL',
-        auth_client_secret=weaviate.AuthApiKey(
-            api_key='YOUR_WEAVIATE_API_KEY'
-        ),
-        additional_headers={
-            "X-OpenAI-Api-Key": 'YOUR_OPENAI_API_KEY'
-        }
-    )
+import weaviate
+client = weaviate.Client(
+    url='YOUR_WEAVIATE_URL',
+    auth_client_secret=weaviate.AuthApiKey(
+        api_key='YOUR_WEAVIATE_API_KEY'
+    ),
+    additional_headers={
+        "X-OpenAI-Api-Key": 'YOUR_OPENAI_API_KEY'
+    }
+)
 
-    # Select all tickets similar to the ticket with the ID.
-    response = (
-        client.query
-        .get("ZendeskData_Tickets", ["subject", "description"])
-        .with_near_object({
-            "id": "56b9449e-65db-5df4-887b-0a4773f52aa7"
-        })
-        .with_additional(["distance"])
-        .do()
-    )
+response = (
+    client.query
+    .get("ZendeskData_Tickets", ["subject", "description"])
+    .with_near_text({
+        "concepts": ["problems with password"],
+    })
+    .with_additional(["distance"])
+    .do()
+)
 
-	  print(response)
+print(response)
+```
+
+The above code instantiates a Weaviate client and does a similarity search on the data we loaded. The query searches for tickets that are similar to the text “problems with password”. The output should be similar to:
+
+```json
+{
+   "data":{
+      "Get":{
+         "ZendeskData_Tickets":[
+            {
+               "subject":"How do I change the password for my account?",
+               "description":"I forgot my password and I can't log in."
+            },
+            {
+               "subject":"How to update my account information?",
+               "description":"I also want to change my email and password."
+            }
+         ]
+      }
+   }
+}
+```
+
+Another option is to search for similar tickets based on the ticket ID.
+The code below selects all tickets similar to the ticket with the ID `56b9449e-65db-5df4-887b-0a4773f52aa7` with the subject of the ticket is “How do I change the password for my account?”
+
+```python
+# Select all tickets similar to the ticket with the ID.
+response = (
+    client.query
+    .get("ZendeskData_Tickets", ["subject", "description"])
+    .with_near_object({
+        "id": "56b9449e-65db-5df4-887b-0a4773f52aa7"
+    })
+    .with_additional(["distance"])
+    .do()
+)
+
+print(response)
 ```
 
 The output should be similar to:
 
 ```json
 {
- "data": {
-   "Get": {
-     "ZendeskData_Tickets": [
-       {
-          "subject": "How to update my account information?",
-           "description": "I also want to change my email and password.",
-       },
-       {
-          "subject": "What are the steps to reset the password for my account?",
-          "description": "I can't access my account because I've forgotten my password.",
-       },
-			 ...
-     ]
+   "data":{
+      "Get":{
+         "ZendeskData_Tickets":[
+            {
+               "subject":"How to update my account information?",
+               "description":"I also want to change my email and password."
+            },
+            {
+               "subject":"What are the steps to reset the password for my account?",
+               "description":"I can't access my account because I've forgotten my password."
+            },
+            ...
+         ]
+      }
    }
 }
 ```
+
+## Incremental loading
+
+During our first load, we loaded all tickets from Zendesk API. But what if users create new tickets? Or update existing ones? dlt solves this case by supporting [incremental loading](../general-usage/incremental-loading.md). And you don't need to change anything in your pipeline to enable it: Zendesk source supports incremental loading out of the box based on the `updated_at` field. That means that dlt will only load tickets that were created or updated after the last load.
 
 ## What's next?
 
