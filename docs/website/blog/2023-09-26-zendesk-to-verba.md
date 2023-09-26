@@ -1,5 +1,5 @@
 ---
-slug: zendesk-dlt-verba
+slug: verba-dlt-zendesk
 title: "Talk to your Zendesk tickets with Weaviate’s Verba and dlt: A Step by Step Guide"
 image: /img/dlt-business-knowledge-retrieval-augmented-generation-diagram.png
 authors:
