@@ -520,6 +520,11 @@ def table_schema_has_type(table: TTableSchema, _typ: TDataType) -> bool:
     return any(c.get("data_type") == _typ for c in table["columns"].values())
 
 
+def table_schema_has_type_with_precision(table: TTableSchema, _typ: TDataType) -> bool:
+    """Checks if `table` schema contains column with type _typ and precision set"""
+    return any(c.get("data_type") == _typ and c.get("precision") is not None for c in table["columns"].values())
+
+
 def get_top_level_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
     """Finds top level (without parent) of a `table_name` following the ancestry hierarchy."""
     table = tables[table_name]

@@ -54,6 +54,13 @@ def test_create_table(gcp_client: BigQueryClient) -> None:
     assert "`col8` BIGNUMERIC" in sql
     assert "`col9` JSON NOT NULL" in sql
     assert "`col10` DATE" in sql
+    assert "`col11` TIME" in sql
+    assert "`col1_precision` INTEGER NOT NULL" in sql
+    assert "`col4_precision` TIMESTAMP NOT NULL" in sql
+    assert "`col5_precision` STRING(25) " in sql
+    assert "`col6_precision` NUMERIC(6,2) NOT NULL" in sql
+    assert "`col7_precision` BYTES(19)" in sql
+    assert "`col11_precision` TIME NOT NULL" in sql
     assert "CLUSTER BY" not in sql
     assert "PARTITION BY" not in sql
 
@@ -75,6 +82,13 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
     assert "ADD COLUMN `col8` BIGNUMERIC" in sql
     assert "ADD COLUMN `col9` JSON NOT NULL" in sql
     assert "ADD COLUMN `col10` DATE" in sql
+    assert "ADD COLUMN `col11` TIME" in sql
+    assert "ADD COLUMN `col1_precision` INTEGER NOT NULL" in sql
+    assert "ADD COLUMN `col4_precision` TIMESTAMP NOT NULL" in sql
+    assert "ADD COLUMN `col5_precision` STRING(25)" in sql
+    assert "ADD COLUMN `col6_precision` NUMERIC(6,2) NOT NULL" in sql
+    assert "ADD COLUMN `col7_precision` BYTES(19)" in sql
+    assert "ADD COLUMN `col11_precision` TIME NOT NULL" in sql
     # table has col1 already in storage
     mod_table = deepcopy(TABLE_UPDATE)
     mod_table.pop(0)
@@ -105,4 +119,3 @@ def test_double_partition_exception(gcp_client: BigQueryClient) -> None:
     with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
         gcp_client._get_table_update_sql("event_test_table", mod_update, False)
     assert excc.value.columns == ["`col4`", "`col5`"]
-

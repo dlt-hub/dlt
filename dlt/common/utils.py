@@ -19,6 +19,9 @@ from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
 T = TypeVar("T")
 TDict = TypeVar("TDict", bound=DictStrAny)
 
+TKey = TypeVar("TKey")
+TValue = TypeVar("TValue")
+
 # row counts
 TRowCount = Dict[str, int]
 
@@ -457,3 +460,8 @@ def maybe_context(manager: ContextManager[TAny]) -> Iterator[TAny]:
     else:
         with manager as ctx:
             yield ctx
+
+
+def without_none(d: Mapping[TKey, Optional[TValue]]) -> Mapping[TKey, TValue]:
+    """Return a new dict with all `None` values removed"""
+    return {k: v for k, v in d.items() if v is not None}

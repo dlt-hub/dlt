@@ -5,7 +5,7 @@ from dlt.common.destination.reference import NewLoadJob
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TTableSchema, TColumnType
 
 from dlt.destinations.sql_jobs import SqlStagingCopyJob
 
@@ -15,37 +15,66 @@ from dlt.destinations.postgres import capabilities
 from dlt.destinations.postgres.sql_client import Psycopg2SqlClient
 from dlt.destinations.postgres.configuration import PostgresClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.type_mapping import TypeMapper
 
-
-SCT_TO_PGT: Dict[TDataType, str] = {
-    "complex": "jsonb",
-    "text": "varchar",
-    "double": "double precision",
-    "bool": "boolean",
-    "timestamp": "timestamp with time zone",
-    "date": "date",
-    "bigint": "bigint",
-    "binary": "bytea",
-    "decimal": "numeric(%i,%i)",
-    "time": "time without time zone"
-}
-
-PGT_TO_SCT: Dict[str, TDataType] = {
-    "varchar": "text",
-    "jsonb": "complex",
-    "double precision": "double",
-    "boolean": "bool",
-    "timestamp with time zone": "timestamp",
-    "date": "date",
-    "bigint": "bigint",
-    "bytea": "binary",
-    "numeric": "decimal",
-    "time without time zone": "time"
-}
 
 HINT_TO_POSTGRES_ATTR: Dict[TColumnHint, str] = {
     "unique": "UNIQUE"
 }
+
+class PostgresTypeMapper(TypeMapper):
+    sct_to_unbound_dbt = {
+        "complex": "jsonb",
+        "text": "varchar",
+        "double": "double precision",
+        "bool": "boolean",
+        "date": "date",
+        "bigint": "bigint",
+        "binary": "bytea",
+        "timestamp": "timestamp with time zone",
+        "time": "time without time zone",
+    }
+
+    sct_to_dbt = {
+        "text": "varchar(%i)",
+        "timestamp": "timestamp (%i) with time zone",
+        "decimal": "numeric(%i,%i)",
+        "time": "time (%i) without time zone",
+        "wei": "numeric(%i,%i)"
+    }
+
+    dbt_to_sct = {
+        "varchar": "text",
+        "jsonb": "complex",
+        "double precision": "double",
+        "boolean": "bool",
+        "timestamp with time zone": "timestamp",
+        "date": "date",
+        "bigint": "bigint",
+        "bytea": "binary",
+        "numeric": "decimal",
+        "time without time zone": "time",
+        "character varying": "text",
+        "smallint": "bigint",
+        "integer": "bigint",
+    }
+
+    def to_db_integer_type(self, precision: Optional[int]) -> str:
+        if precision is None:
+            return "bigint"
+        # Precision is number of bits
+        if precision <= 16:
+            return "smallint"
+        elif precision <= 32:
+            return "integer"
+        return "bigint"
+
+    def from_db_type(self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None) -> TColumnType:
+        if db_type == "numeric":
+            if (precision, scale) == self.capabilities.wei_precision:
+                return dict(data_type="wei")
+        return super().from_db_type(db_type, precision, scale)
+
 
 class PostgresStagingCopyJob(SqlStagingCopyJob):
 
@@ -64,6 +93,7 @@ class PostgresStagingCopyJob(SqlStagingCopyJob):
             sql.append(f"CREATE TABLE {staging_table_name} (like {table_name} including all);")
         return sql
 
+
 class PostgresClient(InsertValuesJobClient):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -77,30 +107,15 @@ class PostgresClient(InsertValuesJobClient):
         self.config: PostgresClientConfiguration = config
         self.sql_client = sql_client
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
+        self.type_mapper = PostgresTypeMapper(self.capabilities)
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(self.active_hints.get(h, "") for h in self.active_hints.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
-        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+        return f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return PostgresStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
-    @classmethod
-    def _to_db_type(cls, sc_t: TDataType) -> str:
-        if sc_t == "wei":
-            return SCT_TO_PGT["decimal"] % cls.capabilities.wei_precision
-        if sc_t == "decimal":
-            return SCT_TO_PGT["decimal"] % cls.capabilities.decimal_precision
-
-        if sc_t == "wei":
-            return f"numeric({2*EVM_DECIMAL_PRECISION},{EVM_DECIMAL_PRECISION})"
-        return SCT_TO_PGT[sc_t]
-
-    @classmethod
-    def _from_db_type(cls, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
-        if pq_t == "numeric":
-            if (precision, scale) == cls.capabilities.wei_precision:
-                return "wei"
-        return PGT_TO_SCT.get(pq_t, "text")
-
+    def _from_db_type(self, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        return self.type_mapper.from_db_type(pq_t, precision, scale)

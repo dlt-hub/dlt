@@ -28,7 +28,7 @@ from dlt.common import json, pendulum, logger
 from dlt.common.typing import StrAny, TFun
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns
-from dlt.common.schema.typing import TColumnSchema
+from dlt.common.schema.typing import TColumnSchema, TColumnType
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -48,29 +48,8 @@ from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
 from dlt.destinations.weaviate import capabilities
 from dlt.destinations.weaviate.configuration import WeaviateClientConfiguration
 from dlt.destinations.weaviate.exceptions import PropertyNameConflict, WeaviateBatchError
+from dlt.destinations.type_mapping import TypeMapper
 
-SCT_TO_WT: Dict[TDataType, str] = {
-    "text": "text",
-    "double": "number",
-    "bool": "boolean",
-    "timestamp": "date",
-    "date": "date",
-    "time": "text",
-    "bigint": "int",
-    "binary": "blob",
-    "decimal": "text",
-    "wei": "number",
-    "complex": "text",
-}
-
-WT_TO_SCT: Dict[str, TDataType] = {
-    "text": "text",
-    "number": "double",
-    "boolean": "bool",
-    "date": "timestamp",
-    "int": "bigint",
-    "blob": "binary",
-}
 
 NON_VECTORIZED_CLASS = {
     "vectorizer": "none",
@@ -78,6 +57,33 @@ NON_VECTORIZED_CLASS = {
         "skip": True,
     }
 }
+
+
+class WeaviateTypeMapper(TypeMapper):
+    sct_to_unbound_dbt = {
+        "text": "text",
+        "double": "number",
+        "bool": "boolean",
+        "timestamp": "date",
+        "date": "date",
+        "time": "text",
+        "bigint": "int",
+        "binary": "blob",
+        "decimal": "text",
+        "wei": "number",
+        "complex": "text",
+    }
+
+    sct_to_dbt = {}
+
+    dbt_to_sct = {
+        "text": "text",
+        "number": "double",
+        "boolean": "bool",
+        "date": "timestamp",
+        "int": "bigint",
+        "blob": "binary",
+    }
 
 
 def wrap_weaviate_error(f: TFun) -> TFun:
@@ -247,6 +253,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             "vectorizer": config.vectorizer,
             "moduleConfig": config.module_config,
         }
+        self.type_mapper = WeaviateTypeMapper(self.capabilities)
 
     @property
     def dataset_name(self) -> str:
@@ -473,7 +480,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         for prop in class_schema["properties"]:
             schema_c: TColumnSchema = {
                 "name": self.schema.naming.normalize_identifier(prop["name"]),
-                "data_type": self._from_db_type(prop["dataType"][0]),
+                **self._from_db_type(prop["dataType"][0], None, None),  # type: ignore[misc]
             }
             table_schema[prop["name"]] = schema_c
         return True, table_schema
@@ -620,7 +627,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
         return {
             "name": column_name,
-            "dataType": [self._to_db_type(column["data_type"])],
+            "dataType": [self.type_mapper.to_db_type(column)],
             **extra_kv,
         }
 
@@ -673,10 +680,5 @@ class WeaviateClient(JobClientBase, WithStateSync):
         }
         self.create_object(properties, self.schema.version_table_name)
 
-    @staticmethod
-    def _to_db_type(sc_t: TDataType) -> str:
-        return SCT_TO_WT[sc_t]
-
-    @staticmethod
-    def _from_db_type(wt_t: str) -> TDataType:
-        return WT_TO_SCT.get(wt_t, "text")
+    def _from_db_type(self, wt_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        return self.type_mapper.from_db_type(wt_t, precision, scale)

@@ -96,6 +96,8 @@ A column schema contains following properties:
 
 1. `name` and `description` of a column in a table.
 1. `data_type` with a column data type.
+1. `precision` a precision for **text**, **timestamp**, **time**, **bigint**, **binary**, and **decimal** types
+1. `scale` a scale for **decimal** type
 1. `is_variant` telling that column was generated as variant of another column.
 
 A column schema contains following basic hints:
@@ -105,19 +107,22 @@ A column schema contains following basic hints:
 1. `merge_key` marks a column as a part of merge key used by.
    [incremental load](./incremental-loading.md#merge-incremental-loading)
 1. `foreign_key` marks a column as a part of foreign key.
-1. `root_key` marks a column as a part of root key which is a type of foreign key referring to the
+1. `root_key` marks a column as a part of root key which is a type of foreign key always referring to the
    root table.
 1. `unique` tells that column is unique. on some destination that generates unique index.
 
 `dlt` lets you define additional performance hints:
 
 1. `partition` marks column to be used to partition data.
+1. `cluster` marks column to be part to be used to cluster data
 1. `sort` marks column as sortable/having order. on some destinations that non-unique generates
    index.
 
-> 💡 Each destination can interpret the hints in its own way. For example `cluster` hint is used by
-> Redshift to define table distribution and by BigQuery to specify cluster column. DuckDB and
-> Postgres ignore it when creating tables.
+:::note
+Each destination can interpret the hints in its own way. For example `cluster` hint is used by
+Redshift to define table distribution and by BigQuery to specify cluster column. DuckDB and
+Postgres ignore it when creating tables.
+:::
 
 ### Variant columns
 
@@ -126,22 +131,19 @@ coerced in existing column.
 
 ### Data types
 
-| dlt Data Type | Source Value Example                                |
-|---------------|-----------------------------------------------------|
-| text          | `'hello world'`                                     |
-| double        | `45.678`                                            |
-| bool          | `True`                                              |
-| timestamp     | `'2023-07-26T14:45:00Z'`, `datetime.datetime.now()` |
-| date          | `datetime.date(2023, 7, 26)`                        |
-| time          | `'14:01:02'`, `datetime.time(14, 1, 2)`             |
-| bigint        | `9876543210`                                        |
-| binary        | `b'\x00\x01\x02\x03'`                               |
-| complex       | `[4, 5, 6]`, `{'a': 1}`                             |
-| decimal       | `Decimal('4.56')`                                   |
-| wei           | `2**56`                                             |
-
-
-> ⛔ You cannot specify scale and precision for bigint, binary, text and decimal.
+| dlt Data Type | Source Value Example                                | Precision and Scale                                     |
+| ------------- | --------------------------------------------------- | ------------------------------------------------------- |
+| text          | `'hello world'`                                     | Supports precision, typically mapping to **VARCHAR(N)** |
+| double        | `45.678`                                            |                                                         |
+| bool          | `True`                                              |                                                         |
+| timestamp     | `'2023-07-26T14:45:00Z'`, `datetime.datetime.now()` | Supports precision expressed as parts of a second       |
+| date          | `datetime.date(2023, 7, 26)`                        |                                                         |
+| time          | `'14:01:02'`, `datetime.time(14, 1, 2)`             | Supports precision - see **timestamp**                  |
+| bigint        | `9876543210`                                        | Support precision as number of bytes                    |
+| binary        | `b'\x00\x01\x02\x03'`                               | Supports precision, like **text**                       |
+| complex       | `[4, 5, 6]`, `{'a': 1}`                             |                                                         |
+| decimal       | `Decimal('4.56')`                                   | Supports precision and scale                            |
+| wei           | `2**56`                                             |                                                         |
 
 `wei` is a datatype tries to best represent native Ethereum 256bit integers and fixed point
 decimals. It works correctly on Postgres and BigQuery. All the other destinations have insufficient
@@ -152,78 +154,14 @@ or create a child table out of it.
 
 `time` data type is saved in destination without timezone info, if timezone is included it is stripped. E.g. `'14:01:02+02:00` -> `'14:01:02'`.
 
-## Data contracts and controlling schema evolution
+:::tip
+The precision and scale are interpreted by particular destination and are validated when a column is created. Destinations that
+do not support precision for a given data type will ignore it.
 
-`dlt` will evolve the schema of the destination to accomodate the structure and data types of the extracted data. There are several settings
-that you can use to control this automatic schema evolution, from the default settings where all changes to the schema are accepted to
-a frozen schema that does not change at all. 
+The precision for **timestamp** is useful when creating **parquet** files. Use 3 - for milliseconds, 6 for microseconds, 9 for nanoseconds
 
-Consider this example:
-
-```py
-@dlt.resource(schema_contract_settings={"table": "evolve", "columns": "freeze"})
-def items():
-    ...
-```
-
-This resource will allow new subtables to be created, but will throw an exception if data is extracted for an existing table which 
-contains a new column. 
-
-The `schema_contract_settings` exists on the `source` decorator as a directive for all resources of that source and on the 
-`resource` decorator as a directive for the individual resource.  Additionally it exists on the `pipeline.run()` method, which will override all existing settings. 
-The `schema_contract_settings` is a dictionary with keys that control the following:
-
-* `table` creating of new tables and subtables
-* `columns` creating of new columns on an existing table
-* `data_type` creating of new variant columns, which happens if a different datatype is discovered in the extracted data than exists in the schema
-
-Each property can be set to one of three values:
-* `freeze`: This will raise an exception if data is encountered that does not fit the existing schema, so no data will be loaded to the destination
-* `discard_row`: This will discard any extracted row if it does not adhere to the existing schema, and this row will not be loaded to the destination. All other rows will be.
-* `discard_value`: This will discard data in an extracted row that does not adhere to the existing schema and the row will be loaded without this data.
-
-### Code Examples
-
-The below code will silently ignore new subtables, allow new columns to be added to existing tables and raise an error if a variant of a column is discovered.
-
-```py
-@dlt.resource(schema_contract_settings={"table": "discard_row", "columns": "evolve", "data_type": "freeze"})
-def items():
-    ...
-```
-
-The below Code will raise on any encountered schema change. Note: You can always set a string which will be interpreted as though all keys are set to these values.
-
-```py
-pipeline.run(my_source(), schema_contract_settings="freeze")
-```
-
-The below code defines some settings on the source which can be overwritten on the resource which in turn can be overwritten by the global override on the `run` method.
-Here for all resources variant columns are frozen and raise an error if encountered, on `items` new columns are allowed but `other_items` inherits the `freeze` setting from
-the source, thus new columns are frozen there. New tables are allowed.
-
-```py
-@dlt.resource(schema_contract_settings={"columns": "evolve"})
-def items():
-    ...
-
-@dlt.resource()
-def other_items():
-    ...
-
-@dlt.source(schema_contract_settings={"columns": "freeze", "data_type": "freeze"}):
-def source():
-  return [items(), other_items()]
-
-
-# this will use the settings defined by the decorators
-pipeline.run(source())
-
-# this will freeze the whole schema, regardless of the decorator settings
-pipeline.run(source(), schema_contract_settings="freeze")
-
-```
-
+The precision for **bigint** is mapped to available integer types ie. TINYINT, INT, BIGINT. The default is 8 bytes precision (BIGINT)
+:::
 
 ## Schema settings
 
