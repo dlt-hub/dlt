@@ -19,6 +19,9 @@ schema_contract_settings = ["evolve", "discard_value", "discard_row", "freeze"]
 LOCATIONS = ["source", "resource", "override"]
 SCHEMA_ELEMENTS = ["table", "column", "data_type"]
 
+LOCATIONS = ["source"]
+schema_contract_settings = ["freeze"]
+
 @contextlib.contextmanager
 def raises_frozen_exception(check_raise: bool = True) -> Any:
     if not check_raise:

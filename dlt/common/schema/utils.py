@@ -666,7 +666,8 @@ def new_table(
         # alternatively use apply/remove defaults in utils to remove/add on save!
         if schema_contract_settings:
             table["schema_contract_settings"] = schema_contract_settings
-    table["populated"] = populated
+    if populated is not None:
+        table["populated"] = populated
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,

@@ -280,7 +280,7 @@ class Normalize(Runnable[ProcessPool]):
         # set all populated tables to populated
         populated_updated = False
         for table_name, count in row_counts.items():
-            if count > 0 and schema.tables[table_name]["populated"] is not True:
+            if count > 0 and schema.tables[table_name].get("populated") is not True:
                 schema.tables[table_name]["populated"] = True
                 populated_updated = True
         # logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
