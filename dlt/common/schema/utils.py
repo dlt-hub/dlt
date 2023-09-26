@@ -498,8 +498,6 @@ def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTabl
                 # aggregate schema updates
                 aggregated_table = aggregated_update.setdefault(table_name, partial_table)
                 aggregated_table["columns"].update(partial_table["columns"])
-                if partial_table.get("populated") is True:
-                    aggregated_table["populated"] = True
     return aggregated_update
 
 

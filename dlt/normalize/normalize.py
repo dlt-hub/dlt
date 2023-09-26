@@ -139,7 +139,7 @@ class Normalize(Runnable[ProcessPool]):
             for (table_name, parent_table), row in schema.normalize_data_item(item, load_id, root_table_name):
                 if not schema_contract_modes:
                     schema_contract_modes = schema.resolve_contract_settings_for_table(parent_table, table_name)
-                    is_table_populated = schema.is_table_populated(table_name)
+                is_table_populated = schema.is_table_populated(table_name)
 
                 # filter row, may eliminate some or all fields
                 row = schema.filter_row(table_name, row)

@@ -19,16 +19,15 @@ schema_contract_settings = ["evolve", "discard_value", "discard_row", "freeze"]
 LOCATIONS = ["source", "resource", "override"]
 SCHEMA_ELEMENTS = ["table", "column", "data_type"]
 
-LOCATIONS = ["source"]
-schema_contract_settings = ["freeze"]
-
 @contextlib.contextmanager
 def raises_frozen_exception(check_raise: bool = True) -> Any:
     if not check_raise:
         yield
         return
     with pytest.raises(PipelineStepFailed) as py_exc:
+        print("yield")
         yield
+        print("after")
     assert isinstance(py_exc.value.__context__, SchemaFrozenException)
 
 def items(settings: TSchemaContractSettings) -> Any:
@@ -146,10 +145,12 @@ def test_freeze_new_tables(contract_setting: str, setting_location: str) -> None
         setting_location: {
         "table": contract_setting
     }}
+    print("RUN 1")
     run_resource(pipeline, items, {})
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
     assert OLD_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
+    print("RUN 2")
 
     run_resource(pipeline, items_with_new_column, full_settings)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
@@ -488,8 +489,8 @@ def test_dynamic_tables(table_mode: str) -> None:
             "table": "two",
             "new_column": "some val"
         }
-
-    pipeline.run([get_items()])
+    with raises_frozen_exception(table_mode == "freeze"):
+        pipeline.run([get_items()])
     assert pipeline.last_trace.last_normalize_info.row_counts.get("one", 0) == (1 if table_mode == "evolve" else 0)
     assert pipeline.last_trace.last_normalize_info.row_counts.get("two", 0) == (1 if table_mode == "evolve" else 0)
 
