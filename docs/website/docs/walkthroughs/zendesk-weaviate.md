@@ -70,7 +70,7 @@ url = "https://weaviate_url"
 api_key = "api_key"
 
 [destination.weaviate.credentials.additional_headers]
-X-OpenAI-Api-Key = "sk-..
+X-OpenAI-Api-Key = "sk-..."
 ```
 
 ### Customizing the pipeline
