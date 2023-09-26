@@ -113,7 +113,7 @@ def configspec(cls: Optional[Type[Any]] = None) -> Union[Type[TAnyClass], Callab
                 cls = type(cls.__name__, (cls, _F_BaseConfiguration), fields)
         # get all annotations without corresponding attributes and set them to None
         for ann in cls.__annotations__:
-            if not hasattr(cls, ann) and not ann.startswith(("__", "_abc_impl")):
+            if not hasattr(cls, ann) and not ann.startswith(("__", "_abc_")):
                 setattr(cls, ann, None)
         # get all attributes without corresponding annotations
         for att_name, att_value in list(cls.__dict__.items()):
@@ -129,7 +129,7 @@ def configspec(cls: Optional[Type[Any]] = None) -> Union[Type[TAnyClass], Callab
                 except NameError:
                     # Dealing with BaseConfiguration itself before it is defined
                     continue
-            if not att_name.startswith(("__", "_abc_impl")) and not isinstance(att_value, (staticmethod, classmethod, property)):
+            if not att_name.startswith(("__", "_abc_")) and not isinstance(att_value, (staticmethod, classmethod, property)):
                 if att_name not in cls.__annotations__:
                     raise ConfigFieldMissingTypeHintException(att_name, cls)
                 hint = cls.__annotations__[att_name]
@@ -186,7 +186,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
         or credentials, for example database connection string or JSON serialized GCP service credentials file.
 
-        ### Args:
+        #### Args:
             native_value (Any): A native representation of the configuration
 
         Raises:
@@ -211,7 +211,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         """Yields all resolvable dataclass fields in the order they should be resolved"""
         # Sort dynamic type hint fields last because they depend on other values
         yield from sorted(
-            (f for f in cls.__dataclass_fields__.values() if not f.name.startswith("__")),
+            (f for f in cls.__dataclass_fields__.values() if cls.__is_valid_field(f)),
             key=lambda f: f.name in cls.__hint_resolvers__
         )
 
@@ -264,7 +264,8 @@ class BaseConfiguration(MutableMapping[str, Any]):
         raise KeyError("Configuration fields cannot be deleted")
 
     def __iter__(self) -> Iterator[str]:
-        return filter(lambda k: not k.startswith("__"), self.__dataclass_fields__.__iter__())
+        """Iterator or valid key names"""
+        return map(lambda field: field.name, filter(lambda val: self.__is_valid_field(val), self.__dataclass_fields__.values()))
 
     def __len__(self) -> int:
         return sum(1 for _ in self.__iter__())
@@ -279,7 +280,11 @@ class BaseConfiguration(MutableMapping[str, Any]):
     # helper functions
 
     def __has_attr(self, __key: str) -> bool:
-        return __key in self.__dataclass_fields__ and not __key.startswith("__")
+        return __key in self.__dataclass_fields__ and self.__is_valid_field(self.__dataclass_fields__[__key])
+
+    @staticmethod
+    def __is_valid_field(field: TDtcField) -> bool:
+        return not field.name.startswith("__") and field._field_type is dataclasses._FIELD  # type: ignore
 
     def call_method_in_mro(config, method_name: str) -> None:
         # python multi-inheritance is cooperative and this would require that all configurations cooperatively

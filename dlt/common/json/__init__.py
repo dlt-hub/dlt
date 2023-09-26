@@ -5,6 +5,7 @@ from datetime import date, datetime, time  # noqa: I251
 from typing import Any, Callable, List, Protocol, IO, Union
 from uuid import UUID
 from hexbytes import HexBytes
+from enum import Enum
 
 try:
     from pydantic import BaseModel as PydanticBaseModel
@@ -82,6 +83,8 @@ def custom_encode(obj: Any) -> str:
         return obj.dict()  # type: ignore[return-value]
     elif dataclasses.is_dataclass(obj):
         return dataclasses.asdict(obj)  # type: ignore
+    elif isinstance(obj, Enum):
+        return obj.value  # type: ignore[no-any-return]
     raise TypeError(repr(obj) + " is not JSON serializable")
 
 
@@ -145,6 +148,9 @@ def custom_pua_encode(obj: Any) -> str:
         return dataclasses.asdict(obj)  # type: ignore
     elif PydanticBaseModel and isinstance(obj, PydanticBaseModel):
         return obj.dict()  # type: ignore[return-value]
+    elif isinstance(obj, Enum):
+        # Enum value is just int or str
+        return obj.value  # type: ignore[no-any-return]
     raise TypeError(repr(obj) + " is not JSON serializable")
 
 

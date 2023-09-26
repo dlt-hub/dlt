@@ -6,88 +6,170 @@ keywords: [strapi api, strapi verified source, strapi]
 
 # Strapi
 
-:::info
-Need help deploying these sources, or figuring out how to run them in your data stack?
+:::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
-[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+[Join our Slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
+[Strapi](https://strapi.io/) is a headless CMS (Content Management System) that allows developers to create API-driven
+content management systems without having to write a lot of custom code.
 
-Strapi is a headless CMS (Content Management System) that allows developers to create powerful API-driven content management systems without having to write a lot of custom code.
+Since Strapi's available endpoints vary based on your Strapi setup, ensure you recognize the ones
+you'll ingest to transfer data to your warehouse.
 
-Since the endpoints that will be available in Strapi depend on your setup, in order to get data from strapi to your warehouse, you need to be aware of which endpoints you will ingest.
+This Strapi `dlt` verified source and
+[pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/strapi_pipeline.py)
+loads data using “Strapi API” to the destination of your choice.
 
-## Grab API token
+Sources and resources that can be loaded using this verified source are:
 
-1. Log in to your Strapi account
-2. Click on `⚙️ settings` in the left-hand sidebar menu
-3. In the settings menu, go to the `API tokens` option that is present under global settings
-4. Click on `Create new API token`
-5. Fill in the details like `Name`, `description`, and `token duration`
-6. In the token type drop-down menu, you can select `Read Only`, `Full access` or custom permissions for the API (note: if setting a custom permission, please make sure to select `find` and `findOne`.
-7. API token will be displayed on clicking the “save” button
-8. Copy the token displayed (i.e. the token will be used in configuring `dlt` secrets)
+| Name          | Description                |
+| ------------- | -------------------------- |
+| strapi_source | Retrieves data from Strapi |
 
-## Initialize the pipeline with Strapi verified source
+## Setup Guide
 
-Initialize the pipeline with the following command:
+### Grab API token
 
-`dlt init strapi <destination>`
+1. Log in to Strapi.
+1. Click ⚙️ in the sidebar.
+1. Go to API tokens under global settings.
+1. Create a new API token.
+1. Fill in Name, Description, and Duration.
+1. Choose a token type: Read Only, Full Access, or custom (with find and findOne selected).
+1. Save to view your API token.
+1. Copy it for DLT secrets setup.
 
-For destination, you can use `bigquery`, `duckdb`, or one of the other [destinations](../../dlt-ecosystem/destinations).
+> Note: The Strapi UI, which is described here, might change.
+> The full guide is available at [this link.](https://docs.strapi.io/user-docs/settings/API-tokens)
 
-## **Add credentials**
+### Initialize the verified source
 
-In the `.dlt` folder, you will find `secrets.toml`, which looks like this:
+To get started with your data pipeline, follow these steps:
 
-```python
-# put your secret values and credentials here. do not share this file and do not push it to github
-[sources.strapi]
-api_secret_key = "api_secret_key" # please set me up!
-domain = "domain" # please set me up!
-```
+1. Enter the following command:
 
-1. Replace `api_secret_key` with [the API token you copied above](strapi.md#grab-api-token)
-2. The domain is created automatically by Strapi
-3. When you run the Strapi project and a new tab opens in the browser, the URL in the address bar of that tab is the domain). For example, `[my-strapi.up.railway.app](http://my-strapi.up.railway.app)`
-4. Follow the instructions in [Destinations](../destinations/) to add credentials for your chosen destination
+   ```bash
+   dlt init strapi duckdb
+   ```
 
-## Add your endpoint and run  **`strapi_pipeline.py`**
+   [This command](../../reference/command-line-interface) will initialize
+   [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/strapi_pipeline.py)
+   with Strapi as the [source](../../general-usage/source) and [duckdb](../destinations/duckdb.md)
+   as the [destination](../destinations).
 
-After initializing the pipeline a file named `strapi_pipeline.py` is created.
+1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
+   preferred [destination](../destinations).
 
-```python
-import dlt
-from strapi import strapi_source
+1. After running this command, a new directory will be created with the necessary files and
+   configuration settings to get started.
 
-def load(endpoints=None):
-    endpoints = ['athletes'] or endpoints
-    pipeline = dlt.pipeline(pipeline_name='strapi', destination='bigquery', dataset_name='strapi_data')
+For more information, read the
+[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
 
-    # run the pipeline with your parameters
-    load_info = pipeline.run(strapi_source(endpoints=endpoints))
-    # pretty print the information on data that was loaded
-    print(load_info)
+### Add credentials
 
-if __name__ == "__main__" :
-    # add your desired endpoints to the list
-    endpoints = ['athletes']
-    load(endpoints)
-```
+1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
+   information securely, like access tokens. Keep this file safe. Here's its format for service
+   account authentication:
 
-In the sample script above, we have one list with one endpoint called “athletes”. Add other endpoints (i.e. the endpoints your Strapi setup has) to this list to load them. Afterwards, run this file to load the data.
+   ```python
+   # put your secret values and credentials here. do not share this file and do not push it to github
+   [sources.strapi]
+   api_secret_key = "api_secret_key" # please set me up!
+   domain = "domain" # please set me up!
+   ```
+
+1. Replace `api_secret_key` with [the API token you copied above](strapi.md#grab-api-token).
+
+1. Strapi auto-generates the domain.
+
+1. The domain is the URL opened in a new tab when you run Strapi, e.g.,
+   \[my-strapi.up.your_app.app\].
+
+1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
 ## Run the pipeline
 
-1. Install the necessary dependencies by running the following command:
+1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
+   running the command:
 
-`pip install -r requirements.txt`
+   ```bash
+   pip install -r requirements.txt
+   ```
 
-2. Now the pipeline can be run by using the command:
+1. You're now ready to run the pipeline! To get started, run the following command:
 
-`python3 strapi_pipeline.py`
+   ```bash
+   python3 strapi_pipeline.py
+   ```
 
-3. To make sure that everything is loaded as expected, use the command:
+   > In the provided script, we've included a list with one endpoint, "athletes." Simply add any
+   > other endpoints from your Strapi setup to this list in order to load them. Then, execute this
+   > file to initiate the data loading process.
 
-`dlt pipeline <pipeline_name> show`
-(For example, the pipeline_name for the above pipeline is `strapi_pipeline`, you may also use any custom name instead)
+1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+   the following command:
+
+   ```bash
+   dlt pipeline <pipeline_name> show
+   ```
+
+   For example, the `pipeline_name` for the above pipeline example is `strapi`, you may also use any
+   custom name instead.
+
+For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/run-a-pipeline).
+
+## Sources and resources
+
+`dlt` works on the principle of [sources](../../general-usage/source) and
+[resources](../../general-usage/resource).
+
+### Source `strapi_source`
+
+This function retrives data from Strapi.
+
+```python
+@dlt.source
+def strapi_source(
+    endpoints: List[str],
+    api_secret_key: str = dlt.secrets.value,
+    domain: str = dlt.secrets.value,
+) -> Iterable[DltResource]:
+```
+
+`endpoints`: Collections to fetch data from.
+
+`api_secret_key`: API secret key for authentication, defaults to dlt secrets.
+
+`domain`: Strapi API domain name, defaults to dlt secrets.
+
+### Create your own pipeline
+
+If you wish to create your own pipelines, you can leverage source and resource methods from this
+verified source.
+
+1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
+
+   ```python
+   pipeline = dlt.pipeline(
+        pipeline_name="strapi",  # Use a custom name if desired
+        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+        dataset_name="strapi_data"  # Use a custom name if desired
+   )
+   ```
+
+1. To load the specified endpoints:
+
+   ```python
+   endpoints = ["athletes"]
+   load_data = strapi_source(endpoints=endpoints)
+
+   load_info = pipeline.run(load_data)
+   # pretty print the information on data that was loaded
+   print(load_info)
+   ```
+
+> We loaded the "athletes" endpoint above, which can be customized to suit our specific
+> requirements.

@@ -9,7 +9,7 @@ keywords: [how to, add a verified source]
 Follow the steps below to create a [pipeline](../general-usage/glossary.md#pipeline) from a
 [verified source](../general-usage/glossary.md#verified-source) contributed by `dlt` users.
 
-Please make sure you have [installed `dlt`](../reference/installation.mdx) before following the
+Please make sure you have [installed `dlt`](../reference/installation.md) before following the
 steps below.
 
 ## 1. Initialize project
@@ -66,7 +66,7 @@ Verified source pipedrive was added to your project!
 * Read https://dlthub.com/docs/walkthroughs/create-a-pipeline for more information
 ```
 
-So make sure you install the requirements with `pip3 install -r requirements.txt`. When deploying to
+So make sure you install the requirements with `pip install -r requirements.txt`. When deploying to
 an online orchestrator, you can install the requirements to it from requirements.txt in the ways
 supported by the orchestrator.
 
