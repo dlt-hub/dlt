@@ -278,13 +278,13 @@ class Normalize(Runnable[ProcessPool]):
         # process files in parallel or in single thread, depending on map_f
         schema_updates, row_counts = map_f(schema, load_id, files)
         # set all populated tables to populated
-        populated_updated = False
+        needs_schema_save = len(schema_updates) > 0
         for table_name, count in row_counts.items():
             if count > 0 and schema.tables[table_name].get("populated") is not True:
                 schema.tables[table_name]["populated"] = True
-                populated_updated = True
+                needs_schema_save = True
         # logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
-        if len(schema_updates) > 0 or populated_updated:
+        if needs_schema_save:
             logger.info(f"Saving schema {schema_name} with version {schema.version}, writing manifest files")
             # schema is updated, save it to schema volume
             self.schema_storage.save_schema(schema)

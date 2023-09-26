@@ -205,11 +205,12 @@ class Schema:
             return settings
 
         # find table settings
-        # TODO: get root table...
-        table_with_settings = parent_table or table_name
+        table = parent_table or table_name
+        if table in self.tables:
+            table = utils.get_top_level_table(self.tables, parent_table or table_name)["name"]
 
         # modes
-        table_contract_modes = resolve_single(self.tables.get(table_with_settings, {}).get("schema_contract_settings", {}))
+        table_contract_modes = resolve_single(self.tables.get(table, {}).get("schema_contract_settings", {}))
         schema_contract_modes = resolve_single(self._settings.get("schema_contract_settings", {}))
 
         # resolve to correct settings dict

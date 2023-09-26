@@ -1,7 +1,7 @@
 import dlt, os, pytest
 from dlt.common.schema.typing import TSchemaContractSettings
 from dlt.common.utils import uniq_id
-from typing import Any
+from typing import Any, Union, Optional
 from dlt.extract.source import DltSource, DltResource
 import contextlib
 
@@ -145,12 +145,10 @@ def test_freeze_new_tables(contract_setting: str, setting_location: str) -> None
         setting_location: {
         "table": contract_setting
     }}
-    print("RUN 1")
     run_resource(pipeline, items, {})
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
     assert OLD_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
-    print("RUN 2")
 
     run_resource(pipeline, items_with_new_column, full_settings)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
@@ -376,24 +374,26 @@ def test_data_contract_interaction() -> None:
     ensure data contracts with pydantic are enforced properly
     """
     from pydantic import BaseModel
-    pipeline = get_pipeline()
 
     class Items(BaseModel):
         id: int  # noqa: A003
-        name: str
-        amount: int
+        name: Optional[str]
+        amount: Optional[int]
 
+    @dlt.resource(name="items", columns=Items)
+    def get_items_simple():
+        yield from [{
+            "id": 5
+        }]
 
     @dlt.resource(name="items", columns=Items)
     def get_items():
         yield from [{
             "id": 5,
             "name": "dave",
-            "amount": 50
         }]
 
-
-    @dlt.resource(name="items", columns=Items)
+    @dlt.resource(name="items")
     def get_items_variant():
         yield from [{
             "id": 5,
@@ -401,7 +401,7 @@ def test_data_contract_interaction() -> None:
             "amount": "HELLO"
         }]
 
-    @dlt.resource(name="items", columns=Items)
+    @dlt.resource(name="items")
     def get_items_new_col():
         yield from [{
             "id": 5,
@@ -410,7 +410,7 @@ def test_data_contract_interaction() -> None:
             "new_col": "hello"
         }]
 
-    @dlt.resource(name="items", columns=Items)
+    @dlt.resource(name="items")
     def get_items_subtable():
         yield from [{
             "id": 5,
@@ -419,32 +419,36 @@ def test_data_contract_interaction() -> None:
             "sub": [{"hello": "dave"}]
         }]
 
-    pipeline.run([get_items()])
-    pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
-
-    # disallow variants
+    # test variants
+    pipeline = get_pipeline()
+    pipeline.run([get_items_simple()])
+    pipeline.run([get_items()], schema_contract_settings={"data_type": "discard_row"})
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
     pipeline.run([get_items_variant()], schema_contract_settings={"data_type": "discard_row"})
-    pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
+    pipeline.run([get_items_variant()], schema_contract_settings={"data_type": "evolve"})
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
 
-    # without settings it will pass
-    pipeline.run([get_items_variant()], schema_contract_settings="evolve")
-    pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
-
-    # disallow new col
+    # test new column
+    pipeline = get_pipeline()
+    pipeline.run([get_items_simple()])
+    pipeline.run([get_items()], schema_contract_settings={"column": "discard_row"})
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
     pipeline.run([get_items_new_col()], schema_contract_settings={"column": "discard_row"})
-    pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
+    pipeline.run([get_items_new_col()], schema_contract_settings={"column": "evolve"})
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
 
-    # without settings it will pass
-    pipeline.run([get_items_new_col()], schema_contract_settings="evolve")
-    pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
-
-    # disallow new tables
+    # test new subtable
+    pipeline = get_pipeline()
+    pipeline.run([get_items_simple()])
     pipeline.run([get_items_subtable()], schema_contract_settings={"table": "discard_row"})
-    pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
+    assert pipeline.last_trace.last_normalize_info.row_counts.get("items__sub", 0) == 0
 
-    # without settings it will pass
-    pipeline.run([get_items_subtable()], schema_contract_settings="evolve")
-    pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
+    pipeline.run([get_items_subtable()], schema_contract_settings={"table": "evolve"})
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
+    assert pipeline.last_trace.last_normalize_info.row_counts.get("items__sub", 0) == 1
 
 
 def test_different_objects_in_one_load() -> None:
