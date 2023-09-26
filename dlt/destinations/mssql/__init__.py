@@ -36,6 +36,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.is_max_text_data_type_length_in_bytes = False
     caps.supports_ddl_transactions = True
     caps.max_rows_per_insert = 1000
+    caps.timestamp_precision = 7
 
     return caps
 

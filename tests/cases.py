@@ -7,7 +7,7 @@ from dlt.common import Decimal, pendulum, json
 from dlt.common.data_types import TDataType
 from dlt.common.typing import StrAny
 from dlt.common.wei import Wei
-from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision
+from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision, ensure_pendulum_time
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
 
 
@@ -166,6 +166,43 @@ TABLE_UPDATE: List[TColumnSchema] = [
         "data_type": "time",
         "nullable": True
     },
+    {
+        "name": "col1_precision",
+        "data_type": "bigint",
+        "precision": 16,
+        "nullable": False
+    },
+    {
+        "name": "col4_precision",
+        "data_type": "timestamp",
+        "precision": 3,
+        "nullable": False
+    },
+    {
+        "name": "col5_precision",
+        "data_type": "text",
+        "precision": 25,
+        "nullable": False
+    },
+    {
+        "name": "col6_precision",
+        "data_type": "decimal",
+        "precision": 6,
+        "scale": 2,
+        "nullable": False
+    },
+    {
+        "name": "col7_precision",
+        "data_type": "binary",
+        "precision": 19,
+        "nullable": False
+    },
+    {
+        "name": "col11_precision",
+        "data_type": "time",
+        "precision": 3,
+        "nullable": False
+    },
 ]
 TABLE_UPDATE_COLUMNS_SCHEMA: TTableSchemaColumns = {t["name"]:t for t in TABLE_UPDATE}
 
@@ -192,20 +229,27 @@ TABLE_ROW_ALL_DATA_TYPES  = {
     "col9_null": None,
     "col10_null": None,
     "col11_null": None,
+    "col1_precision": 22324,
+    "col4_precision": "2022-05-23T13:26:46.167231+00:00",
+    "col5_precision": "string data 2 \n \r \x8e 🦆",
+    "col6_precision": Decimal("2323.34"),
+    "col7_precision": b'binary data 2 \n \r \x8e',
+    "col11_precision": "13:26:45.176451",
 }
 
 
-def table_update_and_row(exclude_types: Sequence[TDataType] = None) -> Tuple[TTableSchemaColumns, StrAny]:
+def table_update_and_row(exclude_types: Sequence[TDataType] = None, exclude_columns: Sequence[str] = None) -> Tuple[TTableSchemaColumns, StrAny]:
     """Get a table schema and a row with all possible data types.
     Optionally exclude some data types from the schema and row.
     """
     column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
     data_row = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
+    exclude_col_names = list(exclude_columns or [])
     if exclude_types:
-        exclude_col_names = [key for key, value in column_schemas.items() if value["data_type"] in exclude_types]
-        for col_name in exclude_col_names:
-            del column_schemas[col_name]
-            del data_row[col_name]
+        exclude_col_names.extend([key for key, value in column_schemas.items() if value["data_type"] in exclude_types])
+    for col_name in set(exclude_col_names):
+        del column_schemas[col_name]
+        del data_row[col_name]
     return column_schemas, data_row
 
 
@@ -231,18 +275,38 @@ def assert_all_data_types_row(
             ensure_pendulum_datetime(expected_rows["col4"]),  # type: ignore[arg-type]
             timestamp_precision
         )
+    if "col4_precision" in expected_rows:
+        parsed_date = pendulum.instance(db_mapping["col4_precision"])
+        db_mapping["col4_precision"] = reduce_pendulum_datetime_precision(parsed_date, 3)
+        expected_rows['col4_precision'] = reduce_pendulum_datetime_precision(
+            ensure_pendulum_datetime(expected_rows["col4_precision"]),  # type: ignore[arg-type]
+            3
+        )
 
-    # binary column
-    if "col7" in db_mapping:
-        if isinstance(db_mapping["col7"], str):
-            try:
-                db_mapping["col7"] = bytes.fromhex(db_mapping["col7"])  # redshift returns binary as hex string
-            except ValueError:
-                if not allow_base64_binary:
-                    raise
-                db_mapping["col7"] = base64.b64decode(db_mapping["col7"], validate=True)
-        else:
-            db_mapping["col7"] = bytes(db_mapping["col7"])
+    if "col11_precision" in expected_rows:
+        parsed_time = ensure_pendulum_time(db_mapping["col11_precision"])
+        db_mapping["col11_precision"] = reduce_pendulum_datetime_precision(parsed_time, 3)
+        expected_rows['col11_precision'] = reduce_pendulum_datetime_precision(
+            ensure_pendulum_time(expected_rows["col11_precision"]),  # type: ignore[arg-type]
+            3
+        )
+
+    # redshift and bigquery return strings from structured fields
+    for binary_col in ["col7", "col7_precision"]:
+        if binary_col in db_mapping:
+            if isinstance(db_mapping[binary_col], str):
+                try:
+                    db_mapping[binary_col] = bytes.fromhex(
+                        db_mapping[binary_col]
+                    )  # redshift returns binary as hex string
+                except ValueError:
+                    if not allow_base64_binary:
+                        raise
+                    db_mapping[binary_col] = base64.b64decode(
+                        db_mapping[binary_col], validate=True
+                    )
+            else:
+                db_mapping[binary_col] = bytes(db_mapping[binary_col])
 
     # redshift and bigquery return strings from structured fields
     if "col9" in db_mapping:

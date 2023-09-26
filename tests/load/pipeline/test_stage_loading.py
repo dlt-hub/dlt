@@ -1,10 +1,11 @@
 import pytest
-from typing import Dict, Any
+from typing import Dict, Any, List
 
 import dlt, os
 from dlt.common import json, sleep
 from copy import deepcopy
 from dlt.common.utils import uniq_id
+from dlt.common.schema.typing import TDataType
 
 from tests.load.pipeline.test_merge_disposition import github
 from tests.load.pipeline.utils import  load_table_counts
@@ -93,12 +94,18 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
 
     pipeline = destination_config.setup_pipeline('test_stage_loading', dataset_name="test_all_data_types" + uniq_id())
 
-    column_schemas = deepcopy(TABLE_UPDATE_COLUMNS_SCHEMA)
+    # Redshift parquet -> exclude col7_precision
+    # redshift and athena, parquet and jsonl, exclude time types
+    exclude_types: List[TDataType] = []
+    exclude_columns: List[str] = []
     if destination_config.destination in ("redshift", "athena") and destination_config.file_format in ('parquet', 'jsonl'):
         # Redshift copy doesn't support TIME column
-        column_schemas, data_types = table_update_and_row(exclude_types=['time'])
-    else:
-        column_schemas, data_types = table_update_and_row()
+        exclude_types.append("time")
+    if destination_config.destination == "redshift" and destination_config.file_format in ("parquet", "jsonl"):
+        # Redshift can't load fixed width binary columns from parquet
+        exclude_columns.append("col7_precision")
+
+    column_schemas, data_types = table_update_and_row(exclude_types=exclude_types, exclude_columns=exclude_columns)
 
     # bigquery cannot load into JSON fields from parquet
     if destination_config.file_format == "parquet":
@@ -109,7 +116,9 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     if destination_config.file_format == "jsonl":
         if destination_config.destination == "redshift":
             # change the datatype to text which will result in inserting base64 (allow_base64_binary)
-            column_schemas["col7_null"]["data_type"] = column_schemas["col7"]["data_type"] = "text"
+            binary_cols = ["col7", "col7_null"]
+            for col in binary_cols:
+                column_schemas[col]["data_type"] = "text"
 
     # apply the exact columns definitions so we process complex and wei types correctly!
     @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)

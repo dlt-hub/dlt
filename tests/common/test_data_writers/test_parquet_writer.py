@@ -90,12 +90,22 @@ def test_parquet_writer_all_data_fields() -> None:
 
     data = dict(TABLE_ROW_ALL_DATA_TYPES)
     # fix dates to use pendulum
-    data["col4"] = ensure_pendulum_datetime(data["col4"])
-    data["col10"] = ensure_pendulum_date(data["col10"])
-    data["col11"] = pendulum.Time.fromisoformat(data["col11"])
+    data["col4"] = ensure_pendulum_datetime(data["col4"])  # type: ignore[arg-type]
+    data["col10"] = ensure_pendulum_date(data["col10"])  # type: ignore[arg-type]
+    data["col11"] = pendulum.Time.fromisoformat(data["col11"])  # type: ignore[arg-type]
+    data["col4_precision"] = ensure_pendulum_datetime(data["col4_precision"])  # type: ignore[arg-type]
+    data["col11_precision"] = pendulum.Time.fromisoformat(data["col11_precision"])  # type: ignore[arg-type]
 
     with get_writer("parquet") as writer:
         writer.write_data_item([data], TABLE_UPDATE_COLUMNS_SCHEMA)
+
+    # We want to test precision for these fields is trimmed to millisecond
+    data["col4_precision"] = data["col4_precision"].replace(  # type: ignore[attr-defined]
+        microsecond=int(str(data["col4_precision"].microsecond)[:3] + "000")  # type: ignore[attr-defined]
+    )
+    data["col11_precision"] = data["col11_precision"].replace(  # type: ignore[attr-defined]
+        microsecond=int(str(data["col11_precision"].microsecond)[:3] + "000")  # type: ignore[attr-defined]
+    )
 
     with open(writer.closed_files[0], "rb") as f:
         table = pq.read_table(f)
@@ -105,6 +115,14 @@ def test_parquet_writer_all_data_fields() -> None:
             if isinstance(value, datetime.datetime):
                 actual = ensure_pendulum_datetime(actual)
             assert actual == value
+
+        assert table.schema.field("col1_precision").type == pa.int16()
+        # flavor=spark only writes ns precision timestamp, so this is expected
+        assert table.schema.field("col4_precision").type == pa.timestamp("ns")
+        assert table.schema.field("col5_precision").type == pa.string()
+        assert table.schema.field("col6_precision").type == pa.decimal128(6, 2)
+        assert table.schema.field("col7_precision").type == pa.binary(19)
+        assert table.schema.field("col11_precision").type == pa.time32("ms")
 
 
 def test_parquet_writer_items_file_rotation() -> None:
