@@ -25,9 +25,7 @@ def raises_frozen_exception(check_raise: bool = True) -> Any:
         yield
         return
     with pytest.raises(PipelineStepFailed) as py_exc:
-        print("yield")
         yield
-        print("after")
     assert isinstance(py_exc.value.__context__, SchemaFrozenException)
 
 def items(settings: TSchemaContractSettings) -> Any:
