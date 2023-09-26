@@ -190,6 +190,7 @@ const sidebars = {
         'general-usage/full-loading',
         'general-usage/credentials',
         'general-usage/schema',
+        'general-usage/data-contracts',
         'general-usage/configuration',
         'general-usage/glossary',
         {
