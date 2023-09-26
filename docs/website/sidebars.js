@@ -168,6 +168,7 @@ const sidebars = {
           ]
         },
         'walkthroughs/create-new-destination',
+        'walkthroughs/zendesk-weaviate',
       ],
     },
     {
