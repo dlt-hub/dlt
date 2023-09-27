@@ -80,10 +80,11 @@ class SynapseMergeJob(SqlMergeJob):
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
         return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t;"
 
-    @classmethod
+    """@classmethod
     def _new_temp_table_name(cls, name_prefix: str) -> str:
         name = SqlMergeJob._new_temp_table_name(name_prefix)
         return '#' + name
+    """    
 
 class SynapseClient(InsertValuesJobClient):
     #TODO: Add a function to insert multiple values for several columns in insert sql to individual insert sql.
