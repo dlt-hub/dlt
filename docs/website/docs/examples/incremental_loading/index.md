@@ -6,13 +6,25 @@ keywords: [incremental loading, example]
 
 import Header from '../_examples-header.md';
 
-<Header 
-    intro="In this tutorial you will learn how to do incremental loading in consecutive runs with dlt. The state of your incremental loads will be persistet in
-    your selected destination and restored and used on each new load, making it very easy to keep your loaded dataset up to date with the source."
+<Header
+    intro="In this tutorial, you will learn how to do incremental loading in consecutive runs with dlt.
+    The state of your incremental loads will be persisted in
+    your selected destination and restored and used on each new load,
+    making it very easy to keep your loaded dataset up to date with the source."
     slug="incremental_loading" />
 
-## Doing incremental loads with the zendesk api
-(Add some text here)
+## Doing incremental loads with the Zendesk API
+
+In this example, you'll find a Python script that interacts with the Zendesk Support API to extract ticket events data. Along the way, we'll cover the following key concepts:
+
+- We'll learn how to create a source function for Zendesk Support data extraction.
+
+- We'll understand how to enable incremental loading for efficient data extraction.
+
+- We'll explore how to work with timestamps, specifically converting them to Unix timestamps for incremental data extraction.
+
+- We'll see how to use the `start_time` parameter in API requests to retrieve data starting from a specific timestamp.
+
 
 ### Loading code
 
@@ -139,3 +151,34 @@ load_info = pipeline.run(zendesk_support())
 print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END ./code/run-snippets.py::example-->
+
+
+## Example of Zendesk data:
+
+```python
+# https://d3v-dlthub.zendesk.com/api/v2/incremental/ticket_events.json?start_time=946684800
+{'child_events': [
+    {
+        'id': 18868153669009,
+        'via': 'Web form',
+        'via_reference_id': None,
+        'subject': 'Another ticket',
+        'event_type': 'Change',
+        'previous_value': 'Another ticket 1'
+    }
+],
+    'id': 18868153668881,
+    'ticket_id': 5,
+    'timestamp': 1695680609,
+    'created_at': '2023-09-25T22:23:29Z',
+    'updater_id': 12765072569105,
+    'via': 'Web form',
+    'system': {
+        'client': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
+        'location': 'Frankfurt am Main, HE, Germany',
+        'latitude': 50.1169,
+        'longitude': 8.6837
+    },
+    'event_type': 'Audit'
+}]
+```
