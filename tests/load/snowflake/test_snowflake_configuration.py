@@ -26,7 +26,7 @@ def test_connection_string_with_all_params() -> None:
     assert creds.host == "host1"
     assert creds.warehouse == "warehouse1"
     assert creds.role == "role1"
-    assert creds.private_key == "pk"
+    assert creds.private_key == "cGs="
     assert creds.private_key_passphrase == "paphr"
 
     expected = make_url(url)
