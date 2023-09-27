@@ -1,1 +1,1 @@
-pydoc-markdown
+pydoc-markdown==4.8.2

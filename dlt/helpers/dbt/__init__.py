@@ -59,8 +59,7 @@ def _create_dbt_deps(destination_names: List[str], dbt_version: str = DEFAULT_DB
         # force locally installed duckdb
         additional_deps = ["duckdb" + "==" + pkg_version("duckdb")]
 
-    print(all_packages + [dlt_requirement] + additional_deps)
-    return all_packages + [dlt_requirement] + additional_deps
+    return all_packages + additional_deps + [dlt_requirement]
 
 
 def restore_venv(venv_dir: str, destination_names: List[str], dbt_version: str = DEFAULT_DBT_VERSION) -> Venv:

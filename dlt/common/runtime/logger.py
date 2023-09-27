@@ -28,8 +28,6 @@ def __getattr__(name: str) -> LogMethod:
                 # exception has one more frame
                 stacklevel = 3
             getattr(LOGGER, name)(msg, *args, **kwargs, stacklevel=stacklevel)
-        else:
-            raise RuntimeError()
     return wrapper
 
 

@@ -59,19 +59,20 @@ def dbt_package_f(request: Any) -> Iterator[Tuple[str, AnyFun]]:
 
 
 def test_infer_venv_deps() -> None:
-    requirements = _create_dbt_deps(["postgres", "bigquery"])
-    assert requirements[:3] == [f"dbt-postgres{DEFAULT_DBT_VERSION}", f"dbt-bigquery{DEFAULT_DBT_VERSION}", f"dbt-core{DEFAULT_DBT_VERSION}"]
+    requirements = _create_dbt_deps(["postgres", "mssql"])
+    assert requirements[:3] == [f"dbt-core{DEFAULT_DBT_VERSION}", "dbt-postgres", "dbt-sqlserver"]
     # should lead to here
     assert os.path.isdir(requirements[-1])
     # provide exact version
     requirements = _create_dbt_deps(["postgres"], dbt_version="3.3.3")
-    assert requirements[:-1] == ["dbt-postgres==3.3.3", "dbt-core==3.3.3"]
-    # provide version range
+    assert requirements[:-1] == ["dbt-core==3.3.3", "dbt-postgres"]
+    # provide version ranges
     requirements = _create_dbt_deps(["duckdb"], dbt_version=">3")
-    assert requirements[:-1] == ["dbt-duckdb>3", "dbt-core>3"]
+    # special duckdb dependency
+    assert requirements[:-1] == ["dbt-core>3", "dbt-duckdb", "duckdb==0.8.1"]
     # we do not validate version ranges, pip will do it and fail when creating venv
-    requirements = _create_dbt_deps(["duckdb"], dbt_version="y")
-    assert requirements[:-1] == ["dbt-duckdby", "dbt-corey"]
+    requirements = _create_dbt_deps(["motherduck"], dbt_version="y")
+    assert requirements[:-1] == ["dbt-corey", "dbt-duckdb", "duckdb==0.8.1"]
 
 
 def test_default_profile_name() -> None:
