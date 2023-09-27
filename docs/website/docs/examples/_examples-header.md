@@ -2,8 +2,7 @@ import Admonition from "@theme/Admonition";
 import CodeBlock from '@theme/CodeBlock';
 
 <Admonition>
-    The <span>{props.title}</span> Example is part of the <a href="/docs/examples">dlt Code Examples</a>, a list of comprehensive examples to help you solve real world loading problems with dlt.
-    The source code for this example can be found in our repository at: <a href={"https://github.com/dlt-hub/dlt/tree/devel/docs/examples/" + props.slug}>{"https://github.com/dlt-hub/dlt/tree/devel/docs/examples/" + props.slug}.</a>
+    The source code for this example can be found in our repository at: <a href={"https://github.com/dlt-hub/dlt/tree/devel/docs/examples/" + props.slug}>{"https://github.com/dlt-hub/dlt/tree/devel/docs/examples/" + props.slug}</a>.
 </Admonition>
 
 ## TLDR

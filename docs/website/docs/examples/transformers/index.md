@@ -9,8 +9,7 @@ import Header from '../_examples-header.md';
 <Header 
     intro="In this example you will learn how load a list of pokemone from the pokeapi and with the help of dlt transformers
     automatically query additional data per retrieved pokemon. You will also learn how to harness parallelism with futures."
-    slug="transformer" 
-    title="Enriching loaded data with transformers" />
+    slug="transformer" />
 
 
 ## Using transformers with the pokemon api
