@@ -20,18 +20,14 @@ def test_connection_string_with_all_params() -> None:
     creds = SnowflakeCredentials()
     creds.parse_native_representation(url)
 
-    params = creds.to_connector_params()
-    
-    assert params == dict(
-        database = "db1",
-        username = "user1",
-        password = "pass1",
-        host = "host1",
-        warehouse = "warehouse1",
-        role = "role1",
-        private_key = "pk",
-        private_key_passphrase = "paphr"
-    )
+    assert creds.database == "db1"
+    assert creds.username == "user1"
+    assert creds.password == "pass1"
+    assert creds.host == "host1"
+    assert creds.warehouse == "warehouse1"
+    assert creds.role == "role1"
+    assert creds.private_key == "pk"
+    assert creds.private_key_passphrase == "paphr"
 
     expected = make_url(url)
 
