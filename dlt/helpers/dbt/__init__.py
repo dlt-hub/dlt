@@ -43,18 +43,23 @@ def _create_dbt_deps(destination_names: List[str], dbt_version: str = DEFAULT_DB
     else:
         dbt_version = ""
 
-    all_packages = destination_names + ["core"]
+    # add version only to the core package. the other packages versions must be resolved by pip
+    all_packages = ["core" + dbt_version] + destination_names
     for idx, package in enumerate(all_packages):
-        # TODO: if we have more cases like this, move to destination capabilities
-        package = DBT_DESTINATION_MAP.get(package, package)
-        package_w_ver = "dbt-" + package + dbt_version
+        package = "dbt-" + DBT_DESTINATION_MAP.get(package, package)
         # verify package
-        pkg_resources.Requirement.parse(package_w_ver)
-        all_packages[idx] = package_w_ver
+        pkg_resources.Requirement.parse(package)
+        all_packages[idx] = package
 
     dlt_requirement = get_installed_requirement_string()
+    # get additional requirements
+    additional_deps: List[str] = []
+    if "duckdb" in destination_names or "motherduck" in destination_names:
+        from importlib.metadata import version as pkg_version
+        # force locally installed duckdb
+        additional_deps = ["duckdb" + "==" + pkg_version("duckdb")]
 
-    return all_packages + [dlt_requirement]
+    return all_packages + additional_deps + [dlt_requirement]
 
 
 def restore_venv(venv_dir: str, destination_names: List[str], dbt_version: str = DEFAULT_DBT_VERSION) -> Venv:

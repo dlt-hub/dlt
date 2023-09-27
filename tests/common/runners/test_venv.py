@@ -5,7 +5,7 @@ import tempfile
 import pytest
 import shutil
 
-from dlt.common.exceptions import CannotInstallDependency
+from dlt.common.exceptions import CannotInstallDependencies
 from dlt.common.runners import Venv, VenvNotFound
 from dlt.common.utils import custom_environ
 
@@ -65,9 +65,9 @@ print('success')
 
 
 def test_create_with_wrong_dependency() -> None:
-    with pytest.raises(CannotInstallDependency) as cid:
+    with pytest.raises(CannotInstallDependencies) as cid:
         Venv.create(tempfile.mkdtemp(), ["six", "_six_"])
-    assert cid.value.dependency == "_six_"
+    assert cid.value.dependencies == ["six", "_six_"]
 
 
 def test_add_dependency() -> None:
