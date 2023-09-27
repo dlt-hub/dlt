@@ -3,7 +3,7 @@ import os
 
 from dlt.destinations.postgres.sql_client import Psycopg2SqlClient
 
-from dlt.common.schema.utils import table_schema_has_type
+from dlt.common.schema.utils import table_schema_has_type, table_schema_has_type_with_precision
 if platform.python_implementation() == "PyPy":
     import psycopg2cffi as psycopg2
     # from psycopg2cffi.sql import SQL, Composed
@@ -17,7 +17,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import NewLoadJob, CredentialsConfiguration
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TTableSchema, TColumnType
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
@@ -29,34 +29,8 @@ from dlt.destinations.redshift import capabilities
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.type_mapping import TypeMapper
 
-
-
-SCT_TO_PGT: Dict[TDataType, str] = {
-    "complex": "super",
-    "text": "varchar(max)",
-    "double": "double precision",
-    "bool": "boolean",
-    "date": "date",
-    "timestamp": "timestamp with time zone",
-    "bigint": "bigint",
-    "binary": "varbinary",
-    "decimal": "numeric(%i,%i)",
-    "time": "time without time zone"
-}
-
-PGT_TO_SCT: Dict[str, TDataType] = {
-    "super": "complex",
-    "varchar(max)": "text",
-    "double precision": "double",
-    "boolean": "bool",
-    "date": "date",
-    "timestamp with time zone": "timestamp",
-    "bigint": "bigint",
-    "binary varying": "binary",
-    "numeric": "decimal",
-    "time without time zone": "time"
-}
 
 HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
     "cluster": "DISTKEY",
@@ -64,6 +38,58 @@ HINT_TO_REDSHIFT_ATTR: Dict[TColumnHint, str] = {
     # "primary_key": "PRIMARY KEY",
     "sort": "SORTKEY"
 }
+
+
+class RedshiftTypeMapper(TypeMapper):
+    sct_to_unbound_dbt = {
+        "complex": "super",
+        "text": "varchar(max)",
+        "double": "double precision",
+        "bool": "boolean",
+        "date": "date",
+        "timestamp": "timestamp with time zone",
+        "bigint": "bigint",
+        "binary": "varbinary",
+        "time": "time without time zone"
+    }
+
+    sct_to_dbt = {
+        "decimal": "numeric(%i,%i)",
+        "wei": "numeric(%i,%i)",
+        "text": "varchar(%i)",
+        "binary": "varbinary(%i)",
+    }
+
+    dbt_to_sct = {
+        "super": "complex",
+        "varchar(max)": "text",
+        "double precision": "double",
+        "boolean": "bool",
+        "date": "date",
+        "timestamp with time zone": "timestamp",
+        "bigint": "bigint",
+        "binary varying": "binary",
+        "numeric": "decimal",
+        "time without time zone": "time",
+        "varchar": "text",
+        "smallint": "bigint",
+        "integer": "bigint",
+    }
+
+    def to_db_integer_type(self, precision: Optional[int]) -> str:
+        if precision is None:
+            return "bigint"
+        if precision <= 16:
+            return "smallint"
+        elif precision <= 32:
+            return "integer"
+        return "bigint"
+
+    def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        if db_type == "numeric":
+            if (precision, scale) == self.capabilities.wei_precision:
+                return dict(data_type="wei")
+        return super().from_db_type(db_type, precision, scale)
 
 
 class RedshiftSqlClient(Psycopg2SqlClient):
@@ -120,6 +146,11 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
             dateformat = "dateformat 'auto' timeformat 'auto'"
             compression = "GZIP"
         elif ext == "parquet":
+            if table_schema_has_type_with_precision(table, "binary"):
+                raise LoadJobTerminalException(
+                    self.file_name(),
+                    f"Redshift cannot load fixed width VARBYTE columns from {ext} files. Switch to direct INSERT file format or use binary columns without precision."
+                )
             file_type = "PARQUET"
             # if table contains complex types then SUPER field will be used.
             # https://docs.aws.amazon.com/redshift/latest/dg/ingest-super.html
@@ -168,6 +199,7 @@ class RedshiftClient(InsertValuesJobClient):
         super().__init__(schema, config, sql_client)
         self.sql_client = sql_client
         self.config: RedshiftClientConfiguration = config
+        self.type_mapper = RedshiftTypeMapper(self.capabilities)
 
     def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)
@@ -175,7 +207,7 @@ class RedshiftClient(InsertValuesJobClient):
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(HINT_TO_REDSHIFT_ATTR.get(h, "") for h in HINT_TO_REDSHIFT_ATTR.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
-        return f"{column_name} {self._to_db_type(c['data_type'])} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+        return f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""
@@ -185,17 +217,5 @@ class RedshiftClient(InsertValuesJobClient):
             job = RedshiftCopyFileLoadJob(table, file_path, self.sql_client, staging_credentials=self.config.staging_config.credentials, staging_iam_role=self.config.staging_iam_role)
         return job
 
-    @classmethod
-    def _to_db_type(cls, sc_t: TDataType) -> str:
-        if sc_t == "wei":
-            return SCT_TO_PGT["decimal"] % cls.capabilities.wei_precision
-        if sc_t == "decimal":
-            return SCT_TO_PGT["decimal"] % cls.capabilities.decimal_precision
-        return SCT_TO_PGT[sc_t]
-
-    @classmethod
-    def _from_db_type(cls, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
-        if pq_t == "numeric":
-            if (precision, scale) == cls.capabilities.wei_precision:
-                return "wei"
-        return PGT_TO_SCT.get(pq_t, "text")
+    def _from_db_type(self, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        return self.type_mapper.from_db_type(pq_t, precision, scale)
