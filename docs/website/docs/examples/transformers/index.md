@@ -7,13 +7,21 @@ keywords: [transformers, parallelism, example]
 import Header from '../_examples-header.md';
 
 <Header 
-    intro="In this tutorial you will learn how load a list of pokemone from the pokeapi and with the help of dlt transformers
+    intro="In this example you will learn how load a list of pokemone from the pokeapi and with the help of dlt transformers
     automatically query additional data per retrieved pokemon. You will also learn how to harness parallelism with futures."
     slug="transformer" 
     title="Enriching loaded data with transformers" />
 
 
-## Use transformers
+## Using transformers with the pokemon api
+
+For this example we will be loading data from the [Poke Api](https://pokeapi.co/). We will load a list of pokemon from the
+list endpoint and enrich this data with the full Pokemon Info for each list entry as well as detailed species information 
+for each pokemon with two chained transfomers. Using the `async` keyword for the transformers will enable asychronous
+processing of the data which can be further configured in your toml file.
+
+### Loading code
+
 <!--@@@DLT_SNIPPET_START ./code/run-snippets.py::example-->
 ```py
 from typing import Sequence, Iterable
@@ -59,7 +67,8 @@ async def species(pokemon: TDataItem):
     # just return the results, if you yield, 
     # generator will be evaluated in main thread
     species_data = requests.get(pokemon["species"]["url"]).json()
-    # optionally add pokemon_id to result json
+    # optionally add pokemon_id to result json, to later be able
+    # to join tables
     species_data["pokemon_id"] = pokemon["id"]
     return species_data
 
@@ -74,3 +83,48 @@ load_info = pipeline.run([pokemon(), species()])
 print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END ./code/run-snippets.py::example-->
+
+### Example pokemon list data
+```json
+// https://pokeapi.co/api/v2/pokemon
+{
+   "count":1292,
+   "next":"https://pokeapi.co/api/v2/pokemon?offset=20&limit=20",
+   "previous":null,
+   "results":[
+      {
+         "name":"bulbasaur",
+         "url":"https://pokeapi.co/api/v2/pokemon/1/"
+      },
+      {
+         "name":"ivysaur",
+         "url":"https://pokeapi.co/api/v2/pokemon/2/"
+      },
+      ...
+   ]
+}
+```
+
+### Example Pokemon details data
+```json
+// https://pokeapi.co/api/v2/pokemon/1/
+{
+   "id":1,
+   "name": "bulbasaur",
+   "species": {
+        "url": 	"https://pokeapi.co/api/v2/pokemon-species/1/"   
+    },
+    ...
+}
+```
+
+### Example Pokemon species data
+```json
+// https://pokeapi.co/api/v2/pokemon-species/1/
+{
+   "id":1,
+   "name": "bulbasaur",
+   "is_baby": false,
+    ...
+}
+```

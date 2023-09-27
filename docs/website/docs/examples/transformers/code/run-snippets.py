@@ -45,7 +45,8 @@ def transformers_snippet() -> None:
         # just return the results, if you yield, 
         # generator will be evaluated in main thread
         species_data = requests.get(pokemon["species"]["url"]).json()
-        # optionally add pokemon_id to result json
+        # optionally add pokemon_id to result json, to later be able
+        # to join tables
         species_data["pokemon_id"] = pokemon["id"]
         return species_data
 
