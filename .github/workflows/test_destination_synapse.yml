@@ -8,6 +8,7 @@ on:
       - master
       - devel
       - synapse
+      - feedback
   
 env:
   DESTINATION__SYNAPSE__CREDENTIALS: ${{ secrets.SYNAPSE_CREDENTIALS }}
