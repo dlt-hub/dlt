@@ -85,13 +85,6 @@ const config = {
           },
           { to: 'blog', label: 'Blog', position: 'left' },
           {
-            type: 'doc',
-            docId: 'examples',
-            label: 'Code Examples',
-            position:'right',
-            className: 'examples-link',
-          },
-          {
             href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g',
             label: '.',
             position: 'right',

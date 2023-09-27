@@ -1,7 +1,5 @@
 # @@@DLT_SNIPPET_START example
 # @@@DLT_SNIPPET_START toml
-pokemon_url="https://pokeapi.co/api/v2/pokemon"
-berry_url="https://pokeapi.co/api/v2/berry"
 # @@@DLT_SNIPPET_END toml
 
 [runtime]

@@ -230,7 +230,7 @@ const sidebars = {
         keywords: ['examples'],
       },
       items: [
-        'examples/transformers_and_parallelism/index',
+        'examples/transformers/index',
         'examples/incremental_loading/index',
       ],
     },
