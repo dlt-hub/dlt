@@ -96,6 +96,8 @@ A column schema contains following properties:
 
 1. `name` and `description` of a column in a table.
 1. `data_type` with a column data type.
+1. `precision` a precision for **text**, **timestamp**, **time**, **bigint**, **binary**, and **decimal** types
+1. `scale` a scale for **decimal** type
 1. `is_variant` telling that column was generated as variant of another column.
 
 A column schema contains following basic hints:
@@ -105,19 +107,22 @@ A column schema contains following basic hints:
 1. `merge_key` marks a column as a part of merge key used by.
    [incremental load](./incremental-loading.md#merge-incremental_loading)
 1. `foreign_key` marks a column as a part of foreign key.
-1. `root_key` marks a column as a part of root key which is a type of foreign key referring to the
+1. `root_key` marks a column as a part of root key which is a type of foreign key always referring to the
    root table.
 1. `unique` tells that column is unique. on some destination that generates unique index.
 
 `dlt` lets you define additional performance hints:
 
 1. `partition` marks column to be used to partition data.
+1. `cluster` marks column to be part to be used to cluster data
 1. `sort` marks column as sortable/having order. on some destinations that non-unique generates
    index.
 
-> 💡 Each destination can interpret the hints in its own way. For example `cluster` hint is used by
-> Redshift to define table distribution and by BigQuery to specify cluster column. DuckDB and
-> Postgres ignore it when creating tables.
+:::note
+Each destination can interpret the hints in its own way. For example `cluster` hint is used by
+Redshift to define table distribution and by BigQuery to specify cluster column. DuckDB and
+Postgres ignore it when creating tables.
+:::
 
 ### Variant columns
 
@@ -126,22 +131,19 @@ coerced in existing column.
 
 ### Data types
 
-| dlt Data Type | Source Value Example                                |
-|---------------|-----------------------------------------------------|
-| text          | `'hello world'`                                     |
-| double        | `45.678`                                            |
-| bool          | `True`                                              |
-| timestamp     | `'2023-07-26T14:45:00Z'`, `datetime.datetime.now()` |
-| date          | `datetime.date(2023, 7, 26)`                        |
-| time          | `'14:01:02'`, `datetime.time(14, 1, 2)`             |
-| bigint        | `9876543210`                                        |
-| binary        | `b'\x00\x01\x02\x03'`                               |
-| complex       | `[4, 5, 6]`, `{'a': 1}`                             |
-| decimal       | `Decimal('4.56')`                                   |
-| wei           | `2**56`                                             |
-
-
-> ⛔ You cannot specify scale and precision for bigint, binary, text and decimal.
+| dlt Data Type | Source Value Example                                | Precision and Scale                                     |
+| ------------- | --------------------------------------------------- | ------------------------------------------------------- |
+| text          | `'hello world'`                                     | Supports precision, typically mapping to **VARCHAR(N)** |
+| double        | `45.678`                                            |                                                         |
+| bool          | `True`                                              |                                                         |
+| timestamp     | `'2023-07-26T14:45:00Z'`, `datetime.datetime.now()` | Supports precision expressed as parts of a second       |
+| date          | `datetime.date(2023, 7, 26)`                        |                                                         |
+| time          | `'14:01:02'`, `datetime.time(14, 1, 2)`             | Supports precision - see **timestamp**                  |
+| bigint        | `9876543210`                                        | Support precision as number of bytes                    |
+| binary        | `b'\x00\x01\x02\x03'`                               | Supports precision, like **text**                       |
+| complex       | `[4, 5, 6]`, `{'a': 1}`                             |                                                         |
+| decimal       | `Decimal('4.56')`                                   | Supports precision and scale                            |
+| wei           | `2**56`                                             |                                                         |
 
 `wei` is a datatype tries to best represent native Ethereum 256bit integers and fixed point
 decimals. It works correctly on Postgres and BigQuery. All the other destinations have insufficient
@@ -151,6 +153,15 @@ precision.
 or create a child table out of it.
 
 `time` data type is saved in destination without timezone info, if timezone is included it is stripped. E.g. `'14:01:02+02:00` -> `'14:01:02'`.
+
+:::tip
+The precision and scale are interpreted by particular destination and are validated when a column is created. Destinations that
+do not support precision for a given data type will ignore it.
+
+The precision for **timestamp** is useful when creating **parquet** files. Use 3 - for milliseconds, 6 for microseconds, 9 for nanoseconds
+
+The precision for **bigint** is mapped to available integer types ie. TINYINT, INT, BIGINT. The default is 8 bytes precision (BIGINT)
+:::
 
 ## Schema settings
 

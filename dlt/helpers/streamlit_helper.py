@@ -205,7 +205,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
 def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_dlt_tables: bool = False, example_query: str = "", show_charts: bool = True) -> None:
     """Writes Streamlit app page with a schema and live data preview.
 
-    ### Args:
+    #### Args:
         pipeline (Pipeline): Pipeline instance to use.
         schema_name (str, optional): Name of the schema to display. If None, default schema is used.
         show_dlt_tables (bool, optional): Should show dlt internal tables. Defaults to False.

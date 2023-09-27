@@ -13,9 +13,10 @@ from pyathena.error import OperationalError, DatabaseError, ProgrammingError, In
 from pyathena.formatter import DefaultParameterFormatter, _DEFAULT_FORMATTERS, Formatter, _format_date
 
 from dlt.common import logger
+from dlt.common.utils import without_none
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, Schema
-from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.typing import TTableSchema, TColumnType
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import LoadJob
@@ -31,32 +32,59 @@ from dlt.destinations.sql_client import SqlClientBase, DBApiCursorImpl, raise_da
 from dlt.destinations.typing import DBApiCursor
 from dlt.destinations.job_client_impl import SqlJobClientBase, StorageSchemaInfo
 from dlt.destinations.athena.configuration import AthenaClientConfiguration
+from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations import path_utils
 
-SCT_TO_HIVET: Dict[TDataType, str] = {
-    "complex": "string",
-    "text": "string",
-    "double": "double",
-    "bool": "boolean",
-    "date": "date",
-    "timestamp": "timestamp",
-    "bigint": "bigint",
-    "binary": "binary",
-    "decimal": "decimal(%i,%i)",
-    "time": "string"
-}
 
-HIVET_TO_SCT: Dict[str, TDataType] = {
-    "varchar": "text",
-    "double": "double",
-    "boolean": "bool",
-    "date": "date",
-    "timestamp": "timestamp",
-    "bigint": "bigint",
-    "binary": "binary",
-    "varbinary": "binary",
-    "decimal": "decimal",
-}
+class AthenaTypeMapper(TypeMapper):
+    sct_to_unbound_dbt = {
+        "complex": "string",
+        "text": "string",
+        "double": "double",
+        "bool": "boolean",
+        "date": "date",
+        "timestamp": "timestamp",
+        "bigint": "bigint",
+        "binary": "binary",
+        "time": "string"
+    }
+
+    sct_to_dbt = {
+        "decimal": "decimal(%i,%i)",
+        "wei": "decimal(%i,%i)"
+    }
+
+    dbt_to_sct = {
+        "varchar": "text",
+        "double": "double",
+        "boolean": "bool",
+        "date": "date",
+        "timestamp": "timestamp",
+        "bigint": "bigint",
+        "binary": "binary",
+        "varbinary": "binary",
+        "decimal": "decimal",
+        "tinyint": "bigint",
+        "smallint": "bigint",
+        "int": "bigint",
+    }
+
+    def to_db_integer_type(self, precision: Optional[int]) -> str:
+        if precision is None:
+            return "bigint"
+        if precision <= 8:
+            return "tinyint"
+        elif precision <= 16:
+            return "smallint"
+        elif precision <= 32:
+            return "int"
+        return "bigint"
+
+    def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        for key, val in self.dbt_to_sct.items():
+            if db_type.startswith(key):
+                return without_none(dict(data_type=val, precision=precision, scale=scale))  # type: ignore[return-value]
+        return dict(data_type=None)
 
 
 # add a formatter for pendulum to be used by pyathen dbapi
@@ -265,28 +293,17 @@ class AthenaClient(SqlJobClientBase):
         super().__init__(schema, config, sql_client)
         self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config
+        self.type_mapper = AthenaTypeMapper(self.capabilities)
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # never truncate tables in athena
         super().initialize_storage([])
 
-    @classmethod
-    def _to_db_type(cls, sc_t: TDataType) -> str:
-        if sc_t == "wei":
-            return SCT_TO_HIVET["decimal"] % cls.capabilities.wei_precision
-        if sc_t == "decimal":
-            return SCT_TO_HIVET["decimal"] % cls.capabilities.decimal_precision
-        return SCT_TO_HIVET[sc_t]
-
-    @classmethod
-    def _from_db_type(cls, hive_t: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
-        for key, val in HIVET_TO_SCT.items():
-            if hive_t.startswith(key):
-                return val
-        return None
+    def _from_db_type(self, hive_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+        return self.type_mapper.from_db_type(hive_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
-        return f"{self.sql_client.escape_ddl_identifier(c['name'])} {self._to_db_type(c['data_type'])}"
+        return f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c)}"
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
 

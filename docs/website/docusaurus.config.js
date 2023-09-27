@@ -35,6 +35,13 @@ const config = {
       ({
         docs: {
           routeBasePath: '/',
+          include: ['**/*.md', '**/*.mdx'],
+          exclude: [
+            // '**/_*.{js,jsx,ts,tsx,md,mdx}',
+            // '**/_*/**',
+            '**/*.test.{js,jsx,ts,tsx}',
+            '**/__tests__/**',
+          ],
           sidebarPath: require.resolve('./sidebars.js'),
           editUrl: 'https://github.com/dlt-hub/dlt/tree/devel/docs/website',
           versions: {

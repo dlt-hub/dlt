@@ -6,7 +6,7 @@ keywords: [getting started, quick start, basics]
 
 # Building data pipelines with `dlt`, from basic to advanced
 
-This is in-depth overview will take you through the main areas of pipelining with `dlt`. Go to the
+This in-depth overview will take you through the main areas of pipelining with `dlt`. Go to the
 related pages you are instead looking for the [quickstart](getting-started.md), or the
 [walkthroughs](walkthroughs).
 

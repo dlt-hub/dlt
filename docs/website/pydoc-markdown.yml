@@ -1,0 +1,25 @@
+loaders:
+  - type: python
+    search_path: [../../dlt]
+    ignore_when_discovered: ["cli", "normalize", "load"]
+processors:
+  - type: filter
+    skip_empty_modules: true
+  - type: pydoc_markdown_dlt.DltProcessor
+  - type: crossref
+renderer:
+  type: docusaurus
+  docs_base_path: docs
+  relative_output_path: api_reference
+  relative_sidebar_path: sidebar.json
+  sidebar_top_level_label: API
+  markdown:
+    use_fixed_header_levels: false
+    escape_html_in_docstring: false
+    classdef_with_decorators: true
+    signature_with_decorators: true
+    format_code: true
+    source_linker:
+      type: github
+      repo: dlt-hub/dlt
+      root: ..
