@@ -6,7 +6,7 @@ import types
 import subprocess
 from typing import Any, List, Type
 
-from dlt.common.exceptions import CannotInstallDependency, VenvNotFound
+from dlt.common.exceptions import CannotInstallDependencies, VenvNotFound
 
 
 class DLTEnvBuilder(venv.EnvBuilder):
@@ -114,12 +114,12 @@ class Venv():
 
     @staticmethod
     def _install_deps(context: types.SimpleNamespace, dependencies: List[str]) -> None:
-        for dep in dependencies:
-            cmd = [context.env_exe, "-Im", "pip", "install", dep]
-            try:
-                subprocess.check_output(cmd, stderr=subprocess.STDOUT)
-            except subprocess.CalledProcessError as exc:
-                raise CannotInstallDependency(dep, context.env_exe, exc.output)
+        cmd = [context.env_exe, "-Im", "pip", "install"]
+        try:
+            subprocess.check_output(cmd + dependencies, stderr=subprocess.STDOUT)
+        except subprocess.CalledProcessError as exc:
+            raise CannotInstallDependencies(dependencies, context.env_exe, exc.output)
+
 
     @staticmethod
     def is_virtual_env() -> bool:
