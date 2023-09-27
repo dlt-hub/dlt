@@ -15,7 +15,7 @@ from tests.common.configuration.utils import environment
 
 
 def test_connection_string_with_all_params() -> None:
-    url = "snowflake://user1:pass1@host1/db1?warehouse=warehouse1&role=role1&private_key=pk&private_key_passphrase=paphr"
+    url = "snowflake://user1:pass1@host1/db1?warehouse=warehouse1&role=role1&private_key=cGs%3D&private_key_passphrase=paphr"
 
     creds = SnowflakeCredentials()
     creds.parse_native_representation(url)
@@ -26,7 +26,7 @@ def test_connection_string_with_all_params() -> None:
     assert creds.host == "host1"
     assert creds.warehouse == "warehouse1"
     assert creds.role == "role1"
-    assert creds.private_key == "pk"
+    assert creds.private_key == "cGs="
     assert creds.private_key_passphrase == "paphr"
 
     expected = make_url(url)
@@ -37,6 +37,31 @@ def test_connection_string_with_all_params() -> None:
 
 def test_to_connector_params() -> None:
     pkey_str = Path('./tests/common/cases/secrets/encrypted-private-key').read_text('utf8')
+
+    creds = SnowflakeCredentials()
+    creds.private_key = pkey_str  # type: ignore[assignment]
+    creds.private_key_passphrase = '12345'  # type: ignore[assignment]
+    creds.username = 'user1'
+    creds.database = 'db1'
+    creds.host = 'host1'
+    creds.warehouse = 'warehouse1'
+    creds.role = 'role1'
+
+    params = creds.to_connector_params()
+
+    assert isinstance(params['private_key'], bytes)
+    params.pop('private_key')
+
+    assert params == dict(
+        user='user1',
+        database='db1',
+        account='host1',
+        password=None,
+        warehouse='warehouse1',
+        role='role1',
+    )
+
+    pkey_str = Path('./tests/common/cases/secrets/encrypted-private-key-base64').read_text('utf8')
 
     creds = SnowflakeCredentials()
     creds.private_key = pkey_str  # type: ignore[assignment]
