@@ -779,8 +779,6 @@ class DltSource(Iterable[TDataItem]):
             self._resources[name].add_pipe(resource)
         else:
             self._resources[name] = resource
-            # remember that resource got cloned when set into dict
-            super().__setattr__(name, self._resources[name])
 
     def __getattr__(self, resource_name: str) -> DltResource:
         return self._resources[resource_name]
