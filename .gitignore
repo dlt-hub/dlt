@@ -12,7 +12,7 @@ experiments/*
 # !experiments/pipeline/
 # !experiments/pipeline/*
 secrets.toml
-!docs/examples/**/secrets.toml
+!docs/**/secrets.toml
 *.session.sql
 *.duckdb
 *.wal
