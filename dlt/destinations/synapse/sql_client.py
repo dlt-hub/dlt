@@ -55,9 +55,9 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @contextmanager
     def begin_transaction(self) -> Iterator[DBTransaction]:
         try:
-            self._conn.autocommit = False
+            self._conn.autocommit = True
             yield self
-            self.commit_transaction()
+            #self.commit_transaction()
         except Exception:
             self.rollback_transaction()
             raise
