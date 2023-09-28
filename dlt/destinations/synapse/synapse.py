@@ -61,8 +61,6 @@ class SynapseStagingCopyJob(SqlStagingCopyJob):
             sql.append(f"DROP TABLE {table_name};")
             # moving staging table to destination schema
             sql.append(f"ALTER SCHEMA {sql_client.fully_qualified_dataset_name()} TRANSFER {staging_table_name};")
-            # recreate staging table
-            sql.append(f"SELECT * INTO {staging_table_name} FROM {table_name} WHERE 1 = 0;")
         return sql
 
 
@@ -80,11 +78,10 @@ class SynapseMergeJob(SqlMergeJob):
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
         return f"SELECT * INTO {temp_table_name} FROM ({select_sql}) as t;"
 
-    """@classmethod
+    @classmethod
     def _new_temp_table_name(cls, name_prefix: str) -> str:
         name = SqlMergeJob._new_temp_table_name(name_prefix)
         return '#' + name
-    """    
 
 class SynapseClient(InsertValuesJobClient):
     #TODO: Add a function to insert multiple values for several columns in insert sql to individual insert sql.
