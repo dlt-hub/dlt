@@ -62,6 +62,8 @@ def zendesk_support(
         )
         for page in event_pages:
             yield page
+            # stop loading when using end_value and end is reached.
+            # unfortunately, Zendesk API does not have the "end_time" parameter, so we stop iterating ourselves
             if timestamp.end_out_of_range:
                 return
 
@@ -110,7 +112,7 @@ def get_pages(
             get_url = response_json["next_page"]
 
 
-# build duckdb pipeline
+# create dlt pipeline
 pipeline = dlt.pipeline(
     pipeline_name="zendesk", destination="duckdb", dataset_name="zendesk_data"
 )

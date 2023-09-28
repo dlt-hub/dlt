@@ -13,22 +13,23 @@ import Header from '../_examples-header.md';
     making it very easy to keep your loaded dataset up to date with the source."
     slug="incremental_loading" />
 
-## Doing incremental loads with the Zendesk API
+## Incremental loading with the Zendesk API
 
-In this example, you'll find a Python script that interacts with the Zendesk Support API to extract ticket events data. Along the way, we'll cover the following key concepts:
+In this example, you'll find a Python script that interacts with the Zendesk Support API to extract ticket events data.
 
-- We'll learn how to create a source function for Zendesk Support data extraction.
+We'll learn:
 
-- We'll understand how to enable incremental loading for efficient data extraction.
-
-- We'll explore how to work with timestamps, specifically converting them to Unix timestamps for incremental data extraction.
-
-- We'll see how to use the `start_time` parameter in API requests to retrieve data starting from a specific timestamp.
+- How to pass [credentials](../../general-usage/credentials) as dict.
+- How to set [the nesting level](../../general-usage/source#reduce-the-nesting-level-of-generated-tables).
+- How to enable [incremental loading](../../general-usage/incremental-loading) for efficient data extraction.
+- How to specify [the start and end dates](../../general-usage/incremental-loading#using-dltsourcesincremental-for-backfill) for the data loading and how to [opt-in to Airflow scheduler](../../general-usage/incremental-loading#using-airflow-schedule-for-backfill-and-incremental-loading) by setting `allow_external_schedulers` to `True`.
+- How to work with timestamps, specifically converting them to Unix timestamps for incremental data extraction.
+- How to use the `start_time` parameter in API requests to retrieve data starting from a specific timestamp.
 
 
 ### Loading code
 
-<!--@@@DLT_SNIPPET_START ./code/run-snippets.py::example-->
+<!--@@@DLT_SNIPPET_START ./code/run-snippets.py::markdown_source-->
 ```py
 from typing import Iterator, Optional, Dict, Any, Tuple
 
@@ -94,55 +95,21 @@ def zendesk_support(
         )
         for page in event_pages:
             yield page
+            # stop loading when using end_value and end is reached.
+            # unfortunately, Zendesk API does not have the "end_time" parameter, so we stop iterating ourselves
             if timestamp.end_out_of_range:
                 return
 
     return ticket_events
+```
+<!--@@@DLT_SNIPPET_END ./code/run-snippets.py::markdown_source-->
+
+Run the pipeline:
 
 
-def get_pages(
-    url: str,
-    endpoint: str,
-    auth: Tuple[str, str],
-    data_point_name: str,
-    params: Optional[Dict[str, Any]] = None,
-) -> Iterator[TDataItems]:
-    """
-    Makes a request to a paginated endpoint and returns a generator of data items per page.
-
-    Args:
-        url: The base URL.
-        endpoint: The url to the endpoint, e.g. /api/v2/calls
-        auth: Credentials for authentication.
-        data_point_name: The key which data items are nested under in the response object (e.g. calls)
-        params: Optional dict of query params to include in the request.
-
-    Returns:
-        Generator of pages, each page is a list of dict data items.
-    """
-    # update the page size to enable cursor pagination
-    params = params or {}
-    params["per_page"] = 1000
-    headers = None
-
-    # make request and keep looping until there is no next page
-    get_url = f"{url}{endpoint}"
-    while get_url:
-        response = client.get(
-            get_url, headers=headers, auth=auth, params=params
-        )
-        response.raise_for_status()
-        response_json = response.json()
-        result = response_json[data_point_name]
-        yield result
-
-        get_url = None
-        # See https://developer.zendesk.com/api-reference/ticketing/ticket-management/incremental_exports/#json-format
-        if not response_json["end_of_stream"]:
-            get_url = response_json["next_page"]
-
-
-# build duckdb pipeline
+<!--@@@DLT_SNIPPET_START ./code/run-snippets.py::markdown_pipeline-->
+```py
+# create dlt pipeline
 pipeline = dlt.pipeline(
     pipeline_name="zendesk", destination="duckdb", dataset_name="zendesk_data"
 )
@@ -150,35 +117,5 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(zendesk_support())
 print(load_info)
 ```
-<!--@@@DLT_SNIPPET_END ./code/run-snippets.py::example-->
+<!--@@@DLT_SNIPPET_END ./code/run-snippets.py::markdown_pipeline-->
 
-
-## Example of Zendesk data:
-
-```python
-# https://d3v-dlthub.zendesk.com/api/v2/incremental/ticket_events.json?start_time=946684800
-{'child_events': [
-    {
-        'id': 18868153669009,
-        'via': 'Web form',
-        'via_reference_id': None,
-        'subject': 'Another ticket',
-        'event_type': 'Change',
-        'previous_value': 'Another ticket 1'
-    }
-],
-    'id': 18868153668881,
-    'ticket_id': 5,
-    'timestamp': 1695680609,
-    'created_at': '2023-09-25T22:23:29Z',
-    'updater_id': 12765072569105,
-    'via': 'Web form',
-    'system': {
-        'client': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/116.0.0.0 Safari/537.36',
-        'location': 'Frankfurt am Main, HE, Germany',
-        'latitude': 50.1169,
-        'longitude': 8.6837
-    },
-    'event_type': 'Audit'
-}]
-```

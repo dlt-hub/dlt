@@ -3,6 +3,7 @@
 def incremental_snippet() -> None:
 
     # @@@DLT_SNIPPET_START example
+    # @@@DLT_SNIPPET_START markdown_source
     from typing import Iterator, Optional, Dict, Any, Tuple
 
     import dlt
@@ -67,11 +68,14 @@ def incremental_snippet() -> None:
             )
             for page in event_pages:
                 yield page
+                # stop loading when using end_value and end is reached.
+                # unfortunately, Zendesk API does not have the "end_time" parameter, so we stop iterating ourselves
                 if timestamp.end_out_of_range:
                     return
 
         return ticket_events
 
+    # @@@DLT_SNIPPET_END markdown_source
 
     def get_pages(
         url: str,
@@ -115,13 +119,15 @@ def incremental_snippet() -> None:
                 get_url = response_json["next_page"]
 
 
-    # build duckdb pipeline
+    # @@@DLT_SNIPPET_START markdown_pipeline
+    # create dlt pipeline
     pipeline = dlt.pipeline(
         pipeline_name="zendesk", destination="duckdb", dataset_name="zendesk_data"
     )
 
     load_info = pipeline.run(zendesk_support())
     print(load_info)
+    # @@@DLT_SNIPPET_END markdown_pipeline
     # @@@DLT_SNIPPET_END example
 
     # check that stuff was loaded
