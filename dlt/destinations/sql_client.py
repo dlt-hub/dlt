@@ -176,14 +176,14 @@ class DBApiCursorImpl(DBApiCursor):
 
         columns = self._get_columns()
         if chunk_size is None:
-            return _wrap_result(self.native_cursor.fetchall(), columns, **kwargs)
+            return _wrap_result(self.native_cursor.fetchall(), columns, **kwargs)  # type: ignore[no-any-return]
         else:
             df = _wrap_result(self.native_cursor.fetchmany(chunk_size), columns, **kwargs)
             # if no rows return None
             if df.shape[0] == 0:
                 return None
             else:
-                return df
+                return df  # type: ignore[no-any-return]
 
 
 def raise_database_error(f: TFun) -> TFun:
