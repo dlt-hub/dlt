@@ -313,7 +313,9 @@ class Load(Runnable[ThreadPool]):
                 # initialize staging storage if needed
                 if self.staging_destination:
                     with self.get_staging_destination_client(schema) as staging_client:
-                        truncate_tables = self.get_table_chain_tables_for_write_disposition(load_id, schema, staging_client.get_truncate_destination_table_dispositions())
+                        truncate_dispositions = staging_client.get_truncate_destination_table_dispositions()
+                        truncate_dispositions.extend(job_client.get_truncate_destination_table_dispositions_for_staging())
+                        truncate_tables = self.get_table_chain_tables_for_write_disposition(load_id, schema, truncate_dispositions)
                         staging_client.initialize_storage(truncate_tables)
                 # update the staging dataset if client supports this
                 if isinstance(job_client, WithStagingDataset):

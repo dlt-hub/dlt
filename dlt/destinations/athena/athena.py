@@ -275,7 +275,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         query = f"""SHOW DATABASES LIKE {self.fully_qualified_dataset_name()};"""
         rows = self.execute_sql(query)
         return len(rows) > 0
-    
+
 
 class AthenaClient(SqlJobClientWithStaging):
 
@@ -314,15 +314,12 @@ class AthenaClient(SqlJobClientWithStaging):
         if create_only_iceberg_tables:
             bucket = self.config.iceberg_bucket_url
 
-        print(table_name)
-        print(bucket)
-
         # TODO: we need to strip the staging layout from the table name, find a better way!
         dataset = self.sql_client.dataset_name.replace("_staging", "")
         sql: List[str] = []
 
         # for the system tables we need to create empty iceberg tables to be able to run, DELETE and UPDATE queries
-        # or if we are in iceberg mode, we create iceberg tables for all tables 
+        # or if we are in iceberg mode, we create iceberg tables for all tables
         is_iceberg = (self.schema.tables[table_name].get("write_disposition", None) == "skip") or create_only_iceberg_tables
         columns = ", ".join([self._get_column_def_sql(c) for c in new_columns])
 
@@ -368,6 +365,11 @@ class AthenaClient(SqlJobClientWithStaging):
         if self.config.iceberg_bucket_url is not None:
             return ["append", "replace", "merge"]
         return []
+
+    def get_truncate_destination_table_dispositions_for_staging(self) -> List[TWriteDisposition]:
+        if self.config.iceberg_bucket_url is not None:
+            return ["append", "replace", "merge"]
+        return ["replace"]
 
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
