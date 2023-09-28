@@ -91,6 +91,8 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         table_names = [row[0] for row in rows]
         self.drop_tables(*table_names)
 
+        self._conn.commit()
+
         self.execute_sql("DROP SCHEMA %s;" % self.fully_qualified_dataset_name())
 
     def drop_tables(self, *tables: str) -> None:
