@@ -123,3 +123,4 @@ def incremental_snippet() -> None:
     load_info = pipeline.run(zendesk_support())
     print(load_info)
     # @@@DLT_SNIPPET_END example
+
