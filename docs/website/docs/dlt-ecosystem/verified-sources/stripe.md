@@ -1,3 +1,9 @@
+---
+title: Stripe
+description: dlt verified source for Stripe API
+keywords: [stripe api, stripe verified source, stripe]
+---
+
 # Stripe
 
 :::info
