@@ -1,4 +1,6 @@
 import itertools
+from typing import Iterator
+
 import pytest
 
 import dlt
@@ -707,6 +709,23 @@ def test_source_dynamic_resource_attrs() -> None:
     assert id(s.resource_1) == id(s.resources["resource_1"])
     with pytest.raises(KeyError):
         s.resource_30
+
+
+def test_source_resource_attrs_with_conflicting_attrs() -> None:
+    """Resource names that conflict with DltSource attributes do not work with attribute access"""
+    dlt.pipeline(full_refresh=True)  # Create pipeline so state property can be accessed
+    names = ["state", "resources", "schema", "name", "clone"]
+    @dlt.source
+    def test_source() -> Iterator[DltResource]:
+        for name in names:
+            yield dlt.resource(["A"], name=name)
+
+    s = test_source()
+
+    # Resources are in resource dict but attributes are not created
+    assert set(s.resources.keys()) == set(names)
+    for name in names:
+        assert not isinstance(getattr(s, name), DltResource)
 
 
 def test_add_transform_steps() -> None:

@@ -12,15 +12,15 @@ class UnsupportedProcessStartMethodException(DltException):
         super().__init__(f"Process pool supports only fork start method, {method} not supported. Switch the pool type to threading")
 
 
-class CannotInstallDependency(DltException):
-    def __init__(self, dependency: str, interpreter: str, output: AnyStr) -> None:
-        self.dependency = dependency
+class CannotInstallDependencies(DltException):
+    def __init__(self, dependencies: Sequence[str], interpreter: str, output: AnyStr) -> None:
+        self.dependencies = dependencies
         self.interpreter = interpreter
         if isinstance(output, bytes):
             str_output = output.decode("utf-8")
         else:
             str_output = output
-        super().__init__(f"Cannot install dependency {dependency} with {interpreter} and pip:\n{str_output}\n")
+        super().__init__(f"Cannot install dependencies {', '.join(dependencies)} with {interpreter} and pip:\n{str_output}\n")
 
 
 class VenvNotFound(DltException):

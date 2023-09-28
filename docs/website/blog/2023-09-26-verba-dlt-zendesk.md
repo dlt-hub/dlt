@@ -14,7 +14,7 @@ tags: [Verba, dlt, Zendesk, RAG, Generative Search, Weaviate, OpenAI]
 
 As businesses scale and the volume of internal knowledge grows, it becomes increasingly difficult for everyone in the company to find the right information at the right time.
 
-With the latest advancements in large language models (LLMs) and vector databases, it's now possible to build a new class of tools that can help get insights from this data. One approach to do so is Retrieval-Augmented Generation (RAG). The idea behind RAGs is to retrieve relevant information from your database and use LLMs to generate a customised response to a question. Leveraging RAG enables the LLM to tailor its responses based on your proprietary data.
+With the latest advancements in large language models (LLMs) and [vector databases](https://weaviate.io/blog/what-is-a-vector-database), it's now possible to build a new class of tools that can help get insights from this data. One approach to do so is Retrieval-Augmented Generation (RAG). The idea behind RAGs is to retrieve relevant information from your database and use LLMs to generate a customised response to a question. Leveraging RAG enables the LLM to tailor its responses based on your proprietary data.
 
 ![Diagram illustrating the process of internal business knowledge retrieval and augmented generation (RAG), involving components like Salesforce, Zendesk, Asana, Jira, Notion, Slack and HubSpot, to answer user queries and generate responses.](/img/dlt-business-knowledge-retrieval-augmented-generation-diagram.png)
 

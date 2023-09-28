@@ -247,7 +247,7 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-    depends_on: TUnboundDltResource = None,
+    data_from: TUnboundDltResource = None,
 ) -> Any:
     """When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
 
@@ -297,7 +297,7 @@ def resource(
 
         spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
 
-        depends_on (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
+        data_from (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
 
     Raises:
         ResourceNameMissing: indicates that name of the resource cannot be inferred from the `data` being passed.
@@ -314,12 +314,12 @@ def resource(
             primary_key=primary_key,
             merge_key=merge_key,
         )
-        return DltResource.from_data(_data, _name, _section, table_template, selected, cast(DltResource, depends_on), incremental=incremental)
+        return DltResource.from_data(_data, _name, _section, table_template, selected, cast(DltResource, data_from), incremental=incremental)
 
 
     def decorator(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParams, DltResource]:
         if not callable(f):
-            if depends_on:
+            if data_from:
                 # raise more descriptive exception if we construct transformer
                 raise InvalidTransformerDataTypeGeneratorFunctionRequired(name or "<no name>", f, type(f))
             raise ResourceFunctionExpected(name or "<no name>", f, type(f))
@@ -485,7 +485,7 @@ def transformer(  # type: ignore
         merge_key=merge_key,
         selected=selected,
         spec=spec,
-        depends_on=data_from
+        data_from=data_from
     )
 
 

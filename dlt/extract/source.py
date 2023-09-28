@@ -64,7 +64,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         section: str = None,
         table_schema_template: TTableSchemaTemplate = None,
         selected: bool = True,
-        depends_on: Union["DltResource", Pipe] = None,
+        data_from: Union["DltResource", Pipe] = None,
         incremental: IncrementalResourceWrapper = None
     ) -> "DltResource":
         if data is None:
@@ -95,9 +95,9 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
 
         # check if depends_on is a valid resource
         parent_pipe: Pipe = None
-        if depends_on is not None:
+        if data_from is not None:
             DltResource._ensure_valid_transformer_resource(name, data)
-            parent_pipe = DltResource._get_parent_pipe(name, depends_on)
+            parent_pipe = DltResource._get_parent_pipe(name, data_from)
 
         # create resource from iterator, iterable or generator function
         if isinstance(data, (Iterable, Iterator)) or callable(data):
@@ -779,8 +779,6 @@ class DltSource(Iterable[TDataItem]):
             self._resources[name].add_pipe(resource)
         else:
             self._resources[name] = resource
-            # remember that resource got cloned when set into dict
-            super().__setattr__(name, self._resources[name])
 
     def __getattr__(self, resource_name: str) -> DltResource:
         return self._resources[resource_name]

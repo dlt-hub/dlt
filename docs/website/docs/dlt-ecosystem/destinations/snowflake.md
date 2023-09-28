@@ -78,24 +78,21 @@ You can also pass credentials as a database connection string. For example:
 destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?warehouse=COMPUTE_WH&role=DLT_LOADER_ROLE"
 ```
 
-In **key pair authentication** you replace password with a private key exported in PEM format. The key may be encrypted. In that case you must provide a passphrase.
+In **key pair authentication** you replace password with a private key string that should be in Base64-encoded DER format ([DBT also recommends](https://docs.getdbt.com/docs/core/connect-data-platform/snowflake-setup#key-pair-authentication) base64-encoded private keys for Snowflake connections). The private key may also be encrypted. In that case you must provide a passphrase alongside with the private key.
 ```toml
 [destination.snowflake.credentials]
 database = "dlt_data"
 username = "loader"
 host = "kgiotue-wn98412"
-private_key = """-----BEGIN ENCRYPTED PRIVATE KEY-----
-    MIIEvAIBADANBgkqhkiG9w0BAQEFAASCBKYwggSiAgEAAoIBAQDz5LZoccgKZ4jH
-    ...
------END PRIVATE KEY-----
+private_key = "LS0tLS1CRUdJTiBFTkNSWVBURUQgUFJJ....Qo="
 private_key_passphrase="passphrase"
-"""
 ```
+> You can easily get the base64-encoded value of your private key by running `base64 -i <path-to-private-key-file>.pem` in your terminal
 
-We allow to pass private key and passphrase in connection string. Please url encode the private key and passphrase.
+If you pass a passphrase in the connection string, please url encode it.
 ```toml
 # keep it at the top of your toml file! before any section starts
-destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?private_key=<url encoded pem>&private_key_passphrase=<url encoded passphrase>"
+destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?private_key=<base64 encoded pem>&private_key_passphrase=<url encoded passphrase>"
 ```
 
 ## Write disposition
