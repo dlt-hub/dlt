@@ -7,7 +7,7 @@ from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType
 
-from dlt.destinations.sql_jobs import SqlStagingCopyJob
+from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlJobParams
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
@@ -79,7 +79,7 @@ class PostgresTypeMapper(TypeMapper):
 class PostgresStagingCopyJob(SqlStagingCopyJob):
 
     @classmethod
-    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
+    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any], params: Optional[SqlJobParams] = None) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
             with sql_client.with_staging_dataset(staging=True):

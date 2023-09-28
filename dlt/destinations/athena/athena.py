@@ -16,21 +16,21 @@ from dlt.common import logger
 from dlt.common.utils import without_none
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, Schema
-from dlt.common.schema.typing import TTableSchema, TColumnType
+from dlt.common.schema.typing import TTableSchema, TColumnType, TWriteDisposition
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import LoadJob
-from dlt.common.destination.reference import TLoadJobState
+from dlt.common.destination.reference import LoadJob, FollowupJob
+from dlt.common.destination.reference import TLoadJobState, NewLoadJob
 from dlt.common.storages import FileStorage
 from dlt.common.data_writers.escape import escape_bigquery_identifier
-
+from dlt.destinations.sql_jobs import SqlStagingCopyJob
 
 from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation, LoadJobTerminalException
 from dlt.destinations.athena import capabilities
 from dlt.destinations.sql_client import SqlClientBase, DBApiCursorImpl, raise_database_error, raise_open_connection_error
 from dlt.destinations.typing import DBApiCursor
-from dlt.destinations.job_client_impl import SqlJobClientBase, StorageSchemaInfo
+from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.athena.configuration import AthenaClientConfiguration
 from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations import path_utils
@@ -121,7 +121,7 @@ class DLTAthenaFormatter(DefaultParameterFormatter):
         DLTAthenaFormatter._INSTANCE = self
 
 
-class DoNothingJob(LoadJob):
+class DoNothingJob(LoadJob, FollowupJob):
     """The most lazy class of dlt"""
 
     def __init__(self, file_path: str) -> None:
@@ -134,6 +134,7 @@ class DoNothingJob(LoadJob):
     def exception(self) -> str:
         # this part of code should be never reached
         raise NotImplementedError()
+
 
 class AthenaSQLClient(SqlClientBase[Connection]):
 
@@ -274,9 +275,9 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         query = f"""SHOW DATABASES LIKE {self.fully_qualified_dataset_name()};"""
         rows = self.execute_sql(query)
         return len(rows) > 0
+    
 
-
-class AthenaClient(SqlJobClientBase):
+class AthenaClient(SqlJobClientWithStaging):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
@@ -307,12 +308,22 @@ class AthenaClient(SqlJobClientBase):
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
 
+        create_only_iceberg_tables = self.config.iceberg_bucket_url is not None and not self.in_staging_mode
+
         bucket = self.config.staging_config.bucket_url
-        dataset = self.sql_client.dataset_name
+        if create_only_iceberg_tables:
+            bucket = self.config.iceberg_bucket_url
+
+        print(table_name)
+        print(bucket)
+
+        # TODO: we need to strip the staging layout from the table name, find a better way!
+        dataset = self.sql_client.dataset_name.replace("_staging", "")
         sql: List[str] = []
 
         # for the system tables we need to create empty iceberg tables to be able to run, DELETE and UPDATE queries
-        is_iceberg = self.schema.tables[table_name].get("write_disposition", None) == "skip"
+        # or if we are in iceberg mode, we create iceberg tables for all tables 
+        is_iceberg = (self.schema.tables[table_name].get("write_disposition", None) == "skip") or create_only_iceberg_tables
         columns = ", ".join([self._get_column_def_sql(c) for c in new_columns])
 
         # this will fail if the table prefix is not properly defined
@@ -347,6 +358,16 @@ class AthenaClient(SqlJobClientBase):
         if not job:
             job = DoNothingJob(file_path)
         return job
+
+    def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema], replace: bool) -> NewLoadJob:
+        """update destination tables from staging tables"""
+        return SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": replace})
+
+    def get_stage_dispositions(self) -> List[TWriteDisposition]:
+        # in iceberg mode, we always use staging tables
+        if self.config.iceberg_bucket_url is not None:
+            return ["append", "replace", "merge"]
+        return []
 
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:

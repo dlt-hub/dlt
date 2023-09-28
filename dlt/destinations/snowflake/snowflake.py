@@ -17,7 +17,7 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.snowflake import capabilities
 from dlt.destinations.snowflake.configuration import SnowflakeClientConfiguration
 from dlt.destinations.snowflake.sql_client import SnowflakeSqlClient
-from dlt.destinations.sql_jobs import SqlStagingCopyJob
+from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlJobParams
 from dlt.destinations.snowflake.sql_client import SnowflakeSqlClient
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
@@ -157,13 +157,12 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
 class SnowflakeStagingCopyJob(SqlStagingCopyJob):
 
     @classmethod
-    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
+    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any], params: Optional[SqlJobParams] = None) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
             with sql_client.with_staging_dataset(staging=True):
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
             table_name = sql_client.make_qualified_table_name(table["name"])
-            # drop destination table
             sql.append(f"DROP TABLE IF EXISTS {table_name};")
             # recreate destination table with data cloned from staging table
             sql.append(f"CREATE TABLE {table_name} CLONE {staging_table_name};")
@@ -206,7 +205,7 @@ class SnowflakeClient(SqlJobClientWithStaging):
         return ["ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
 
     def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return SnowflakeStagingCopyJob.from_table_chain(table_chain, self.sql_client)
+        return SnowflakeStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": True})
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
