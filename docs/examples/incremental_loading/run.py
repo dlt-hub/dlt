@@ -1,4 +1,4 @@
-from typing import Iterator, Optional, Dict, Any, Sequence
+from typing import Iterator, Optional, Dict, Any, Tuple
 
 import dlt
 from dlt.common import pendulum
@@ -11,7 +11,7 @@ from dlt.sources.helpers.requests import client
 @dlt.source(max_table_nesting=2)
 def zendesk_support(
     credentials=dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),
+    start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
     end_date: Optional[TAnyDateTime] = None,
 ) -> DltResource:
     """
@@ -71,7 +71,7 @@ def zendesk_support(
 def get_pages(
     url: str,
     endpoint: str,
-    auth: Sequence[str],
+    auth: Tuple[str, str],
     data_point_name: str,
     params: Optional[Dict[str, Any]] = None,
 ) -> Iterator[TDataItems]:

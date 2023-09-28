@@ -3,7 +3,7 @@
 def incremental_snippet() -> None:
 
     # @@@DLT_SNIPPET_START example
-    from typing import Iterator, Optional, Dict, Any, Sequence
+    from typing import Iterator, Optional, Dict, Any, Tuple
 
     import dlt
     from dlt.common import pendulum
@@ -16,7 +16,7 @@ def incremental_snippet() -> None:
     @dlt.source(max_table_nesting=2)
     def zendesk_support(
         credentials=dlt.secrets.value,
-        start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),
+        start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
         end_date: Optional[TAnyDateTime] = None,
     ) -> DltResource:
         """
@@ -76,7 +76,7 @@ def incremental_snippet() -> None:
     def get_pages(
         url: str,
         endpoint: str,
-        auth: Sequence[str],
+        auth: Tuple[str, str],
         data_point_name: str,
         params: Optional[Dict[str, Any]] = None,
     ) -> Iterator[TDataItems]:
@@ -123,4 +123,8 @@ def incremental_snippet() -> None:
     load_info = pipeline.run(zendesk_support())
     print(load_info)
     # @@@DLT_SNIPPET_END example
+
+    # check that stuff was loaded
+    row_counts = pipeline.last_trace.last_normalize_info.row_counts
+    assert row_counts["ticket_events"] == 24
 

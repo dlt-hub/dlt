@@ -29,10 +29,10 @@ def transformers_snippet() -> None:
         Yields:
             dict: The pokemon full data.
         """
-        # just return the results, if you yield, 
+        # just return the results, if you yield,
         # generator will be evaluated in main thread
         return requests.get(pokemon["url"]).json()
-    
+
 
     # asynchronously retrieve details for the species of each pokemon
     @dlt.transformer(data_from=pokemon)
@@ -42,7 +42,7 @@ def transformers_snippet() -> None:
         Yields:
             dict: The species full data.
         """
-        # just return the results, if you yield, 
+        # just return the results, if you yield,
         # generator will be evaluated in main thread
         species_data = requests.get(pokemon["species"]["url"]).json()
         # optionally add pokemon_id to result json, to later be able
@@ -55,7 +55,7 @@ def transformers_snippet() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="pokemon", destination="duckdb", dataset_name="pokemon_data"
     )
-    
+
     # the pokemon_list resource does not need to be loaded
     load_info = pipeline.run([pokemon(), species()])
     print(load_info)

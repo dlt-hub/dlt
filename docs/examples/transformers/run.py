@@ -25,7 +25,7 @@ async def pokemon(pokemon: TDataItem):
     Yields:
         dict: The pokemon full data.
     """
-    # just return the results, if you yield, 
+    # just return the results, if you yield,
     # generator will be evaluated in main thread
     return requests.get(pokemon["url"]).json()
 
@@ -38,7 +38,7 @@ async def species(pokemon: TDataItem):
     Yields:
         dict: The species full data.
     """
-    # just return the results, if you yield, 
+    # just return the results, if you yield,
     # generator will be evaluated in main thread
     species_data = requests.get(pokemon["species"]["url"]).json()
     # optionally add pokemon_id to result json, to later be able
