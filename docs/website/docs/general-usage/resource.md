@@ -193,7 +193,7 @@ def users(limit=None):
 # feed data from users as user_item below,
 # all transformers must have at least one
 # argument that will receive data from the parent resource
-@transformer(data_from=users)
+@dlt.transformer(data_from=users)
 def users_details(user_item):
     for detail in _get_details(user_item["user_id"]):
         yield detail

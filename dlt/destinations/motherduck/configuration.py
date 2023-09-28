@@ -2,6 +2,7 @@ from typing import Any, ClassVar, Final, List
 
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.exceptions import DestinationTerminalException
 from dlt.common.typing import TSecretValue
 from dlt.common.utils import digest128
 from dlt.common.configuration.exceptions import ConfigurationValueError
@@ -28,6 +29,16 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
         if self.query and "token" in self.query:
             self.password = TSecretValue(self.query.pop("token"))
 
+    def borrow_conn(self, read_only: bool) -> Any:
+        from duckdb import HTTPException
+        try:
+            return super().borrow_conn(read_only)
+        except HTTPException as http_ex:
+            if http_ex.status_code == 403 and 'Failed to download extension "motherduck"' in str(http_ex):
+                from importlib.metadata import version as pkg_version
+                raise MotherduckLocalVersionNotSupported(pkg_version("duckdb")) from http_ex
+            raise
+
     def parse_native_representation(self, native_value: Any) -> None:
         super().parse_native_representation(native_value)
         self._token_to_password()
@@ -50,3 +61,9 @@ class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration
         if self.credentials and self.credentials.password:
             return digest128(self.credentials.password)
         return ""
+
+
+class MotherduckLocalVersionNotSupported(DestinationTerminalException):
+    def __init__(self, duckdb_version: str) -> None:
+        self.duckdb_version = duckdb_version
+        super().__init__(f"Looks like your local duckdb version ({duckdb_version}) is not supported by Motherduck")

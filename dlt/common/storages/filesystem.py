@@ -41,7 +41,12 @@ MTIME_DISPATCH["abfs"] = MTIME_DISPATCH["az"]
 def filesystem(protocol: str, credentials: FileSystemCredentials = None) -> Tuple[AbstractFileSystem, str]:
     """Instantiates an authenticated fsspec `FileSystem` for a given `protocol` and credentials.
 
-      Please supply credentials instance corresponding to the protocol
+      Please supply credentials instance corresponding to the protocol. The `protocol` is just the code name of the filesystem ie:
+      * s3
+      * az, abfs
+      * gcs, gs
+
+      also see filesystem_from_config
     """
     return filesystem_from_config(FilesystemConfiguration(protocol, credentials))
 

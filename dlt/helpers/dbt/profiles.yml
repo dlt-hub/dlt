@@ -122,7 +122,7 @@ snowflake_pkey:
       role: "{{ env_var('DLT__CREDENTIALS__ROLE', '') }}"
       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
       warehouse: "{{ env_var('DLT__CREDENTIALS__WAREHOUSE', '') }}"
-      private_key: "{{ env_var('DLT__CREDENTIALS__PRIVATE_KEY') }}"
+      private_key: "{{ env_var('DLT__CREDENTIALS__PRIVATE_KEY') }}" # base64 encoded private key
       private_key_passphrase: "{{ env_var('DLT__CREDENTIALS__PRIVATE_KEY_PASSPHRASE', '') }}"
       threads: 4
 

@@ -1,6 +1,5 @@
 import contextlib
 import logging
-import json_logging
 import traceback
 from logging import LogRecord, Logger
 from typing import Any, Iterator, Protocol
@@ -85,17 +84,6 @@ class _MetricsFormatter(logging.Formatter):
         return s
 
 
-class _CustomJsonFormatter(json_logging.JSONLogFormatter):
-
-    version: StrStr = None
-
-    def _format_log_object(self, record: LogRecord, request_util: Any) -> Any:
-        json_log_object = super(_CustomJsonFormatter, self)._format_log_object(record, request_util)
-        if self.version:
-            json_log_object.update({"version": self.version})
-        return json_log_object
-
-
 def _init_logging(logger_name: str, level: str, fmt: str, component: str, version: StrStr) -> Logger:
     if logger_name == "root":
         logging.basicConfig(level=level)
@@ -111,13 +99,24 @@ def _init_logging(logger_name: str, level: str, fmt: str, component: str, versio
 
     # set right formatter
     if is_json_logging(fmt):
+        from dlt.common.runtime import json_logging
+
+        class _CustomJsonFormatter(json_logging.JSONLogFormatter):
+            version: StrStr = None
+
+            def _format_log_object(self, record: LogRecord) -> Any:
+                json_log_object = super(_CustomJsonFormatter, self)._format_log_object(record)
+                if self.version:
+                    json_log_object.update({"version": self.version})
+                return json_log_object
+
         json_logging.COMPONENT_NAME = component
-        json_logging.JSON_SERIALIZER = json.dumps
-        json_logging.RECORD_ATTR_SKIP_LIST.remove("process")
+        if "process" in json_logging.RECORD_ATTR_SKIP_LIST:
+            json_logging.RECORD_ATTR_SKIP_LIST.remove("process")
         # set version as class variable as we cannot pass custom constructor parameters
         _CustomJsonFormatter.version = version
         # the only thing method above effectively does is to replace the formatter
-        json_logging.init_non_web(enable_json=True, custom_formatter=_CustomJsonFormatter)
+        json_logging.init(custom_formatter=_CustomJsonFormatter)
         if logger_name == "root":
             json_logging.config_root_logger()
     else:
