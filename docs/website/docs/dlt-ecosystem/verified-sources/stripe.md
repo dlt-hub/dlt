@@ -19,7 +19,7 @@ This Stripe `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/stripe_pipeline.py)
 loads data using Stripe API to the destination of your choice.
 
-This verified source loads data from the following default endpoints:
+This verified source loads data from the following endpoints:
 
 | Name	            | Description                                |
 |--------------------|--------------------------------------------|
