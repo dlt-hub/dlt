@@ -890,3 +890,35 @@ def test_exhausted_property() -> None:
     assert s.exhausted is False
     assert next(iter(s)) == 2 # transformer is returned befor resource
     assert s.exhausted is True
+
+
+def test_clone_resource_with_name() -> None:
+    @dlt.resource(selected=False)
+    def _r1():
+        yield ["a", "b", "c"]
+
+    @dlt.transformer(selected=True)
+    def _t1(items, suffix):
+        yield list(map(lambda i: i + "_" + suffix, items))
+
+
+    r1 = _r1()
+    r1_clone = r1.with_name("r1_clone")
+    # new name of resource and pipe
+    assert r1_clone.name == "r1_clone"
+    assert r1_clone._pipe.name == "r1_clone"
+    # original keeps old name and pipe
+    assert r1._pipe != r1_clone._pipe
+    assert r1.name == "_r1"
+
+    # clone transformer
+    bound_t1_clone = r1_clone | _t1.with_name("t1_clone")("ax")
+    bound_t1_clone_2 = r1_clone | _t1("ax_2").with_name("t1_clone_2")
+    assert bound_t1_clone.name == "t1_clone"
+    assert bound_t1_clone_2.name == "t1_clone_2"
+    # but parent is the same
+    assert bound_t1_clone_2._pipe.parent == bound_t1_clone._pipe.parent
+
+    # evaluate transformers
+    assert list(bound_t1_clone) == ['a_ax', 'b_ax', 'c_ax']
+    assert list(bound_t1_clone_2) == ['a_ax_2', 'b_ax_2', 'c_ax_2']

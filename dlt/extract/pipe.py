@@ -401,9 +401,10 @@ class Pipe(SupportsPipe):
             else:
                 raise InvalidStepFunctionArguments(self.name, callable_name, sig, str(ty_ex))
 
-    def _clone(self, keep_pipe_id: bool = True) -> "Pipe":
-        """Clones the pipe steps, optionally keeping the pipe id. Used internally to clone a list of connected pipes."""
-        p = Pipe(self.name, [], self.parent)
+    def _clone(self, keep_pipe_id: bool = True, new_name: str = None) -> "Pipe":
+        """Clones the pipe steps, optionally keeping the pipe id or renaming the pipe. Used internally to clone a list of connected pipes."""
+        assert not (new_name and keep_pipe_id), "Cannot keep pipe id when renaming the pipe"
+        p = Pipe(new_name or self.name, [], self.parent)
         p._steps = self._steps.copy()
         # clone shares the id with the original
         if keep_pipe_id:
