@@ -20,8 +20,9 @@ This Stripe `dlt` verified source and
 loads data using Stripe API to the destination of your choice.
 
 This verified source loads data from the following default endpoints:
-| Name	             | Description
-| ------------------ | ------------------------------------------ |
+
+| Name	            | Description                                |
+|--------------------|--------------------------------------------|
 | Subscription       | Recurring payment on Stripe                |
 | Account	         | User profile on Stripe                     |
 | Coupon	            | Discount codes offered by businesses       |
