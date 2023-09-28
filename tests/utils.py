@@ -87,7 +87,7 @@ def autouse_test_storage() -> FileStorage:
 
 
 @pytest.fixture(scope="function", autouse=True)
-def preserve_environ() -> None:
+def preserve_environ() -> Iterator[None]:
     saved_environ = environ.copy()
     yield
     environ.clear()
@@ -95,20 +95,20 @@ def preserve_environ() -> None:
 
 
 @pytest.fixture(autouse=True)
-def duckdb_pipeline_location() -> None:
+def duckdb_pipeline_location() -> Iterator[None]:
     with custom_environ({"DESTINATION__DUCKDB__CREDENTIALS": ":pipeline:"}):
         yield
 
 
 @pytest.fixture(autouse=True)
-def patch_home_dir() -> None:
+def patch_home_dir() -> Iterator[None]:
     with patch("dlt.common.configuration.paths._get_user_home_dir") as _get_home_dir:
         _get_home_dir.return_value = os.path.abspath(TEST_STORAGE_ROOT)
         yield
 
 
 @pytest.fixture(autouse=True)
-def patch_random_home_dir() -> None:
+def patch_random_home_dir() -> Iterator[None]:
     global_dir = os.path.join(TEST_STORAGE_ROOT, "global_" + uniq_id())
     os.makedirs(global_dir, exist_ok=True)
     with patch("dlt.common.configuration.paths._get_user_home_dir") as _get_home_dir:
@@ -117,7 +117,7 @@ def patch_random_home_dir() -> None:
 
 
 @pytest.fixture(autouse=True)
-def unload_modules() -> None:
+def unload_modules() -> Iterator[None]:
     """Unload all modules inspected in this tests"""
     prev_modules = dict(sys.modules)
     yield

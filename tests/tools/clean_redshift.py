@@ -1,4 +1,5 @@
-from dlt.destinations.postgres.postgres import PostgresClient, psycopg2
+from dlt.destinations.postgres.postgres import PostgresClient
+from dlt.destinations.postgres.sql_client import psycopg2
 from psycopg2.errors import InsufficientPrivilege, InternalError_, SyntaxError
 
 CONNECTION_STRING = ""

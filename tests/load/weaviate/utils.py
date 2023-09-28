@@ -22,8 +22,8 @@ def assert_class(
     expected_items_count: int = None,
     items: List[Any] = None,
 ) -> None:
-    client: WeaviateClient = pipeline.destination_client()
-    vectorizer_name: str = client._vectorizer_config["vectorizer"]
+    client: WeaviateClient = pipeline.destination_client()  # type: ignore[assignment]
+    vectorizer_name: str = client._vectorizer_config["vectorizer"]  # type: ignore[assignment]
 
     # Check if class exists
     schema = client.get_class_schema(class_name)
@@ -42,7 +42,7 @@ def assert_class(
         )
         # tokenization
         if TOKENIZATION_HINT in column:
-            assert prop["tokenization"] == column[TOKENIZATION_HINT]
+            assert prop["tokenization"] == column[TOKENIZATION_HINT]  # type: ignore[literal-required]
 
     # if there's a single vectorize hint, class must have vectorizer enabled
     if get_columns_names_with_prop(pipeline.default_schema.get_table(class_name), VECTORIZE_HINT):

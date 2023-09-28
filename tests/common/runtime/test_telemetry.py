@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, TYPE_CHECKING
 import os
 import pytest
 import logging
@@ -6,7 +6,7 @@ from unittest.mock import patch
 
 from dlt.common import logger
 from dlt.common.runtime.segment import get_anonymous_id, track, disable_segment
-from dlt.common.typing import DictStrAny, StrStr
+from dlt.common.typing import DictStrAny, DictStrStr
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.version import DLT_PKG_NAME, __version__
@@ -27,6 +27,15 @@ class SentryLoggerConfiguration(RunConfiguration):
 class SentryLoggerCriticalConfiguration(SentryLoggerConfiguration):
     log_level: str = "CRITICAL"
 
+    if TYPE_CHECKING:
+        def __init__(
+            self,
+            pipeline_name: str = "logger",
+            sentry_dsn: str = "https://sentry.io",
+            dlthub_telemetry_segment_write_key: str = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB",
+            log_level: str = "CRITICAL",
+        ) -> None:
+            ...
 
 def test_sentry_log_level() -> None:
     from dlt.common.runtime.sentry import _get_sentry_log_level
@@ -41,7 +50,7 @@ def test_sentry_log_level() -> None:
 
 
 @pytest.mark.forked
-def test_sentry_init(environment: StrStr) -> None:
+def test_sentry_init(environment: DictStrStr) -> None:
     with patch("dlt.common.runtime.sentry.before_send", _mock_before_send):
         mock_image_env(environment)
         mock_pod_env(environment)
@@ -82,7 +91,7 @@ def test_track_segment_event() -> None:
     assert ["kubernetes", "codespaces"] <= context["exec_info"]
 
 
-def test_cleanup(environment: StrStr) -> None:
+def test_cleanup(environment: DictStrStr) -> None:
     # this must happen after all forked tests (problems with tests teardowns in other tests)
     pass
 

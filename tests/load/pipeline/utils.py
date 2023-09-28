@@ -126,7 +126,7 @@ def load_file(path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
     values may not be cast to the right type, especially for insert_values, please
     make sure to do conversions and casting if needed in your tests
     """
-    result: List[dict, str] = []
+    result: List[Dict[str, Any]] = []
 
     # check if this is a file we want to read
     file_name_items = file.split(".")
@@ -183,7 +183,7 @@ def load_file(path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
 def load_files(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
     """For now this will expect the standard layout in the filesystem destination, if changed the results will not be correct"""
     client: FilesystemClient = p.destination_client()  # type: ignore[assignment]
-    result = {}
+    result: Dict[str, Any] = {}
     for basedir, _dirs, files  in client.fs_client.walk(client.dataset_path, detail=False, refresh=True):
         for file in files:
             table_name, items = load_file(basedir, file)

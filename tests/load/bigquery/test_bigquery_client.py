@@ -1,7 +1,7 @@
 import os
 import base64
 from copy import copy
-from typing import Any, Iterator, Tuple
+from typing import Any, Iterator, Tuple, cast, Dict
 import pytest
 
 from dlt.common import json, pendulum, Decimal
@@ -24,7 +24,7 @@ from tests.load.utils import expect_load_file, prepare_table, yield_client_with_
 
 @pytest.fixture(scope="module")
 def client() -> Iterator[BigQueryClient]:
-    yield from yield_client_with_storage("bigquery")
+    yield from cast(Iterator[BigQueryClient], yield_client_with_storage("bigquery"))
 
 
 @pytest.fixture
@@ -262,7 +262,7 @@ def test_bigquery_location(location: str, file_storage: FileStorage) -> None:
 def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> None:
     user_table_name = prepare_table(client)
     # insert into unknown column
-    load_json = {
+    load_json: Dict[str, Any] = {
         "_dlt_id": uniq_id(),
         "_dlt_root_id": uniq_id(),
         "sender_id":'90238094809sajlkjxoiewjhduuiuehd',

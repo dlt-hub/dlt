@@ -26,7 +26,7 @@ def file_storage() -> FileStorage:
     return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
 
 @pytest.fixture(scope="function")
-def client(request) -> SqlJobClientBase:
+def client(request) -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage(request.param.destination)
 
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True, exclude=["mssql"]), indirect=True, ids=lambda x: x.name)
@@ -196,7 +196,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     with client.sql_client.execute_query(f"SELECT * FROM {f_q_table_name} ORDER BY col ASC") as curr:
         df = curr.df()
         # Force lower case df columns, snowflake has all cols uppercase
-        df.columns = [dfcol.lower() for dfcol in df.columns]
+        df.columns = [dfcol.lower() for dfcol in df.columns]  # type: ignore[assignment]
         assert list(df["col"]) == list(range(0, total_records))
     # get chunked
     with client.sql_client.execute_query(f"SELECT * FROM {f_q_table_name} ORDER BY col ASC") as curr:
@@ -207,7 +207,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         # Force lower case df columns, snowflake has all cols uppercase
         for df in [df_1, df_2, df_3]:
             if df is not None:
-                df.columns = [dfcol.lower() for dfcol in df.columns]
+                df.columns = [dfcol.lower() for dfcol in df.columns]  # type: ignore[assignment]
 
     assert list(df_1["col"]) == list(range(0, chunk_size))
     assert list(df_2["col"]) == list(range(chunk_size, total_records))
@@ -217,6 +217,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_database_exceptions(client: SqlJobClientBase) -> None:
     client.update_stored_schema()
+    term_ex: Any
     # invalid table
     with pytest.raises(DatabaseUndefinedRelation) as term_ex:
         with client.sql_client.execute_query("SELECT * FROM TABLE_XXX ORDER BY inserted_at"):

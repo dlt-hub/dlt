@@ -3,8 +3,10 @@ import pytest
 import multiprocessing
 from multiprocessing.pool import Pool
 from multiprocessing.dummy import Pool as ThreadPool
+from typing import Any
 
 from dlt.normalize.configuration import SchemaStorageConfiguration
+from dlt.common.runners import Runnable
 
 from tests.common.runners.utils import _TestRunnableWorkerMethod, _TestRunnableWorker, ALL_METHODS, mp_method_auto
 
@@ -54,7 +56,7 @@ def test_fail_on_process_worker_started_early() -> None:
 
 @pytest.mark.skip("Hangs on gc.collect")
 def test_weak_pool_ref() -> None:
-    r = _TestRunnableWorkerMethod(4)
+    r: Runnable[Any] = _TestRunnableWorkerMethod(4)
     rid = id(r)
     wref = r.RUNNING
     assert wref[rid] is not None

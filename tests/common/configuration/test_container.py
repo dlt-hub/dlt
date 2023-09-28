@@ -1,5 +1,5 @@
 import pytest
-from typing import Any, ClassVar, Literal, Optional
+from typing import Any, ClassVar, Literal, Optional, Iterator, TYPE_CHECKING
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.providers.context import ContextProvider
@@ -18,6 +18,10 @@ class InjectableTestContext(ContainerInjectableContext):
 
     def parse_native_representation(self, native_value: Any) -> None:
         raise ValueError(native_value)
+
+    if TYPE_CHECKING:
+        def __init__(self, current_value: str = None) -> None:
+            ...
 
 
 @configspec
@@ -42,7 +46,7 @@ class EmbeddedWithNoDefaultInjectableOptionalContext(BaseConfiguration):
 
 
 @pytest.fixture()
-def container() -> Container:
+def container() -> Iterator[Container]:
     container = Container._INSTANCE
     # erase singleton
     Container._INSTANCE = None
@@ -150,11 +154,11 @@ def test_container_provider(container: Container) -> None:
 
     # must assert if sections are provided
     with pytest.raises(AssertionError):
-        provider.get_value("n/a", InjectableTestContext, None, ("ns1",))
+        provider.get_value("n/a", InjectableTestContext, None, "ns1")
 
     # type hints that are not classes
     literal = Literal["a"]
-    v, k = provider.get_value("n/a", literal, None)
+    v, k = provider.get_value("n/a", literal, None)  # type: ignore[arg-type]
     assert v is None
     assert k == "typing.Literal['a']"
 

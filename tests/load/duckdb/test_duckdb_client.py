@@ -1,5 +1,6 @@
 import os
 import pytest
+from typing import Iterator, cast
 
 import dlt
 from dlt.common.configuration.resolve import resolve_configuration
@@ -11,7 +12,7 @@ from tests.load.pipeline.utils import drop_pipeline, assert_table
 from tests.utils import patch_home_dir, autouse_test_storage, preserve_environ, TEST_STORAGE_ROOT
 
 @pytest.fixture(autouse=True)
-def delete_default_duckdb_credentials() -> None:
+def delete_default_duckdb_credentials() -> Iterator[None]:
     # remove the default duckdb config
     # os.environ.pop("DESTINATION__DUCKDB__CREDENTIALS", None)
     os.environ.clear()
@@ -218,7 +219,7 @@ def test_default_duckdb_dataset_name() -> None:
     # Check if dataset_name does not collide with pipeline_name
     data = ["a", "b", "c"]
     info = dlt.run(data, destination="duckdb", table_name="data")
-    assert_table(info.pipeline, "data", data, info=info)
+    assert_table(cast(dlt.Pipeline, info.pipeline), "data", data, info=info)
 
 
 def delete_quack_db() -> None:

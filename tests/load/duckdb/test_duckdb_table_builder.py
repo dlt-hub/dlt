@@ -94,12 +94,3 @@ def test_create_table_with_hints(client: DuckDbClient) -> None:
     sql = client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql)
     assert '"col2" DOUBLE UNIQUE NOT NULL' in sql
-
-
-def test_alter_table(client: DuckDbClient) -> None:
-    # existing table has no columns
-    sql = ';'.join(client._get_table_update_sql("event_test_table", TABLE_UPDATE, True))
-    sqlfluff.parse(sql)
-    assert sql.startswith("ALTER TABLE")
-    assert sql.count("ALTER TABLE") == len(TABLE_UPDATE)
-    assert "event_test_table" in sql

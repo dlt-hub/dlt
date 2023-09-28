@@ -1,13 +1,13 @@
 import os
 import threading
 from pathvalidate import is_valid_filepath
-from typing import Any, ClassVar, Final, List, Optional, Tuple
+from typing import Any, ClassVar, Final, List, Optional, Tuple, TYPE_CHECKING, Union
 
 from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration, DestinationClientStagingConfiguration
 from dlt.common.typing import TSecretValue
 
 DUCK_DB_NAME = "%s.duckdb"
@@ -180,3 +180,20 @@ class DuckDbClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     credentials: DuckDbCredentials
 
     create_indexes: bool = False  # should unique indexes be created, this slows loading down massively
+
+    if TYPE_CHECKING:
+        try:
+            from duckdb import DuckDBPyConnection
+        except ModuleNotFoundError:
+            DuckDBPyConnection = Any  # type: ignore[assignment,misc]
+
+        def __init__(
+            self,
+            destination_name: str = None,
+            credentials: Union[DuckDbCredentials, str, DuckDBPyConnection] = None,
+            dataset_name: str = None,
+            default_schema_name: Optional[str] = None,
+            create_indexes: bool = False,
+            staging_config: Optional[DestinationClientStagingConfiguration] = None
+        ) -> None:
+            ...

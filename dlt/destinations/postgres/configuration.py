@@ -1,4 +1,4 @@
-from typing import Final, ClassVar, Any, List
+from typing import Final, ClassVar, Any, List, TYPE_CHECKING
 from sqlalchemy.engine import URL
 
 from dlt.common.configuration import configspec
@@ -46,3 +46,14 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
+
+    if TYPE_CHECKING:
+        def __init__(
+            self,
+            destination_name: str = None,
+            credentials: PostgresCredentials = None,
+            dataset_name: str = None,
+            default_schema_name: str = None,
+            create_indexes: bool = True
+        ) -> None:
+            ...

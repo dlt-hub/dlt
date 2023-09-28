@@ -138,7 +138,7 @@ class DropCommand:
         return resolve_paths(self.state_paths_to_drop, source_state)
 
     def _create_modified_state(self) -> Dict[str, Any]:
-        state: TSourceState = self.pipeline.state  # type: ignore[assignment]
+        state = self.pipeline.state
         if not self.drop_state:
             return state  # type: ignore[return-value]
         source_states = _sources_state(state).items()

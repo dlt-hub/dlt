@@ -69,7 +69,7 @@ def test_synth_pickler_unknown_types() -> None:
     # known class containing unknown types
     obj = decode_obj("PozhjHuf2oS7jPcRxKoagASVbQAAAAAAAACMH3Rlc3RzLmNvbW1vbi5ydW5uZXJzLnRlc3RfcGlwZXOUjBJfVGVzdENsYXNzVW5rRmllbGSUk5QpgZR9lCiMAnMxlGgAjAxfVGVzdFBpY2tsZXiUk5SMAVmUSxeGlIGUjAJzMpSMAVWUdWIu")
     assert isinstance(obj, _TestClassUnkField)
-    assert type(obj.s1).__name__.endswith("_TestPicklex")
+    assert type(obj.s1).__name__.endswith("_TestPicklex")  # type: ignore[attr-defined]
 
     # commented out code that created encodings
     # print(encode_obj(_TestPicklex("XYZ", 123)))

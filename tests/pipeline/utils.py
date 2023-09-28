@@ -4,6 +4,7 @@ from os import environ
 import dlt
 from dlt.common import json
 from dlt.common.pipeline import LoadInfo, PipelineContext
+from dlt.common.typing import DictStrAny
 
 from tests.utils import TEST_STORAGE_ROOT
 
@@ -29,7 +30,7 @@ def json_case_path(name: str) -> str:
     return f"{PIPELINE_TEST_CASES_PATH}{name}.json"
 
 
-def load_json_case(name: str) -> dict:
+def load_json_case(name: str) -> DictStrAny:
     with open(json_case_path(name), "rb") as f:
         return json.load(f)
 

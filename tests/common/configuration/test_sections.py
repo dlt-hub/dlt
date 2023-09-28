@@ -6,6 +6,7 @@ from dlt.common.configuration import configspec, ConfigFieldMissingException, re
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs import BaseConfiguration, ConfigSectionContext
 from dlt.common.configuration.exceptions import LookupTrace
+from dlt.common.typing import AnyType
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import MockProvider, SectionedConfiguration, environment, mock_provider, env_provider
@@ -72,11 +73,11 @@ def test_sectioned_configuration(environment: Any, env_provider: ConfigProvider)
 def test_explicit_sections(mock_provider: MockProvider) -> None:
     mock_provider.value = "value"
     # mock providers separates sections with | and key with -
-    _, k = mock_provider.get_value("key", Any, None)
+    _, k = mock_provider.get_value("key", AnyType, None)
     assert k == "-key"
-    _, k = mock_provider.get_value("key", Any, None, "ns1")
+    _, k = mock_provider.get_value("key", AnyType, None, "ns1")
     assert k == "ns1-key"
-    _, k = mock_provider.get_value("key", Any, None, "ns1", "ns2")
+    _, k = mock_provider.get_value("key", AnyType, None, "ns1", "ns2")
     assert k == "ns1|ns2-key"
 
     # via make configuration

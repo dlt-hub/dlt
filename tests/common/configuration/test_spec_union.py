@@ -35,7 +35,7 @@ class ZenEmailCredentials(ZenCredentials):
         if native_value.startswith("email:"):
             parts = native_value.split(":")
             self.email = parts[-2]
-            self.password = parts[-1]
+            self.password = parts[-1]  # type: ignore[assignment]
         else:
             raise NativeValueError(self.__class__, native_value, "invalid email NV")
 
@@ -53,7 +53,7 @@ class ZenApiKeyCredentials(ZenCredentials):
         if native_value.startswith("secret:"):
             parts = native_value.split(":")
             self.api_key = parts[-2]
-            self.api_secret = parts[-1]
+            self.api_secret = parts[-1]  # type: ignore[assignment]
         else:
             raise NativeValueError(self.__class__, native_value, "invalid secret NV")
 
@@ -108,15 +108,15 @@ def test_resolve_union() -> None:
 
 
 def test_resolve_optional_union() -> None:
-    c = resolve_configuration(ZenConfigOptCredentials())
-    assert c.is_partial
+    c = resolve_configuration(ZenConfigOptCredentials())  # type: ignore[type-var]
+    assert c.is_partial  # type: ignore[attr-defined]
     # assert c.is
     assert c.credentials is None
 
     # if we provide values for second union, it will be tried and resolved
     os.environ["CREDENTIALS__EMAIL"] = "email"
     os.environ["CREDENTIALS__PASSWORD"] = "password"
-    c = resolve_configuration(ZenConfigOptCredentials())
+    c = resolve_configuration(ZenConfigOptCredentials())  # type: ignore[type-var]
     assert isinstance(c.credentials, ZenEmailCredentials)
 
 
@@ -157,7 +157,7 @@ def test_union_decorator() -> None:
     def zen_source(credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials, str] = dlt.secrets.value, some_option: bool = False):
         # depending on what the user provides in config, ZenApiKeyCredentials or ZenEmailCredentials will be injected in credentials
         # both classes implement `auth` so you can always call it
-        credentials.auth()
+        credentials.auth()  # type: ignore[union-attr]
         return dlt.resource([credentials], name="credentials")
 
     # pass native value
@@ -168,11 +168,11 @@ def test_union_decorator() -> None:
     assert list(zen_source("secret:🔑:secret"))[0].api_secret == "secret"
 
     # pass explicit dict
-    assert list(zen_source(credentials={"email": "emx", "password": "pass"}))[0].email == "emx"
-    assert list(zen_source(credentials={"api_key": "🔑", "api_secret": ":secret:"}))[0].api_key == "🔑"
+    assert list(zen_source(credentials={"email": "emx", "password": "pass"}))[0].email == "emx"  # type: ignore[arg-type]
+    assert list(zen_source(credentials={"api_key": "🔑", "api_secret": ":secret:"}))[0].api_key == "🔑"  # type: ignore[arg-type]
     # mixed credentials will not work
     with pytest.raises(ConfigFieldMissingException):
-        assert list(zen_source(credentials={"api_key": "🔑", "password": "pass"}))[0].api_key == "🔑"
+        assert list(zen_source(credentials={"api_key": "🔑", "password": "pass"}))[0].api_key == "🔑"  # type: ignore[arg-type]
 
 
 class GoogleAnalyticsCredentialsBase(CredentialsConfiguration):
@@ -213,7 +213,7 @@ def test_google_auth_union(environment: Any) -> None:
         "client_x509_cert_url" : "https://www.googleapis.com/robot/v1/metadata/x509/105150287833-compute%40developer.gserviceaccount.com"
         }
 
-    credentials = list(google_analytics(credentials=info))[0]
+    credentials = list(google_analytics(credentials=info))[0]  # type: ignore[arg-type]
     print(dict(credentials))
     assert isinstance(credentials, GcpServiceAccountCredentials)
 
@@ -243,7 +243,7 @@ def test_union_concrete_type(environment: Any) -> None:
     with pytest.raises(InvalidNativeValue):
         db = sql_database(credentials='?')
     with pytest.raises(InvalidNativeValue):
-        db = sql_database(credentials=123)
+        db = sql_database(credentials=123)  # type: ignore[arg-type]
 
 
 def test_initialize_credentials(environment: Any) -> None:
