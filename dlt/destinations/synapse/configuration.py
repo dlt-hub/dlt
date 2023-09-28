@@ -65,7 +65,8 @@ class SynapseCredentials(ConnectionStringCredentials):
             "DATABASE": self.database,
             "UID": self.username,
             "PWD": self.password,
-            "LongAsMax": "yes"
+            "LongAsMax": "yes",
+            "MARS_Connection": "yes"
         }
         if self.query:
             params.update(self.query)
