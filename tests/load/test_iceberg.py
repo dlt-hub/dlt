@@ -16,6 +16,11 @@ from tests.pipeline.utils import assert_load_info
 
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
+from tests.utils import skip_if_not_active
+
+skip_if_not_active("athena")
+
+
 def test_iceberg() -> None:
 
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "s3://dlt-ci-test-bucket"
