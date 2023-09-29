@@ -6,6 +6,7 @@ import datetime  # noqa: 251
 from dlt.common import pendulum, Decimal
 from dlt.common.configuration import inject_section
 from dlt.common.data_writers.buffered import BufferedDataWriter
+from dlt.common.data_writers.writers import ParquetDataWriter
 from dlt.common.destination import TLoaderFileFormat, DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -20,7 +21,8 @@ def get_writer(
     buffer_max_items: int = 10,
     file_max_items: int = 10,
     file_max_bytes: int = None,
-    _caps: DestinationCapabilitiesContext = None) -> BufferedDataWriter:
+    _caps: DestinationCapabilitiesContext = None
+) -> BufferedDataWriter[ParquetDataWriter]:
     caps = _caps or DestinationCapabilitiesContext.generic_capabilities()
     caps.preferred_loader_file_format = _format
     file_template = os.path.join(TEST_STORAGE_ROOT, f"{_format}.%s")

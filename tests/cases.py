@@ -7,7 +7,7 @@ from dlt.common import Decimal, pendulum, json
 from dlt.common.data_types import TDataType
 from dlt.common.typing import StrAny
 from dlt.common.wei import Wei
-from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision, ensure_pendulum_time
+from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision, ensure_pendulum_time, ensure_pendulum_date
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
 
 
@@ -17,12 +17,12 @@ JSON_TYPED_DICT: StrAny = {
     "decimal": Decimal("21.37"),
     "big_decimal": Decimal("115792089237316195423570985008687907853269984665640564039457584007913129639935.1"),
     "datetime": pendulum.parse("2005-04-02T20:37:37.358236Z"),
-    "date": pendulum.parse("2022-02-02").date(),
+    "date": ensure_pendulum_date("2022-02-02"),
     # "uuid": UUID(_UUID),
     "hexbytes": HexBytes("0x2137"),
     "bytes": b'2137',
     "wei": Wei.from_int256(2137, decimals=2),
-    "time": pendulum.parse("2005-04-02T20:37:37.358236Z").time()
+    "time": ensure_pendulum_time("20:37:37.358236")
 }
 # TODO: a version after PUA decoder (time is not yet implemented end to end)
 JSON_TYPED_DICT_DECODED = dict(JSON_TYPED_DICT)

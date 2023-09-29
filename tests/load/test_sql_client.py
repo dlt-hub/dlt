@@ -26,7 +26,7 @@ def file_storage() -> FileStorage:
     return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
 
 @pytest.fixture(scope="function")
-def client(request) -> SqlJobClientBase:
+def client(request) -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage(request.param.destination)
 
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True, exclude=["mssql"]), indirect=True, ids=lambda x: x.name)
@@ -217,6 +217,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_database_exceptions(client: SqlJobClientBase) -> None:
     client.update_stored_schema()
+    term_ex: Any
     # invalid table
     with pytest.raises(DatabaseUndefinedRelation) as term_ex:
         with client.sql_client.execute_query("SELECT * FROM TABLE_XXX ORDER BY inserted_at"):

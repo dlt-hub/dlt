@@ -12,7 +12,7 @@ from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers.naming import snake_case, direct
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
-from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils
+from dlt.common.schema import TColumnSchema, Schema, TStoredSchema, utils, TColumnHint
 from dlt.common.schema.exceptions import InvalidSchemaName, ParentTableNotFoundException, SchemaEngineNoUpgradePathException
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME, TColumnName, TSimpleRegex, COLUMN_HINTS
 from dlt.common.storages import SchemaStorage
@@ -180,29 +180,29 @@ def test_create_schema_with_normalize_name() -> None:
 def test_schema_descriptions_and_annotations(schema_storage: SchemaStorage):
     schema = SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "event", extensions=("yaml", ))
     assert schema.tables["blocks"]["description"] == "Ethereum blocks"
-    assert schema.tables["blocks"]["x-annotation"] == "this will be preserved on save"
+    assert schema.tables["blocks"]["x-annotation"] == "this will be preserved on save"  # type: ignore[typeddict-item]
     assert schema.tables["blocks"]["columns"]["_dlt_load_id"]["description"] == "load id coming from the extractor"
-    assert schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] == "column annotation preserved on save"
+    assert schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] == "column annotation preserved on save"  # type: ignore[typeddict-item]
 
     # mod and save
     schema.tables["blocks"]["description"] += "Saved"
-    schema.tables["blocks"]["x-annotation"] += "Saved"
+    schema.tables["blocks"]["x-annotation"] += "Saved"  # type: ignore[typeddict-item]
     schema.tables["blocks"]["columns"]["_dlt_load_id"]["description"] += "Saved"
-    schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] += "Saved"
+    schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] += "Saved"  # type: ignore[typeddict-item]
     schema_storage.save_schema(schema)
 
     loaded_schema = schema_storage.load_schema("event")
     assert loaded_schema.tables["blocks"]["description"].endswith("Saved")
-    assert loaded_schema.tables["blocks"]["x-annotation"].endswith("Saved")
+    assert loaded_schema.tables["blocks"]["x-annotation"].endswith("Saved")  # type: ignore[typeddict-item]
     assert loaded_schema.tables["blocks"]["columns"]["_dlt_load_id"]["description"].endswith("Saved")
-    assert loaded_schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"].endswith("Saved")
+    assert loaded_schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"].endswith("Saved")  # type: ignore[typeddict-item]
 
 
 def test_replace_schema_content() -> None:
     schema = Schema("simple")
     eth_v5: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v5")
     eth_v5["imported_version_hash"] = "IMP_HASH"
-    schema_eth = Schema.from_dict(eth_v5)
+    schema_eth = Schema.from_dict(eth_v5)  # type: ignore[arg-type]
     schema_eth.bump_version()
     schema.replace_schema_content(schema_eth)
     assert schema_eth.stored_version_hash == schema.stored_version_hash
@@ -221,7 +221,7 @@ def test_relational_normalizer_schema_hints(columns: Sequence[str], hint: str, v
     for name in columns:
         # infer column hints
         c = schema._infer_column(name, "x")
-        assert c[hint] is value
+        assert c[hint] is value  # type: ignore[literal-required]
 
 
 def test_new_schema_alt_name() -> None:
@@ -251,7 +251,7 @@ def test_save_load_incomplete_column(schema: Schema, schema_storage_no_import: S
     # make sure that incomplete column is saved and restored without default hints
     incomplete_col = utils.new_column("I", nullable=False)
     incomplete_col["primary_key"] = True
-    incomplete_col["x-special"] = "spec"
+    incomplete_col["x-special"] = "spec"  # type: ignore[typeddict-unknown-key]
     table = utils.new_table("table", columns=[incomplete_col])
     schema.update_schema(table)
     schema_storage_no_import.save_schema(schema)
@@ -275,21 +275,21 @@ def test_upgrade_engine_v1_schema() -> None:
     assert len(schema_dict["tables"]) == 27
 
     # upgrade schema eng 2 -> 4
-    schema_dict: DictStrAny = load_json_case("schemas/ev2/event.schema")
+    schema_dict = load_json_case("schemas/ev2/event.schema")
     assert schema_dict["engine_version"] == 2
     upgraded = utils.migrate_schema(schema_dict, from_engine=2, to_engine=4)
     assert upgraded["engine_version"] == 4
     utils.validate_stored_schema(upgraded)
 
     # upgrade 1 -> 4
-    schema_dict: DictStrAny = load_json_case("schemas/ev1/event.schema")
+    schema_dict = load_json_case("schemas/ev1/event.schema")
     assert schema_dict["engine_version"] == 1
     upgraded = utils.migrate_schema(schema_dict, from_engine=1, to_engine=4)
     assert upgraded["engine_version"] == 4
     utils.validate_stored_schema(upgraded)
 
     # upgrade 1 -> 6
-    schema_dict: DictStrAny = load_json_case("schemas/ev1/event.schema")
+    schema_dict = load_json_case("schemas/ev1/event.schema")
     assert schema_dict["engine_version"] == 1
     upgraded = utils.migrate_schema(schema_dict, from_engine=1, to_engine=6)
     assert upgraded["engine_version"] == 6
@@ -301,7 +301,7 @@ def test_unknown_engine_upgrade() -> None:
     # there's no path to migrate 3 -> 2
     schema_dict["engine_version"] = 3
     with pytest.raises(SchemaEngineNoUpgradePathException):
-        utils.migrate_schema(schema_dict, 3, 2)
+        utils.migrate_schema(schema_dict, 3, 2)  # type: ignore[arg-type]
 
 
 def test_preserve_column_order(schema: Schema, schema_storage: SchemaStorage) -> None:
@@ -351,15 +351,15 @@ def test_rasa_event_hints(columns: Sequence[str], hint: str, value: bool, schema
     for name in columns:
         # infer column hints
         c = schema._infer_column(name, "x")
-        assert c[hint] is value
+        assert c[hint] is value  # type: ignore[literal-required]
 
 
 def test_filter_hints_table() -> None:
     # this schema contains event_bot table with expected hints
     schema_dict: TStoredSchema = load_json_case("schemas/ev1/event.schema")
-    schema = Schema.from_dict(schema_dict)
+    schema = Schema.from_dict(schema_dict)  # type: ignore[arg-type]
     # get all not_null columns on event
-    bot_case: StrAny = load_json_case("mod_bot_case")
+    bot_case: DictStrAny = load_json_case("mod_bot_case")
     rows = schema.filter_row_with_hint("event_bot", "not_null", bot_case)
     # timestamp must be first because it is first on the column list
     assert list(rows.keys()) == ["timestamp", "sender_id"]
@@ -418,21 +418,21 @@ def test_merge_hints(schema: Schema) -> None:
             "foreign_key": ["re:^_dlt_parent_id$"],
             "unique": ["re:^_dlt_id$"]
         }
-    schema.merge_hints(new_hints)
+    schema.merge_hints(new_hints)  # type: ignore[arg-type]
     assert schema._settings["default_hints"] == new_hints
 
     # again does not change anything (just the order may be different)
-    schema.merge_hints(new_hints)
+    schema.merge_hints(new_hints)  # type: ignore[arg-type]
     assert len(new_hints) == len(schema._settings["default_hints"])
     for k in new_hints:
-        assert set(new_hints[k]) == set(schema._settings["default_hints"][k])
+        assert set(new_hints[k]) == set(schema._settings["default_hints"][k])  # type: ignore[index]
 
     # add new stuff
     new_new_hints = {
         "not_null": ["timestamp"],
         "primary_key": ["id"]
     }
-    schema.merge_hints(new_new_hints)
+    schema.merge_hints(new_new_hints)  # type: ignore[arg-type]
     expected_hints = {
             "not_null": ["_dlt_id", "_dlt_root_id", "_dlt_parent_id", "_dlt_list_idx", "re:^_dlt_load_id$", "timestamp"],
             "foreign_key": ["re:^_dlt_parent_id$"],
@@ -441,7 +441,7 @@ def test_merge_hints(schema: Schema) -> None:
         }
     assert len(expected_hints) == len(schema._settings["default_hints"])
     for k in expected_hints:
-        assert set(expected_hints[k]) == set(schema._settings["default_hints"][k])
+        assert set(expected_hints[k]) == set(schema._settings["default_hints"][k])  # type: ignore[index]
 
 
 def test_default_table_resource() -> None:
@@ -505,14 +505,14 @@ def test_compare_columns() -> None:
     assert utils.compare_complete_columns(table["columns"]["col1"], table2["columns"]["col1"]) is True
     # any of the hints may differ
     for hint in COLUMN_HINTS:
-        table["columns"]["col3"][hint] = True
+        table["columns"]["col3"][hint] = True  # type: ignore[typeddict-unknown-key]
     # name may not differ
     assert utils.compare_complete_columns(table["columns"]["col3"], table["columns"]["col4"]) is False
 
 
 def test_normalize_table_identifiers() -> None:
     schema_dict: TStoredSchema = load_json_case("schemas/github/issues.schema")
-    schema = Schema.from_dict(schema_dict)
+    schema = Schema.from_dict(schema_dict)  # type: ignore[arg-type]
     # assert column generated from "reactions/+1" and "-1", it is a valid identifier even with three underscores
     assert "reactions___1" in schema.tables["issues"]["columns"]
     issues_table = deepcopy(schema.tables["issues"])
@@ -538,7 +538,7 @@ def test_normalize_table_identifiers_merge_columns() -> None:
         },
     ]
     # schema normalizing to snake case will conflict on case and Case
-    table = utils.new_table("blend", columns=table_create)
+    table = utils.new_table("blend", columns=table_create)  # type: ignore[arg-type]
     norm_table = Schema("norm").normalize_table_identifiers(table)
     # only one column
     assert len(norm_table["columns"]) == 1

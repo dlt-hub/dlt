@@ -2,6 +2,7 @@ import os
 import pytest
 import time
 from multiprocessing.dummy import Process as DummyProcess
+from typing import Iterator
 
 from dlt.common import sleep
 from dlt.common.exceptions import SignalReceivedException
@@ -11,7 +12,7 @@ from tests.utils import skipifwindows
 
 
 @pytest.fixture(autouse=True)
-def clear_signal() -> None:
+def clear_signal() -> Iterator[None]:
     yield
     signals.exit_event.clear()
     signals._received_signal = 0

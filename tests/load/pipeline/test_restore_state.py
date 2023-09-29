@@ -14,6 +14,7 @@ from dlt.pipeline.exceptions import SqlClientNotAvailable
 
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import STATE_TABLE_COLUMNS, load_state_from_destination, state_resource
+from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import TEST_STORAGE_ROOT
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED
@@ -39,7 +40,8 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
     # inject schema into pipeline, don't do it in production
     p._inject_schema(schema)
     # try with non existing dataset
-    with p.destination_client(p.default_schema.name) as job_client:
+    job_client: SqlJobClientBase
+    with p.destination_client(p.default_schema.name) as job_client:  # type: ignore[assignment]
         with pytest.raises(DestinationUndefinedEntity):
             load_state_from_destination(p.pipeline_name, job_client)
         # sync the schema
@@ -106,7 +108,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
 
         # change the state in context manager but there's no extract
         with p.managed_state(extract_state=False) as managed_state:
-            managed_state["sources"] = {"source": "test2"}
+            managed_state["sources"] = {"source": "test2"}  # type: ignore[dict-item]
         new_local_state = p._get_state()
         new_local_state_local = new_local_state.pop("_local")
         assert local_state != new_local_state
@@ -345,7 +347,8 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
         p.run(some_data("fix_1"))
         # assert complete_package.called
 
-    with p._get_destination_clients(p.default_schema)[0] as job_client:
+    job_client: SqlJobClientBase
+    with p._get_destination_clients(p.default_schema)[0] as job_client:  # type: ignore[assignment]
         # state without completed load id is not visible
         state = load_state_from_destination(pipeline_name, job_client)
         assert state is None

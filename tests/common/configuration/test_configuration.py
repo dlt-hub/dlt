@@ -1,7 +1,7 @@
 import pytest
 import datetime  # noqa: I251
 from unittest.mock import patch
-from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Type, Union
+from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Type, Union, TYPE_CHECKING
 
 from dlt.common import json, pendulum, Decimal, Wei
 from dlt.common.configuration.providers.provider import ConfigProvider
@@ -81,6 +81,10 @@ class MockProdConfiguration(RunConfiguration):
 class FieldWithNoDefaultConfiguration(RunConfiguration):
     no_default: str
 
+    if TYPE_CHECKING:
+        def __init__(self, no_default: str = None, sentry_dsn: str = None) -> None:
+            ...
+
 
 @configspec
 class InstrumentedConfiguration(BaseConfiguration):
@@ -105,12 +109,20 @@ class InstrumentedConfiguration(BaseConfiguration):
         if self.head > self.heels:
             raise RuntimeError("Head over heels")
 
+    if TYPE_CHECKING:
+        def __init__(self, head: str = None, tube: List[str] = None, heels: str = None) -> None:
+            ...
+
 
 @configspec
 class EmbeddedConfiguration(BaseConfiguration):
     default: str
     instrumented: InstrumentedConfiguration
     sectioned: SectionedConfiguration
+
+    if TYPE_CHECKING:
+        def __init__(self, default: str = None, instrumented: InstrumentedConfiguration = None, sectioned: SectionedConfiguration = None) -> None:
+            ...
 
 
 @configspec
@@ -125,9 +137,9 @@ class EmbeddedSecretConfiguration(BaseConfiguration):
 
 @configspec
 class NonTemplatedComplexTypesConfiguration(BaseConfiguration):
-    list_val: list
-    tuple_val: tuple
-    dict_val: dict
+    list_val: list  # type: ignore[type-arg]
+    tuple_val: tuple  # type: ignore[type-arg]
+    dict_val: dict  # type: ignore[type-arg]
 
 
 @configspec
@@ -256,7 +268,7 @@ def test_default_values(environment: Any) -> None:
     # set default values and allow partial config
     default = CoercionTestConfiguration()
     default.pipeline_name = "initial name"
-    default.none_val = type(environment)
+    default.none_val = type(environment)  # type: ignore[assignment]
     default.bytes_val = b"str"
     c = resolve.resolve_configuration(default, accept_partial=True)
     # env over default
@@ -408,8 +420,8 @@ def test_provider_values_over_embedded_default(environment: Any) -> None:
     with patch.object(InstrumentedConfiguration, "__section__", "instrumented"):
         with custom_environ({"INSTRUMENTED": "h>tu>u>be>he"}):
             # read from env - over the default values
-            emb = InstrumentedConfiguration().parse_native_representation("h>tu>be>xhe")
-            c = resolve.resolve_configuration(EmbeddedConfiguration(instrumented=emb), accept_partial=True)
+            InstrumentedConfiguration().parse_native_representation("h>tu>be>xhe")
+            c = resolve.resolve_configuration(EmbeddedConfiguration(instrumented=None), accept_partial=True)
             assert c.instrumented.to_native_representation() == "h>tu>u>be>he"
             # parent configuration is not resolved
             assert not c.is_resolved()
@@ -495,9 +507,9 @@ def test_configuration_is_mutable_mapping(environment: Any, env_provider: Config
         c["unknown_prop"] = "unk"
 
     # also on new instance
-    c = SecretConfiguration()
+    c2 = SecretConfiguration()
     with pytest.raises(KeyError):
-        c["unknown_prop"] = "unk"
+        c2["unknown_prop"] = "unk"
 
 
 def test_fields_with_no_default_to_null(environment: Any) -> None:
@@ -571,9 +583,9 @@ def test_accepts_optional_missing_fields(environment: Any) -> None:
     # make config with optional values
     resolve.resolve_configuration(ProdConfigurationWithOptionalTypes(), explicit_value={"int_val": None})
     # make config with optional embedded config
-    C = resolve.resolve_configuration(EmbeddedOptionalConfiguration())
+    C2 = resolve.resolve_configuration(EmbeddedOptionalConfiguration())
     # embedded config was not fully resolved
-    assert C.instrumented is None
+    assert C2.instrumented is None
 
 
 def test_find_all_keys() -> None:
@@ -750,12 +762,12 @@ def test_coercion_rules() -> None:
 
 
 def test_is_valid_hint() -> None:
-    assert is_valid_hint(Any) is True
-    assert is_valid_hint(Optional[Any]) is True
+    assert is_valid_hint(Any) is True  # type: ignore[arg-type]
+    assert is_valid_hint(Optional[Any]) is True  # type: ignore[arg-type]
     assert is_valid_hint(RunConfiguration) is True
-    assert is_valid_hint(Optional[RunConfiguration]) is True
+    assert is_valid_hint(Optional[RunConfiguration]) is True  # type: ignore[arg-type]
     assert is_valid_hint(TSecretValue) is True
-    assert is_valid_hint(Optional[TSecretValue]) is True
+    assert is_valid_hint(Optional[TSecretValue]) is True  # type: ignore[arg-type]
     # in case of generics, origin will be used and args are not checked
     assert is_valid_hint(MutableMapping[TSecretValue, Any]) is True
     # this is valid (args not checked)
@@ -771,12 +783,16 @@ def test_configspec_auto_base_config_derivation() -> None:
     class AutoBaseDerivationConfiguration:
         auto: str
 
+        if TYPE_CHECKING:
+            def __init__(self, auto: str=None) -> None:
+                ...
+
     assert issubclass(AutoBaseDerivationConfiguration, BaseConfiguration)
     assert hasattr(AutoBaseDerivationConfiguration, "auto")
 
     assert AutoBaseDerivationConfiguration().auto is None
     assert AutoBaseDerivationConfiguration(auto="auto").auto == "auto"
-    assert AutoBaseDerivationConfiguration(auto="auto").get_resolvable_fields() == {"auto": str}
+    assert AutoBaseDerivationConfiguration(auto="auto").get_resolvable_fields() == {"auto": str}  # type: ignore[attr-defined]
     # we preserve original module
     assert AutoBaseDerivationConfiguration.__module__ == __name__
     assert not hasattr(BaseConfiguration, "auto")
@@ -804,7 +820,7 @@ def test_do_not_resolve_twice(environment: Any) -> None:
     c = resolve.resolve_configuration(SecretConfiguration())
     assert c.secret_value == "password"
     c2 = SecretConfiguration()
-    c2.secret_value = "other"
+    c2.secret_value = "other"  # type: ignore[assignment]
     c2.__is_resolved__ = True
     assert c2.is_resolved()
     # will not overwrite with env
@@ -817,7 +833,7 @@ def test_do_not_resolve_twice(environment: Any) -> None:
     assert c4.secret_value == "password"
     assert c2 is c3 is c4
     # also c is resolved so
-    c.secret_value = "else"
+    c.secret_value = "else"  # type: ignore[assignment]
     assert resolve.resolve_configuration(c).secret_value == "else"
 
 
@@ -826,7 +842,7 @@ def test_do_not_resolve_embedded(environment: Any) -> None:
     c = resolve.resolve_configuration(EmbeddedSecretConfiguration())
     assert c.secret.secret_value == "password"
     c2 = SecretConfiguration()
-    c2.secret_value = "other"
+    c2.secret_value = "other"  # type: ignore[assignment]
     c2.__is_resolved__ = True
     embed_c = EmbeddedSecretConfiguration()
     embed_c.secret = c2
@@ -840,19 +856,19 @@ def test_last_resolve_exception(environment: Any) -> None:
     c = resolve.resolve_configuration(EmbeddedConfiguration(), accept_partial=True)
     assert isinstance(c.__exception__, ConfigFieldMissingException)
     # missing keys
-    c = SecretConfiguration()
+    c2 = SecretConfiguration()
     with pytest.raises(ConfigFieldMissingException) as py_ex:
-        resolve.resolve_configuration(c)
-    assert c.__exception__ is py_ex.value
+        resolve.resolve_configuration(c2)
+    assert c2.__exception__ is py_ex.value
     # but if ran again exception is cleared
     environment["SECRET_VALUE"] = "password"
-    resolve.resolve_configuration(c)
-    assert c.__exception__ is None
+    resolve.resolve_configuration(c2)
+    assert c2.__exception__ is None
     # explicit value
-    c = InstrumentedConfiguration()
-    with pytest.raises(InvalidNativeValue) as py_ex:
-        resolve.resolve_configuration(c, explicit_value=2137)
-    assert c.__exception__ is py_ex.value
+    c3 = InstrumentedConfiguration()
+    with pytest.raises(InvalidNativeValue) as py_ex2:
+        resolve.resolve_configuration(c3, explicit_value=2137)
+    assert c3.__exception__ is py_ex2.value
 
 
 def test_resolved_trace(environment: Any) -> None:
@@ -885,10 +901,10 @@ def test_resolved_trace(environment: Any) -> None:
 
 def test_extract_inner_hint() -> None:
     # extracts base config from an union
-    assert resolve.extract_inner_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]) is GcpServiceAccountCredentialsWithoutDefaults
-    assert resolve.extract_inner_hint(Union[InstrumentedConfiguration, StrAny, str]) is InstrumentedConfiguration
+    assert resolve.extract_inner_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]) is GcpServiceAccountCredentialsWithoutDefaults  # type: ignore[arg-type]
+    assert resolve.extract_inner_hint(Union[InstrumentedConfiguration, StrAny, str]) is InstrumentedConfiguration  # type: ignore[arg-type]
     # keeps unions
-    assert resolve.extract_inner_hint(Union[StrAny, str]) is Union
+    assert resolve.extract_inner_hint(Union[StrAny, str]) is Union  # type: ignore[arg-type]
     # ignores specialization in list and dict, leaving origin
     assert resolve.extract_inner_hint(List[str]) is list
     assert resolve.extract_inner_hint(DictStrAny) is dict
@@ -900,18 +916,18 @@ def test_extract_inner_hint() -> None:
 
 def test_is_secret_hint() -> None:
     assert resolve.is_secret_hint(GcpServiceAccountCredentialsWithoutDefaults) is True
-    assert resolve.is_secret_hint(Optional[GcpServiceAccountCredentialsWithoutDefaults]) is True
+    assert resolve.is_secret_hint(Optional[GcpServiceAccountCredentialsWithoutDefaults]) is True  # type: ignore[arg-type]
     assert resolve.is_secret_hint(TSecretValue) is True
-    assert resolve.is_secret_hint(Optional[TSecretValue]) is True
+    assert resolve.is_secret_hint(Optional[TSecretValue]) is True  # type: ignore[arg-type]
     assert resolve.is_secret_hint(InstrumentedConfiguration) is False
     # do not recognize new types
     TTestSecretNt = NewType("TTestSecretNt", GcpServiceAccountCredentialsWithoutDefaults)
     assert resolve.is_secret_hint(TTestSecretNt) is False
     # recognize unions with credentials
-    assert resolve.is_secret_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]) is True
+    assert resolve.is_secret_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]) is True  # type: ignore[arg-type]
     # we do not recognize unions if they do not contain configuration types
-    assert resolve.is_secret_hint(Union[TSecretValue, StrAny, str]) is False
-    assert resolve.is_secret_hint(Optional[str]) is False
+    assert resolve.is_secret_hint(Union[TSecretValue, StrAny, str]) is False  # type: ignore[arg-type]
+    assert resolve.is_secret_hint(Optional[str]) is False  # type: ignore[arg-type]
     assert resolve.is_secret_hint(str) is False
     assert resolve.is_secret_hint(AnyType) is False
 
@@ -985,7 +1001,12 @@ def test_unmatched_dynamic_hint_resolvers(environment: Dict[str, str]) -> None:
 
 
 def test_add_config_to_env(environment: Dict[str, str]) -> None:
-    c = resolve.resolve_configuration(EmbeddedConfiguration(instrumented="h>tu>u>be>he", sectioned=SectionedConfiguration(password="PASS"), default="BUBA"))
+    c = resolve.resolve_configuration(
+        EmbeddedConfiguration(
+            instrumented="h>tu>u>be>he",  # type: ignore[arg-type]
+            sectioned=SectionedConfiguration(password="PASS"),
+            default="BUBA")
+    )
     add_config_to_env(c, ("dlt", ))
     # must contain DLT prefix everywhere, INSTRUMENTED section taken from key and DLT_TEST taken from password
     assert environment.items() >= {
@@ -1024,7 +1045,7 @@ def test_configuration_copy() -> None:
     assert copy_cred.to_native_representation() == "postgresql://loader:loader@localhost:5432/dlt_data"
     # resolve the copy
     assert not copy_cred.is_resolved()
-    resolved_cred_copy = c = resolve.resolve_configuration(copy_cred)
+    resolved_cred_copy = c = resolve.resolve_configuration(copy_cred)  # type: ignore[assignment]
     assert resolved_cred_copy.is_resolved()
 
 

@@ -1,11 +1,12 @@
 from copy import deepcopy
 import gzip
 import os
-from typing import Any, Callable, Iterator, Tuple
+from typing import Any, Callable, Iterator, Tuple, List, cast
 import pytest
 
 import dlt
 
+from dlt.common.pipeline import SupportsPipeline
 from dlt.common import json, sleep
 from dlt.common.destination.reference import DestinationReference
 from dlt.common.schema.schema import Schema
@@ -132,7 +133,7 @@ def test_attach_pipeline(destination_config: DestinationTestConfiguration) -> No
     # other instance
     assert info.pipeline is not p
     # same pipe
-    old_p: dlt.Pipeline = info.pipeline
+    old_p: SupportsPipeline = info.pipeline
     assert p.pipeline_name == old_p.pipeline_name
     assert p.working_dir == old_p.working_dir
     # secret will be the same: if not explicitly provided it is derived from pipeline name
@@ -198,7 +199,8 @@ def test_run_full_refresh(destination_config: DestinationTestConfiguration) -> N
     # assert parent table (easy), None First (db order)
     assert_table(p, "lists", [None, None, "a"], info=info)
     # child tables contain nested lists
-    assert_table(p, "lists__value", sorted(data[1] + data[2]))
+    data_list = cast(List[str], data[1]) + cast(List[str], data[2])
+    assert_table(p, "lists__value", sorted(data_list))
 
 
 
@@ -308,7 +310,7 @@ def test_pipeline_data_writer_compression(disable_compression: bool, destination
                 gzip.open(s.storage.make_full_path(f), "rb").read()
     p.normalize()
     info = p.load()
-    assert_table(info.pipeline, "data", data, info=info)
+    assert_table(p, "data", data, info=info)
 
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
@@ -389,7 +391,7 @@ def test_pipeline_explicit_destination_credentials(destination_config: Destinati
     # explicit credentials resolved
     p = dlt.pipeline(destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data")
     c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
-    assert c.config.credentials.host == "localhost"
+    assert c.config.credentials.host == "localhost"  # type: ignore[attr-defined]
 
     # Remove connection string in CI to start with clean environ
     # TODO: may want to clear the env completely and ignore/mock config files somehow to avoid side effects
@@ -398,16 +400,16 @@ def test_pipeline_explicit_destination_credentials(destination_config: Destinati
     os.environ["DESTINATION__POSTGRES__CREDENTIALS__HOST"] = "HOST"
     p = dlt.pipeline(destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data")
     c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
-    assert c.config.credentials.host == "localhost"
+    assert c.config.credentials.host == "localhost"  # type: ignore[attr-defined]
 
     # explicit partial credentials will use config providers
     os.environ["DESTINATION__POSTGRES__CREDENTIALS__USERNAME"] = "UN"
     os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "PW"
     p = dlt.pipeline(destination="postgres", credentials="postgresql://localhost:5432/dlt_data")
     c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
-    assert c.config.credentials.username == "UN"
+    assert c.config.credentials.username == "UN"  # type: ignore[attr-defined]
     # host is also overridden
-    assert c.config.credentials.host == "HOST"
+    assert c.config.credentials.host == "HOST"  # type: ignore[attr-defined]
 
     # instance of credentials will be simply passed
     # c = RedshiftCredentials("postgresql://loader:loader@localhost/dlt_data")
@@ -485,13 +487,7 @@ def test_pipeline_with_sources_sharing_schema(destination_config: DestinationTes
     counts = load_table_counts(p, *table_names)
     assert counts == {'gen1': 2, 'gen2': 3, 'conflict': 1}
     # both sources share the same state
-    assert p.state["sources"] == {
-        'shared': {
-            'source_1': True,
-            'resources': {'gen1': {'source_1': True, 'source_2': True}},
-            'source_2': True
-            }
-        }
+    assert p.state["sources"] == {'shared': {'source_1': True, 'resources': {'gen1': {'source_1': True, 'source_2': True}}, 'source_2': True}}
     drop_active_pipeline_data()
 
     # same pipeline but enable conflict
@@ -631,11 +627,11 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     pipeline = destination_config.setup_pipeline('parquet_test_' + uniq_id(), dataset_name='parquet_test_' + uniq_id())
 
     @dlt.resource(primary_key='id')
-    def some_data():  # type: ignore[no-untyped-def]
+    def some_data():
         yield [{'id': 1}, {'id': 2}, {'id': 3}]
 
     @dlt.resource(write_disposition="replace")
-    def other_data():  # type: ignore[no-untyped-def]
+    def other_data():
         yield [1, 2, 3, 4, 5]
 
     data_types = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
@@ -652,7 +648,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         yield [data_types]*10
 
     @dlt.source(max_table_nesting=0)
-    def some_source():  # type: ignore[no-untyped-def]
+    def some_source():
         return [some_data(), other_data(), my_resource()]
 
     info = pipeline.run(some_source(), loader_file_format="parquet")
@@ -662,8 +658,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     assert len(package_info.jobs["failed_jobs"]) == 0
     assert len(package_info.jobs["completed_jobs"]) == 5  # 3 tables + 1 state + 1 sql merge job
 
-    client = pipeline.destination_client()  # type: ignore[assignment]
-    with client.sql_client as sql_client:
+    with pipeline.sql_client() as sql_client:
         assert [row[0] for row in sql_client.execute_sql("SELECT * FROM other_data")] == [1, 2, 3, 4, 5]
         assert [row[0] for row in sql_client.execute_sql("SELECT * FROM some_data")] == [1, 2, 3]
         db_rows = sql_client.execute_sql("SELECT * FROM data_types")

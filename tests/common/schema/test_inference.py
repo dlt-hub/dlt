@@ -1,11 +1,12 @@
 import pytest
 from copy import deepcopy
-from typing import Any
+from typing import Any, List
 from hexbytes import HexBytes
 
 from dlt.common import Wei, Decimal, pendulum, json
 from dlt.common.json import custom_pua_decode
 from dlt.common.schema import Schema, utils
+from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException, ParentTableNotFoundException, TablePropertiesConflictException
 from tests.common.utils import load_json_case
 
@@ -260,7 +261,7 @@ def test_supports_variant_pua_decode(schema: Schema) -> None:
 
 def test_supports_variant(schema: Schema) -> None:
     rows = [{"evm": Wei.from_int256(2137*10**16, decimals=18)}, {"evm": Wei.from_int256(2**256-1)}]
-    normalized_rows = []
+    normalized_rows: List[Any] = []
     for row in rows:
         normalized_rows.extend(schema.normalize_data_item(row, "128812.2131", "event"))
     # row 1 contains Wei
@@ -320,7 +321,7 @@ def test_supports_variant_autovariant_conflict(schema: Schema) -> None:
 
     assert issubclass(PureVariant,int)
     rows = [{"pv": PureVariant(3377)}, {"pv": PureVariant(21.37)}]
-    normalized_rows = []
+    normalized_rows: List[Any] = []
     for row in rows:
         normalized_rows.extend(schema.normalize_data_item(row, "128812.2131", "event"))
     assert normalized_rows[0][1]["pv"]() == 3377
@@ -429,20 +430,20 @@ def test_update_schema_column_conflict(schema: Schema) -> None:
 
 def _add_preferred_types(schema: Schema) -> None:
     schema._settings["preferred_types"] = {}
-    schema._settings["preferred_types"]["timestamp"] = "timestamp"
+    schema._settings["preferred_types"][TSimpleRegex("timestamp")] = "timestamp"
     # any column with confidence should be float
-    schema._settings["preferred_types"]["re:confidence"] = "double"
+    schema._settings["preferred_types"][TSimpleRegex("re:confidence")] = "double"
     # value should be wei
-    schema._settings["preferred_types"]["value"] = "wei"
+    schema._settings["preferred_types"][TSimpleRegex("value")] = "wei"
     # number should be decimal
-    schema._settings["preferred_types"]["re:^number$"] = "decimal"
+    schema._settings["preferred_types"][TSimpleRegex("re:^number$")] = "decimal"
 
     schema._compile_settings()
 
 
 def test_autodetect_convert_type(schema: Schema) -> None:
     # add to wei to float converter
-    schema._type_detections.append("wei_to_double")
+    schema._type_detections = list(schema._type_detections) + ["wei_to_double"]
     row = {"evm": Wei(1)}
     c_row, new_table = schema.coerce_row("eth", None, row)
     assert c_row["evm"] == 1.0
@@ -465,32 +466,30 @@ def test_autodetect_convert_type(schema: Schema) -> None:
 
     # make sure variants behave the same
 
-
     class AlwaysWei(Decimal):
         def __call__(self) -> Any:
             return ("up", Wei(self))
 
-
     # create new column
-    row = {"evm2": AlwaysWei(22)}
+    row = {"evm2": AlwaysWei(22)}  # type: ignore[dict-item]
     c_row, new_table = schema.coerce_row("eth", None, row)
     assert c_row["evm2__v_up"] == 22.0
     assert isinstance(c_row["evm2__v_up"], float)
     assert new_table["columns"]["evm2__v_up"]["data_type"] == "double"
     schema.update_schema(new_table)
     # add again
-    row = {"evm2": AlwaysWei(22.2)}
+    row = {"evm2": AlwaysWei(22.2)}  # type: ignore[dict-item]
     c_row, new_table = schema.coerce_row("eth", None, row)
     assert c_row["evm2__v_up"] == 22.2
     assert isinstance(c_row["evm2__v_up"], float)
     assert new_table is None
     # create evm2 column
-    row = {"evm2": 22.1}
+    row = {"evm2": 22.1}  # type: ignore[dict-item]
     _, new_table = schema.coerce_row("eth", None, row)
     assert new_table["columns"]["evm2"]["data_type"] == "double"
     schema.update_schema(new_table)
     # and add variant again
-    row = {"evm2": AlwaysWei(22.2)}
+    row = {"evm2": AlwaysWei(22.2)}  # type: ignore[dict-item]
     # and this time variant will not be expanded
     # because the "evm2" column already has a type so it goes directly into double as a normal coercion
     c_row, new_table = schema.coerce_row("eth", None, row)
@@ -503,7 +502,7 @@ def test_infer_on_incomplete_column(schema: Schema) -> None:
     # but overrides it with incomplete column
     incomplete_col = utils.new_column("I", nullable=False)
     incomplete_col["primary_key"] = True
-    incomplete_col["x-special"] = "spec"
+    incomplete_col["x-special"] = "spec"  # type: ignore[typeddict-unknown-key]
     table = utils.new_table("table", columns=[incomplete_col])
     schema.update_schema(table)
     # make sure that column is still incomplete and has no default hints
@@ -523,6 +522,6 @@ def test_infer_on_incomplete_column(schema: Schema) -> None:
     assert utils.is_complete_column(i_column)
     # has default hints and overrides
     assert i_column["nullable"] is False
-    assert i_column["x-special"] == "spec"
+    assert i_column["x-special"] == "spec"  # type: ignore[typeddict-item]
     assert i_column["primary_key"] is True
     assert i_column["data_type"] == "text"

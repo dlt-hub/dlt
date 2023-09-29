@@ -169,7 +169,7 @@ def test_regular_run() -> None:
             pipeline_name="pipeline_dag_decomposed", dataset_name="mock_data_" + uniq_id(), destination="duckdb", credentials=quackdb_path)
         tasks_list = tasks.add_run(pipeline_dag_decomposed, mock_data_source(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
 
-    dag_def: DAG = dag_decomposed()
+    dag_def = dag_decomposed()
     assert len(tasks_list) == 3
     # task one by one
     assert tasks_list[0].task_id == "pipeline_dag_decomposed.mock_data_source__r_init-_t_init_post"
@@ -247,7 +247,7 @@ def test_run_with_retry() -> None:
             pipeline_name="pipeline_fail_3", dataset_name="mock_data_" + uniq_id(), destination="duckdb", credentials=":pipeline:")
         tasks.add_run(pipeline_fail_3, _fail_3, trigger_rule="all_done", retries=0, provide_context=True)
 
-    dag_def: DAG = dag_fail_4()
+    dag_def = dag_fail_4()
     ti = get_task_run(dag_def, "pipeline_fail_3.pipeline_fail_3", now)
     # will fail on extract
     with pytest.raises(PipelineStepFailed) as pip_ex:
@@ -269,7 +269,7 @@ def test_run_with_retry() -> None:
             pipeline_name="pipeline_fail_3", dataset_name="mock_data_" + uniq_id(), destination="duckdb", credentials=":pipeline:")
         tasks.add_run(pipeline_fail_3, _fail_3, trigger_rule="all_done", retries=0, provide_context=True)
 
-    dag_def: DAG = dag_fail_5()
+    dag_def = dag_fail_5()
     ti = get_task_run(dag_def, "pipeline_fail_3.pipeline_fail_3", now)
     retries = 2
     ti._run_raw_task()
@@ -376,7 +376,7 @@ def test_run_multiple_sources() -> None:
         tasks.add_run(pipeline_dag_regular, mock_data_source(), decompose="serialize", trigger_rule="all_done", retries=0, provide_context=True)
         # do not connect graph
 
-    dag_def: DAG = dag_parallel()
+    dag_def = dag_parallel()
     dag_def.test()
 
     pipeline_dag_parallel = dlt.pipeline(
@@ -412,7 +412,7 @@ def test_run_multiple_sources() -> None:
         for pd_t, hb_t in zip(pd_tasks, hb_tasks):
             pd_t >> hb_t
 
-    dag_def: DAG = dag_mixed()
+    dag_def = dag_mixed()
     dag_def.test()
 
     pipeline_dag_mixed = dlt.pipeline(

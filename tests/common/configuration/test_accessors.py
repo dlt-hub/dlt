@@ -117,10 +117,12 @@ def test_getter_accessor_typed(toml_providers: ConfigProvidersContext, environme
     credentials_str = "databricks+connector://token:<databricks_token>@<databricks_host>:443/<database_or_schema_name>?conn_timeout=15&search_path=a,b,c"
     c = dlt.secrets.get("databricks.credentials", ConnectionStringCredentials)
     # as before: the value in trace is the value coming from the provider (as is)
-    assert RESOLVED_TRACES["databricks.credentials"] == ResolvedValueTrace("credentials", credentials_str, None, ConnectionStringCredentials, ["databricks"], SecretsTomlProvider().name, ConnectionStringCredentials)
+    assert RESOLVED_TRACES["databricks.credentials"] == ResolvedValueTrace(
+        "credentials", credentials_str, None, ConnectionStringCredentials, ["databricks"], SecretsTomlProvider().name, ConnectionStringCredentials  # type: ignore[arg-type]
+    )
     assert c.drivername == "databricks+connector"
-    c = dlt.secrets.get("destination.credentials", GcpServiceAccountCredentialsWithoutDefaults)
-    assert c.client_email == "loader@a7513.iam.gserviceaccount.com"
+    c2 = dlt.secrets.get("destination.credentials", GcpServiceAccountCredentialsWithoutDefaults)
+    assert c2.client_email == "loader@a7513.iam.gserviceaccount.com"
 
 
 def test_setter(toml_providers: ConfigProvidersContext, environment: Any) -> None:
@@ -142,7 +144,7 @@ def test_setter(toml_providers: ConfigProvidersContext, environment: Any) -> Non
     dlt.secrets["pipeline.new.credentials"] = {"api_key": "skjo87a7nnAAaa"}
     assert dlt.secrets["pipeline.new.credentials"] == {"api_key": "skjo87a7nnAAaa"}
     # check the toml directly
-    assert dlt.secrets.writable_provider._toml["pipeline"]["new"]["credentials"] == {"api_key": "skjo87a7nnAAaa"}
+    assert dlt.secrets.writable_provider._toml["pipeline"]["new"]["credentials"] == {"api_key": "skjo87a7nnAAaa"}  # type: ignore[attr-defined]
 
     # mod the config and use it to resolve the configuration
     dlt.config["pool"] = {"pool_type": "process", "workers": 21}

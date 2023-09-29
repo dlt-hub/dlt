@@ -1,9 +1,10 @@
 import pytest
 import os
 import yaml
-from git import Repo, Commit
+from git.objects import Commit
+from git import Repo
 from pathlib import Path
-from typing import Mapping, Tuple, cast
+from typing import Mapping, Tuple, cast, Any, Dict
 import datetime  # noqa: 251
 
 from dlt.common import json
@@ -22,14 +23,14 @@ TEST_SENTRY_DSN = "https://797678dd0af64b96937435326c7d30c1@o1061158.ingest.sent
 SECRET_STORAGE_PATH = environ_provider.SECRET_STORAGE_PATH
 
 
-def load_json_case(name: str) -> Mapping:
+def load_json_case(name: str) -> Any:
     with open(json_case_path(name), "rb") as f:
-        return cast(Mapping, json.load(f))
+        return json.load(f)
 
 
-def load_yml_case(name: str) -> Mapping:
+def load_yml_case(name: str) -> Any:
     with open(yml_case_path(name), "rb") as f:
-        return cast(Mapping, yaml.safe_load(f))
+        return yaml.safe_load(f)
 
 
 def json_case_path(name: str) -> str:

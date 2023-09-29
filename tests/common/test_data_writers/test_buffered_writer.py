@@ -1,8 +1,10 @@
 import os
+from typing import Iterator
+
 import pytest
 from dlt.common.arithmetics import Decimal
 
-from dlt.common.data_writers.buffered import BufferedDataWriter
+from dlt.common.data_writers.buffered import BufferedDataWriter, DataWriter
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
 from dlt.common.destination import TLoaderFileFormat, DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
@@ -14,7 +16,7 @@ from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
 import datetime  # noqa: 251
 
 
-def get_insert_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10, disable_compression: bool = False) -> BufferedDataWriter:
+def get_insert_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10, disable_compression: bool = False) -> BufferedDataWriter[DataWriter]:
     caps = DestinationCapabilitiesContext.generic_capabilities()
     caps.preferred_loader_file_format = _format
     file_template = os.path.join(TEST_STORAGE_ROOT, f"{_format}.%s")
@@ -26,7 +28,7 @@ def test_write_no_item() -> None:
         pass
     assert writer.closed
     with pytest.raises(BufferedDataWriterClosed):
-        assert writer._ensure_open()
+        writer._ensure_open()
     # no files rotated
     assert writer.closed_files == []
 
@@ -42,13 +44,13 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
     t2 = {"col2": c2, "col1": c1}
     t3 = {"col3": c3, "col2": c2, "col1": c1}
 
-    def c1_doc(count: int) -> DictStrAny:
+    def c1_doc(count: int) -> Iterator[DictStrAny]:
         return map(lambda x: {"col1": x}, range(0, count))
 
-    def c2_doc(count: int) -> DictStrAny:
+    def c2_doc(count: int) -> Iterator[DictStrAny]:
         return map(lambda x: {"col1": x, "col2": x*2+1}, range(0, count))
 
-    def c3_doc(count: int) -> DictStrAny:
+    def c3_doc(count: int) -> Iterator[DictStrAny]:
         return map(lambda x: {"col3": "col3_value"}, range(0, count))
 
     # change schema before file first flush
@@ -130,10 +132,10 @@ def test_NO_rotation_on_schema_change(disable_compression: bool) -> None:
     t1 = {"col1": c1}
     t2 = {"col2": c2, "col1": c1}
 
-    def c1_doc(count: int) -> DictStrAny:
+    def c1_doc(count: int) -> Iterator[DictStrAny]:
         return map(lambda x: {"col1": x}, range(0, count))
 
-    def c2_doc(count: int) -> DictStrAny:
+    def c2_doc(count: int) -> Iterator[DictStrAny]:
         return map(lambda x: {"col1": x, "col2": x*2+1}, range(0, count))
 
     # change schema before file first flush

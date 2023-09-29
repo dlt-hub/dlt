@@ -202,7 +202,7 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
-) -> Callable[TResourceFunParams, DltResource]:
+) -> DltResource:
     ...
 
 @overload
@@ -388,7 +388,7 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
-) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], Callable[TResourceFunParams, DltResource]]:
+) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource]:
     ...
 
 @overload
@@ -404,10 +404,10 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
-) -> Callable[TResourceFunParams, DltResource]:
+) -> DltResource:
     ...
 
-def transformer(  # type: ignore
+def transformer(
     f: Optional[Callable[Concatenate[TDataItem, TResourceFunParams], Any]] = None,
     /,
     data_from: TUnboundDltResource = DltResource.Empty,
@@ -419,7 +419,7 @@ def transformer(  # type: ignore
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
-) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], Callable[TResourceFunParams, DltResource]]:
+) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource]:
     """A form of `dlt resource` that takes input from other resources via `data_from` argument in order to enrich or transform the data.
 
     The decorated function `f` must take at least one argument of type TDataItems (a single item or list of items depending on the resource `data_from`). `dlt` will pass

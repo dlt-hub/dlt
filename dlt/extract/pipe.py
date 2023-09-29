@@ -57,12 +57,18 @@ class SourcePipeItem(NamedTuple):
 
 
 # pipeline step may be iterator of data items or mapping function that returns data item or another iterator
+from dlt.common.typing import TDataItem
 TPipeStep = Union[
     Iterable[TPipedDataItems],
     Iterator[TPipedDataItems],
+    # Callable with meta
     Callable[[TDataItems, Optional[Any]], TPipedDataItems],
     Callable[[TDataItems, Optional[Any]], Iterator[TPipedDataItems]],
-    Callable[[TDataItems, Optional[Any]], Iterator[ResolvablePipeItem]]
+    Callable[[TDataItems, Optional[Any]], Iterator[ResolvablePipeItem]],
+    # Callable without meta
+    Callable[[TDataItems], TPipedDataItems],
+    Callable[[TDataItems], Iterator[TPipedDataItems]],
+    Callable[[TDataItems], Iterator[ResolvablePipeItem]],
 ]
 
 TPipeNextItemMode = Union[Literal["fifo"], Literal["round_robin"]]

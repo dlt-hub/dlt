@@ -5,11 +5,11 @@ from time import sleep
 from unittest.mock import patch
 import pytest
 import datetime  # noqa: I251
-from typing import Iterator
+from typing import Iterator, Tuple, List, Dict, Any, Mapping, MutableMapping
 
 from dlt.common import json, pendulum
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
+from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME, TWriteDisposition, TTableSchema
 from dlt.common.schema.utils import new_table, new_column
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TTableSchemaColumns
@@ -31,7 +31,7 @@ def file_storage() -> FileStorage:
     return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
 
 @pytest.fixture(scope="function")
-def client(request) -> SqlJobClientBase:
+def client(request) -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage(request.param.destination)
 
 @pytest.mark.order(1)
@@ -419,7 +419,7 @@ def test_data_writer_string_escape_edge(client: SqlJobClientBase, file_storage: 
 
 @pytest.mark.parametrize('write_disposition', ["append", "replace"])
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
-def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, file_storage: FileStorage) -> None:
+def test_load_with_all_types(client: SqlJobClientBase, write_disposition: TWriteDisposition, file_storage: FileStorage) -> None:
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
     table_name = "event_test_table" + uniq_id()
@@ -428,13 +428,15 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     client.schema.bump_version()
     client.update_stored_schema()
 
-    if write_disposition in client.get_stage_dispositions():
-        with client.with_staging_dataset():
+    if write_disposition in client.get_stage_dispositions():  # type: ignore[attr-defined]
+        with client.with_staging_dataset():  # type: ignore[attr-defined]
             # create staging for merge dataset
             client.initialize_storage()
             client.update_stored_schema()
 
-    with client.sql_client.with_staging_dataset(write_disposition in client.get_stage_dispositions()):
+    with client.sql_client.with_staging_dataset(
+            write_disposition in client.get_stage_dispositions()  # type: ignore[attr-defined]
+    ):
         canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
     with io.BytesIO() as f:
@@ -453,7 +455,7 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: str, f
     ("replace", "staging-optimized")
     ])
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
-def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, replace_strategy: str, file_storage: FileStorage) -> None:
+def test_write_dispositions(client: SqlJobClientBase, write_disposition: TWriteDisposition, replace_strategy: str, file_storage: FileStorage) -> None:
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
     os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
@@ -474,7 +476,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, re
         # add root key
         client.schema.tables[table_name]["columns"]["col1"]["root_key"] = True
         # create staging for merge dataset
-        with client.with_staging_dataset():
+        with client.with_staging_dataset():  # type: ignore[attr-defined]
             client.initialize_storage()
             client.schema.bump_version()
             client.update_stored_schema()
@@ -491,9 +493,9 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: str, re
             with io.BytesIO() as f:
                 write_dataset(client, f, [table_row], TABLE_UPDATE_COLUMNS_SCHEMA)
                 query = f.getvalue().decode()
-            if write_disposition in client.get_stage_dispositions():
+            if write_disposition in client.get_stage_dispositions():  # type: ignore[attr-defined]
                 # load to staging dataset on merge
-                with client.with_staging_dataset():
+                with client.with_staging_dataset():  # type: ignore[attr-defined]
                     expect_load_file(client, file_storage, query, t)
             else:
                 # load directly on other
@@ -590,7 +592,7 @@ def test_many_schemas_single_dataset(destination_config: DestinationTestConfigur
             pytest.skip("preferred loader file format not set, destination will only work with staging")
 
         user_table = load_table("event_user")["event_user"]
-        client.schema.update_schema(new_table("event_user", columns=user_table.values()))
+        client.schema.update_schema(new_table("event_user", columns=list(user_table.values())))
         client.schema.bump_version()
         schema_update = client.update_stored_schema()
         assert len(schema_update) > 0
@@ -638,13 +640,13 @@ def test_many_schemas_single_dataset(destination_config: DestinationTestConfigur
         assert "mandatory_column" in str(py_ex.value).lower() or "NOT NULL" in str(py_ex.value) or "Adding columns with constraints not yet supported" in str(py_ex.value)
 
 
-def prepare_schema(client: SqlJobClientBase, case: str) -> None:
+def prepare_schema(client: SqlJobClientBase, case: str) -> Tuple[List[Dict[str, Any]], str]:
     client.update_stored_schema()
     rows = load_json_case(case)
     # use first row to infer table
     table: TTableSchemaColumns = {k: client.schema._infer_column(k, v) for k, v in rows[0].items()}
     table_name = f"event_{case}_{uniq_id()}"
-    client.schema.update_schema(new_table(table_name, columns=table.values()))
+    client.schema.update_schema(new_table(table_name, columns=list(table.values())))
     client.schema.bump_version()
     client.update_stored_schema()
     return rows, table_name

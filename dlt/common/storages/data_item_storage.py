@@ -1,19 +1,19 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Generic
 from abc import ABC, abstractmethod
 
 from dlt.common import logger
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.typing import TDataItems
-from dlt.common.data_writers import TLoaderFileFormat, BufferedDataWriter
+from dlt.common.data_writers import TLoaderFileFormat, BufferedDataWriter, DataWriter
 
 
 class DataItemStorage(ABC):
     def __init__(self, load_file_type: TLoaderFileFormat, *args: Any) -> None:
         self.loader_file_format = load_file_type
-        self.buffered_writers: Dict[str, BufferedDataWriter] = {}
+        self.buffered_writers: Dict[str, BufferedDataWriter[DataWriter]] = {}
         super().__init__(*args)
 
-    def get_writer(self, load_id: str, schema_name: str, table_name: str) -> BufferedDataWriter:
+    def get_writer(self, load_id: str, schema_name: str, table_name: str) -> BufferedDataWriter[DataWriter]:
         # unique writer id
         writer_id = f"{load_id}.{schema_name}.{table_name}"
         writer = self.buffered_writers.get(writer_id, None)

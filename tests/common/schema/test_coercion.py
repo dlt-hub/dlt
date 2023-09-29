@@ -297,7 +297,7 @@ def test_py_type_to_sc_type() -> None:
     assert py_type_to_sc_type(type(Wei.from_int256(2137, decimals=2))) == "wei"
     # unknown types raise TypeException
     with pytest.raises(TypeError):
-        py_type_to_sc_type(Any)
+        py_type_to_sc_type(Any)  # type: ignore[arg-type]
     # none type raises TypeException
     with pytest.raises(TypeError):
         py_type_to_sc_type(type(None))
