@@ -21,12 +21,12 @@ loads data using “Slack API” to the destination of your choice.
 Sources and resources that can be loaded using this verified source are:
 
 | Name                  | Description                                                                        |
-| --------------------- |------------------------------------------------------------------------------------|
-| slack_source          | Retrives all the Slack data: channels, messages for selected channels, users, logs |
-| channels_resource     | Retrives all the channels data                                                     |
+|-----------------------|------------------------------------------------------------------------------------|
+| slack                 | Retrives all the Slack data: channels, messages for selected channels, users, logs |
+| channels              | Retrives all the channels data                                                     |
+| users                 | Retrives all the users info                                                        |
 | get_messages_resource | Retrives all the messages for a given channel                                      |
 | access_logs           | Retrives the access logs                                                           |
-| users_resource        | Retrives all the users info                                                        |
 
 ## Setup Guide
 
@@ -165,6 +165,15 @@ This function yields all the channels data as `dlt` resource.
 ```python
 @dlt.resource(name="channels", primary_key="id", write_disposition="replace")
 def channels_resource() -> Iterable[TDataItem]:
+```
+
+### Resource `users`
+
+This function yields all the users data as `dlt` resource.
+
+```python
+@dlt.resource(name="users", primary_key="id", write_disposition="replace")
+def users_resource() -> Iterable[TDataItem]:
 ```
 
 ### Resource `get_messages_resource`
