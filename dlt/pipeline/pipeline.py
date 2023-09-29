@@ -18,7 +18,7 @@ from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, Des
                                    MissingDependencyException, DestinationUndefinedEntity, DestinationIncompatibleLoaderFileFormatException)
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
-from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition, TAnySchemaColumns, TSchemaContractSettings
+from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition, TAnySchemaColumns, TSchemaContract
 from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
 from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
@@ -267,7 +267,7 @@ class Pipeline(SupportsPipeline):
         schema: Schema = None,
         max_parallel_items: int = None,
         workers: int = None,
-        schema_contract_settings: TSchemaContractSettings = None
+        schema_contract: TSchemaContract = None
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         # create extract storage to which all the sources will be extracted
@@ -289,8 +289,8 @@ class Pipeline(SupportsPipeline):
                     storage.commit_extract_files(extract_id)
 
                 # update global schema contract settings
-                if schema_contract_settings is not None:
-                    self.default_schema.set_schema_contract_settings(schema_contract_settings, True)
+                if schema_contract is not None:
+                    self.default_schema.set_schema_contract(schema_contract, True)
 
                 return ExtractInfo(describe_extract_data(data))
         except Exception as exc:
@@ -396,7 +396,7 @@ class Pipeline(SupportsPipeline):
         primary_key: TColumnNames = None,
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
-        schema_contract_settings: TSchemaContractSettings = None
+        schema_contract: TSchemaContract = None
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -446,7 +446,7 @@ class Pipeline(SupportsPipeline):
 
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional). The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
 
-            schema_contract_settings (TSchemaContractSettings, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
+            schema_contract (TSchemaContract, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
 
         Raises:
             PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
@@ -474,7 +474,7 @@ class Pipeline(SupportsPipeline):
 
         # extract from the source
         if data is not None:
-            self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, schema=schema, schema_contract_settings=schema_contract_settings)
+            self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, schema=schema, schema_contract=schema_contract)
             self.normalize(loader_file_format=loader_file_format)
             return self.load(destination, dataset_name, credentials=credentials)
         else:

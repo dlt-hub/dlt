@@ -1,7 +1,7 @@
 from typing import Sequence, cast, overload
 
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnSchema, TWriteDisposition, TSchemaContractSettings
+from dlt.common.schema.typing import TColumnSchema, TWriteDisposition, TSchemaContract
 
 from dlt.common.typing import TSecretValue, Any
 from dlt.common.configuration import with_config
@@ -177,7 +177,7 @@ def run(
     columns: Sequence[TColumnSchema] = None,
     schema: Schema = None,
     loader_file_format: TLoaderFileFormat = None,
-    schema_contract_settings: TSchemaContractSettings = None,
+    schema_contract: TSchemaContract = None,
 ) -> LoadInfo:
     """Loads the data in `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -239,7 +239,7 @@ def run(
         columns=columns,
         schema=schema,
         loader_file_format=loader_file_format,
-        schema_contract_settings=schema_contract_settings
+        schema_contract=schema_contract
     )
 
 # plug default tracking module

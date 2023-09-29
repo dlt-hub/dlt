@@ -13,7 +13,7 @@ a frozen schema that does not change at all.
 Consider this example:
 
 ```py
-@dlt.resource(schema_contract_settings={"table": "evolve", "columns": "freeze"})
+@dlt.resource(schema_contract={"table": "evolve", "columns": "freeze"})
 def items():
     ...
 ```
@@ -21,9 +21,9 @@ def items():
 This resource will allow new subtables to be created, but will throw an exception if data is extracted for an existing table which 
 contains a new column. 
 
-The `schema_contract_settings` exists on the `source` decorator as a directive for all resources of that source and on the 
+The `schema_contract` exists on the `source` decorator as a directive for all resources of that source and on the 
 `resource` decorator as a directive for the individual resource.  Additionally it exists on the `pipeline.run()` method, which will override all existing settings. 
-The `schema_contract_settings` is a dictionary with keys that control the following:
+The `schema_contract` is a dictionary with keys that control the following:
 
 * `table` creating of new tables and subtables
 * `columns` creating of new columns on an existing table
@@ -39,7 +39,7 @@ Each property can be set to one of three values:
 The below code will silently ignore new subtables, allow new columns to be added to existing tables and raise an error if a variant of a column is discovered.
 
 ```py
-@dlt.resource(schema_contract_settings={"table": "discard_row", "columns": "evolve", "data_type": "freeze"})
+@dlt.resource(schema_contract={"table": "discard_row", "columns": "evolve", "data_type": "freeze"})
 def items():
     ...
 ```
@@ -47,7 +47,7 @@ def items():
 The below Code will raise on any encountered schema change. Note: You can always set a string which will be interpreted as though all keys are set to these values.
 
 ```py
-pipeline.run(my_source(), schema_contract_settings="freeze")
+pipeline.run(my_source(), schema_contract="freeze")
 ```
 
 The below code defines some settings on the source which can be overwritten on the resource which in turn can be overwritten by the global override on the `run` method.
@@ -55,7 +55,7 @@ Here for all resources variant columns are frozen and raise an error if encounte
 the source, thus new columns are frozen there. New tables are allowed.
 
 ```py
-@dlt.resource(schema_contract_settings={"columns": "evolve"})
+@dlt.resource(schema_contract={"columns": "evolve"})
 def items():
     ...
 
@@ -63,7 +63,7 @@ def items():
 def other_items():
     ...
 
-@dlt.source(schema_contract_settings={"columns": "freeze", "data_type": "freeze"}):
+@dlt.source(schema_contract={"columns": "freeze", "data_type": "freeze"}):
 def source():
   return [items(), other_items()]
 
@@ -72,6 +72,6 @@ def source():
 pipeline.run(source())
 
 # this will freeze the whole schema, regardless of the decorator settings
-pipeline.run(source(), schema_contract_settings="freeze")
+pipeline.run(source(), schema_contract="freeze")
 
 ```

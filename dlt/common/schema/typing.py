@@ -72,13 +72,13 @@ SIMPLE_REGEX_PREFIX = "re:"
 
 TSchemaEvolutionMode = Literal["evolve", "discard_value", "freeze", "discard_row"]
 
-class TSchemaContractModes(TypedDict, total=False):
+class TSchemaContractDict(TypedDict, total=False):
     """TypedDict defining the schema update settings"""
     table: Optional[TSchemaEvolutionMode]
     column: Optional[TSchemaEvolutionMode]
     data_type: Optional[TSchemaEvolutionMode]
 
-TSchemaContractSettings = Union[TSchemaEvolutionMode, TSchemaContractModes]
+TSchemaContract = Union[TSchemaEvolutionMode, TSchemaContractDict]
 
 class TRowFilters(TypedDict, total=True):
     excludes: Optional[List[TSimpleRegex]]
@@ -90,7 +90,7 @@ class TTableSchema(TypedDict, total=False):
     name: Optional[str]
     description: Optional[str]
     write_disposition: Optional[TWriteDisposition]
-    schema_contract_settings: Optional[TSchemaContractSettings]
+    schema_contract: Optional[TSchemaContract]
     parent: Optional[str]
     filters: Optional[TRowFilters]
     columns: TTableSchemaColumns
@@ -107,7 +107,7 @@ TSchemaUpdate = Dict[str, List[TPartialTableSchema]]
 
 
 class TSchemaSettings(TypedDict, total=False):
-    schema_contract_settings: Optional[TSchemaContractSettings]
+    schema_contract: Optional[TSchemaContract]
     detections: Optional[List[TTypeDetections]]
     default_hints: Optional[Dict[TColumnHint, List[TSimpleRegex]]]
     preferred_types: Optional[Dict[TSimpleRegex, TDataType]]

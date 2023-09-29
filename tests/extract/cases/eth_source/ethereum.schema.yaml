@@ -27,7 +27,7 @@ tables:
         name: schema_version_hash
     write_disposition: skip
     description: Created by DLT. Tracks completed loads
-    schema_contract_settings: {}
+    schema_contract: {}
     name: _dlt_loads
     resource: _dlt_loads
   _dlt_version:
@@ -58,7 +58,7 @@ tables:
         name: schema
     write_disposition: skip
     description: Created by DLT. Tracks schema updates
-    schema_contract_settings: {}
+    schema_contract: {}
     name: _dlt_version
     resource: _dlt_version
   blocks:
@@ -160,7 +160,7 @@ tables:
         nullable: false
         data_type: text
         name: transactions_root
-    schema_contract_settings: {}
+    schema_contract: {}
     name: blocks
     resource: blocks
   blocks__transactions:
@@ -442,7 +442,7 @@ settings:
   preferred_types:
     timestamp: timestamp
     block_timestamp: timestamp
-  schema_contract_settings: {}
+  schema_contract: {}
 normalizers:
   names: dlt.common.normalizers.names.snake_case
   json:

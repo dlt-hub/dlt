@@ -3,7 +3,7 @@ from collections.abc import Mapping as C_Mapping
 from typing import List, TypedDict, cast, Any
 
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
-from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TSchemaContractSettings
+from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TSchemaContract
 from dlt.common.typing import TDataItem
 from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
@@ -25,7 +25,7 @@ class TTableSchemaTemplate(TypedDict, total=False):
     primary_key: TTableHintTemplate[TColumnNames]
     merge_key: TTableHintTemplate[TColumnNames]
     incremental: Incremental[Any]
-    schema_contract_settings: TTableHintTemplate[TSchemaContractSettings]
+    schema_contract: TTableHintTemplate[TSchemaContract]
     populated: TTableHintTemplate[bool]
     validator: ValidateItem
 
@@ -100,7 +100,7 @@ class DltResourceSchema:
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
         incremental: Incremental[Any] = None,
-        schema_contract_settings: TTableHintTemplate[TSchemaContractSettings] = None,
+        schema_contract: TTableHintTemplate[TSchemaContract] = None,
         populated: TTableHintTemplate[bool] = None
     ) -> None:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
@@ -118,7 +118,7 @@ class DltResourceSchema:
         t = None
         if not self._table_schema_template:
             # if there's no template yet, create and set new one
-            t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key, schema_contract_settings, populated)
+            t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key, schema_contract, populated)
         else:
             # set single hints
             t = deepcopy(self._table_schema_template)
@@ -136,8 +136,8 @@ class DltResourceSchema:
                 t["populated"] = populated
             if write_disposition:
                 t["write_disposition"] = write_disposition
-            if schema_contract_settings:
-                t["schema_contract_settings"] = schema_contract_settings
+            if schema_contract:
+                t["schema_contract"] = schema_contract
             if columns is not None:
                 t['validator'] = get_column_validator(columns)
                 # if callable then override existing
@@ -218,7 +218,7 @@ class DltResourceSchema:
         columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
-        schema_contract_settings: TTableHintTemplate[TSchemaContractSettings] = None,
+        schema_contract: TTableHintTemplate[TSchemaContract] = None,
         populated: TTableHintTemplate[bool] = None
         ) -> TTableSchemaTemplate:
         if not table_name:
@@ -232,7 +232,7 @@ class DltResourceSchema:
         else:
             validator = None
         # create a table schema template where hints can be functions taking TDataItem
-        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_contract_settings=schema_contract_settings, populated=populated)  # type: ignore
+        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_contract=schema_contract, populated=populated)  # type: ignore
 
         if primary_key:
             new_template["primary_key"] = primary_key

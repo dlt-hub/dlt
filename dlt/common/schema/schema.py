@@ -11,14 +11,14 @@ from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterat
 from dlt.common.schema import utils
 from dlt.common.data_types import py_type_to_sc_type, coerce_value, TDataType
 from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, STATE_TABLE_NAME, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
-                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TSchemaContractModes, TSchemaContractSettings)
+                                      TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TSchemaContractDict, TSchemaContract)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException)
 from dlt.common.validation import validate_dict
 from dlt.common.schema.exceptions import SchemaFrozenException
 
 
-DEFAULT_SCHEMA_CONTRACT_MODE: TSchemaContractModes = {
+DEFAULT_SCHEMA_CONTRACT_MODE: TSchemaContractDict = {
     "table": "evolve",
     "column": "evolve",
     "data_type": "evolve"
@@ -195,13 +195,13 @@ class Schema:
 
         return new_row, updated_table_partial
 
-    def resolve_contract_settings_for_table(self, parent_table: str, table_name: str) -> TSchemaContractModes:
+    def resolve_contract_settings_for_table(self, parent_table: str, table_name: str) -> TSchemaContractDict:
         """Resolve the exact applicable schema contract settings for the table during the normalization stage."""
 
-        def resolve_single(settings: TSchemaContractSettings) -> TSchemaContractModes:
+        def resolve_single(settings: TSchemaContract) -> TSchemaContractDict:
             settings = settings or {}
             if isinstance(settings, str):
-                return TSchemaContractModes(table=settings, column=settings, data_type=settings)
+                return TSchemaContractDict(table=settings, column=settings, data_type=settings)
             return settings
 
         # find table settings
@@ -210,18 +210,18 @@ class Schema:
             table = utils.get_top_level_table(self.tables, parent_table or table_name)["name"]
 
         # modes
-        table_contract_modes = resolve_single(self.tables.get(table, {}).get("schema_contract_settings", {}))
-        schema_contract_modes = resolve_single(self._settings.get("schema_contract_settings", {}))
+        table_contract_modes = resolve_single(self.tables.get(table, {}).get("schema_contract", {}))
+        schema_contract_modes = resolve_single(self._settings.get("schema_contract", {}))
 
         # resolve to correct settings dict
-        settings = cast(TSchemaContractModes, {**DEFAULT_SCHEMA_CONTRACT_MODE, **schema_contract_modes, **table_contract_modes})
+        settings = cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **schema_contract_modes, **table_contract_modes})
 
         return settings
 
     def is_table_populated(self, table_name: str) -> bool:
         return table_name in self.tables and (self.tables[table_name].get("populated") is True)
 
-    def apply_schema_contract(self, contract_modes: TSchemaContractModes, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema, table_populated: bool) -> Tuple[DictStrAny, TPartialTableSchema]:
+    def apply_schema_contract(self, contract_modes: TSchemaContractDict, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema, table_populated: bool) -> Tuple[DictStrAny, TPartialTableSchema]:
         """
         Checks if contract mode allows for the requested changes to the data and the schema. It will allow all changes to pass, filter out the row filter out
         columns for both the data and the schema_update or reject the update completely, depending on the mode. An example settings could be:
@@ -279,7 +279,7 @@ class Schema:
             self.update_table(
                 self.normalize_table_identifiers(table)
             )
-        self.set_schema_contract_settings(schema._settings.get("schema_contract_settings", {}))
+        self.set_schema_contract(schema._settings.get("schema_contract", {}))
 
     def update_table(self, partial_table: TPartialTableSchema) -> TPartialTableSchema:
         table_name = partial_table["name"]
@@ -470,12 +470,12 @@ class Schema:
         normalizers["json"] = normalizers["json"] or self._normalizers_config["json"]
         self._configure_normalizers(normalizers)
 
-    def set_schema_contract_settings(self, settings: TSchemaContractSettings, update_table_settings: bool = False) -> None:
-        self._settings["schema_contract_settings"] = settings
+    def set_schema_contract(self, settings: TSchemaContract, update_table_settings: bool = False) -> None:
+        self._settings["schema_contract"] = settings
         if update_table_settings:
             for table in self.tables.values():
                 if not table.get("parent"):
-                    table["schema_contract_settings"] = settings
+                    table["schema_contract"] = settings
 
     def _infer_column(self, k: str, v: Any, data_type: TDataType = None, is_variant: bool = False) -> TColumnSchema:
         column_schema =  TColumnSchema(

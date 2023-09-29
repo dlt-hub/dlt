@@ -16,7 +16,7 @@ from dlt.common.validation import TCustomValidator, validate_dict, validate_dict
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TPartialTableSchema, TSchemaTables, TSchemaUpdate,
                                       TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp,
-                                      TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition, TSchemaContractSettings, TSchemaContractModes)
+                                      TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition, TSchemaContract, TSchemaContractDict)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, ParentTableNotFoundException, SchemaEngineNoUpgradePathException, SchemaException,
                                           TablePropertiesConflictException, InvalidSchemaName)
 
@@ -343,11 +343,11 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
     if from_engine == 6 and to_engine > 6:
         # migrate from sealed properties to schema evolution settings
         schema_dict["settings"].pop("schema_sealed", None)
-        schema_dict["settings"]["schema_contract_settings"] = {}
+        schema_dict["settings"]["schema_contract"] = {}
         for table in schema_dict["tables"].values():
             table.pop("table_sealed", None)
             if not table.get("parent"):
-                table["schema_contract_settings"] = {}
+                table["schema_contract"] = {}
         from_engine = 7
 
     schema_dict["engine_version"] = from_engine
@@ -646,7 +646,7 @@ def new_table(
     columns: Sequence[TColumnSchema] = None,
     validate_schema: bool = False,
     resource: str = None,
-    schema_contract_settings: TSchemaContractSettings = None,
+    schema_contract: TSchemaContract = None,
     populated: bool = None
 ) -> TTableSchema:
 
@@ -658,13 +658,13 @@ def new_table(
         table["parent"] = parent_table_name
         assert write_disposition is None
         assert resource is None
-        assert schema_contract_settings is None
+        assert schema_contract is None
     else:
         # set write disposition only for root tables
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
         table["resource"] = resource or table_name
-        if schema_contract_settings:
-            table["schema_contract_settings"] = schema_contract_settings
+        if schema_contract:
+            table["schema_contract"] = schema_contract
     if populated is not None:
         table["populated"] = populated
     if validate_schema:

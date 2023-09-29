@@ -64,7 +64,7 @@ def test_resolve_contract_settings() -> None:
 
     # table specific full setting
     schema = get_schema()
-    schema.tables["table"]["schema_contract_settings"] = "freeze"
+    schema.tables["table"]["schema_contract"] = "freeze"
     assert schema.resolve_contract_settings_for_table(None, "table") == {
         "table": "freeze",
         "column": "freeze",
@@ -78,7 +78,7 @@ def test_resolve_contract_settings() -> None:
 
     # table specific single setting
     schema = get_schema()
-    schema.tables["table"]["schema_contract_settings"] = {
+    schema.tables["table"]["schema_contract"] = {
         "table": "freeze",
         "column": "discard_value",
     }
@@ -95,7 +95,7 @@ def test_resolve_contract_settings() -> None:
 
     # schema specific full setting
     schema = get_schema()
-    schema._settings["schema_contract_settings"] = "freeze"
+    schema._settings["schema_contract"] = "freeze"
     assert schema.resolve_contract_settings_for_table(None, "table") == {
         "table": "freeze",
         "column": "freeze",
@@ -109,7 +109,7 @@ def test_resolve_contract_settings() -> None:
 
     # schema specific single setting
     schema = get_schema()
-    schema._settings["schema_contract_settings"] = {
+    schema._settings["schema_contract"] = {
         "table": "freeze",
         "column": "discard_value",
     }
@@ -126,8 +126,8 @@ def test_resolve_contract_settings() -> None:
 
     # mixed settings
     schema = get_schema()
-    schema._settings["schema_contract_settings"] = "freeze"
-    schema.tables["table"]["schema_contract_settings"] = {
+    schema._settings["schema_contract"] = "freeze"
+    schema.tables["table"]["schema_contract"] = {
         "table": "evolve",
         "column": "discard_value",
     }

@@ -11,7 +11,7 @@ from dlt.common.json import custom_pua_decode
 from dlt.common.runners import TRunMetrics, Runnable
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns, TSchemaContractModes
+from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns, TSchemaContractDict
 from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage, LoadStorageConfiguration, NormalizeStorageConfiguration
@@ -132,7 +132,7 @@ class Normalize(Runnable[ProcessPool]):
         schema_name = schema.name
         items_count = 0
         row_counts: TRowCount = {}
-        schema_contract_modes: TSchemaContractModes = None
+        schema_contract_modes: TSchemaContractDict = None
         is_table_populated: bool = False
 
         for item in items:

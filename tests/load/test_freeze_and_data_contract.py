@@ -1,5 +1,5 @@
 import dlt, os, pytest
-from dlt.common.schema.typing import TSchemaContractSettings
+from dlt.common.schema.typing import TSchemaContract
 from dlt.common.utils import uniq_id
 from typing import Any, Union, Optional
 from dlt.extract.source import DltSource, DltResource
@@ -15,7 +15,7 @@ from tests.utils import skip_if_not_active
 
 skip_if_not_active("duckdb")
 
-schema_contract_settings = ["evolve", "discard_value", "discard_row", "freeze"]
+schema_contract = ["evolve", "discard_value", "discard_row", "freeze"]
 LOCATIONS = ["source", "resource", "override"]
 SCHEMA_ELEMENTS = ["table", "column", "data_type"]
 
@@ -28,9 +28,9 @@ def raises_frozen_exception(check_raise: bool = True) -> Any:
         yield
     assert isinstance(py_exc.value.__context__, SchemaFrozenException)
 
-def items(settings: TSchemaContractSettings) -> Any:
+def items(settings: TSchemaContract) -> Any:
 
-    @dlt.resource(name="items", write_disposition="append", schema_contract_settings=settings)
+    @dlt.resource(name="items", write_disposition="append", schema_contract=settings)
     def load_items():
         for _, index in enumerate(range(0, 10), 1):
             yield {
@@ -41,9 +41,9 @@ def items(settings: TSchemaContractSettings) -> Any:
 
     return load_items
 
-def items_with_variant(settings: TSchemaContractSettings) -> Any:
+def items_with_variant(settings: TSchemaContract) -> Any:
 
-    @dlt.resource(name="items", write_disposition="append", schema_contract_settings=settings)
+    @dlt.resource(name="items", write_disposition="append", schema_contract=settings)
     def load_items():
         for _, index in enumerate(range(0, 10), 1):
             yield {
@@ -54,9 +54,9 @@ def items_with_variant(settings: TSchemaContractSettings) -> Any:
 
     return load_items
 
-def items_with_new_column(settings: TSchemaContractSettings) -> Any:
+def items_with_new_column(settings: TSchemaContract) -> Any:
 
-    @dlt.resource(name="items", write_disposition="append", schema_contract_settings=settings)
+    @dlt.resource(name="items", write_disposition="append", schema_contract=settings)
     def load_items():
         for _, index in enumerate(range(0, 10), 1):
             yield {
@@ -68,9 +68,9 @@ def items_with_new_column(settings: TSchemaContractSettings) -> Any:
     return load_items
 
 
-def items_with_subtable(settings: TSchemaContractSettings) -> Any:
+def items_with_subtable(settings: TSchemaContract) -> Any:
 
-    @dlt.resource(name="items", write_disposition="append", schema_contract_settings=settings)
+    @dlt.resource(name="items", write_disposition="append", schema_contract=settings)
     def load_items():
         for _, index in enumerate(range(0, 10), 1):
             yield {
@@ -84,9 +84,9 @@ def items_with_subtable(settings: TSchemaContractSettings) -> Any:
 
     return load_items
 
-def new_items(settings: TSchemaContractSettings) -> Any:
+def new_items(settings: TSchemaContract) -> Any:
 
-    @dlt.resource(name="new_items", write_disposition="append", schema_contract_settings=settings)
+    @dlt.resource(name="new_items", write_disposition="append", schema_contract=settings)
     def load_items():
         for _, index in enumerate(range(0, 10), 1):
             yield {
@@ -109,31 +109,31 @@ def run_resource(pipeline, resource_fun, settings) -> DltSource:
     for item in settings.keys():
         assert item in LOCATIONS
         ev_settings = settings[item]
-        if ev_settings in schema_contract_settings:
+        if ev_settings in schema_contract:
             continue
         for key, val in ev_settings.items():
-            assert val in schema_contract_settings
+            assert val in schema_contract
             assert key in SCHEMA_ELEMENTS
 
-    @dlt.source(name="freeze_tests", schema_contract_settings=settings.get("source"))
+    @dlt.source(name="freeze_tests", schema_contract=settings.get("source"))
     def source() -> DltResource:
         return resource_fun(settings.get("resource"))
 
     # run pipeline
-    pipeline.run(source(), schema_contract_settings=settings.get("override"))
+    pipeline.run(source(), schema_contract=settings.get("override"))
 
     # check updated schema
-    assert pipeline.default_schema._settings.get("schema_contract_settings", {}) == (settings.get("override") or settings.get("source"))
+    assert pipeline.default_schema._settings.get("schema_contract", {}) == (settings.get("override") or settings.get("source"))
 
     # check items table settings
-    assert pipeline.default_schema.tables["items"].get("schema_contract_settings", {}) == (settings.get("override") or settings.get("resource") or {})
+    assert pipeline.default_schema.tables["items"].get("schema_contract", {}) == (settings.get("override") or settings.get("resource") or {})
 
 def get_pipeline():
     import duckdb
     return dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'), full_refresh=True)
 
 
-@pytest.mark.parametrize("contract_setting", schema_contract_settings)
+@pytest.mark.parametrize("contract_setting", schema_contract)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
 def test_freeze_new_tables(contract_setting: str, setting_location: str) -> None:
 
@@ -173,7 +173,7 @@ def test_freeze_new_tables(contract_setting: str, setting_location: str) -> None
     assert table_counts.get("new_items", 0) == (10 if contract_setting in ["evolve"] else 0)
 
 
-@pytest.mark.parametrize("contract_setting", schema_contract_settings)
+@pytest.mark.parametrize("contract_setting", schema_contract)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
 def test_freeze_new_columns(contract_setting: str, setting_location: str) -> None:
 
@@ -223,7 +223,7 @@ def test_freeze_new_columns(contract_setting: str, setting_location: str) -> Non
     assert table_counts["items"] == (40 if contract_setting in ["evolve", "discard_value"] else 20)
 
 
-@pytest.mark.parametrize("contract_setting", schema_contract_settings)
+@pytest.mark.parametrize("contract_setting", schema_contract)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
 def test_freeze_variants(contract_setting: str, setting_location: str) -> None:
 
@@ -420,31 +420,31 @@ def test_data_contract_interaction() -> None:
     # test variants
     pipeline = get_pipeline()
     pipeline.run([get_items_simple()])
-    pipeline.run([get_items()], schema_contract_settings={"data_type": "discard_row"})
+    pipeline.run([get_items()], schema_contract={"data_type": "discard_row"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
-    pipeline.run([get_items_variant()], schema_contract_settings={"data_type": "discard_row"})
+    pipeline.run([get_items_variant()], schema_contract={"data_type": "discard_row"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
-    pipeline.run([get_items_variant()], schema_contract_settings={"data_type": "evolve"})
+    pipeline.run([get_items_variant()], schema_contract={"data_type": "evolve"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
 
     # test new column
     pipeline = get_pipeline()
     pipeline.run([get_items_simple()])
-    pipeline.run([get_items()], schema_contract_settings={"column": "discard_row"})
+    pipeline.run([get_items()], schema_contract={"column": "discard_row"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
-    pipeline.run([get_items_new_col()], schema_contract_settings={"column": "discard_row"})
+    pipeline.run([get_items_new_col()], schema_contract={"column": "discard_row"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
-    pipeline.run([get_items_new_col()], schema_contract_settings={"column": "evolve"})
+    pipeline.run([get_items_new_col()], schema_contract={"column": "evolve"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
 
     # test new subtable
     pipeline = get_pipeline()
     pipeline.run([get_items_simple()])
-    pipeline.run([get_items_subtable()], schema_contract_settings={"table": "discard_row"})
+    pipeline.run([get_items_subtable()], schema_contract={"table": "discard_row"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
     assert pipeline.last_trace.last_normalize_info.row_counts.get("items__sub", 0) == 0
 
-    pipeline.run([get_items_subtable()], schema_contract_settings={"table": "evolve"})
+    pipeline.run([get_items_subtable()], schema_contract={"table": "evolve"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
     assert pipeline.last_trace.last_normalize_info.row_counts.get("items__sub", 0) == 1
 
@@ -453,7 +453,7 @@ def test_different_objects_in_one_load() -> None:
 
     pipeline = get_pipeline()
 
-    @dlt.resource(name="items", schema_contract_settings={"column": "freeze", "table":"evolve"})
+    @dlt.resource(name="items", schema_contract={"column": "freeze", "table":"evolve"})
     def get_items():
         yield {
             "id": 1,
@@ -480,7 +480,7 @@ def test_dynamic_tables(table_mode: str) -> None:
     #   the tables is NOT new according to normalizer so the row is not discarded
     # remove that and it will pass because the table contains just one incomplete column so it is incomplete so it is treated as new
     # if you uncomment update code in the extract the problem probably goes away
-    @dlt.resource(name="items", table_name=lambda i: i["table"], schema_contract_settings={"table": table_mode}, columns={"id": {}})
+    @dlt.resource(name="items", table_name=lambda i: i["table"], schema_contract={"table": table_mode}, columns={"id": {}})
     def get_items():
         yield {
             "id": 1,
@@ -501,7 +501,7 @@ def test_dynamic_tables(table_mode: str) -> None:
 def test_defined_column_in_new_table(column_mode: str) -> None:
     pipeline = get_pipeline()
 
-    @dlt.resource(name="items", columns=[{"name": "id", "data_type": "bigint", "nullable": False}], schema_contract_settings={"column": column_mode})
+    @dlt.resource(name="items", columns=[{"name": "id", "data_type": "bigint", "nullable": False}], schema_contract={"column": column_mode})
     def get_items():
         yield {
             "id": 1,
@@ -522,7 +522,7 @@ def test_new_column_from_hint_and_data(column_mode: str) -> None:
 
     @dlt.resource(
         name="items",
-        schema_contract_settings={"column": column_mode},
+        schema_contract={"column": column_mode},
         columns=[{"name": "id", "data_type": "bigint", "nullable": False}])
     def get_items():
         yield {
@@ -544,7 +544,7 @@ def test_two_new_columns_from_two_rows(column_mode: str) -> None:
     # the test does not fail only because you clone schema in normalize
 
     @dlt.resource(
-        schema_contract_settings={"column": column_mode}
+        schema_contract={"column": column_mode}
     )
     def items():
         yield {
@@ -573,7 +573,7 @@ def test_dynamic_new_columns(column_mode: str) -> None:
         if item["id"] == 2:
             return [{"name": "id", "data_type": "bigint", "nullable": True}]
 
-    @dlt.resource(name="items", table_name=lambda i: "items", schema_contract_settings={"column": column_mode})
+    @dlt.resource(name="items", table_name=lambda i: "items", schema_contract={"column": column_mode})
     def get_items():
         yield {
             "id": 1,
