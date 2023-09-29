@@ -61,8 +61,6 @@ class SynapseStagingCopyJob(SqlStagingCopyJob):
             sql.append(f"DROP TABLE {table_name};")
             # moving staging table to destination schema
             sql.append(f"ALTER SCHEMA {sql_client.fully_qualified_dataset_name()} TRANSFER {staging_table_name};")
-            # recreate staging table
-            sql.append(f"SELECT * INTO {staging_table_name} FROM {table_name} WHERE 1 = 0;")
         return sql
 
 

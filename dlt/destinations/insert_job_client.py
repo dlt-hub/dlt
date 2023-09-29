@@ -10,6 +10,7 @@ from dlt.common.utils import chunks
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
+from tests.utils import ACTIVE_DESTINATIONS
 
 
 class InsertValuesLoadJob(LoadJob, FollowupJob):
@@ -57,48 +58,50 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                     # print(f'replace the "," with " {until_nl} {len(insert_sql)}')
                     until_nl = until_nl[:-1] + ";"
 
-                if max_rows is not None and max_rows<1000:
-                    # mssql has a limit of 1000 rows per INSERT, so we need to split into separate statements
-                    values_rows = content.splitlines(keepends=True)
-                    len_rows = len(values_rows)
-                    processed = 0
-                    # Chunk by max_rows - 1 for simplicity because one more row may be added
-                    for chunk in chunks(values_rows, max_rows - 1):
-                        processed += len(chunk)
-                        insert_sql.extend([header.format(qualified_table_name), values_mark])
-                        if processed == len_rows:
-                            # On the last chunk we need to add the extra row read
-                            insert_sql.append("".join(chunk) + until_nl)
-                        else:
-                            # Replace the , with ;
-                            insert_sql.append("".join(chunk).strip()[:-1] + ";\n")
-                elif max_rows >= 1000:
-                    # This part breaks the multiple values in an insert statement into individual insert statements 
-                    # combined with SELECT and UNION ALL
+                if max_rows is not None:
+                    if "synapse" in ACTIVE_DESTINATIONS:
+                        # This part breaks the multiple values in an insert statement into individual insert statements 
+                        # combined with SELECT and UNION ALL
+                        #https://stackoverflow.com/questions/36141006/how-to-insert-multiple-rows-into-sql-server-parallel-data-warehouse-table
 
-                    values_rows = content.splitlines(keepends=True)
-                    sql_rows = []
+                        values_rows = content.splitlines(keepends=True)
+                        sql_rows = []
 
-                    for row in values_rows:
-                        # Remove potential leading and trailing characters such as brackets, commas, and newlines
-                        row = row.strip(",\n() ;")
-                        
-                        # Separate out the individual values within the row
-                        columns = row.split(",")
-                        
-                        # Ensure there are no stray parentheses in columns
-                        columns = [col.strip("()") for col in columns]
-                        
-                        # Create the SELECT for this particular row, keeping the values as they are
-                        sql_rows.append(f"SELECT {', '.join(columns)}")
+                        for row in values_rows:
+                            # Remove potential leading and trailing characters such as brackets, commas, and newlines
+                            row = row.strip(",\n() ;")
+                            
+                            # Separate out the individual values within the row
+                            columns = row.split(",")
+                            
+                            # Ensure there are no stray parentheses in columns
+                            columns = [col.strip("()") for col in columns]
+                            
+                            # Create the SELECT for this particular row, keeping the values as they are
+                            sql_rows.append(f"SELECT {', '.join(columns)}")
 
-                    individual_insert = " UNION ALL ".join(sql_rows)
-                    
-                    # If individual_insert ends with a semicolon, remove it
-                    if individual_insert.endswith(";"):
-                        individual_insert = individual_insert[:-1]
-                    
-                    insert_sql.extend([header.format(qualified_table_name), individual_insert + ";"])
+                        individual_insert = " UNION ALL ".join(sql_rows)
+                        
+                        # If individual_insert ends with a semicolon, remove it
+                        if individual_insert.endswith(";"):
+                            individual_insert = individual_insert[:-1]
+                        
+                        insert_sql.extend([header.format(qualified_table_name), individual_insert + ";"])
+                    else:
+                        # mssql has a limit of 1000 rows per INSERT, so we need to split into separate statements
+                        values_rows = content.splitlines(keepends=True)
+                        len_rows = len(values_rows)
+                        processed = 0
+                        # Chunk by max_rows - 1 for simplicity because one more row may be added
+                        for chunk in chunks(values_rows, max_rows - 1):
+                            processed += len(chunk)
+                            insert_sql.extend([header.format(qualified_table_name), values_mark])
+                            if processed == len_rows:
+                                # On the last chunk we need to add the extra row read
+                                insert_sql.append("".join(chunk) + until_nl)
+                            else:
+                                # Replace the , with ;
+                                insert_sql.append("".join(chunk).strip()[:-1] + ";\n")
                 else:
                     # otherwise write all content in a single INSERT INTO
                     insert_sql.extend([header.format(qualified_table_name), values_mark, content])
