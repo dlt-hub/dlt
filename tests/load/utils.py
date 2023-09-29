@@ -48,6 +48,7 @@ class DestinationTestConfiguration:
     staging: Optional[str] = None
     file_format: Optional[str] = None
     bucket_url: Optional[str] = None
+    iceberg_bucket_url: Optional[str] = None
     stage_name: Optional[str] = None
     staging_iam_role: Optional[str] = None
     extra_info: Optional[str] = None
@@ -71,6 +72,7 @@ class DestinationTestConfiguration:
         os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = self.bucket_url or ""
         os.environ['DESTINATION__STAGE_NAME'] = self.stage_name or ""
         os.environ['DESTINATION__STAGING_IAM_ROLE'] = self.staging_iam_role or ""
+        os.environ['DESTINATION__ATHENA__ICEBERG_BUCKET_URL'] = self.iceberg_bucket_url or ""
 
         """For the filesystem destinations we disable compression to make analyzing the result easier"""
         if self.destination == "filesystem":
@@ -116,6 +118,7 @@ def destinations_configs(
     if default_staging_configs or all_staging_configs:
         destination_configs += [
             DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, supports_merge=False),
+            DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, iceberg_bucket_url=AWS_BUCKET + "/iceberg", supports_merge=False, extra_info="iceberg"),
             DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, staging_iam_role="arn:aws:iam::267388281016:role/redshift_s3_read", extra_info="s3-role"),
             DestinationTestConfiguration(destination="bigquery", staging="filesystem", file_format="parquet", bucket_url=GCS_BUCKET, extra_info="gcs-authorization"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, stage_name="PUBLIC.dlt_gcs_stage", extra_info="gcs-integration"),
