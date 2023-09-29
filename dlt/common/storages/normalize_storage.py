@@ -47,7 +47,7 @@ class NormalizeStorage(VersionedStorage):
     @staticmethod
     def parse_normalize_file_name(file_name: str) -> TParsedNormalizeFileName:
         # parse extracted file name and returns (events found, load id, schema_name)
-        if not file_name.endswith("jsonl"):
+        if not file_name.endswith("jsonl") and not file_name.endswith("parquet"):
             raise ValueError(file_name)
 
         parts = Path(file_name).stem.split(".")

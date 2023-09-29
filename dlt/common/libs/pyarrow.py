@@ -1,9 +1,11 @@
 from typing import Any, Tuple, Optional
 from dlt import version
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.schema.typing import TTableSchemaColumns
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
+from dlt.common.data_types import TDataType
 
 try:
     import pyarrow
@@ -82,3 +84,46 @@ def get_pyarrow_int(precision: Optional[int]) -> Any:
     elif precision <= 32:
         return pyarrow.int32()
     return pyarrow.int64()
+
+# TODO precision and scale
+def _get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TDataType:
+    if pyarrow.types.is_string(dtype) or pyarrow.types.is_large_string(dtype):
+        return "text"
+    if pyarrow.types.is_floating(dtype):
+        return "double"
+    if pyarrow.types.is_boolean(dtype):
+        return "bool"
+    if pyarrow.types.is_timestamp(dtype):
+        return "timestamp"
+    if pyarrow.types.is_date(dtype):
+        return "date"
+    if pyarrow.types.is_time(dtype):
+        return "time"
+    if pyarrow.types.is_integer(dtype):
+        return "bigint"
+    if pyarrow.types.is_binary(dtype) or pyarrow.types.is_large_binary(dtype) or pyarrow.types.is_fixed_size_binary(dtype):
+        return "binary"
+    if pyarrow.types.is_decimal(dtype):
+        return "decimal"
+    if pyarrow.types.is_nested(dtype):
+        return "complex"
+    else:
+        raise ValueError(dtype)
+
+def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColumns:
+    """Convert a PyArrow schema to a table schema columns dict.
+
+    Args:
+        schema (pyarrow.Schema): pyarrow schema
+
+    Returns:
+        TTableSchemaColumns: table schema columns
+    """
+    result: TTableSchemaColumns = {}
+    for field in schema:
+        result[field.name] = {
+            "name": field.name,
+            "data_type": _get_column_type_from_py_arrow(field.type),
+            "nullable": field.nullable,
+        }
+    return result
