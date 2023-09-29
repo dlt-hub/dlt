@@ -255,7 +255,7 @@ verified source.
    ```
    > Subsequent runs will load only items updated since the previous run.
 
-1. To load selected Slack resources from the specified start date:
+1. To load data from selected Slack channels from the specified start date:
 
    ```python
    # To load data from selected channels.
@@ -269,5 +269,22 @@ verified source.
    )
    # It loads data starting from 1st September 2023 to 8th Sep 2023 from the channels: "general" and "random".
    load_info = pipeline.run(source)
+   print(load_info)
+   ```
+
+1. To load only messages from selected Slack resources:
+
+   ```python
+   # To load data from selected channels.
+   selected_channels=["general", "random"] # Enter the channel names here.
+
+   source = slack_source(
+       page_size=20,
+       selected_channels=selected_channels,
+       start_date=datetime(2023, 9, 1),
+       end_date=datetime(2023, 9, 8),
+   )
+   # It loads only massages from the channel "general".
+   load_info = pipeline.run(source.with_resources("general"))
    print(load_info)
    ```
