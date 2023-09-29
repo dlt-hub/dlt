@@ -28,7 +28,6 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
     caps.max_identifier_length = 65536
     caps.max_column_identifier_length = 65536
-    caps.naming_convention = "duck_case"
     caps.max_query_length = 32 * 1024 * 1024
     caps.is_max_query_length_in_bytes = True
     caps.max_text_data_type_length = 1024 * 1024 * 1024

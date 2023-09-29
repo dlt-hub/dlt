@@ -6,7 +6,6 @@ from dlt.common.utils import uniq_id, custom_environ, digest128
 from dlt.common.schema import Schema
 from dlt.common.configuration import resolve_configuration
 
-from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations.redshift.redshift import RedshiftClient
 from dlt.destinations.redshift.configuration import RedshiftClientConfiguration, RedshiftCredentials
 

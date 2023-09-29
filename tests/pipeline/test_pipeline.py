@@ -146,7 +146,6 @@ def test_pipeline_context() -> None:
     assert ctx.pipeline() is p2
     assert p.is_active is False
     assert p2.is_active is True
-    assert Container()[DestinationCapabilitiesContext].naming_convention == "duck_case"
 
     p3 = dlt.pipeline(pipeline_name="more pipelines", destination="dummy")
     assert ctx.pipeline() is p3
@@ -159,7 +158,6 @@ def test_pipeline_context() -> None:
     assert ctx.pipeline() is p2
     assert p3.is_active is False
     assert p2.is_active is True
-    assert Container()[DestinationCapabilitiesContext].naming_convention == "duck_case"
 
 
 def test_import_unknown_destination() -> None:
