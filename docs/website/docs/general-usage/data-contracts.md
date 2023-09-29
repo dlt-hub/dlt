@@ -13,7 +13,7 @@ a frozen schema that does not change at all.
 Consider this example:
 
 ```py
-@dlt.resource(schema_contract={"table": "evolve", "columns": "freeze"})
+@dlt.resource(schema_contract={"tables": "evolve", "columns": "freeze"})
 def items():
     ...
 ```
@@ -39,7 +39,7 @@ Each property can be set to one of three values:
 The below code will silently ignore new subtables, allow new columns to be added to existing tables and raise an error if a variant of a column is discovered.
 
 ```py
-@dlt.resource(schema_contract={"table": "discard_row", "columns": "evolve", "data_type": "freeze"})
+@dlt.resource(schema_contract={"tables": "discard_row", "columns": "evolve", "data_type": "freeze"})
 def items():
     ...
 ```

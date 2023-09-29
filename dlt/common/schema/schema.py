@@ -19,8 +19,8 @@ from dlt.common.schema.exceptions import SchemaFrozenException
 
 
 DEFAULT_SCHEMA_CONTRACT_MODE: TSchemaContractDict = {
-    "table": "evolve",
-    "column": "evolve",
+    "tables": "evolve",
+    "columns": "evolve",
     "data_type": "evolve"
 }
 
@@ -227,8 +227,8 @@ class Schema:
         columns for both the data and the schema_update or reject the update completely, depending on the mode. An example settings could be:
 
         {
-            "table": "freeze",
-            "column": "evolve",
+            "tables": "freeze",
+            "columns": "evolve",
             "data_type": "discard_row"
         }
 
@@ -247,9 +247,9 @@ class Schema:
 
         # check case where we have a new table
         if not table_populated:
-            if contract_modes["table"] in ["discard_row", "discard_value"]:
+            if contract_modes["tables"] in ["discard_row", "discard_value"]:
                 return None, None
-            if contract_modes["table"] == "freeze":
+            if contract_modes["tables"] == "freeze":
                 raise SchemaFrozenException(self.name, table_name, f"Trying to add table {table_name} but new tables are frozen.")
 
         # check columns
@@ -257,14 +257,14 @@ class Schema:
             # if this is a new column for an existing table...
             if table_populated and (item not in self.tables[table_name]["columns"] or not utils.is_complete_column(self.tables[table_name]["columns"][item])):
                 is_variant = (item in partial_table["columns"]) and partial_table["columns"][item].get("variant")
-                if contract_modes["column"] == "discard_value" or (is_variant and contract_modes["data_type"] == "discard_value"):
+                if contract_modes["columns"] == "discard_value" or (is_variant and contract_modes["data_type"] == "discard_value"):
                     row.pop(item)
                     partial_table["columns"].pop(item)
-                elif contract_modes["column"] == "discard_row" or (is_variant and contract_modes["data_type"] == "discard_row"):
+                elif contract_modes["columns"] == "discard_row" or (is_variant and contract_modes["data_type"] == "discard_row"):
                     return None, None
                 elif is_variant and contract_modes["data_type"] == "freeze":
                     raise SchemaFrozenException(self.name, table_name, f"Trying to create new variant column {item} to table {table_name} data_types are frozen.")
-                elif contract_modes["column"] == "freeze":
+                elif contract_modes["columns"] == "freeze":
                     raise SchemaFrozenException(self.name, table_name, f"Trying to add column {item} to table {table_name} but columns are frozen.")
 
         return row, partial_table

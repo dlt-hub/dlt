@@ -74,8 +74,8 @@ TSchemaEvolutionMode = Literal["evolve", "discard_value", "freeze", "discard_row
 
 class TSchemaContractDict(TypedDict, total=False):
     """TypedDict defining the schema update settings"""
-    table: Optional[TSchemaEvolutionMode]
-    column: Optional[TSchemaEvolutionMode]
+    tables: Optional[TSchemaEvolutionMode]
+    columns: Optional[TSchemaEvolutionMode]
     data_type: Optional[TSchemaEvolutionMode]
 
 TSchemaContract = Union[TSchemaEvolutionMode, TSchemaContractDict]

@@ -17,7 +17,7 @@ skip_if_not_active("duckdb")
 
 schema_contract = ["evolve", "discard_value", "discard_row", "freeze"]
 LOCATIONS = ["source", "resource", "override"]
-SCHEMA_ELEMENTS = ["table", "column", "data_type"]
+SCHEMA_ELEMENTS = ["tables", "columns", "data_type"]
 
 @contextlib.contextmanager
 def raises_frozen_exception(check_raise: bool = True) -> Any:
@@ -141,7 +141,7 @@ def test_freeze_new_tables(contract_setting: str, setting_location: str) -> None
 
     full_settings = {
         setting_location: {
-        "table": contract_setting
+        "tables": contract_setting
     }}
     run_resource(pipeline, items, {})
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
@@ -179,7 +179,7 @@ def test_freeze_new_columns(contract_setting: str, setting_location: str) -> Non
 
     full_settings = {
         setting_location: {
-        "column": contract_setting
+        "columns": contract_setting
     }}
 
     pipeline = get_pipeline()
@@ -275,13 +275,13 @@ def test_settings_precedence() -> None:
 
     # trying to add new column when forbidden on resource will fail
     run_resource(pipeline, items_with_new_column, {"resource": {
-        "column": "discard_row"
+        "columns": "discard_row"
     }})
 
     # when allowed on override it will work
     run_resource(pipeline, items_with_new_column, {
-        "resource": {"column": "freeze"},
-        "override": {"column": "evolve"}
+        "resource": {"columns": "freeze"},
+        "override": {"columns": "evolve"}
     })
 
 
@@ -430,21 +430,21 @@ def test_data_contract_interaction() -> None:
     # test new column
     pipeline = get_pipeline()
     pipeline.run([get_items_simple()])
-    pipeline.run([get_items()], schema_contract={"column": "discard_row"})
+    pipeline.run([get_items()], schema_contract={"columns": "discard_row"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
-    pipeline.run([get_items_new_col()], schema_contract={"column": "discard_row"})
+    pipeline.run([get_items_new_col()], schema_contract={"columns": "discard_row"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
-    pipeline.run([get_items_new_col()], schema_contract={"column": "evolve"})
+    pipeline.run([get_items_new_col()], schema_contract={"columns": "evolve"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
 
     # test new subtable
     pipeline = get_pipeline()
     pipeline.run([get_items_simple()])
-    pipeline.run([get_items_subtable()], schema_contract={"table": "discard_row"})
+    pipeline.run([get_items_subtable()], schema_contract={"tables": "discard_row"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
     assert pipeline.last_trace.last_normalize_info.row_counts.get("items__sub", 0) == 0
 
-    pipeline.run([get_items_subtable()], schema_contract={"table": "evolve"})
+    pipeline.run([get_items_subtable()], schema_contract={"tables": "evolve"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
     assert pipeline.last_trace.last_normalize_info.row_counts.get("items__sub", 0) == 1
 
@@ -453,7 +453,7 @@ def test_different_objects_in_one_load() -> None:
 
     pipeline = get_pipeline()
 
-    @dlt.resource(name="items", schema_contract={"column": "freeze", "table":"evolve"})
+    @dlt.resource(name="items", schema_contract={"columns": "freeze", "tables":"evolve"})
     def get_items():
         yield {
             "id": 1,
@@ -480,15 +480,15 @@ def test_dynamic_tables(table_mode: str) -> None:
     #   the tables is NOT new according to normalizer so the row is not discarded
     # remove that and it will pass because the table contains just one incomplete column so it is incomplete so it is treated as new
     # if you uncomment update code in the extract the problem probably goes away
-    @dlt.resource(name="items", table_name=lambda i: i["table"], schema_contract={"table": table_mode}, columns={"id": {}})
+    @dlt.resource(name="items", table_name=lambda i: i["tables"], schema_contract={"tables": table_mode}, columns={"id": {}})
     def get_items():
         yield {
             "id": 1,
-            "table": "one",
+            "tables": "one",
         }
         yield {
             "id": 2,
-            "table": "two",
+            "tables": "two",
             "new_column": "some val"
         }
     with raises_frozen_exception(table_mode == "freeze"):
@@ -501,7 +501,7 @@ def test_dynamic_tables(table_mode: str) -> None:
 def test_defined_column_in_new_table(column_mode: str) -> None:
     pipeline = get_pipeline()
 
-    @dlt.resource(name="items", columns=[{"name": "id", "data_type": "bigint", "nullable": False}], schema_contract={"column": column_mode})
+    @dlt.resource(name="items", columns=[{"name": "id", "data_type": "bigint", "nullable": False}], schema_contract={"columns": column_mode})
     def get_items():
         yield {
             "id": 1,
@@ -522,7 +522,7 @@ def test_new_column_from_hint_and_data(column_mode: str) -> None:
 
     @dlt.resource(
         name="items",
-        schema_contract={"column": column_mode},
+        schema_contract={"columns": column_mode},
         columns=[{"name": "id", "data_type": "bigint", "nullable": False}])
     def get_items():
         yield {
@@ -544,7 +544,7 @@ def test_two_new_columns_from_two_rows(column_mode: str) -> None:
     # the test does not fail only because you clone schema in normalize
 
     @dlt.resource(
-        schema_contract={"column": column_mode}
+        schema_contract={"columns": column_mode}
     )
     def items():
         yield {
@@ -573,7 +573,7 @@ def test_dynamic_new_columns(column_mode: str) -> None:
         if item["id"] == 2:
             return [{"name": "id", "data_type": "bigint", "nullable": True}]
 
-    @dlt.resource(name="items", table_name=lambda i: "items", schema_contract={"column": column_mode})
+    @dlt.resource(name="items", table_name=lambda i: "items", schema_contract={"columns": column_mode})
     def get_items():
         yield {
             "id": 1,
