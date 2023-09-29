@@ -20,12 +20,13 @@ loads data using “Slack API” to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
-| Name                  | Description                                                                |
-| --------------------- | -------------------------------------------------------------------------- |
-| slack_source          | Retrives resources conversations, conversations_history and access_logs    |
-| channels_resource     | Retrives all the channels                                                  |
-| get_messages_resource | Retrives all the messages for a given channel                              |
-| access_logs           | Retrives the access logs                                                   |
+| Name                  | Description                                                                        |
+| --------------------- |------------------------------------------------------------------------------------|
+| slack_source          | Retrives all the Slack data: channels, messages for selected channels, users, logs |
+| channels_resource     | Retrives all the channels data                                                     |
+| get_messages_resource | Retrives all the messages for a given channel                                      |
+| access_logs           | Retrives the access logs                                                           |
+| users_resource        | Retrives all the users info                                                        |
 
 ## Setup Guide
 
@@ -40,23 +41,25 @@ To set up the pipeline, create a Slack app in your workspace to obtain a user to
 1. Opt for "From scratch", set the "App Name", and pick your target workspace.
 1. Confirm with Create App.
 1. Navigate to OAuth and Permissions under the Features section.
-1. Assign the following scopes: 
+1. Assign the following scopes:
 
-   | Name                 | Description                                                                       |
-   | -------------------- | --------------------------------------------------------------------------------- |
-   | admin                | Administer a workspace                                                            |
-   | channels:history     | View messages and other content in public channels                                | 
-   | groups:history       | View messages and other content in private channels (where the app is added)      | 
-   | im:history           | View messages and other content in direct messages (where the app is added)       | 
-   | mpim:history         | View messages and other content in group direct messages (where the app is added) |
-   | channels:read        | View basic information about public channels in a workspace                       | 
-   | groups:read          | View basic information about private channels (where the app is added)            | 
-   | im:read              | View basic information about direct messages (where the app is added)             | 
-   | mpim:read            | View basic information about group direct messages (where the app is added)       | 
+   | Name             | Description                                                                       |
+   |------------------|-----------------------------------------------------------------------------------|
+   | admin            | Administer a workspace                                                            |
+   | channels:history | View messages and other content in public channels                                |
+   | groups:history   | View messages and other content in private channels (where the app is added)      |
+   | im:history       | View messages and other content in direct messages (where the app is added)       |
+   | mpim:history     | View messages and other content in group direct messages (where the app is added) |
+   | channels:read    | View basic information about public channels in a workspace                       |
+   | groups:read      | View basic information about private channels (where the app is added)            |
+   | im:read          | View basic information about direct messages (where the app is added)             |
+   | mpim:read        | View basic information about group direct messages (where the app is added)       |
+   | users:read       | View people in a workspace                                                        |
    > Note: These scopes are adjustable; tailor them to your needs.
 
 1. From "OAuth & Permissions" on the left, add the scopes and copy the User OAuth Token.
 
+> Note: The Slack UI, which is described here, might change. The official guide is available at this [link](https://api.slack.com/start/quickstart).
 
 ### Initialize the verified source
 
@@ -85,13 +88,14 @@ For more information, read the
 ### Add credentials
 
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
-   information securely, like access tokens. Keep this file safe. Here's its format for service
-   account authentication:
+   information securely, like access tokens. Keep this file safe.
 
-   ```toml
-   [sources.slack]
-   access_token = "Please set me up!" # please set me up!
-   ```
+   Here's its format for service account authentication:
+
+    ```toml
+    [sources.slack]
+    access_token = "Please set me up!" # please set me up!
+    ```
 
 1. Copy the user Oauth token you [copied above](#grab-user-oauth-token).
 
@@ -109,7 +113,7 @@ For more information, read the
 1. You're now ready to run the pipeline! To get started, run the following command:
 
    ```bash
-   python3 slack_pipeline.py
+   python slack_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
@@ -129,9 +133,9 @@ For more information, read the
 `dlt` works on the principle of [sources](../../general-usage/source) and
 [resources](../../general-usage/resource).
 
-### Source `slack_source`
+### Source `slack`
 
-It retrieves data from Slack's API and returns resources conversations, conversations_history, and access_logs.
+It retrieves data from Slack's API and fetches Slack Conversations, History, Users info and logs.
 
 ```python
 @dlt.source(name="slack", max_table_nesting=2)
@@ -154,22 +158,18 @@ def slack_source(
 
 `selected_channels`: Channels to load; defaults to all if unspecified.
 
-### Resource `channels_resource`
+### Resource `channels`
 
-This function yields all the channels as `dlt` resource.
-
+This function yields all the channels data as `dlt` resource.
 
 ```python
 @dlt.resource(name="channels", primary_key="id", write_disposition="replace")
 def channels_resource() -> Iterable[TDataItem]:
-   
-    yield from channel
-yield channels_resource
 ```
 
 ### Resource `get_messages_resource`
 
-This method fetches messages for a specified channel from the Slack API. It creates a resource for each channel in channels.
+This method fetches messages for a specified channel from the Slack API. It creates a resource for each channel with channel's name.
 
 ```python
 def get_messages_resource(
@@ -192,8 +192,8 @@ def get_messages_resource(
    - `initial_value`: Start of the timestamp range, defaulting to start_dt in slack_source.
 
    - `end_value`: Timestamp range end, defaulting to end_dt in slack_source.
-   
-   - `allow_external_schedulers`: A boolean that, if True, permits external schedulers to manage incremental loading.
+
+   - `allow_external_schedulers`: A boolean that, if True, permits [external schedulers](../../general-usage/incremental-loading#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
 
 ### Resource `access_logs`
 
@@ -217,6 +217,7 @@ def logs_resource() -> Iterable[TDataItem]:
 `write_disposition`: Set to "append", allowing new data to join existing data in the destination.
 > Note: This resource may not function in the pipeline or tests due to its paid status. An error arises for non-paying accounts.
 
+## Customization
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this
@@ -226,9 +227,9 @@ verified source.
 
    ```python
    pipeline = dlt.pipeline(
-        pipeline_name="google_sheets",  # Use a custom name if desired
+        pipeline_name="slack",  # Use a custom name if desired
         destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-        dataset_name="google_spreadsheet_data"  # Use a custom name if desired
+        dataset_name="slack_data"  # Use a custom name if desired
    )
    ```
 1. To load Slack resources from the specified start date:
@@ -239,6 +240,7 @@ verified source.
    # Enable below to load only 'access_logs', available for paid accounts only.
    # source.access_logs.selected = True
 
+   # It loads data starting from 1st September 2023 to 8th Sep 2023.
    load_info = pipeline.run(source)
    print(load_info)
    ```
@@ -247,8 +249,8 @@ verified source.
 1. To load selected Slack resources from the specified start date:
 
    ```python
-   # To load data from selected channel.
-   selected_channels=["Please set me up!"] # Enter the channel name here.
+   # To load data from selected channels.
+   selected_channels=["general", "random"] # Enter the channel names here.
 
    source = slack_source(
        page_size=20,
@@ -256,9 +258,7 @@ verified source.
        start_date=datetime(2023, 9, 1),
        end_date=datetime(2023, 9, 8),
    )
-
+   # It loads data starting from 1st September 2023 to 8th Sep 2023 from the channels: "general" and "random".
    load_info = pipeline.run(source)
    print(load_info)
    ```
-   > It loads data starting from 1st September 2023 to 8th Sep 2023. 
-
