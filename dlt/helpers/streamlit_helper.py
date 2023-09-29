@@ -97,7 +97,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
     """Display pipeline loading information. Will be moved to dlt package once tested"""
 
     @cache_data(ttl=600)
-    def _query_data(query: str, schema_name: str = None) -> pd.DataFrame:  # type: ignore[return]
+    def _query_data(query: str, schema_name: str = None) -> pd.DataFrame:
         try:
             with pipeline.sql_client(schema_name) as client:
                 with client.execute_query(query) as curr:
@@ -106,7 +106,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
             st.error("Cannot load data - SqlClient not available")
 
     @cache_data(ttl=5)
-    def _query_data_live(query: str, schema_name: str = None) -> pd.DataFrame:  # type: ignore[return]
+    def _query_data_live(query: str, schema_name: str = None) -> pd.DataFrame:
         try:
             with pipeline.sql_client(schema_name) as client:
                 with client.execute_query(query) as curr:
@@ -217,7 +217,7 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
     """
 
     @cache_data(ttl=60)
-    def _query_data(query: str, chunk_size: int = None) -> pd.DataFrame:  # type: ignore[return]
+    def _query_data(query: str, chunk_size: int = None) -> pd.DataFrame:
         try:
             with pipeline.sql_client(schema_name) as client:
                 with client.execute_query(query) as curr:

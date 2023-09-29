@@ -196,7 +196,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     with client.sql_client.execute_query(f"SELECT * FROM {f_q_table_name} ORDER BY col ASC") as curr:
         df = curr.df()
         # Force lower case df columns, snowflake has all cols uppercase
-        df.columns = [dfcol.lower() for dfcol in df.columns]  # type: ignore[assignment]
+        df.columns = [dfcol.lower() for dfcol in df.columns]
         assert list(df["col"]) == list(range(0, total_records))
     # get chunked
     with client.sql_client.execute_query(f"SELECT * FROM {f_q_table_name} ORDER BY col ASC") as curr:
@@ -207,7 +207,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         # Force lower case df columns, snowflake has all cols uppercase
         for df in [df_1, df_2, df_3]:
             if df is not None:
-                df.columns = [dfcol.lower() for dfcol in df.columns]  # type: ignore[assignment]
+                df.columns = [dfcol.lower() for dfcol in df.columns]
 
     assert list(df_1["col"]) == list(range(0, chunk_size))
     assert list(df_2["col"]) == list(range(chunk_size, total_records))
