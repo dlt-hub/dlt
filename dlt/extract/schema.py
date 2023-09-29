@@ -26,7 +26,6 @@ class TTableSchemaTemplate(TypedDict, total=False):
     merge_key: TTableHintTemplate[TColumnNames]
     incremental: Incremental[Any]
     schema_contract: TTableHintTemplate[TSchemaContract]
-    populated: TTableHintTemplate[bool]
     validator: ValidateItem
 
 class DltResourceSchema:
@@ -101,7 +100,6 @@ class DltResourceSchema:
         merge_key: TTableHintTemplate[TColumnNames] = None,
         incremental: Incremental[Any] = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
-        populated: TTableHintTemplate[bool] = None
     ) -> None:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 
@@ -118,7 +116,7 @@ class DltResourceSchema:
         t = None
         if not self._table_schema_template:
             # if there's no template yet, create and set new one
-            t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key, schema_contract, populated)
+            t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key, schema_contract)
         else:
             # set single hints
             t = deepcopy(self._table_schema_template)
@@ -132,8 +130,6 @@ class DltResourceSchema:
                     t["parent"] = parent_table_name
                 else:
                     t.pop("parent", None)
-            if populated is not None:
-                t["populated"] = populated
             if write_disposition:
                 t["write_disposition"] = write_disposition
             if schema_contract:
@@ -219,7 +215,6 @@ class DltResourceSchema:
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
-        populated: TTableHintTemplate[bool] = None
         ) -> TTableSchemaTemplate:
         if not table_name:
             raise TableNameMissing()
@@ -232,7 +227,7 @@ class DltResourceSchema:
         else:
             validator = None
         # create a table schema template where hints can be functions taking TDataItem
-        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_contract=schema_contract, populated=populated)  # type: ignore
+        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_contract=schema_contract)  # type: ignore
 
         if primary_key:
             new_template["primary_key"] = primary_key

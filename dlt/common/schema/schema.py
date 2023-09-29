@@ -195,13 +195,13 @@ class Schema:
 
         return new_row, updated_table_partial
 
-    def resolve_contract_settings_for_table(self, parent_table: str, table_name: str) -> TSchemaContractDict:
+    def resolve_contract_settings_for_table(self, parent_table: str, table_name: str) -> Tuple[bool, TSchemaContractDict]:
         """Resolve the exact applicable schema contract settings for the table during the normalization stage."""
 
         def resolve_single(settings: TSchemaContract) -> TSchemaContractDict:
             settings = settings or {}
             if isinstance(settings, str):
-                return TSchemaContractDict(table=settings, column=settings, data_type=settings)
+                return TSchemaContractDict(tables=settings, columns=settings, data_type=settings)
             return settings
 
         # find table settings
@@ -210,18 +210,21 @@ class Schema:
             table = utils.get_top_level_table(self.tables, parent_table or table_name)["name"]
 
         # modes
-        table_contract_modes = resolve_single(self.tables.get(table, {}).get("schema_contract", {}))
-        schema_contract_modes = resolve_single(self._settings.get("schema_contract", {}))
+        explicit_table_contract: bool = False
+        settings: TSchemaContract = {}
+        if table_contract_modes := resolve_single(self.tables.get(table, {}).get("schema_contract", {})):
+            explicit_table_contract = True
+            settings = table_contract_modes 
+        elif schema_contract_modes := resolve_single(self._settings.get("schema_contract", {})):
+            settings = schema_contract_modes
 
-        # resolve to correct settings dict
-        settings = cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **schema_contract_modes, **table_contract_modes})
-
-        return settings
+        # fill in defaults
+        return explicit_table_contract, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **settings})
 
     def is_table_populated(self, table_name: str) -> bool:
         return table_name in self.tables and (self.tables[table_name].get("populated") is True)
 
-    def apply_schema_contract(self, contract_modes: TSchemaContractDict, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema, table_populated: bool) -> Tuple[DictStrAny, TPartialTableSchema]:
+    def apply_schema_contract(self, contract_modes: TSchemaContractDict, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema, explicit_table_contract: bool) -> Tuple[DictStrAny, TPartialTableSchema]:
         """
         Checks if contract mode allows for the requested changes to the data and the schema. It will allow all changes to pass, filter out the row filter out
         columns for both the data and the schema_update or reject the update completely, depending on the mode. An example settings could be:
@@ -245,8 +248,14 @@ class Schema:
         if contract_modes == DEFAULT_SCHEMA_CONTRACT_MODE:
             return row, partial_table
 
+        # if evolve once is set, allow all
+        if (table_name in self.tables) and self.tables[table_name].get("x-normalizer", {}).get("evolve_once", False):
+            return row, partial_table
+        
+        is_new_table = (table_name not in self.tables) or not self.tables[table_name]["columns"]
+
         # check case where we have a new table
-        if not table_populated:
+        if is_new_table:
             if contract_modes["tables"] in ["discard_row", "discard_value"]:
                 return None, None
             if contract_modes["tables"] == "freeze":
@@ -254,8 +263,11 @@ class Schema:
 
         # check columns
         for item in list(row.keys()):
+            # dlt cols may always be added
+            if item.startswith(self._dlt_tables_prefix):
+                continue
             # if this is a new column for an existing table...
-            if table_populated and (item not in self.tables[table_name]["columns"] or not utils.is_complete_column(self.tables[table_name]["columns"][item])):
+            if not is_new_table and (item not in self.tables[table_name]["columns"] or not utils.is_complete_column(self.tables[table_name]["columns"][item])):
                 is_variant = (item in partial_table["columns"]) and partial_table["columns"][item].get("variant")
                 if contract_modes["columns"] == "discard_value" or (is_variant and contract_modes["data_type"] == "discard_value"):
                     row.pop(item)
@@ -268,18 +280,6 @@ class Schema:
                     raise SchemaFrozenException(self.name, table_name, f"Trying to add column {item} to table {table_name} but columns are frozen.")
 
         return row, partial_table
-
-    def update_schema(self, schema: "Schema") -> None:
-        """
-        Update schema from another schema
-        note we are not merging props like max nesting or column propagation
-        """
-
-        for table in schema.data_tables(include_incomplete=True):
-            self.update_table(
-                self.normalize_table_identifiers(table)
-            )
-        self.set_schema_contract(schema._settings.get("schema_contract", {}))
 
     def update_table(self, partial_table: TPartialTableSchema) -> TPartialTableSchema:
         table_name = partial_table["name"]

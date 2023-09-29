@@ -70,7 +70,7 @@ TSimpleRegex = NewType("TSimpleRegex", str)
 TColumnName = NewType("TColumnName", str)
 SIMPLE_REGEX_PREFIX = "re:"
 
-TSchemaEvolutionMode = Literal["evolve", "discard_value", "freeze", "discard_row"]
+TSchemaEvolutionMode = Literal["evolve", "discard_value", "freeze", "discard_row", "evolve_once"]
 
 class TSchemaContractDict(TypedDict, total=False):
     """TypedDict defining the schema update settings"""
@@ -84,23 +84,24 @@ class TRowFilters(TypedDict, total=True):
     excludes: Optional[List[TSimpleRegex]]
     includes: Optional[List[TSimpleRegex]]
 
+class NormalizerInfo(TypedDict, total=True):
+    evolve_once: bool
 
-class TTableSchema(TypedDict, total=False):
-    """TypedDict that defines properties of a table"""
-    name: Optional[str]
-    description: Optional[str]
-    write_disposition: Optional[TWriteDisposition]
-    schema_contract: Optional[TSchemaContract]
-    parent: Optional[str]
-    filters: Optional[TRowFilters]
-    columns: TTableSchemaColumns
-    resource: Optional[str]
-    populated: Optional[bool]
-
+# TypedDict that defines properties of a table
+TTableSchema = TypedDict("TTableSchema", {
+    "name": Optional[str],
+    "description": Optional[str],
+    "write_disposition": Optional[TWriteDisposition],
+    "schema_contract": Optional[TSchemaContract],
+    "parent": Optional[str],
+    "filters": Optional[TRowFilters],
+    "columns": TTableSchemaColumns,
+    "resource": Optional[str],
+    "x-normalizer": Optional[NormalizerInfo],
+})
 
 class TPartialTableSchema(TTableSchema):
     pass
-
 
 TSchemaTables = Dict[str, TTableSchema]
 TSchemaUpdate = Dict[str, List[TPartialTableSchema]]

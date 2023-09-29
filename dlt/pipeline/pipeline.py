@@ -19,6 +19,7 @@ from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, Des
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition, TAnySchemaColumns, TSchemaContract
+from dlt.common.schema.utils import diff_tables
 from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
 from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
@@ -866,8 +867,10 @@ class Pipeline(SupportsPipeline):
         extract_id = extract_with_schema(storage, source, source_schema, self.collector, max_parallel_items, workers)
 
         # if source schema does not exist in the pipeline
+        is_new_schema = False
         if source_schema.name not in self._schema_storage:
             # save schema into the pipeline
+            is_new_schema = True
             self._schema_storage.save_schema(source_schema)
 
         # and set as default if this is first schema in pipeline
@@ -880,8 +883,24 @@ class Pipeline(SupportsPipeline):
         # initialize import with fully discovered schema
         self._schema_storage.save_import_schema_if_not_exists(source_schema)
 
-        # get the current schema and merge tables from source_schema
-        pipeline_schema.update_schema(source_schema)
+        # update the pipeline schema
+        for table in source_schema.data_tables(include_incomplete=True):
+            # create table diff
+            normalized_table = pipeline_schema.normalize_table_identifiers(table)
+            if table["name"] in pipeline_schema.tables:
+                partial_table = diff_tables(pipeline_schema.tables[table["name"]], normalized_table)
+            else: 
+                partial_table = normalized_table
+            # figure out wether this is a new table
+            is_new_table = is_new_schema or (table["name"] not in pipeline_schema.tables) or (not pipeline_schema.tables[table["name"]]["columns"])
+            if is_new_table:
+                partial_table["x-normalizer"] = {"evolve_once": True}
+            # update pipeline schema
+            pipeline_schema.update_table(
+                partial_table
+            )
+ 
+        pipeline_schema.set_schema_contract(source_schema._settings.get("schema_contract", {}))
 
         return extract_id
 

@@ -132,14 +132,12 @@ class Normalize(Runnable[ProcessPool]):
         schema_name = schema.name
         items_count = 0
         row_counts: TRowCount = {}
-        schema_contract_modes: TSchemaContractDict = None
-        is_table_populated: bool = False
+        schema_contract: TSchemaContractDict = None
 
         for item in items:
             for (table_name, parent_table), row in schema.normalize_data_item(item, load_id, root_table_name):
-                if not schema_contract_modes:
-                    schema_contract_modes = schema.resolve_contract_settings_for_table(parent_table, table_name)
-                is_table_populated = schema.is_table_populated(table_name)
+                if not schema_contract:
+                    explicit_table_contract, schema_contract = schema.resolve_contract_settings_for_table(parent_table, table_name)
 
                 # filter row, may eliminate some or all fields
                 row = schema.filter_row(table_name, row)
@@ -153,7 +151,7 @@ class Normalize(Runnable[ProcessPool]):
                 row, partial_table = schema.coerce_row(table_name, parent_table, row)
                 # if we detect a migration, check schema contract
                 if partial_table:
-                    row, partial_table = schema.apply_schema_contract(schema_contract_modes, table_name, row, partial_table, is_table_populated)
+                    row, partial_table = schema.apply_schema_contract(schema_contract, table_name, row, partial_table, explicit_table_contract)
                 if not row:
                     continue
 
@@ -279,9 +277,9 @@ class Normalize(Runnable[ProcessPool]):
         schema_updates, row_counts = map_f(schema, load_id, files)
         # set all populated tables to populated
         needs_schema_save = len(schema_updates) > 0
-        for table_name, count in row_counts.items():
-            if count > 0 and schema.tables[table_name].get("populated") is not True:
-                schema.tables[table_name]["populated"] = True
+        # remove normalizer specific info
+        for table in schema.tables.values():
+            if table.pop("x-normalizer", None):
                 needs_schema_save = True
         # logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
         if needs_schema_save:

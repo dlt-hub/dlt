@@ -379,19 +379,13 @@ def test_data_contract_interaction() -> None:
         amount: Optional[int]
 
     @dlt.resource(name="items", columns=Items)
-    def get_items_simple():
-        yield from [{
-            "id": 5
-        }]
-
-    @dlt.resource(name="items", columns=Items)
     def get_items():
         yield from [{
             "id": 5,
             "name": "dave",
         }]
 
-    @dlt.resource(name="items")
+    @dlt.resource(name="items", columns=Items)
     def get_items_variant():
         yield from [{
             "id": 5,
@@ -399,7 +393,7 @@ def test_data_contract_interaction() -> None:
             "amount": "HELLO"
         }]
 
-    @dlt.resource(name="items")
+    @dlt.resource(name="items", columns=Items)
     def get_items_new_col():
         yield from [{
             "id": 5,
@@ -408,7 +402,7 @@ def test_data_contract_interaction() -> None:
             "new_col": "hello"
         }]
 
-    @dlt.resource(name="items")
+    @dlt.resource(name="items", columns=Items)
     def get_items_subtable():
         yield from [{
             "id": 5,
@@ -419,7 +413,6 @@ def test_data_contract_interaction() -> None:
 
     # test variants
     pipeline = get_pipeline()
-    pipeline.run([get_items_simple()])
     pipeline.run([get_items()], schema_contract={"data_type": "discard_row"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
     pipeline.run([get_items_variant()], schema_contract={"data_type": "discard_row"})
@@ -429,7 +422,6 @@ def test_data_contract_interaction() -> None:
 
     # test new column
     pipeline = get_pipeline()
-    pipeline.run([get_items_simple()])
     pipeline.run([get_items()], schema_contract={"columns": "discard_row"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
     pipeline.run([get_items_new_col()], schema_contract={"columns": "discard_row"})
@@ -439,7 +431,6 @@ def test_data_contract_interaction() -> None:
 
     # test new subtable
     pipeline = get_pipeline()
-    pipeline.run([get_items_simple()])
     pipeline.run([get_items_subtable()], schema_contract={"tables": "discard_row"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
     assert pipeline.last_trace.last_normalize_info.row_counts.get("items__sub", 0) == 0

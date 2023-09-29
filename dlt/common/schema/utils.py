@@ -647,7 +647,6 @@ def new_table(
     validate_schema: bool = False,
     resource: str = None,
     schema_contract: TSchemaContract = None,
-    populated: bool = None
 ) -> TTableSchema:
 
     table: TTableSchema = {
@@ -665,8 +664,6 @@ def new_table(
         table["resource"] = resource or table_name
         if schema_contract:
             table["schema_contract"] = schema_contract
-    if populated is not None:
-        table["populated"] = populated
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,
