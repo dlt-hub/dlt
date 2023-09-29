@@ -48,11 +48,13 @@ def test_create_table(client: DuckDbClient) -> None:
 
 def test_alter_table(client: DuckDbClient) -> None:
     # existing table has no columns
-    sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)[0]
-    sqlfluff.parse(sql, dialect="duckdb")
+    sqls = client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
+    for sql in sqls:
+        sqlfluff.parse(sql, dialect="duckdb")
     cannonical_name = client.sql_client.make_qualified_table_name("event_test_table")
     # must have several ALTER TABLE statements
-    assert sql.count(f"ALTER TABLE {cannonical_name}\nADD COLUMN") == 1
+    sql = ";\n".join(sqls)
+    assert sql.count(f"ALTER TABLE {cannonical_name}\nADD COLUMN") == 28
     assert "event_test_table" in sql
     assert '"col1" BIGINT  NOT NULL' in sql
     assert '"col2" DOUBLE  NOT NULL' in sql
