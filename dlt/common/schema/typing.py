@@ -70,7 +70,7 @@ TSimpleRegex = NewType("TSimpleRegex", str)
 TColumnName = NewType("TColumnName", str)
 SIMPLE_REGEX_PREFIX = "re:"
 
-TSchemaEvolutionMode = Literal["evolve", "discard_value", "freeze", "discard_row", "evolve_once"]
+TSchemaEvolutionMode = Literal["evolve", "discard_value", "freeze", "discard_row"]
 
 class TSchemaContractDict(TypedDict, total=False):
     """TypedDict defining the schema update settings"""
@@ -85,7 +85,7 @@ class TRowFilters(TypedDict, total=True):
     includes: Optional[List[TSimpleRegex]]
 
 class NormalizerInfo(TypedDict, total=True):
-    evolve_once: bool
+    new_table: bool
 
 # TypedDict that defines properties of a table
 TTableSchema = TypedDict("TTableSchema", {

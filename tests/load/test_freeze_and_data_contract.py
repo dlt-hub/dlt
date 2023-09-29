@@ -364,7 +364,7 @@ def test_single_settings_value(setting_location: str) -> None:
     run_resource(pipeline, new_items, {setting_location: "discard_row"})
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
-    assert "new_items" not in table_counts
+    assert ("new_items" in table_counts) == (setting_location == "resource")
 
 
 def test_data_contract_interaction() -> None:
@@ -471,7 +471,7 @@ def test_dynamic_tables(table_mode: str) -> None:
     #   the tables is NOT new according to normalizer so the row is not discarded
     # remove that and it will pass because the table contains just one incomplete column so it is incomplete so it is treated as new
     # if you uncomment update code in the extract the problem probably goes away
-    @dlt.resource(name="items", table_name=lambda i: i["tables"], schema_contract={"tables": table_mode}, columns={"id": {}})
+    @dlt.resource(name="items", table_name=lambda i: i["tables"], columns={"id": {}})
     def get_items():
         yield {
             "id": 1,
@@ -483,9 +483,11 @@ def test_dynamic_tables(table_mode: str) -> None:
             "new_column": "some val"
         }
     with raises_frozen_exception(table_mode == "freeze"):
-        pipeline.run([get_items()])
-    assert pipeline.last_trace.last_normalize_info.row_counts.get("one", 0) == (1 if table_mode == "evolve" else 0)
-    assert pipeline.last_trace.last_normalize_info.row_counts.get("two", 0) == (1 if table_mode == "evolve" else 0)
+        pipeline.run([get_items()], schema_contract={"tables": table_mode})
+
+    if table_mode != "freeze":
+        assert pipeline.last_trace.last_normalize_info.row_counts.get("one", 0) == (1 if table_mode == "evolve" else 0)
+        assert pipeline.last_trace.last_normalize_info.row_counts.get("two", 0) == (1 if table_mode == "evolve" else 0)
 
 
 @pytest.mark.parametrize("column_mode", ["discard_row", "evolve", "freeze"])

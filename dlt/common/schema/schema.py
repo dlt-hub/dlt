@@ -248,11 +248,7 @@ class Schema:
         if contract_modes == DEFAULT_SCHEMA_CONTRACT_MODE:
             return row, partial_table
 
-        # if evolve once is set, allow all
-        if (table_name in self.tables) and self.tables[table_name].get("x-normalizer", {}).get("evolve_once", False):
-            return row, partial_table
-        
-        is_new_table = (table_name not in self.tables) or not self.tables[table_name]["columns"]
+        is_new_table = (table_name not in self.tables) or (not self.tables[table_name]["columns"])
 
         # check case where we have a new table
         if is_new_table:
@@ -260,6 +256,15 @@ class Schema:
                 return None, None
             if contract_modes["tables"] == "freeze":
                 raise SchemaFrozenException(self.name, table_name, f"Trying to add table {table_name} but new tables are frozen.")
+
+        # in case we only check table creation in pipeline
+        if not row:
+            return row, partial_table
+
+        # if evolve once is set, allow all column changes
+        evolve_once = (table_name in self.tables) and self.tables[table_name].get("x-normalizer", {}).get("evolve_once", False)
+        if evolve_once:
+           return row, partial_table
 
         # check columns
         for item in list(row.keys()):

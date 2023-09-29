@@ -31,6 +31,7 @@ from dlt.common.destination.reference import (DestinationClientDwhConfiguration,
 from dlt.common.destination.capabilities import INTERNAL_LOADER_FILE_FORMATS
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, PipelineContext, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
 from dlt.common.schema import Schema
+from dlt.common.schema.exceptions import SchemaFrozenException
 from dlt.common.utils import is_interactive
 from dlt.common.data_writers import TLoaderFileFormat
 
@@ -282,16 +283,12 @@ class Pipeline(SupportsPipeline):
                         raise SourceExhausted(source.name)
                     # TODO: merge infos for all the sources
                     extract_ids.append(
-                        self._extract_source(storage, source, max_parallel_items, workers)
+                        self._extract_source(storage, source, max_parallel_items, workers, schema_contract)
                     )
                 # commit extract ids
                 # TODO: if we fail here we should probably wipe out the whole extract folder
                 for extract_id in extract_ids:
                     storage.commit_extract_files(extract_id)
-
-                # update global schema contract settings
-                if schema_contract is not None:
-                    self.default_schema.set_schema_contract(schema_contract, True)
 
                 return ExtractInfo(describe_extract_data(data))
         except Exception as exc:
@@ -859,7 +856,7 @@ class Pipeline(SupportsPipeline):
 
         return sources
 
-    def _extract_source(self, storage: ExtractorStorage, source: DltSource, max_parallel_items: int, workers: int) -> str:
+    def _extract_source(self, storage: ExtractorStorage, source: DltSource, max_parallel_items: int, workers: int, global_contract: TSchemaContract) -> str:
         # discover the schema from source
         source_schema = source.schema
         source_schema.update_normalizers()
@@ -867,11 +864,9 @@ class Pipeline(SupportsPipeline):
         extract_id = extract_with_schema(storage, source, source_schema, self.collector, max_parallel_items, workers)
 
         # if source schema does not exist in the pipeline
-        is_new_schema = False
         if source_schema.name not in self._schema_storage:
-            # save schema into the pipeline
-            is_new_schema = True
-            self._schema_storage.save_schema(source_schema)
+            # save new schema into the pipeline
+            self._schema_storage.save_schema(Schema(source_schema.name))
 
         # and set as default if this is first schema in pipeline
         if not self.default_schema_name:
@@ -885,22 +880,41 @@ class Pipeline(SupportsPipeline):
 
         # update the pipeline schema
         for table in source_schema.data_tables(include_incomplete=True):
+
             # create table diff
             normalized_table = pipeline_schema.normalize_table_identifiers(table)
             if table["name"] in pipeline_schema.tables:
                 partial_table = diff_tables(pipeline_schema.tables[table["name"]], normalized_table)
             else: 
                 partial_table = normalized_table
+
             # figure out wether this is a new table
-            is_new_table = is_new_schema or (table["name"] not in pipeline_schema.tables) or (not pipeline_schema.tables[table["name"]]["columns"])
+            is_new_table = (table["name"] not in pipeline_schema.tables) or (not pipeline_schema.tables[table["name"]]["columns"])
             if is_new_table:
                 partial_table["x-normalizer"] = {"evolve_once": True}
+            
+            # update global schema contract settings
+            if global_contract is not None:
+                source_schema.set_schema_contract(global_contract, True)
+            
+            # apply schema contract, resolve on source schema and apply on pipeline schema
+            explicit_table_contract, schema_contract = source_schema.resolve_contract_settings_for_table(None, table["name"])
+            try:
+                _, partial_table = pipeline_schema.apply_schema_contract(schema_contract, table["name"], None, partial_table, explicit_table_contract)
+            except SchemaFrozenException:
+                partial_table = None
+
             # update pipeline schema
-            pipeline_schema.update_table(
-                partial_table
-            )
+            if partial_table:
+                pipeline_schema.update_table(
+                    partial_table
+                )
  
         pipeline_schema.set_schema_contract(source_schema._settings.get("schema_contract", {}))
+        
+        # globally apply contract override
+        if global_contract is not None:
+            pipeline_schema.set_schema_contract(global_contract, True)
 
         return extract_id
 
