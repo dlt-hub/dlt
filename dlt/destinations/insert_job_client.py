@@ -62,6 +62,7 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                     if "synapse" in ACTIVE_DESTINATIONS:
                         # This part breaks the multiple values in an insert statement into individual insert statements 
                         # combined with SELECT and UNION ALL
+                        #https://stackoverflow.com/questions/36141006/how-to-insert-multiple-rows-into-sql-server-parallel-data-warehouse-table
 
                         values_rows = content.splitlines(keepends=True)
                         sql_rows = []
