@@ -135,7 +135,7 @@ For more information, read the
 
 ### Source `slack`
 
-It retrieves data from Slack's API and fetches Slack Conversations, History, Users info and logs.
+It retrieves data from Slack's API and fetches the Slack data such as channels, messages for selected channels, users, logs.
 
 ```python
 @dlt.source(name="slack", max_table_nesting=2)
