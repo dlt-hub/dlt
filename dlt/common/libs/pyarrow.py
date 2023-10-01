@@ -85,30 +85,55 @@ def get_pyarrow_int(precision: Optional[int]) -> Any:
         return pyarrow.int32()
     return pyarrow.int64()
 
-# TODO precision and scale
-def _get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TDataType:
+
+def _get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
+    """Returns (data_type, precision, scale) tuple from pyarrow.DataType
+    """
     if pyarrow.types.is_string(dtype) or pyarrow.types.is_large_string(dtype):
-        return "text"
-    if pyarrow.types.is_floating(dtype):
-        return "double"
-    if pyarrow.types.is_boolean(dtype):
-        return "bool"
-    if pyarrow.types.is_timestamp(dtype):
-        return "timestamp"
-    if pyarrow.types.is_date(dtype):
-        return "date"
-    if pyarrow.types.is_time(dtype):
-        return "time"
-    if pyarrow.types.is_integer(dtype):
-        return "bigint"
-    if pyarrow.types.is_binary(dtype) or pyarrow.types.is_large_binary(dtype) or pyarrow.types.is_fixed_size_binary(dtype):
-        return "binary"
-    if pyarrow.types.is_decimal(dtype):
-        return "decimal"
-    if pyarrow.types.is_nested(dtype):
-        return "complex"
+        return dict(data_type="text")
+    elif pyarrow.types.is_floating(dtype):
+        return dict(data_type="double")
+    elif pyarrow.types.is_boolean(dtype):
+        return dict(data_type="bool")
+    elif pyarrow.types.is_timestamp(dtype):
+        if dtype.unit == "s":
+            precision = 0
+        elif dtype.unit == "ms":
+            precision = 3
+        elif dtype.unit == "us":
+            precision = 6
+        else:
+            precision = 9
+        return dict(data_type="timestamp", precision=precision)
+    elif pyarrow.types.is_date(dtype):
+        return dict(data_type="date")
+    elif pyarrow.types.is_time(dtype):
+        # Time fields in schema are `DataType` instead of `Time64Type` or `Time32Type`
+        if dtype == pyarrow.time32("s"):
+            precision = 0
+        elif dtype == pyarrow.time32("ms"):
+            precision = 3
+        elif dtype == pyarrow.time64("us"):
+            precision = 6
+        else:
+            precision = 9
+        return dict(data_type="time", precision=precision)
+    elif pyarrow.types.is_integer(dtype):
+        result: TColumnType = dict(data_type="bigint")
+        if dtype.bit_width != 64: # 64bit is a default bigint
+            result["precision"] = dtype.bit_width
+        return result
+    elif pyarrow.types.is_fixed_size_binary(dtype):
+        return dict(data_type="binary", precision=dtype.byte_width)
+    elif pyarrow.types.is_binary(dtype) or pyarrow.types.is_large_binary(dtype):
+        return dict(data_type="binary")
+    elif pyarrow.types.is_decimal(dtype):
+        return dict(data_type="decimal", precision=dtype.precision, scale=dtype.scale)
+    elif pyarrow.types.is_nested(dtype):
+        return dict(data_type="complex")
     else:
         raise ValueError(dtype)
+
 
 def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColumns:
     """Convert a PyArrow schema to a table schema columns dict.
@@ -123,7 +148,7 @@ def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColu
     for field in schema:
         result[field.name] = {
             "name": field.name,
-            "data_type": _get_column_type_from_py_arrow(field.type),
             "nullable": field.nullable,
+            **_get_column_type_from_py_arrow(field.type),  # type: ignore[misc]
         }
     return result
