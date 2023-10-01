@@ -20,6 +20,7 @@ from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition, TAnySchemaColumns, TSchemaContract
 from dlt.common.schema.utils import diff_tables
+from dlt.common.schema.schema import resolve_contract_settings_for_table
 from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
 from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
@@ -892,17 +893,14 @@ class Pipeline(SupportsPipeline):
             is_new_table = (table["name"] not in pipeline_schema.tables) or (not pipeline_schema.tables[table["name"]]["columns"])
             if is_new_table:
                 partial_table["x-normalizer"] = {"evolve_once": True}
-            
+
             # update global schema contract settings
             if global_contract is not None:
                 source_schema.set_schema_contract(global_contract, True)
             
-            # apply schema contract, resolve on source schema and apply on pipeline schema
-            explicit_table_contract, schema_contract = source_schema.resolve_contract_settings_for_table(None, table["name"])
-            try:
-                _, partial_table = pipeline_schema.apply_schema_contract(schema_contract, table["name"], None, partial_table, explicit_table_contract)
-            except SchemaFrozenException:
-                partial_table = None
+            # apply schema contractand apply on pipeline schema
+            schema_contract = resolve_contract_settings_for_table(None, table["name"], pipeline_schema, source_schema)
+            _, partial_table = pipeline_schema.apply_schema_contract(schema_contract, table["name"], None, partial_table)
 
             # update pipeline schema
             if partial_table:

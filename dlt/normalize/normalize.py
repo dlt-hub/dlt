@@ -13,6 +13,7 @@ from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns, TSchemaContractDict
 from dlt.common.schema.utils import merge_schema_updates
+from dlt.common.schema.schema import resolve_contract_settings_for_table
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage, LoadStorageConfiguration, NormalizeStorageConfiguration
 from dlt.common.typing import TDataItem
@@ -137,7 +138,7 @@ class Normalize(Runnable[ProcessPool]):
         for item in items:
             for (table_name, parent_table), row in schema.normalize_data_item(item, load_id, root_table_name):
                 if not schema_contract:
-                    explicit_table_contract, schema_contract = schema.resolve_contract_settings_for_table(parent_table, table_name)
+                    schema_contract = resolve_contract_settings_for_table(parent_table, table_name, schema)
 
                 # filter row, may eliminate some or all fields
                 row = schema.filter_row(table_name, row)
@@ -149,9 +150,10 @@ class Normalize(Runnable[ProcessPool]):
                     row[k] = custom_pua_decode(v)  # type: ignore
                 # coerce row of values into schema table, generating partial table with new columns if any
                 row, partial_table = schema.coerce_row(table_name, parent_table, row)
+
                 # if we detect a migration, check schema contract
                 if partial_table:
-                    row, partial_table = schema.apply_schema_contract(schema_contract, table_name, row, partial_table, explicit_table_contract)
+                    row, partial_table = schema.apply_schema_contract(schema_contract, table_name, row, partial_table)
                 if not row:
                     continue
 

@@ -224,8 +224,14 @@ class DltResourceSchema:
             columns = ensure_table_schema_columns_hint(columns)
             if not callable(columns):
                 columns = columns.values()  # type: ignore
+            is_table_complete = len([c for c in columns if c.get("name") and c.get("data_type")])
         else:
             validator = None
+            is_table_complete = False
+
+        # freeze the resource if we have a fully defined table and no other explicit contract
+        if not schema_contract and is_table_complete:
+            schema_contract = "freeze"
         # create a table schema template where hints can be functions taking TDataItem
         new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_contract=schema_contract)  # type: ignore
 

@@ -195,36 +195,10 @@ class Schema:
 
         return new_row, updated_table_partial
 
-    def resolve_contract_settings_for_table(self, parent_table: str, table_name: str) -> Tuple[bool, TSchemaContractDict]:
-        """Resolve the exact applicable schema contract settings for the table during the normalization stage."""
-
-        def resolve_single(settings: TSchemaContract) -> TSchemaContractDict:
-            settings = settings or {}
-            if isinstance(settings, str):
-                return TSchemaContractDict(tables=settings, columns=settings, data_type=settings)
-            return settings
-
-        # find table settings
-        table = parent_table or table_name
-        if table in self.tables:
-            table = utils.get_top_level_table(self.tables, parent_table or table_name)["name"]
-
-        # modes
-        explicit_table_contract: bool = False
-        settings: TSchemaContract = {}
-        if table_contract_modes := resolve_single(self.tables.get(table, {}).get("schema_contract", {})):
-            explicit_table_contract = True
-            settings = table_contract_modes 
-        elif schema_contract_modes := resolve_single(self._settings.get("schema_contract", {})):
-            settings = schema_contract_modes
-
-        # fill in defaults
-        return explicit_table_contract, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **settings})
-
     def is_table_populated(self, table_name: str) -> bool:
         return table_name in self.tables and (self.tables[table_name].get("populated") is True)
 
-    def apply_schema_contract(self, contract_modes: TSchemaContractDict, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema, explicit_table_contract: bool) -> Tuple[DictStrAny, TPartialTableSchema]:
+    def apply_schema_contract(self, contract_modes: TSchemaContractDict, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema) -> Tuple[DictStrAny, TPartialTableSchema]:
         """
         Checks if contract mode allows for the requested changes to the data and the schema. It will allow all changes to pass, filter out the row filter out
         columns for both the data and the schema_update or reject the update completely, depending on the mode. An example settings could be:
@@ -675,3 +649,29 @@ class Schema:
 
     def __repr__(self) -> str:
         return f"Schema {self.name} at {id(self)}"
+
+def resolve_contract_settings_for_table(parent_table: str, table_name: str, current_schema: Schema, incoming_schema: Schema = None) -> Tuple[bool, TSchemaContractDict]:
+    """Resolve the exact applicable schema contract settings for the table during the normalization stage."""
+
+    def resolve_single(settings: TSchemaContract) -> TSchemaContractDict:
+        settings = settings or {}
+        if isinstance(settings, str):
+            settings = TSchemaContractDict(tables=settings, columns=settings, data_type=settings)
+        return {**DEFAULT_SCHEMA_CONTRACT_MODE, **settings} if settings else {}
+
+    # find table settings
+    table = parent_table or table_name
+    if table in current_schema.tables:
+        table = utils.get_top_level_table(current_schema.tables, parent_table or table_name)["name"]
+
+    # modes
+    current_table_contract_modes = resolve_single(current_schema.tables.get(table, {}).get("schema_contract", {}))
+    current_schema_contract_modes = resolve_single(current_schema._settings.get("schema_contract", {}))
+
+    if incoming_schema:
+        if incoming_table_contract_mode := resolve_single(incoming_schema.tables.get(table, {}).get("schema_contract", {})):
+            return incoming_table_contract_mode
+        if not current_table_contract_modes and (incoming_schema_contract_modes := resolve_single(incoming_schema._settings.get("schema_contract", {}))):
+            return incoming_schema_contract_modes
+
+    return current_table_contract_modes or current_schema_contract_modes or DEFAULT_SCHEMA_CONTRACT_MODE

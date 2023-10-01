@@ -371,29 +371,32 @@ def test_data_contract_interaction() -> None:
     """
     ensure data contracts with pydantic are enforced properly
     """
-    from pydantic import BaseModel
+    from pydantic import BaseModel, Extra
 
     class Items(BaseModel):
         id: int  # noqa: A003
         name: Optional[str]
-        amount: Optional[int]
+        amount: Union[int, str, None]
+        class Config:
+            extra = Extra.forbid
 
-    @dlt.resource(name="items", columns=Items)
+    @dlt.resource(name="items")
     def get_items():
         yield from [{
             "id": 5,
             "name": "dave",
+            "amount": 6,
         }]
 
     @dlt.resource(name="items", columns=Items)
-    def get_items_variant():
+    def get_items_with_model():
         yield from [{
             "id": 5,
             "name": "dave",
-            "amount": "HELLO"
+            "amount": 6,
         }]
 
-    @dlt.resource(name="items", columns=Items)
+    @dlt.resource(name="items")
     def get_items_new_col():
         yield from [{
             "id": 5,
@@ -402,7 +405,7 @@ def test_data_contract_interaction() -> None:
             "new_col": "hello"
         }]
 
-    @dlt.resource(name="items", columns=Items)
+    @dlt.resource(name="items")
     def get_items_subtable():
         yield from [{
             "id": 5,
@@ -411,40 +414,39 @@ def test_data_contract_interaction() -> None:
             "sub": [{"hello": "dave"}]
         }]
 
-    # test variants
-    pipeline = get_pipeline()
-    pipeline.run([get_items()], schema_contract={"data_type": "discard_row"})
-    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
-    pipeline.run([get_items_variant()], schema_contract={"data_type": "discard_row"})
-    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
-    pipeline.run([get_items_variant()], schema_contract={"data_type": "evolve"})
-    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
 
-    # test new column
+    # test get new items
     pipeline = get_pipeline()
-    pipeline.run([get_items()], schema_contract={"columns": "discard_row"})
-    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
-    pipeline.run([get_items_new_col()], schema_contract={"columns": "discard_row"})
-    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
-    pipeline.run([get_items_new_col()], schema_contract={"columns": "evolve"})
-    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
+    pipeline.run([get_items()])
+    assert pipeline.last_trace.last_normalize_info.row_counts.get("items", 0) == 1
+    # now items with model work
+    pipeline.run([get_items_with_model()])
+    assert pipeline.last_trace.last_normalize_info.row_counts.get("items", 0) == 1
+
+    # items with model alone does not work, since contract is set to freeze
+    pipeline = get_pipeline()
+    with raises_frozen_exception(True):
+        pipeline.run([get_items_with_model()])
 
     # test new subtable
     pipeline = get_pipeline()
-    pipeline.run([get_items_subtable()], schema_contract={"tables": "discard_row"})
-    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
-    assert pipeline.last_trace.last_normalize_info.row_counts.get("items__sub", 0) == 0
+    pipeline.run([get_items()])
+    pipeline.run([get_items_with_model()])
+    with raises_frozen_exception(True):
+        pipeline.run([get_items_subtable()])
 
-    pipeline.run([get_items_subtable()], schema_contract={"tables": "evolve"})
-    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 1
-    assert pipeline.last_trace.last_normalize_info.row_counts.get("items__sub", 0) == 1
+    # it is possible to override contract when there is a model
+    # items with model alone does not work, since contract is set to freeze
+    pipeline = get_pipeline()
+    pipeline.run([get_items_with_model()], schema_contract="evolve")
+    assert pipeline.last_trace.last_normalize_info.row_counts.get("items", 0) == 1
 
 
 def test_different_objects_in_one_load() -> None:
 
     pipeline = get_pipeline()
 
-    @dlt.resource(name="items", schema_contract={"columns": "freeze", "tables":"evolve"})
+    @dlt.resource(name="items")
     def get_items():
         yield {
             "id": 1,
@@ -458,7 +460,7 @@ def test_different_objects_in_one_load() -> None:
             "new_column": "some val"
         }
 
-    pipeline.run([get_items()])
+    pipeline.run([get_items()], schema_contract={"columns": "freeze", "tables":"evolve"})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 2
 
 
@@ -494,13 +496,13 @@ def test_dynamic_tables(table_mode: str) -> None:
 def test_defined_column_in_new_table(column_mode: str) -> None:
     pipeline = get_pipeline()
 
-    @dlt.resource(name="items", columns=[{"name": "id", "data_type": "bigint", "nullable": False}], schema_contract={"columns": column_mode})
+    @dlt.resource(name="items", columns=[{"name": "id", "data_type": "bigint", "nullable": False}])
     def get_items():
         yield {
             "id": 1,
             "key": "value",
         }
-    pipeline.run([get_items()])
+    pipeline.run([get_items()], schema_contract={"columns": column_mode})
     assert pipeline.last_trace.last_normalize_info.row_counts.get("items", 0) == 1
 
 
@@ -515,7 +517,6 @@ def test_new_column_from_hint_and_data(column_mode: str) -> None:
 
     @dlt.resource(
         name="items",
-        schema_contract={"columns": column_mode},
         columns=[{"name": "id", "data_type": "bigint", "nullable": False}])
     def get_items():
         yield {
@@ -523,7 +524,7 @@ def test_new_column_from_hint_and_data(column_mode: str) -> None:
             "key": "value",
         }
 
-    pipeline.run([get_items()])
+    pipeline.run([get_items()], schema_contract={"columns": column_mode})
     assert pipeline.last_trace.last_normalize_info.row_counts.get("items", 0) == 1
 
 
@@ -536,9 +537,7 @@ def test_two_new_columns_from_two_rows(column_mode: str) -> None:
     # and adds a new column to complete tables in 2nd row
     # the test does not fail only because you clone schema in normalize
 
-    @dlt.resource(
-        schema_contract={"columns": column_mode}
-    )
+    @dlt.resource()
     def items():
         yield {
             "id": 1,
@@ -547,7 +546,7 @@ def test_two_new_columns_from_two_rows(column_mode: str) -> None:
             "id": 1,
             "key": "value",
         }
-    pipeline.run([items()])
+    pipeline.run([items()], schema_contract={"columns": column_mode})
     assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 2
 
 
