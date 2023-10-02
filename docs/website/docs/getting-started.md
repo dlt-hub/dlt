@@ -231,12 +231,19 @@ with engine.connect() as conn:
     )
 
     # here we convert the rows into dictionaries on the fly with a map function
-    load_info = pipeline.run(map(dict, rows), table_name="genome")
+    load_info = pipeline.run(
+        map(lambda row: dict(row._mapping), rows),
+        table_name="genome"
+    )
 
 print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END db-->
 
+Install **pymysql** driver:
+```sh
+pip install pymysql
+```
 
 Have some fun and run this snippet [with progress bar enabled](walkthroughs/run-a-pipeline.md#2-see-the-progress-during-loading) (we like **enlighten** the best, **tqdm** works as well):
 ```bash
