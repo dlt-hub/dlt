@@ -1,4 +1,4 @@
-from typing import ClassVar, Sequence, NamedTuple
+from typing import ClassVar, Sequence, NamedTuple, Union
 from itertools import groupby
 from pathlib import Path
 
@@ -47,10 +47,17 @@ class NormalizeStorage(VersionedStorage):
     @staticmethod
     def parse_normalize_file_name(file_name: str) -> TParsedNormalizeFileName:
         # parse extracted file name and returns (events found, load id, schema_name)
-        if not file_name.endswith("jsonl") and not file_name.endswith("parquet"):
+        file_name_p: Path = Path(file_name)
+        if file_name_p.suffix not in (".jsonl", ".parquet"):
             raise ValueError(file_name)
 
-        parts = Path(file_name).stem.split(".")
+        parts = file_name_p.stem.split(".")
         if len(parts) != 3:
             raise ValueError(file_name)
         return TParsedNormalizeFileName(*parts)
+
+    def delete_extracted_files(self, files: Sequence[str]) -> None:
+        for file_name in files:
+            if Path(file_name).suffix == ".parquet":  # Parquet extract files are moved, not copied
+                continue
+            self.storage.delete(file_name)

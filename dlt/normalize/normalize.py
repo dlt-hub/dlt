@@ -242,9 +242,7 @@ class Normalize(Runnable[ProcessPool]):
         # rename temp folder to processing
         self.load_storage.commit_temp_load_package(load_id)
         # delete item files to complete commit
-        for file in files:
-            if not file.endswith("parquet"):
-                self.normalize_storage.storage.delete(file)
+        self.normalize_storage.delete_extracted_files(files)
         # log and update metrics
         logger.info(f"Chunk {load_id} processed")
         self._row_counts = row_counts
