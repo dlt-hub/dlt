@@ -45,7 +45,7 @@ class FileStorage:
             raise
 
     @staticmethod
-    def copy_atomic(source_file_path: str, dest_folder_path: str) -> str:
+    def move_atomic(source_file_path: str, dest_folder_path: str) -> str:
         file_name = os.path.basename(source_file_path)
         dest_file_path = os.path.join(dest_folder_path, file_name)
         try:
@@ -197,7 +197,7 @@ class FileStorage:
 
     def atomic_import(self, external_file_path: str, to_folder: str) -> str:
         """Moves a file at `external_file_path` into the `to_folder` effectively importing file into storage"""
-        return self.to_relative_path(FileStorage.copy_atomic(external_file_path, self.make_full_path(to_folder)))
+        return self.to_relative_path(FileStorage.move_atomic(external_file_path, self.make_full_path(to_folder)))
         # file_name = FileStorage.get_file_name_from_file_path(external_path)
         # os.rename(external_path, os.path.join(self.make_full_path(to_folder), file_name))
 
