@@ -1,6 +1,6 @@
 import warnings
 import contextlib
-from copy import copy
+from copy import copy, deepcopy
 import makefun
 import inspect
 from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, ContextManager, Dict, Iterable, Iterator, List, Sequence, Tuple, Union, Any, Optional
@@ -111,6 +111,10 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
     def name(self) -> str:
         """Resource name inherited from the pipe"""
         return self._name
+
+    def with_name(self, new_name: str) -> "DltResource":
+        """Clones the resource with a new name. Such resource keeps separate state and loads data to `new_name` table by default."""
+        return self.clone(new_name=new_name)
 
     @property
     def is_transformer(self) -> bool:
@@ -324,19 +328,25 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         with inject_section(self._get_config_section_context()):
             return resource_state(self.name)
 
-    def clone(self, clone_pipe: bool = True, keep_pipe_id: bool = True) -> "DltResource":
-        """Creates a deep copy of a current resource, optionally cloning also pipe. Note that name of a containing source will not be cloned."""
+    def clone(self, clone_pipe: bool = True, new_name: str = None) -> "DltResource":
+        """Creates a deep copy of a current resource, optionally renaming the resource (and cloning pipe). Note that name of a containing source will not be cloned."""
+        assert not (new_name and not clone_pipe), "Must clone pipe when changing name"
         pipe = self._pipe
         if self._pipe and not self._pipe.is_empty and clone_pipe:
-            pipe = pipe._clone(keep_pipe_id=keep_pipe_id)
+            pipe = pipe._clone(keep_pipe_id=False, new_name=new_name)
         # incremental and parent are already in the pipe (if any)
-        return DltResource(pipe, self._table_schema_template, selected=self.selected, section=self.section)
+        return DltResource(
+            pipe,
+            deepcopy(self._table_schema_template),
+            selected=self.selected,
+            section=self.section
+        )
 
     def __call__(self, *args: Any, **kwargs: Any) -> "DltResource":
         """Binds the parametrized resources to passed arguments. Creates and returns a bound resource. Generators and iterators are not evaluated."""
         if self._bound:
             raise TypeError("Bound DltResource object is not callable")
-        r = self.clone(clone_pipe=True, keep_pipe_id=False)
+        r = self.clone(clone_pipe=True)
         return r.bind(*args, **kwargs)
 
     def __or__(self, transform: Union["DltResource", AnyFun]) -> "DltResource":

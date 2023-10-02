@@ -3,6 +3,7 @@ import os
 import stat
 import pytest
 from pathlib import Path
+from typing import cast, TextIO
 
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.utils import encoding_for_mode, set_working_dir, uniq_id
@@ -180,7 +181,7 @@ def test_save_atomic_encode() -> None:
     FileStorage.save_atomic(TEST_STORAGE_ROOT, "file.txt", tstr)
     storage = FileStorage(TEST_STORAGE_ROOT)
     with storage.open_file("file.txt") as f:
-        assert f.encoding == "utf-8"
+        assert cast(TextIO, f).encoding == "utf-8"
         assert f.read() == tstr
 
     bstr = b"axa\0x0\0x0"

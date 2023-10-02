@@ -85,14 +85,15 @@ def assert_dropped_resource_states(pipeline: Pipeline, resources: List[str]) -> 
     # Verify only requested resource keys are removed from state
     all_resources = set(RESOURCE_TABLES.keys())
     expected_keys = all_resources - set(resources)
-    sources_state = pipeline.state['sources']  # type: ignore[typeddict-item]
+    sources_state = pipeline.state['sources']
     result_keys = set(sources_state['droppable']['resources'].keys())
     assert result_keys == expected_keys
 
 
 def assert_destination_state_loaded(pipeline: Pipeline) -> None:
     """Verify stored destination state matches the local pipeline state"""
-    with pipeline.destination_client() as client:
+    client: SqlJobClientBase
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
         destination_state = state_sync.load_state_from_destination(pipeline.pipeline_name, client)
     pipeline_state = dict(pipeline.state)
     del pipeline_state['_local']
@@ -115,7 +116,7 @@ def test_drop_command_resources_and_state(destination_config: DestinationTestCon
     assert_dropped_resources(attached, ['droppable_c', 'droppable_d'])
 
     # Verify extra json paths are removed from state
-    sources_state = pipeline.state['sources']  # type: ignore[typeddict-item]
+    sources_state = pipeline.state['sources']
     assert sources_state['droppable']['data_from_d'] == {'foo1': {}, 'foo2': {}}
 
     assert_destination_state_loaded(pipeline)
@@ -269,8 +270,3 @@ def test_drop_state_only(destination_config: DestinationTestConfiguration) -> No
     assert_dropped_resource_tables(attached, [])  # No tables dropped
     assert_dropped_resource_states(attached, ['droppable_a', 'droppable_b'])
     assert_destination_state_loaded(attached)
-
-
-if __name__ == '__main__':
-    import pytest
-    pytest.main(['-k', 'drop_all', 'tests/load/pipeline/test_drop.py', '--pdb', '-s'])

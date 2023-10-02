@@ -29,6 +29,27 @@ All write dispositions are supported
 ## Data loading
 `dlt` will load data using large INSERT VALUES statements by default. Loading is multithreaded (20 threads by default). If you are ok with installing `pyarrow` we suggest to switch to `parquet` as file format. Loading is faster (and also multithreaded).
 
+### Names normalization
+`dlt` uses standard **snake_case** naming convention to keep identical table and column identifiers across all destinations. If you want to use **duckdb** wide range of characters (ie. emojis) for table and column names, you can switch to **duck_case** naming convention which accepts almost any string as an identifier:
+* `\n` `\r`  and `" are translated to `_`
+* multiple `_` are translated to single `_`
+
+Switch the naming convention using `config.toml`:
+```toml
+[schema]
+naming="duck_case"
+```
+
+or via env variable `SCHEMA__NAMING` or directly in code:
+```python
+dlt.config["schema.naming"] = "duck_case"
+```
+:::caution
+**duckdb** identifiers are **case insensitive** but display names preserve case. This may create name clashes if for example you load json with
+`{"Column": 1, "column": 2}` will map data to a single column.
+:::
+
+
 ## Supported file formats
 You can configure the following file formats to load data to duckdb
 * [insert-values](../file-formats/insert-format.md) is used by default

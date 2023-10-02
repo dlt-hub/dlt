@@ -135,7 +135,10 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
         if isinstance(ex, (duckdb.CatalogException)):
-            raise DatabaseUndefinedRelation(ex)
+            if "already exists" in str(ex):
+                raise DatabaseTerminalException(ex)
+            else:
+                raise DatabaseUndefinedRelation(ex)
         elif isinstance(ex, duckdb.InvalidInputException):
             if "Catalog Error" in str(ex):
                 raise DatabaseUndefinedRelation(ex)

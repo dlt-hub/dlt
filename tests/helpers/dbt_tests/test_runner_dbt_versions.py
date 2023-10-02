@@ -1,7 +1,7 @@
 import os
 import shutil
 import tempfile
-from typing import Any, Iterator, List
+from typing import Any, Iterator, List, Dict
 from functools import partial
 from typing import Tuple
 import pytest
@@ -221,7 +221,7 @@ def test_run_jaffle_failed_run(test_storage: FileStorage, dbt_package_f: Tuple[s
         assert customers.status == "error"
 
 
-JAFFLE_MESSAGES_INCREMENTAL = {
+JAFFLE_MESSAGES_INCREMENTAL: Dict[str, Any] = {
     'snowflake': {
         # Different message per version
         'customers': ('SUCCESS 1', 'SUCCESS 100'),

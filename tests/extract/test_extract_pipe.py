@@ -51,7 +51,6 @@ def test_next_item_mode() -> None:
 
 def test_rotation_on_none() -> None:
 
-    global started
     global gen_1_started
     global gen_2_started
     global gen_3_started
@@ -119,17 +118,17 @@ def test_add_step() -> None:
     assert p.gen is data_iter
     assert p._gen_idx == 0
     assert p.tail is item_meta_step
-    assert p.tail(3, None) == 3
+    assert p.tail(3, None) == 3  # type: ignore[call-arg, operator]
     # the middle step should be wrapped
     mid = p.steps[1]
     assert mid is not item_step
-    sig = inspect.signature(mid)
+    sig = inspect.signature(mid)  # type: ignore[arg-type]
 
     # includes meta
     assert len(sig.parameters) == 2
     # meta is ignored
-    assert mid(2) == 2
-    assert mid(2, meta="META>") == 2
+    assert mid(2) == 2  # type: ignore[operator, call-arg]
+    assert mid(2, meta="META>") == 2  # type: ignore[operator, call-arg]
 
     _l = list(PipeIterator.from_pipe(p))
     assert [pi.item for pi in _l] == data
@@ -241,14 +240,14 @@ def test_pipe_propagate_meta() -> None:
         assert _meta[item-1] == meta
         return item*2
 
-    p.append_step(item_meta_step)
+    p.append_step(item_meta_step)  # type: ignore[arg-type]
     _l = list(PipeIterator.from_pipe(p))
-    assert [pi.item / 2 for pi in _l] == data
+    assert [pi.item / 2 for pi in _l] == data  # type: ignore[operator]
     assert [pi.meta for pi in _l] == _meta
 
     # pass meta through transformer
     p = Pipe.from_data("data", iter(meta_data))
-    p.append_step(item_meta_step)
+    p.append_step(item_meta_step)  # type: ignore[arg-type]
 
     # does not take meta
     def transformer(item):
@@ -261,36 +260,36 @@ def test_pipe_propagate_meta() -> None:
         return item*2
 
     t = Pipe("tran", [transformer], parent=p)
-    t.append_step(item_meta_step_trans)
+    t.append_step(item_meta_step_trans)  # type: ignore[arg-type]
     _l = list(PipeIterator.from_pipe(t))
     # item got propagated through transformation -> transformer -> transformation
-    assert [int((pi.item//2)**0.5//2) for pi in _l] == data
+    assert [int((pi.item//2)**0.5//2) for pi in _l] == data  # type: ignore[operator]
     assert [pi.meta for pi in _l] == _meta
 
     # same but with the fork step
     p = Pipe.from_data("data", iter(meta_data))
-    p.append_step(item_meta_step)
+    p.append_step(item_meta_step)  # type: ignore[arg-type]
     t = Pipe("tran", [transformer], parent=p)
-    t.append_step(item_meta_step_trans)
+    t.append_step(item_meta_step_trans)  # type: ignore[arg-type]
     # do not yield parents
     _l = list(PipeIterator.from_pipes([p, t], yield_parents=False))
     # same result
-    assert [int((pi.item//2)**0.5//2) for pi in _l] == data
+    assert [int((pi.item//2)**0.5//2) for pi in _l] == data  # type: ignore[operator]
     assert [pi.meta for pi in _l] == _meta
 
     # same but yield parents
     p = Pipe.from_data("data", iter(meta_data))
-    p.append_step(item_meta_step)
+    p.append_step(item_meta_step)  # type: ignore[arg-type]
     t = Pipe("tran", [transformer], parent=p)
-    t.append_step(item_meta_step_trans)
+    t.append_step(item_meta_step_trans)  # type: ignore[arg-type]
     _l = list(PipeIterator.from_pipes([p, t], yield_parents=True))
     # same result for transformer
     tran_l = [pi for pi in _l if pi.pipe._pipe_id == t._pipe_id]
-    assert [int((pi.item//2)**0.5//2) for pi in tran_l] == data
+    assert [int((pi.item//2)**0.5//2) for pi in tran_l] == data  # type: ignore[operator]
     assert [pi.meta for pi in tran_l] == _meta
     data_l = [pi for pi in _l if pi.pipe._pipe_id == p._pipe_id]
     # data pipe went only through one transformation
-    assert [int(pi.item//2) for pi in data_l] == data
+    assert [int(pi.item//2) for pi in data_l] == data  # type: ignore[operator]
     assert [pi.meta for pi in data_l] == _meta
 
 
@@ -306,9 +305,9 @@ def test_pipe_transformation_changes_meta() -> None:
         # return meta, it should overwrite existing one
         return DataItemWithMeta("X" + str(item), item*2)
 
-    p.append_step(item_meta_step)
+    p.append_step(item_meta_step)  # type: ignore[arg-type]
     _l = list(PipeIterator.from_pipe(p))
-    assert [pi.item / 2 for pi in _l] == data
+    assert [pi.item / 2 for pi in _l] == data  # type: ignore[operator]
     assert [pi.meta for pi in _l] == ["X1", "X2", "X3"]
 
     # also works for deferred transformations
@@ -320,9 +319,9 @@ def test_pipe_transformation_changes_meta() -> None:
         return DataItemWithMeta("X" + str(item), item*2)
 
     p = Pipe.from_data("data", iter(meta_data))
-    p.append_step(item_meta_step_defer)
+    p.append_step(item_meta_step_defer)  # type: ignore[arg-type]
     _l = list(PipeIterator.from_pipe(p))
-    assert [pi.item / 2 for pi in _l] == data
+    assert [pi.item / 2 for pi in _l] == data  # type: ignore[operator]
     assert [pi.meta for pi in _l] == ["X1", "X2", "X3"]
 
     # also works for yielding transformations
@@ -332,9 +331,9 @@ def test_pipe_transformation_changes_meta() -> None:
         yield DataItemWithMeta("X" + str(item), item*2)
 
     p = Pipe.from_data("data", iter(meta_data))
-    p.append_step(item_meta_step_flat)
+    p.append_step(item_meta_step_flat)  # type: ignore[arg-type]
     _l = list(PipeIterator.from_pipe(p))
-    assert [pi.item / 2 for pi in _l] == data
+    assert [pi.item / 2 for pi in _l] == data  # type: ignore[operator]
     assert [pi.meta for pi in _l] == ["X1", "X2", "X3"]
 
     # also works for async
@@ -345,9 +344,9 @@ def test_pipe_transformation_changes_meta() -> None:
         return DataItemWithMeta("X" + str(item), item*2)
 
     p = Pipe.from_data("data", iter(meta_data))
-    p.append_step(item_meta_step_async)
+    p.append_step(item_meta_step_async)  # type: ignore[arg-type]
     _l = list(PipeIterator.from_pipe(p))
-    assert [pi.item / 2 for pi in _l] == data
+    assert [pi.item / 2 for pi in _l] == data  # type: ignore[operator]
     assert [pi.meta for pi in _l] == ["X1", "X2", "X3"]
 
     # also lets the transformer return meta
@@ -356,16 +355,16 @@ def test_pipe_transformation_changes_meta() -> None:
         yield DataItemWithMeta("X" + str(item), item*2)
 
     p = Pipe.from_data("data", iter(meta_data))
-    t = Pipe("tran", [transformer], parent=p)
+    t = Pipe("tran", [transformer], parent=p)  # type: ignore[list-item] # TODO: typealias not working?
     _l = list(PipeIterator.from_pipe(t))
-    assert [pi.item / 2 for pi in _l] == data
+    assert [pi.item / 2 for pi in _l] == data  # type: ignore[operator]
     assert [pi.meta for pi in _l] == ["X1", "X2", "X3"]
 
     # also with fork
     p = Pipe.from_data("data", iter(meta_data))
-    t = Pipe("tran", [transformer], parent=p)
+    t = Pipe("tran", [transformer], parent=p)  # type: ignore[list-item]
     _l = list(PipeIterator.from_pipes([p, t], yield_parents=False))
-    assert [pi.item / 2 for pi in _l] == data
+    assert [pi.item / 2 for pi in _l] == data  # type: ignore[operator]
     assert [pi.meta for pi in _l] == ["X1", "X2", "X3"]
 
 

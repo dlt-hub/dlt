@@ -1,6 +1,7 @@
 import os
 import pytest
 import shutil
+from typing import Iterator
 
 from dlt.common import git
 from dlt.common.pipeline import get_dlt_repos_dir
@@ -20,7 +21,7 @@ PROJECT_DIR = os.path.join(TEST_STORAGE_ROOT, "project")
 
 
 @pytest.fixture(autouse=True)
-def echo_default_choice() -> None:
+def echo_default_choice() -> Iterator[None]:
     """Always answer default in CLI interactions"""
     echo.ALWAYS_CHOOSE_DEFAULT = True
     yield
@@ -38,7 +39,7 @@ def repo_dir(cloned_init_repo: FileStorage) -> str:
 
 
 @pytest.fixture
-def project_files() -> FileStorage:
+def project_files() -> Iterator[FileStorage]:
     project_files = get_project_files()
     with set_working_dir(project_files.storage_path):
         yield project_files

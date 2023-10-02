@@ -30,7 +30,7 @@ def test_regular_keys() -> None:
     secrets[f"{known_sections.PROVIDERS}.google_secrets.credentials"] = dict(c)
     # c = secrets.get("destination.credentials", GcpServiceAccountCredentials)
     # print(c)
-    provider: GoogleSecretsProvider = _google_secrets_provider()
+    provider: GoogleSecretsProvider = _google_secrets_provider()  # type: ignore[assignment]
     assert provider._toml.as_string().strip() == DLT_SECRETS_TOML_CONTENT.strip()
     assert provider.get_value("secret_value", AnyType, None) == (2137, "secret_value")
     assert provider.get_value("secret_key", AnyType, None, "api") == ("ABCD", "api-secret_key")

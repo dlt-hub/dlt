@@ -4,7 +4,7 @@ from importlib.metadata import version as pkg_version
 from dlt.common import logger
 from dlt.common.runtime import exec_info
 from dlt.common.runtime.logger import is_logging
-from dlt.common.typing import StrStr
+from dlt.common.typing import StrStr, DictStrStr
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import RunConfiguration
 
@@ -24,7 +24,7 @@ class JsonLoggerConfiguration(PureBasicConfiguration):
 
 
 # @pytest.mark.skip
-def test_version_extract(environment: StrStr) -> None:
+def test_version_extract(environment: DictStrStr) -> None:
     version = exec_info.dlt_version_info("logger")
     # assert version["dlt_version"].startswith(code_version)
     lib_version = pkg_version("dlt")
@@ -35,7 +35,7 @@ def test_version_extract(environment: StrStr) -> None:
     assert version == {'dlt_version': lib_version, 'commit_sha': '192891', 'pipeline_name': 'logger', 'image_version': 'scale/v:112'}
 
 
-def test_pod_info_extract(environment: StrStr) -> None:
+def test_pod_info_extract(environment: DictStrStr) -> None:
     pod_info = exec_info.kube_pod_info()
     assert pod_info == {}
     mock_pod_env(environment)
@@ -43,7 +43,7 @@ def test_pod_info_extract(environment: StrStr) -> None:
     assert pod_info == {'kube_node_name': 'node_name', 'kube_pod_name': 'pod_name', 'kube_pod_namespace': 'namespace'}
 
 
-def test_github_info_extract(environment: StrStr) -> None:
+def test_github_info_extract(environment: DictStrStr) -> None:
     mock_github_env(environment)
     github_info = exec_info.github_info()
     assert github_info == {"github_user": "rudolfix", "github_repository": "dlt-hub/beginners-workshop-2022", "github_repository_owner": "dlt-hub"}
@@ -54,7 +54,7 @@ def test_github_info_extract(environment: StrStr) -> None:
 
 
 @pytest.mark.forked
-def test_text_logger_init(environment: StrStr) -> None:
+def test_text_logger_init(environment: DictStrStr) -> None:
     mock_image_env(environment)
     mock_pod_env(environment)
     init_test_logging(PureBasicConfiguration())
@@ -68,9 +68,9 @@ def test_text_logger_init(environment: StrStr) -> None:
 
 
 @pytest.mark.forked
-def test_json_logger_init(environment: StrStr) -> None:
-    from dlt.common.runtime import json_logging
 
+def test_json_logger_init(environment: DictStrStr) -> None:
+    from dlt.common.runtime import json_logging
     mock_image_env(environment)
     mock_pod_env(environment)
     init_test_logging(JsonLoggerConfiguration())
@@ -86,7 +86,7 @@ def test_json_logger_init(environment: StrStr) -> None:
 
 
 @pytest.mark.forked
-def test_double_log_init(environment: StrStr) -> None:
+def test_double_log_init(environment: DictStrStr) -> None:
 
     mock_image_env(environment)
     mock_pod_env(environment)
@@ -113,6 +113,6 @@ def test_double_log_init(environment: StrStr) -> None:
     logger.error("test warning", extra={"metrics": "props"})
 
 
-def test_cleanup(environment: StrStr) -> None:
+def test_cleanup(environment: DictStrStr) -> None:
     # this must happen after all forked tests (problems with tests teardowns in other tests)
     pass

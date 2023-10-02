@@ -19,6 +19,7 @@ class FileItem(TypedDict):
     file_name: str
     mime_type: str
     modification_date: pendulum.DateTime
+    size_in_bytes: int
     file_content: Optional[Union[str, bytes]]
 
 

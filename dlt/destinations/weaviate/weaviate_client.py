@@ -588,7 +588,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         }
 
         # check if any column requires vectorization
-        if get_columns_names_with_prop(self.schema.get_table(table_name), VECTORIZE_HINT):  # type: ignore
+        if get_columns_names_with_prop(self.schema.get_table(table_name), VECTORIZE_HINT):
             class_schema.update(self._vectorizer_config)
         else:
             class_schema.update(NON_VECTORIZED_CLASS)

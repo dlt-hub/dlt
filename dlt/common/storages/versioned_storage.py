@@ -1,3 +1,5 @@
+from typing import Union
+
 import semver
 
 from dlt.common.storages.file_storage import FileStorage
@@ -8,7 +10,9 @@ class VersionedStorage:
 
     VERSION_FILE = ".version"
 
-    def __init__(self, version: semver.VersionInfo, is_owner: bool, storage: FileStorage) -> None:
+    def __init__(self, version: Union[semver.VersionInfo, str], is_owner: bool, storage: FileStorage) -> None:
+        if isinstance(version, str):
+            version = semver.VersionInfo.parse(version)
         self.storage = storage
         # read current version
         if self.storage.has_file(VersionedStorage.VERSION_FILE):

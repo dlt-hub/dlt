@@ -10,6 +10,7 @@ from dlt.common.source import get_current_pipe_name
 from dlt.common.storages import FileStorage
 from dlt.common import pipeline as state_module
 from dlt.common.utils import uniq_id
+from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
@@ -438,7 +439,8 @@ def test_resource_state_name_not_normalized() -> None:
 
     # get state from destination
     from dlt.pipeline.state_sync import load_state_from_destination
-    with pipeline.destination_client() as client:
+    client: SqlJobClientBase
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
         state = load_state_from_destination(pipeline.pipeline_name, client)
         assert "airtable_emojis" in state["sources"]
         assert state["sources"]["airtable_emojis"]["resources"] == {"🦚Peacock": {"🦚🦚🦚": "🦚"}}

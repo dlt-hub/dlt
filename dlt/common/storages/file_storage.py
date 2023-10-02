@@ -6,7 +6,7 @@ import errno
 import tempfile
 import shutil
 import pathvalidate
-from typing import IO, Any, Optional, List, cast
+from typing import IO, Any, Optional, List, cast, overload
 from dlt.common.typing import AnyFun
 
 from dlt.common.utils import encoding_for_mode, uniq_id

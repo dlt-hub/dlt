@@ -36,7 +36,6 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     dataset_name = "test_replace_strategies_ds" + uniq_id()
     pipeline = destination_config.setup_pipeline("test_replace_strategies", dataset_name=dataset_name)
 
-    global offset
     offset = 1000
 
     # keep merge key with unknown column to test replace SQL generator
@@ -45,7 +44,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
         # will produce 3 jobs for the main table with 40 items each
         # 6 jobs for the sub_items
         # 3 jobs for the sub_sub_items
-        global offset
+        nonlocal offset
         for _, index in enumerate(range(offset, offset+120), 1):
             yield {
                 "id": index,
@@ -66,7 +65,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
     # append resource to see if we do not drop any tables
     @dlt.resource(write_disposition="append")
     def append_items():
-        global offset
+        nonlocal offset
         for _, index in enumerate(range(offset, offset+12), 1):
             yield {
                 "id": index,

@@ -28,7 +28,7 @@ def auto_delete_storage() -> None:
 
 @pytest.fixture(scope="function")
 def client() -> Iterator[PostgresClient]:
-    yield from yield_client_with_storage("postgres")
+    yield from yield_client_with_storage("postgres")  # type: ignore[misc]
 
 
 def test_postgres_credentials_defaults() -> None:

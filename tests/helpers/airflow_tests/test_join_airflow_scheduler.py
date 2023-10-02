@@ -71,7 +71,7 @@ def test_date_coercion() -> None:
             assert state["state"]["initial_value"].tz == UTC
 
             # datetime.date coercion also works
-            @dlt.resource()
+            @dlt.resource()  # type: ignore[no-redef]
             def incremental_datetime(updated_at = dlt.sources.incremental[datetime.date]("updated_at", allow_external_schedulers=True)):
                 yield {"updated_at": ensure_pendulum_date(CATCHUP_BEGIN), "state": updated_at.get_state()}
 
@@ -81,7 +81,7 @@ def test_date_coercion() -> None:
             assert isinstance(state["state"]["initial_value"], datetime.date)
 
             # coerce to int
-            @dlt.resource()
+            @dlt.resource()  # type: ignore[no-redef]
             def incremental_datetime(updated_at = dlt.sources.incremental[int]("updated_at", allow_external_schedulers=True)):
                 yield {"updated_at": CATCHUP_BEGIN.int_timestamp, "state": updated_at.get_state()}
 
@@ -91,7 +91,7 @@ def test_date_coercion() -> None:
             assert r.incremental._incremental.end_value == context["data_interval_end"].int_timestamp
 
             # coerce to float
-            @dlt.resource()
+            @dlt.resource()  # type: ignore[no-redef]
             def incremental_datetime(updated_at = dlt.sources.incremental[float]("updated_at", allow_external_schedulers=True)):
                 yield {"updated_at": CATCHUP_BEGIN.timestamp(), "state": updated_at.get_state()}
 
@@ -101,7 +101,7 @@ def test_date_coercion() -> None:
             assert r.incremental._incremental.end_value == context["data_interval_end"].timestamp()
 
             # coerce to str
-            @dlt.resource()
+            @dlt.resource()  # type: ignore[no-redef]
             def incremental_datetime(updated_at = dlt.sources.incremental[str]("updated_at", allow_external_schedulers=True)):
                 yield {"updated_at": CATCHUP_BEGIN.in_tz("UTC").isoformat(), "state": updated_at.get_state()}
 
@@ -150,7 +150,7 @@ def test_no_next_execution_date() -> None:
             assert context["data_interval_start"] == context["data_interval_end"]
 
             # will be filtered out (now earlier than data_interval_start)
-            @dlt.resource()
+            @dlt.resource()  # type: ignore[no-redef]
             def incremental_datetime(updated_at = dlt.sources.incremental[datetime.datetime]("updated_at", allow_external_schedulers=True)):
                 yield {"updated_at": now.subtract(hours=1, seconds=1), "state": updated_at.get_state()}
 
@@ -282,7 +282,7 @@ def test_scheduler_pipeline_state() -> None:
 
         unscheduled()
 
-    dag_def: DAG = dag_no_schedule()
+    dag_def = dag_no_schedule()
     dag_def.test(execution_date=CATCHUP_BEGIN)
 
     # state was saved (end date not specified)

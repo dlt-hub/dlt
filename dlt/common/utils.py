@@ -80,7 +80,7 @@ def str2bool(v: str) -> bool:
 #     return o
 
 
-def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> StrAny:
+def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> DictStrAny:
     """
     Transforms a list of objects or strings [{K: {...}}, L, ...] -> {K: {...}, L: None, ...}
     """

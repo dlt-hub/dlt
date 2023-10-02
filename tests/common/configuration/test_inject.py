@@ -273,8 +273,8 @@ def test_use_most_specific_union_type(environment: Any, toml_providers: ConfigPr
 
     # pass explicit: str, Dict and credentials object
     assert isinstance(postgres_direct(conn_cred), ConnectionStringCredentials)
-    assert isinstance(postgres_direct(conn_str), ConnectionStringCredentials)
-    assert isinstance(postgres_direct(conn_dict), ConnectionStringCredentials)
+    assert isinstance(postgres_direct(conn_str), ConnectionStringCredentials)  # type: ignore[arg-type]
+    assert isinstance(postgres_direct(conn_dict), ConnectionStringCredentials)  # type: ignore[arg-type]
     assert isinstance(postgres_union(conn_cred), ConnectionStringCredentials)
     assert isinstance(postgres_union(conn_str), ConnectionStringCredentials)
     assert isinstance(postgres_union(conn_dict), ConnectionStringCredentials)
@@ -296,7 +296,7 @@ def test_use_most_specific_union_type(environment: Any, toml_providers: ConfigPr
     environment.clear()
 
     # pass via toml
-    secrets_toml = toml_providers[SECRETS_TOML]._toml
+    secrets_toml = toml_providers[SECRETS_TOML]._toml  # type: ignore[attr-defined]
     secrets_toml["local_credentials"] = conn_str
     assert isinstance(postgres_direct(), ConnectionStringCredentials)
     assert isinstance(postgres_union(), ConnectionStringCredentials)

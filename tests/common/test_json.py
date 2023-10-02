@@ -25,7 +25,7 @@ class DataClassTest:
     dec_field: Decimal = Decimal("0.5")
 
 
-_JSON_IMPL: List[SupportsJson] = [_orjson, _simplejson]
+_JSON_IMPL: List[SupportsJson] = [_orjson, _simplejson]  # type: ignore[list-item]
 
 
 def test_orjson_default_imported() -> None:
@@ -162,7 +162,7 @@ def test_json_decimals(json_impl: SupportsJson) -> None:
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
-def test_json_large_int(json_impl: SupportsJson) -> int:
+def test_json_large_int(json_impl: SupportsJson):
     # optimized json parsers like orjson do not support large integers
     if json_impl._impl_name == "orjson":
         with pytest.raises(TypeError):

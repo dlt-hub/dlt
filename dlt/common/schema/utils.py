@@ -3,7 +3,7 @@ import base64
 import hashlib
 
 from copy import deepcopy, copy
-from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional
+from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
 
 from dlt.common import json
 from dlt.common.data_types import TDataType
@@ -476,7 +476,7 @@ def hint_to_column_prop(h: TColumnHint) -> TColumnProp:
     return h
 
 
-def get_columns_names_with_prop(table: TTableSchema, column_prop: TColumnProp, include_incomplete: bool = False) -> List[str]:
+def get_columns_names_with_prop(table: TTableSchema, column_prop: Union[TColumnProp, str], include_incomplete: bool = False) -> List[str]:
     # column_prop: TColumnProp = hint_to_column_prop(hint_type)
     # default = column_prop != "nullable"  # default is true, only for nullable false
     return [c["name"] for c in table["columns"].values() if bool(c.get(column_prop, False)) is True and (include_incomplete or is_complete_column(c))]
