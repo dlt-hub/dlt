@@ -76,12 +76,12 @@ def test_deploy_command(test_storage: FileStorage, deployment_method: str, deplo
             # mod environ so wrong password is passed to override secrets.toml
             pg_credentials = os.environ.pop("DESTINATION__POSTGRES__CREDENTIALS")
             # os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "password"
-            with pytest.raises(CalledProcessError) as py_ex:
+            with pytest.raises(CalledProcessError):
                 venv.run_script("debug_pipeline.py")
             # print(py_ex.value.output)
-            with pytest.raises(deploy_command.PipelineWasNotRun) as py_ex:
+            with pytest.raises(deploy_command.PipelineWasNotRun) as py_ex2:
                 deploy_command.deploy_command("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, **deployment_args)
-            assert "The last pipeline run ended with error" in py_ex.value.args[0]
+            assert "The last pipeline run ended with error" in py_ex2.value.args[0]
             rc = _dlt.deploy_command_wrapper("debug_pipeline.py", deployment_method, deploy_command.COMMAND_DEPLOY_REPO_LOCATION, **deployment_args)
             assert rc == -2
 

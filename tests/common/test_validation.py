@@ -38,13 +38,13 @@ class TTestRecord(TypedDict):
     f_optional_union: Optional[Union[TLiteral, TDict]]
 
 
-TEST_COL = {
+TEST_COL: TColumnSchema = {
         "name": "col1",
         "data_type": "bigint",
         "nullable": False
     }
 
-TEST_COL_LIST = [
+TEST_COL_LIST: List[TColumnSchema] = [
     {
         "name": "col1",
         "data_type": "bigint",
@@ -110,7 +110,7 @@ def test_validate_doc() -> None:
 
 
 def test_missing_values(test_doc: TTestRecord) -> None:
-    del test_doc["f_bool"]
+    del test_doc["f_bool"]  # type: ignore[misc]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert "f_bool" in str(e.value)
@@ -129,21 +129,21 @@ def test_missing_values(test_doc: TTestRecord) -> None:
 
 def test_extra_values(test_doc: TTestRecord) -> None:
     # extra element at the top
-    test_doc["f_extra"] = 1
+    test_doc["f_extra"] = 1  # type: ignore[typeddict-unknown-key]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert "f_extra" in str(e.value)
 
     # add prop at child document
     test_doc = deepcopy(TEST_DOC)
-    test_doc["f_list_of_dict"][0]["f_extra"] = 1
+    test_doc["f_list_of_dict"][0]["f_extra"] = 1  # type: ignore[typeddict-unknown-key]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert "f_extra" in str(e.value)
     assert e.value.path == "./f_list_of_dict[0]"
 
     test_doc = deepcopy(TEST_DOC)
-    test_doc["f_map_of_dict"]["col1"]["f_extra"] = "2"
+    test_doc["f_map_of_dict"]["col1"]["f_extra"] = "2"  # type: ignore[typeddict-unknown-key]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert "f_extra" in str(e.value)
@@ -151,7 +151,7 @@ def test_extra_values(test_doc: TTestRecord) -> None:
 
 
 def test_invalid_types(test_doc: TTestRecord) -> None:
-    test_doc["f_bool"] = "a"
+    test_doc["f_bool"] = "a"  # type: ignore[typeddict-item]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_bool"
@@ -159,7 +159,7 @@ def test_invalid_types(test_doc: TTestRecord) -> None:
 
     # break list type
     test_doc = deepcopy(TEST_DOC)
-    test_doc["f_list_simple"] = test_doc["f_map_of_dict"]
+    test_doc["f_list_simple"] = test_doc["f_map_of_dict"]  # type: ignore[typeddict-item]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_list_simple"
@@ -167,7 +167,7 @@ def test_invalid_types(test_doc: TTestRecord) -> None:
 
     # break typed dict
     test_doc = deepcopy(TEST_DOC)
-    test_doc["f_column"] = "break"
+    test_doc["f_column"] = "break"  # type: ignore[typeddict-item]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_column"
@@ -175,7 +175,7 @@ def test_invalid_types(test_doc: TTestRecord) -> None:
 
     # break dict type
     test_doc = deepcopy(TEST_DOC)
-    test_doc["f_map_simple"] = "break"
+    test_doc["f_map_simple"] = "break"  # type: ignore[typeddict-item]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_map_simple"
@@ -183,7 +183,7 @@ def test_invalid_types(test_doc: TTestRecord) -> None:
 
     # break child type
     test_doc = deepcopy(TEST_DOC)
-    test_doc["f_column"]["cluster"] = 1
+    test_doc["f_column"]["cluster"] = 1  # type: ignore[typeddict-item]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "cluster"
@@ -191,7 +191,7 @@ def test_invalid_types(test_doc: TTestRecord) -> None:
     assert e.value.path == "./f_column"
 
     test_doc = deepcopy(TEST_DOC)
-    test_doc["f_seq_optional_str"][0] = 1
+    test_doc["f_seq_optional_str"][0] = 1  # type: ignore[index]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_seq_optional_str[0]"
@@ -200,7 +200,7 @@ def test_invalid_types(test_doc: TTestRecord) -> None:
 
     # break literal
     test_doc = deepcopy(TEST_DOC)
-    test_doc["f_literal"] = "cinco"
+    test_doc["f_literal"] = "cinco"  # type: ignore[typeddict-item]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_literal"
@@ -208,7 +208,7 @@ def test_invalid_types(test_doc: TTestRecord) -> None:
 
     # break optional literal
     test_doc = deepcopy(TEST_DOC)
-    test_doc["f_literal_optional"] = "cinco"
+    test_doc["f_literal_optional"] = "cinco"  # type: ignore[typeddict-item]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_literal_optional"
@@ -216,7 +216,7 @@ def test_invalid_types(test_doc: TTestRecord) -> None:
 
     # break literal in a list
     test_doc = deepcopy(TEST_DOC)
-    test_doc["f_seq_literal"][2] = "cinco"
+    test_doc["f_seq_literal"][2] = "cinco"  # type: ignore[index]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_seq_literal[2]"
@@ -224,13 +224,13 @@ def test_invalid_types(test_doc: TTestRecord) -> None:
 
 
 def test_optional(test_doc: TTestRecord) -> None:
-    del test_doc["f_seq_optional_str"]
+    del test_doc["f_seq_optional_str"]  # type: ignore[misc]
     # still validates
     validate_dict(TTestRecord, test_doc, ".")
 
 
 def test_filter(test_doc: TTestRecord) -> None:
-    test_doc["x-extra"] = "x-annotation"
+    test_doc["x-extra"] = "x-annotation"  # type: ignore[typeddict-unknown-key]
     # remove x-extra with a filter
     validate_dict(TTestRecord, test_doc, ".", filter_f=lambda k: k != "x-extra")
 

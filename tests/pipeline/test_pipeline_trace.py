@@ -15,7 +15,7 @@ from dlt.common.configuration.specs.config_providers_context import ConfigProvid
 from dlt.common.pipeline import ExtractInfo, NormalizeInfo, LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.runtime.telemetry import stop_telemetry
-from dlt.common.typing import DictStrAny, StrStr, TSecretValue
+from dlt.common.typing import DictStrAny, StrStr, DictStrStr, TSecretValue
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
@@ -30,7 +30,11 @@ from tests.common.configuration.utils import toml_providers, environment
 def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
 
     @dlt.source
-    def inject_tomls(api_type = dlt.config.value, credentials: CredentialsConfiguration = dlt.secrets.value, secret_value: TSecretValue = "123"):
+    def inject_tomls(
+            api_type = dlt.config.value,
+            credentials: CredentialsConfiguration = dlt.secrets.value,
+            secret_value: TSecretValue = TSecretValue("123")  # noqa: B008
+    ):
 
         @dlt.resource
         def data():
@@ -163,7 +167,7 @@ def test_save_load_trace() -> None:
     trace = pipeline.last_trace
     assert trace is not None
     assert pipeline._trace is None
-    assert len(trace.steps) == 4 == len(info.pipeline.last_trace.steps)
+    assert len(trace.steps) == 4 == len(info.pipeline.last_trace.steps)  # type: ignore[attr-defined]
     step = trace.steps[-2]  # the previoius to last one should be load
     assert step.step == "load"
     resolved = _find_resolved_value(trace.resolved_config_values, "completed_prob", [])
@@ -199,14 +203,14 @@ def test_save_load_trace() -> None:
     assert pipeline.last_trace.last_normalize_info is None
 
 
-def test_disable_trace(environment: StrStr) -> None:
+def test_disable_trace(environment: DictStrStr) -> None:
     environment["ENABLE_RUNTIME_TRACE"] = "false"
     environment["COMPLETED_PROB"] = "1.0"
     dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
     assert dlt.pipeline().last_trace is None
 
 
-def test_trace_on_restore_state(environment: StrStr) -> None:
+def test_trace_on_restore_state(environment: DictStrStr) -> None:
     environment["COMPLETED_PROB"] = "1.0"
 
     def _sync_destination_patch(self: Pipeline, destination: str = None, staging: str = None, dataset_name: str = None):
@@ -297,7 +301,7 @@ def test_extract_data_describe() -> None:
         ]
 
 
-def test_slack_hook(environment: StrStr) -> None:
+def test_slack_hook(environment: DictStrStr) -> None:
     stop_telemetry()
     hook_url = "https://hooks.slack.com/services/T04DHMAF13Q/B04E7B1MQ1H/TDHEI123WUEE"
     environment["COMPLETED_PROB"] = "1.0"
@@ -307,19 +311,19 @@ def test_slack_hook(environment: StrStr) -> None:
     with requests_mock.mock() as m:
         m.post(hook_url, json={})
         load_info = dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
-        assert slack_notify_load_success(load_info.pipeline.runtime_config.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == 200
+        assert slack_notify_load_success(load_info.pipeline.runtime_config.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == 200  # type: ignore[attr-defined]
     assert m.called
     message = m.last_request.json()
     assert "rudolfix" in message["text"]
     assert "dummy" in message["text"]
 
 
-def test_broken_slack_hook(environment: StrStr) -> None:
+def test_broken_slack_hook(environment: DictStrStr) -> None:
     environment["COMPLETED_PROB"] = "1.0"
     environment["RUNTIME__SLACK_INCOMING_HOOK"] = "http://localhost:22"
     load_info = dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
     # connection error
-    assert slack_notify_load_success(load_info.pipeline.runtime_config.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == -1
+    assert slack_notify_load_success(load_info.pipeline.runtime_config.slack_incoming_hook, load_info, load_info.pipeline.last_trace) == -1  # type: ignore[attr-defined]
     # pipeline = dlt.pipeline()
     # assert pipeline.last_trace is not None
     # assert pipeline._trace is None

@@ -3,10 +3,10 @@ from copy import copy, deepcopy
 
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.exceptions import CannotCoerceColumnException, CannotCoerceNullException, TablePropertiesConflictException
-from dlt.common.schema.typing import TStoredSchema, TTableSchema
+from dlt.common.schema.typing import TStoredSchema, TTableSchema, TColumnSchema
 
 
-COL_1_HINTS = {
+COL_1_HINTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
             "cluster": False,
             "foreign_key": True,
             "data_type": "text",
@@ -18,7 +18,7 @@ COL_1_HINTS = {
             "prop": None
         }
 
-COL_1_HINTS_DEFAULTS = {
+COL_1_HINTS_DEFAULTS: TColumnSchema = {  # type: ignore[typeddict-unknown-key]
         'foreign_key': True,
         'data_type': 'text',
         'name': 'test',
@@ -28,7 +28,7 @@ COL_1_HINTS_DEFAULTS = {
         "x-special-bool": False,
         }
 
-COL_2_HINTS = {
+COL_2_HINTS: TColumnSchema = {
     "nullable": True,
     "name": "test_2",
     "primary_key": False
@@ -61,7 +61,7 @@ def test_column_add_defaults() -> None:
     clean = utils.remove_column_defaults(copy(full))
     assert clean == COL_1_HINTS_DEFAULTS
     # prop is None and will be removed
-    del full["prop"]
+    del full["prop"]  # type: ignore[typeddict-item]
     assert utils.add_column_defaults(copy(clean)) == full
 
     # test incomplete
@@ -71,7 +71,7 @@ def test_column_add_defaults() -> None:
 
 
 def test_remove_defaults_stored_schema() -> None:
-    table: TTableSchema = {
+    table: TTableSchema = {  # type: ignore[typeddict-unknown-key]
         "name": "table",
         "parent": "parent",
         "description": "description",
@@ -82,7 +82,7 @@ def test_remove_defaults_stored_schema() -> None:
             "test_2": COL_2_HINTS
         }
     }
-    stored_schema: TStoredSchema = {
+    stored_schema: TStoredSchema = {  # type: ignore[typeddict-unknown-key]
         "name": "schema",
         "tables": {
             "table": deepcopy(table),
@@ -126,11 +126,11 @@ def test_new_incomplete_column() -> None:
     assert "primary_key" not in incomplete_col
 
     incomplete_col["primary_key"] = True
-    incomplete_col["x-special"] = "spec"
+    incomplete_col["x-special"] = "spec"  # type: ignore[typeddict-unknown-key]
     table = utils.new_table("table", columns=[incomplete_col])
     # incomplete column must be added without hints
     assert table["columns"]["I"]["primary_key"] is True
-    assert table["columns"]["I"]["x-special"] == "spec"
+    assert table["columns"]["I"]["x-special"] == "spec"  # type: ignore[typeddict-item]
     assert "merge_key" not in incomplete_col
 
 
@@ -167,7 +167,7 @@ def test_merge_columns() -> None:
 
 
 def test_diff_tables() -> None:
-    table: TTableSchema = {
+    table: TTableSchema = {  # type: ignore[typeddict-unknown-key]
         "name": "table",
         "description": "description",
         "resource": "🦚Table",
@@ -247,7 +247,7 @@ def test_diff_tables() -> None:
 
 def test_diff_tables_conflicts() -> None:
     # conflict on parents
-    table: TTableSchema = {
+    table: TTableSchema = {  # type: ignore[typeddict-unknown-key]
         "name": "table",
         "parent": "parent",
         "description": "description",
@@ -272,7 +272,7 @@ def test_diff_tables_conflicts() -> None:
 
 
 def test_merge_tables() -> None:
-    table: TTableSchema = {
+    table: TTableSchema = {  # type: ignore[typeddict-unknown-key]
         "name": "table",
         "description": "description",
         "resource": "🦚Table",
@@ -283,21 +283,21 @@ def test_merge_tables() -> None:
         }
     }
     changed = deepcopy(table)
-    changed["x-special"] = 129
+    changed["x-special"] = 129  # type: ignore[typeddict-unknown-key]
     changed["description"] = "new description"
-    changed["new-prop-1"] = "A"
-    changed["new-prop-2"] = None
-    changed["new-prop-3"] = False
+    changed["new-prop-1"] = "A"  # type: ignore[typeddict-unknown-key]
+    changed["new-prop-2"] = None  # type: ignore[typeddict-unknown-key]
+    changed["new-prop-3"] = False  # type: ignore[typeddict-unknown-key]
     # drop column so partial has it
     del table["columns"]["test"]
     partial = utils.merge_tables(table, changed)
     assert "test" in table["columns"]
-    assert table["x-special"] == 129
+    assert table["x-special"] == 129  # type: ignore[typeddict-item]
     assert table["description"] == "new description"
-    assert table["new-prop-1"] == "A"
+    assert table["new-prop-1"] == "A"  # type: ignore[typeddict-item]
     # None are not merged in
     assert "new-prop-2" not in table
-    assert table["new-prop-3"] is False
+    assert table["new-prop-3"] is False  # type: ignore[typeddict-item]
 
     # one column in partial
     assert len(partial["columns"]) == 1

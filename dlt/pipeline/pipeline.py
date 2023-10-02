@@ -151,7 +151,7 @@ def with_config_section(sections: Tuple[str, ...]) -> Callable[[TFun], TFun]:
 class Pipeline(SupportsPipeline):
 
     STATE_FILE: ClassVar[str] = "state.json"
-    STATE_PROPS: ClassVar[List[str]] = list(get_type_hints(TPipelineState).keys())
+    STATE_PROPS: ClassVar[List[str]] = list(set(get_type_hints(TPipelineState).keys()) - {"sources"})
     LOCAL_STATE_PROPS: ClassVar[List[str]] = list(get_type_hints(TPipelineLocalState).keys())
     DEFAULT_DATASET_SUFFIX: ClassVar[str] = "_dataset"
 

@@ -32,15 +32,15 @@ def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
     pipeline = dlt.pipeline(pipeline_name='test_' + uniq_id(), destination="filesystem", dataset_name='test_' + uniq_id())
 
     @dlt.resource(primary_key='id')
-    def some_data():  # type: ignore[no-untyped-def]
+    def some_data():
         yield [{'id': 1}, {'id': 2}, {'id': 3}]
 
     @dlt.resource
-    def other_data():  # type: ignore[no-untyped-def]
+    def other_data():
         yield [1, 2, 3, 4, 5]
 
     @dlt.source
-    def some_source():  # type: ignore[no-untyped-def]
+    def some_source():
         return [some_data(), other_data()]
 
     info1 = pipeline.run(some_source(), write_disposition='merge')
@@ -99,15 +99,15 @@ def test_pipeline_parquet_filesystem_destination() -> None:
     pipeline = dlt.pipeline(pipeline_name='parquet_test_' + uniq_id(), destination="filesystem",  dataset_name='parquet_test_' + uniq_id())
 
     @dlt.resource(primary_key='id')
-    def some_data():  # type: ignore[no-untyped-def]
+    def some_data():
         yield [{'id': 1}, {'id': 2}, {'id': 3}]
 
     @dlt.resource
-    def other_data():  # type: ignore[no-untyped-def]
+    def other_data():
         yield [1, 2, 3, 4, 5]
 
     @dlt.source
-    def some_source():  # type: ignore[no-untyped-def]
+    def some_source():
         return [some_data(), other_data()]
 
     info = pipeline.run(some_source(), loader_file_format="parquet")

@@ -14,6 +14,13 @@ from tests.common.utils import load_json_case, row_to_column_schemas
 ALL_LITERAL_ESCAPE = [escape_redshift_literal, escape_postgres_literal, escape_duckdb_literal]
 
 
+class _StringIOWriter(DataWriter):
+    _f: io.StringIO
+
+
+class _BytesIOWriter(DataWriter):
+    _f: io.BytesIO
+
 @pytest.fixture
 def insert_writer() -> Iterator[DataWriter]:
     with io.StringIO() as f:
@@ -26,7 +33,7 @@ def jsonl_writer() -> Iterator[DataWriter]:
         yield JsonlWriter(f)
 
 
-def test_simple_insert_writer(insert_writer: DataWriter) -> None:
+def test_simple_insert_writer(insert_writer: _StringIOWriter) -> None:
     rows = load_json_case("simple_row")
     insert_writer.write_all(row_to_column_schemas(rows[0]), rows)
     lines = insert_writer._f.getvalue().split("\n")
@@ -36,7 +43,7 @@ def test_simple_insert_writer(insert_writer: DataWriter) -> None:
     assert len(lines) == 4
 
 
-def test_simple_jsonl_writer(jsonl_writer: DataWriter) -> None:
+def test_simple_jsonl_writer(jsonl_writer: _BytesIOWriter) -> None:
     rows = load_json_case("simple_row")
     jsonl_writer.write_all(None, rows)
     # remove b'' at the end
@@ -45,21 +52,21 @@ def test_simple_jsonl_writer(jsonl_writer: DataWriter) -> None:
     assert len(lines) == 3
 
 
-def test_bytes_insert_writer(insert_writer: DataWriter) -> None:
+def test_bytes_insert_writer(insert_writer: _StringIOWriter) -> None:
     rows = [{"bytes": b"bytes"}]
     insert_writer.write_all(row_to_column_schemas(rows[0]), rows)
     lines = insert_writer._f.getvalue().split("\n")
     assert lines[2] == "(from_hex('6279746573'));"
 
 
-def test_datetime_insert_writer(insert_writer: DataWriter) -> None:
+def test_datetime_insert_writer(insert_writer: _StringIOWriter) -> None:
     rows = [{"datetime": pendulum.from_timestamp(1658928602.575267)}]
     insert_writer.write_all(row_to_column_schemas(rows[0]), rows)
     lines = insert_writer._f.getvalue().split("\n")
     assert lines[2] == "('2022-07-27T13:30:02.575267+00:00');"
 
 
-def test_date_insert_writer(insert_writer: DataWriter) -> None:
+def test_date_insert_writer(insert_writer: _StringIOWriter) -> None:
     rows = [{"date": pendulum.date(1974, 8, 11)}]
     insert_writer.write_all(row_to_column_schemas(rows[0]), rows)
     lines = insert_writer._f.getvalue().split("\n")
@@ -72,7 +79,7 @@ def test_unicode_insert_writer_postgres() -> None:
     pass
 
 
-def test_unicode_insert_writer(insert_writer: DataWriter) -> None:
+def test_unicode_insert_writer(insert_writer: _StringIOWriter) -> None:
     rows = load_json_case("weird_rows")
     insert_writer.write_all(row_to_column_schemas(rows[0]), rows)
     lines = insert_writer._f.getvalue().split("\n")

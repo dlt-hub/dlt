@@ -168,7 +168,7 @@ def test_explicit_incremental_instance() -> None:
 
 
 @dlt.resource
-def some_data_from_config(call_no: int, created_at: Optional[dlt.sources.incremental] = dlt.secrets.value):
+def some_data_from_config(call_no: int, created_at: Optional[dlt.sources.incremental[str]] = dlt.secrets.value):
     assert created_at.cursor_path == 'created_at'
     # start value will update to the last_value on next call
     if call_no == 1:
@@ -191,13 +191,13 @@ def test_optional_incremental_from_config() -> None:
 
 
 @configspec
-class SomeDataOverrideConfiguration:
-    created_at: dlt.sources.incremental = dlt.sources.incremental('created_at', initial_value='2022-02-03T00:00:00Z')
+class SomeDataOverrideConfiguration(BaseConfiguration):
+    created_at: dlt.sources.incremental = dlt.sources.incremental('created_at', initial_value='2022-02-03T00:00:00Z')  # type: ignore[type-arg]
 
 
 # provide what to inject via spec. the spec contain the default
 @dlt.resource(spec=SomeDataOverrideConfiguration)
-def some_data_override_config(created_at: dlt.sources.incremental = dlt.config.value):
+def some_data_override_config(created_at: dlt.sources.incremental[str] = dlt.config.value):
     assert created_at.cursor_path == 'created_at'
     assert created_at.initial_value == '2000-02-03T00:00:00Z'
     yield {'created_at': '2023-03-03T00:00:00Z'}
@@ -207,7 +207,7 @@ def test_optional_incremental_not_passed() -> None:
     """Resource still runs when no incremental is passed"""
 
     @dlt.resource
-    def some_data(created_at: Optional[dlt.sources.incremental] = None):
+    def some_data(created_at: Optional[dlt.sources.incremental[str]] = None):
         yield [1,2,3]
 
     assert list(some_data()) == [1, 2, 3]
@@ -502,7 +502,7 @@ def test_incremental_as_transform() -> None:
 
     @dlt.resource
     def some_data():
-        last_value = dlt.sources.incremental.from_existing_state("some_data", "item.ts")
+        last_value: dlt.sources.incremental[float] = dlt.sources.incremental.from_existing_state("some_data", "item.ts")
         assert last_value.initial_value == now
         assert last_value.start_value == now
         assert last_value.cursor_path == "item.ts"
@@ -546,7 +546,7 @@ def test_apply_hints_incremental() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id())
 
     @dlt.resource
-    def some_data(created_at: Optional[dlt.sources.incremental] = None):
+    def some_data(created_at: Optional[dlt.sources.incremental[int]] = None):
         yield [1,2,3]
 
     # the incremental wrapper is created for a resource and the incremental value is provided via apply hints
@@ -766,7 +766,7 @@ def test_end_value_initial_value_errors() -> None:
 
     assert str(ex.value).startswith("Incremental 'initial_value' (22) is lower than 'end_value` (42).")
 
-    def custom_last_value(items):  # type: ignore[no-untyped-def]
+    def custom_last_value(items):
         return max(items)
 
     # custom function which evaluates end_value lower than initial
@@ -847,7 +847,7 @@ def test_get_incremental_value_type() -> None:
     assert dlt.sources.incremental[int]("id").get_incremental_value_type() is int
     assert dlt.sources.incremental[pendulum.DateTime]("id").get_incremental_value_type() is pendulum.DateTime
     # typing has precedence
-    assert dlt.sources.incremental[pendulum.DateTime]("id", initial_value=1).get_incremental_value_type() is pendulum.DateTime
+    assert dlt.sources.incremental[pendulum.DateTime]("id", initial_value=1).get_incremental_value_type() is pendulum.DateTime  # type: ignore[arg-type]
 
     # pass default value
     @dlt.resource
@@ -869,7 +869,7 @@ def test_get_incremental_value_type() -> None:
 
     # pass in explicit value
     @dlt.resource
-    def test_type_3(updated_at: dlt.sources.incremental):
+    def test_type_3(updated_at: dlt.sources.incremental[int]):
         yield [{"updated_at": d} for d in [1, 2, 3]]
 
     r = test_type_3(dlt.sources.incremental[float]("updated_at", allow_external_schedulers=True))

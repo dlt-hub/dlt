@@ -40,14 +40,14 @@ def caps(request) -> Iterator[DestinationCapabilitiesContext]:
 
 
 @pytest.fixture()
-def raw_normalize() -> Normalize:
+def raw_normalize() -> Iterator[Normalize]:
     # does not install default schemas, so no type hints and row filters
     # uses default json normalizer that does not yield additional rasa tables
     yield from init_normalize()
 
 
 @pytest.fixture
-def rasa_normalize() -> Normalize:
+def rasa_normalize() -> Iterator[Normalize]:
     # install default schemas, includes type hints and row filters
     # uses rasa json normalizer that yields event table and separate tables for event types
     yield from init_normalize("tests/normalize/cases/schemas")
@@ -277,7 +277,7 @@ def test_schema_changes(caps: DestinationCapabilitiesContext, raw_normalize: Nor
     load_id = normalize_pending(raw_normalize, "evolution")
     _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc"])
     assert len(table_files["doc"]) == 1
-    s: Schema = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "evolution")
+    s = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "evolution")
     doc_table = s.get_table("doc")
     assert "bool" in doc_table["columns"]
 
@@ -293,7 +293,7 @@ def test_schema_changes(caps: DestinationCapabilitiesContext, raw_normalize: Nor
     _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc", "doc__comp"])
     assert len(table_files["doc"]) == 1
     assert len(table_files["doc__comp"]) == 1
-    s: Schema = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "evolution")
+    s = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "evolution")
     doc_table = s.get_table("doc")
     assert {"_dlt_load_id", "_dlt_id", "str", "int", "bool", "int__v_text"} == set(doc_table["columns"].keys())
     doc__comp_table = s.get_table("doc__comp")
@@ -312,16 +312,11 @@ def test_normalize_twice_with_flatten(caps: DestinationCapabilitiesContext, raw_
 
     # check if schema contains a few crucial tables
     def assert_schema(_schema: Schema):
-        convention = _schema._normalizers_config["names"]
-        if convention == "snake_case":
-            assert "reactions___1" in _schema.tables["issues"]["columns"]
-            assert "reactions__x1" in _schema.tables["issues"]["columns"]
-            assert "reactions__1" not in _schema.tables["issues"]["columns"]
-        elif convention == "duck_case":
-            assert "reactions__+1" in _schema.tables["issues"]["columns"]
-            assert "reactions__-1" in _schema.tables["issues"]["columns"]
-        else:
-            raise ValueError(f"convention {convention} cannot be checked")
+        # convention = _schema._normalizers_config["names"]
+        assert "reactions___1" in _schema.tables["issues"]["columns"]
+        assert "reactions__x1" in _schema.tables["issues"]["columns"]
+        assert "reactions__1" not in _schema.tables["issues"]["columns"]
+
 
     schema = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "github")
     assert_schema(schema)
@@ -373,7 +368,7 @@ def extract_items(normalize_storage: NormalizeStorage, items: Sequence[StrAny], 
     extractor.commit_extract_files(extract_id)
 
 
-def normalize_event_user(normalize: Normalize, case: str, expected_user_tables: List[str] = None) -> None:
+def normalize_event_user(normalize: Normalize, case: str, expected_user_tables: List[str] = None) -> Tuple[List[str], Dict[str, List[str]]]:
     expected_user_tables = expected_user_tables or EXPECTED_USER_TABLES_RASA_NORMALIZER
     load_id = extract_and_normalize_cases(normalize, [case])
     return expect_load_package(normalize.load_storage, load_id, expected_user_tables)
@@ -403,7 +398,7 @@ def extract_cases(normalize_storage: NormalizeStorage, cases: Sequence[str]) -> 
         extract_items(normalize_storage, items, schema_name, table_name)
 
 
-def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables: Sequence[str], full_schema_update: bool = True) -> Dict[str, str]:
+def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables: Sequence[str], full_schema_update: bool = True) -> Tuple[List[str], Dict[str, List[str]]]:
     # normalize tables as paths (original json is snake case so we may do it without real lineage info)
     schema = load_storage.load_package_schema(load_id)
     # we are still in destination caps context so schema contains length
@@ -414,7 +409,7 @@ def expect_load_package(load_storage: LoadStorage, load_id: str, expected_tables
     files = load_storage.list_new_jobs(load_id)
     files_tables = [load_storage.parse_job_file_name(file).table_name for file in files]
     assert set(files_tables) == set(expected_tables)
-    ofl: Dict[str, str] = {}
+    ofl: Dict[str, List[str]] = {}
     for expected_table in expected_tables:
         # find all files for particular table, ignoring file id
         file_mask = load_storage.build_job_file_name(expected_table, "*", validate_components=False)

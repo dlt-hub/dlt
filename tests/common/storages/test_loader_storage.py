@@ -127,7 +127,7 @@ def test_save_load_schema(storage: LoadStorage) -> None:
 
 
 def test_job_elapsed_time_seconds(storage: LoadStorage) -> None:
-    load_id, fn = start_loading_file(storage, "test file")
+    load_id, fn = start_loading_file(storage, "test file")  # type: ignore[arg-type]
     fp = storage.storage.make_full_path(storage._get_job_file_path(load_id, "started_jobs", fn))
     elapsed = storage.job_elapsed_time_seconds(fp)
     sleep(0.3)
@@ -144,7 +144,7 @@ def test_job_elapsed_time_seconds(storage: LoadStorage) -> None:
 
 
 def test_retry_job(storage: LoadStorage) -> None:
-    load_id, fn = start_loading_file(storage, "test file")
+    load_id, fn = start_loading_file(storage, "test file")  # type: ignore[arg-type]
     job_fn_t = LoadStorage.parse_job_file_name(fn)
     assert job_fn_t.table_name == "mock_table"
     assert job_fn_t.retry_count == 0
@@ -185,7 +185,7 @@ def test_build_parse_job_path(storage: LoadStorage) -> None:
 def test_process_schema_update(storage: LoadStorage) -> None:
     with pytest.raises(FileNotFoundError):
         storage.begin_schema_update("load_id")
-    load_id, fn = start_loading_file(storage, "test file")
+    load_id, fn = start_loading_file(storage, "test file")  # type: ignore[arg-type]
     assert storage.begin_schema_update(load_id) == {}
     assert storage.begin_schema_update(load_id) == {}
     # store the applied schema update

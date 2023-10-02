@@ -21,8 +21,8 @@ def file_storage() -> FileStorage:
     return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
 
 @pytest.fixture(scope="function")
-def client(request) -> InsertValuesJobClient:
-    yield from yield_client_with_storage(request.param.destination)
+def client(request) -> Iterator[InsertValuesJobClient]:
+    yield from yield_client_with_storage(request.param.destination)  # type: ignore[misc]
 
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True, subset=DEFAULT_SUBSET), indirect=True, ids=lambda x: x.name)
 def test_simple_load(client: InsertValuesJobClient, file_storage: FileStorage) -> None:

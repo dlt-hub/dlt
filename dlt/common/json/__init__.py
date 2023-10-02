@@ -48,7 +48,7 @@ class SupportsJson(Protocol):
     def dumpb(self, obj: Any, sort_keys: bool = False, pretty:bool = False) -> bytes:
         ...
 
-    def load(self, fp: IO[bytes]) -> Any:
+    def load(self, fp: Union[IO[bytes], IO[str]]) -> Any:
         ...
 
     def loads(self, s: str) -> Any:
@@ -185,11 +185,11 @@ def custom_pua_remove(obj: Any) -> Any:
 json: SupportsJson = None
 if os.environ.get("DLT_USE_JSON") == "simplejson":
     from dlt.common.json import _simplejson as _json_d
-    json = _json_d
+    json = _json_d  # type: ignore[assignment]
 else:
     try:
         from dlt.common.json import _orjson as _json_or
-        json = _json_or
+        json = _json_or  # type: ignore[assignment]
     except ImportError:
         from dlt.common.json import _simplejson as _json_simple
-        json = _json_simple
+        json = _json_simple  # type: ignore[assignment]

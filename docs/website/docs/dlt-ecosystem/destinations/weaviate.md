@@ -252,7 +252,7 @@ it will be normalized to:
 so your best course of action is to clean up the data yourself before loading and use default naming convention. Nevertheless you can configure the alternative in `config.toml`:
 ```toml
 [schema]
-naming="dlt.destinations.weaviate.naming"
+naming="dlt.destinations.weaviate.ci_naming"
 ```
 
 ## Additional destination options

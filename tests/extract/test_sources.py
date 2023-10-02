@@ -89,13 +89,13 @@ def test_parametrized_transformer() -> None:
 
     # transformer must be created on a callable with at least one argument
     with pytest.raises(InvalidTransformerDataTypeGeneratorFunctionRequired):
-        dlt.transformer(data_from=r)("a")
+        dlt.transformer(data_from=r)("a")  # type: ignore[arg-type]
     with pytest.raises(InvalidTransformerDataTypeGeneratorFunctionRequired):
         dlt.transformer(data_from=r)(bad_transformer())
 
     # transformer must take at least one arg
     with pytest.raises(InvalidTransformerGeneratorFunction) as py_ex:
-        dlt.transformer(data_from=r)(bad_transformer)
+        dlt.transformer(data_from=r)(bad_transformer)  # type: ignore[arg-type]
     assert py_ex.value.code == 1
     # transformer may have only one positional argument and it must be first
     with pytest.raises(InvalidTransformerGeneratorFunction) as py_ex:
@@ -103,7 +103,7 @@ def test_parametrized_transformer() -> None:
     assert py_ex.value.code == 2
     # first argument cannot be kw only
     with pytest.raises(InvalidTransformerGeneratorFunction) as py_ex:
-        dlt.transformer(data_from=r)(bad_transformer_3)
+        dlt.transformer(data_from=r)(bad_transformer_3)  # type: ignore[arg-type]
     assert py_ex.value.code == 3
 
     # transformer must take data from a resource
@@ -340,13 +340,13 @@ def test_transformer_preliminary_step() -> None:
 
     tx_stage = dlt.transformer()(yield_twice)()
     # filter out small caps and insert this before the head
-    tx_stage.add_filter(FilterItem(lambda letter: letter.isupper()), 0)
+    tx_stage.add_filter(lambda letter: letter.isupper(), 0)
     # be got filtered out before duplication
     assert list(dlt.resource(["A", "b", "C"], name="data") | tx_stage) == ['A', 'A', 'C', 'C']
 
     # filter after duplication
     tx_stage = dlt.transformer()(yield_twice)()
-    tx_stage.add_filter(FilterItem(lambda letter: letter.isupper()))
+    tx_stage.add_filter(lambda letter: letter.isupper())
     # nothing is filtered out: on duplicate we also capitalize so filter does not trigger
     assert list(dlt.resource(["A", "b", "C"], name="data") | tx_stage) == ['A', 'A', 'B', 'B', 'C', 'C']
 
@@ -430,7 +430,7 @@ def test_clone_source() -> None:
 
     # clone parametrized generators
 
-    @dlt.source
+    @dlt.source  # type: ignore[no-redef]
     def test_source(no_resources):
 
         def _gen(i):
@@ -776,7 +776,7 @@ def test_source_state() -> None:
 
     # inject state to see if what we write in state is there
     with Container().injectable_context(StateInjectableContext(state={})) as state:
-        test_source({}).state["value"] = 1
+        test_source({}).state["value"] = 1  # type: ignore[index]
         test_source({"value": 1})
         assert state.state == {'sources': {'test_source': {'value': 1}}}
 
@@ -808,8 +808,8 @@ def test_resource_state() -> None:
     assert s.test_resource.state == {}
 
     with Container().injectable_context(StateInjectableContext(state={})) as state:
-        r.state["direct"] = True
-        s.test_resource.state["in-source"] = True
+        r.state["direct"] = True  # type: ignore[index]
+        s.test_resource.state["in-source"] = True  # type: ignore[index]
         # resource section is current module
         print(state.state)
         # the resource that is a part of the source will create a resource state key in the source state key
@@ -870,7 +870,7 @@ def test_exhausted_property() -> None:
     assert s.exhausted is False
 
     # having on exhausted generator resource will make the whole source exhausted
-    def open_generator_data():
+    def open_generator_data():  # type: ignore[no-redef]
         yield from [1, 2, 3, 4]
     s = DltSource("source", "module", Schema("source"), [ dlt.resource([1, 2, 3, 4], table_name="table", name="resource"), dlt.resource(open_generator_data())])
     assert s.exhausted is False
@@ -890,3 +890,35 @@ def test_exhausted_property() -> None:
     assert s.exhausted is False
     assert next(iter(s)) == 2 # transformer is returned befor resource
     assert s.exhausted is True
+
+
+def test_clone_resource_with_name() -> None:
+    @dlt.resource(selected=False)
+    def _r1():
+        yield ["a", "b", "c"]
+
+    @dlt.transformer(selected=True)
+    def _t1(items, suffix):
+        yield list(map(lambda i: i + "_" + suffix, items))
+
+
+    r1 = _r1()
+    r1_clone = r1.with_name("r1_clone")
+    # new name of resource and pipe
+    assert r1_clone.name == "r1_clone"
+    assert r1_clone._pipe.name == "r1_clone"
+    # original keeps old name and pipe
+    assert r1._pipe != r1_clone._pipe
+    assert r1.name == "_r1"
+
+    # clone transformer
+    bound_t1_clone = r1_clone | _t1.with_name("t1_clone")("ax")
+    bound_t1_clone_2 = r1_clone | _t1("ax_2").with_name("t1_clone_2")
+    assert bound_t1_clone.name == "t1_clone"
+    assert bound_t1_clone_2.name == "t1_clone_2"
+    # but parent is the same
+    assert bound_t1_clone_2._pipe.parent == bound_t1_clone._pipe.parent
+
+    # evaluate transformers
+    assert list(bound_t1_clone) == ['a_ax', 'b_ax', 'c_ax']
+    assert list(bound_t1_clone_2) == ['a_ax_2', 'b_ax_2', 'c_ax_2']

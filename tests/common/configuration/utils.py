@@ -1,7 +1,7 @@
 import pytest
 from os import environ
 import datetime  # noqa: I251
-from typing import Any, Iterator, List, Optional, Tuple, Type, Dict, MutableMapping, Optional, Sequence
+from typing import Any, Iterator, List, Optional, Tuple, Type, Dict, MutableMapping, Optional, Sequence, TYPE_CHECKING
 
 from dlt.common import Decimal, pendulum
 from dlt.common.configuration import configspec
@@ -63,6 +63,10 @@ class SectionedConfiguration(BaseConfiguration):
 
     password: str = None
 
+    if TYPE_CHECKING:
+        def __init__(self, password: str = None) -> None:
+            ...
+
 
 @pytest.fixture(scope="function")
 def environment() -> Any:
@@ -75,11 +79,11 @@ def environment() -> Any:
 
 @pytest.fixture(autouse=True)
 def reset_resolved_traces() -> None:
-    get_resolved_traces().clear()  # type: ignore
+    get_resolved_traces().clear()
 
 
 @pytest.fixture(scope="function")
-def mock_provider() -> "MockProvider":
+def mock_provider() -> Iterator["MockProvider"]:
     container = Container()
     with container.injectable_context(ConfigProvidersContext()) as providers:
         # replace all providers with MockProvider that does not support secrets
@@ -89,7 +93,7 @@ def mock_provider() -> "MockProvider":
 
 
 @pytest.fixture(scope="function")
-def env_provider() -> ConfigProvider:
+def env_provider() -> Iterator[ConfigProvider]:
     container = Container()
     with container.injectable_context(ConfigProvidersContext()) as providers:
         # inject only env provider
@@ -114,12 +118,12 @@ class MockProvider(ConfigProvider):
 
     def __init__(self) -> None:
         self.value: Any = None
-        self.return_value_on: Tuple[str] = ()
+        self.return_value_on: Tuple[str, ...] = ()
         self.reset_stats()
 
     def reset_stats(self) -> None:
-        self.last_section: Tuple[str] = None
-        self.last_sections: List[Tuple[str]] = []
+        self.last_section: Tuple[str, ...] = None
+        self.last_sections: List[Tuple[str, ...]] = []
 
     def get_value(self, key: str, hint: Type[Any], pipeline_name: str, *sections: str) -> Tuple[Optional[Any], str]:
         if pipeline_name:

@@ -439,7 +439,7 @@ def run_all(load: Load) -> None:
 def setup_loader(delete_completed_jobs: bool = False, client_config: DummyClientConfiguration = None) -> Load:
     # reset jobs for a test
     dummy_impl.JOBS = {}
-    destination: DestinationReference = dummy
+    destination: DestinationReference = dummy  # type: ignore[assignment]
     client_config = client_config or DummyClientConfiguration(loader_file_format="jsonl")
     # patch destination to provide client_config
     # destination.client = lambda schema: dummy_impl.DummyClient(schema, client_config)

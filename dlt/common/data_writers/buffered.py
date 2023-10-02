@@ -1,5 +1,5 @@
 import gzip
-from typing import List, IO, Any, Optional, Type
+from typing import List, IO, Any, Optional, Type, TypeVar, Generic
 
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItem, TDataItems
@@ -12,7 +12,10 @@ from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 
 
-class BufferedDataWriter:
+TWriter = TypeVar("TWriter", bound=DataWriter)
+
+
+class BufferedDataWriter(Generic[TWriter]):
 
     @configspec
     class BufferedDataWriterConfiguration(BaseConfiguration):
@@ -55,7 +58,7 @@ class BufferedDataWriter:
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None
         self._buffered_items: List[TDataItem] = []
-        self._writer: DataWriter = None
+        self._writer: TWriter = None
         self._file: IO[Any] = None
         self._closed = False
         try:
@@ -104,7 +107,7 @@ class BufferedDataWriter:
     def closed(self) -> bool:
         return self._closed
 
-    def __enter__(self) -> "BufferedDataWriter":
+    def __enter__(self) -> "BufferedDataWriter[TWriter]":
         return self
 
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Any) -> None:
@@ -123,7 +126,7 @@ class BufferedDataWriter:
                     self._file = self.open(self._file_name, "wb") # type: ignore
                 else:
                     self._file = self.open(self._file_name, "wt", encoding="utf-8") # type: ignore
-                self._writer = DataWriter.from_file_format(self.file_format, self._file, caps=self._caps)
+                self._writer = DataWriter.from_file_format(self.file_format, self._file, caps=self._caps)  # type: ignore[assignment]
                 self._writer.write_header(self._current_columns)
             # write buffer
             if self._buffered_items:

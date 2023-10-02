@@ -111,7 +111,7 @@ def test_signal_exception_run() -> None:
 
 
 def test_single_non_idle_run() -> None:
-    runs_count = runner.run_pool(ModPoolRunnerConfiguration, non_idle_run)
+    runs_count = runner.run_pool(ModPoolRunnerConfiguration(), non_idle_run)
     assert runs_count == 1
 
 

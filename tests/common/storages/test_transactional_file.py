@@ -2,6 +2,7 @@ import functools
 import time
 from tempfile import TemporaryDirectory, mktemp
 from threading import Thread
+from typing import Iterator
 
 import fsspec
 import pytest
@@ -18,7 +19,7 @@ def fs() -> fsspec.AbstractFileSystem:
 
 
 @pytest.fixture
-def file_name() -> str:
+def file_name() -> Iterator[str]:
     file = mktemp()
     yield file
     # if os.path.isfile(file):

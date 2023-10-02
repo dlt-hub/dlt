@@ -45,7 +45,7 @@ def test_bump_version_no_stored_hash() -> None:
     eth_v3: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v3")
     assert "version_hash" not in eth_v3
     stored_version = eth_v3["version"]
-    schema = Schema.from_dict(eth_v3)
+    schema = Schema.from_dict(eth_v3)  # type: ignore[arg-type]
     assert schema.stored_version == schema.version == stored_version
 
 
@@ -53,7 +53,7 @@ def test_bump_version_changed_schema() -> None:
     eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v4")
     stored_version = eth_v4["version"]
     eth_v4["tables"]["_dlt_loads"]["write_disposition"] = "append"
-    schema = Schema.from_dict(eth_v4)
+    schema = Schema.from_dict(eth_v4)  # type: ignore[arg-type]
     assert schema.stored_version == schema.version == stored_version + 1
 
 
@@ -83,10 +83,10 @@ def test_infer_column_bumps_version() -> None:
 
 
 def test_preserve_version_on_load() -> None:
-    eth_v7: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
+    eth_v6: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
     version = eth_v7["version"]
     version_hash = eth_v7["version_hash"]
-    schema = Schema.from_dict(eth_v7)
+    schema = Schema.from_dict(eth_v7)  # type: ignore[arg-type]
     # version should not be bumped
     assert version_hash == schema._stored_version_hash
     assert version_hash == schema.version_hash
@@ -95,13 +95,13 @@ def test_preserve_version_on_load() -> None:
 
 @pytest.mark.parametrize("remove_defaults", [True, False])
 def test_version_preserve_on_reload(remove_defaults: bool) -> None:
-    eth_v6: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
-    schema = Schema.from_dict(eth_v6)
+    eth_v7: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
+    schema = Schema.from_dict(eth_v7)  # type: ignore[arg-type]
 
     to_save_dict = schema.to_dict(remove_defaults=remove_defaults)
     assert schema.stored_version == to_save_dict["version"]
     assert schema.stored_version_hash == to_save_dict["version_hash"]
-    saved_schema = Schema.from_dict(to_save_dict)
+    saved_schema = Schema.from_dict(to_save_dict)  # type: ignore[arg-type]
     # stored hashes must match
     assert saved_schema.stored_version == schema.stored_version
     assert saved_schema.stored_version_hash == schema.stored_version_hash
@@ -117,7 +117,7 @@ def test_version_preserve_on_reload(remove_defaults: bool) -> None:
 
     # serialize as yaml, for that use a schema that was stored in json
     rasa_v4: TStoredSchema = load_json_case("schemas/rasa/event.schema")
-    rasa_schema = Schema.from_dict(rasa_v4)
+    rasa_schema = Schema.from_dict(rasa_v4)  # type: ignore[arg-type]
     rasa_yml = rasa_schema.to_pretty_yaml(remove_defaults=remove_defaults)
     saved_rasa_schema = Schema.from_dict(yaml.safe_load(rasa_yml))
     assert saved_rasa_schema.stored_version == rasa_schema.stored_version

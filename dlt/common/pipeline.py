@@ -3,6 +3,7 @@ import datetime  # noqa: 251
 import humanize
 import contextlib
 from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Sequence, TYPE_CHECKING, Tuple, TypedDict
+from typing_extensions import NotRequired
 
 from dlt.common import pendulum, logger
 from dlt.common.configuration import configspec
@@ -163,9 +164,11 @@ class TPipelineState(TypedDict, total=False):
     _local: TPipelineLocalState
     """A section of state that is not synchronized with the destination and does not participate in change merging and version control"""
 
+    sources: NotRequired[Dict[str, Dict[str, Any]]]
+
 
 class TSourceState(TPipelineState):
-    sources: Dict[str, Dict[str, Any]]
+    sources: Dict[str, Dict[str, Any]]  # type: ignore[misc]
 
 
 class SupportsPipeline(Protocol):

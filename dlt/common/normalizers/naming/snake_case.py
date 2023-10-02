@@ -46,14 +46,14 @@ class NamingConvention(BaseNamingConvention):
             max_length
         )
 
-    @staticmethod
-    def _to_snake_case(identifier: str) -> str:
+    @classmethod
+    def _to_snake_case(cls, identifier: str) -> str:
         # then convert to snake case
-        identifier = NamingConvention._SNAKE_CASE_BREAK_1.sub(r'\1_\2', identifier)
-        identifier = NamingConvention._SNAKE_CASE_BREAK_2.sub(r'\1_\2', identifier).lower()
+        identifier = cls._SNAKE_CASE_BREAK_1.sub(r'\1_\2', identifier)
+        identifier = cls._SNAKE_CASE_BREAK_2.sub(r'\1_\2', identifier).lower()
 
-        # leading digits will be prefixed
-        if NamingConvention._RE_LEADING_DIGITS.match(identifier):
+        # leading digits will be prefixed (if regex is defined)
+        if cls._RE_LEADING_DIGITS and cls._RE_LEADING_DIGITS.match(identifier):
             identifier = "_" + identifier
 
         # replace trailing _ with x
@@ -61,6 +61,6 @@ class NamingConvention(BaseNamingConvention):
         strip_count = len(identifier) - len(stripped_ident)
         stripped_ident += "x" * strip_count
 
-        # identifier = NamingConvention._RE_ENDING_UNDERSCORES.sub("x", identifier)
+        # identifier = cls._RE_ENDING_UNDERSCORES.sub("x", identifier)
         # replace consecutive underscores with single one to prevent name clashes with PATH_SEPARATOR
-        return NamingConvention._RE_UNDERSCORES.sub("_", stripped_ident)
+        return cls._RE_UNDERSCORES.sub("_", stripped_ident)
