@@ -3,7 +3,7 @@ from dlt.common import json
 from dlt.common.storages import NormalizeStorageConfiguration
 from dlt.extract.extract import ExtractorStorage, extract
 from dlt.extract.source import DltResource, DltSource
-
+from dlt.common.schema import Schema
 from tests.utils import clean_test_storage
 from tests.extract.utils import expect_extracted_file
 
@@ -18,7 +18,7 @@ def test_extract_select_tables() -> None:
 
         storage = ExtractorStorage(NormalizeStorageConfiguration())
         extract_id = storage.create_extract_id()
-        schema_update = extract(extract_id, source, storage)
+        schema_update = extract(extract_id, source, storage, pipeline_schema=Schema("some_schema"))
         # odd and even tables
         assert len(schema_update) == 2
         assert "odd_table" in schema_update
@@ -42,7 +42,7 @@ def test_extract_select_tables() -> None:
         source = source.with_resources(resource.name)
         source.selected_resources[resource.name].bind(10).select_tables("odd_table")
         extract_id = storage.create_extract_id()
-        schema_update = extract(extract_id, source, storage)
+        schema_update = extract(extract_id, source, storage, pipeline_schema=Schema("some_schema"))
         assert len(schema_update) == 1
         assert "odd_table" in schema_update
         for partials in schema_update.values():

@@ -863,8 +863,11 @@ class Pipeline(SupportsPipeline):
 
         # if source schema does not exist in the pipeline
         if source_schema.name not in self._schema_storage:
-            # save new schema into the pipeline
-            self._schema_storage.save_schema(Schema(source_schema.name))
+            # TODO: here we should create a new schema but copy hints and possibly other settings
+            # over from the schema table. Is this the right way?
+            new_schema = Schema(source_schema.name)
+            new_schema._settings = source_schema._settings
+            self._schema_storage.save_schema(new_schema)
 
         # and set as default if this is first schema in pipeline
         if not self.default_schema_name:
@@ -879,7 +882,9 @@ class Pipeline(SupportsPipeline):
 
         extract_id = extract_with_schema(storage, source, pipeline_schema, self.collector, max_parallel_items, workers)
 
+
         # initialize import with fully discovered schema
+        # TODO: is this the right location for this?
         self._schema_storage.save_import_schema_if_not_exists(source_schema)
 
         # update the pipeline schema with all tables and contract settings

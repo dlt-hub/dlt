@@ -120,6 +120,7 @@ def extract(
             """
             Computes new table and does contract checks
             """
+            # TODO: We have to normalize table identifiers here
             table = resource.compute_table_schema(data_item)
             if table_name:
                 table["name"] = table_name
@@ -142,8 +143,8 @@ def extract(
             if not checked_table:
                 disallowed_tables.add(table["name"])
                 return False
-            
-            dynamic_tables[table_name] = [checked_table]
+
+            dynamic_tables[checked_table["name"]] = [checked_table]
             return True
 
         # yield from all selected pipes

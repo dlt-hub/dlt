@@ -404,7 +404,6 @@ def test_missing_cursor_field() -> None:
 @dlt.resource
 def standalone_some_data(now=None, last_timestamp=dlt.sources.incremental("item.timestamp")):
     for i in range(-10, 10):
-        print(i)
         yield {"delta": i, "item": {"timestamp": (now or pendulum.now()).add(days=i).timestamp()}}
 
 
