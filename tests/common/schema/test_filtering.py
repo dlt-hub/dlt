@@ -120,5 +120,5 @@ def _add_excludes(schema: Schema) -> None:
     bot_table["filters"]["includes"] = [
         TSimpleRegex("re:^data__custom$"), TSimpleRegex("re:^custom_data__included_object__"), TSimpleRegex("re:^metadata__elvl1__elvl2__")
     ]
-    schema.update_schema(bot_table)
+    schema.update_table(bot_table)
     schema._compile_settings()

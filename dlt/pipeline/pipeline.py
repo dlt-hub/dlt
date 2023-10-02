@@ -893,7 +893,7 @@ class Pipeline(SupportsPipeline):
                 table
             )
         pipeline_schema.set_schema_contract(source_schema._settings.get("schema_contract", {}))
-        
+
         # globally apply contract override again for all merged tables
         if global_contract is not None:
             pipeline_schema.set_schema_contract(global_contract, True)

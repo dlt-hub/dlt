@@ -104,7 +104,7 @@ SUBITEMS_TABLE = "items__sub_items"
 NEW_ITEMS_TABLE = "new_items"
 
 
-def run_resource(pipeline, resource_fun, settings) -> DltSource:
+def run_resource(pipeline, resource_fun, settings) -> None:
 
     for item in settings.keys():
         assert item in LOCATIONS
@@ -557,7 +557,7 @@ def test_dynamic_new_columns(column_mode: str) -> None:
         if item["id"] == 2:
             return [{"name": "id", "data_type": "bigint", "nullable": True}]
 
-    @dlt.resource(name="items", table_name=lambda i: "items", schema_contract={"columns": column_mode})
+    @dlt.resource(name="items", table_name=lambda i: "items", schema_contract={"columns": column_mode})  # type: ignore
     def get_items():
         yield {
             "id": 1,

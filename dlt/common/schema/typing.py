@@ -88,17 +88,18 @@ class NormalizerInfo(TypedDict, total=True):
     new_table: bool
 
 # TypedDict that defines properties of a table
-TTableSchema = TypedDict("TTableSchema", {
-    "name": Optional[str],
-    "description": Optional[str],
-    "write_disposition": Optional[TWriteDisposition],
-    "schema_contract": Optional[TSchemaContract],
-    "parent": Optional[str],
-    "filters": Optional[TRowFilters],
-    "columns": TTableSchemaColumns,
-    "resource": Optional[str],
-    "x-normalizer": Optional[NormalizerInfo],
-})
+
+class TTableSchema(TypedDict, total=False):
+    """TypedDict that defines properties of a table"""
+    name: Optional[str]
+    description: Optional[str]
+    write_disposition: Optional[TWriteDisposition]
+    schema_contract: Optional[TSchemaContract]
+    table_sealed: Optional[bool]
+    parent: Optional[str]
+    filters: Optional[TRowFilters]
+    columns: TTableSchemaColumns
+    resource: Optional[str]
 
 class TPartialTableSchema(TTableSchema):
     pass

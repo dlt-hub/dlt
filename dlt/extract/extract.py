@@ -133,8 +133,8 @@ def extract(
             # TODO: is this the correct check for a new table, should a table with only incomplete columns be new too?
             is_new_table = (table["name"] not in pipeline_schema.tables) or (not pipeline_schema.tables[table["name"]]["columns"])
             if is_new_table:
-                table["x-normalizer"] = {"evolve_once": True}
-            
+                table["x-normalizer"] = {"evolve_once": True}  # type: ignore[typeddict-unknown-key]
+
             # apply schema contract and apply on pipeline schema
             # here we only check that table may be created
             schema_contract = resolve_contract_settings_for_table(None, table["name"], pipeline_schema, source.schema, table)

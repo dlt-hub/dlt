@@ -592,7 +592,7 @@ def test_many_schemas_single_dataset(destination_config: DestinationTestConfigur
             pytest.skip("preferred loader file format not set, destination will only work with staging")
 
         user_table = load_table("event_user")["event_user"]
-        client.schema.update_schema(new_table("event_user", columns=list(user_table.values())))
+        client.schema.update_table(new_table("event_user", columns=list(user_table.values())))
         client.schema.bump_version()
         schema_update = client.update_stored_schema()
         assert len(schema_update) > 0
@@ -646,7 +646,7 @@ def prepare_schema(client: SqlJobClientBase, case: str) -> Tuple[List[Dict[str, 
     # use first row to infer table
     table: TTableSchemaColumns = {k: client.schema._infer_column(k, v) for k, v in rows[0].items()}
     table_name = f"event_{case}_{uniq_id()}"
-    client.schema.update_schema(new_table(table_name, columns=list(table.values())))
+    client.schema.update_table(new_table(table_name, columns=list(table.values())))
     client.schema.bump_version()
     client.update_stored_schema()
     return rows, table_name

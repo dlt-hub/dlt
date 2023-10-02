@@ -236,7 +236,7 @@ class Schema:
             return row, partial_table
 
         # if evolve once is set, allow all column changes
-        evolve_once = (table_name in self.tables) and self.tables[table_name].get("x-normalizer", {}).get("evolve_once", False)
+        evolve_once = (table_name in self.tables) and self.tables[table_name].get("x-normalizer", {}).get("evolve_once", False)  # type: ignore[attr-defined]
         if evolve_once:
            return row, partial_table
 
@@ -650,18 +650,18 @@ class Schema:
     def __repr__(self) -> str:
         return f"Schema {self.name} at {id(self)}"
 
-def resolve_contract_settings_for_table(parent_table: str, table_name: str, current_schema: Schema, incoming_schema: Schema = None, incoming_table: TTableSchema = None) -> Tuple[bool, TSchemaContractDict]:
+def resolve_contract_settings_for_table(parent_table: str, table_name: str, current_schema: Schema, incoming_schema: Schema = None, incoming_table: TTableSchema = None) -> TSchemaContractDict:
     """Resolve the exact applicable schema contract settings for the table during the normalization stage."""
 
     def resolve_single(settings: TSchemaContract) -> TSchemaContractDict:
         settings = settings or {}
         if isinstance(settings, str):
             settings = TSchemaContractDict(tables=settings, columns=settings, data_type=settings)
-        return {**DEFAULT_SCHEMA_CONTRACT_MODE, **settings} if settings else {}
-    
+        return cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **settings} if settings else {})
+
     if incoming_table and (incoming_table_contract_mode := resolve_single(incoming_table.get("schema_contract", {}))):
         return incoming_table_contract_mode
-    
+
     # find table settings
     table = parent_table or table_name
     if table in current_schema.tables:

@@ -30,7 +30,7 @@ def test_is_list_generic_type() -> None:
     assert is_list_generic_type(List[str]) is True
     assert is_list_generic_type(Sequence[str]) is True
     assert is_list_generic_type(MutableSequence[str]) is True
-    assert is_list_generic_type(TOptionalUnionLiTyDi) is False
+    assert is_list_generic_type(TOptionalUnionLiTyDi) is False  # type: ignore[arg-type]
 
 
 def test_is_dict_generic_type() -> None:
@@ -49,20 +49,20 @@ def test_optional() -> None:
     assert is_optional_type(TOptionalLi) is True  # type: ignore[arg-type]
     assert is_optional_type(TOptionalTyDi) is True  # type: ignore[arg-type]
     assert is_optional_type(TTestTyDi) is False
-    assert extract_union_types(TOptionalLi) == [TTestLi, type(None)]
-    assert extract_union_types(TOptionalTyDi) == [TTestTyDi, type(None)]
+    assert extract_union_types(TOptionalLi) == [TTestLi, type(None)]  # type: ignore[arg-type]
+    assert extract_union_types(TOptionalTyDi) == [TTestTyDi, type(None)]  # type: ignore[arg-type]
 
 
 def test_union_types() -> None:
-    assert is_optional_type(TOptionalLi) is True
-    assert is_optional_type(TOptionalTyDi) is True
+    assert is_optional_type(TOptionalLi) is True  # type: ignore[arg-type]
+    assert is_optional_type(TOptionalTyDi) is True  # type: ignore[arg-type]
     assert is_optional_type(TTestTyDi) is False
-    assert extract_union_types(TOptionalLi) == [TTestLi, type(None)]
-    assert extract_union_types(TOptionalTyDi) == [TTestTyDi, type(None)]
-    assert is_optional_type(TOptionalUnionLiTyDi) is True
-    assert extract_union_types(TOptionalUnionLiTyDi) == [TTestTyDi, TTestLi, type(None)]
+    assert extract_union_types(TOptionalLi) == [TTestLi, type(None)]  # type: ignore[arg-type]
+    assert extract_union_types(TOptionalTyDi) == [TTestTyDi, type(None)]  # type: ignore[arg-type]
+    assert is_optional_type(TOptionalUnionLiTyDi) is True  # type: ignore[arg-type]
+    assert extract_union_types(TOptionalUnionLiTyDi) == [TTestTyDi, TTestLi, type(None)]  # type: ignore[arg-type]
     assert is_union_type(MutableSequence[str]) is False
-    
+
 
 def test_is_newtype() -> None:
     NT1 = NewType("NT1", str)

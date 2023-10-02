@@ -281,7 +281,7 @@ class Normalize(Runnable[ProcessPool]):
         needs_schema_save = len(schema_updates) > 0
         # remove normalizer specific info
         for table in schema.tables.values():
-            if table.pop("x-normalizer", None):
+            if table.pop("x-normalizer", None):  # type: ignore[typeddict-item]
                 needs_schema_save = True
         # logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
         if needs_schema_save:

@@ -83,7 +83,7 @@ def test_infer_column_bumps_version() -> None:
 
 
 def test_preserve_version_on_load() -> None:
-    eth_v6: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
+    eth_v7: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
     version = eth_v7["version"]
     version_hash = eth_v7["version_hash"]
     schema = Schema.from_dict(eth_v7)  # type: ignore[arg-type]

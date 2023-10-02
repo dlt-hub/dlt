@@ -239,7 +239,7 @@ def test_nested_union(test_doc: TTestRecord) -> None:
     test_doc["f_optional_union"] = {"field": "uno"}
     validate_dict(TTestRecord, TEST_DOC, ".")
 
-    test_doc["f_optional_union"] = {"field": "not valid"}
+    test_doc["f_optional_union"] = {"field": "not valid"}  # type: ignore[typeddict-item]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_optional_union"
@@ -248,7 +248,7 @@ def test_nested_union(test_doc: TTestRecord) -> None:
     test_doc["f_optional_union"] = "dos"
     validate_dict(TTestRecord, test_doc, ".")
 
-    test_doc["f_optional_union"] = "blah"
+    test_doc["f_optional_union"] = "blah"  # type: ignore[typeddict-item]
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_optional_union"

@@ -224,7 +224,7 @@ class DltResourceSchema:
             columns = ensure_table_schema_columns_hint(columns)
             if not callable(columns):
                 columns = columns.values()  # type: ignore
-            is_table_complete = len([c for c in columns if c.get("name") and c.get("data_type")])
+            is_table_complete = len([c for c in columns if c.get("name") and c.get("data_type")]) # type: ignore
         else:
             validator = None
             is_table_complete = False
