@@ -20,7 +20,6 @@ from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition, TAnySchemaColumns, TSchemaContract
 from dlt.common.schema.utils import diff_tables
-from dlt.common.schema.schema import resolve_contract_settings_for_table
 from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
 from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
@@ -862,8 +861,6 @@ class Pipeline(SupportsPipeline):
         source_schema = source.schema
         source_schema.update_normalizers()
 
-        extract_id = extract_with_schema(storage, source, source_schema, self.collector, max_parallel_items, workers)
-
         # if source schema does not exist in the pipeline
         if source_schema.name not in self._schema_storage:
             # save new schema into the pipeline
@@ -876,41 +873,23 @@ class Pipeline(SupportsPipeline):
 
         pipeline_schema = self._schema_storage[source_schema.name]
 
+        # update global schema contract settings
+        if global_contract is not None:
+            source_schema.set_schema_contract(global_contract, True)
+
+        extract_id = extract_with_schema(storage, source, pipeline_schema, self.collector, max_parallel_items, workers)
+
         # initialize import with fully discovered schema
         self._schema_storage.save_import_schema_if_not_exists(source_schema)
 
-        # update the pipeline schema
+        # update the pipeline schema with all tables and contract settings
         for table in source_schema.data_tables(include_incomplete=True):
-
-            # create table diff
-            normalized_table = pipeline_schema.normalize_table_identifiers(table)
-            if table["name"] in pipeline_schema.tables:
-                partial_table = diff_tables(pipeline_schema.tables[table["name"]], normalized_table)
-            else: 
-                partial_table = normalized_table
-
-            # figure out wether this is a new table
-            is_new_table = (table["name"] not in pipeline_schema.tables) or (not pipeline_schema.tables[table["name"]]["columns"])
-            if is_new_table:
-                partial_table["x-normalizer"] = {"evolve_once": True}
-
-            # update global schema contract settings
-            if global_contract is not None:
-                source_schema.set_schema_contract(global_contract, True)
-            
-            # apply schema contractand apply on pipeline schema
-            schema_contract = resolve_contract_settings_for_table(None, table["name"], pipeline_schema, source_schema)
-            _, partial_table = pipeline_schema.apply_schema_contract(schema_contract, table["name"], None, partial_table)
-
-            # update pipeline schema
-            if partial_table:
-                pipeline_schema.update_table(
-                    partial_table
-                )
- 
+            pipeline_schema.update_table(
+                table
+            )
         pipeline_schema.set_schema_contract(source_schema._settings.get("schema_contract", {}))
         
-        # globally apply contract override
+        # globally apply contract override again for all merged tables
         if global_contract is not None:
             pipeline_schema.set_schema_contract(global_contract, True)
 

@@ -229,9 +229,11 @@ class DltResourceSchema:
             validator = None
             is_table_complete = False
 
-        # freeze the resource if we have a fully defined table and no other explicit contract
+        # freeze the columns if we have a fully defined table and no other explicit contract
         if not schema_contract and is_table_complete:
-            schema_contract = "freeze"
+            schema_contract = {
+                "columns": "freeze"
+            }
         # create a table schema template where hints can be functions taking TDataItem
         new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_contract=schema_contract)  # type: ignore
 

@@ -650,7 +650,7 @@ class Schema:
     def __repr__(self) -> str:
         return f"Schema {self.name} at {id(self)}"
 
-def resolve_contract_settings_for_table(parent_table: str, table_name: str, current_schema: Schema, incoming_schema: Schema = None) -> Tuple[bool, TSchemaContractDict]:
+def resolve_contract_settings_for_table(parent_table: str, table_name: str, current_schema: Schema, incoming_schema: Schema = None, incoming_table: TTableSchema = None) -> Tuple[bool, TSchemaContractDict]:
     """Resolve the exact applicable schema contract settings for the table during the normalization stage."""
 
     def resolve_single(settings: TSchemaContract) -> TSchemaContractDict:
@@ -658,7 +658,10 @@ def resolve_contract_settings_for_table(parent_table: str, table_name: str, curr
         if isinstance(settings, str):
             settings = TSchemaContractDict(tables=settings, columns=settings, data_type=settings)
         return {**DEFAULT_SCHEMA_CONTRACT_MODE, **settings} if settings else {}
-
+    
+    if incoming_table and (incoming_table_contract_mode := resolve_single(incoming_table.get("schema_contract", {}))):
+        return incoming_table_contract_mode
+    
     # find table settings
     table = parent_table or table_name
     if table in current_schema.tables:

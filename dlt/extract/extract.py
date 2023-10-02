@@ -1,6 +1,6 @@
 import contextlib
 import os
-from typing import ClassVar, List, Set
+from typing import ClassVar, List, Set, Optional
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
@@ -14,6 +14,8 @@ from dlt.common.typing import TDataItems, TDataItem
 from dlt.common.schema import Schema, utils, TSchemaUpdate
 from dlt.common.storages import NormalizeStorageConfiguration, NormalizeStorage, DataItemStorage
 from dlt.common.configuration.specs import known_sections
+from dlt.common.schema.typing import TPartialTableSchema
+from dlt.common.schema.schema import resolve_contract_settings_for_table
 
 from dlt.extract.decorators import SourceSchemaInjectableContext
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
@@ -61,6 +63,7 @@ def extract(
     source: DltSource,
     storage: ExtractorStorage,
     collector: Collector = NULL_COLLECTOR,
+    pipeline_schema: Schema = None,
     *,
     max_parallel_items: int = None,
     workers: int = None,
@@ -70,6 +73,7 @@ def extract(
     dynamic_tables: TSchemaUpdate = {}
     schema = source.schema
     resources_with_items: Set[str] = set()
+    disallowed_tables: Set[str] = set()
 
     with collector(f"Extract {source.name}"):
 
@@ -90,6 +94,8 @@ def extract(
             table_name = resource._table_name_hint_fun(item)
             existing_table = dynamic_tables.get(table_name)
             if existing_table is None:
+                if not _add_dynamic_table(resource, data_item=item):
+                    return
                 dynamic_tables[table_name] = [resource.compute_table_schema(item)]
             else:
                 # quick check if deep table merge is required
@@ -103,12 +109,42 @@ def extract(
             # write to storage with inferred table name
             _write_item(table_name, resource.name, item)
 
-        def _write_static_table(resource: DltResource, table_name: str) -> None:
+        def _write_static_table(resource: DltResource, table_name: str, item: TDataItem) -> None:
             existing_table = dynamic_tables.get(table_name)
             if existing_table is None:
-                static_table = resource.compute_table_schema()
-                static_table["name"] = table_name
-                dynamic_tables[table_name] = [static_table]
+                if not _add_dynamic_table(resource, table_name=table_name):
+                    return
+            _write_item(table_name, resource.name, item)
+
+        def _add_dynamic_table(resource: DltResource, data_item: TDataItem = None, table_name: Optional[str] = None) -> bool:
+            """
+            Computes new table and does contract checks
+            """
+            table = resource.compute_table_schema(data_item)
+            if table_name:
+                table["name"] = table_name
+
+            # fast exit if we already evaluated this
+            if table["name"] in disallowed_tables:
+                return False
+
+            # this is a new table so allow evolve once
+            # TODO: is this the correct check for a new table, should a table with only incomplete columns be new too?
+            is_new_table = (table["name"] not in pipeline_schema.tables) or (not pipeline_schema.tables[table["name"]]["columns"])
+            if is_new_table:
+                table["x-normalizer"] = {"evolve_once": True}
+            
+            # apply schema contract and apply on pipeline schema
+            # here we only check that table may be created
+            schema_contract = resolve_contract_settings_for_table(None, table["name"], pipeline_schema, source.schema, table)
+            _, checked_table = pipeline_schema.apply_schema_contract(schema_contract, table["name"], None, table)
+
+            if not checked_table:
+                disallowed_tables.add(table["name"])
+                return False
+            
+            dynamic_tables[table_name] = [checked_table]
+            return True
 
         # yield from all selected pipes
         with PipeIterator.from_pipes(source.resources.selected_pipes, max_parallel_items=max_parallel_items, workers=workers, futures_poll_interval=futures_poll_interval) as pipes:
@@ -130,8 +166,7 @@ def extract(
                 table_name: str = None
                 if isinstance(pipe_item.meta, TableNameMeta):
                     table_name = pipe_item.meta.table_name
-                    _write_static_table(resource, table_name)
-                    _write_item(table_name, resource.name, pipe_item.item)
+                    _write_static_table(resource, table_name, pipe_item.item)
                 else:
                     # get partial table from table template
                     if resource._table_name_hint_fun:
@@ -143,8 +178,7 @@ def extract(
                     else:
                         # write item belonging to table with static name
                         table_name = resource.table_name  # type: ignore
-                        _write_static_table(resource, table_name)
-                        _write_item(table_name, resource.name, pipe_item.item)
+                        _write_static_table(resource, table_name, pipe_item.item)
 
             # find defined resources that did not yield any pipeitems and create empty jobs for them
             data_tables = {t["name"]: t for t in schema.data_tables()}
@@ -173,14 +207,14 @@ def extract(
 def extract_with_schema(
     storage: ExtractorStorage,
     source: DltSource,
-    schema: Schema,
+    pipeline_schema: Schema,
     collector: Collector,
     max_parallel_items: int,
     workers: int,
 ) -> str:
     # generate extract_id to be able to commit all the sources together later
     extract_id = storage.create_extract_id()
-    with Container().injectable_context(SourceSchemaInjectableContext(schema)):
+    with Container().injectable_context(SourceSchemaInjectableContext(source.schema)):
         # inject the config section with the current source name
         with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, source.section, source.name), source_state_key=source.name)):
             # reset resource states
@@ -189,12 +223,12 @@ def extract_with_schema(
                     if resource.write_disposition == "replace":
                         _reset_resource_state(resource._name)
 
-            extractor = extract(extract_id, source, storage, collector, max_parallel_items=max_parallel_items, workers=workers)
+            extractor = extract(extract_id, source, storage, collector, pipeline_schema, max_parallel_items=max_parallel_items, workers=workers)
             # iterate over all items in the pipeline and update the schema if dynamic table hints were present
             for _, partials in extractor.items():
                 for partial in partials:
-                    normalized_partial = schema.normalize_table_identifiers(partial)
-                    schema.update_table(normalized_partial)
+                    normalized_partial = source.schema.normalize_table_identifiers(partial)
+                    source.schema.update_table(normalized_partial)
 
     return extract_id
 

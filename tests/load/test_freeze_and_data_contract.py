@@ -364,7 +364,7 @@ def test_single_settings_value(setting_location: str) -> None:
     run_resource(pipeline, new_items, {setting_location: "discard_row"})
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
-    assert ("new_items" in table_counts) == (setting_location == "resource")
+    assert "new_items" not in table_counts
 
 
 def test_data_contract_interaction() -> None:
@@ -414,31 +414,23 @@ def test_data_contract_interaction() -> None:
             "sub": [{"hello": "dave"}]
         }]
 
-
-    # test get new items
+    # test valid object
     pipeline = get_pipeline()
-    pipeline.run([get_items()])
-    assert pipeline.last_trace.last_normalize_info.row_counts.get("items", 0) == 1
-    # now items with model work
+    # items with model work
     pipeline.run([get_items_with_model()])
     assert pipeline.last_trace.last_normalize_info.row_counts.get("items", 0) == 1
 
-    # items with model alone does not work, since contract is set to freeze
+    # loading once with pydantic will freeze the cols
     pipeline = get_pipeline()
-    with raises_frozen_exception(True):
-        pipeline.run([get_items_with_model()])
-
-    # test new subtable
-    pipeline = get_pipeline()
-    pipeline.run([get_items()])
     pipeline.run([get_items_with_model()])
     with raises_frozen_exception(True):
-        pipeline.run([get_items_subtable()])
+        pipeline.run([get_items_new_col()])
 
-    # it is possible to override contract when there is a model
+    # it is possible to override contract when there are new columns
     # items with model alone does not work, since contract is set to freeze
     pipeline = get_pipeline()
-    pipeline.run([get_items_with_model()], schema_contract="evolve")
+    pipeline.run([get_items_with_model()])
+    pipeline.run([get_items_new_col()], schema_contract="evolve")
     assert pipeline.last_trace.last_normalize_info.row_counts.get("items", 0) == 1
 
 
