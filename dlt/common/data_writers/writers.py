@@ -1,6 +1,6 @@
 import abc
 from dataclasses import dataclass
-from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type
+from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union
 
 from dlt.common import json
 from dlt.common.configuration import configspec, known_sections, with_config
@@ -9,8 +9,6 @@ from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFo
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny
 
-if TYPE_CHECKING:
-    from dlt.common.libs.pyarrow import pyarrow
 
 @dataclass
 class TFileFormatSpec:
@@ -254,9 +252,21 @@ class ParquetDataWriter(DataWriter):
     def data_format(cls) -> TFileFormatSpec:
         return TFileFormatSpec("parquet", "parquet", True, False, requires_destination_capabilities=True, supports_compression=False)
 
+
 class ArrowWriter(ParquetDataWriter):
+    def write_header(self, columns_schema: TTableSchemaColumns) -> None:
+        # Schema will be written as-is from the arrow table
+        pass
+
     def write_data(self, rows: Sequence[Any]) -> None:
         from dlt.common.libs.pyarrow import pyarrow
+        rows = list(rows)
+        if not rows:
+            return
+        first = rows[0]
+        self.writer = self.writer or pyarrow.parquet.ParquetWriter(
+            self._f, first.schema, flavor=self.parquet_flavor, version=self.parquet_version, data_page_size=self.parquet_data_page_size
+        )
         for row in rows:
             if isinstance(row, pyarrow.Table):
                 self.writer.write_table(row)

@@ -5,7 +5,6 @@ from dlt.common import logger
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.typing import TDataItems
 from dlt.common.data_writers import TLoaderFileFormat, BufferedDataWriter, DataWriter
-from dlt.common.destination import DestinationCapabilitiesContext
 
 
 class DataItemStorage(ABC):
@@ -19,13 +18,9 @@ class DataItemStorage(ABC):
         writer_id = f"{load_id}.{schema_name}.{table_name}"
         writer = self.buffered_writers.get(writer_id, None)
         if not writer:
-            if self.loader_file_format == "arrow":
-                caps = DestinationCapabilitiesContext.generic_capabilities()
-            else:
-                caps = None
             # assign a writer for each table
             path = self._get_data_item_path_template(load_id, schema_name, table_name)
-            writer = BufferedDataWriter(self.loader_file_format, path, _caps=caps)
+            writer = BufferedDataWriter(self.loader_file_format, path)
             self.buffered_writers[writer_id] = writer
         return writer
 
