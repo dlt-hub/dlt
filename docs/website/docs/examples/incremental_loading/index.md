@@ -109,13 +109,14 @@ Run the pipeline:
 
 <!--@@@DLT_SNIPPET_START ./code/zendesk-snippets.py::markdown_pipeline-->
 ```py
-# create dlt pipeline
-pipeline = dlt.pipeline(
-    pipeline_name="zendesk", destination="duckdb", dataset_name="zendesk_data"
-)
+if __name__ == "__main__":
+    # create dlt pipeline
+    pipeline = dlt.pipeline(
+        pipeline_name="zendesk", destination="duckdb", dataset_name="zendesk_data"
+    )
 
-load_info = pipeline.run(zendesk_support())
-print(load_info)
+    load_info = pipeline.run(zendesk_support())
+    print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END ./code/zendesk-snippets.py::markdown_pipeline-->
 

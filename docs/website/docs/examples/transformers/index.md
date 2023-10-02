@@ -94,3 +94,24 @@ if __name__ == "__main__":
 <!--@@@DLT_SNIPPET_END ./code/pokemon-snippets.py::example-->
 
 
+### config.toml with examples how to configure parallelism
+<!--@@@DLT_SNIPPET_START ./code/.dlt/config.toml::example-->
+```toml
+[runtime]
+log_level="WARNING"
+
+[extract]
+# use 2 workers to extract sources in parallel
+worker=2
+# allow 10 async items to be processed in parallel
+max_parallel_items=10
+
+[normalize]
+# use 3 worker processes to process 3 files in parallel
+workers=3
+
+[load]
+# have 50 concurrent load jobs
+workers=50
+```
+<!--@@@DLT_SNIPPET_END ./code/.dlt/config.toml::example-->

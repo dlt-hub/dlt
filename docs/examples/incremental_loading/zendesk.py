@@ -112,10 +112,11 @@ def get_pages(
             get_url = response_json["next_page"]
 
 
-# create dlt pipeline
-pipeline = dlt.pipeline(
-    pipeline_name="zendesk", destination="duckdb", dataset_name="zendesk_data"
-)
+if __name__ == "__main__":
+    # create dlt pipeline
+    pipeline = dlt.pipeline(
+        pipeline_name="zendesk", destination="duckdb", dataset_name="zendesk_data"
+    )
 
-load_info = pipeline.run(zendesk_support())
-print(load_info)
+    load_info = pipeline.run(zendesk_support())
+    print(load_info)
