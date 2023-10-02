@@ -10,7 +10,7 @@ from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny
 
 if TYPE_CHECKING:
-     from dlt.common.libs.pyarrow import pyarrow
+    from dlt.common.libs.pyarrow import pyarrow
 
 @dataclass
 class TFileFormatSpec:
