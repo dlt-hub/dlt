@@ -1,5 +1,5 @@
 ---
-title: Enriching loaded data with transformers
+title: Get Pokemon details in parallel using transformers
 description: Learn how to use dlt transformers and how to speed up your loads with parallelism
 keywords: [transformers, parallelism, example]
 ---
@@ -14,14 +14,18 @@ import Header from '../_examples-header.md';
 
 ## Using transformers with the pokemon api
 
-For this example we will be loading data from the [Poke Api](https://pokeapi.co/). We will load a list of pokemon from the
-list endpoint and enrich this data with the full Pokemon Info for each list entry as well as detailed species information 
-for each pokemon with two chained transfomers. Using the `async` keyword for the transformers will enable asychronous
-processing of the data which can be further configured in your toml file.
+For this example we will be loading pokemon data from the [Poke Api](https://pokeapi.co/) with the help of transformers to load
+pokemon details in parallel
+
+We'll learn how to:
+- create 2 transformers and connect them to a resource with the pipe operator `|`
+- load these transformers in parallel using the `@dlt.defer` decorator
+- configure parallelism in the `config.toml` file
+- deselect the main resource so it will not be loaded into the database.
 
 ### Loading code
 
-<!--@@@DLT_SNIPPET_START ./code/run-snippets.py::example-->
+<!--@@@DLT_SNIPPET_START ./code/pokemon-snippets.py::example-->
 ```py
 from typing import Sequence, Iterable
 import dlt
@@ -33,7 +37,7 @@ from dlt.sources.helpers import requests
 POKEMON_URL = "https://pokeapi.co/api/v2/pokemon"
 
 # retrieve pokemon list
-@dlt.resource(write_disposition="replace")
+@dlt.resource(write_disposition="replace", selected=False)
 def pokemon_list() -> Iterable[TDataItem]:
     """
     Returns an iterator of pokemon
@@ -43,8 +47,9 @@ def pokemon_list() -> Iterable[TDataItem]:
     yield from requests.get(POKEMON_URL).json()["results"]
 
 # asynchronously retrieve details for each pokemon in the list
-@dlt.transformer(data_from=pokemon_list)
-async def pokemon(pokemon: TDataItem):
+@dlt.transformer()
+@dlt.defer
+def pokemon(pokemon: TDataItem):
     """
     Returns an iterator of pokemon deatils
     Yields:
@@ -56,8 +61,9 @@ async def pokemon(pokemon: TDataItem):
 
 
 # asynchronously retrieve details for the species of each pokemon
-@dlt.transformer(data_from=pokemon)
-async def species(pokemon: TDataItem):
+@dlt.transformer()
+@dlt.defer
+def species(pokemon: TDataItem):
     """
     Returns an iterator of species details for each pokemon
     Yields:
@@ -71,6 +77,9 @@ async def species(pokemon: TDataItem):
     species_data["pokemon_id"] = pokemon["id"]
     return species_data
 
+@dlt.source
+def source():
+    return [pokemon_list | pokemon, pokemon_list | pokemon | species]
 
 # build duck db pipeline
 pipeline = dlt.pipeline(
@@ -78,52 +87,9 @@ pipeline = dlt.pipeline(
 )
 
 # the pokemon_list resource does not need to be loaded
-load_info = pipeline.run([pokemon(), species()])
+load_info = pipeline.run(source())
 print(load_info)
 ```
-<!--@@@DLT_SNIPPET_END ./code/run-snippets.py::example-->
+<!--@@@DLT_SNIPPET_END ./code/pokemon-snippets.py::example-->
 
-### Example pokemon list data
-```json
-// https://pokeapi.co/api/v2/pokemon
-{
-   "count":1292,
-   "next":"https://pokeapi.co/api/v2/pokemon?offset=20&limit=20",
-   "previous":null,
-   "results":[
-      {
-         "name":"bulbasaur",
-         "url":"https://pokeapi.co/api/v2/pokemon/1/"
-      },
-      {
-         "name":"ivysaur",
-         "url":"https://pokeapi.co/api/v2/pokemon/2/"
-      },
-      ...
-   ]
-}
-```
 
-### Example Pokemon details data
-```json
-// https://pokeapi.co/api/v2/pokemon/1/
-{
-   "id":1,
-   "name": "bulbasaur",
-   "species": {
-        "url": 	"https://pokeapi.co/api/v2/pokemon-species/1/"   
-    },
-    ...
-}
-```
-
-### Example Pokemon species data
-```json
-// https://pokeapi.co/api/v2/pokemon-species/1/
-{
-   "id":1,
-   "name": "bulbasaur",
-   "is_baby": false,
-    ...
-}
-```

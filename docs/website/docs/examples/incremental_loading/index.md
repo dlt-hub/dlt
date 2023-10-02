@@ -1,5 +1,5 @@
 ---
-title: Incremental Loading
+title: Load Zendesk tickets incrementally
 description: Learn how do incremental loading in consecutive runs
 keywords: [incremental loading, example]
 ---
@@ -29,7 +29,7 @@ We'll learn:
 
 ### Loading code
 
-<!--@@@DLT_SNIPPET_START ./code/run-snippets.py::markdown_source-->
+<!--@@@DLT_SNIPPET_START ./code/zendesk-snippets.py::markdown_source-->
 ```py
 from typing import Iterator, Optional, Dict, Any, Tuple
 
@@ -102,12 +102,12 @@ def zendesk_support(
 
     return ticket_events
 ```
-<!--@@@DLT_SNIPPET_END ./code/run-snippets.py::markdown_source-->
+<!--@@@DLT_SNIPPET_END ./code/zendesk-snippets.py::markdown_source-->
 
 Run the pipeline:
 
 
-<!--@@@DLT_SNIPPET_START ./code/run-snippets.py::markdown_pipeline-->
+<!--@@@DLT_SNIPPET_START ./code/zendesk-snippets.py::markdown_pipeline-->
 ```py
 # create dlt pipeline
 pipeline = dlt.pipeline(
@@ -117,5 +117,5 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(zendesk_support())
 print(load_info)
 ```
-<!--@@@DLT_SNIPPET_END ./code/run-snippets.py::markdown_pipeline-->
+<!--@@@DLT_SNIPPET_END ./code/zendesk-snippets.py::markdown_pipeline-->
 

@@ -12,7 +12,7 @@ def transformers_snippet() -> None:
     POKEMON_URL = "https://pokeapi.co/api/v2/pokemon"
 
     # retrieve pokemon list
-    @dlt.resource(write_disposition="replace")
+    @dlt.resource(write_disposition="replace", selected=False)
     def pokemon_list() -> Iterable[TDataItem]:
         """
         Returns an iterator of pokemon
@@ -22,8 +22,9 @@ def transformers_snippet() -> None:
         yield from requests.get(POKEMON_URL).json()["results"]
 
     # asynchronously retrieve details for each pokemon in the list
-    @dlt.transformer(data_from=pokemon_list)
-    async def pokemon(pokemon: TDataItem):
+    @dlt.transformer()
+    @dlt.defer
+    def pokemon(pokemon: TDataItem):
         """
         Returns an iterator of pokemon deatils
         Yields:
@@ -35,8 +36,9 @@ def transformers_snippet() -> None:
 
 
     # asynchronously retrieve details for the species of each pokemon
-    @dlt.transformer(data_from=pokemon)
-    async def species(pokemon: TDataItem):
+    @dlt.transformer()
+    @dlt.defer
+    def species(pokemon: TDataItem):
         """
         Returns an iterator of species details for each pokemon
         Yields:
@@ -49,7 +51,10 @@ def transformers_snippet() -> None:
         # to join tables
         species_data["pokemon_id"] = pokemon["id"]
         return species_data
-
+    
+    @dlt.source
+    def source():
+        return [pokemon_list | pokemon, pokemon_list | pokemon | species]
 
     # build duck db pipeline
     pipeline = dlt.pipeline(
@@ -57,7 +62,7 @@ def transformers_snippet() -> None:
     )
 
     # the pokemon_list resource does not need to be loaded
-    load_info = pipeline.run([pokemon(), species()])
+    load_info = pipeline.run(source())
     print(load_info)
     # @@@DLT_SNIPPET_END example
 
