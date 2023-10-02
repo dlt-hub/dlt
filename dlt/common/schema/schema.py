@@ -195,9 +195,6 @@ class Schema:
 
         return new_row, updated_table_partial
 
-    def is_table_populated(self, table_name: str) -> bool:
-        return table_name in self.tables and (self.tables[table_name].get("populated") is True)
-
     def apply_schema_contract(self, contract_modes: TSchemaContractDict, table_name: str, row: DictStrAny, partial_table: TPartialTableSchema) -> Tuple[DictStrAny, TPartialTableSchema]:
         """
         Checks if contract mode allows for the requested changes to the data and the schema. It will allow all changes to pass, filter out the row filter out
