@@ -52,11 +52,12 @@ def species(pokemon: TDataItem):
 def source():
     return [pokemon_list | pokemon, pokemon_list | pokemon | species]
 
-# build duck db pipeline
-pipeline = dlt.pipeline(
-    pipeline_name="pokemon", destination="duckdb", dataset_name="pokemon_data"
-)
+if __name__ == "__main__":
+    # build duck db pipeline
+    pipeline = dlt.pipeline(
+        pipeline_name="pokemon", destination="duckdb", dataset_name="pokemon_data"
+    )
 
-# the pokemon_list resource does not need to be loaded
-load_info = pipeline.run(source())
-print(load_info)
+    # the pokemon_list resource does not need to be loaded
+    load_info = pipeline.run(source())
+    print(load_info)

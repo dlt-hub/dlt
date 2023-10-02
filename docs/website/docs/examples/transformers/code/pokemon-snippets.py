@@ -56,14 +56,16 @@ def transformers_snippet() -> None:
     def source():
         return [pokemon_list | pokemon, pokemon_list | pokemon | species]
 
-    # build duck db pipeline
-    pipeline = dlt.pipeline(
-        pipeline_name="pokemon", destination="duckdb", dataset_name="pokemon_data"
-    )
+    __name__ = "__main__" # @@@DLT_REMOVE
+    if __name__ == "__main__":
+        # build duck db pipeline
+        pipeline = dlt.pipeline(
+            pipeline_name="pokemon", destination="duckdb", dataset_name="pokemon_data"
+        )
 
-    # the pokemon_list resource does not need to be loaded
-    load_info = pipeline.run(source())
-    print(load_info)
+        # the pokemon_list resource does not need to be loaded
+        load_info = pipeline.run(source())
+        print(load_info)
     # @@@DLT_SNIPPET_END example
 
     # test assertions

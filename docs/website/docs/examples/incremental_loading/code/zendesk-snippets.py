@@ -120,13 +120,15 @@ def incremental_snippet() -> None:
 
 
     # @@@DLT_SNIPPET_START markdown_pipeline
-    # create dlt pipeline
-    pipeline = dlt.pipeline(
-        pipeline_name="zendesk", destination="duckdb", dataset_name="zendesk_data"
-    )
+    __name__ = "__main__" # @@@DLT_REMOVE
+    if __name__ == "__main__":
+        # create dlt pipeline
+        pipeline = dlt.pipeline(
+            pipeline_name="zendesk", destination="duckdb", dataset_name="zendesk_data"
+        )
 
-    load_info = pipeline.run(zendesk_support())
-    print(load_info)
+        load_info = pipeline.run(zendesk_support())
+        print(load_info)
     # @@@DLT_SNIPPET_END markdown_pipeline
     # @@@DLT_SNIPPET_END example
 
