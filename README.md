@@ -6,7 +6,7 @@ Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local l
 </p>
 
 
-<h3 align="center">
+<h3 align="center"> 
 
 🚀 Join our thriving community of likeminded developers and build the future together!
 
