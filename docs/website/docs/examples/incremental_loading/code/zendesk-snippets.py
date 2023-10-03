@@ -1,5 +1,11 @@
+from tests.utils import skipifgithubfork
+
+# because the example below uses credentials and it is copied to the module zendesk.py
+# we force the same config section name
+__source_name__ = "zendesk"
 
 
+@skipifgithubfork
 def incremental_snippet() -> None:
 
     # @@@DLT_SNIPPET_START example

@@ -19,7 +19,7 @@ In this example, you'll find a Python script that interacts with the Zendesk Sup
 
 We'll learn:
 
-- How to pass [credentials](../../general-usage/credentials) as dict.
+- How to pass [credentials](../../general-usage/credentials) as dict
 - How to set [the nesting level](../../general-usage/source#reduce-the-nesting-level-of-generated-tables).
 - How to enable [incremental loading](../../general-usage/incremental-loading) for efficient data extraction.
 - How to specify [the start and end dates](../../general-usage/incremental-loading#using-dltsourcesincremental-for-backfill) for the data loading and how to [opt-in to Airflow scheduler](../../general-usage/incremental-loading#using-airflow-schedule-for-backfill-and-incremental-loading) by setting `allow_external_schedulers` to `True`.
