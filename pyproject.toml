@@ -67,7 +67,7 @@ dbt-athena-community = {version = ">=1.2.0", optional = true}
 s3fs = {version = ">=2022.4.0", optional = true}
 gcsfs = {version = ">=2022.4.0", optional = true}
 botocore = {version = ">=1.28", optional = true}
-snowflake-connector-python = {version = ">=2.9.0", optional = true, extras = ["pandas"]}
+snowflake-connector-python = {version = ">=3.1.1", optional = true, extras = ["pandas"]}
 cron-descriptor = {version = ">=1.2.32", optional = true}
 pipdeptree = {version = ">=2.9.0,<2.10", optional = true}
 pyathena = {version = ">=2.9.6", optional = true}
