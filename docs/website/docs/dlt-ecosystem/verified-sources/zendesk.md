@@ -3,269 +3,369 @@ title: Zendesk
 description: dlt pipeline for Zendesk API
 keywords: [zendesk api, zendesk pipeline, zendesk]
 ---
+
 # Zendesk
 
-:::info
-Need help deploying these sources, or figuring out how to run them in your data stack?
+:::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
-[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+[Join our Slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
+Zendesk is a cloud-based customer service and support platform. It offers a range of features,
+including ticket management, self-service options, knowledge base management, live chat, customer
+analytics, and talks.
 
-Zendesk is a cloud-based customer service and support platform. It offers a range of features, including ticket management, self-service options, knowledge base management, live chat, customer analytics, and talks.
+This Zendesk `dlt` verified source and
+[pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/zendesk_pipeline.py)
+loads data using “Zendesk Support API”, "Zendesk Chat API" and "Zendesk Talk API" to the destination
+of your choice.
 
-Using this guide, you can set up a pipeline that can automatically load data from three possible Zendesk API Clients ([Zendesk support](https://developer.zendesk.com/api-reference/ticketing/introduction/), [Zendesk chat](https://developer.zendesk.com/api-reference/live-chat/introduction/), [Zendesk talk](https://developer.zendesk.com/api-reference/voice/talk-api/introduction/)) onto a [destination](../destinations/) of your choice.
+Endpoints that can be loaded using this verified source are:
 
-## Get API credentials
+| Name                       | Description                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SUPPORT_ENDPOINTS          | "users", "sla_policies", "groups", "organizations", "brands"                                                                                                                                                                                                                                                                                                                                 |
+| SUPPORT_EXTRA_ENDPOINTS    | "activities", "automations", "custom_agent_roles", "dynamic_content", "group_memberships",<br/> "job_status","macros", "organization_fields", "organization_memberships", "recipient_addresses", <br/> "requests" , "satisfaction_ratings", "sharing_agreements", "skips", "suspended_tickets","targets", <br/> "ticket_forms", "ticket_metrics", "triggers", "user_fields", "views", "tags" |
+| TALK_ENDPOINTS             | "calls", "addresses", "greeting_categories", "greetings", "ivrs", <br/> "phone_numbers", "settings", "lines", "agents_activity"                                                                                                                                                                                                                                                              |
+| INCREMENTAL_TALK_ENDPOINTS | "calls", "logs"                                                                                                                                                                                                                                                                                                                                                                              |
 
-Before running the pipeline, you will need to get API credentials. You do not need to get credentials for all of the APIs, but only for those from which you wish to request data. The steps for this are detailed below:
+> To the get the complete list of endpoints, please refer to
+> ["zendesk/settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/zendesk/settings.py)
 
-Credentials for Zendesk support API
+## Setup Guide
 
-Zendesk support can be authenticated using any one of the following:
+### Grab credentials
 
-1. [subdomain](#subdomain) + email address + password
-2. [subdomain](#subdomain) + email address + [API token](#zendesk-support-api-token)
-3. [subdomain](#subdomain) + [OAuth token](#zendesk-support-oauth-token)
+You can load data from three types of Zendesk services, that are :
 
-The simplest way to authenticate is via subdomain + email address + password, since these details are already available and you don't have to generate any tokens. Alternatively, you can also use API tokens or OAuth tokens.
+- Zendesk Support
+- Zendesk Chat
+- Zendesk Talk
 
-### Subdomain
-1. To get the subdomain, simply login to your Zendesk account and grab it from the url.
-2. For example, if the url is https://www.dlthub.zendesk.com, then the subdomain will be `dlthub`.
+### Zendesk Support
 
+Zendesk support can be authenticated using one of the following three methods:
 
-### Zendesk support API token
+- Method 1 ([subdomain](#subdomain) + email address + password)
+- Method 2 ([subdomain](#subdomain) + email address + [API token](#grab-zendesk-support-api-token))
+- Method 3 ([subdomain](#subdomain) + [OAuth token](#zendesk-support-oauth-token))
 
-1.  Go to Zendesk products in the top right corner and select Admin Center.
+The simplest way to authenticate is via subdomain + email address + password, since these details
+are already available and you don't have to generate any tokens. Alternatively, you can also use API
+tokens or OAuth tokens.
 
-  <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/dlt-ecosystem/verified-sources/docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
+#### Grab Subdomain
 
+1. Log into Zendesk to find your subdomain in the URL. E.g., for https://www.dlthub.zendesk.com, the
+   subdomain is "dlthub".
 
-2. Select Apps and Integrations.
+#### Grab Zendesk support API token
 
-3. In the left pane, under APIs, choose Zendesk API from the menu on the left, and enable the “**Password access**” and “**Token access**” as shown below.
+1. In Zendesk (top right), select Admin Center.
+1. Choose "Apps and Integrations.
+1. Navigate to APIs and select Zendesk API. Activate “Password access” & “Token access”.
+1. Click “Add API token”, add a description, and note down the API token.
+1. The token displays just once; note it safely.
 
+#### Grab Zendesk support OAuth token
 
-<img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/dlt-ecosystem/verified-sources/docs_images/Zendesk_token_access.png" alt="Token Access" width = "70%" />
+To get the OAuth token, see the
+[documentation](https://developer.zendesk.com/documentation/ticketing/working-with-oauth/creating-and-using-oauth-tokens-with-the-api/).
+Here's a summarized version:
 
-4. Click on “**Add API token**”, enter a description, and note the `API token`.
+1. Obtain client ID via Zendesk API: send
+   [this curl](https://developer.zendesk.com/documentation/ticketing/working-with-oauth/creating-and-using-oauth-tokens-with-the-api/#using-a-zendesk-api-request)
+   request and note the response's client ID.
 
-    ***********This token will be displayed only once and should be noted***********
-### Zendesk support OAuth token
-To get an `OAuth token` follow these steps:
-1.  Go to Zendesk products in the top right corner and select Admin Center.
+1. Alternatively, fetch client ID via OAuth [using
+   this](https://developer.zendesk.com/documentation/ticketing/working-with-oauth/creating-and-using-oauth-tokens-with-the-api/#getting-an-oauth-clients-id).
 
-  <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/dlt-ecosystem/verified-sources/docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
+1. To get full token using the client id obtained above, you can follow the [instructions
+   here.](https://developer.zendesk.com/documentation/ticketing/working-with-oauth/creating-and-using-oauth-tokens-with-the-api/#creating-the-access-token)
 
-2. Select Apps and Integrations.
-3. In the left pane, under APIs, choose Zendesk API from the menu on the left and go to “OAuth Clients” tab.
-4. Click on “Add OAuth Client” and add the details like “Client Name”, “Description”, “Company” , “Redirect URL (if any)”.
-5. Click on save, and a secret token will be displayed, copy it.
-6. Now you need to make a curl request using the following command
+   ```curl
+    curl https://{subdomain}.zendesk.com/api/v2/oauth/tokens.json \
+   -X POST \
+   -v -u {email_address}:{password} \
+   -H "Content-Type: application/json" \
+   -d '{
+     "token": {
+       "client_id": 223443,
+       "scopes": [
+         "read"
+       ]
+     }
+   }'
+   ```
 
-```bash
-    curl https://{subdomain}.zendesk.com/oauth/tokens \
-      -H "Content-Type: application/json" \
-      -d '{"grant_type": "password", "client_id": "{client_name}",
-        "client_secret": "{your_client_secret}", "scope": "read",
-        "username": "{zendesk_username}", "password": "{zendesk_password}"}' \
-      -X POST
-```
+   > We've set the scope as 'read', but you can customize the scope as needed.
 
-  Alternatively, you can use the following Python script:
+1. In response to the above request you'll get a full token which can be used to configure Zendesk
+   support.
 
-  ```python
-    from dlt.sources.helpers import requests
-    import json
+### Zendesk Chat
 
-    subdomain = "set_me_up"
-    client_name = "set_me_up" # generated in the steps above
-    client_secret = "set_me_up" # generated in the steps above
-    zendesk_username = "set_me_up" # zendesk email address
-    zendesk_password = "set_me_up" # zendesk password
+Zendesk chat can be authenticated using this method:
 
-    url = f'https://{subdomain}.zendesk.com/oauth/tokens'
-    headers = {'Content-Type': 'application/json'}
-    data = {
-        'grant_type': 'password',
-        'client_id': client_name,
-        'client_secret': client_secret,
-        'scope': 'read',
-        'username': zendesk_username,
-        'password': zendesk_password
-    }
-    response = requests.post(url, headers=headers, data=json.dumps(data))
+- Method 1 ([subdomain](#subdomain-1) + [Chat OAuth token](#zendesk-chat-oauth-token))
+  > Note: OAuth tokens for Zendesk chat and support differ, requiring separate generation
+  > procedures.
 
-    print(response.json()['access_token'])
-  ```
+#### Subdomain
 
-7. Include the following in the code above:
+Log into Zendesk to find your subdomain in the URL. E.g., for https://www.dlthub.zendesk.com, the
+subdomain is "dlthub".
 
-| Credentials | Description |
-| --- | --- |
-| subdomain | Your Zendesk subdomain |
-| client_name  | Unique identifier given to the OAuth client created above |
-| client_secret | secret token generated for the OAuth client |
-| zendesk_username  | Your Zendesk email address |
-| zendesk password | Your Zendesk password |
+#### Grab Zendesk chat OAuth token
 
-8. After running the above curl command in terminal (or the Python script), you will get an access token in the response.
+To generate Zendesk chat OAuth token, please refer to this
+[documentation](https://support.zendesk.com/hc/en-us/articles/4408828740762-Chat-API-tutorial-Generating-an-OAuth-token-integrated-Chat-accounts-#:~:text=Create%20the%20OAuth%20API%20client,-First%20of%20all&text=Go%20to%20Zendesk%20Chat%20%3E%20Account,Client%20to%20finish%20the%20setup)
+. Below is a summary of the steps:
 
-9. This is the OAuth token. Save it, as this will need to be added to the pipeline.
+1. Access Zendesk Chat directly or through the top right "Chat" option in Zendesk product.
+1. Navigate to "Settings" > "Account" > "API" > "Add API client".
+1. Fill in client name, company, and redirect URLs (default: http://localhost:8080).
+1. Record the "CLIENT_ID" and "SUBDOMAIN".
+1. Format the below URL with your own CLIENT_ID and SUBDOMAIN, paste it into a new browser tab, and
+   press Enter.
+   ```bash
+   https://www.zopim.com/oauth2/authorizations/new?response_type=token&client_id=CLIENT_ID&scope=read%20write&subdomain=SUBDOMAIN
+   ```
+1. The call will be made, possibly asking you to log in and select 'Allow' to generate the token.
+1. If the call succeeds, your browser's address field will contain your new OAuth token (returned as
+   the access_token value).
+1. Despite the seeming error message displayed in the browser's main window, if 'access_token' is
+   returned in the browser's URL field then it worked!
+   ![Zendesk Chat](docs_images/Zendesk_chat_access_token.jpg)
+1. Safely store the OAuth token to authenticate Zendesk Chat for retrieving data.
+1. There are several other methods to obtain Zendesk chat token as given in the full
+   [documentation here.](https://support.zendesk.com/hc/en-us/articles/4408828740762-Chat-API-tutorial-Generating-an-OAuth-token-integrated-Chat-accounts-#:~:text=Create%20the%20OAuth%20API%20client,-First%20of%20all&text=Go%20to%20Zendesk%20Chat%20%3E%20Account,Client%20to%20finish%20the%20setup.)
 
-Credentials for Zendesk chat API
+### Zendesk Talk
 
-To authenticate Zendesk chat, you will need the following credentials:
+Zendesk talk fetches the data using Zendesk Tolk API.
 
-[subdomain](#subdomain-1) + [OAuth token](#zendesk-chat-oauth-token)
+1. Obtaining credentials for Zendesk Talk mirrors the process for
+   [Zendesk support](#zendesk-support).
+1. Use existing Zendesk support credentials or create new ones.
 
-(Please note that the OAuth token for Zendesk chat and Zendesk support are different, and you need to follow different procedures to generate each.)
+### Initialize the verified source
 
+To get started with your data pipeline, follow these steps:
 
-### Subdomain
-1. To get the subdomain, simply login to your Zendesk account and grab it from the url.
-2. For example, if the url is https://www.dlthub.zendesk.com, then the subdomain will be `dlthub`.
+1. Enter the following command:
 
-### Zendesk chat OAuth token
+   ```bash
+   dlt init zendesk duckdb
+   ```
 
-1. Login to Zendesk chat. Or go to “Chat” using Zendesk products in the top right corner.
+   [This command](../../reference/command-line-interface) will initialize
+   [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/zendesk_pipeline.py)
+   with Zendesk as the [source](../../general-usage/source) and [duckdb](../destinations/duckdb.md)
+   as the [destination](../destinations).
 
-  <img src="https://raw.githubusercontent.com/dlt-hub/dlt/devel/docs/website/docs/dlt-ecosystem/verified-sources/docs_images/Zendesk_admin_centre.png" alt="Admin Centre" width="400"/>
+1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
+   preferred [destination](../destinations).
 
-2. In Zendesk chat, go to **Settings**(on the left) **> Account > API > Add API client.**
-3. Enter the details like client name, company, and redirect URLs (if you don’t have redirect URLs; use: [http://localhost:8080](http://localhost:8080/)).
-4. Note down the displayed `client ID` and `secret`.
-5. The simplest way to get Zendesk chat `OAuth token` is to use the URL given below.
-```bash
-https://www.zopim.com/oauth2/authorizations/new?response_type=token&redirect_uri=http%3A%2F%2Flocalhost%3A8080&client_id={client_id}&scope=read&subdomain={subdomain_name}
-```
-For more information or an alternative method, see the [documentation](https://developer.zendesk.com/documentation/live-chat/getting-started/auth/#authorization-code-grant-flow).
-6. In the URL, replace `client_id` and `subdomain_name` with your client ID and subdomain. (***also remove the curly brackets***)
-7. Paste it in a browser and hit enter.
-8. Click on Allow.
-9. After the redirect, the secret token will be displayed in the address bar of the browser as below:
-```bash
-http://localhost:8080/#**access_token=cSWY9agzy9hsgsEdX5F2PCsBlvSu3tDk3lh4xmISIHFhR4lKtpVqqDRVvkiZPqbI**&token_type=Bearer&scope=read
+1. After running this command, a new directory will be created with the necessary files and
+   configuration settings to get started.
 
-#access token is "**cSWY9agzy9hsgsEdX5F2PCsBlvSu3tDk3lh4xmISIHFhR4lKtpVqqDRVvkiZPqbI"**
-```
-10. Save the access token. This will need to be added to the pipeline later.
-
-
-Credentials for Zendesk talk API
-
-1. The method for getting the credentials for Zendesk talk is the same as that for [Zendesk support](#grab-zendesk-support-credentials).
-2. You can reuse the same credentials from Zendesk support or generate new ones.
-
-## Initialize the pipeline
-
-Initialize the pipeline with the following command:
-
-```bash
-dlt init zendesk duckdb
-```
-
-Here, we chose duckdb as the destination. To choose a different destination, replace `duckdb` with your choice of destination.
-
+For more information, read the
+[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
 
 ## Add credentials
 
-1. Add credentials for the Zendesk API and your chosen destination in `.dlt/secrets.toml`.
+1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
+   information securely, like access tokens. Keep this file safe. Here's its format for service
+   account authentication:
+
+   ```python
+   #Zendesk support credentials
+   [sources.zendesk.credentials]
+   subdomain = "subdomain" # Zendesk subdomain
+   email = "set me up" # Email used to login to Zendesk
+   password = "set me up" # Password for Zendesk account
+   token = "set me up" # For API token auth
+   oauth_token = "set me up" # Use Zendesk support OAuth token or Zendesk chat OAuth token
+   ```
+
+   > For data retrieval from Zendesk Support or Talk, choose one of the following verification
+   > method:
+   >
+   > - Method 1 ([subdomain](#subdomain) + email address + password)
+   > - Method 2 ([subdomain](#subdomain) + email address +
+   >   [API token](#grab-zendesk-support-api-token))
+   > - Method 3 ([subdomain](#subdomain) + [OAuth token](#zendesk-support-oauth-token))
+   >
+   > To load data from Zendesk Chat use the following method for authentication:
+   >
+   > - Method 1 ([subdomain](#subdomain) + [OAuth token](#grab-zendesk-chat-oauth-token))
+   >
+   > "<u>Note:</u> Use the Zendesk Support OAuth token for configuring Zendesk Support, and for
+   > Chat, utilize the OAuth token specific to Zendesk Chat."
+
+1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
+
+## Run the pipeline
+
+1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
+   running the command:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+1. You're now ready to run the pipeline! To get started, run the following command:
+
+   ```bash
+   python3 zendesk_pipeline.py
+   ```
+
+1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+   the following command:
+
+   ```bash
+   dlt pipeline <pipeline_name> show
+   ```
+
+   For example, the `pipeline_name` for the above pipeline example is `dlt_zendesk_pipeline`, you
+   may also use any custom name instead.
+
+For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/run-a-pipeline).
+
+## Sources and resources
+
+`dlt` works on the principle of [sources](../../general-usage/source) and
+[resources](../../general-usage/resource).
+
+### Source `zendesk_talk`
+
+This function retrieves data from Zendesk Talk for phone calls and voicemails.
 
 ```python
-#Zendesk support credentials
-[sources.zendesk.zendesk_support.credentials]
-password = "set me up" # Include this if you with to authenticate using subdomain + email address + password
-subdomain = "subdomian" # Copy subdomain from the url https://[subdomain].zendesk.com
-token = "set me up" # Include this if you wish to authenticate using the API token
-email = "set me up" # Include this if you with to authenticate using subdomain + email address + password
-oauth_token = "set me up" # Include this if you wish to authenticate using OAuth token
-
-[sources.zendesk.zendesk_chat.credentials]
-subdomain = "subdomian". # Copy subdomain from the url https://[subdomain].zendesk.com
-oauth_token = "set me up" # Follow the steps under Zendesk chat credentials to get this token
-
-#Zendesk talk credentials
-[sources.zendesk.zendesk_talk.credentials]
-password = "set me up" # Include this if you with to authenticate using subdomain + email address + password
-subdomain = "subdomian" # Copy subdomain from the url https://[subdomain].zendesk.com
-token = "set me up" # Include this if you wish to authenticate using the API token
-email = "set me up" # Include this if you with to authenticate using subdomain + email address + password
-oauth_token = "set me up" # Include this if you wish to authenticate using OAuth token
+@dlt.source(max_table_nesting=2)
+def zendesk_talk(
+    credentials: TZendeskCredentials = dlt.secrets.value,
+    start_date: Optional[TAnyDateTime] = DEFAULT_START_DATE,
+    end_date: Optional[TAnyDateTime] = None,
+) -> Iterable[DltResource]:
 ```
 
-2. Only add credentials for the APIs from which you wish to request data and remove the rest.
-3. Add credentials as required by your destination. See [here](../destinations/) for steps on how to do this.
+`credentials`: Authentication credentials.
 
-## Specify source methods in `zendesk_pipeline.py`
+`start_date`: Start time for data range, defaults to January 1st, 2000.
 
-1. You can easily specify which APIs the pipeline will load the data from by modifying the data loading function `incremental_load_all_default` in the script `zendesk_pipeline.py`.
-2. By default, the function calls all three source methods, `zendesk_support()`, `zendesk_chat()`, and `zendesk_talk()`.
-3. To adjust this, simply remove the lines that correspond to the APIs from which you do not wish to request data.
-4. Also make the corresponding change in the line `info = pipeline.run(data=[data_support, data_chat, data_talk])`.
+`end_date`: End time for data range. If not provided, only new data is retrieved after the initial
+run.
+
+### Resource `talk_resource`
+
+This function loads data from Zendesk talk endpoint.
 
 ```python
-def incremental_load_all_default():
-    """
-    Loads all possible tables for Zendesk Support, Chat, Talk
-    """
-    # FULL PIPELINE RUN
-    pipeline = dlt.pipeline(pipeline_name="dlt_zendesk_pipeline", destination="duckdb", full_refresh=True, dataset_name="sample_zendesk_data3")
+def talk_resource(
+    zendesk_client: ZendeskAPIClient,
+    talk_endpoint_name: str,
+    talk_endpoint: str,
+    pagination_type: PaginationType,
+) -> Iterator[TDataItem]:
+```
 
-    # zendesk support source function
+`zendesk_client`: An instance of ZendeskAPIClient for making API calls to Zendesk Talk.
+
+`talk_endpoint_name`: The name of the talk_endpoint.
+
+`talk_endpoint`: The actual URL ending of the endpoint.
+
+`pagination`: Type of pagination type used by endpoint.
+
+
+Other functions similar to the source `zendesk_talk` and resources similar to `talk_endpoint`  are:
+
+| Function Name             | Type              | Description                                                                                       |
+|---------------------------| ----------------- |---------------------------------------------------------------------------------------------------|
+| zendesk_chat              | source function   | Retrieves data from Zendesk Chat for chat interactions                                            |
+| chats_table_resource      | resource function | Retrieves chats from Zendesk                                                                      |
+| talk_incremental_resource | resource function | Retrieves data incrementally from a Zendesk Talk endpoint.                                        |
+| zendesk_support           | source function   | Retrieves data from Zendesk Support for tickets, users, brands, organizations, and groups         |
+| ticket_events             | resource function | Retrieves records of all changes made to a ticket, including state, etc.                          |
+| tickets                   | resource function | Retrieves the data for ticket table, the table can be pivoted and cols renamed                    |
+| ticket_metric_events      | resource function | Retrieves ticket metric events from the start date, defaulting to January 1st of the current year |
+| basic_resource            | resource function | Retrives basic loader for Zenpy endpoints with pagination support                                 |
+
+### Create your own pipeline
+
+If you wish to create your own pipelines, you can leverage source and resource methods from this
+verified source.
+
+1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
+
+   ```python
+   pipeline = dlt.pipeline(
+        pipeline_name="dlt_zendesk_pipeline",  # Use a custom name if desired
+        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+        dataset_name="sample_zendesk_data"  # Use a custom name if desired
+   )
+   ```
+
+1. To load data related to support, talk and chat:
+
+   ```python
+    #zendesk support source function
     data_support = zendesk_support(load_all=True)
     # zendesk chat source function
     data_chat = zendesk_chat()
     # zendesk talk source function
     data_talk = zendesk_talk()
     # run pipeline with all 3 sources
-    info = pipeline.run(data=[data_support, data_chat, data_talk])
+    info = pipeline.run([data_support,data_chat,data_talk])
     return info
-```
+   ```
 
-## Run the pipeline
+1. To load data related to support, chat and talk in incremental mode:
 
-1. Install requirements for the pipeline by running the following command:
-
-`pip install -r requirements.txt`
-
-2. Run the pipeline with the following command:
-
-`python3 zendesk_pipeline.py`
-
-3. To make sure everything is loaded as expected, use the command:
-
-`dlt pipeline zendesk_pipeline show`
-
-
-# Customizations
-
-The Zendesk pipeline has some default customizations that make it more useful:
-
-1. **Pivoting ticket fields:** By default, the pipeline pivots the custom fields in tickets when loading the data, which allows the custom fields to be used as columns after loading. This behavior is due to the fact that the boolean parameter `pivot_ticket_fields` in the source method `zendesk_support()` is set to `True` by default. To change this, set `pivot_ticket_fields=False` when calling the source method from inside the data loading function.
-```python
-data_support = zendesk_support(pivot_ticket_fields=False)
-```
-
-  Alternatively, this can be explicitly done by using the function `load_support_with_pivoting` in the script `zendesk_pipeline.py`.
-  ```python
-  def load_support_with_pivoting():
-    """
-    Loads Zendesk Support data with pivoting. Simply done by setting the pivot_ticket_fields to true - default option. Loads only the base tables.
-    """
-    pipeline = dlt.pipeline(pipeline_name="zendesk_support_pivoting", destination='duckdb', full_refresh=False)
-    data = zendesk_support(load_all=False, pivot_ticket_fields=True)
-    info = pipeline.run(data=data)
+   ```python
+    pipeline = dlt.pipeline(
+        pipeline_name="dlt_zendesk_pipeline",  # Use a custom name if desired
+        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+        full_refresh = Fasle
+        dataset_name="sample_zendesk_data"  # Use a custom name if desired
+   )
+    data = zendesk_support(load_all=True, start_date=start_date)
+    data_chat = zendesk_chat(start_date=start_date)
+    data_talk = zendesk_talk(start_date=start_date)
+    info = pipeline.run(data=[data, data_chat, data_talk])
     return info
-  ```
-  Simply include this function in the `__main__` block when running the pipeline.
-  ```python
-  if __name__ == "__main__":
-    load_support_with_pivoting()
-  ```
+   ```
 
-2. **Custom field rename**: The pipeline loads the custom fields with their label names. If the label changes between loads, the initial label continues to be used (is persisted in state). To reset the labels, do a full refresh. This can be achieved by passing `full_refresh=True` when calling `dlt.pipeline`:
-```python
-pipeline = dlt.pipeline(pipeline_name="dlt_zendesk_pipeline", destination='duckdb', full_refresh=True, dataset_name="sample_zendesk_data3")
-```
+   > Supports incremental loading for Support, Chat, and Talk Endpoints. By default, it fetches data
+   > from the last load time in the DLT state or from 1st Jan 2000 if no prior load. This approach
+   > ensures data retrieval since the specified date, while still updating the last load time.
+
+1. To load historical data in weekly ranges from Jan 1st, 2023, then switch to incremental loading
+   for new tickets.
+
+   ```python
+    # Load ranges of dates to load between January 1st 2023 and today
+    min_start_date = pendulum.DateTime(year=2023, month=1, day=1).in_timezone("UTC")
+    max_end_date = pendulum.today()
+    # Generate tuples of date ranges, each with 1 week in between.
+    ranges = make_date_ranges(min_start_date, max_end_date, timedelta(weeks=1))
+
+    # Run the pipeline in a loop for each 1 week range
+    for start, end in ranges:
+        print(f"Loading tickets between {start} and {end}")
+        data = zendesk_support(start_date=start, end_date=end).with_resources("tickets")
+        info = pipeline.run(data=data)
+        print(info)
+
+    # Backloading is done, now we continue loading with incremental state, starting where the backloading left off
+    print(f"Loading with incremental state, starting at {end}")
+    data = zendesk_support(start_date=end).with_resources("tickets")
+    info = pipeline.run(data)
+    print(info)
+   ```
+
+   > This can useful to reduce the potiential failure window when loading large amounts of historic
+   > data. This approach can be used with all incremental Zendesk sources.
