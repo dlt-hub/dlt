@@ -220,7 +220,7 @@ class TqdmCollector(Collector):
         except ModuleNotFoundError:
             raise MissingDependencyException("TqdmCollector", ["tqdm"], "We need tqdm to display progress bars.")
         self.single_bar = single_bar
-        self._bars: Dict[str, tqdm] = {}
+        self._bars: Dict[str, tqdm[None]] = {}
         self.tqdm_kwargs = tqdm_kwargs or {}
 
     def update(self, name: str, inc: int = 1, total: int = None, message: str = None, label: str = "") -> None:

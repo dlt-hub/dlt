@@ -137,12 +137,12 @@ def test_init_all_verified_sources_together(repo_dir: str, project_files: FileSt
     assert_index_version_constraint(project_files, source_candidates[0])
     # secrets should contain sections for all sources
     for source_name in source_candidates:
-        assert secrets.get_value(source_name, Any, None, "sources") is not None
+        assert secrets.get_value(source_name, type, None, "sources") is not None
         # must have index for this source
         assert files_ops.load_verified_sources_local_index(source_name) is not None
     # credentials for all destinations
     for destination_name in ["bigquery", "postgres", "redshift"]:
-        assert secrets.get_value(destination_name, Any, None, "destination") is not None
+        assert secrets.get_value(destination_name, type, None, "destination") is not None
 
     # create pipeline template on top
     init_command.init_command("debug_pipeline", "postgres", False, repo_dir)
@@ -453,7 +453,7 @@ def assert_index_version_constraint(project_files: FileStorage, source_name: str
 def assert_source_files(project_files: FileStorage, source_name: str, destination_name: str, has_source_section: bool = True) -> Tuple[PipelineScriptVisitor, SecretsTomlProvider]:
     visitor, secrets = assert_common_files(project_files, source_name + "_pipeline.py", destination_name)
     assert project_files.has_folder(source_name)
-    source_secrets = secrets.get_value(source_name, Any, None, source_name)
+    source_secrets = secrets.get_value(source_name, type, None, source_name)
     if has_source_section:
         assert source_secrets is not None
     else:
@@ -488,9 +488,9 @@ def assert_common_files(project_files: FileStorage, pipeline_script: str, destin
     secrets = SecretsTomlProvider()
     if destination_name not in ["duckdb", "dummy"]:
         # destination is there
-        assert secrets.get_value(destination_name, Any, None, "destination") is not None
+        assert secrets.get_value(destination_name, type, None, "destination") is not None
     # certain values are never there
     for not_there in ["dataset_name", "destination_name", "default_schema_name", "as_staging", "staging_config"]:
-        assert secrets.get_value(not_there, Any, None, "destination", destination_name)[0] is None
+        assert secrets.get_value(not_there, type, None, "destination", destination_name)[0] is None
 
     return visitor, secrets

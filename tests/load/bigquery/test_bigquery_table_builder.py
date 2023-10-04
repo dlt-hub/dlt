@@ -35,7 +35,10 @@ def gcp_client(schema: Schema) -> BigQueryClient:
     # return client without opening connection
     creds = GcpServiceAccountCredentialsWithoutDefaults()
     creds.project_id = "test_project_id"
-    return BigQueryClient(schema, BigQueryClientConfiguration(dataset_name="test_" + uniq_id(), credentials=creds))
+    return BigQueryClient(
+        schema,
+        BigQueryClientConfiguration(dataset_name="test_" + uniq_id(), credentials=creds)  # type: ignore[arg-type]
+    )
 
 
 def test_create_table(gcp_client: BigQueryClient) -> None:

@@ -19,6 +19,7 @@ from dlt.destinations.sql_client import DBApiCursorImpl, SqlClientBase, raise_da
 from dlt.destinations.postgres.configuration import PostgresCredentials
 from dlt.destinations.postgres import capabilities
 
+
 class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
 
     dbapi: ClassVar[DBApi] = psycopg2

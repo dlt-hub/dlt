@@ -2,7 +2,7 @@ import os
 import pytest
 import multiprocessing
 from time import sleep
-from typing import Iterator, Tuple
+from typing import Iterator, Tuple, Optional, Any, List
 from multiprocessing.pool import Pool
 
 from dlt.common import logger
@@ -20,7 +20,8 @@ def mp_method_auto() -> Iterator[None]:
     multiprocessing.set_start_method(method, force=True)
 
 
-class _TestRunnableWorkerMethod(Runnable):
+class _TestRunnableWorkerMethod(Runnable[Pool]):
+    rv: List[Tuple[int, str, int]]
 
     def __init__(self, tasks: int) -> None:
         self.uniq = uniq_id()
@@ -34,7 +35,7 @@ class _TestRunnableWorkerMethod(Runnable):
         sleep(0.3)
         return (v, self.uniq, os.getpid())
 
-    def _run(self, pool: Pool) -> Iterator[Tuple[int, str, int]]:
+    def _run(self, pool: Pool) -> List[Tuple[int, str, int]]:
         rid = id(self)
         assert rid in _TestRunnableWorkerMethod.RUNNING
         self.rv = rv = pool.starmap(_TestRunnableWorkerMethod.worker, [(rid, i) for i in range(self.tasks)])
@@ -46,7 +47,8 @@ class _TestRunnableWorkerMethod(Runnable):
         return TRunMetrics(False, 0)
 
 
-class _TestRunnableWorker(Runnable):
+class _TestRunnableWorker(Runnable[Pool]):
+    rv: List[Tuple[int, int]]
 
     def __init__(self, tasks: int) -> None:
         self.tasks = tasks
@@ -59,7 +61,7 @@ class _TestRunnableWorker(Runnable):
         sleep(0.3)
         return (v, os.getpid())
 
-    def _run(self, pool: Pool) -> Iterator[Tuple[int, str, int]]:
+    def _run(self, pool: Pool) -> List[Tuple[int, int]]:
         self.rv = rv = pool.starmap(_TestRunnableWorker.worker, [(i, ) for i in range(self.tasks)])
         return rv
 

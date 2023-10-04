@@ -11,6 +11,7 @@ from tests.pipeline.utils import assert_load_info
 
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
+
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["athena"]), ids=lambda x: x.name)
 def test_athena_destinations(destination_config: DestinationTestConfiguration) -> None:
 

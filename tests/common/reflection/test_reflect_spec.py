@@ -23,7 +23,7 @@ def test_synthesize_spec_from_sig() -> None:
     def f_typed(p1: str = None, p2: Decimal = None, p3: Any = None, p4: Optional[RunConfiguration] = None, p5: TSecretValue = dlt.secrets.value) -> None:
         pass
 
-    SPEC = spec_from_signature(f_typed, inspect.signature(f_typed))
+    SPEC: Any = spec_from_signature(f_typed, inspect.signature(f_typed))
     assert SPEC.p1 is None
     assert SPEC.p2 is None
     assert SPEC.p3 is None

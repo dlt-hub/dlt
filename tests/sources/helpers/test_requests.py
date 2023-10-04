@@ -38,7 +38,7 @@ def test_default_session_retry_settings() -> None:
 
 @pytest.mark.parametrize('respect_retry_after_header', (True, False))
 def test_custom_session_retry_settings(respect_retry_after_header: bool) -> None:
-    def custom_retry_cond(response, exception):  # type: ignore
+    def custom_retry_cond(response, exception):
         return True
 
     session = Client(

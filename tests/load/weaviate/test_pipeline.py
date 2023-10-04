@@ -1,4 +1,5 @@
 import pytest
+from typing import Iterator
 
 import dlt
 from dlt.common import json
@@ -15,7 +16,7 @@ from tests.pipeline.utils import assert_load_info
 from .utils import assert_class, drop_active_pipeline_data
 
 @pytest.fixture(autouse=True)
-def drop_weaviate_schema() -> None:
+def drop_weaviate_schema() -> Iterator[None]:
     yield
     drop_active_pipeline_data()
 
@@ -34,14 +35,14 @@ def test_adapter_and_hints() -> None:
     def some_data():
         yield from next(generator_instance1)
 
-    assert some_data.columns["content"] == {"name": "content", "data_type": "text"}
+    assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore[index]
 
     # adapter merges with existing columns
     weaviate_adapter(
         some_data,
         vectorize=["content"],
     )
-    assert some_data.columns["content"] == {"name": "content", "data_type": "text", "x-weaviate-vectorize": True}
+    assert some_data.columns["content"] == {"name": "content", "data_type": "text", "x-weaviate-vectorize": True}  # type: ignore[index]
 
 
 def test_basic_state_and_schema() -> None:
@@ -66,7 +67,8 @@ def test_basic_state_and_schema() -> None:
     )
     assert_load_info(info)
 
-    with pipeline.destination_client() as client:
+    client: WeaviateClient
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
         # check if we can get a stored schema and state
         schema = client.get_stored_schema()
         assert schema
@@ -97,7 +99,7 @@ def test_pipeline_append() -> None:
     assert_load_info(info)
 
     data = next(generator_instance2)
-    assert_class(info.pipeline, "SomeData", items=data)
+    assert_class(pipeline, "SomeData", items=data)
 
     info = pipeline.run(
         some_data(),
@@ -105,7 +107,7 @@ def test_pipeline_append() -> None:
     assert_load_info(info)
 
     data.extend(next(generator_instance2))
-    assert_class(info.pipeline, "SomeData", items=data)
+    assert_class(pipeline, "SomeData", items=data)
 
 
 def test_explicit_append() -> None:
@@ -134,7 +136,7 @@ def test_explicit_append() -> None:
         some_data(),
     )
 
-    assert_class(info.pipeline, "SomeData", items=data)
+    assert_class(pipeline, "SomeData", items=data)
 
     info = pipeline.run(
         some_data(),
@@ -143,7 +145,7 @@ def test_explicit_append() -> None:
     assert_load_info(info)
 
     data.extend(data)
-    assert_class(info.pipeline, "SomeData", items=data)
+    assert_class(pipeline, "SomeData", items=data)
 
 
 def test_pipeline_replace() -> None:
@@ -176,7 +178,7 @@ def test_pipeline_replace() -> None:
     assert info.dataset_name == "TestPipelineReplaceDataset" + uid  # normalized internally
 
     data = next(generator_instance2)
-    assert_class(info.pipeline, "SomeData", items=data)
+    assert_class(pipeline, "SomeData", items=data)
 
     info = pipeline.run(
         some_data(),
@@ -185,7 +187,7 @@ def test_pipeline_replace() -> None:
     assert_load_info(info)
 
     data = next(generator_instance2)
-    assert_class(info.pipeline, "SomeData", items=data)
+    assert_class(pipeline, "SomeData", items=data)
 
 
 def test_pipeline_merge() -> None:
@@ -233,7 +235,7 @@ def test_pipeline_merge() -> None:
         write_disposition="merge",
     )
     assert_load_info(info)
-    assert_class(info.pipeline, "MoviesData", items=data)
+    assert_class(pipeline, "MoviesData", items=data)
 
     # Change some data
     data[0]["title"] = "The Shawshank Redemption 2"
@@ -243,7 +245,7 @@ def test_pipeline_merge() -> None:
         write_disposition="merge",
     )
     assert_load_info(info)
-    assert_class(info.pipeline, "MoviesData", items=data)
+    assert_class(pipeline, "MoviesData", items=data)
 
 
 def test_pipeline_with_schema_evolution():
@@ -269,11 +271,11 @@ def test_pipeline_with_schema_evolution():
         destination="weaviate",
         dataset_name="TestSchemaEvolutionDataset" + uniq_id(),
     )
-    info = pipeline.run(
+    pipeline.run(
         some_data(),
     )
 
-    assert_class(info.pipeline, "SomeData", items=data)
+    assert_class(pipeline, "SomeData", items=data)
 
     aggregated_data = data.copy()
 
@@ -290,7 +292,7 @@ def test_pipeline_with_schema_evolution():
         },
     ]
 
-    info = pipeline.run(
+    pipeline.run(
         some_data(),
     )
 
@@ -301,7 +303,7 @@ def test_pipeline_with_schema_evolution():
     aggregated_data[0]["new_column"] = None
     aggregated_data[1]["new_column"] = None
 
-    assert_class(info.pipeline, "SomeData", items=aggregated_data)
+    assert_class(pipeline, "SomeData", items=aggregated_data)
 
 
 def test_merge_github_nested() -> None:
@@ -326,10 +328,10 @@ def test_merge_github_nested() -> None:
     # make sure that both "id" column and "primary_key" were changed to __id
     assert issues["columns"]["__id"]["primary_key"] is True
     # make sure that vectorization is enabled for
-    assert issues["columns"]["title"][VECTORIZE_HINT]
-    assert issues["columns"]["body"][VECTORIZE_HINT]
+    assert issues["columns"]["title"][VECTORIZE_HINT]  # type: ignore[literal-required]
+    assert issues["columns"]["body"][VECTORIZE_HINT]  # type: ignore[literal-required]
     assert VECTORIZE_HINT not in issues["columns"]["url"]
-    assert issues["columns"]["user__login"][TOKENIZATION_HINT] == "lowercase"
+    assert issues["columns"]["user__login"][TOKENIZATION_HINT] == "lowercase"  # type: ignore[literal-required]
     assert_class(p, "Issues", expected_items_count=17)
 
 
@@ -337,7 +339,7 @@ def test_empty_dataset_allowed() -> None:
     # weaviate dataset_name is optional so dataset name won't be autogenerated when not explicitly passed
     p = dlt.pipeline(destination="weaviate", full_refresh=True)
     # check if we use localhost
-    client: WeaviateClient = p.destination_client()
+    client: WeaviateClient = p.destination_client()  # type: ignore[assignment]
     if "localhost" not in client.config.credentials.url:
         pytest.skip("skip to avoid race condition with other tests")
 
@@ -345,7 +347,7 @@ def test_empty_dataset_allowed() -> None:
     info = p.run(weaviate_adapter(["context", "created", "not a stop word"], vectorize=["value"]))
     # dataset in load info is empty
     assert info.dataset_name is None
-    client = p.destination_client()
+    client = p.destination_client()  # type: ignore[assignment]
     assert client.dataset_name is None
     assert client.sentinel_class == "DltSentinelClass"
     # also check trace
@@ -382,9 +384,9 @@ def test_vectorize_property_without_data() -> None:
     table_schema = p.default_schema.get_table("Content")
     value_column = table_schema["columns"]["value"]
     assert value_column["primary_key"] is True
-    assert value_column["x-weaviate-vectorize"] is True
+    assert value_column["x-weaviate-vectorize"] is True  # type: ignore[typeddict-item]
 
     # we forced schema change in the pipeline but weaviate does not support enabling vectorization on existing properties and classes
     # so mock the class otherwise the test will not pass
-    value_column["x-weaviate-vectorize"] = False
+    value_column["x-weaviate-vectorize"] = False  # type: ignore[typeddict-unknown-key]
     assert_class(p, "Content", expected_items_count=6)

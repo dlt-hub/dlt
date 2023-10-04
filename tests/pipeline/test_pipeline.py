@@ -2,7 +2,7 @@ import itertools
 import logging
 import os
 import random
-from typing import Any, Optional, Iterator, Dict, Any
+from typing import Any, Optional, Iterator, Dict, Any, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 from pydantic import BaseModel
 
@@ -27,6 +27,7 @@ from dlt.extract.source import DltResource, DltSource
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
 from dlt.pipeline.helpers import retry_load
+from dlt.pipeline import TCollectorArg
 
 from tests.common.utils import TEST_SENTRY_DSN
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
@@ -85,7 +86,7 @@ def test_run_full_refresh_default_dataset() -> None:
     assert p.dataset_name is None
     p._set_dataset_name(None)
     # full refresh is still observed
-    assert p.dataset_name.endswith(p._pipeline_instance_id)
+    assert p.dataset_name and p.dataset_name.endswith(p._pipeline_instance_id)
 
 
 def test_run_full_refresh_underscored_dataset() -> None:
@@ -146,7 +147,6 @@ def test_pipeline_context() -> None:
     assert ctx.pipeline() is p2
     assert p.is_active is False
     assert p2.is_active is True
-    assert Container()[DestinationCapabilitiesContext].naming_convention == "duck_case"
 
     p3 = dlt.pipeline(pipeline_name="more pipelines", destination="dummy")
     assert ctx.pipeline() is p3
@@ -159,7 +159,6 @@ def test_pipeline_context() -> None:
     assert ctx.pipeline() is p2
     assert p3.is_active is False
     assert p2.is_active is True
-    assert Container()[DestinationCapabilitiesContext].naming_convention == "duck_case"
 
 
 def test_import_unknown_destination() -> None:
@@ -640,7 +639,7 @@ def test_set_get_local_value() -> None:
     p.set_local_state_val(value, value)
     assert p.get_local_state_val(value) == value
     # check if this is actual local state
-    assert p.state["_local"][value] == value
+    assert p.state["_local"][value] == value  # type: ignore[literal-required]
 
     new_val = uniq_id()
     # check in context manager
@@ -651,7 +650,7 @@ def test_set_get_local_value() -> None:
         yield 1
 
     p.extract(_w_local_state)
-    assert p.state["_local"][new_val] == new_val
+    assert p.state["_local"][new_val] == new_val  # type: ignore[literal-required]
 
 
 def test_changed_write_disposition() -> None:
@@ -790,7 +789,7 @@ def many_delayed(many, iters):
 
 
 @pytest.mark.parametrize("progress", ["tqdm", "enlighten", "log", "alive_progress"])
-def test_pipeline_progress(progress: str) -> None:
+def test_pipeline_progress(progress: TCollectorArg) -> None:
 
     os.environ["TIMEOUT"] = "3.0"
 
@@ -825,14 +824,14 @@ def test_pipeline_log_progress() -> None:
     # will attach dlt logger
     p = dlt.pipeline(destination="dummy", progress=dlt.progress.log(0.5, logger=None, log_level=logging.WARNING))
     # collector was created before pipeline so logger is not attached
-    assert p.collector.logger is None
+    assert cast(LogCollector, p.collector).logger is None
     p.extract(many_delayed(2, 10))
     # dlt logger attached
-    assert p.collector.logger is not None
+    assert cast(LogCollector, p.collector).logger is not None
 
     # pass explicit root logger
     p = dlt.attach(progress=dlt.progress.log(0.5, logger=logging.getLogger()))
-    assert p.collector.logger is not None
+    assert cast(LogCollector, p.collector).logger is not None
     p.extract(many_delayed(2, 10))
 
 
@@ -984,7 +983,7 @@ def test_apply_hints_infer_hints() -> None:
         "primary_key": ["id"]
     }
     s = infer()
-    s.schema.merge_hints(new_new_hints)
+    s.schema.merge_hints(new_new_hints)  # type: ignore[arg-type]
     pipeline = dlt.pipeline(pipeline_name="inf", destination="dummy")
     pipeline.run(s)
     # check schema

@@ -28,7 +28,7 @@ def file_storage() -> FileStorage:
 
 @pytest.fixture(scope="function")
 def client() -> Iterator[RedshiftClient]:
-    yield from yield_client_with_storage("redshift")
+    yield from yield_client_with_storage("redshift")  # type: ignore[misc]
 
 
 def test_postgres_and_redshift_credentials_defaults() -> None:

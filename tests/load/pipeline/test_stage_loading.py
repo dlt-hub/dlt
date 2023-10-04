@@ -53,8 +53,8 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     assert initial_counts["issues"] == 100
 
     # check item of first row in db
-    with pipeline.destination_client() as client:
-        rows = client.sql_client.execute_sql("SELECT url FROM issues WHERE id = 388089021 LIMIT 1")
+    with pipeline.sql_client() as sql_client:
+        rows = sql_client.execute_sql("SELECT url FROM issues WHERE id = 388089021 LIMIT 1")
         assert rows[0][0] == "https://api.github.com/repos/duckdb/duckdb/issues/71"
 
     if destination_config.supports_merge:
@@ -66,10 +66,10 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
         assert merge_counts == initial_counts
 
         # check changes where merged in
-        with pipeline.destination_client() as client:
-            rows = client.sql_client.execute_sql("SELECT number FROM issues WHERE id = 1232152492 LIMIT 1")
+        with pipeline.sql_client() as sql_client:
+            rows = sql_client.execute_sql("SELECT number FROM issues WHERE id = 1232152492 LIMIT 1")
             assert rows[0][0] == 105
-            rows = client.sql_client.execute_sql("SELECT number FROM issues WHERE id = 1142699354 LIMIT 1")
+            rows = sql_client.execute_sql("SELECT number FROM issues WHERE id = 1142699354 LIMIT 1")
             assert rows[0][0] == 300
 
     # test append
@@ -130,7 +130,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     def my_source():
         return my_resource
 
-    info = pipeline.run(my_source(), loader_file_format=destination_config.file_format)  # type: ignore[arg-type]
+    info = pipeline.run(my_source(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
 
     with pipeline.sql_client() as sql_client:

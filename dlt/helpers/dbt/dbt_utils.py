@@ -25,7 +25,7 @@ except ModuleNotFoundError:
 
 try:
     # dbt <1.5
-    from dbt.main import handle_and_check
+    from dbt.main import handle_and_check  # type: ignore[import]
 except ImportError:
     # dbt >=1.5
     from dbt.cli.main import dbtRunner

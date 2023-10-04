@@ -9,7 +9,7 @@ def test_layout_validity() -> None:
     path_utils.check_layout("{schema_name}/{table_name}/{load_id}.{file_id}.{ext}")
     with pytest.raises(InvalidFilesystemLayout) as exc:
         path_utils.check_layout("{other_ph}.{table_name}")
-        assert exc.invalid_placeholders == {"other_ph"}
+    assert exc.value.invalid_placeholders == ["other_ph"]
 
 
 def test_create_path() -> None:

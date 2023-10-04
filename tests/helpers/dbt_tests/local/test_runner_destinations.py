@@ -1,5 +1,5 @@
 import os
-from typing import Any
+from typing import Any, Iterator
 from git import GitCommandError
 import pytest
 
@@ -19,7 +19,7 @@ ALL_DBT_DESTINATIONS_NAMES = ["bigquery"]  # "redshift",
 
 
 @pytest.fixture(scope="module", params=ALL_DBT_DESTINATIONS, ids=ALL_DBT_DESTINATIONS_NAMES)
-def destination_info(request: Any) -> DBTDestinationInfo:
+def destination_info(request: Any) -> Iterator[DBTDestinationInfo]:
     # this resolves credentials and sets up env for dbt then deletes temp datasets
     with setup_rasa_runner_client(request.param.destination_name, DESTINATION_DATASET_NAME):
         # yield DBTDestinationInfo

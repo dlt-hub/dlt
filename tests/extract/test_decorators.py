@@ -1,5 +1,5 @@
 import os
-from typing import List, Optional, Dict, Iterator, Any
+from typing import List, Optional, Dict, Iterator, Any, cast
 
 import pytest
 from pydantic import BaseModel
@@ -15,6 +15,7 @@ from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.source import _SOURCES
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table, new_column
+from dlt.common.schema.typing import TTableSchemaColumns
 
 from dlt.cli.source_detection import detect_source_configs
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ExplicitSourceNameInvalid, InconsistentTableTemplate, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
@@ -26,7 +27,7 @@ from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V6
 
 def test_none_returning_source() -> None:
     with pytest.raises(SourceNotAFunction):
-        dlt.source("data")()
+        dlt.source("data")()  # type: ignore[call-overload]
 
     def empty() -> None:
         pass
@@ -148,10 +149,10 @@ def test_source_name_is_invalid_schema_name() -> None:
     assert py_ex.value.name == "source!"
 
     # explicit name and schema mismatch
-    with pytest.raises(ArgumentsOverloadException) as py_ex:
+    with pytest.raises(ArgumentsOverloadException) as py_ex2:
         s = dlt.source(camelCase, name="source_ovr", schema=Schema("compat"))()
     # overload exception applies to dlt.source
-    assert py_ex.value.func_name == "source"
+    assert py_ex2.value.func_name == "source"
 
 
 def test_resource_name_is_invalid_table_name_and_columns() -> None:
@@ -174,7 +175,7 @@ def test_resource_name_is_invalid_table_name_and_columns() -> None:
 
 def test_columns_argument() -> None:
 
-    @dlt.resource(name="user", columns={"tags": {"data_type": "complex", "x-extra": "x-annotation"}})
+    @dlt.resource(name="user", columns={"tags": {"data_type": "complex", "x-extra": "x-annotation"}})  # type: ignore[typeddict-unknown-key]
     def get_users():
         yield {"u": "u", "tags": [1, 2 ,3]}
 
@@ -182,18 +183,18 @@ def test_columns_argument() -> None:
 
     assert "nullable" not in t["columns"]["tags"]
     assert t["columns"]["tags"]["data_type"] == "complex"
-    assert t["columns"]["tags"]["x-extra"] == "x-annotation"
+    assert t["columns"]["tags"]["x-extra"] == "x-annotation"  # type: ignore[typeddict-item]
 
     r = get_users()
-    r.apply_hints(columns={"invalid": {"data_type": "unk", "wassup": False}})
+    r.apply_hints(columns={"invalid": {"data_type": "unk", "wassup": False}})  # type: ignore[typeddict-unknown-key, typeddict-item]
     with pytest.raises(DictValidationException):
         r.compute_table_schema()
 
     r = get_users()
-    r.apply_hints(columns={"tags": {"x-second-extra": "x-second-annotation"}})
+    r.apply_hints(columns={"tags": {"x-second-extra": "x-second-annotation"}})  # type: ignore[typeddict-unknown-key]
     t = r.compute_table_schema()
 
-    assert t["columns"]["tags"]["x-second-extra"] == "x-second-annotation"
+    assert t["columns"]["tags"]["x-second-extra"] == "x-second-annotation"  # type: ignore[typeddict-item]
     # make sure column name was set
     assert t["columns"]["tags"]["name"] == "tags"
 
@@ -205,16 +206,16 @@ def test_apply_hints_columns() -> None:
 
     users = get_users()
     assert users.columns == {"tags": {"data_type": "complex", "name": "tags", "primary_key": True}}
-    assert users.columns["tags"] == users.compute_table_schema()["columns"]["tags"]
+    assert cast(TTableSchemaColumns, users.columns)["tags"] == users.compute_table_schema()["columns"]["tags"]
 
     # columns property can be changed in place
-    users.columns["tags"]["data_type"] = "text"
+    cast(TTableSchemaColumns, users.columns)["tags"]["data_type"] = "text"
     assert users.compute_table_schema()["columns"]["tags"]["data_type"] == "text"
 
     # apply column definition - it should be merged with defaults
     users.apply_hints(columns={"tags": {"primary_key": False, "data_type": "text"}, "things": new_column("things", nullable=False)})
-    assert users.columns["tags"] == {"data_type": "text", "name": "tags", "primary_key": False}
-    assert users.columns["things"] == {"name": "things", "nullable": False}
+    assert cast(TTableSchemaColumns, users.columns)["tags"] == {"data_type": "text", "name": "tags", "primary_key": False}
+    assert cast(TTableSchemaColumns, users.columns)["things"] == {"name": "things", "nullable": False}
 
     # delete columns by passing empty
     users.apply_hints(columns={})
@@ -598,7 +599,7 @@ def test_spec_generation() -> None:
     assert py_ex.value.resource_name == "inner_resource"
 
     # outer resource does not take default params
-    SPEC = get_fun_spec(standalone_resource._pipe.gen)
+    SPEC = get_fun_spec(standalone_resource._pipe.gen)  # type: ignore[arg-type]
     fields = SPEC.get_resolvable_fields()
 
     # args with defaults are ignored
@@ -651,7 +652,7 @@ def test_sources_no_arguments() -> None:
 
 def test_resource_sets_invalid_write_disposition() -> None:
 
-    @dlt.resource(write_disposition="xxxx")
+    @dlt.resource(write_disposition="xxxx")  # type: ignore[call-overload]
     def invalid_disposition():
         yield from [1, 2, 3]
 

@@ -29,7 +29,7 @@ def perform_load(
 ) -> Iterator[Tuple[FilesystemClient, List[LoadJob], str, str]]:
     load = setup_loader(dataset_name)
     load_id, schema = prepare_load_package(load.load_storage, cases, write_disposition)
-    client: FilesystemClient = load.get_destination_client(schema)
+    client: FilesystemClient = load.get_destination_client(schema)  # type: ignore[assignment]
 
     # for the replace disposition in the loader we truncate the tables, so do this here
     truncate_tables = []
