@@ -84,8 +84,6 @@ class SynapseMergeJob(SqlMergeJob):
         return '#' + name
 
 class SynapseClient(InsertValuesJobClient):
-    #TODO: Add a function to insert multiple values for several columns in insert sql to individual insert sql.
-    #Synapse does not support multi-row inserts using a single INSERT INTO statement
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
