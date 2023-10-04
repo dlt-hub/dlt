@@ -13,7 +13,7 @@ def zendesk_support(
     credentials: Dict[str, str]=dlt.secrets.value,
     start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
     end_date: Optional[TAnyDateTime] = None,
-) -> DltResource:
+):
     """
     Retrieves data from Zendesk Support for tickets events.
 
@@ -42,6 +42,10 @@ def zendesk_support(
     subdomain = credentials["subdomain"]
     url = f"https://{subdomain}.zendesk.com"
 
+    # we use `append` write disposition, because objects in ticket_events endpoint are never updated
+    #  so we do not need to merge
+    # we set primary_key so allow deduplication of events by the `incremental` below in the rare case
+    #  when two events have the same timestamp
     @dlt.resource(primary_key="id", write_disposition="append")
     def ticket_events(
         timestamp: dlt.sources.incremental[int] = dlt.sources.incremental(
@@ -50,7 +54,7 @@ def zendesk_support(
             end_value=end_date_ts,
             allow_external_schedulers=True,
         ),
-    ) -> Iterator[TDataItem]:
+    ):
         # URL For ticket events
         # 'https://d3v-dlthub.zendesk.com/api/v2/incremental/ticket_events.json?start_time=946684800'
         event_pages = get_pages(
@@ -76,7 +80,7 @@ def get_pages(
     auth: Tuple[str, str],
     data_point_name: str,
     params: Optional[Dict[str, Any]] = None,
-) -> Iterator[TDataItems]:
+):
     """
     Makes a request to a paginated endpoint and returns a generator of data items per page.
 
