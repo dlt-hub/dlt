@@ -248,7 +248,7 @@ class JobClientBase(ABC):
         # in the base job, all replace strategies are treated the same, see filesystem for example
         return ["replace"]
 
-    def get_truncate_destination_table_dispositions_for_staging(self) -> List[TWriteDisposition]:
+    def get_truncate_staging_destination_table_dispositions(self) -> List[TWriteDisposition]:
         # some clients need to additionally be able to get the staging destination to truncate tables
         return []
 

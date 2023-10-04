@@ -150,8 +150,6 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
 
     def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema], replace: bool) -> NewLoadJob:
         """update destination tables from staging tables"""
-        if not replace:
-            return None
         return SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": True})
 
     def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
@@ -165,17 +163,13 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         jobs = super().create_table_chain_completed_followup_jobs(table_chain)
         write_disposition = table_chain[0]["write_disposition"]
         if write_disposition == "append":
-            if job := self._create_staging_copy_job(table_chain, False):
-                jobs.append(job)
+            pass
         elif write_disposition == "merge":
-            if job := self._create_merge_job(table_chain):
-                jobs.append(job)
+            jobs.append(self._create_merge_job(table_chain))
         elif write_disposition == "replace" and self.config.replace_strategy == "insert-from-staging":
-            if job := self._create_staging_copy_job(table_chain, True):
-                jobs.append(job)
+            jobs.append(self._create_staging_copy_job(table_chain, True))
         elif write_disposition == "replace" and self.config.replace_strategy == "staging-optimized":
-            if job := self._create_optimized_replace_job(table_chain):
-                jobs.append(job)
+            jobs.append(self._create_optimized_replace_job(table_chain))
         return jobs
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:

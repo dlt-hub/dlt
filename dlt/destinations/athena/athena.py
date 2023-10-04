@@ -357,22 +357,34 @@ class AthenaClient(SqlJobClientWithStaging):
             job = DoNothingJob(file_path)
         return job
 
+    def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
+        jobs = super().create_table_chain_completed_followup_jobs(table_chain)
+        # when in iceberg mode, we need to add some more jobs
+        if self.iceberg_mode:
+            write_disposition = table_chain[0]["write_disposition"]
+            if write_disposition == "append":
+                jobs.append(self._create_staging_copy_job(table_chain, False))
+            elif write_disposition == "replace" and self.config.replace_strategy == "truncate-and-insert":
+                jobs.append(self._create_staging_copy_job(table_chain, True))
+        return jobs
+
     def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema], replace: bool) -> NewLoadJob:
         """update destination tables from staging tables"""
         if self.iceberg_mode:
             return SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": replace})
-        return None
+        return super()._create_staging_copy_job(table_chain, replace=replace)
 
     def get_stage_dispositions(self) -> List[TWriteDisposition]:
         # in iceberg mode, we always use staging tables
         if self.iceberg_mode:
             return ["append", "replace", "merge"]
-        return []
+        return super().get_stage_dispositions()
 
-    def get_truncate_destination_table_dispositions_for_staging(self) -> List[TWriteDisposition]:
+    def get_truncate_staging_destination_table_dispositions(self) -> List[TWriteDisposition]:
         if self.iceberg_mode:
             return ["append", "replace", "merge"]
-        return ["replace"]
+        return []
 
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:

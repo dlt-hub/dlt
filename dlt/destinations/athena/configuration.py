@@ -13,6 +13,7 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     credentials: AwsCredentials = None
     athena_work_group: Optional[str] = None
     aws_data_catalog: Optional[str] = "awsdatacatalog"
+    supports_truncate_command: bool = False
 
     __config_gen_annotations__: ClassVar[List[str]] = ["athena_work_group"]
 
