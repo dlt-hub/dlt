@@ -95,6 +95,6 @@ def tap(venv: Venv, tap_name: str, config_file: FilePathOrDict, catalog_file: Fi
                                         os.path.abspath(catalog_file_path),
                                         *state_params
                                         )
-        yield from get_source_from_stream(pipe_iterator, state)  # type: ignore
+        yield from get_source_from_stream(pipe_iterator, state)
 
     return singer_messages

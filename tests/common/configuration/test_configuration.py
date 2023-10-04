@@ -1008,7 +1008,7 @@ def test_add_config_to_env(environment: Dict[str, str]) -> None:
             default="BUBA")
     )
     add_config_to_env(c, ("dlt", ))
-    # must contain DLT prefix everywhere, INSTRUMENTED section taken from key and DLT_TEST taken from password
+    # must contain dlt prefix everywhere, INSTRUMENTED section taken from key and DLT_TEST taken from password
     assert environment.items() >= {
         'DLT__DEFAULT': 'BUBA',
         'DLT__INSTRUMENTED__HEAD': 'h', 'DLT__INSTRUMENTED__TUBE': '["tu","u","be"]', 'DLT__INSTRUMENTED__HEELS': 'he',

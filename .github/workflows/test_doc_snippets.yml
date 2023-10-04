@@ -18,6 +18,9 @@ env:
   DESTINATION__WEAVIATE__VECTORIZER: text2vec-contextionary
   DESTINATION__WEAVIATE__MODULE_CONFIG: "{\"text2vec-contextionary\": {\"vectorizeClassName\": false, \"vectorizePropertyName\": true}}"
 
+  # zendesk vars for example
+  SOURCES__ZENDESK__CREDENTIALS: ${{ secrets.ZENDESK__CREDENTIALS }}
+
 jobs:
 
   run_lint:

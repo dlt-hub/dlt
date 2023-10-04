@@ -231,4 +231,4 @@ To create your data pipeline using single loading and [incremental data loading
 
 6. It's important to keep the pipeline name and destination dataset name unchanged. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) of the last pipeline run, which includes the end date needed for loading data incrementally. Modifying these names can lead to [“full_refresh”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh) which will disrupt the tracking of relevant metadata(state) for [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
 
-That's it! Enjoy running your Stripe DLT pipeline!
+That's it! Enjoy running your Stripe dlt pipeline!
