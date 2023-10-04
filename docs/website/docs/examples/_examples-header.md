@@ -17,5 +17,5 @@ cd ./dlt/docs/examples/${props.slug}
 # install dlt with duckdb
 pip install "dlt[duckdb]"
 # run the example script
-python run.py`}
+python ${props.run_file}.py`}
 </CodeBlock>
