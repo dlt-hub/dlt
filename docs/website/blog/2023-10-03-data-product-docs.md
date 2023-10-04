@@ -49,7 +49,7 @@ For example, a product is:
 - Robust: Nothing kills the trust in data faster than bad numbers. To be maintainable, code must be simple, explicit, tested, and **documented** :)
 - Secure: Everything from credentials to data should be secure. Depending on their requirements, that could mean keeping data on your side (no 3rd party tools), controlling data access, using SOC2 compliant credential stores, etc.
 - Observable: Is it working? how do you know? you can automate a large part of this question by monitoring the volume of data and schema changes, or whatever other important run parameters or changes you might have.
-- Operationizable: Can we use it? do we need a rocket scientist, or can [little Bobby Tables](https://xkcd.com/327/) use it? That will largely depend on docs and the product itself
+- Operationizable: Can we use it? do we need a rocket scientist, or can [little Bobby Tables](https://xkcd.com/327/) use it? That will largely depend on docs and the product itself.
 
 ### So what is a data product made of?
 
