@@ -295,6 +295,7 @@ class AthenaClient(SqlJobClientWithStaging):
         self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config
         self.type_mapper = AthenaTypeMapper(self.capabilities)
+        self.iceberg_mode = not (not self.config.iceberg_bucket_url)
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # never truncate tables in athena
@@ -308,10 +309,10 @@ class AthenaClient(SqlJobClientWithStaging):
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
 
-        create_only_iceberg_tables = self.config.iceberg_bucket_url is not None and not self.in_staging_mode
+        create_data_iceberg_tables = self.iceberg_mode and not self.in_staging_mode
 
         bucket = self.config.staging_config.bucket_url
-        if create_only_iceberg_tables:
+        if create_data_iceberg_tables:
             bucket = self.config.iceberg_bucket_url
 
         # TODO: we need to strip the staging layout from the table name, find a better way!
@@ -320,7 +321,7 @@ class AthenaClient(SqlJobClientWithStaging):
 
         # for the system tables we need to create empty iceberg tables to be able to run, DELETE and UPDATE queries
         # or if we are in iceberg mode, we create iceberg tables for all tables
-        is_iceberg = (self.schema.tables[table_name].get("write_disposition", None) == "skip") or create_only_iceberg_tables
+        is_iceberg = create_data_iceberg_tables or (self.schema.tables[table_name].get("write_disposition", None) == "skip")
         columns = ", ".join([self._get_column_def_sql(c) for c in new_columns])
 
         # this will fail if the table prefix is not properly defined
@@ -362,12 +363,12 @@ class AthenaClient(SqlJobClientWithStaging):
 
     def get_stage_dispositions(self) -> List[TWriteDisposition]:
         # in iceberg mode, we always use staging tables
-        if self.config.iceberg_bucket_url is not None:
+        if self.iceberg_mode:
             return ["append", "replace", "merge"]
         return []
 
     def get_truncate_destination_table_dispositions_for_staging(self) -> List[TWriteDisposition]:
-        if self.config.iceberg_bucket_url is not None:
+        if self.iceberg_mode:
             return ["append", "replace", "merge"]
         return ["replace"]
 
