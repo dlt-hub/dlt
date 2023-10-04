@@ -359,7 +359,9 @@ class AthenaClient(SqlJobClientWithStaging):
 
     def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema], replace: bool) -> NewLoadJob:
         """update destination tables from staging tables"""
-        return SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": replace})
+        if self.iceberg_mode:
+            return SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": replace})
+        return None
 
     def get_stage_dispositions(self) -> List[TWriteDisposition]:
         # in iceberg mode, we always use staging tables
