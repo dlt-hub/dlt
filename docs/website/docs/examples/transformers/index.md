@@ -1,5 +1,5 @@
 ---
-title: Get Pokemon details in parallel using transformers
+title: Pokemon details in parallel using transformers
 description: Learn how to use dlt transformers and how to speed up your loads with parallelism
 keywords: [transformers, parallelism, example]
 ---
