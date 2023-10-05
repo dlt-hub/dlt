@@ -121,7 +121,7 @@ class DLTAthenaFormatter(DefaultParameterFormatter):
         DLTAthenaFormatter._INSTANCE = self
 
 
-class DoNothingJob(LoadJob, FollowupJob):
+class DoNothingJob(LoadJob):
     """The most lazy class of dlt"""
 
     def __init__(self, file_path: str) -> None:
@@ -134,6 +134,10 @@ class DoNothingJob(LoadJob, FollowupJob):
     def exception(self) -> str:
         # this part of code should be never reached
         raise NotImplementedError()
+
+class DoNothingFollowupJob(DoNothingJob, FollowupJob):
+    """The second most lazy class of dlt"""
+    pass
 
 
 class AthenaSQLClient(SqlClientBase[Connection]):
@@ -298,8 +302,10 @@ class AthenaClient(SqlJobClientWithStaging):
         self.iceberg_mode = not (not self.config.iceberg_bucket_url)
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
-        # never truncate tables in athena
-        super().initialize_storage([])
+        # only truncate tables in iceberg mode
+        if not self.iceberg_mode or self.in_staging_mode:
+            truncate_tables = []
+        super().initialize_storage(truncate_tables)
 
     def _from_db_type(self, hive_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
         return self.type_mapper.from_db_type(hive_t, precision, scale)
@@ -354,19 +360,24 @@ class AthenaClient(SqlJobClientWithStaging):
             )
         job = super().start_file_load(table, file_path, load_id)
         if not job:
-            job = DoNothingJob(file_path)
+            job = DoNothingFollowupJob(file_path) if self.iceberg_mode else DoNothingJob(file_path)
         return job
 
     def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
         jobs = super().create_table_chain_completed_followup_jobs(table_chain)
-        # when in iceberg mode, we need to add some more jobs
-        if self.iceberg_mode:
-            write_disposition = table_chain[0]["write_disposition"]
-            if write_disposition == "append":
-                jobs.append(self._create_staging_copy_job(table_chain, False))
-            elif write_disposition == "replace" and self.config.replace_strategy == "truncate-and-insert":
-                jobs.append(self._create_staging_copy_job(table_chain, True))
+
+        # no jobs if we are merging: TODO: add proper iceberg merge job
+        write_disposition = table_chain[0]["write_disposition"]
+        if write_disposition == "merge":
+            return []
+
+        # add some additional jobs
+        write_disposition = table_chain[0]["write_disposition"]
+        if write_disposition == "append":
+            jobs.append(self._create_staging_copy_job(table_chain, False))
+        elif write_disposition == "replace" and self.config.replace_strategy == "truncate-and-insert":
+            jobs.append(self._create_staging_copy_job(table_chain, False))
         return jobs
 
     def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema], replace: bool) -> NewLoadJob:
