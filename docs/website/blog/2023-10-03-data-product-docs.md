@@ -67,7 +67,7 @@ We will need top level docs, plus some for each of the parts described above.
 2. Structured data:
     1. A **data dictionary** enables users to gain literacy on the dataset.
     2. **Maintenance info:** information about the source, schema, tests, responsible person, how to monitor, etc.
-3. Code & Usage manual: This one is harder. You need to convey a lot of information effectively, and depending on who your user is, you need to convey that information in a different format. According to the **[leading brains on the topic of docs](https://www.writethedocs.org/videos/eu/2017/the-four-kinds-of-documentation-and-why-you-need-to-understand-what-they-are-daniele-procida/)**, these are the **4 relevant formats you should consider.** They will enable you to write high quality, comprehensive and understandable docs that cover the user’s intention.
+3. Code & Usage manual: This one is harder. You need to convey a lot of information effectively, and depending on who your user is, you need to convey that information in a different format. According to the **[best practices on the topic of docs](https://documentation.divio.com/introduction.html)**, these are the **4 relevant formats you should consider.** They will enable you to write high quality, comprehensive and understandable docs that cover the user’s intention.
     - learning-oriented tutorials
     - goal-oriented how-to guides
     - understanding-oriented discussions
@@ -86,7 +86,7 @@ Here’s how a dlt pipeline documentation could be structured:
 
 # In conclusion
 
-Stop thinking about data, code and docs in isolation - they do not function independently, they are different parts of the same product. To produce quality documentation, focus on the why, let the code show the what and how. and use [standard formats](https://www.writethedocs.org/videos/eu/2017/the-four-kinds-of-documentation-and-why-you-need-to-understand-what-they-are-daniele-procida/) for teaching complex tooling
+Stop thinking about data, code and docs in isolation - they do not function independently, they are different parts of the same product. To produce quality documentation, focus on the why, let the code show the what and how. and use [standard formats](https://documentation.divio.com/introduction.html) for teaching complex tooling
 
 Want to create data products with dlt? What are you waiting for?
 
