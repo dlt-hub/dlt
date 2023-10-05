@@ -3,6 +3,10 @@
 name: test synapse
 
 on:
+  pull_request:
+    branches:
+      - master
+      - devel
   push:
     branches:
       - master
