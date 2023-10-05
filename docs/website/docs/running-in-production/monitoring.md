@@ -9,7 +9,7 @@ keywords: [monitoring, run monitoring, data monitoring, airflow, github actions]
 Monitoring and [alerting](alerting.md) are used together to give a most complete picture of the
 health of a data product. With monitoring, we look at much more information than we consider when
 alerting. Monitoring is meant to give a fast, simple overview of the health of the system. How to
-best monitor a `dlt` pipeline will depend on your [deployment method](../dlt-ecosystem/deployments).
+best monitor a `dlt` pipeline will depend on your [deployment method](../walkthroughs/deploy-a-pipeline/).
 
 ## Run monitoring
 
