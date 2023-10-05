@@ -63,7 +63,6 @@ class SqlStagingCopyJob(SqlBaseJob):
             columns = ", ".join(map(sql_client.capabilities.escape_identifier, get_columns_names_with_prop(table, "name")))
             if params["replace"]:
                 sql.append(sql_client._truncate_table_sql(table_name))
-            print(f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};")
             sql.append(f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};")
         return sql
 

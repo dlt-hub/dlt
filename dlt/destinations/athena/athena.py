@@ -69,13 +69,18 @@ class AthenaTypeMapper(TypeMapper):
         "int": "bigint",
     }
 
+    def __init__(self, capabilities: DestinationCapabilitiesContext, iceberg_mode: bool):
+        super().__init__(capabilities)
+        self.iceberg_mode = iceberg_mode
+
     def to_db_integer_type(self, precision: Optional[int]) -> str:
         if precision is None:
             return "bigint"
+        # iceberg does not support smallint and tinyint
         if precision <= 8:
-            return "tinyint"
+            return "int" if self.iceberg_mode else "tinyint"
         elif precision <= 16:
-            return "smallint"
+            return "int" if self.iceberg_mode else "smallint"
         elif precision <= 32:
             return "int"
         return "bigint"
@@ -298,8 +303,8 @@ class AthenaClient(SqlJobClientWithStaging):
         super().__init__(schema, config, sql_client)
         self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config
-        self.type_mapper = AthenaTypeMapper(self.capabilities)
         self.iceberg_mode = not (not self.config.iceberg_bucket_url)
+        self.type_mapper = AthenaTypeMapper(self.capabilities, self.iceberg_mode)
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # only truncate tables in iceberg mode
