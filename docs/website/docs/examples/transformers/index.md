@@ -7,23 +7,23 @@ keywords: [transformers, parallelism, example]
 import Header from '../_examples-header.md';
 
 <Header
-    intro="In this example you will learn how load a list of pokemon from the pokeapi and with the help of dlt transformers
-    automatically query additional data per retrieved pokemon. You will also learn how to harness parallelism with a thread pool."
+    intro="In this example, you will learn how to load a list of Pokemon from the PokeAPI and with the help of dlt transformers
+    automatically query additional data per retrieved Pokemon. You will also learn how to harness parallelism with a thread pool."
     slug="transformer"
     run_file="pokemon" />
 
 
-## Using transformers with the pokemon api
+## Using transformers with the Pokemon API
 
-For this example we will be loading pokemon data from the [Poke Api](https://pokeapi.co/) with the help of transformers to load
-pokemon details in parallel
+For this example, we will be loading Pokemon data from the [PokeAPI](https://pokeapi.co/) with the help of transformers to load
+Pokemon details in parallel.
 
 We'll learn how to:
-- create 2 [transformers](../../general-usage/resource.md#feeding-data-from-one-resource-into-another) and connect them to a resource with the pipe operator `|`
-- [load these transformers in parallel](../../reference/performance.md#parallelism) using the `@dlt.defer` decorator
-- [configure parallelism](../../reference/performance.md#parallel-pipeline-config-example) in the `config.toml` file
-- deselect the main resource so it will not be loaded into the database.
-- importing and using a pre-configured `requests` library with automatic retries (`from dlt.sources.helpers import requests`)
+- create 2 [transformers](../../general-usage/resource.md#feeding-data-from-one-resource-into-another) and connect them to a resource with the pipe operator `|`;
+- [load these transformers in parallel](../../reference/performance.md#parallelism) using the `@dlt.defer` decorator;
+- [configure parallelism](../../reference/performance.md#parallel-pipeline-config-example) in the `config.toml` file;
+- deselect the main resource, so it will not be loaded into the database;
+- importing and using a pre-configured `requests` library with automatic retries (`from dlt.sources.helpers import requests`).
 
 ### Loading code
 
