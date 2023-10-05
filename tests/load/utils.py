@@ -110,7 +110,7 @@ def destinations_configs(
         destination_configs += [DestinationTestConfiguration(destination=destination) for destination in SQL_DESTINATIONS if destination != "athena"]
         # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
         destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
-        destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, iceberg_bucket_url=AWS_BUCKET + "/iceberg", supports_merge=False, extra_info="iceberg")]
+        destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, iceberg_bucket_url=AWS_BUCKET + "/iceberg", supports_merge=True, extra_info="iceberg")]
 
     if default_vector_configs:
         # for now only weaviate
