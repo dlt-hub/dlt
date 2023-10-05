@@ -114,8 +114,10 @@ class PostgresClient(InsertValuesJobClient):
         column_name = self.capabilities.escape_identifier(c["name"])
         return f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
-    def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return PostgresStagingCopyJob.from_table_chain(table_chain, self.sql_client)
+    def _create_replace_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        if self.config.replace_strategy == "staging-optimized":
+            return [PostgresStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
+        return super()._create_replace_followup_jobs(table_chain)
 
     def _from_db_type(self, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
         return self.type_mapper.from_db_type(pq_t, precision, scale)

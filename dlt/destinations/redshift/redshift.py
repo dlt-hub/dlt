@@ -201,8 +201,8 @@ class RedshiftClient(InsertValuesJobClient):
         self.config: RedshiftClientConfiguration = config
         self.type_mapper = RedshiftTypeMapper(self.capabilities)
 
-    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        return [RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         hints_str = " ".join(HINT_TO_REDSHIFT_ATTR.get(h, "") for h in HINT_TO_REDSHIFT_ATTR.keys() if c.get(h, False) is True)

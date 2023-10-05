@@ -204,8 +204,10 @@ class SnowflakeClient(SqlJobClientWithStaging):
         # Override because snowflake requires multiple columns in a single ADD COLUMN clause
         return ["ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
 
-    def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return SnowflakeStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": True})
+    def _create_replace_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        if self.config.replace_strategy == "staging-optimized":
+            return [SnowflakeStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
+        return super()._create_replace_followup_jobs(table_chain)
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)

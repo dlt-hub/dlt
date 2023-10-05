@@ -133,8 +133,8 @@ class MsSqlClient(InsertValuesJobClient):
         self.active_hints = HINT_TO_MSSQL_ATTR if self.config.create_indexes else {}
         self.type_mapper = MsSqlTypeMapper(self.capabilities)
 
-    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return MsSqlMergeJob.from_table_chain(table_chain, self.sql_client)
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        return [MsSqlMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
         # Override because mssql requires multiple columns in a single ADD COLUMN clause
@@ -152,8 +152,10 @@ class MsSqlClient(InsertValuesJobClient):
         column_name = self.capabilities.escape_identifier(c["name"])
         return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c['nullable'])}"
 
-    def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return MsSqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)
+    def _create_replace_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        if self.config.replace_strategy == "staging-optimized":
+            return [MsSqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
+        return super()._create_replace_followup_jobs(table_chain)
 
     def _from_db_type(self, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
         return self.type_mapper.from_db_type(pq_t, precision, scale)

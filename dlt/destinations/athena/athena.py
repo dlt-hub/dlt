@@ -323,11 +323,15 @@ class AthenaClient(SqlJobClientWithStaging):
         create_data_iceberg_tables = self.iceberg_mode and not self.in_staging_mode
 
         bucket = self.config.staging_config.bucket_url
+        dataset = self.sql_client.dataset_name
+
         if create_data_iceberg_tables:
             bucket = self.config.iceberg_bucket_url
 
-        # TODO: we need to strip the staging layout from the table name, find a better way!
-        dataset = self.sql_client.dataset_name.replace("_staging", "")
+        # strip the staging portion from the dataset name if we are in iceberg mode
+        if self.iceberg_mode and self.in_staging_mode and dataset.endswith("_staging") :
+            dataset = dataset[:-len("_staging")]
+
         sql: List[str] = []
 
         # for the system tables we need to create empty iceberg tables to be able to run, DELETE and UPDATE queries
@@ -368,23 +372,15 @@ class AthenaClient(SqlJobClientWithStaging):
             job = DoNothingFollowupJob(file_path) if self.iceberg_mode else DoNothingJob(file_path)
         return job
 
-    def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
-        jobs = super().create_table_chain_completed_followup_jobs(table_chain)
-
-        # add some additional jobs
-        write_disposition = table_chain[0]["write_disposition"]
-        if write_disposition == "append":
-            jobs.append(self._create_staging_copy_job(table_chain, False))
-        elif write_disposition == "replace" and self.config.replace_strategy == "truncate-and-insert":
-            jobs.append(self._create_staging_copy_job(table_chain, False))
-        return jobs
-
-    def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema], replace: bool) -> NewLoadJob:
-        """update destination tables from staging tables"""
+    def _create_append_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         if self.iceberg_mode:
-            return SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": replace})
-        return super()._create_staging_copy_job(table_chain, replace=replace)
+            return [SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": False})]
+        return super()._create_append_followup_jobs(table_chain)
+
+    def _create_replace_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        if self.iceberg_mode:
+            return [SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": True})]
+        return super()._create_replace_followup_jobs(table_chain)
 
     def get_stage_dispositions(self) -> List[TWriteDisposition]:
         # in iceberg mode, we always use staging tables

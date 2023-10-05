@@ -167,11 +167,13 @@ class BigQueryClient(SqlJobClientWithStaging):
         self.sql_client: BigQuerySqlClient = sql_client  # type: ignore
         self.type_mapper = BigQueryTypeMapper(self.capabilities)
 
-    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return BigqueryStagingCopyJob.from_table_chain(table_chain, self.sql_client)
+    def _create_replace_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        if self.config.replace_strategy == "staging-optimized":
+            return [BigqueryStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
+        return super()._create_replace_followup_jobs(table_chain)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         """Returns a completed SqlLoadJob or restored BigQueryLoadJob
