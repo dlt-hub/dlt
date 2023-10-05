@@ -308,7 +308,7 @@ def resource(
     """
     def make_resource(_name: str, _section: str, _data: Any, incremental: IncrementalResourceWrapper = None) -> DltResource:
         table_template = DltResource.new_table_template(
-            table_name or _name,
+            table_name,
             write_disposition=write_disposition,
             columns=columns,
             primary_key=primary_key,
