@@ -372,10 +372,10 @@ class AthenaClient(SqlJobClientWithStaging):
         """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
         jobs = super().create_table_chain_completed_followup_jobs(table_chain)
 
-        # no jobs if we are merging: TODO: add proper iceberg merge job
+        # append job if there is a merge TODO: add proper iceberg merge job
         write_disposition = table_chain[0]["write_disposition"]
         if write_disposition == "merge":
-            return []
+            jobs.append(self._create_staging_copy_job(table_chain, False))
 
         # add some additional jobs
         write_disposition = table_chain[0]["write_disposition"]
