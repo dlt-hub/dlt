@@ -143,7 +143,7 @@ class SqlMergeJob(SqlBaseJob):
         Returns:
             sql statement that inserts data from selects into temp table
         """
-        return f"CREATE TEMP TABLE {temp_table_name} AS {select_sql};"
+        return f"CREATE TABLE {temp_table_name} AS {select_sql};"
 
     @classmethod
     def gen_merge_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
@@ -161,7 +161,8 @@ class SqlMergeJob(SqlBaseJob):
 
         unique_column: str = None
         root_key_column: str = None
-        insert_temp_table_sql: str = None
+        insert_temp_table_name: str = None
+        delete_temp_table_name: str = None
 
 
         if len(table_chain) == 1:
@@ -183,10 +184,10 @@ class SqlMergeJob(SqlBaseJob):
             # get first unique column
             unique_column = sql_client.capabilities.escape_identifier(unique_columns[0])
             # create temp table with unique identifier
-            create_delete_temp_table_sql, delete_temp_table_sql = cls.gen_delete_temp_table_sql(unique_column, key_table_clauses)
+            create_delete_temp_table_sql, delete_temp_table_name = cls.gen_delete_temp_table_sql(unique_column, key_table_clauses)
             sql.extend(create_delete_temp_table_sql)
             # delete top table
-            sql.append(f"DELETE FROM {root_table_name} WHERE {unique_column} IN (SELECT * FROM {delete_temp_table_sql});")
+            sql.append(f"DELETE FROM {root_table_name} WHERE {unique_column} IN (SELECT * FROM {delete_temp_table_name});")
             # delete other tables
             for table in table_chain[1:]:
                 table_name = sql_client.make_qualified_table_name(table["name"])
@@ -199,10 +200,10 @@ class SqlMergeJob(SqlBaseJob):
                         f"There is no root foreign key (ie _dlt_root_id) in child table {table['name']} so it is not possible to refer to top level table {root_table['name']} unique column {unique_column}"
                     )
                 root_key_column = sql_client.capabilities.escape_identifier(root_key_columns[0])
-                sql.append(f"DELETE FROM {table_name} WHERE {root_key_column} IN (SELECT * FROM {delete_temp_table_sql});")
+                sql.append(f"DELETE FROM {table_name} WHERE {root_key_column} IN (SELECT * FROM {delete_temp_table_name});")
             # create temp table used to deduplicate, only when we have primary keys
             if primary_keys:
-                create_insert_temp_table_sql, insert_temp_table_sql = cls.gen_insert_temp_table_sql(staging_root_table_name, primary_keys, unique_column)
+                create_insert_temp_table_sql, insert_temp_table_name = cls.gen_insert_temp_table_sql(staging_root_table_name, primary_keys, unique_column)
                 sql.extend(create_insert_temp_table_sql)
 
         # insert from staging to dataset, truncate staging table
@@ -222,11 +223,17 @@ class SqlMergeJob(SqlBaseJob):
                     """
                 else:
                     uniq_column = unique_column if table.get("parent") is None else root_key_column
-                    insert_sql += f" WHERE {uniq_column} IN (SELECT * FROM {insert_temp_table_sql});"
+                    insert_sql += f" WHERE {uniq_column} IN (SELECT * FROM {insert_temp_table_name});"
 
             if insert_sql.strip()[-1] != ";":
                 insert_sql += ";"
             sql.append(insert_sql)
             # -- DELETE FROM {staging_table_name} WHERE 1=1;
+
+        # clean up
+        if insert_temp_table_name:
+            sql.append(f"DROP TABLE {insert_temp_table_name};")
+        if delete_temp_table_name:
+            sql.append(f"DROP TABLE {delete_temp_table_name};")
 
         return sql

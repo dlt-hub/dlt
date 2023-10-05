@@ -145,8 +145,6 @@ def destinations_configs(
         for bucket in ALL_BUCKETS:
             destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=bucket, extra_info=bucket)]
 
-    # destination_configs = [DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, iceberg_bucket_url=AWS_BUCKET + "/iceberg", supports_merge=False, extra_info="iceberg")]
-
     # filter out non active destinations
     destination_configs = [conf for conf in destination_configs if conf.destination in ACTIVE_DESTINATIONS]
 
