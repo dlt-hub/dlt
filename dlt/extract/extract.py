@@ -124,9 +124,7 @@ def extract(
 
                 signals.raise_if_signalled()
 
-                # TODO: many resources may be returned. if that happens the item meta must be present with table name and this name must match one of resources
-                # if meta contains table name
-                resource = source.resources.find_by_pipe(pipe_item.pipe)
+                resource = source.resources[pipe_item.pipe.name]
                 table_name: str = None
                 if isinstance(pipe_item.meta, TableNameMeta):
                     table_name = pipe_item.meta.table_name
@@ -187,7 +185,7 @@ def extract_with_schema(
             for resource in source.resources.extracted.values():
                 with contextlib.suppress(DataItemRequiredForDynamicTableHints):
                     if resource.write_disposition == "replace":
-                        _reset_resource_state(resource._name)
+                        _reset_resource_state(resource.name)
 
             extractor = extract(extract_id, source, storage, collector, max_parallel_items=max_parallel_items, workers=workers)
             # iterate over all items in the pipeline and update the schema if dynamic table hints were present

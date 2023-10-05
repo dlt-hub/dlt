@@ -72,3 +72,39 @@ def test_extract_select_tables() -> None:
 
     schema = expect_tables(table_name_with_lambda)
     assert "table_name_with_lambda" not in schema.tables
+
+
+# def test_extract_pipe_from_unknown_resource():
+#         pass
+
+
+def test_extract_shared_pipe():
+    def input_gen():
+        yield from [1, 2, 3]
+
+    input_r = DltResource.from_data(input_gen)
+    source = DltSource("selectables", "module", dlt.Schema("selectables"), [input_r, input_r.with_name("gen_clone")])
+    storage = ExtractorStorage(NormalizeStorageConfiguration())
+    extract_id = storage.create_extract_id()
+    schema_update = extract(extract_id, source, storage)
+    print(schema_update)
+
+
+def test_extract_renamed_clone_and_parent():
+    def input_gen():
+        yield from [1, 2, 3]
+
+    def tx_step(item):
+        return item*2
+
+    input_r = DltResource.from_data(input_gen)
+    input_tx = DltResource.from_data(tx_step, data_from=DltResource.Empty)
+
+    source = DltSource("selectables", "module", dlt.Schema("selectables"), [input_r, (input_r | input_tx).with_name("tx_clone")])
+    storage = ExtractorStorage(NormalizeStorageConfiguration())
+    extract_id = storage.create_extract_id()
+    schema_update = extract(extract_id, source, storage)
+    assert "input_gen" in schema_update
+    assert "tx_clone" in schema_update
+    # mind that pipe name of the evaluated parent will have different name than the resource
+    assert source.tx_clone._pipe.parent.name == "input_gen_tx_clone"

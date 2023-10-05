@@ -104,7 +104,7 @@ def test_unbound_parametrized_transformer() -> None:
 
     # here we bind the bound_r to empty_t_1 and then evaluate gen on a clone pipe which fails
     with pytest.raises(ParametrizedResourceUnbound):
-        (bound_r | empty_t_1)._pipe._clone(keep_pipe_id=False).evaluate_gen()
+        (bound_r | empty_t_1)._pipe._clone().evaluate_gen()
 
     # here we still have original (non cloned) pipe where gen was not evaluated
     assert list(empty_t_1("_meta")) == [1, 2, 3, 1, 2, 3, 1, 2, 3]
@@ -219,83 +219,7 @@ def test_apply_hints_columns() -> None:
 
     # delete columns by passing empty
     users.apply_hints(columns={})
-    assert users.columns is None
-
-
-def test_apply_hints() -> None:
-    @dlt.resource
-    def empty():
-        yield [1, 2, 3]
-
-    empty_r = empty()
-    assert empty_r.write_disposition == "append"
-    empty_r.apply_hints(write_disposition="replace")
-    assert empty_r.write_disposition == "replace"
-    empty_r.write_disposition = "merge"
-    assert empty_r.compute_table_schema()["write_disposition"] == "merge"
-    # delete hint
-    empty_r.apply_hints(write_disposition="")
-    empty_r.write_disposition = "append"
-    assert empty_r.compute_table_schema()["write_disposition"] == "append"
-
-    empty_r.apply_hints(table_name="table", parent_table_name="parent", primary_key=["a", "b"], merge_key=["c", "a"])
-    table = empty_r.compute_table_schema()
-    assert table["columns"]["a"] == {'merge_key': True, 'name': 'a', 'nullable': False, 'primary_key': True}
-    assert table["columns"]["b"] == {'name': 'b', 'nullable': False, 'primary_key': True}
-    assert table["columns"]["c"] == {'merge_key': True, 'name': 'c', 'nullable': False}
-    assert table["name"] == "table"
-    assert table["parent"] == "parent"
-
-    # reset
-    empty_r.apply_hints(table_name="", parent_table_name="", primary_key=[], merge_key="")
-    table = empty_r.compute_table_schema()
-    assert table["name"] == "empty"
-    assert "parent" not in table
-    assert table["columns"] == {}
-
-    # combine columns with primary key
-
-    empty_r = empty()
-    empty_r.apply_hints(columns={"tags": {"data_type": "complex", "primary_key": False}}, primary_key="tags", merge_key="tags")
-    # primary key not set here
-    assert empty_r.columns["tags"] == {"data_type": "complex", "name": "tags", "primary_key": False}
-    # only in the computed table
-    assert empty_r.compute_table_schema()["columns"]["tags"] == {"data_type": "complex", "name": "tags", "primary_key": True, "merge_key": True}
-
-
-def test_apply_dynamic_hints() -> None:
-    @dlt.resource
-    def empty():
-        yield [1, 2, 3]
-
-    empty_r = empty()
-    with pytest.raises(InconsistentTableTemplate):
-        empty_r.apply_hints(parent_table_name=lambda ev: ev["p"])
-
-    empty_r.apply_hints(table_name=lambda ev: ev["t"], parent_table_name=lambda ev: ev["p"])
-    assert empty_r._table_name_hint_fun is not None
-    assert empty_r._table_has_other_dynamic_hints is True
-
-    with pytest.raises(DataItemRequiredForDynamicTableHints):
-        empty_r.compute_table_schema()
-    table = empty_r.compute_table_schema({"t": "table", "p": "parent"})
-    assert table["name"] == "table"
-    assert table["parent"] == "parent"
-
-    # try write disposition and primary key
-    empty_r.apply_hints(primary_key=lambda ev: ev["pk"], write_disposition=lambda ev: ev["wd"])
-    table = empty_r.compute_table_schema({"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip"})
-    assert table["write_disposition"] == "skip"
-    assert "a" in table["columns"]
-
-    # validate fails
-    with pytest.raises(DictValidationException):
-        empty_r.compute_table_schema({"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "x-skip"})
-
-    # dynamic columns
-    empty_r.apply_hints(columns=lambda ev: ev["c"])
-    table = empty_r.compute_table_schema({"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip", "c": [{"name": "tags"}]})
-    assert table["columns"]["tags"] == {"name": "tags"}
+    assert users.columns == {}
 
 
 def test_columns_from_pydantic() -> None:

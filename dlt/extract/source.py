@@ -46,7 +46,6 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         incremental: IncrementalResourceWrapper = None,
         section: str = None
     ) -> None:
-        self._name = pipe.name
         self.section = section
         self.selected = selected
         self._pipe = pipe
@@ -54,7 +53,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         if incremental and not self.incremental:
             self.add_step(incremental)
         self.source_name = None
-        super().__init__(self._name, table_schema_template)
+        super().__init__(table_schema_template)
 
     @classmethod
     def from_data(
@@ -110,11 +109,11 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
     @property
     def name(self) -> str:
         """Resource name inherited from the pipe"""
-        return self._name
+        return self._pipe.name
 
     def with_name(self, new_name: str) -> "DltResource":
         """Clones the resource with a new name. Such resource keeps separate state and loads data to `new_name` table by default."""
-        return self.clone(new_name=new_name)
+        return self._clone(new_name=new_name)
 
     @property
     def is_transformer(self) -> bool:
@@ -160,16 +159,16 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
     def pipe_data_from(self, data_from: Union["DltResource", Pipe]) -> None:
         """Replaces the parent in the transformer resource pipe from which the data is piped."""
         if self.is_transformer:
-            DltResource._ensure_valid_transformer_resource(self._name, self._pipe.gen)
+            DltResource._ensure_valid_transformer_resource(self.name, self._pipe.gen)
         else:
-            raise ResourceNotATransformer(self._name, "Cannot pipe data into resource that is not a transformer.")
-        parent_pipe = self._get_parent_pipe(self._name, data_from)
+            raise ResourceNotATransformer(self.name, "Cannot pipe data into resource that is not a transformer.")
+        parent_pipe = self._get_parent_pipe(self.name, data_from)
         self._pipe.parent = parent_pipe
 
     def add_pipe(self, data: Any) -> None:
         """Creates additional pipe for the resource from the specified data"""
         # TODO: (1) self resource cannot be a transformer (2) if data is resource both self must and it must be selected/unselected + cannot be tranformer
-        raise InvalidResourceDataTypeMultiplePipes(self._name, data, type(data))
+        raise InvalidResourceDataTypeMultiplePipes(self.name, data, type(data))
 
     def select_tables(self, *table_names: Iterable[str]) -> "DltResource":
         """For resources that dynamically dispatch data to several tables allows to select tables that will receive data, effectively filtering out other data items.
@@ -328,12 +327,12 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         with inject_section(self._get_config_section_context()):
             return resource_state(self.name)
 
-    def clone(self, clone_pipe: bool = True, new_name: str = None) -> "DltResource":
-        """Creates a deep copy of a current resource, optionally renaming the resource (and cloning pipe). Note that name of a containing source will not be cloned."""
-        assert not (new_name and not clone_pipe), "Must clone pipe when changing name"
+    def _clone(self, new_name: str = None) -> "DltResource":
+        """Creates a deep copy of a current resource, optionally renaming the resource. The clone will not be part of the source
+        """
         pipe = self._pipe
-        if self._pipe and not self._pipe.is_empty and clone_pipe:
-            pipe = pipe._clone(keep_pipe_id=False, new_name=new_name)
+        if self._pipe and not self._pipe.is_empty:
+            pipe = pipe._clone(new_name=new_name, with_parent=True)
         # incremental and parent are already in the pipe (if any)
         return DltResource(
             pipe,
@@ -346,7 +345,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         """Binds the parametrized resources to passed arguments. Creates and returns a bound resource. Generators and iterators are not evaluated."""
         if self._bound:
             raise TypeError("Bound DltResource object is not callable")
-        r = self.clone(clone_pipe=True)
+        r = self._clone()
         return r.bind(*args, **kwargs)
 
     def __or__(self, transform: Union["DltResource", AnyFun]) -> "DltResource":
@@ -398,12 +397,14 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             default_schema_name = pipeline._make_schema_with_default_name().name
         return ConfigSectionContext(
             pipeline_name=pipeline_name,
-            sections=(known_sections.SOURCES, self.section or default_schema_name or uniq_id(), self.source_name or default_schema_name or self._name),
+            # do not emit middle config section to not overwrite the resource section
+            # only sources emit middle config section
+            sections=(known_sections.SOURCES, "", self.source_name or default_schema_name or self.name),
             source_state_key=self.source_name or default_schema_name or self.section or uniq_id()
         )
 
     def __str__(self) -> str:
-        info = f"DltResource [{self._name}]"
+        info = f"DltResource [{self.name}]"
         if self.section:
             info += f" in section [{self.section}]"
         if self.source_name:
@@ -422,7 +423,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
                     info += "\nIf you want to see the data items in the resource you must iterate it or convert to list ie. list(resource). Note that, like any iterator, you can iterate the resource only once."
             else:
                 info += "\nThis resource is not bound to the data"
-        info += f"\nInstance: info: (data pipe id:{self._pipe._pipe_id}) at {id(self)}"
+        info += f"\nInstance: info: (data pipe id:{id(self._pipe)}) at {id(self)}"
         return info
 
     @staticmethod
@@ -478,8 +479,11 @@ class DltResourceDict(Dict[str, DltResource]):
         super().__init__()
         self.source_name = source_name
         self.source_section = source_section
-        self._recently_added: List[DltResource] = []
-        self._known_pipes: Dict[str, DltResource] = {}
+        self._suppress_clone_on_setitem = False
+        # pipes not yet cloned in __setitem__
+        self._new_pipes: List[Pipe] = []
+        # pipes already cloned by __setitem__ id(original Pipe):cloned(Pipe)
+        self._cloned_pairs: Dict[int, Pipe] = {}
 
     @property
     def selected(self) -> Dict[str, DltResource]:
@@ -497,7 +501,7 @@ class DltResourceDict(Dict[str, DltResource]):
             while (pipe := resource._pipe.parent) is not None:
                 if not pipe.is_empty:
                     try:
-                        resource = self.find_by_pipe(pipe)
+                        resource = self[pipe.name]
                     except KeyError:
                         # resource for pipe not found: return mock resource
                         mock_template = DltResourceSchema.new_table_template(
@@ -506,7 +510,7 @@ class DltResourceDict(Dict[str, DltResource]):
                         )
                         resource = DltResource(pipe, mock_template, False, section=resource.section)
                         resource.source_name = resource.source_name
-                    extracted[resource._name] = resource
+                    extracted[resource.name] = resource
                 else:
                     break
         return extracted
@@ -532,12 +536,10 @@ class DltResourceDict(Dict[str, DltResource]):
 
     @property
     def pipes(self) -> List[Pipe]:
-        # TODO: many resources may share the same pipe so return ordered set
         return [r._pipe for r in self.values()]
 
     @property
     def selected_pipes(self) -> Sequence[Pipe]:
-        # TODO: many resources may share the same pipe so return ordered set
         return [r._pipe for r in self.values() if r.selected]
 
     def select(self, *resource_names: str) -> Dict[str, DltResource]:
@@ -548,34 +550,56 @@ class DltResourceDict(Dict[str, DltResource]):
                 raise ResourcesNotFoundError(self.source_name, set(self.keys()), set(resource_names))
         # set the selected flags
         for resource in self.values():
-            self[resource._name].selected = resource._name in resource_names
+            self[resource.name].selected = resource.name in resource_names
         return self.selected
 
-    def find_by_pipe(self, pipe: Pipe) -> DltResource:
-        # TODO: many resources may share the same pipe so return a list and also filter the resources by self._enabled_resource_names
-        # identify pipes by _pipe_id
-        if pipe._pipe_id in self._known_pipes:
-            return self._known_pipes[pipe._pipe_id]
+    def add(self, resources: Sequence[DltResource]) -> None:
         try:
-            return self._known_pipes.setdefault(pipe._pipe_id, next(r for r in self.values() if r._pipe._pipe_id == pipe._pipe_id))
-        except StopIteration:
-            raise KeyError(pipe)
+            # temporarily block cloning when single resource is added
+            self._suppress_clone_on_setitem = True
+            for resource in resources:
+                if resource.name in self:
+                    # for resources with the same name try to add the resource as an another pipe
+                    self[resource.name].add_pipe(resource)
+                else:
+                    self[resource.name] = resource
+        finally:
+            self._suppress_clone_on_setitem = False
+        self._clone_new_pipes([r.name for r in resources])
 
-    def clone_new_pipes(self) -> None:
-        cloned_pipes = ManagedPipeIterator.clone_pipes([r._pipe for r in self.values() if r in self._recently_added])
+    def _clone_new_pipes(self, resource_names: Sequence[str]) -> None:
+        # clone all new pipes and keep
+        _, self._cloned_pairs = ManagedPipeIterator.clone_pipes(self._new_pipes, self._cloned_pairs)
+        # self._cloned_pairs.update(cloned_pairs)
         # replace pipes in resources, the cloned_pipes preserve parent connections
-        for cloned in cloned_pipes:
-            self.find_by_pipe(cloned)._pipe = cloned
-        self._recently_added.clear()
+        for name in resource_names:
+            resource = self[name]
+            pipe_id = id(resource._pipe)
+            if pipe_id in self._cloned_pairs:
+                resource._pipe = self._cloned_pairs[pipe_id]
+        self._new_pipes.clear()
 
     def __setitem__(self, resource_name: str, resource: DltResource) -> None:
+        if resource_name != resource.name:
+            raise ValueError(f"The index name {resource_name} does not correspond to resource name {resource.name}")
+        pipe_id = id(resource._pipe)
         # make shallow copy of the resource
         resource = copy(resource)
-        resource.section = self.source_section
+        # resource.section = self.source_section
         resource.source_name = self.source_name
+        if pipe_id in self._cloned_pairs:
+            # if resource_name in self:
+            #     raise ValueError(f"Resource with name {resource_name} and pipe id {id(pipe_id)} is already present in the source. "
+            #                      "Modify the resource pipe directly instead of setting a possibly modified instance.")
+            # TODO: instead of replacing pipe with existing one we should clone and replace the existing one in all resources that have it
+            resource._pipe = self._cloned_pairs[pipe_id]
+        else:
+            self._new_pipes.append(resource._pipe)
         # now set it in dict
-        self._recently_added.append(resource)
-        return super().__setitem__(resource_name, resource)
+        super().__setitem__(resource_name, resource)
+        # immediately clone pipe if not suppressed
+        if not self._suppress_clone_on_setitem:
+            self._clone_new_pipes([resource.name])
 
     def __delitem__(self, resource_name: str) -> None:
         raise DeletingResourcesNotSupported(self.source_name, resource_name)
@@ -605,9 +629,7 @@ class DltSource(Iterable[TDataItem]):
             warnings.warn(f"Schema name {schema.name} differs from source name {name}! The explicit source name argument is deprecated and will be soon removed.")
 
         if resources:
-            for resource in resources:
-                self._add_resource(resource._name, resource)
-            self._resources.clone_new_pipes()
+            self.resources.add(resources)
 
     @classmethod
     def from_data(cls, name: str, section: str, schema: Schema, data: Any) -> "DltSource":
@@ -780,16 +802,6 @@ class DltSource(Iterable[TDataItem]):
             source_state_key=self.name
         )
 
-    def _add_resource(self, name: str, resource: DltResource) -> None:
-        if self.exhausted:
-            raise SourceExhausted(self.name)
-
-        if name in self._resources:
-            # for resources with the same name try to add the resource as an another pipe
-            self._resources[name].add_pipe(resource)
-        else:
-            self._resources[name] = resource
-
     def __getattr__(self, resource_name: str) -> DltResource:
         return self._resources[resource_name]
 
@@ -805,9 +817,9 @@ class DltSource(Iterable[TDataItem]):
         for r in self.resources.values():
             selected_info = "selected" if r.selected else "not selected"
             if r.is_transformer:
-                info += f"\ntransformer {r._name} is {selected_info} and takes data from {r._pipe.parent.name}"
+                info += f"\ntransformer {r.name} is {selected_info} and takes data from {r._pipe.parent.name}"
             else:
-                info += f"\nresource {r._name} is {selected_info}"
+                info += f"\nresource {r.name} is {selected_info}"
         if self.exhausted:
             info += "\nSource is already iterated and cannot be used again ie. to display or load data."
         else:
