@@ -553,7 +553,7 @@ class DltResourceDict(Dict[str, DltResource]):
             self[resource.name].selected = resource.name in resource_names
         return self.selected
 
-    def add(self, resources: Sequence[DltResource]) -> None:
+    def add(self, *resources: DltResource) -> None:
         try:
             # temporarily block cloning when single resource is added
             self._suppress_clone_on_setitem = True
@@ -629,7 +629,7 @@ class DltSource(Iterable[TDataItem]):
             warnings.warn(f"Schema name {schema.name} differs from source name {name}! The explicit source name argument is deprecated and will be soon removed.")
 
         if resources:
-            self.resources.add(resources)
+            self.resources.add(*resources)
 
     @classmethod
     def from_data(cls, name: str, section: str, schema: Schema, data: Any) -> "DltSource":
@@ -803,12 +803,14 @@ class DltSource(Iterable[TDataItem]):
         )
 
     def __getattr__(self, resource_name: str) -> DltResource:
-        return self._resources[resource_name]
+        try:
+            return self._resources[resource_name]
+        except KeyError:
+            raise AttributeError(f"Resource with name {resource_name} not found in source {self.name}")
 
     def __setattr__(self, name: str, value: Any) -> None:
         if isinstance(value, DltResource):
-            # TODO: refactor adding resources. 1. resource dict should be read only 2. we should correct the parent pipes after cloning 3. allow replacing existing resources
-            self._add_resource(name, value)
+            self.resources[name] = value
         else:
             super().__setattr__(name, value)
 

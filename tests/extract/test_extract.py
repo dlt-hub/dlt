@@ -87,7 +87,9 @@ def test_extract_shared_pipe():
     storage = ExtractorStorage(NormalizeStorageConfiguration())
     extract_id = storage.create_extract_id()
     schema_update = extract(extract_id, source, storage)
-    print(schema_update)
+    # both tables got generated
+    assert "input_gen" in  schema_update
+    assert "gen_clone" in schema_update
 
 
 def test_extract_renamed_clone_and_parent():

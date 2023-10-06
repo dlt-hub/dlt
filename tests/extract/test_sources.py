@@ -705,7 +705,7 @@ def test_source_dynamic_resource_attrs() -> None:
     s = test_source(10)
     assert s.resource_1.name == s.resources["resource_1"].name
     assert id(s.resource_1) == id(s.resources["resource_1"])
-    with pytest.raises(KeyError):
+    with pytest.raises(AttributeError):
         s.resource_30
 
 
@@ -859,7 +859,7 @@ def test_resource_dict_add() -> None:
 
     # add all together
     res_dict = DltResourceDict("source", "section")
-    res_dict.add([input_r , input_r | input_tx])
+    res_dict.add(input_r , input_r | input_tx)
     assert res_dict._new_pipes == []
     assert res_dict._suppress_clone_on_setitem is False
     assert res_dict["input_gen"]._pipe is res_dict["tx_step"]._pipe.parent
@@ -892,7 +892,61 @@ def test_resource_dict_add() -> None:
 
     # can't add resource with same name again
     with pytest.raises(InvalidResourceDataTypeMultiplePipes):
-        res_dict.add([input_r])
+        res_dict.add(input_r)
+
+
+@pytest.mark.parametrize("add_mode", ("add", "dict", "set"))
+def test_add_transformer_to_source(add_mode: str) -> None:
+    @dlt.resource(name="numbers")
+    def number_gen(init):
+        yield from range(init, init + 5)
+
+
+    @dlt.source
+    def number_source():
+        return number_gen
+
+    source = number_source()
+
+    @dlt.transformer
+    def multiplier(item):
+        return item*2
+
+    mul_pipe = source.numbers | multiplier()
+
+    if add_mode == "add":
+        source.resources.add(mul_pipe)
+    elif add_mode == "dict":
+        source.resources["multiplier"] = mul_pipe
+    else:
+        source.multiplier = mul_pipe
+
+    # need to bind numbers
+    with pytest.raises(ParametrizedResourceUnbound):
+        list(source)
+
+    source.numbers.bind(10)
+    # both numbers and multiplier are evaluated, numbers only once
+    assert list(source) == [20, 10, 22, 11, 24, 12, 26, 13, 28, 14]
+
+
+def test_unknown_resource_access() -> None:
+    @dlt.resource(name="numbers")
+    def number_gen(init):
+        yield from range(init, init + 5)
+
+
+    @dlt.source
+    def number_source():
+        return number_gen
+
+    source = number_source()
+
+    with pytest.raises(AttributeError):
+        source.unknown
+
+    with pytest.raises(KeyError):
+        source.resources["unknown"]
 
 
 def test_source_multiple_iterations() -> None:
