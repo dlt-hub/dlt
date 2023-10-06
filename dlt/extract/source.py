@@ -17,7 +17,8 @@ from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, resource_state, source_state, pipeline_state
 from dlt.common.utils import graph_find_scc_nodes, flatten_list_or_items, get_callable_name, graph_edges_to_nodes, multi_context_manager, uniq_id
 
-from dlt.extract.typing import DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TDecompositionStrategy, TableNameMeta, FilterItem, MapItem, YieldMapItem, ValidateItem
+from dlt.extract.typing import (DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TDecompositionStrategy, TableNameMeta,
+                                FilterItem, MapItem, YieldMapItem, ValidateItem)
 from dlt.extract.pipe import Pipe, ManagedPipeIterator, TPipeStep
 from dlt.extract.schema import DltResourceSchema, TTableSchemaTemplate
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
@@ -44,12 +45,13 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         table_schema_template: TTableSchemaTemplate,
         selected: bool,
         incremental: IncrementalResourceWrapper = None,
-        section: str = None
+        section: str = None,
+        bound: bool = False
     ) -> None:
         self.section = section
         self.selected = selected
         self._pipe = pipe
-        self._bound = False
+        self._bound = bound
         if incremental and not self.incremental:
             self.add_step(incremental)
         self.source_name = None
@@ -101,7 +103,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         # create resource from iterator, iterable or generator function
         if isinstance(data, (Iterable, Iterator)) or callable(data):
             pipe = Pipe.from_data(name, data, parent=parent_pipe)
-            return cls(pipe, table_schema_template, selected, incremental=incremental, section=section)
+            return cls(pipe, table_schema_template, selected, incremental=incremental, section=section, bound=not callable(data))
         else:
             # some other data type that is not supported
             raise InvalidResourceDataType(name, data, type(data), f"The data type is {type(data).__name__}")
@@ -113,7 +115,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
 
     def with_name(self, new_name: str) -> "DltResource":
         """Clones the resource with a new name. Such resource keeps separate state and loads data to `new_name` table by default."""
-        return self._clone(new_name=new_name)
+        return self._clone(new_name=new_name, with_parent=True)
 
     @property
     def is_transformer(self) -> bool:
@@ -327,12 +329,12 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         with inject_section(self._get_config_section_context()):
             return resource_state(self.name)
 
-    def _clone(self, new_name: str = None) -> "DltResource":
+    def _clone(self, new_name: str = None, with_parent: bool = False) -> "DltResource":
         """Creates a deep copy of a current resource, optionally renaming the resource. The clone will not be part of the source
         """
         pipe = self._pipe
         if self._pipe and not self._pipe.is_empty:
-            pipe = pipe._clone(new_name=new_name, with_parent=True)
+            pipe = pipe._clone(new_name=new_name, with_parent=with_parent)
         # incremental and parent are already in the pipe (if any)
         return DltResource(
             pipe,
@@ -471,7 +473,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
 
 # produce Empty resource singleton
 DltResource.Empty = DltResource(Pipe(None), None, False)
-TUnboundDltResource = Callable[[], DltResource]
+TUnboundDltResource = Callable[..., DltResource]
 
 
 class DltResourceDict(Dict[str, DltResource]):
