@@ -660,6 +660,9 @@ def test_illegal_double_bind() -> None:
     def _r1():
         yield ["a", "b", "c"]
 
+    assert _r1._bound is False
+    assert _r1()._bound is True
+
     with pytest.raises(TypeError) as py_ex:
         _r1()()
     assert "Bound DltResource" in str(py_ex.value)
@@ -668,6 +671,15 @@ def test_illegal_double_bind() -> None:
         _r1.bind().bind()
     assert "Bound DltResource" in str(py_ex.value)
 
+    bound_r = dlt.resource([1, 2, 3], name="rx")
+    assert bound_r._bound is True
+    with pytest.raises(TypeError):
+        _r1()
+
+    def _gen():
+        yield from [1, 2, 3]
+
+    assert dlt.resource(_gen())._bound is True
 
 
 @dlt.resource
@@ -947,6 +959,49 @@ def test_unknown_resource_access() -> None:
 
     with pytest.raises(KeyError):
         source.resources["unknown"]
+
+
+def test_clone_resource_on_call():
+    @dlt.resource(name="gene")
+    def number_gen(init):
+        yield from range(init, init + 5)
+
+    @dlt.transformer()
+    def multiplier(number, mul):
+        return number * mul
+
+    gene_clone = number_gen(10)
+    assert gene_clone is not number_gen
+    assert gene_clone._pipe is not number_gen._pipe
+    assert gene_clone.name == number_gen.name
+
+    pipe = number_gen | multiplier
+    pipe_clone = pipe(4)
+    assert pipe_clone._pipe is not pipe._pipe
+    assert pipe._pipe is multiplier._pipe
+    # but parents are the same
+    assert pipe_clone._pipe.parent is number_gen._pipe
+    with pytest.raises(ParametrizedResourceUnbound):
+        list(pipe_clone)
+    # bind the original directly via pipe
+    pipe_clone._pipe.parent.bind_gen(10)
+    assert list(pipe_clone) == [40, 44, 48, 52, 56]
+
+
+def test_clone_resource_on_bind():
+    @dlt.resource(name="gene")
+    def number_gen():
+        yield from range(1, 5)
+
+    @dlt.transformer
+    def multiplier(number, mul):
+        return number * mul
+
+    pipe = number_gen | multiplier
+    bound_pipe = pipe.bind(3)
+    assert bound_pipe is pipe is multiplier
+    assert bound_pipe._pipe is pipe._pipe
+    assert bound_pipe._pipe.parent is pipe._pipe.parent
 
 
 def test_source_multiple_iterations() -> None:

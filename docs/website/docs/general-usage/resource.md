@@ -212,6 +212,20 @@ In the example above, `user_details` will receive data from default instance of 
 pipeline.run(users(limit=100) | user_details)
 ```
 
+### Declare a standalone resource
+A standalone resource is defined on a function that is top level in a module (not inner function) that accepts config and secrets values. Additionally
+if `standalone` flag is specified, the decorated function signature and docstring will be preserved. `dlt.resource` will just wrap the
+function decorated function and user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
+```python
+@dlt.resource(standalone=True)
+def filesystem(bucket_url=dlt.config.value):
+  """list and yield files in `bucket_url`"""
+  ...
+
+# `filesystem` must be called before it is extracted or used in any other way
+pipeline.run(filesystem("s3://my-bucket/reports"), table_name="reports")
+```
+
 ## Customize resources
 
 ### Filter, transform and pivot data
@@ -306,8 +320,8 @@ tables.users.table_name = "other_users"
 ### Duplicate and rename resources
 There are cases when you your resources are generic (ie. bucket filesystem) and you want to load several instances of it (ie. files from different folders) to separate tables. In example below we use `filesystem` source to load csvs from two different folders into separate tables:
 ```python
-@dlt.resource
-def filesystem(bucket_url)
+@dlt.resource(standalone=True)
+def filesystem(bucket_url):
   # list and yield files in bucket_url
   ...
 

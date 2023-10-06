@@ -7,6 +7,7 @@ from pydantic import BaseModel
 import dlt
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -18,7 +19,7 @@ from dlt.common.schema.utils import new_table, new_column
 from dlt.common.schema.typing import TTableSchemaColumns
 
 from dlt.cli.source_detection import detect_source_configs
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ExplicitSourceNameInvalid, InconsistentTableTemplate, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ExplicitSourceNameInvalid, InconsistentTableTemplate, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, PipeGenInvalid, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
 from dlt.common.schema.exceptions import InvalidSchemaName
 
@@ -584,6 +585,53 @@ def test_resource_sets_invalid_write_disposition() -> None:
     with pytest.raises(DictValidationException) as py_ex:
         r.compute_table_schema()
     assert "write_disposition" in str(py_ex.value)
+
+
+# wrapped flag will not create the resource but just simple function wrapper that must be called before use
+@dlt.resource(standalone=True)
+def standalone_signature(init: int, secret_end: int = dlt.secrets.value):
+    """Has fine docstring"""
+    yield from range(init, secret_end)
+
+
+def test_standalone_resource() -> None:
+
+    # wrapped flag will not create the resource but just simple function wrapper that must be called before use
+    @dlt.resource(standalone=True)
+    def nice_signature(init: int):
+        """Has nice signature"""
+        yield from range(init, 10)
+
+    assert not isinstance(nice_signature, DltResource)
+    assert callable(nice_signature)
+    assert nice_signature.__doc__ == """Has nice signature"""
+
+    assert list(nice_signature(7)) == [7, 8, 9]
+
+    # can't work in a source
+
+    @dlt.source
+    def nice_source():
+        return nice_signature
+
+    source = nice_source()
+    source.nice_signature.bind(7)
+    with pytest.raises(PipeGenInvalid):
+        assert list(source) == [7, 8, 9]
+
+    @dlt.source
+    def many_instances():
+        return nice_signature(9), nice_signature(7)
+
+    with pytest.raises(InvalidResourceDataTypeMultiplePipes):
+        source = many_instances()
+
+    with pytest.raises(ConfigFieldMissingException):
+        list(standalone_signature(1))
+
+    # make sure that config sections work
+    os.environ["SOURCES__TEST_DECORATORS__STANDALONE_SIGNATURE__SECRET_END"] = "5"
+    assert list(standalone_signature(1)) == [1, 2, 3, 4]
 
 
 def test_class_source() -> None:

@@ -2,7 +2,7 @@ import os
 import inspect
 from types import ModuleType
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Iterator, List, Optional, Tuple, Type, TypeVar, Union, cast, overload
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Iterator, List, Literal, Optional, Tuple, Type, TypeVar, Union, cast, overload
 
 from dlt.common.configuration import with_config, get_fun_spec, known_sections, configspec
 from dlt.common.configuration.container import Container
@@ -222,6 +222,23 @@ def resource(
 
 @overload
 def resource(
+    data: None = ...,
+    /,
+    name: str = None,
+    table_name: TTableHintTemplate[str] = None,
+    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    columns: TTableHintTemplate[TAnySchemaColumns] = None,
+    primary_key: TTableHintTemplate[TColumnNames] = None,
+    merge_key: TTableHintTemplate[TColumnNames] = None,
+    selected: bool = True,
+    spec: Type[BaseConfiguration] = None,
+    standalone: Literal[True] = True
+) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]:
+    ...
+
+
+@overload
+def resource(
     data: Union[List[Any], Tuple[Any], Iterator[Any]],
     /,
     name: str = None,
@@ -247,6 +264,7 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    standalone: bool = False,
     data_from: TUnboundDltResource = None,
 ) -> Any:
     """When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
@@ -296,6 +314,8 @@ def resource(
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
 
         spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
+
+        standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
 
         data_from (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
 
@@ -355,7 +375,14 @@ def resource(
         if not is_inner_resource:
             _SOURCES[f.__qualname__] = SourceInfo(SPEC, f, func_module)
 
-        return make_resource(resource_name, source_section, conf_f, incremental)
+        @wraps(conf_f)
+        def _wrap(*args: Any, **kwargs: Any) -> DltResource:
+            return make_resource(resource_name, source_section, conf_f(*args, **kwargs), incremental)
+
+        if standalone:
+            return _wrap
+        else:
+            return make_resource(resource_name, source_section, conf_f, incremental)
 
     # if data is callable or none use decorator
     if data is None:
