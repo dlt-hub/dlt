@@ -26,7 +26,7 @@ from dlt.load import Load
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, SQL_DESTINATIONS
+from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, SQL_DESTINATIONS, EXCLUDED_DESTINATION_CONFIGURATIONS
 from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES, assert_all_data_types_row
 
 # bucket urls
@@ -153,6 +153,9 @@ def destinations_configs(
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
     if exclude:
         destination_configs = [conf for conf in destination_configs if conf.destination not in exclude]
+
+    # filter out destination configs as obtained from the env
+    destination_configs = [conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS]
 
 
     return destination_configs
