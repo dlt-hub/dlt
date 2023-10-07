@@ -1,10 +1,15 @@
+import inspect
+import makefun
 from typing import Union, List, Any, Sequence, cast
 from collections.abc import Mapping as C_Mapping
 
 from dlt.common.exceptions import MissingDependencyException
-from dlt.extract.typing import TTableHintTemplate, TDataItem, TFunHintTemplate
 from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
-from dlt.common.typing import TDataItem
+from dlt.common.typing import AnyFun, TDataItem, TDataItems
+from dlt.common.utils import get_callable_name
+from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator
+
+from dlt.extract.typing import TTableHintTemplate, TDataItem, TFunHintTemplate
 
 try:
     from dlt.common.libs import pydantic
@@ -55,3 +60,56 @@ def ensure_table_schema_columns_hint(columns: TTableHintTemplate[TAnySchemaColum
         return wrapper
 
     return ensure_table_schema_columns(columns)
+
+
+def simulate_func_call(f: Union[Any, AnyFun], args_to_skip: int, *args: Any, **kwargs: Any) -> inspect.Signature:
+    """Simulates a call to a resource or transformer function before it will be wrapped for later execution in the pipe"""
+    if not callable(f):
+        # just provoke a call to raise default exception
+        f()
+    assert callable(f)
+
+    sig = inspect.signature(f)
+    # simulate the call to the underlying callable
+    if args or kwargs:
+        no_item_sig = sig.replace(parameters=list(sig.parameters.values())[args_to_skip:])
+        try:
+            no_item_sig.bind(*args, **kwargs)
+        except TypeError as v_ex:
+            raise TypeError(f"{get_callable_name(f)}(): " + str(v_ex))
+    return sig
+
+
+def wrap_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature, *args: Any, **kwargs: Any) -> AnyFun:
+    """Creates a compatible wrapper over transformer function. A pure transformer function expects data item in first argument and one keyword argument called `meta`"""
+    if len(sig.parameters) == 2 and "meta" in sig.parameters:
+        return f
+
+    def _tx_partial(item: TDataItems, meta: Any = None) -> Any:
+        # print(f"_ITEM:{item}{meta},{args}{kwargs}")
+        # also provide optional meta so pipe does not need to update arguments
+        if "meta" in kwargs:
+            kwargs["meta"] = meta
+        return f(item, *args, **kwargs)
+
+    # this partial wraps transformer and sets a signature that is compatible with pipe transform calls
+    return makefun.wraps(f, new_sig=inspect.signature(_tx_partial))(_tx_partial)  # type: ignore
+
+
+def wrap_resource_gen(name: str, f: AnyFun, sig: inspect.Signature, *args: Any, **kwargs: Any) -> AnyFun:
+    """Wraps a generator or generator function so it is evaluated on extraction"""
+    if inspect.isgeneratorfunction(inspect.unwrap(f)) or inspect.isgenerator(f):
+        # if no arguments then no wrap
+        # if len(sig.parameters) == 0:
+        #     return f
+
+        # always wrap generators and generator functions. evaluate only at runtime!
+
+        def _partial() -> Any:
+            # print(f"_PARTIAL: {args} {kwargs} vs {args_}{kwargs_}")
+            return f(*args, **kwargs)
+
+        # this partial preserves the original signature and just defers the call to pipe
+        return makefun.wraps(f, new_sig=inspect.signature(_partial))(_partial)  # type: ignore
+    else:
+        raise InvalidResourceDataTypeFunctionNotAGenerator(name, f, type(f))

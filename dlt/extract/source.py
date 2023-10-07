@@ -12,7 +12,7 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer, RelationalNormalizerConfigPropagation
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName
-from dlt.common.typing import AnyFun, StrAny, TDataItem, TDataItems, NoneType
+from dlt.common.typing import AnyFun, DictStrAny, StrAny, TDataItem, TDataItems, NoneType
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, resource_state, source_state, pipeline_state
 from dlt.common.utils import graph_find_scc_nodes, flatten_list_or_items, get_callable_name, graph_edges_to_nodes, multi_context_manager, uniq_id
@@ -34,10 +34,12 @@ def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
 
 
 class DltResource(Iterable[TDataItem], DltResourceSchema):
-
+    """Implements dlt resource. Contains a data pipe that wraps a generating item and table schema that can be adjusted"""
     Empty: ClassVar["DltResource"] = None
     source_name: str
     """Name of the source that contains this instance of the source, set when added to DltResourcesDict"""
+    section: str
+    """A config section name"""
 
     def __init__(
         self,
@@ -46,12 +48,13 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         selected: bool,
         incremental: IncrementalResourceWrapper = None,
         section: str = None,
-        bound: bool = False
+        args_bound: bool = False
     ) -> None:
         self.section = section
         self.selected = selected
         self._pipe = pipe
-        self._bound = bound
+        self._args_bound = args_bound
+        self._explicit_args: DictStrAny = None
         if incremental and not self.incremental:
             self.add_step(incremental)
         self.source_name = None
@@ -103,7 +106,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         # create resource from iterator, iterable or generator function
         if isinstance(data, (Iterable, Iterator)) or callable(data):
             pipe = Pipe.from_data(name, data, parent=parent_pipe)
-            return cls(pipe, table_schema_template, selected, incremental=incremental, section=section, bound=not callable(data))
+            return cls(pipe, table_schema_template, selected, incremental=incremental, section=section, args_bound=not callable(data))
         else:
             # some other data type that is not supported
             raise InvalidResourceDataType(name, data, type(data), f"The data type is {type(data).__name__}")
@@ -123,8 +126,8 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         return self._pipe.has_parent
 
     @property
-    def requires_binding(self) -> bool:
-        """Checks if resource has unbound parameters"""
+    def requires_args(self) -> bool:
+        """Checks if resource has unbound arguments"""
         try:
             self._pipe.ensure_gen_bound()
             return False
@@ -301,8 +304,9 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
 
     def bind(self, *args: Any, **kwargs: Any) -> "DltResource":
         """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""
-        if self._bound:
-            raise TypeError("Bound DltResource object is not callable")
+        if self._args_bound:
+            raise TypeError(f"Parametrized resource {self.name} is not callable")
+        orig_gen = self._pipe.gen
         gen = self._pipe.bind_gen(*args, **kwargs)
         if isinstance(gen, DltResource):
             # the resource returned resource: update in place
@@ -320,8 +324,16 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             # write props from new pipe instance
             self._pipe.__dict__.update(gen.__dict__)
         else:
-            self._bound = True
+            self._args_bound = True
+        self._set_explicit_args(orig_gen, None, *args, **kwargs)  # type: ignore
         return self
+
+    @property
+    def explicit_args(self) -> StrAny:
+        """Returns a dictionary of arguments used to parametrize the resource. Does not include defaults and injected args."""
+        if not self._args_bound:
+            raise TypeError(f"Resource {self.name} is not yet parametrized")
+        return self._explicit_args
 
     @property
     def state(self) -> StrAny:
@@ -329,24 +341,10 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         with inject_section(self._get_config_section_context()):
             return resource_state(self.name)
 
-    def _clone(self, new_name: str = None, with_parent: bool = False) -> "DltResource":
-        """Creates a deep copy of a current resource, optionally renaming the resource. The clone will not be part of the source
-        """
-        pipe = self._pipe
-        if self._pipe and not self._pipe.is_empty:
-            pipe = pipe._clone(new_name=new_name, with_parent=with_parent)
-        # incremental and parent are already in the pipe (if any)
-        return DltResource(
-            pipe,
-            deepcopy(self._table_schema_template),
-            selected=self.selected,
-            section=self.section
-        )
-
     def __call__(self, *args: Any, **kwargs: Any) -> "DltResource":
         """Binds the parametrized resources to passed arguments. Creates and returns a bound resource. Generators and iterators are not evaluated."""
-        if self._bound:
-            raise TypeError("Bound DltResource object is not callable")
+        if self._args_bound:
+            raise TypeError(f"Parametrized resource {self.name} is not callable")
         r = self._clone()
         return r.bind(*args, **kwargs)
 
@@ -374,6 +372,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         state, _ = pipeline_state(container, {})
         state_context = StateInjectableContext(state=state)
         section_context = self._get_config_section_context()
+        print(section_context)
 
         # managed pipe iterator will set the context on each call to  __next__
         with inject_section(section_context), Container().injectable_context(state_context):
@@ -382,6 +381,27 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         pipe_iterator.set_context([state_context, section_context])
         _iter = map(lambda item: item.item, pipe_iterator)
         return flatten_list_or_items(_iter)
+
+    def _set_explicit_args(self, f: AnyFun, sig: inspect.Signature = None, *args: Any, **kwargs: Any) -> None:
+        try:
+            sig = sig or inspect.signature(f)
+            self._explicit_args = sig.bind_partial(*args, **kwargs).arguments
+        except Exception:
+            pass
+
+    def _clone(self, new_name: str = None, with_parent: bool = False) -> "DltResource":
+        """Creates a deep copy of a current resource, optionally renaming the resource. The clone will not be part of the source
+        """
+        pipe = self._pipe
+        if self._pipe and not self._pipe.is_empty:
+            pipe = pipe._clone(new_name=new_name, with_parent=with_parent)
+        # incremental and parent are already in the pipe (if any)
+        return DltResource(
+            pipe,
+            deepcopy(self._table_schema_template),
+            selected=self.selected,
+            section=self.section
+        )
 
     def _get_config_section_context(self) -> ConfigSectionContext:
         container = Container()
@@ -418,7 +438,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             info += f"\nThis resource is a transformer and takes data items from {self._pipe.parent.name}"
         else:
             if self._pipe.is_data_bound:
-                if self.requires_binding:
+                if self.requires_args:
                     head_sig = inspect.signature(self._pipe.gen)  # type: ignore
                     info += f"\nThis resource is parametrized and takes the following arguments {head_sig}. You must call this resource before loading."
                 else:

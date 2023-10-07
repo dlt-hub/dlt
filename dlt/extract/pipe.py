@@ -6,7 +6,7 @@ from asyncio import Future
 from concurrent.futures import ThreadPoolExecutor
 from copy import copy
 from threading import Thread
-from typing import Any, ContextManager, Dict, Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING, Literal
+from typing import Any, Dict, Optional, Sequence, Union, Callable, Iterable, Iterator, List, NamedTuple, Awaitable, Tuple, Type, TYPE_CHECKING, Literal
 
 from dlt.common import sleep
 from dlt.common.configuration import configspec
@@ -18,8 +18,11 @@ from dlt.common.source import unset_current_pipe_name, set_current_pipe_name
 from dlt.common.typing import AnyFun, AnyType, TDataItems
 from dlt.common.utils import get_callable_name
 
-from dlt.extract.exceptions import CreatePipeException, DltSourceException, ExtractorException, InvalidResourceDataTypeFunctionNotAGenerator, InvalidStepFunctionArguments, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, PipeException, PipeGenInvalid, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError
+from dlt.extract.exceptions import (CreatePipeException, DltSourceException, ExtractorException, InvalidStepFunctionArguments,
+                                    InvalidResourceDataTypeFunctionNotAGenerator, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound,
+                                    PipeException, PipeGenInvalid, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError)
 from dlt.extract.typing import DataItemWithMeta, ItemTransform, SupportsPipe, TPipedDataItems
+from dlt.extract.utils import simulate_func_call, wrap_compat_transformer, wrap_resource_gen
 
 if TYPE_CHECKING:
     TItemFuture = Future[Union[TDataItems, DataItemWithMeta]]
@@ -291,52 +294,17 @@ class Pipe(SupportsPipe):
         head = self.gen
         _data: Any = None
 
-        if not callable(head):
-            # just provoke a call to raise default exception
-            head()  # type: ignore
-            raise AssertionError()
-
-        sig = inspect.signature(head)
-        # simulate the call to the underlying callable
-        if args or kwargs:
-            skip_items_arg = 1 if self.has_parent else 0  # skip the data item argument for transformers
-            no_item_sig = sig.replace(parameters=list(sig.parameters.values())[skip_items_arg:])
-            try:
-                no_item_sig.bind(*args, **kwargs)
-            except TypeError as v_ex:
-                raise TypeError(f"{get_callable_name(head)}(): " + str(v_ex))
+        # skip the data item argument for transformers
+        args_to_skip = 1 if self.has_parent else 0
+        # simulate function call
+        sig = simulate_func_call(head, args_to_skip, *args, **kwargs)
+        assert callable(head)
 
         # create wrappers with partial
         if self.has_parent:
-
-            if len(sig.parameters) == 2 and "meta" in sig.parameters:
-                return head
-
-            def _tx_partial(item: TDataItems, meta: Any = None) -> Any:
-                # print(f"_ITEM:{item}{meta},{args}{kwargs}")
-                # also provide optional meta so pipe does not need to update arguments
-                if "meta" in kwargs:
-                    kwargs["meta"] = meta
-                return head(item, *args, **kwargs)  # type: ignore
-
-            # this partial wraps transformer and sets a signature that is compatible with pipe transform calls
-            _data = makefun.wraps(head, new_sig=inspect.signature(_tx_partial))(_tx_partial)
+            _data = wrap_compat_transformer(self.name, head, sig, *args, **kwargs)
         else:
-            if inspect.isgeneratorfunction(inspect.unwrap(head)) or inspect.isgenerator(head):
-                # if no arguments then no wrap
-                if len(sig.parameters) == 0:
-                    return head
-
-                # always wrap generators and generator functions. evaluate only at runtime!
-
-                def _partial() -> Any:
-                    # print(f"_PARTIAL: {args} {kwargs} vs {args_}{kwargs_}")
-                    return head(*args, **kwargs)  # type: ignore
-
-                # this partial preserves the original signature and just defers the call to pipe
-                _data = makefun.wraps(head, new_sig=inspect.signature(_partial))(_partial)
-            else:
-                raise InvalidResourceDataTypeFunctionNotAGenerator(self.name, head, type(head))
+            _data = wrap_resource_gen(self.name, head, sig, *args, **kwargs)
         return _data
 
     def _verify_head_step(self, step: TPipeStep) -> None:

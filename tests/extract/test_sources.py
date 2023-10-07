@@ -660,26 +660,26 @@ def test_illegal_double_bind() -> None:
     def _r1():
         yield ["a", "b", "c"]
 
-    assert _r1._bound is False
-    assert _r1()._bound is True
+    assert _r1._args_bound is False
+    assert _r1()._args_bound is True
 
     with pytest.raises(TypeError) as py_ex:
         _r1()()
-    assert "Bound DltResource" in str(py_ex.value)
+    assert "Parametrized resource" in str(py_ex.value)
 
     with pytest.raises(TypeError) as py_ex:
         _r1.bind().bind()
-    assert "Bound DltResource" in str(py_ex.value)
+    assert "Parametrized resource" in str(py_ex.value)
 
     bound_r = dlt.resource([1, 2, 3], name="rx")
-    assert bound_r._bound is True
+    assert bound_r._args_bound is True
     with pytest.raises(TypeError):
         _r1()
 
     def _gen():
         yield from [1, 2, 3]
 
-    assert dlt.resource(_gen())._bound is True
+    assert dlt.resource(_gen())._args_bound is True
 
 
 @dlt.resource
