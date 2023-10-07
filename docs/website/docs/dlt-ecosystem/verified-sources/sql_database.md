@@ -82,7 +82,7 @@ taken from the
    omitted in the example below:
 
    ```toml
-   sources.sql_database.credentials="mysql+pymysql://root:8P5gyDPNo9zo582rQG6a@35.203.96.191:3306/mysql?ssl_ca=&ssl_cert=client-cert.pem&ssl_key=client-key.pem"
+   sources.sql_database.credentials="mysql+pymysql://root:<pass>@35.203.96.191:3306/mysql?ssl_ca=&ssl_cert=client-cert.pem&ssl_key=client-key.pem"
    ```
 
 ### Initialize the verified source
