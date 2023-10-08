@@ -372,7 +372,6 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         state, _ = pipeline_state(container, {})
         state_context = StateInjectableContext(state=state)
         section_context = self._get_config_section_context()
-        print(section_context)
 
         # managed pipe iterator will set the context on each call to  __next__
         with inject_section(section_context), Container().injectable_context(state_context):

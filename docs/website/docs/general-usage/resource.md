@@ -366,11 +366,6 @@ pipeline.run(generate_rows(10))
 # load a list of resources
 pipeline.run([generate_rows(10), generate_rows(20)])
 ```
-
-### Resource state
-[Resource state](state.md#read-and-write-pipeline-state-in-a-resource) is kept
-
-
 ### Do a full refresh
 
 To do a full refresh of an `append` or `merge` resources you temporarily change the write

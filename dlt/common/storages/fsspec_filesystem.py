@@ -1,4 +1,6 @@
-from typing import cast, Tuple, TypedDict, Optional, Union
+import io
+from io import BytesIO, IOBase
+from typing import cast, Tuple, TypedDict, Optional, Union, Any
 
 from fsspec.core import url_to_fs
 from fsspec import AbstractFileSystem
@@ -39,7 +41,7 @@ MTIME_DISPATCH["s3a"] = MTIME_DISPATCH["s3"]
 MTIME_DISPATCH["abfs"] = MTIME_DISPATCH["az"]
 
 
-def filesystem(protocol: str, credentials: FileSystemCredentials = None) -> Tuple[AbstractFileSystem, str]:
+def fsspec_filesystem(protocol: str, credentials: FileSystemCredentials = None) -> Tuple[AbstractFileSystem, str]:
     """Instantiates an authenticated fsspec `FileSystem` for a given `protocol` and credentials.
 
       Please supply credentials instance corresponding to the protocol. The `protocol` is just the code name of the filesystem ie:
@@ -49,11 +51,11 @@ def filesystem(protocol: str, credentials: FileSystemCredentials = None) -> Tupl
 
       also see filesystem_from_config
     """
-    return filesystem_from_config(FilesystemConfiguration(protocol, credentials))
+    return fsspec_from_config(FilesystemConfiguration(protocol, credentials))
 
 
 
-def filesystem_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSystem, str]:
+def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSystem, str]:
     """Instantiates an authenticated fsspec `FileSystem` from `config` argument.
 
       Authenticates following filesystems:
@@ -84,3 +86,79 @@ def filesystem_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFil
         return url_to_fs(config.bucket_url, use_listings_cache=False, **fs_kwargs)  # type: ignore[no-any-return]
     except ModuleNotFoundError as e:
         raise MissingDependencyException("filesystem", [f"{version.DLT_PKG_NAME}[{proto}]"]) from e
+
+
+class FileItemDict(DictStrAny):
+    """A FileItem dictionary with additional methods to get fsspec filesystem, open and read files.
+    """
+
+    def __init__(
+        self, mapping: FileItem, credentials: Optional[Union[FileSystemCredentials, AbstractFileSystem]] = None
+    ):
+        """Create a dictionary with the filesystem client.
+
+        Args:
+            mapping (FileItem): The file item TypedDict.
+            credentials (Optional[FileSystemCredentials], optional): The credentials to the
+                filesystem. Defaults to None.
+        """
+        self.credentials = credentials
+        super().__init__(**mapping)
+
+    @property
+    def fsspec(self) -> AbstractFileSystem:
+        """The filesystem client based on the given credentials.
+
+        Returns:
+            AbstractFileSystem: The fsspec client.
+        """
+        if isinstance(self.credentials, AbstractFileSystem):
+            return self.credentials
+        else:
+            return fsspec_filesystem(self["file_url"], self.credentials)[0]
+
+    def open(self, **kwargs: Any) -> IOBase:  # noqa: A003
+        """Open the file as a fsspec file.
+
+        This method opens the file represented by this dictionary as a file-like object using
+        the fsspec library.
+
+        Args:
+            **kwargs (Any): The arguments to pass to the fsspec open function.
+
+        Returns:
+            IOBase: The fsspec file.
+        """
+        opened_file: IOBase
+        # if the user has already extracted the content, we use it so there will be no need to
+        # download the file again.
+        if self["file_content"] in self:
+            bytes_io = BytesIO(self["file_content"])
+
+            text_kwargs = {
+                k: kwargs.pop(k)
+                for k in ["encoding", "errors", "newline"]
+                if k in kwargs
+            }
+            return io.TextIOWrapper(
+                bytes_io,
+                **text_kwargs,
+            )
+        else:
+            opened_file = self.fsspec.open(self["file_url"], **kwargs)
+        return opened_file
+
+    def read_bytes(self) -> bytes:
+        """Read the file content.
+
+        Returns:
+            bytes: The file content.
+        """
+        content: bytes
+        # same as open, if the user has already extracted the content, we use it.
+        if "file_content" in self and self["file_content"] is not None:
+            content = self["file_content"]
+        else:
+            content = self.fsspec.read_bytes(self["file_url"])
+        return content
+

@@ -47,7 +47,6 @@ def initialize_credentials(hint: Any, initial_value: Any) -> CredentialsConfigur
         first_credentials: CredentialsConfiguration = None
         for idx, spec in enumerate(specs_in_union):
             try:
-                # print(spec)
                 credentials = spec(initial_value)
                 if credentials.is_resolved():
                     return credentials
@@ -87,7 +86,6 @@ def inject_section(section_context: ConfigSectionContext, merge_existing: bool =
 def _maybe_parse_native_value(config: TConfiguration, explicit_value: Any, embedded_sections: Tuple[str, ...]) -> Any:
     # use initial value to resolve the whole configuration. if explicit value is a mapping it will be applied field by field later
     if explicit_value and (not isinstance(explicit_value, C_Mapping) or isinstance(explicit_value, BaseConfiguration)):
-        # print(f"TRYING TO PARSE NATIVE from {explicit_value}")
         try:
             config.parse_native_representation(explicit_value)
         except ValueError as v_err:
@@ -167,7 +165,6 @@ def _resolve_config_fields(
         specs_in_union: List[Type[BaseConfiguration]] = []
         current_value = None
         if is_union(hint):
-            # print(f"HINT UNION?: {key}:{hint}")
             # if union contains a type of explicit value which is not a valid hint, return it as current value
             if explicit_value and not is_valid_hint(type(explicit_value)) and get_all_types_of_class_in_union(hint, type(explicit_value)):
                 current_value, traces = explicit_value, []
