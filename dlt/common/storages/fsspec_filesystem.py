@@ -117,7 +117,7 @@ class FileItemDict(DictStrAny):
         else:
             return fsspec_filesystem(self["file_url"], self.credentials)[0]
 
-    def open(self, **kwargs: Any) -> IOBase:  # noqa: A003
+    def open(self, mode: str = "rb", **kwargs: Any) -> IOBase:  # noqa: A003
         """Open the file as a fsspec file.
 
         This method opens the file represented by this dictionary as a file-like object using
@@ -132,18 +132,21 @@ class FileItemDict(DictStrAny):
         opened_file: IOBase
         # if the user has already extracted the content, we use it so there will be no need to
         # download the file again.
-        if self["file_content"] in self:
+        if "file_content" in self:
             bytes_io = BytesIO(self["file_content"])
 
-            text_kwargs = {
-                k: kwargs.pop(k)
-                for k in ["encoding", "errors", "newline"]
-                if k in kwargs
-            }
-            return io.TextIOWrapper(
-                bytes_io,
-                **text_kwargs,
-            )
+            if "t" in mode:
+                text_kwargs = {
+                    k: kwargs.pop(k)
+                    for k in ["encoding", "errors", "newline"]
+                    if k in kwargs
+                }
+                return io.TextIOWrapper(
+                    bytes_io,
+                    **text_kwargs,
+                )
+            else:
+                return bytes_io
         else:
             opened_file = self.fsspec.open(self["file_url"], **kwargs)
         return opened_file

@@ -356,7 +356,7 @@ def resource(
         incremental: IncrementalResourceWrapper = None
         sig = inspect.signature(f)
         if IncrementalResourceWrapper.should_wrap(sig):
-            incremental = IncrementalResourceWrapper(resource_name, primary_key)
+            incremental = IncrementalResourceWrapper(primary_key)
         incr_f = incremental.wrap(sig, f) if incremental else f
 
         resource_sections = (known_sections.SOURCES, source_section, resource_name)
