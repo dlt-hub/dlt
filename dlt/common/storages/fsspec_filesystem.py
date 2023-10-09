@@ -178,7 +178,7 @@ def guess_mime_type(file_name: str) -> str:
 
 
 def glob_files(
-    fs_client: AbstractFileSystem, bucket_url: str, file_glob: str = "**/*"
+    fs_client: AbstractFileSystem, bucket_url: str, file_glob: str = "**"
 ) -> Iterator[FileItem]:
     """Get the files from the filesystem client.
 

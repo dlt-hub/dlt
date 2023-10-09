@@ -43,7 +43,7 @@ def assert_sample_files(all_file_items: List[FileItem], filesystem: AbstractFile
                 assert isinstance(lines[0], str)
 
     assert len(all_file_items) == 10
-    assert [item["file_name"] for item in all_file_items] == [
+    assert set([item["file_name"] for item in all_file_items]) == {
         'csv/freshman_kgs.csv',
         'csv/freshman_lbs.csv',
         'csv/mlb_players.csv',
@@ -54,4 +54,4 @@ def assert_sample_files(all_file_items: List[FileItem], filesystem: AbstractFile
         'met_csv/A803/A803_20230920.csv',
         'parquet/mlb_players.parquet',
         'sample.txt'
-    ]
+    }
