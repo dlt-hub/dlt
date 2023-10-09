@@ -7,7 +7,7 @@ from dlt.common.exceptions import TerminalException
 from dlt.common.schema.utils import group_tables_by_resource, compile_simple_regexes, compile_simple_regex
 from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.typing import REPattern
-from dlt.common.pipeline import TSourceState, _reset_resource_state, _sources_state, _delete_source_state_keys, _get_matching_resources
+from dlt.common.pipeline import TSourceState, reset_resource_state, _sources_state, _delete_source_state_keys, _get_matching_resources
 from dlt.common.destination.reference import WithStagingDataset
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -146,7 +146,7 @@ class DropCommand:
             if self.drop_state:
                 for key in _get_matching_resources(self.resource_pattern, source_state):
                     self.info['resource_states'].append(key)
-                    _reset_resource_state(key, source_state)
+                    reset_resource_state(key, source_state)
             resolved_paths = resolve_paths(self.state_paths_to_drop, source_state)
             if self.state_paths_to_drop and not resolved_paths:
                 self.info['warnings'].append(f"State paths {self.state_paths_to_drop} did not select any paths in source {source_name}")

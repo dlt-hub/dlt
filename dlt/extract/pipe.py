@@ -125,7 +125,6 @@ class Pipe(SupportsPipe):
 
     @property
     def has_parent(self) -> bool:
-        """Checks if pipe is connected to parent pipe from which it takes data items. Connected pipes are created from transformer resources"""
         return self.parent is not None
 
     @property

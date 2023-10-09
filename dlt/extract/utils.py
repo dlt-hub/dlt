@@ -1,15 +1,16 @@
 import inspect
 import makefun
-from typing import Union, List, Any, Sequence, cast
+from typing import Optional, Union, List, Any, Sequence, cast
 from collections.abc import Mapping as C_Mapping
 
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.pipeline import reset_resource_state
 from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
-from dlt.common.typing import AnyFun, TDataItem, TDataItems
+from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name
 from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator
 
-from dlt.extract.typing import TTableHintTemplate, TDataItem, TFunHintTemplate
+from dlt.extract.typing import TTableHintTemplate, TDataItem, TFunHintTemplate, SupportsPipe
 
 try:
     from dlt.common.libs import pydantic
@@ -60,6 +61,13 @@ def ensure_table_schema_columns_hint(columns: TTableHintTemplate[TAnySchemaColum
         return wrapper
 
     return ensure_table_schema_columns(columns)
+
+
+def reset_pipe_state(pipe: SupportsPipe, source_state_: Optional[DictStrAny] = None) -> None:
+    """Resets the resource state for a `pipe` and all its parent pipes"""
+    if pipe.has_parent:
+        reset_pipe_state(pipe.parent, source_state_)
+    reset_resource_state(pipe.name, source_state_)
 
 
 def simulate_func_call(f: Union[Any, AnyFun], args_to_skip: int, *args: Any, **kwargs: Any) -> inspect.Signature:
