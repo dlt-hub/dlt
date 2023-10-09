@@ -13,7 +13,7 @@ Need help deploying these sources, or figuring out how to run them in your data 
 :::
 
 
-Stripe is an online payment platform that allows businesses to securely process and manage customer transactions over the Internet.
+[Stripe](https://stripe.com) is an online payment platform that allows businesses to securely process and manage customer transactions over the Internet.
 
 This Stripe `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/stripe_pipeline.py)
@@ -45,6 +45,10 @@ Please note that endpoints in the verified source can be customized as per the S
 1. Choose "API Keys".
 1. In "Standard Keys", click "Reveal test key" beside the Secret Key.
 1. Note down the API_secret_key for configuring secrets.toml.
+
+> Note: The Stripe UI, which is described here, might change.
+The full guide is available at [this link.](https://stripe.com/docs/keys)
+
 
 ### Initialize the verified source
 
@@ -82,9 +86,11 @@ For more information, read the
    [sources.stripe_analytics]
    stripe_secret_key = "stripe_secret_key"# please set me up!
    ```
-1. Substitute "stripe_secret_key" with the value [you copied above](#grab-api-credentials) for secure access to your Stripe resources.
+1. Substitute "stripe_secret_key" with the value [you copied above](#grab-credentials) for secure access to your Stripe resources.
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
+
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
@@ -98,7 +104,7 @@ For more information, read the
 1. You're now ready to run the pipeline! To get started, run the following command:
 
    ```bash
-   python3 stripe_analytics_pipeline.py
+   python stripe_analytics_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
@@ -118,7 +124,7 @@ For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/
 `dlt` works on the principle of [sources](../../general-usage/source) and
 [resources](../../general-usage/resource).
 
-However, it is important to note is how the `ENDPOINTS` and `INCREMENTAL_ENDPOINTS` tuples are defined in `stripe_analytics/settings.py`.
+However, it is important to note is how the `ENDPOINTS` and `INCREMENTAL_ENDPOINTS` tuples are defined in `stripe_analytics/settings.py`.
 
 ```python
 # The most popular Stripe API's endpoints
@@ -131,7 +137,7 @@ INCREMENTAL_ENDPOINTS = ("Event", "Invoice", "BalanceTransaction")
 
 ### Source `stripe_source`
 
-This function retrieves data from the Stripe API for the specified endpoint
+This function retrieves data from the Stripe API for the specified endpoint:
 
 ```python
 @dlt.source
@@ -146,11 +152,11 @@ def stripe_source(
 - `endpoints`: Tuple containing endpoint names.
 - `start_date`: Start datetime for data loading (default: None).
 - `end_date`: End datetime for data loading (default: None).
->This source loads both endpoint types in 'replace mode'. For incremental endpoints, use incremental_stripe_source.
+>This source loads all provided endpoints in 'replace' mode. For incremental endpoints, use incremental_stripe_source.
 
 ### Source `incremental_stripe_source`
 
-This source loads data in append mode from incremental endpoints.
+This source loads data in 'append' mode from incremental endpoints.
 
 ```python
 @dlt.source
@@ -168,7 +174,9 @@ def incremental_stripe_source(
 `end_date`: End datetime for data loading (default: None).
 
 
-After each run, initial_start_date updates to the last loaded date. Subsequent runs then retrieve only new data using append mode, streamlining the process and preventing redundant data downloads.
+After each run, 'initial_start_date' updates to the last loaded date. Subsequent runs then retrieve only new data using append mode, streamlining the process and preventing redundant data downloads.
+
+For more information, read the [General Usage: Incremental loading](../../general-usage/incremental-loading).
 
 ### Resource `metrics_resource`
 
@@ -181,11 +189,10 @@ def metrics_resource() -> Iterable[TDataItem]:
 
 
 Abrevations MRR and Churn rate are as follows:
-
-    - Monthly Recurring Revenue (MRR):
-      Measures the predictable monthly revenue from all active subscriptions. It's the sum of the monthly-normalized subscription amounts.
-    - Churn rate:
-      Indicates the rate subscribers leave a service over a specific period. Calculated by dividing the number of recent cancellations by the total subscribers from 30 days ago, adjusted for new subscribers.
+- Monthly Recurring Revenue (MRR):
+  - Measures the predictable monthly revenue from all active subscriptions. It's the sum of the monthly-normalized subscription amounts.
+- Churn rate:
+  - Indicates the rate subscribers leave a service over a specific period. Calculated by dividing the number of recent cancellations by the total subscribers from 30 days ago, adjusted for new subscribers.
 
 ### Create your own pipeline
 
