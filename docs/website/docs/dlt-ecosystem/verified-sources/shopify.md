@@ -91,12 +91,14 @@ For more information, read the
    shop_url = "Please set me up !" # please set me up!
    ```
 
-1. Update `shop_url` with the URL of your Shopify store. For example
-   ”https://shop-123.myshopify.com/%E2%80%9D.
+1. Update `shop_url` with the URL of your Shopify store. For example,
+   "https://shop-123.myshopify.com/%E2%80%9D".
 
 1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
+
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
@@ -107,7 +109,7 @@ For more information, read the
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```bash
-   python3 shopify_dlt_pipeline.py
+   python shopify_dlt_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:

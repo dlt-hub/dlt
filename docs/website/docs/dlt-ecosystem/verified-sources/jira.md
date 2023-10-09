@@ -41,6 +41,10 @@ To get a complete list of sub-endpoints that can be loaded, see
 
 1. Safely copy the newly generated access token.
 
+> Note: The Jira UI, which is described here, might change.
+The full guide is available at [this link.](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/)
+
+
 ### Initialize the verified source
 
 To get started with your data pipeline, follow these steps:
@@ -93,6 +97,8 @@ For more information, read the
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
@@ -102,7 +108,7 @@ For more information, read the
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```bash
-   python3 jira_pipeline.py
+   python jira_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
@@ -171,7 +177,8 @@ def issues(jql_queries: List[str]) -> Iterable[TDataItem]:
 
 `jql_queries`: Accepts a list of JQL queries.
 
-## Create Your Data Loading Pipeline
+## Customization
+### Create your own pipeline
 
 If you wish to create your own pipelines you can leverage source and resource methods as discussed
 above.

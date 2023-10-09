@@ -37,6 +37,9 @@ loads data using “Mux API” to the destination of your choice.
 
 1. Copy the API access token and secret key for later configuration.
 
+> Note: The Mux UI, which is described here, might change.
+The full guide is available at [this link.](https://docs.mux.com/guides/system/make-api-requests)
+
 ### Initialize the verified source
 
 To get started with your data pipeline, follow these steps:
@@ -78,7 +81,9 @@ For more information, read the
 1. Replace the API access and secret key with the ones that you [copied above](#grab-credentials).
    This will ensure that this source can access your Mux resources securely.
 
-1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
+1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
+
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
@@ -89,7 +94,7 @@ For more information, read the
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```bash
-   python3 mux_pipeline.py
+   python mux_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
@@ -107,7 +112,7 @@ For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs
 [resources](../../general-usage/resource).
 
 
-### Source `mux_source`
+### Source `mux_source`
 
 This function yields resources "asset_resource" and "views_resource" to load video assets and views.
 
@@ -152,6 +157,8 @@ def views_resource(
 
 The arguments `mux_api_access_token`, `mux_api_secret_key` and `limit` are the same as described [above](#resource-assets_resource) in "asset_resource".
 
+
+## Customization
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this

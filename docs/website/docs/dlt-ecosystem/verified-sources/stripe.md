@@ -124,6 +124,8 @@ For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/
 `dlt` works on the principle of [sources](../../general-usage/source) and
 [resources](../../general-usage/resource).
 
+### Default endpoints
+You can write your own pipelines to load data to a destination using this verified source.
 However, it is important to note is how the `ENDPOINTS` and `INCREMENTAL_ENDPOINTS` tuples are defined in `stripe_analytics/settings.py`.
 
 ```python
@@ -187,13 +189,14 @@ This function loads a dictionary with calculated metrics, including MRR and Chur
 def metrics_resource() -> Iterable[TDataItem]:
 ```
 
-
 Abrevations MRR and Churn rate are as follows:
 - Monthly Recurring Revenue (MRR):
   - Measures the predictable monthly revenue from all active subscriptions. It's the sum of the monthly-normalized subscription amounts.
 - Churn rate:
   - Indicates the rate subscribers leave a service over a specific period. Calculated by dividing the number of recent cancellations by the total subscribers from 30 days ago, adjusted for new subscribers.
 
+
+## Customization
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this

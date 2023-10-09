@@ -16,9 +16,9 @@ loads data using “Matomo API” to the destination of your choice.
 The endpoints that this verified source supports are:
 
 | Name              | Description                                                                     |
-| ----------------- | ------------------------------------------------------------------------------- |
-| matomo_reports    | detailed analytics summaries  of website traffic, visitor behavior, and more    |
-| matomo_visits     | individual user sessions on your website, pages viewed, visit duration and more |
+| ----------------- |---------------------------------------------------------------------------------|
+| matomo_reports    | Detailed analytics summaries  of website traffic, visitor behavior, and more    |
+| matomo_visits     | Individual user sessions on your website, pages viewed, visit duration and more |
 
 ## Setup Guide
 
@@ -35,6 +35,9 @@ The endpoints that this verified source supports are:
 1. Copy the access token and update it in the `.dlt/secrets.toml` file.
 1. Your Matomo URL is the web address in your browser when logged into Matomo, typically "https://mycompany.matomo.cloud/". Update it in  the `.dlt/config.toml`.
 1. The site_id is a unique ID for each monitored site in Matomo, found in the URL or via Administration > Measureables > Manage under ID.
+
+> Note: The Matomo UI, which is described here, might change.
+The full guide is available at [this link.](https://developer.matomo.org/guides/authentication-in-depth)
 
 ### Initialize the verified source
 
@@ -95,6 +98,8 @@ For more information, read the
 
 1. To monitor live events on a website, enter the `live_event_site_id` (usually it is same as `site_id`).
 
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
@@ -104,7 +109,7 @@ For more information, read the
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```bash
-   python3 matomo_pipeline.py
+   python matomo_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
@@ -263,14 +268,14 @@ verified source.
 
    ```python
    queries = [
-           {
-               "resource_name": "custom_report_name",
-               "methods": ["CustomReports.getCustomReport"],
-               "date": "2023-01-01",
-               "period": "day",
-               "extra_params": {"idCustomReport": 1}, #id of the report
-           },
-       ]
+       {
+           "resource_name": "custom_report_name",
+           "methods": ["CustomReports.getCustomReport"],
+           "date": "2023-01-01",
+           "period": "day",
+           "extra_params": {"idCustomReport": 1}, #id of the report
+       },
+   ]
 
    site_id = 1 #id of the site for which reports are being loaded
 

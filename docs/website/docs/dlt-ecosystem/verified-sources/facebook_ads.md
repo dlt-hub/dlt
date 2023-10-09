@@ -18,7 +18,7 @@ Facebook and its affiliated apps like Instagram and Messenger.
 
 This Facebook `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/facebook_ads_pipeline.py)
-loads data using “Facebook Marketing API” to the destination of your choice.
+loads data using [Facebook Marketing API](https://developers.facebook.com/products/marketing-api/) to the destination of your choice.
 
 The endpoints that this verified source supports are:
 
@@ -85,12 +85,16 @@ debug_access_token()
 
 We highly recommend you to add the token expiration timestamp to get notified a week before token
 expiration that you need to rotate it. Right now the notifications are sent to logger with error
-level. In config.toml / secrets.toml:
+level. In `config.toml` / `secrets.toml`:
 
 ```toml
 [sources.facebook_ads]
-access_token_expires_at=1688821881
+access_token_expires_at=1688821881...
 ```
+
+> Note: The Facebook UI, which is described here, might change.
+The full guide is available at [this link.](https://developers.facebook.com/docs/marketing-apis/overview/authentication)
+
 
 ### Initialize the verified source
 
@@ -150,6 +154,8 @@ For more information, read the
 
 1. Replace the value of the "account id" with the one [copied above](#grab-account-id).
 
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
@@ -159,7 +165,7 @@ For more information, read the
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```bash
-   python3 facebook_ads_pipeline.py
+   python facebook_ads_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
@@ -269,7 +275,7 @@ def facebook_insights_source(
 ) -> DltResource:
 ```
 
-`account_id`: Account id associated with add manager, configured in _config.toml_.
+`account_id`: Account id associated with ads manager, configured in _config.toml_.
 
 `access_token`: Access token associated with the Business Facebook App, configured in
 _secrets.toml_.
