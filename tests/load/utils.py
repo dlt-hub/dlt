@@ -2,7 +2,7 @@ import contextlib
 from importlib import import_module
 import codecs
 import os
-from typing import Any, Iterator, List, Sequence, cast, IO, Tuple, Optional, Dict, Union
+from typing import Any, Iterator, List, Sequence, cast, IO, Tuple, Optional
 import shutil
 from pathlib import Path
 from dataclasses import dataclass
@@ -12,8 +12,7 @@ from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, DestinationReference, JobClientBase, LoadJob, DestinationClientStagingConfiguration, WithStagingDataset, TDestinationReferenceArg
-from dlt.common.destination import TLoaderFileFormat
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, DestinationReference, JobClientBase, LoadJob, DestinationClientStagingConfiguration, WithStagingDataset
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns, Schema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
@@ -47,7 +46,7 @@ class DestinationTestConfiguration:
     """Class for defining test setup for one destination."""
     destination: str
     staging: Optional[str] = None
-    file_format: Optional[TLoaderFileFormat] = None
+    file_format: Optional[str] = None
     bucket_url: Optional[str] = None
     stage_name: Optional[str] = None
     staging_iam_role: Optional[str] = None
@@ -163,9 +162,9 @@ def get_normalized_dataset_name(client: JobClientBase) -> str:
         raise TypeError(f"{type(client)} client has configuration {type(client.config)} that does not support dataset name")
 
 
-def load_table(name: str) -> Dict[str, TTableSchemaColumns]:
+def load_table(name: str) -> TTableSchemaColumns:
     with open(f"./tests/load/cases/{name}.json", "rb") as f:
-        return json.load(f)
+        return cast(TTableSchemaColumns, json.load(f))
 
 
 def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
@@ -180,7 +179,7 @@ def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: st
     return job
 
 
-def prepare_table(client: JobClientBase, case_name: str = "event_user", table_name: str = "event_user", make_uniq_table: bool = True) -> str:
+def prepare_table(client: JobClientBase, case_name: str = "event_user", table_name: str = "event_user", make_uniq_table: bool = True) -> None:
     client.schema.bump_version()
     client.update_stored_schema()
     user_table = load_table(case_name)[table_name]
@@ -188,7 +187,7 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
         user_table_name = table_name + uniq_id()
     else:
         user_table_name = table_name
-    client.schema.update_schema(new_table(user_table_name, columns=list(user_table.values())))
+    client.schema.update_schema(new_table(user_table_name, columns=user_table.values()))
     client.schema.bump_version()
     client.update_stored_schema()
     return user_table_name
@@ -201,15 +200,15 @@ def yield_client(
 ) -> Iterator[SqlJobClientBase]:
     os.environ.pop("DATASET_NAME", None)
     # import destination reference by name
-    destination = import_module(f"dlt.destinations.{destination_name}")
+    destination: DestinationReference = import_module(f"dlt.destinations.{destination_name}")
     # create initial config
     dest_config: DestinationClientDwhConfiguration = None
     dest_config = destination.spec()()
-    dest_config.dataset_name = dataset_name  # type: ignore[misc]  # TODO: Why is dataset_name final?
+    dest_config.dataset_name = dataset_name
 
     if default_config_values is not None:
         # apply the values to credentials, if dict is provided it will be used as default
-        dest_config.credentials = default_config_values  # type: ignore[assignment]
+        dest_config.credentials = default_config_values
         # also apply to config
         dest_config.update(default_config_values)
     # get event default schema
@@ -229,7 +228,7 @@ def yield_client(
             default_schema_name=dest_config.default_schema_name,
             bucket_url=AWS_BUCKET
         )
-        dest_config.staging_config = staging_config  # type: ignore[attr-defined]
+        dest_config.staging_config = staging_config
 
     # lookup for credentials in the section that is destination name
     with Container().injectable_context(ConfigSectionContext(sections=("destination", destination_name,))):
@@ -283,11 +282,11 @@ def cm_yield_client_with_storage(
     return yield_client_with_storage(destination_name, default_config_values, schema_name)
 
 
-def write_dataset(client: JobClientBase, f: IO[bytes], rows: Union[List[Dict[str, Any]], List[StrAny]], columns_schema: TTableSchemaColumns) -> None:
+def write_dataset(client: JobClientBase, f: IO[bytes], rows: List[StrAny], columns_schema: TTableSchemaColumns) -> None:
     data_format = DataWriter.data_format_from_file_format(client.capabilities.preferred_loader_file_format)
     # adapt bytes stream to text file format
     if not data_format.is_binary_format and isinstance(f.read(0), bytes):
-        f = codecs.getwriter("utf-8")(f)  # type: ignore[assignment]
+        f = codecs.getwriter("utf-8")(f)
     writer = DataWriter.from_destination_capabilities(client.capabilities, f)
     # remove None values
     for idx, row in enumerate(rows):

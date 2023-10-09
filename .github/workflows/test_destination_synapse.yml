@@ -1,3 +1,5 @@
+
+
 name: test synapse
 
 on:
@@ -5,8 +7,11 @@ on:
     branches:
       - master
       - devel
-      
-  workflow_dispatch:
+  push:
+    branches:
+      - master
+      - devel
+      - synapse
   
 env:
   DESTINATION__SYNAPSE__CREDENTIALS: ${{ secrets.SYNAPSE_CREDENTIALS }}
@@ -19,16 +24,6 @@ env:
   ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
 
 jobs:
-
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Check source branch name
-      run: |
-        if [[ "${{ github.head_ref }}" != "synapse" ]]; then
-          exit 1
-        fi
 
   run_loader:
     name: Tests Synapse loader
