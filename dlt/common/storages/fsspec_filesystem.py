@@ -1,6 +1,10 @@
 import io
-from io import BytesIO, IOBase
-from typing import cast, Tuple, TypedDict, Optional, Union, Any
+import mimetypes
+import posixpath
+import pathlib
+from urllib.parse import urlparse
+from io import BytesIO
+from typing import cast, Tuple, TypedDict, Optional, Union, Iterator, Any, IO
 
 from fsspec.core import url_to_fs
 from fsspec import AbstractFileSystem
@@ -15,14 +19,14 @@ from dlt.common.storages.configuration import FileSystemCredentials, FilesystemC
 from dlt import version
 
 
-class FileItem(TypedDict):
+class FileItem(TypedDict, total=False):
     """A DataItem representing a file"""
     file_url: str
     file_name: str
     mime_type: str
     modification_date: pendulum.DateTime
     size_in_bytes: int
-    file_content: Optional[Union[str, bytes]]
+    file_content: Optional[bytes]
 
 
 # Map of protocol to mtime resolver
@@ -117,7 +121,7 @@ class FileItemDict(DictStrAny):
         else:
             return fsspec_filesystem(self["file_url"], self.credentials)[0]
 
-    def open(self, mode: str = "rb", **kwargs: Any) -> IOBase:  # noqa: A003
+    def open(self, mode: str = "rb", **kwargs: Any) -> IO[Any]:  # noqa: A003
         """Open the file as a fsspec file.
 
         This method opens the file represented by this dictionary as a file-like object using
@@ -129,7 +133,7 @@ class FileItemDict(DictStrAny):
         Returns:
             IOBase: The fsspec file.
         """
-        opened_file: IOBase
+        opened_file: IO[Any]
         # if the user has already extracted the content, we use it so there will be no need to
         # download the file again.
         if "file_content" in self:
@@ -148,7 +152,7 @@ class FileItemDict(DictStrAny):
             else:
                 return bytes_io
         else:
-            opened_file = self.fsspec.open(self["file_url"], **kwargs)
+            opened_file = self.fsspec.open(self["file_url"], mode=mode, **kwargs)
         return opened_file
 
     def read_bytes(self) -> bytes:
@@ -165,3 +169,50 @@ class FileItemDict(DictStrAny):
             content = self.fsspec.read_bytes(self["file_url"])
         return content
 
+
+def guess_mime_type(file_name: str) -> str:
+    mime_type = mimetypes.guess_type(posixpath.basename(file_name), strict=False)[0]
+    if not mime_type:
+        mime_type = "application/" + (posixpath.splitext(file_name)[1][1:] or "octet-stream")
+    return mime_type
+
+
+def glob_files(
+    fs_client: AbstractFileSystem, bucket_url: str, file_glob: str = "**/*"
+) -> Iterator[FileItem]:
+    """Get the files from the filesystem client.
+
+    Args:
+        fs_client (AbstractFileSystem): The filesystem client.
+        bucket_url (str): The url to the bucket.
+        file_glob (str): A glob for the filename filter.
+
+    Returns:
+        Iterable[FileItem]: The list of files.
+    """
+    bucket_url_parsed = urlparse(bucket_url)
+    if not bucket_url_parsed.scheme:
+        # this is a file so create a proper file url
+        bucket_url = pathlib.Path(bucket_url).absolute().as_uri()
+        bucket_url_parsed = urlparse(bucket_url)
+
+    bucket_path = bucket_url_parsed._replace(scheme='').geturl()
+    bucket_path = bucket_path[2:] if bucket_path.startswith("//") else bucket_path
+    filter_url = posixpath.join(bucket_path, file_glob)
+
+    glob_result = fs_client.glob(filter_url, detail=True)
+    if isinstance(glob_result, list):
+        raise NotImplementedError("Cannot request details when using fsspec.glob. For ADSL (Azure) please use version 2023.9.0 or later")
+
+    for file, md in glob_result.items():
+        if md["type"] != "file":
+            continue
+        file_name = posixpath.relpath(file, bucket_path)
+        file_url = bucket_url_parsed.scheme + "://" + file
+        yield FileItem(
+            file_name=file_name,
+            file_url=file_url,
+            mime_type=guess_mime_type(file_name),
+            modification_date=MTIME_DISPATCH[bucket_url_parsed.scheme](md),
+            size_in_bytes=int(md["size"]),
+        )

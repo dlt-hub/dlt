@@ -7,10 +7,11 @@ from dlt.common.configuration.inject import with_config
 from dlt.common import pendulum
 from dlt.common.configuration.specs import AzureCredentials, AzureCredentialsWithoutDefaults
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
-from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH
+from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import uniq_id
 
 from tests.utils import preserve_environ, autouse_test_storage
+from tests.common.storages.utils import assert_sample_files
 
 
 @with_config(spec=FilesystemConfiguration, sections=("destination", "filesystem"))
@@ -47,3 +48,19 @@ def test_filesystem_instance(all_buckets_env: str) -> None:
         assert (MTIME_DISPATCH[config.protocol](details) - now).seconds < 60
     finally:
         filesystem.rm(file_url)
+
+
+@pytest.mark.parametrize("load_content", (True, False))
+def test_filesystem_dict(all_buckets_env: str, load_content: bool) -> None:
+    bucket_url = os.environ['DESTINATION__FILESYSTEM__BUCKET_URL']
+    config = get_config()
+    if config.protocol in ["memory", "file"]:
+        pytest.skip(f"{config.protocol} not supported in this test")
+    glob_folder = "standard_source"
+    filesystem, _ = fsspec_from_config(config)
+    # use glob to get data
+    try:
+        all_file_items = list(glob_files(filesystem, posixpath.join(bucket_url, glob_folder, "samples")))
+        assert_sample_files(all_file_items, filesystem, config, load_content)
+    except NotImplementedError as ex:
+        pytest.skip("Skipping due to " + str(ex))
