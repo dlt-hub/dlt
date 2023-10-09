@@ -26,7 +26,7 @@ from dlt.load import Load
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, SQL_DESTINATIONS, EXCLUDED_DESTINATION_CONFIGURATIONS
+from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, SQL_DESTINATIONS
 from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES, assert_all_data_types_row
 
 # bucket urls
@@ -49,7 +49,6 @@ class DestinationTestConfiguration:
     staging: Optional[str] = None
     file_format: Optional[TLoaderFileFormat] = None
     bucket_url: Optional[str] = None
-    iceberg_bucket_url: Optional[str] = None
     stage_name: Optional[str] = None
     staging_iam_role: Optional[str] = None
     extra_info: Optional[str] = None
@@ -73,7 +72,6 @@ class DestinationTestConfiguration:
         os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = self.bucket_url or ""
         os.environ['DESTINATION__STAGE_NAME'] = self.stage_name or ""
         os.environ['DESTINATION__STAGING_IAM_ROLE'] = self.staging_iam_role or ""
-        os.environ['DESTINATION__ATHENA__ICEBERG_BUCKET_URL'] = self.iceberg_bucket_url or ""
 
         """For the filesystem destinations we disable compression to make analyzing the result easier"""
         if self.destination == "filesystem":
@@ -110,7 +108,6 @@ def destinations_configs(
         destination_configs += [DestinationTestConfiguration(destination=destination) for destination in SQL_DESTINATIONS if destination != "athena"]
         # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
         destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
-        destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, iceberg_bucket_url=AWS_BUCKET + "/iceberg", supports_merge=True, extra_info="iceberg")]
 
     if default_vector_configs:
         # for now only weaviate
@@ -153,9 +150,6 @@ def destinations_configs(
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
     if exclude:
         destination_configs = [conf for conf in destination_configs if conf.destination not in exclude]
-
-    # filter out destination configs as obtained from the env
-    destination_configs = [conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS]
 
 
     return destination_configs

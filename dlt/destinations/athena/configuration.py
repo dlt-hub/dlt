@@ -9,7 +9,6 @@ from dlt.common.configuration.specs import  AwsCredentials
 class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_name: Final[str] = "athena"  # type: ignore[misc]
     query_result_bucket: str = None
-    iceberg_bucket_url: Optional[str] = None
     credentials: AwsCredentials = None
     athena_work_group: Optional[str] = None
     aws_data_catalog: Optional[str] = "awsdatacatalog"

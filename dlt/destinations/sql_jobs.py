@@ -100,17 +100,17 @@ class SqlMergeJob(SqlBaseJob):
 
             A list of clauses may be returned for engines that do not support OR in subqueries. Like BigQuery
         """
-        return [f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} as s WHERE {' OR '.join([c.format(d=root_table_name,s='s') for c in key_clauses])})"]
+        return [f"FROM {root_table_name} as d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} as s WHERE {' OR '.join([c.format(d='d',s='s') for c in key_clauses])})"]
 
     @classmethod
-    def gen_delete_temp_table_sql(cls, unique_column: str, key_table_clauses: Sequence[str], root_table_name: str) -> Tuple[List[str], str]:
+    def gen_delete_temp_table_sql(cls, unique_column: str, key_table_clauses: Sequence[str]) -> Tuple[List[str], str]:
         """Generate sql that creates delete temp table and inserts `unique_column` from root table for all records to delete. May return several statements.
 
            Returns temp table name for cases where special names are required like SQLServer.
         """
         sql: List[str] = []
         temp_table_name = cls._new_temp_table_name("delete")
-        select_statement = f"SELECT {root_table_name}.{unique_column} {key_table_clauses[0]}"
+        select_statement = f"SELECT d.{unique_column} {key_table_clauses[0]}"
         sql.append(cls._to_temp_table(select_statement, temp_table_name))
         for clause in key_table_clauses[1:]:
             sql.append(f"INSERT INTO {temp_table_name} SELECT {unique_column} {clause};")
@@ -143,7 +143,7 @@ class SqlMergeJob(SqlBaseJob):
         Returns:
             sql statement that inserts data from selects into temp table
         """
-        return f"CREATE TABLE {temp_table_name} AS {select_sql};"
+        return f"CREATE TEMP TABLE {temp_table_name} AS {select_sql};"
 
     @classmethod
     def gen_merge_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
@@ -162,7 +162,6 @@ class SqlMergeJob(SqlBaseJob):
         unique_column: str = None
         root_key_column: str = None
         insert_temp_table_name: str = None
-        delete_temp_table_name: str = None
 
 
         if len(table_chain) == 1:
@@ -184,7 +183,7 @@ class SqlMergeJob(SqlBaseJob):
             # get first unique column
             unique_column = sql_client.capabilities.escape_identifier(unique_columns[0])
             # create temp table with unique identifier
-            create_delete_temp_table_sql, delete_temp_table_name = cls.gen_delete_temp_table_sql(unique_column, key_table_clauses, root_table_name)
+            create_delete_temp_table_sql, delete_temp_table_name = cls.gen_delete_temp_table_sql(unique_column, key_table_clauses)
             sql.extend(create_delete_temp_table_sql)
             # delete top table
             sql.append(f"DELETE FROM {root_table_name} WHERE {unique_column} IN (SELECT * FROM {delete_temp_table_name});")
@@ -229,11 +228,5 @@ class SqlMergeJob(SqlBaseJob):
                 insert_sql += ";"
             sql.append(insert_sql)
             # -- DELETE FROM {staging_table_name} WHERE 1=1;
-
-        # clean up
-        if insert_temp_table_name:
-            sql.append(f"DROP TABLE {insert_temp_table_name};")
-        if delete_temp_table_name:
-            sql.append(f"DROP TABLE {delete_temp_table_name};")
 
         return sql

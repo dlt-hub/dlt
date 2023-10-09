@@ -21,7 +21,6 @@ env:
   RUNTIME__DLTHUB_TELEMETRY_SEGMENT_WRITE_KEY: TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB
   ACTIVE_DESTINATIONS: "[\"athena\"]"
   ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
-  EXCLUDED_DESTINATION_CONFIGURATIONS: "[\"athena-parquet-staging-iceberg\"]"
 
 jobs:
   get_docs_changes:

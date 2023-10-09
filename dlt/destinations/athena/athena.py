@@ -303,13 +303,11 @@ class AthenaClient(SqlJobClientWithStaging):
         super().__init__(schema, config, sql_client)
         self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config
-        self.iceberg_mode = not (not self.config.iceberg_bucket_url)
-        self.type_mapper = AthenaTypeMapper(self.capabilities, self.iceberg_mode)
+        self.type_mapper = AthenaTypeMapper(self.capabilities, True)
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # only truncate tables in iceberg mode
-        if not self.iceberg_mode or self.in_staging_mode:
-            truncate_tables = []
+        truncate_tables = []
         super().initialize_storage(truncate_tables)
 
     def _from_db_type(self, hive_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
@@ -320,23 +318,14 @@ class AthenaClient(SqlJobClientWithStaging):
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
 
-        create_data_iceberg_tables = self.iceberg_mode and not self.in_staging_mode
-
         bucket = self.config.staging_config.bucket_url
         dataset = self.sql_client.dataset_name
-
-        if create_data_iceberg_tables:
-            bucket = self.config.iceberg_bucket_url
-
-        # strip the staging portion from the dataset name if we are in iceberg mode
-        if self.iceberg_mode and self.in_staging_mode and dataset.endswith("_staging") :
-            dataset = dataset[:-len("_staging")]
 
         sql: List[str] = []
 
         # for the system tables we need to create empty iceberg tables to be able to run, DELETE and UPDATE queries
         # or if we are in iceberg mode, we create iceberg tables for all tables
-        is_iceberg = create_data_iceberg_tables or (self.schema.tables[table_name].get("write_disposition", None) == "skip")
+        is_iceberg = self.schema.tables[table_name].get("write_disposition", None) == "skip"
         columns = ", ".join([self._get_column_def_sql(c) for c in new_columns])
 
         # this will fail if the table prefix is not properly defined
@@ -369,28 +358,31 @@ class AthenaClient(SqlJobClientWithStaging):
             )
         job = super().start_file_load(table, file_path, load_id)
         if not job:
-            job = DoNothingFollowupJob(file_path) if self.iceberg_mode else DoNothingJob(file_path)
+            job = DoNothingFollowupJob(file_path) if self._is_iceberg_table(table) else DoNothingJob(file_path)
         return job
 
     def _create_append_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        if self.iceberg_mode:
+        if self._is_iceberg_table(table_chain[0]):
             return [SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": False})]
         return super()._create_append_followup_jobs(table_chain)
 
     def _create_replace_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        if self.iceberg_mode:
+        if self._is_iceberg_table(table_chain[0]):
             return [SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": True})]
         return super()._create_replace_followup_jobs(table_chain)
 
+    def _is_iceberg_table(self, table: TTableSchema) -> bool:
+        return False
+
     def get_stage_dispositions(self) -> List[TWriteDisposition]:
         # in iceberg mode, we always use staging tables
-        if self.iceberg_mode:
-            return ["append", "replace", "merge"]
+        # if self.iceberg_mode:
+        #    return ["append", "replace", "merge"]
         return super().get_stage_dispositions()
 
     def get_truncate_staging_destination_table_dispositions(self) -> List[TWriteDisposition]:
-        if self.iceberg_mode:
-            return ["append", "replace", "merge"]
+        # if self.iceberg_mode:
+        #    return ["append", "replace", "merge"]
         return []
 
     @staticmethod

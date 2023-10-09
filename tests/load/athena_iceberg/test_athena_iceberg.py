@@ -1,6 +1,3 @@
-"""
-Temporary test file for iceberg
-"""
 
 import pytest
 import os
@@ -22,14 +19,11 @@ skip_if_not_active("athena")
 
 
 def test_iceberg() -> None:
-
     os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "s3://dlt-ci-test-bucket"
-    os.environ['DESTINATION__ATHENA__ICEBERG_BUCKET_URL'] = "s3://dlt-ci-test-bucket/iceberg"
 
-    pipeline = dlt.pipeline(pipeline_name="aaathena", destination="athena", staging="filesystem", full_refresh=True)
+    pipeline = dlt.pipeline(pipeline_name="aaathena-iceberg", destination="athena", staging="filesystem", full_refresh=True)
 
-    @dlt.resource(name="items", write_disposition="append")
-    def items():
+    def items() -> Iterator[Any]:
         yield {
             "id": 1,
             "name": "item",
@@ -42,7 +36,17 @@ def test_iceberg() -> None:
             }]
         }
 
-    print(pipeline.run(items))
+    @dlt.resource(name="items_normal", write_disposition="append")
+    def items_normal():
+        yield from items()
+
+    @dlt.resource(name="items_iceberg", write_disposition="append")
+    def items_iceberg():
+        yield from items()
+
+    print(pipeline.run([items_normal, items_iceberg]))
+
+    return
 
     # see if we have athena tables with items
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema._schema_tables.values() ])
