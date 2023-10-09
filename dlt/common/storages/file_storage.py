@@ -45,14 +45,19 @@ class FileStorage:
             raise
 
     @staticmethod
-    def move_atomic(source_file_path: str, dest_folder_path: str) -> str:
+    def move_atomic_to_folder(source_file_path: str, dest_folder_path: str) -> str:
         file_name = os.path.basename(source_file_path)
         dest_file_path = os.path.join(dest_folder_path, file_name)
+        return FileStorage.move_atomic_to_file(source_file_path, dest_file_path)
+
+    @staticmethod
+    def move_atomic_to_file(source_file_path: str, dest_file_path: str) -> str:
         try:
             os.rename(source_file_path, dest_file_path)
         except OSError:
             # copy to local temp file
-            dest_temp_file = os.path.join(dest_folder_path, uniq_id())
+            folder_name = os.path.dirname(dest_file_path)
+            dest_temp_file = os.path.join(folder_name, uniq_id())
             try:
                 shutil.copyfile(source_file_path, dest_temp_file)
                 os.rename(dest_temp_file, dest_file_path)
@@ -195,11 +200,20 @@ class FileStorage:
             if not os.listdir(root):
                 os.rmdir(root)
 
-    def atomic_import(self, external_file_path: str, to_folder: str) -> str:
-        """Moves a file at `external_file_path` into the `to_folder` effectively importing file into storage"""
-        return self.to_relative_path(FileStorage.move_atomic(external_file_path, self.make_full_path(to_folder)))
-        # file_name = FileStorage.get_file_name_from_file_path(external_path)
-        # os.rename(external_path, os.path.join(self.make_full_path(to_folder), file_name))
+    def atomic_import(self, external_file_path: str, to_folder: str, new_file_name: Optional[str] = None) -> str:
+        """Moves a file at `external_file_path` into the `to_folder` effectively importing file into storage
+
+        Args:
+            external_file_path: Path to file to be imported
+            to_folder: Path to folder where file should be imported
+            new_file_name: Optional new file name for the imported file, otherwise the original file name is used
+
+        Returns:
+            Path to imported file relative to storage root
+        """
+        new_file_name = new_file_name or os.path.basename(external_file_path)
+        dest_file_path = os.path.join(self.make_full_path(to_folder), new_file_name)
+        return self.to_relative_path(FileStorage.move_atomic_to_file(external_file_path, dest_file_path))
 
     def in_storage(self, path: str) -> bool:
         assert path is not None

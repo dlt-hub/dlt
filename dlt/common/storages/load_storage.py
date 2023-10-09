@@ -311,6 +311,11 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         """Adds new job by moving the `job_file_path` into `new_jobs` of package `load_id`"""
         self.storage.atomic_import(job_file_path, self._get_job_folder_path(load_id, job_state))
 
+    def atomic_import(self, external_file_path: str, to_folder: str) -> str:
+        """Moves a file at `external_file_path` into the `to_folder` effectively importing file into storage"""
+        # LoadStorage.parse_job_file_name
+        return self.to_relative_path(FileStorage.move_atomic_to_folder(external_file_path, self.make_full_path(to_folder)))
+
     def start_job(self, load_id: str, file_name: str) -> str:
         return self._move_job(load_id, LoadStorage.NEW_JOBS_FOLDER, LoadStorage.STARTED_JOBS_FOLDER, file_name)
 
