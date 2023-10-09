@@ -26,7 +26,7 @@ For example, I need to analyze expenses in order to prepare a budget estimation.
 
 Imagine this scenario: your team receives numerous invoices as email attachments daily. You need to extract and analyze the data within these invoices to gain insights crucial to your operations. This is where the data load tool (`dlt`) steps in.
 
-Alena created a [pipeline](https://github.com/dlt-hub/dlt_invoices) using dlt that automates the process of translating invoices received as email attachments in a specific Google email group and stores them in a database (for example [BigQuery](https://dlthub.com/docs/dlt-ecosystem/destinations/bigquery) or [DuckDB](https://dlthub.com/docs/dlt-ecosystem/destinations/duckdb)).
+Alena created a [pipeline](https://github.com/dlt-hub/dlt_invoices) using `dlt` that automates the process of translating invoices received as email attachments in a specific Google email group and stores them in a database (for example, [BigQuery](https://dlthub.com/docs/dlt-ecosystem/destinations/bigquery) or [DuckDB](https://dlthub.com/docs/dlt-ecosystem/destinations/duckdb)).
 
 As a non-coder working in tech startups for a long time, I finally got a chance to learn how to use the terminal and run a simple pipeline.
 
@@ -34,7 +34,7 @@ Here's a summary of how it works.
 
 ## Let’s get started
 
-In this article I will show you an example of loading structured data from invoices received by email into [BigQuery](https://dlthub.com/docs/dlt-ecosystem/destinations/bigquery). For more details, check the [README.md](https://github.com/dlt-hub/dlt_invoices) in the GitHub repository.
+In this article, I will show you an example of loading structured data from invoices received by email into [BigQuery](https://dlthub.com/docs/dlt-ecosystem/destinations/bigquery). For more details, check the [README.md](https://github.com/dlt-hub/dlt_invoices) in the GitHub repository.
 
 ### Step 1. Preparation
 
@@ -42,23 +42,23 @@ Make sure that you have all you need:
 
 - Make sure you have Python 3.x installed on your system.
 - Use a virtual environment (more details on how to [set up the environment](https://dlthub.com/docs/reference/installation#set-up-environment)).
-- Install the dlt library by using `pip install "dlt[bigquery]"`.
+- Install the `dlt` library by using `pip install "dlt[bigquery]"`.
 - Create a project folder on your laptop. I called mine “unstructured_data_pipeline”.
-- We will need access to LLM, Langchain will use OpenAI models by default, so we also used an openAI API token.
+- We will need access to LLM, Langchain will use OpenAI models by default, so we also used an OpenAI API token.
 - Using a tool like Visual Studio makes it easier.
 
 ### Step 2. Initiate the pipeline
 
-To create the pipeline, we will use the dlt verified source [unstructured_data](https://github.com/dlt-hub/verified-sources/blob/master/sources/unstructured_data/README.md), which includes the verified source [inbox](https://github.com/dlt-hub/verified-sources/blob/master/sources/unstructured_data/inbox/README.md).
+To create the pipeline, we will use the `dlt` verified source [unstructured_data](https://github.com/dlt-hub/verified-sources/blob/master/sources/unstructured_data/README.md), which includes the verified source [inbox](https://github.com/dlt-hub/verified-sources/blob/master/sources/unstructured_data/inbox/README.md).
 
 - Init the pipeline by using `dlt init unstructured_data bigquery`.
 - Install necessary requirements `pip install -r requirements.txt`.
 
 ### Step 3. Set up your credentials
 
-The dlt [init command](https://dlthub.com/docs/reference/command-line-interface#dlt-init) creates folder `.dlt` in your project directory, and clones the source code from the [verified-sources repository](https://github.com/dlt-hub/verified-sources).
+The `dlt` [init command](https://dlthub.com/docs/reference/command-line-interface#dlt-init) creates folder `.dlt` in your project directory, and clones the source code from the [verified-sources repository](https://github.com/dlt-hub/verified-sources).
 
-- Open `.dlt/secrets.toml` file on your laptop.
+- Open `.dlt/secrets.toml` file on your laptop.
 - Enter the OpenAI secrets:
 
     ```
@@ -66,7 +66,7 @@ The dlt [init command](https://dlthub.com/docs/reference/command-line-interface#
     openai_api_key = "openai_api_key"
     ```
 
-- Enter your email account secrets in the same section `[sources.unstructured_data]`:
+- Enter your email account secrets in the same section `[sources.unstructured_data]`:
 
     ```
     host = 'imap.example.com'
@@ -74,8 +74,7 @@ The dlt [init command](https://dlthub.com/docs/reference/command-line-interface#
     password = 'set me up!'
     ```
 
-
-Check [here](https://github.com/dlt-hub/dlt_invoices#configure-inbox-source) how to configure the inbox source.
+  Check [here](https://github.com/dlt-hub/dlt_invoices#configure-inbox-source) how to configure the inbox source.
 
 - Enter the BigQuery secrets:
 
@@ -111,8 +110,13 @@ Customize the INVOICE_QUERIES dictionary in the `unstructured_data/settings.py` 
 
 ### Step 6: Run the pipeline!
 
-And now the magic happens. Type `python unstructured_data_pipeline.py`.
-In the next step, dlt will save all processed structured data to the database (in my case BigQuery).
+And now the magic happens. Use the following command to run the pipeline:
+
+```shell
+python unstructured_data_pipeline.py
+```
+
+In the next step, `dlt` will save all processed structured data to the database (in my case, BigQuery).
 
 ### Step 7: Check the outcome in BigQuery
 
@@ -141,20 +145,20 @@ Spreadsheet → Data Connectors → BigQuery → choose your database and voila,
 
 ### **This worked well:**
 
-- dlt was good at extracting the data I needed, and it indeed worked in real-time. I needed some support from Alena when running the pipeline for the first time, but that’s because I had never coded before. 😊
-- I was able to see the details that are relevant to my work around budgeting.
+- `dlt` was good at extracting the data I needed, and it indeed worked in real-time. I needed some support from Alena when running the pipeline for the first time, but that’s because I had never coded before. 😊
+- I was able to see the details that are relevant to my workaround budgeting.
 
 ### **This did not work well:**
 
-- Some PDFs don’t get transformed correctly. Some details were missing or misspelled. That depends on the LLM, which extracts structured data from raw text. And also on the invoice structure.
-- And it only worked well with digital PDFs, though not with JPG/scanned versions. Luckily 99% of all the invoices are of the former kind. However, you can even set up this process for the other kinds of documents by making modifications to [unstructured.io](https://unstructured.io/).
+- Some PDFs don’t get transformed correctly. Some details were missing or misspelled. That depends on the LLM, which extracts structured data from a raw text. And also on the invoice structure.
+- And it only worked well with digital PDFs, though not with JPG/scanned versions. Luckily, 99% of all the invoices are of the former kind. However, you can even set up this process for the other kinds of documents by making modifications to [unstructured.io](https://unstructured.io/).
 
 # Where to go next?
 
 It was definitely a great start, and we will test it further. And I already have many other use cases where dlt pipelines could help with ops automation processes. E.g.:
 
-- In creating a list of all contracts based on PDFs in a Google Drive folder (super useful for audits)
-- In moving specific data to CRM (e.g. invoice related information about the customers)
+- In creating a list of all contracts based on PDFs in a Google Drive folder (super useful for audits).
+- In moving specific data to CRM (e.g. invoice related information about the customers).
 
 This specific example illustrates just one way in which Operations Leads can harness the power of `dlt` to analyze data efficiently without relying on engineers for extensive support. By automating data processes and enabling real-time insights, `dlt` empowers small startups to make informed decisions and stay competitive in their respective markets.
 
