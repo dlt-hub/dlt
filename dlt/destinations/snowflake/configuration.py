@@ -35,13 +35,13 @@ def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes
             backend=default_backend(),
         )
     except Exception:
-        # loading base64-encoded DER key failed -> assume it's a plain-text PEM key 
+        # loading base64-encoded DER key failed -> assume it's a plain-text PEM key
         serialization.load_pem_private_key(
             private_key.encode(),
             password=password.encode() if password is not None else None,
             backend=default_backend(),
         )
-    
+
     return pkey.private_bytes(
         encoding=serialization.Encoding.DER,
         format=serialization.PrivateFormat.PKCS8,
