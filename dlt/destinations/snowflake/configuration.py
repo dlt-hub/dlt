@@ -27,22 +27,21 @@ def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes
     except ModuleNotFoundError as e:
         raise MissingDependencyException("SnowflakeCredentials with private key", dependencies=[f"{version.DLT_PKG_NAME}[snowflake]"]) from e
 
-    load_key_func = serialization.load_pem_private_key
-    private_key_bytes_decoded = private_key.encode()
     try:
-        # decode base64 encoded private key
-        private_key_bytes_decoded = base64.b64decode(private_key)
-        load_key_func = serialization.load_der_private_key
-    except binascii.Error:
-        # cannot base64-decode private key -> assume it's been provided as plain text
-        pass
+        # load key from base64-encoded DER key
+        pkey = serialization.load_der_private_key(
+            base64.b64decode(private_key),
+            password=password.encode() if password is not None else None,
+            backend=default_backend(),
+        )
+    except Exception:
+        # loading base64-encoded DER key failed -> assume it's a plain-text PEM key 
+        serialization.load_pem_private_key(
+            private_key.encode(),
+            password=password.encode() if password is not None else None,
+            backend=default_backend(),
+        )
     
-    pkey: PrivateKeyTypes = load_key_func(
-        private_key_bytes_decoded,
-        password=password.encode() if password is not None else None,
-        backend=default_backend(),
-    )
-
     return pkey.private_bytes(
         encoding=serialization.Encoding.DER,
         format=serialization.PrivateFormat.PKCS8,
