@@ -94,7 +94,7 @@ Streamlit Explore data. Schema and data for a test pipeline “quick_start”.
 :::tip
 `dlt` works in Jupyter Notebook and Google Colab! See our [Quickstart Colab Demo.](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
 
-Looking for source code of all the snippets? You can find and run them [from this repository](https://github.com/dlt-hub/dlt/tree/devel/docs/snippets).
+Looking for source code of all the snippets? You can find and run them [from this repository](https://github.com/dlt-hub/dlt/blob/devel/docs/website/docs/getting-started-snippets.py).
 :::
 
 Learn more:
@@ -150,7 +150,7 @@ print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END json-->
 
-We import **json** from `dlt` namespace. It defaults to `orjson`(otherwise `simplejson`). It can also encode date times, dates, dataclasses and few more datat types.
+We import **json** from `dlt` namespace. It defaults to `orjson`(otherwise `simplejson`). It can also encode date times, dates, dataclasses and few more data types.
 
   </TabItem>
   <TabItem value="csv">
