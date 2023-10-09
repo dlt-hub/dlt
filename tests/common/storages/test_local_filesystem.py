@@ -1,8 +1,7 @@
 import os
 import itertools
 import pytest
-
-
+import pathlib
 
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import glob_files
@@ -14,13 +13,15 @@ TEST_SAMPLE_FILES = "tests/common/storages/samples"
 
 @pytest.mark.parametrize("bucket_url,load_content", itertools.product(["file:///", "/", ""], [True, False]))
 def test_filesystem_dict_local(bucket_url: str, load_content: bool) -> None:
-    if bucket_url in ["file://", ""]:
+    if bucket_url in [""]:
         # relative paths
-        bucket_url += TEST_SAMPLE_FILES
+        bucket_url = TEST_SAMPLE_FILES
     else:
-        bucket_url += os.path.abspath(TEST_SAMPLE_FILES)[1:]
+        if bucket_url == "/":
+            bucket_url = os.path.abspath(TEST_SAMPLE_FILES)
+        else:
+            bucket_url  = pathlib.Path(TEST_SAMPLE_FILES).absolute().as_uri()
 
-    print(bucket_url)
     config = FilesystemConfiguration(bucket_url=bucket_url)
     filesystem, _ = fsspec_from_config(config)
     # use glob to get data

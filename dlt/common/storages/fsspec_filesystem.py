@@ -190,8 +190,10 @@ def glob_files(
     Returns:
         Iterable[FileItem]: The list of files.
     """
+    import os
     bucket_url_parsed = urlparse(bucket_url)
-    if not bucket_url_parsed.scheme:
+    # if this is file path without scheme
+    if not bucket_url_parsed.scheme or (os.path.isabs(bucket_url) and "\\" in bucket_url):
         # this is a file so create a proper file url
         bucket_url = pathlib.Path(bucket_url).absolute().as_uri()
         bucket_url_parsed = urlparse(bucket_url)
@@ -207,6 +209,9 @@ def glob_files(
     for file, md in glob_result.items():
         if md["type"] != "file":
             continue
+        # make that absolute path on a file://
+        if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
+            file = "/" + file
         file_name = posixpath.relpath(file, bucket_path)
         file_url = bucket_url_parsed.scheme + "://" + file
         yield FileItem(
