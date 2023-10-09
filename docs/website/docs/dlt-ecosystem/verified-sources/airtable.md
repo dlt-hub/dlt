@@ -6,7 +6,7 @@ keywords: [airtable api, airtable verified source, airtable]
 
 # Airtable
 
-Airtable is a cloud-based platform that merges spreadsheet and database functionalities for easy
+[Airtable](https://www.airtable.com/) is a cloud-based platform that merges spreadsheet and database functionalities for easy
 data management and collaboration.
 
 This Airtable `dlt` verified source and
@@ -23,8 +23,6 @@ Sources and resources that can be loaded using this verified source are:
 ## Setup Guide
 
 ### Grab Airtable personal access tokens
-
-
 
 1. Click your account icon top-right.
 1. Choose "Developer Hub" from the dropdown.
@@ -106,6 +104,8 @@ For more information, read the
    > Optionally, you can also input "base_id" and "table_names" in the script, as in the pipeline
    > example.
 
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
@@ -118,7 +118,7 @@ For more information, read the
 1. You're now ready to run the pipeline! To get started, run the following command:
 
    ```bash
-   python3 airtable_pipeline.py
+   python airtable_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using

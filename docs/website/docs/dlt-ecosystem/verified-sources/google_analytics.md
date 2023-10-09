@@ -36,18 +36,18 @@ tokens are preferred when user consent is required, while service account creden
 suited for server-to-server interactions. You can choose the method of authentication as per your
 requirement.
 
-### Grab google service account credentials
+### Grab Google service account credentials
 
-You need to create a GCP service account to get API credentials, if you don't have one. To create
-one follow these steps:
+You need to create a GCP service account to get API credentials if you don't have one. To create
+ one, follow these steps:
 
 1. Sign in to [console.cloud.google.com](http://console.cloud.google.com/).
 
-1. [Create a service account](https://cloud.google.com/iam/docs/service-accounts-create#creating) if
+1. [Create a service account](https://cloud.google.com/iam/docs/service-accounts-create#creating) if
    needed.
 
 1. Enable "Google Analytics API", refer
-   [google documentation](https://support.google.com/googleapi/answer/6158841?hl=en) for
+   [Google documentation](https://support.google.com/googleapi/answer/6158841?hl=en) for
    comprehensive instructions on this process.
 
 1. Generate credentials:
@@ -60,7 +60,7 @@ one follow these steps:
 
 ### Grab google OAuth credentials
 
-You need to create a GCP account to get OAuth credentials, if you don't have one. To create one
+You need to create a GCP account to get OAuth credentials if you don't have one. To create one,
 follow these steps:
 
 1. Ensure your email used for the GCP account has access to the GA4 property.
@@ -91,10 +91,10 @@ follow these steps:
 1. Add your email as a test user.
 
 After configuring "client_id", "client_secret" and "project_id" in "secrets.toml". To generate the
-refresh token run the following script from the root folder:
+refresh token, run the following script from the root folder:
 
 ```bash
-python3 google_analytics/setup_script_gcp_oauth.py
+python google_analytics/setup_script_gcp_oauth.py
 ```
 
 Once you have executed the script and completed the authentication, you will receive a "refresh
@@ -161,10 +161,10 @@ For more information, read the
 
 1. From the ".json" that you
    [downloaded earlier](google_analytics.md#grab-google-service-account-credentials),
-   copy `project_id`, `private_key`,
-   and `client_email` under `[sources.google_analytics.credentials]`.
+   copy `project_id`, `private_key`,
+   and `client_email` under `[sources.google_analytics.credentials]`.
 
-1. Alternatively, if you're using OAuth credentials, replace the the fields and values with those
+1. Alternatively, if you're using OAuth credentials, replace the fields and values with those
    you [grabbed for OAuth credentials](google_analytics.md#grab-google-oauth-credentials).
 
 1. The secrets.toml for OAuth authentication looks like:
@@ -177,7 +177,7 @@ For more information, read the
    project_id = "project_id" # please set me up!
    ```
 
-1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
+1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
 #### Pass `property_id` and `request parameters`
 
@@ -209,6 +209,8 @@ For more information, read the
 1. To use queries from `.dlt/config.toml`, run the `simple_load_config()` function in
    [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics_pipeline.py).
 
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
@@ -218,7 +220,7 @@ For more information, read the
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```bash
-   python3 google_analytics_pipeline.py
+   python google_analytics_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
@@ -295,6 +297,7 @@ def metrics_table(metadata: Metadata) -> Iterator[TDataItem]:
 Similarly, there is a transformer function called `dimensions_table` that populates table called
 "dimensions" with the data from each dimension.
 
+## Customization
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this
@@ -304,9 +307,9 @@ verified source.
 
    ```python
    pipeline = dlt.pipeline(
-      pipeline_name="google_analytics",  # Use a custom name if desired
-      destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-      dataset_name="GA4_data"  # Use a custom name if desired
+       pipeline_name="google_analytics",  # Use a custom name if desired
+       destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+       dataset_name="GA4_data"  # Use a custom name if desired
    )
    ```
 

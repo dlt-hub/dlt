@@ -12,7 +12,7 @@ keywords: [asana api, verified source, asana]
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
-Asana is a widely used web-based project management and collaboration tool that helps teams stay
+[Asana](https://asana.com) is a widely used web-based project management and collaboration tool that helps teams stay
 organized, focused, and productive. With Asana, team members can easily create, assign, and track
 tasks, set deadlines, and communicate with each other in real-time.
 
@@ -47,8 +47,8 @@ To get a complete list of sub-endpoints that can be loaded, see
 1. This token will be used to configure `.dlt/secrets.toml`, so keep it secure and don't share it
    with anyone.
 
-More information you can see in the
-[Asana official documentation](https://developers.asana.com/docs/authentication).
+> Note: The Asana UI, which is described here, might change.
+The full guide is available at [this link.](https://developers.asana.com/docs/authentication)
 
 ### Initialize the verified source
 
@@ -100,7 +100,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```bash
-   python3 asana_dlt_pipeline.py
+   python asana_dlt_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:

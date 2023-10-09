@@ -44,8 +44,8 @@ Sources and resources that can be loaded using this verified source are:
 1. Select the API tab.
 1. Copy your API token (to be used in the dlt configuration).
 
-You can learn more about Pipedrive API token authentication in the docs
-[here](https://pipedrive.readme.io/docs/how-to-find-the-api-token).
+> Note: The Pipedrive UI, which is described here, might change.
+The full guide is available at [this link.](https://pipedrive.readme.io/docs/how-to-find-the-api-token)
 
 ### Initialize the verified source
 
@@ -88,6 +88,8 @@ For more information, read the
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
@@ -97,7 +99,7 @@ For more information, read the
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```bash
-   python3 pipedrive_pipeline.py
+   python pipedrive_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
@@ -147,8 +149,8 @@ def pipedrive_source(
 
 `pipedrive_api_key`: Authentication token for Pipedrive, configured in ".dlt/secrets.toml".
 
-`since_timestamp`: Starting timestamp for incremental loading. By default complete history is loaded
-on first run. And new data in subsequent runs.
+`since_timestamp`: Starting timestamp for incremental loading. By default, complete history is loaded
+ on the first run. And new data in subsequent runs.
 
 > Note: Incremental loading can be enabled or disabled depending on user prefrences.
 
@@ -221,7 +223,7 @@ entity exists. This updated state is then saved for future pipeline runs.
 
 ### Other functions
 
-Similar to the above functions there are following:
+Similar to the above functions, there are the following:
 
 `custom_fields_mapping`: Transformer function that parses and yields custom fields' mapping in order
 to be stored in destination by dlt.
