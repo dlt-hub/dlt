@@ -126,16 +126,16 @@ Now you can [deploy this script with GitHub Actions](https://dlthub.com/docs/wal
 
 Here’s how the result looks like in BigQuery:
 
-![screenshot 1](pdf_parse_outcome_1.png)
+![screenshot 1](/img/pdf_parse_outcome_1.png)
 
 …and as a Google Sheet. You can easily export this table from BigQuery to Google Sheets using the Export button in the top right corner.
 
-![screenshot 2](pdf_parse_outcome_2.png)
+![screenshot 2](/img/pdf_parse_outcome_2.png)
 
 Bonus: In order to have a Google Sheet with live updates, you can go to the Data tab in your
 Spreadsheet → Data Connectors → BigQuery → choose your database and voila, your data will be updated automatically.
 
-![screenshot 3](pdf_parse_outcome_3.png)
+![screenshot 3](/img/pdf_parse_outcome_3.png)
 
 # **Conclusion:**
 
