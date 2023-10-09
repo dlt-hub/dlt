@@ -1,7 +1,7 @@
 ---
 slug: dlt-ops-startups
 title: "PDF invoices → Real-time financial insights: How I stopped relying on an engineer to automate my workflow and learnt to do it myself"
-image: /img/dlt_holistics_overview.jpg
+image: /img/invoice_flowchart.png
 authors:
   name: Anna Hoffmann
   title: COO
