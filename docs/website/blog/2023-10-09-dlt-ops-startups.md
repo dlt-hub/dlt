@@ -20,7 +20,7 @@ So, I often end up doing manual tasks such as budgeting, cost estimation, updati
 
 For example, I need to analyze expenses in order to prepare a budget estimation. I get numerous PDFs daily in a dedicated Gmail group inbox. I was wondering to which extent [dlt](https://github.com/dlt-hub/dlt) can help fulfill my automation dream. I decided to work with Alena from our data team on an internal project.
 
-![invoice flow chart](/img/invoice_flowchart.jpg)
+![invoice flow chart](/img/invoice_flowchart.png)
 
 ## Use Case
 
