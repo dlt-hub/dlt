@@ -178,7 +178,7 @@ To get started with your data pipeline, follow these steps:
 For more information, read the
 [Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
 
-## Add credentials
+### Add credentials
 
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
    information securely, like access tokens. Keep this file safe. Here's its format for service
@@ -287,17 +287,18 @@ def talk_resource(
 
 Other functions similar to the source `zendesk_talk` and resources similar to `talk_endpoint`  are:
 
-| Function Name             | Type              | Description                                                                                       |
-|---------------------------| ----------------- |---------------------------------------------------------------------------------------------------|
-| zendesk_chat              | source function   | Retrieves data from Zendesk Chat for chat interactions                                            |
-| chats_table_resource      | resource function | Retrieves chats from Zendesk                                                                      |
-| talk_incremental_resource | resource function | Retrieves data incrementally from a Zendesk Talk endpoint.                                        |
-| zendesk_support           | source function   | Retrieves data from Zendesk Support for tickets, users, brands, organizations, and groups         |
-| ticket_events             | resource function | Retrieves records of all changes made to a ticket, including state, etc.                          |
-| tickets                   | resource function | Retrieves the data for ticket table, the table can be pivoted and cols renamed                    |
-| ticket_metric_events      | resource function | Retrieves ticket metric events from the start date, defaulting to January 1st of the current year |
-| basic_resource            | resource function | Retrives basic loader for Zenpy endpoints with pagination support                                 |
+| Function Name             | Type      | Description                                                                                       |
+|---------------------------| --------- |---------------------------------------------------------------------------------------------------|
+| zendesk_chat              | source    | Retrieves data from Zendesk Chat for chat interactions                                            |
+| chats_table_resource      | resource  | Retrieves chats from Zendesk                                                                      |
+| talk_incremental_resource | resource  | Retrieves data incrementally from a Zendesk Talk endpoint.                                        |
+| zendesk_support           | source    | Retrieves data from Zendesk Support for tickets, users, brands, organizations, and groups         |
+| ticket_events             | resource  | Retrieves records of all changes made to a ticket, including state, etc.                          |
+| tickets                   | resource  | Retrieves the data for ticket table, the table can be pivoted and cols renamed                    |
+| ticket_metric_events      | resource  | Retrieves ticket metric events from the start date, defaulting to January 1st of the current year |
+| basic_resource            | resource  | Retrives basic loader for Zenpy endpoints with pagination support                                 |
 
+## Customization
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this
@@ -307,9 +308,9 @@ verified source.
 
    ```python
    pipeline = dlt.pipeline(
-        pipeline_name="dlt_zendesk_pipeline",  # Use a custom name if desired
-        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-        dataset_name="sample_zendesk_data"  # Use a custom name if desired
+       pipeline_name="dlt_zendesk_pipeline",  # Use a custom name if desired
+       destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+       dataset_name="sample_zendesk_data"  # Use a custom name if desired
    )
    ```
 
@@ -371,5 +372,5 @@ verified source.
     print(info)
    ```
 
-   > This can useful to reduce the potiential failure window when loading large amounts of historic
+   > This can be useful to reduce the potential failure window when loading large amounts of historic
    > data. This approach can be used with all incremental Zendesk sources.
