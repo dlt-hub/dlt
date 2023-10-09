@@ -237,8 +237,11 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         return self.storage.list_folder_files(self._get_job_folder_path(load_id, LoadStorage.FAILED_JOBS_FOLDER))
 
     def list_jobs_for_table(self, load_id: str, table_name: str) -> Sequence[LoadJobInfo]:
+        return [job for job in self.list_all_jobs(load_id) if job.job_file_info.table_name == table_name]
+    
+    def list_all_jobs(self, load_id: str) -> Sequence[LoadJobInfo]:
         info = self.get_load_package_info(load_id)
-        return [job for job in flatten_list_or_items(iter(info.jobs.values())) if job.job_file_info.table_name == table_name]  # type: ignore
+        return [job for job in flatten_list_or_items(iter(info.jobs.values()))]  # type: ignore
 
     def list_completed_failed_jobs(self, load_id: str) -> Sequence[str]:
         return self.storage.list_folder_files(self._get_job_folder_completed_path(load_id, LoadStorage.FAILED_JOBS_FOLDER))

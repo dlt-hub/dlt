@@ -140,10 +140,8 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         else:
             yield
 
-    def get_truncate_destination_table_dispositions(self) -> List[TWriteDisposition]:
-        if self.config.replace_strategy == "truncate-and-insert":
-            return ["replace"]
-        return []
+    def table_needs_truncating(self, table: TTableSchema) -> bool:
+        return table["write_disposition"] == "replace" and self.config.replace_strategy == "truncate-and-insert"
 
     def _create_append_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return []
@@ -442,10 +440,10 @@ class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):
         finally:
             self.in_staging_mode = False
 
-    def get_stage_dispositions(self) -> List[TWriteDisposition]:
-        """Returns a list of dispositions that require staging tables to be populated"""
-        dispositions: List[TWriteDisposition] = ["merge"]
-        # if we have anything but the truncate-and-insert replace strategy, we need staging tables
-        if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
-            dispositions.append("replace")
-        return dispositions
+    def table_needs_staging(self, table: TTableSchema) -> bool:
+        if table["write_disposition"] == "merge":
+            return True
+        elif table["write_disposition"] == "replace" and (self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]):
+            return True
+        return False
+

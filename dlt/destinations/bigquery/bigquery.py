@@ -12,9 +12,10 @@ from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TColumnType
+from dlt.common.schema.exceptions import UnknownTableException
 
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
-from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, DestinationTransientException, LoadJobNotExistsException, LoadJobTerminalException, LoadJobUnknownTableException
+from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate, DestinationTransientException, LoadJobNotExistsException, LoadJobTerminalException
 
 from dlt.destinations.bigquery import capabilities
 from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
@@ -220,7 +221,7 @@ class BigQueryClient(SqlJobClientWithStaging):
                 reason = BigQuerySqlClient._get_reason_from_errors(gace)
                 if reason == "notFound":
                     # google.api_core.exceptions.NotFound: 404 - table not found
-                    raise LoadJobUnknownTableException(table["name"], file_path)
+                    raise UnknownTableException(table["name"])
                 elif reason == "duplicate":
                     # google.api_core.exceptions.Conflict: 409 PUT - already exists
                     return self.restore_file_load(file_path)

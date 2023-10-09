@@ -17,7 +17,7 @@ from dlt.common.destination import TLoaderFileFormat
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns, Schema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
-from dlt.common.schema.utils import new_table
+from dlt.common.schema.utils import new_table, get_load_table
 from dlt.common.storages.load_storage import ParsedLoadJobFileName, LoadStorage
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
@@ -170,7 +170,7 @@ def load_table(name: str) -> Dict[str, TTableSchemaColumns]:
 def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
     file_name = ParsedLoadJobFileName(table_name, uniq_id(), 0, client.capabilities.preferred_loader_file_format).job_id()
     file_storage.save(file_name, query.encode("utf-8"))
-    table = Load.get_load_table(client.schema, file_name)
+    table = get_load_table(client.schema.tables, table_name)
     job = client.start_file_load(table, file_storage.make_full_path(file_name), uniq_id())
     while job.state() == "running":
         sleep(0.5)

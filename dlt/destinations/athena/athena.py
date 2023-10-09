@@ -17,7 +17,7 @@ from dlt.common.utils import without_none
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType, TWriteDisposition
-from dlt.common.schema.utils import table_schema_has_type
+from dlt.common.schema.utils import table_schema_has_type, get_table_format
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import LoadJob, FollowupJob
 from dlt.common.destination.reference import TLoadJobState, NewLoadJob
@@ -325,12 +325,13 @@ class AthenaClient(SqlJobClientWithStaging):
 
         # for the system tables we need to create empty iceberg tables to be able to run, DELETE and UPDATE queries
         # or if we are in iceberg mode, we create iceberg tables for all tables
-        is_iceberg = self.schema.tables[table_name].get("write_disposition", None) == "skip"
+        is_iceberg = (self.schema.tables[table_name].get("write_disposition", None) == "skip") or (self._is_iceberg_table(self.schema.tables[table_name]) and not self.in_staging_mode)
         columns = ", ".join([self._get_column_def_sql(c) for c in new_columns])
 
         # this will fail if the table prefix is not properly defined
         table_prefix = self.table_prefix_layout.format(table_name=table_name)
         location = f"{bucket}/{dataset}/{table_prefix}"
+
         # use qualified table names
         qualified_table_name = self.sql_client.make_qualified_ddl_table_name(table_name)
         if is_iceberg and not generate_alter:
@@ -372,18 +373,14 @@ class AthenaClient(SqlJobClientWithStaging):
         return super()._create_replace_followup_jobs(table_chain)
 
     def _is_iceberg_table(self, table: TTableSchema) -> bool:
-        return False
-
-    def get_stage_dispositions(self) -> List[TWriteDisposition]:
-        # in iceberg mode, we always use staging tables
-        # if self.iceberg_mode:
-        #    return ["append", "replace", "merge"]
-        return super().get_stage_dispositions()
-
-    def get_truncate_staging_destination_table_dispositions(self) -> List[TWriteDisposition]:
-        # if self.iceberg_mode:
-        #    return ["append", "replace", "merge"]
-        return []
+        table_format = get_table_format(self.schema.tables, table["name"])
+        return table_format == "iceberg"
+    
+    def table_needs_staging(self, table: TTableSchema) -> bool:
+        # all iceberg tables need staging
+        if self._is_iceberg_table(table):
+            return True
+        return super().table_needs_staging(table)
 
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:

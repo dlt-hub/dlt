@@ -10,6 +10,7 @@ from dlt.common.exceptions import IdentifierTooLongException, InvalidDestination
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.exceptions import InvalidDatasetName
+from dlt.common.schema.utils import get_load_table
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.accessors import config
@@ -244,13 +245,8 @@ class JobClientBase(ABC):
         """Finds and restores already started loading job identified by `file_path` if destination supports it."""
         pass
 
-    def get_truncate_destination_table_dispositions(self) -> List[TWriteDisposition]:
-        # in the base job, all replace strategies are treated the same, see filesystem for example
-        return ["replace"]
-
-    def get_truncate_staging_destination_table_dispositions(self) -> List[TWriteDisposition]:
-        # some clients need to additionally be able to get the staging destination to truncate tables
-        return []
+    def table_needs_truncating(self, table: TTableSchema) -> bool:
+        return table["write_disposition"] == "replace"
 
     def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
@@ -313,9 +309,8 @@ class WithStagingDataset(ABC):
     """Adds capability to use staging dataset and request it from the loader"""
 
     @abstractmethod
-    def get_stage_dispositions(self) -> List[TWriteDisposition]:
-        """Returns a list of write dispositions that require staging dataset"""
-        return []
+    def table_needs_staging(self, table: TTableSchema) -> bool:
+        return False
 
     @abstractmethod
     def with_staging_dataset(self)-> ContextManager["JobClientBase"]:

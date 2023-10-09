@@ -3,7 +3,7 @@ from collections.abc import Mapping as C_Mapping
 from typing import List, TypedDict, cast, Any
 
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
-from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns
+from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TTableFormat
 from dlt.common.typing import TDataItem
 from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
@@ -211,6 +211,7 @@ class DltResourceSchema:
         columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
+        table_format: TTableHintTemplate[TTableFormat] = None
         ) -> TTableSchemaTemplate:
         if not table_name:
             raise TableNameMissing()
@@ -224,7 +225,7 @@ class DltResourceSchema:
             validator = None
         # create a table schema template where hints can be functions taking TDataItem
         new_template: TTableSchemaTemplate = new_table(
-            table_name, parent_table_name, write_disposition=write_disposition, columns=columns  # type: ignore
+            table_name, parent_table_name, write_disposition=write_disposition, columns=columns, table_format=table_format  # type: ignore
         )
         if primary_key:
             new_template["primary_key"] = primary_key
