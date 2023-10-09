@@ -203,9 +203,9 @@ verified source.
 
    ```python
    pipeline = dlt.pipeline(
-        pipeline_name="stripe_pipeline",  # Use a custom name if desired
-        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-        dataset_name="stripe_dataset"  # Use a custom name if desired
+       pipeline_name="stripe_pipeline",  # Use a custom name if desired
+       destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+       dataset_name="stripe_dataset"  # Use a custom name if desired
    )
    ```
 
@@ -213,9 +213,9 @@ verified source.
 
    ```python
    source_single = stripe_source(
-     endpoints=("Plan", "Charge"),
-     start_date=datetime(2022, 1, 1),
-     end_date=datetime(2022, 12, 31),
+       endpoints=("Plan", "Charge"),
+       start_date=datetime(2022, 1, 1),
+       end_date=datetime(2022, 12, 31),
    )
    load_info = pipeline.run(source_single)
    print(load_info)
@@ -226,9 +226,9 @@ verified source.
     ```python
     # Load all data on the first run that was created after start_date and before end_date
     source_incremental = incremental_stripe_source(
-      endpoints=("Invoice", ),
-      initial_start_date=datetime(2022, 1, 1),
-      end_date=datetime(2022, 12, 31),
+        endpoints=("Invoice", ),
+        initial_start_date=datetime(2022, 1, 1),
+        end_date=datetime(2022, 12, 31),
     )
     load_info = pipeline.run(source_incremental)
     print(load_info)
@@ -240,7 +240,7 @@ verified source.
     ```python
     source_single = stripe_source(
         endpoints=("Plan", "Charge"),
-    	start_date=datetime(2022, 12, 31),
+        start_date=datetime(2022, 12, 31),
     )
     source_incremental = incremental_stripe_source(
         endpoints=("Invoice", ),
