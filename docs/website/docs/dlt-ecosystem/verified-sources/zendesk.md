@@ -12,7 +12,7 @@ keywords: [zendesk api, zendesk pipeline, zendesk]
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
-Zendesk is a cloud-based customer service and support platform. It offers a range of features,
+[Zendesk](https://www.zendesk.com/) is a cloud-based customer service and support platform. It offers a range of features,
 including ticket management, self-service options, knowledge base management, live chat, customer
 analytics, and talks.
 
@@ -150,6 +150,10 @@ Zendesk talk fetches the data using Zendesk Tolk API.
    [Zendesk support](#zendesk-support).
 1. Use existing Zendesk support credentials or create new ones.
 
+
+> Note: The Zendesk UI, which is described here, might change.
+The full guide is available at [this link.](https://developer.zendesk.com/documentation/ticketing/working-with-oauth/creating-and-using-oauth-tokens-with-the-api/)
+
 ### Initialize the verified source
 
 To get started with your data pipeline, follow these steps:
@@ -190,22 +194,22 @@ For more information, read the
    oauth_token = "set me up" # Use Zendesk support OAuth token or Zendesk chat OAuth token
    ```
 
-   > For data retrieval from Zendesk Support or Talk, choose one of the following verification
-   > method:
-   >
-   > - Method 1 ([subdomain](#subdomain) + email address + password)
-   > - Method 2 ([subdomain](#subdomain) + email address +
-   >   [API token](#grab-zendesk-support-api-token))
-   > - Method 3 ([subdomain](#subdomain) + [OAuth token](#zendesk-support-oauth-token))
-   >
-   > To load data from Zendesk Chat use the following method for authentication:
-   >
-   > - Method 1 ([subdomain](#subdomain) + [OAuth token](#grab-zendesk-chat-oauth-token))
-   >
-   > "<u>Note:</u> Use the Zendesk Support OAuth token for configuring Zendesk Support, and for
-   > Chat, utilize the OAuth token specific to Zendesk Chat."
+    For data retrieval from Zendesk Support or Talk, choose one of the following verification
+    methods:
+
+      - Method 1 ([subdomain](#subdomain) + email address + password)
+      - Method 2 ([subdomain](#subdomain) + email address + [API token](#grab-zendesk-support-api-token))
+      - Method 3 ([subdomain](#subdomain) + [OAuth token](#zendesk-support-oauth-token))
+
+    To load data from Zendesk Chat use the following method for authentication:
+      - Method 1 ([subdomain](#subdomain) + [OAuth token](#grab-zendesk-chat-oauth-token))
+
+   > Note: Use the Zendesk Support OAuth token for configuring Zendesk Support, and for
+   > Chat, utilize the OAuth token specific to Zendesk Chat.
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
+
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
@@ -219,7 +223,7 @@ For more information, read the
 1. You're now ready to run the pipeline! To get started, run the following command:
 
    ```bash
-   python3 zendesk_pipeline.py
+   python zendesk_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
@@ -340,7 +344,7 @@ verified source.
    ```
 
    > Supports incremental loading for Support, Chat, and Talk Endpoints. By default, it fetches data
-   > from the last load time in the DLT state or from 1st Jan 2000 if no prior load. This approach
+   > from the last load time in the dlt state or from 1st Jan 2000 if no prior load. This approach
    > ensures data retrieval since the specified date, while still updating the last load time.
 
 1. To load historical data in weekly ranges from Jan 1st, 2023, then switch to incremental loading
