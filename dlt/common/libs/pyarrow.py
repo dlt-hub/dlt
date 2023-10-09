@@ -6,6 +6,7 @@ from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
 from dlt.common.data_types import TDataType
+from dlt.common.typing import TFileOrPath
 
 try:
     import pyarrow
@@ -157,7 +158,7 @@ def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColu
     return result
 
 
-def get_row_count(parquet_file: str) -> int:
+def get_row_count(parquet_file: TFileOrPath) -> int:
     """Get the number of rows in a parquet file.
 
     Args:

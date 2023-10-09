@@ -197,7 +197,7 @@ class ArrowExtractor(Extractor):
 
     def write_table(self, resource: DltResource, item: TDataItems, meta: Any) -> None:
         if pd and isinstance(item, pd.DataFrame):
-            item = pyarrow.from_pandas(item)
+            item = pyarrow.pyarrow.Table.from_pandas(item)
         super().write_table(resource, item, meta)
 
     def _write_static_table(self, resource: DltResource, table_name: str, item: TDataItems) -> None:

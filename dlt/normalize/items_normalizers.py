@@ -121,7 +121,8 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         root_table_name: str,
     ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
         from dlt.common.libs import pyarrow
-        items_count = pyarrow.get_row_count(extracted_items_file)
+        with normalize_storage.storage.open_file(extracted_items_file, "rb") as f:
+            items_count = pyarrow.get_row_count(f)
         target_folder = load_storage.storage.make_full_path(os.path.join(load_id, LoadStorage.NEW_JOBS_FOLDER))
         load_storage.storage.atomic_import(normalize_storage.storage.make_full_path(extracted_items_file), target_folder)
         return [], items_count, {root_table_name: items_count}
