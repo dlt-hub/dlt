@@ -163,7 +163,7 @@ Most endpoints in the workable, verified source lack the 'updated_at' key,
 necessitating data loading in 'replace' mode. However, the 'candidates'
 endpoints allow incremental 'merge' mode loading.
 
-
+This source returns a sequence of dltResources that correspond to the endpoints.
 
 ```python
 @dlt.source(name="workable")
@@ -207,7 +207,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 verified source.
 
 To create your data pipeline using single loading and
-[incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading) (for the
+[incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading) (only for the
 **Candidates** endpoint), follow these steps:
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
@@ -258,11 +258,11 @@ To create your data pipeline using single loading and
 
    ```python
    load_data = workable_source(start_date=datetime(2022, 2, 1), load_details=True)
-   #Set the load_details as True to load all the dependent endpoints.
+   # Set the load_details as True to load all the dependent endpoints.
    load_info = pipeline.run(load_data.with_resources("jobs","jobs_activities","jobs_application_form"))
    print(load_info)
    ```
-   > Note: "load_details" parameter is set to true.
+   > Note: "load_details" parameter is set to True.
 
 1. To use incremental loading for the candidates endpoint, maintain the same pipeline and
    destination dataset names. The pipeline name helps retrieve the
