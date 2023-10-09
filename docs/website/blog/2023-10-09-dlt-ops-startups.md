@@ -111,7 +111,8 @@ Customize the INVOICE_QUERIES dictionary in the `unstructured_data/settings.py` 
 
 ### Step 6: Run the pipeline!
 
-And now the magic happens. Type `python unstructured_data_pipeline.py`. In the next step, dlt will save all processed structured data to the database (in my case BigQuery).
+And now the magic happens. Type `python unstructured_data_pipeline.py`.
+In the next step, dlt will save all processed structured data to the database (in my case BigQuery).
 
 ### Step 7: Check the outcome in BigQuery
 
@@ -131,7 +132,8 @@ Here’s how the result looks like in BigQuery:
 
 ![screenshot 2](pdf_parse_outcome_2.png)
 
-Bonus: In order to have a Google Sheet with live updates, you can go to the Data tab in your Spreadsheet → Data Connectors → BigQuery → choose your database and voila, your data will be updated automatically.
+Bonus: In order to have a Google Sheet with live updates, you can go to the Data tab in your
+Spreadsheet → Data Connectors → BigQuery → choose your database and voila, your data will be updated automatically.
 
 ![screenshot 3](pdf_parse_outcome_3.png)
 
