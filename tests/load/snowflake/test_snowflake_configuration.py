@@ -65,7 +65,7 @@ def test_to_connector_params() -> None:
 
     creds = SnowflakeCredentials()
     creds.private_key = pkey_str  # type: ignore[assignment]
-    creds.private_key_passphrase = '12345'  # type: ignore[assignment]
+    creds.private_key_passphrase = 'insecure'  # type: ignore[assignment]
     creds.username = 'user1'
     creds.database = 'db1'
     creds.host = 'host1'
