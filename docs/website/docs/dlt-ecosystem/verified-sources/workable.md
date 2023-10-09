@@ -6,7 +6,7 @@
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
-Workable is an online platform for posting jobs and managing the hiring process. With Workable,
+[Workable](https://www.workable.com/) is an online platform for posting jobs and managing the hiring process. With Workable,
 employers can create job listings, receive applications, track candidates, collaborate with team
 members, schedule interviews, and manage the overall hiring workflow.
 
@@ -54,6 +54,10 @@ Besides the main endpoints, for "candidate" and "jobs" endpoints, the following 
 1. Under "RECRUITING", select "Integrations" on the left.
 1. Find "ACCESS TOKEN" and generate a new token.
 1. Safely copy the new token for pipeline configuration.
+
+> Note: The Workable UI, which is described here, might change.
+The full guide is available at [this link.](https://help.workable.com/hc/en-us/articles/115015785428-How-do-I-generate-an-API-key-access-token-Pro-)
+
 
 ### Initialize the verified source
 
@@ -107,6 +111,8 @@ For more information, read the
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
@@ -119,7 +125,7 @@ For more information, read the
 1. You're now ready to run the pipeline! To get started, run the following command:
 
    ```bash
-   python3 workable_pipeline.py
+   python workable_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
@@ -152,9 +158,12 @@ DEFAULT_DETAILS = {
 
 ### Source `workable_source`
 
-This function loads data from default and "candidates" endpoints. Most endpoints in the workable
-verified source lack the 'updated_at' key, necessitating data loading in 'replace' mode. However,
-'candidates' endpoints allow incremental 'merge' mode loading.
+This function loads data from the default and "candidates" endpoints.
+Most endpoints in the workable, verified source lack the 'updated_at' key,
+necessitating data loading in 'replace' mode. However, the 'candidates'
+endpoints allow incremental 'merge' mode loading.
+
+
 
 ```python
 @dlt.source(name="workable")
@@ -168,7 +177,7 @@ def workable_source(
 
 `access_token`: Authenticate the Workable API using the token specified in ".dlt/secrets.toml".
 
-`subdomain`: Your Workable account name, specified in dlt.config.toml.
+`subdomain`: Your Workable account name, specified in ".dlt/config.toml".
 
 `start_date`: Optional. Sets a data retrieval start date; defaults to January 1, 2000.
 
@@ -177,7 +186,7 @@ def workable_source(
 
 ### Resource `candidate_resource`
 
-This function is used to retrieve candidates endpoints.
+This function is used to retrieve "candidates" endpoints.
 
 ```python
 @dlt.resource(name="candidates", write_disposition="merge", primary_key="id")
@@ -191,6 +200,7 @@ def candidates_resource(
 `updated_at`: Uses the dlt.sources.incremental method. Defaults to the function's start_date or Jan
 1, 2000 if undefined.
 
+## Customization
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this
