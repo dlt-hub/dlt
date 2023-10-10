@@ -6,4 +6,4 @@ from .normalize_storage import NormalizeStorage  # noqa: F401
 from .load_storage import LoadStorage  # noqa: F401
 from .data_item_storage import DataItemStorage  # noqa: F401
 from .configuration import LoadStorageConfiguration, NormalizeStorageConfiguration, SchemaStorageConfiguration, TSchemaFileFormat, FilesystemConfiguration  # noqa: F401
-from .filesystem import filesystem_from_config, filesystem  # noqa: F401
+from .fsspec_filesystem import fsspec_from_config, fsspec_filesystem  # noqa: F401

@@ -7,6 +7,7 @@ from pydantic import BaseModel
 import dlt
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.inject import get_fun_spec
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -18,7 +19,8 @@ from dlt.common.schema.utils import new_table, new_column
 from dlt.common.schema.typing import TTableSchemaColumns
 
 from dlt.cli.source_detection import detect_source_configs
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ExplicitSourceNameInvalid, InconsistentTableTemplate, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, ParametrizedResourceUnbound, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
+from dlt.common.typing import TDataItem
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ExplicitSourceNameInvalid, InconsistentTableTemplate, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, PipeGenInvalid, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
 from dlt.common.schema.exceptions import InvalidSchemaName
 
@@ -104,7 +106,7 @@ def test_unbound_parametrized_transformer() -> None:
 
     # here we bind the bound_r to empty_t_1 and then evaluate gen on a clone pipe which fails
     with pytest.raises(ParametrizedResourceUnbound):
-        (bound_r | empty_t_1)._pipe._clone(keep_pipe_id=False).evaluate_gen()
+        (bound_r | empty_t_1)._pipe._clone().evaluate_gen()
 
     # here we still have original (non cloned) pipe where gen was not evaluated
     assert list(empty_t_1("_meta")) == [1, 2, 3, 1, 2, 3, 1, 2, 3]
@@ -219,83 +221,7 @@ def test_apply_hints_columns() -> None:
 
     # delete columns by passing empty
     users.apply_hints(columns={})
-    assert users.columns is None
-
-
-def test_apply_hints() -> None:
-    @dlt.resource
-    def empty():
-        yield [1, 2, 3]
-
-    empty_r = empty()
-    assert empty_r.write_disposition == "append"
-    empty_r.apply_hints(write_disposition="replace")
-    assert empty_r.write_disposition == "replace"
-    empty_r.write_disposition = "merge"
-    assert empty_r.compute_table_schema()["write_disposition"] == "merge"
-    # delete hint
-    empty_r.apply_hints(write_disposition="")
-    empty_r.write_disposition = "append"
-    assert empty_r.compute_table_schema()["write_disposition"] == "append"
-
-    empty_r.apply_hints(table_name="table", parent_table_name="parent", primary_key=["a", "b"], merge_key=["c", "a"])
-    table = empty_r.compute_table_schema()
-    assert table["columns"]["a"] == {'merge_key': True, 'name': 'a', 'nullable': False, 'primary_key': True}
-    assert table["columns"]["b"] == {'name': 'b', 'nullable': False, 'primary_key': True}
-    assert table["columns"]["c"] == {'merge_key': True, 'name': 'c', 'nullable': False}
-    assert table["name"] == "table"
-    assert table["parent"] == "parent"
-
-    # reset
-    empty_r.apply_hints(table_name="", parent_table_name="", primary_key=[], merge_key="")
-    table = empty_r.compute_table_schema()
-    assert table["name"] == "empty"
-    assert "parent" not in table
-    assert table["columns"] == {}
-
-    # combine columns with primary key
-
-    empty_r = empty()
-    empty_r.apply_hints(columns={"tags": {"data_type": "complex", "primary_key": False}}, primary_key="tags", merge_key="tags")
-    # primary key not set here
-    assert empty_r.columns["tags"] == {"data_type": "complex", "name": "tags", "primary_key": False}
-    # only in the computed table
-    assert empty_r.compute_table_schema()["columns"]["tags"] == {"data_type": "complex", "name": "tags", "primary_key": True, "merge_key": True}
-
-
-def test_apply_dynamic_hints() -> None:
-    @dlt.resource
-    def empty():
-        yield [1, 2, 3]
-
-    empty_r = empty()
-    with pytest.raises(InconsistentTableTemplate):
-        empty_r.apply_hints(parent_table_name=lambda ev: ev["p"])
-
-    empty_r.apply_hints(table_name=lambda ev: ev["t"], parent_table_name=lambda ev: ev["p"])
-    assert empty_r._table_name_hint_fun is not None
-    assert empty_r._table_has_other_dynamic_hints is True
-
-    with pytest.raises(DataItemRequiredForDynamicTableHints):
-        empty_r.compute_table_schema()
-    table = empty_r.compute_table_schema({"t": "table", "p": "parent"})
-    assert table["name"] == "table"
-    assert table["parent"] == "parent"
-
-    # try write disposition and primary key
-    empty_r.apply_hints(primary_key=lambda ev: ev["pk"], write_disposition=lambda ev: ev["wd"])
-    table = empty_r.compute_table_schema({"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip"})
-    assert table["write_disposition"] == "skip"
-    assert "a" in table["columns"]
-
-    # validate fails
-    with pytest.raises(DictValidationException):
-        empty_r.compute_table_schema({"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "x-skip"})
-
-    # dynamic columns
-    empty_r.apply_hints(columns=lambda ev: ev["c"])
-    table = empty_r.compute_table_schema({"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip", "c": [{"name": "tags"}]})
-    assert table["columns"]["tags"] == {"name": "tags"}
+    assert users.columns == {}
 
 
 def test_columns_from_pydantic() -> None:
@@ -660,6 +586,111 @@ def test_resource_sets_invalid_write_disposition() -> None:
     with pytest.raises(DictValidationException) as py_ex:
         r.compute_table_schema()
     assert "write_disposition" in str(py_ex.value)
+
+
+# wrapped flag will not create the resource but just simple function wrapper that must be called before use
+@dlt.resource(standalone=True)
+def standalone_signature(init: int, secret_end: int = dlt.secrets.value):
+    """Has fine docstring"""
+    yield from range(init, secret_end)
+
+
+def test_standalone_resource() -> None:
+
+    # wrapped flag will not create the resource but just simple function wrapper that must be called before use
+    @dlt.resource(standalone=True)
+    def nice_signature(init: int):
+        """Has nice signature"""
+        yield from range(init, 10)
+
+    assert not isinstance(nice_signature, DltResource)
+    assert callable(nice_signature)
+    assert nice_signature.__doc__ == """Has nice signature"""
+
+    assert list(nice_signature(7)) == [7, 8, 9]
+    assert nice_signature(8)._args_bound is True
+    with pytest.raises(TypeError):
+        # bound!
+        nice_signature(7)()
+
+    # can't work in a source
+
+    @dlt.source
+    def nice_source():
+        return nice_signature
+
+    source = nice_source()
+    source.nice_signature.bind(7)
+    with pytest.raises(PipeGenInvalid):
+        assert list(source) == [7, 8, 9]
+
+    @dlt.source
+    def many_instances():
+        return nice_signature(9), nice_signature(7)
+
+    with pytest.raises(InvalidResourceDataTypeMultiplePipes):
+        source = many_instances()
+
+    with pytest.raises(ConfigFieldMissingException):
+        list(standalone_signature(1))
+
+    # use wrong signature
+    with pytest.raises(TypeError):
+        nice_signature(unk_kw=1, second_unk_kw="A")  # type: ignore
+
+    # make sure that config sections work
+    os.environ["SOURCES__TEST_DECORATORS__STANDALONE_SIGNATURE__SECRET_END"] = "5"
+    assert list(standalone_signature(1)) == [1, 2, 3, 4]
+
+
+@dlt.transformer(standalone=True)
+def standalone_transformer(item: TDataItem, init: int, secret_end: int = dlt.secrets.value):
+    """Has fine transformer docstring"""
+    yield from range(item + init, secret_end)
+
+
+@dlt.transformer(standalone=True)
+def standalone_transformer_returns(item: TDataItem, init: int = dlt.config.value):
+    """Has fine transformer docstring"""
+    return "A" * item * init
+
+
+def test_standalone_transformer() -> None:
+    assert not isinstance(standalone_transformer, DltResource)
+    assert callable(standalone_transformer)
+    assert standalone_transformer.__doc__ == """Has fine transformer docstring"""
+
+    bound_tx = standalone_transformer(5, 10)
+    # this is not really true
+    assert bound_tx._args_bound is True
+    with pytest.raises(TypeError):
+        bound_tx(1)
+    assert isinstance(bound_tx, DltResource)
+    # the resource sets the start of the range of transformer + transformer init
+    assert list(standalone_signature(1, 3) | bound_tx) == [6, 7, 8, 9, 7, 8, 9]
+
+    # wrong params to transformer
+    with pytest.raises(TypeError):
+        standalone_transformer(unk_kw="ABC")  # type: ignore
+
+    # test transformer that returns
+    bound_tx = standalone_transformer_returns(2)
+    assert list(standalone_signature(1, 3) | bound_tx) == ["AA", "AAAA"]
+
+    # test configuration
+    os.environ["SOURCES__TEST_DECORATORS__STANDALONE_SIGNATURE__SECRET_END"] = "5"
+    os.environ["SOURCES__TEST_DECORATORS__STANDALONE_TRANSFORMER_RETURNS__INIT"] = "2"
+    assert list(standalone_signature(1) | standalone_transformer_returns()) == ["AA", "AAAA", "AAAAAA", "AAAAAAAA"]
+
+
+def test_resource_rename_credentials_separation():
+    os.environ["SOURCES__TEST_DECORATORS__STANDALONE_SIGNATURE__SECRET_END"] = "5"
+    assert list(standalone_signature(1)) == [1, 2, 3, 4]
+
+    # config section is not impacted by the rename
+    # NOTE: probably we should keep it like that
+    os.environ["SOURCES__TEST_DECORATORS__RENAMED_SIG__SECRET_END"] = "6"
+    assert list(standalone_signature(1).with_name("renamed_sig")) == [1, 2, 3, 4]
 
 
 def test_class_source() -> None:

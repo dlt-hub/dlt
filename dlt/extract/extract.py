@@ -5,7 +5,7 @@ from typing import ClassVar, List, Set
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.pipeline import _reset_resource_state
+from dlt.common.pipeline import reset_resource_state
 
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -124,9 +124,7 @@ def extract(
 
                 signals.raise_if_signalled()
 
-                # TODO: many resources may be returned. if that happens the item meta must be present with table name and this name must match one of resources
-                # if meta contains table name
-                resource = source.resources.find_by_pipe(pipe_item.pipe)
+                resource = source.resources[pipe_item.pipe.name]
                 table_name: str = None
                 if isinstance(pipe_item.meta, TableNameMeta):
                     table_name = pipe_item.meta.table_name
@@ -183,11 +181,11 @@ def extract_with_schema(
     with Container().injectable_context(SourceSchemaInjectableContext(schema)):
         # inject the config section with the current source name
         with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, source.section, source.name), source_state_key=source.name)):
-            # reset resource states
+            # reset resource states, the `extracted` list contains all the explicit resources and all their parents
             for resource in source.resources.extracted.values():
                 with contextlib.suppress(DataItemRequiredForDynamicTableHints):
                     if resource.write_disposition == "replace":
-                        _reset_resource_state(resource._name)
+                        reset_resource_state(resource.name)
 
             extractor = extract(extract_id, source, storage, collector, max_parallel_items=max_parallel_items, workers=workers)
             # iterate over all items in the pipeline and update the schema if dynamic table hints were present

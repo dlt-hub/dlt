@@ -49,7 +49,9 @@ class ConfigSectionContext(ContainerInjectableContext):
         """If top level section is same and there are 3 sections it replaces second element (source module) from existing and keeps the 3rd element (name)"""
         incoming.pipeline_name = incoming.pipeline_name or existing.pipeline_name
         if len(incoming.sections) == 3 == len(existing.sections) and incoming.sections[0] == existing.sections[0]:
-            incoming.sections = (incoming.sections[0], existing.sections[1], incoming.sections[2])
+            # existing does not have middle section then keep incoming
+            # standalone resources do not emit existing to not overwrite each other
+            incoming.sections = (incoming.sections[0], existing.sections[1] or incoming.sections[1], incoming.sections[2])
             incoming.source_state_key = existing.source_state_key or incoming.source_state_key
         else:
             incoming.sections = incoming.sections or existing.sections

@@ -95,10 +95,6 @@ def test_rotation_on_none() -> None:
     assert time.time() - started < 0.8
 
 
-
-
-
-
 def test_add_step() -> None:
     data = [1, 2, 3]
     data_iter = iter(data)
@@ -284,10 +280,10 @@ def test_pipe_propagate_meta() -> None:
     t.append_step(item_meta_step_trans)  # type: ignore[arg-type]
     _l = list(PipeIterator.from_pipes([p, t], yield_parents=True))
     # same result for transformer
-    tran_l = [pi for pi in _l if pi.pipe._pipe_id == t._pipe_id]
+    tran_l = [pi for pi in _l if pi.pipe.name == t.name]
     assert [int((pi.item//2)**0.5//2) for pi in tran_l] == data  # type: ignore[operator]
     assert [pi.meta for pi in tran_l] == _meta
-    data_l = [pi for pi in _l if pi.pipe._pipe_id == p._pipe_id]
+    data_l = [pi for pi in _l if pi.pipe.name is p.name]
     # data pipe went only through one transformation
     assert [int(pi.item//2) for pi in data_l] == data  # type: ignore[operator]
     assert [pi.meta for pi in data_l] == _meta
@@ -479,6 +475,47 @@ def test_pipe_copy_on_fork() -> None:
     assert elems[0].item is not elems[1].item
 
 
+def test_clone_single_pipe() -> None:
+    doc = {"e": 1, "l": 2}
+    parent = Pipe.from_data("data", [doc])
+
+    # default clone
+    cloned_p = parent._clone()
+    assert cloned_p.name == parent.name
+    assert cloned_p != parent
+    assert id(cloned_p.steps) != id(parent.steps)
+    assert cloned_p.gen == parent.gen
+    cloned_p = parent._clone(with_parent=True)
+    assert cloned_p != parent
+    # with rename
+    cloned_p = parent._clone(new_name="new_name")
+    assert cloned_p.name == "new_name"
+    assert id(cloned_p.steps) != id(parent.steps)
+
+    # add child
+    child1 = Pipe("tr1", [lambda x: x], parent=parent)
+    child2 = Pipe("tr2", [lambda x: x], parent=child1)
+
+    # clone child without parent
+    cloned_ch2 = child2._clone()
+    assert cloned_ch2.parent == child1
+    cloned_ch2 = child2._clone(new_name="new_child_2")
+    assert cloned_ch2.name == "new_child_2"
+    assert cloned_ch2.parent == child1
+    assert cloned_ch2.parent.name == child1.name
+
+    # clone child with parent
+    cloned_ch2 = child2._clone(with_parent=True, new_name="new_child_2")
+    assert cloned_ch2.parent != child1
+    assert cloned_ch2.parent.name == "tr1_new_child_2"
+    assert cloned_ch2.parent.parent != parent
+    assert cloned_ch2.parent.parent.name == "data_tr1_new_child_2"
+    # rename again
+    cloned_ch2_2 = cloned_ch2._clone(with_parent=True, new_name="a_new_name")
+    assert cloned_ch2_2.parent.name == "tr1_a_new_name"
+    assert cloned_ch2_2.parent.parent.name == "data_tr1_a_new_name"
+
+
 def test_clone_pipes() -> None:
 
     def pass_gen(item, meta):
@@ -494,28 +531,24 @@ def test_clone_pipes() -> None:
 
     # pass all pipes explicitly
     pipes = [p1, p2, p1_p3, p1_p4, p2_p5, p5_p6]
-    cloned_pipes = PipeIterator.clone_pipes(pipes)
+    cloned_pipes, _ = PipeIterator.clone_pipes(pipes)
     assert_cloned_pipes(pipes, cloned_pipes)
 
     # clone only two top end pipes, still all parents must be cloned as well
     pipes = [p1_p4, p5_p6]
-    cloned_pipes = PipeIterator.clone_pipes(pipes)
+    cloned_pipes, _ = PipeIterator.clone_pipes(pipes)
     assert_cloned_pipes(pipes, cloned_pipes)
     c_p5_p6 = cloned_pipes[-1]
     assert c_p5_p6.parent.parent is not p2
-    assert c_p5_p6.parent.parent._pipe_id == p2._pipe_id
-
-    # try circular deps
+    assert c_p5_p6.parent.parent.name == p2.name
 
 
-
-def assert_cloned_pipes(pipes: List[Pipe], cloned_pipes: List[Pipe]):
+def assert_cloned_pipes(pipes: List[Pipe], cloned_pipes: List[Pipe]) -> None:
     # clones pipes must be separate instances but must preserve pipe id and names
     for pipe, cloned_pipe in zip(pipes, cloned_pipes):
         while True:
             assert pipe is not cloned_pipe
             assert pipe.name == cloned_pipe.name
-            assert pipe._pipe_id == cloned_pipe._pipe_id
             assert pipe.has_parent == cloned_pipe.has_parent
 
             # check all the parents
@@ -540,7 +573,7 @@ def test_circular_deps() -> None:
     pipes = [c_p1_p3, c_p1_p4]
 
     # can be cloned
-    cloned_pipes = PipeIterator.clone_pipes(pipes)
+    cloned_pipes, _ = PipeIterator.clone_pipes(pipes)
 
     # cannot be evaluated
     with pytest.raises(RecursionError):

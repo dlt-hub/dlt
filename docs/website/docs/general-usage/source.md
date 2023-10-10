@@ -112,27 +112,38 @@ Find more on sampling data [here](resource.md#sample-from-large-data).
 You can add a custom resource to source after it was created. Imagine that you want to score all the
 deals with a keras model that will tell you if the deal is a fraud or not. In order to do that you
 declare a new
-[resource that takes the data from](resource.md#feeding-data-from-one-resource-into-another) `deals`
+[transformer that takes the data from](resource.md#feeding-data-from-one-resource-into-another) `deals`
 resource and add it to the source.
 
 ```python
 import dlt
 from hubspot import hubspot
 
+# source contains `deals` resource
 source = hubspot()
 
-@dlt.transformer(data_from=source.deals)
+@dlt.transformer
 def deal_scores(deal_item):
     # obtain the score, deal_items contains data yielded by source.deals
     score = model.predict(featurize(deal_item))
     yield {"deal_id": deal_item, "score": score}
 
-# add the deal_scores to the source
-source.deal_scores = deal_scores
-source.resources["deal_scores"] = deal_scores  # this also works
+# connect the data from `deals` resource into `deal_scores` and add to the source
+source.resources.add(source.deals | deal_scores)
 # load the data: you'll see the new table `deal_scores` in your destination!
 pipeline.run(source)
 ```
+You can also set the resources in the source as follows
+```python
+source.deal_scores = source.deals | deal_scores
+```
+or
+```python
+source.resources["deal_scores"] = source.deals | deal_scores
+```
+:::note
+When adding resource to the source, `dlt` clones the resource so your existing instance is not affected.
+:::
 
 ### Reduce the nesting level of generated tables
 

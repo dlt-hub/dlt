@@ -380,8 +380,9 @@ class Incremental(FilterItem, BaseConfiguration, Generic[TCursorValue]):
 class IncrementalResourceWrapper(FilterItem):
     _incremental: Optional[Incremental[Any]] = None
     """Keeps the injectable incremental"""
+    _resource_name: str = None
 
-    def __init__(self, resource_name: str, primary_key: Optional[TTableHintTemplate[TColumnNames]] = None) -> None:
+    def __init__(self, primary_key: Optional[TTableHintTemplate[TColumnNames]] = None) -> None:
         """Creates a wrapper over a resource function that accepts Incremental instance in its argument to perform incremental loading.
 
         The wrapper delays instantiation of the Incremental to the moment of actual execution and is currently used by `dlt.resource` decorator.
@@ -389,10 +390,8 @@ class IncrementalResourceWrapper(FilterItem):
         Note that wrapper implements `FilterItem` transform interface and functions as a processing step in the before-mentioned resource pipe.
 
         Args:
-            resource_name (str): A name of resource to which the Incremental will be bound at execution
             primary_key (TTableHintTemplate[TColumnKey], optional): A primary key to be passed to Incremental Instance at execution. Defaults to None.
         """
-        self.resource_name = resource_name
         self.primary_key = primary_key
         self.incremental_state: IncrementalColumnState = None
         self._allow_external_schedulers: bool = None
@@ -456,7 +455,8 @@ class IncrementalResourceWrapper(FilterItem):
                 self._incremental = new_incremental
             self._incremental.resolve()
             # in case of transformers the bind will be called before this wrapper is set: because transformer is called for a first time late in the pipe
-            self._incremental.bind(Pipe(self.resource_name))
+            if self._resource_name:
+                self._incremental.bind(Pipe(self._resource_name))
             bound_args.arguments[p.name] = self._incremental
             return func(*bound_args.args, **bound_args.kwargs)
 
@@ -476,6 +476,7 @@ class IncrementalResourceWrapper(FilterItem):
             self._incremental.allow_external_schedulers = value
 
     def bind(self, pipe: SupportsPipe) -> "IncrementalResourceWrapper":
+        self._resource_name = pipe.name
         if self._incremental:
             if self._allow_external_schedulers is not None:
                 self._incremental.allow_external_schedulers = self._allow_external_schedulers

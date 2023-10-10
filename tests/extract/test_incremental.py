@@ -404,7 +404,6 @@ def test_missing_cursor_field() -> None:
 @dlt.resource
 def standalone_some_data(now=None, last_timestamp=dlt.sources.incremental("item.timestamp")):
     for i in range(-10, 10):
-        print(i)
         yield {"delta": i, "item": {"timestamp": (now or pendulum.now()).add(days=i).timestamp()}}
 
 
@@ -479,22 +478,46 @@ def test_replace_resets_state() -> None:
     # also transformer will not receive new data
     info = p.run(child)
     assert len(info.loads_ids) == 0
-    # now it will
+    # now it will (as the parent resource also got reset)
     info = p.run(child, write_disposition="replace")
-    print(info.load_packages[0])
+    # print(info.load_packages[0])
     assert len(info.loads_ids) == 1
+    # pipeline applied hints to the child resource
+    assert child.write_disposition == "replace"
 
+    # create a source where we place only child
+    s = DltSource("comp", "section", Schema("comp"), [child])
+    # but extracted resources will include its parent where it derives write disposition from child
+    extracted = s.resources.extracted
+    assert extracted[child.name].write_disposition == "replace"
+    assert extracted[child._pipe.parent.name].write_disposition == "replace"
+
+    # create a source where we place parent explicitly
     s = DltSource("comp", "section", Schema("comp"), [parent_r, child])
+    extracted = s.resources.extracted
+    assert extracted[child.name].write_disposition == "replace"
+    # now parent exists separately and has its own write disposition
+    assert extracted[child._pipe.parent.name].write_disposition == "append"
 
     p = dlt.pipeline(pipeline_name=uniq_id(), destination="duckdb")
     info = p.run(s)
+    # print(s.state)
     assert len(info.loads_ids) == 1
     info = p.run(s)
-    # state was reset
+    # print(s.state)
+    # state was reset (child is replace but parent is append! so it will not generate any more items due to incremental
+    # so child will reset itself on replace and never set the state...)
     assert 'child' not in s.state['resources']
     # there will be a load package to reset the state but also a load package to update the child table
     assert len(info.load_packages[0].jobs['completed_jobs']) == 2
     assert {job.job_file_info.table_name for job in info.load_packages[0].jobs['completed_jobs'] } == {"_dlt_pipeline_state", "child"}
+
+    # now we add child that has parent_r as parent but we add another instance of standalone_some_data explicitly
+    # so we have a resource with the same name as child parent but the pipe instance is different
+    s = DltSource("comp", "section", Schema("comp"), [standalone_some_data(now), child])
+    assert extracted[child.name].write_disposition == "replace"
+    # now parent exists separately and has its own write disposition - because we search by name to identify matching resource
+    assert extracted[child._pipe.parent.name].write_disposition == "append"
 
 
 def test_incremental_as_transform() -> None:

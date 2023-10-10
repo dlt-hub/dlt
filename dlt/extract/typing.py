@@ -39,6 +39,12 @@ class SupportsPipe(Protocol):
     """A protocol with the core Pipe properties and operations"""
     name: str
     """Pipe name which is inherited by a resource"""
+    parent: "SupportsPipe"
+    """A parent of the current pipe"""
+    @property
+    def has_parent(self) -> bool:
+        """Checks if pipe is connected to parent pipe from which it takes data items. Connected pipes are created from transformer resources"""
+        ...
 
 
 ItemTransformFunctionWithMeta = Callable[[TDataItem, str], TAny]

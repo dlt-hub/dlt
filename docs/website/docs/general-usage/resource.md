@@ -177,7 +177,7 @@ for row in generate_rows(20):
 You can mark some resource arguments as configuration and [credentials](credentials.md) values
 so `dlt` can pass them automatically to your functions.
 
-### Feeding data from one resource into another
+### Process resources with `dlt.transformer`
 
 You can feed data from a resource into another one. The most common case is when you have an API
 that returns a list of objects (i.e. users) in one endpoint and user details in another. You can deal
@@ -201,12 +201,29 @@ def users_details(user_item):
 # just load the user_details.
 # dlt figures out dependencies for you.
 pipeline.run(user_details)
-
+```
+In the example above, `user_details` will receive data from default instance of `users` resource (with `limit` set to `None`). You can also use
+**pipe |** operator to bind resources dynamically
+```python
 # you can be more explicit and use a pipe operator.
 # with it you can create dynamic pipelines where the dependencies
 # are set at run time and resources are parametrized i.e.
 # below we want to load only 100 users from `users` endpoint
 pipeline.run(users(limit=100) | user_details)
+```
+
+### Declare a standalone resource
+A standalone resource is defined on a function that is top level in a module (not inner function) that accepts config and secrets values. Additionally
+if `standalone` flag is specified, the decorated function signature and docstring will be preserved. `dlt.resource` will just wrap the
+function decorated function and user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
+```python
+@dlt.resource(standalone=True)
+def filesystem(bucket_url=dlt.config.value):
+  """list and yield files in `bucket_url`"""
+  ...
+
+# `filesystem` must be called before it is extracted or used in any other way
+pipeline.run(filesystem("s3://my-bucket/reports"), table_name="reports")
 ```
 
 ## Customize resources
@@ -274,7 +291,7 @@ assert list(r) == list(range(10))
 > 💡 You cannot limit transformers. They should process all the data they receive fully to avoid
 > inconsistencies in generated datasets.
 
-### Adjust schema
+### Set table and adjust schema
 
 You can change the schema of a resource, be it standalone or as a part of a source. Look for method
 named `apply_hints` which takes the same arguments as resource decorator. Obviously you should call
@@ -300,15 +317,44 @@ tables = sql_database()
 tables.users.table_name = "other_users"
 ```
 
+### Duplicate and rename resources
+There are cases when you your resources are generic (ie. bucket filesystem) and you want to load several instances of it (ie. files from different folders) to separate tables. In example below we use `filesystem` source to load csvs from two different folders into separate tables:
+```python
+@dlt.resource(standalone=True)
+def filesystem(bucket_url):
+  # list and yield files in bucket_url
+  ...
+
+@dlt.transformer
+def csv_reader(file_item):
+  # load csv, parse and yield rows in file_item
+  ...
+
+# create two extract pipes that list files from the bucket and send to them to the reader.
+# by default both pipes will load data to the same table (csv_reader)
+reports_pipe = filesystem("s3://my-bucket/reports") | load_csv()
+transactions_pipe = filesystem("s3://my-bucket/transactions") | load_csv()
+
+# so we rename resources to load to "reports" and "transactions" tables
+pipeline.run(
+  [reports_pipe.with_name("reports"), transactions_pipe.with_name("transactions")]
+)
+```
+
+`with_name` method returns a deep copy of the original resource, its data pipe and the data pipes of a parent resources. A renamed clone is fully separated from the original resource (and other clones) when loading:
+ it maintains a separate [resource state](state.md#read-and-write-pipeline-state-in-a-resource) and will load to a table
+
 ## Load resources
 
 You can pass individual resources or list of resources to the `dlt.pipeline` object. The resources
 loaded outside the source context, will be added to the [default schema](schema.md) of the
 pipeline.
 
-Example using the `generate_rows` resource above:
-
 ```python
+@dlt.resource(name='table_name', write_disposition='replace')
+def generate_rows(nr):
+	for i in range(nr):
+		yield {'id':i, 'example_string':'abc'}
 
 pipeline = dlt.pipeline(
     pipeline_name="rows_pipeline",
@@ -320,7 +366,6 @@ pipeline.run(generate_rows(10))
 # load a list of resources
 pipeline.run([generate_rows(10), generate_rows(20)])
 ```
-
 ### Do a full refresh
 
 To do a full refresh of an `append` or `merge` resources you temporarily change the write

@@ -424,8 +424,8 @@ def resource_state(resource_name: str = None, source_state_: Optional[DictStrAny
     return state_.setdefault('resources', {}).setdefault(resource_name, {})  # type: ignore
 
 
-def _reset_resource_state(resource_name: str, source_state_: Optional[DictStrAny] = None, /) -> None:
-    """Alpha version of the resource state. Resets the resource state
+def reset_resource_state(resource_name: str, source_state_: Optional[DictStrAny] = None, /) -> None:
+    """Resets the resource state with name `resource_name` by removing it from `source_state`
 
     Args:
         resource_name: The resource key to reset
