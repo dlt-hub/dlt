@@ -6,12 +6,14 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.pipeline import reset_resource_state
+from dlt.common.data_writers import TLoaderFileFormat
 
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItems, TDataItem
 from dlt.common.schema import Schema, utils, TSchemaUpdate
+from dlt.common.schema.typing import TColumnSchema
 from dlt.common.storages import NormalizeStorageConfiguration, NormalizeStorage, DataItemStorage
 from dlt.common.configuration.specs import known_sections
 
@@ -25,9 +27,9 @@ from dlt.extract.typing import TableNameMeta
 class ExtractorStorage(DataItemStorage, NormalizeStorage):
     EXTRACT_FOLDER: ClassVar[str] = "extract"
 
-    def __init__(self, C: NormalizeStorageConfiguration) -> None:
+    def __init__(self, C: NormalizeStorageConfiguration, load_file_type: TLoaderFileFormat = "puae-jsonl") -> None:
         # data item storage with jsonl with pua encoding
-        super().__init__("puae-jsonl", True, C)
+        super().__init__(load_file_type, True, C)
         self.storage.create_folder(ExtractorStorage.EXTRACT_FOLDER, exists_ok=True)
 
     def create_extract_id(self) -> str:
@@ -66,6 +68,7 @@ def extract(
     workers: int = None,
     futures_poll_interval: float = None
 ) -> TSchemaUpdate:
+    from dlt.common.libs.pyarrow import pyarrow, py_arrow_to_table_schema_columns
 
     dynamic_tables: TSchemaUpdate = {}
     schema = source.schema
@@ -84,7 +87,11 @@ def extract(
             table_name = schema.naming.normalize_table_identifier(table_name)
             collector.update(table_name)
             resources_with_items.add(resource_name)
-            storage.write_data_item(extract_id, schema.name, table_name, item, None)
+            if isinstance(item, (pyarrow.Table, pyarrow.RecordBatch)):
+                columns_schema = schema.get_table_columns(table_name)
+                storage.write_data_item(extract_id, schema.name, table_name, item, columns_schema)
+            else:
+                storage.write_data_item(extract_id, schema.name, table_name, item, None)
 
         def _write_dynamic_table(resource: DltResource, item: TDataItem) -> None:
             table_name = resource._table_name_hint_fun(item)
@@ -110,6 +117,15 @@ def extract(
                 static_table["name"] = table_name
                 dynamic_tables[table_name] = [static_table]
 
+        def _write_arrow_table(resource: DltResource, table_name: str, pyarrow_schema: pyarrow.Schema) -> None:
+            arrow_columns = py_arrow_to_table_schema_columns(pyarrow_schema)
+            static_table = resource.compute_table_schema()
+            static_table["columns"] = arrow_columns
+            static_table["name"] = table_name
+            dynamic_tables[table_name] = [static_table]
+            # update schema with new columns
+            schema.update_schema(schema.normalize_table_identifiers(static_table))
+
         # yield from all selected pipes
         with PipeIterator.from_pipes(source.resources.selected_pipes, max_parallel_items=max_parallel_items, workers=workers, futures_poll_interval=futures_poll_interval) as pipes:
             left_gens = total_gens = len(pipes._sources)
@@ -125,24 +141,29 @@ def extract(
                 signals.raise_if_signalled()
 
                 resource = source.resources[pipe_item.pipe.name]
+
                 table_name: str = None
-                if isinstance(pipe_item.meta, TableNameMeta):
-                    table_name = pipe_item.meta.table_name
-                    _write_static_table(resource, table_name)
-                    _write_item(table_name, resource.name, pipe_item.item)
+                # Change item is pyarrow table than change file format to arrow 
+                if isinstance(pipe_item.item, (pyarrow.Table, pyarrow.RecordBatch)):
+                    storage.loader_file_format = "arrow"
                 else:
-                    # get partial table from table template
-                    if resource._table_name_hint_fun:
-                        if isinstance(pipe_item.item, List):
-                            for item in pipe_item.item:
-                                _write_dynamic_table(resource, item)
-                        else:
-                            _write_dynamic_table(resource, pipe_item.item)
+                    storage.loader_file_format = "puae-jsonl"
+                 # get partial table from table template
+                if resource._table_name_hint_fun:
+                    if isinstance(pipe_item.item, List):
+                        for item in pipe_item.item:
+                            _write_dynamic_table(resource, item)
                     else:
-                        # write item belonging to table with static name
-                        table_name = resource.table_name  # type: ignore
+                        _write_dynamic_table(resource, pipe_item.item)
+                # write item belonging to table with static name
+                else:
+                    # if meta contains table name
+                    table_name = pipe_item.meta.table_name if isinstance(pipe_item.meta, TableNameMeta) else resource.table_name
+                    if isinstance(pipe_item.item, (pyarrow.Table, pyarrow.RecordBatch)):
+                        _write_arrow_table(resource, table_name, pipe_item.item.schema)
+                    else:
                         _write_static_table(resource, table_name)
-                        _write_item(table_name, resource.name, pipe_item.item)
+                    _write_item(table_name, resource.name, pipe_item.item)
 
             # find defined resources that did not yield any pipeitems and create empty jobs for them
             data_tables = {t["name"]: t for t in schema.data_tables()}

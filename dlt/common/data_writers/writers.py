@@ -1,14 +1,16 @@
 import abc
-
 from dataclasses import dataclass
-from typing import Any, Dict, Sequence, IO, Type, Optional, List, cast
+from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type
 
 from dlt.common import json
-from dlt.common.typing import StrAny
-from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.common.destination import TLoaderFileFormat, DestinationCapabilitiesContext
-from dlt.common.configuration import with_config, known_sections, configspec
+from dlt.common.configuration import configspec, known_sections, with_config
 from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFormat
+from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.typing import StrAny
+
+if TYPE_CHECKING:
+     from dlt.common.libs.pyarrow import pyarrow
 
 @dataclass
 class TFileFormatSpec:
@@ -70,6 +72,8 @@ class DataWriter(abc.ABC):
             return InsertValuesWriter
         elif file_format == "parquet":
             return ParquetDataWriter  # type: ignore
+        elif file_format == "arrow":
+            return ArrowWriter # type: ignore
         else:
             raise ValueError(file_format)
 
@@ -249,3 +253,25 @@ class ParquetDataWriter(DataWriter):
     @classmethod
     def data_format(cls) -> TFileFormatSpec:
         return TFileFormatSpec("parquet", "parquet", True, False, requires_destination_capabilities=True, supports_compression=False)
+
+class ArrowWriter(ParquetDataWriter):
+    def write_data(self, rows: Sequence[Any]) -> None:
+        from dlt.common.libs.pyarrow import pyarrow
+        for row in rows:
+            if isinstance(row, pyarrow.Table):
+                self.writer.write_table(row)
+            elif isinstance(row, pyarrow.RecordBatch):
+                self.writer.write_batch(row)
+            else:
+                raise ValueError(f"Unsupported type {type(row)}")
+
+    @classmethod
+    def data_format(cls) -> TFileFormatSpec:
+        return TFileFormatSpec(
+            "arrow",
+            file_extension="parquet",
+            is_binary_format=True,
+            supports_schema_changes=False,
+            requires_destination_capabilities=True,
+            supports_compression=False,
+        )

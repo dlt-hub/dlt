@@ -93,22 +93,37 @@ class Normalize(Runnable[ProcessPool]):
                     root_table_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file).table_name
                     root_tables.add(root_table_name)
                     logger.debug(f"Processing extracted items in {extracted_items_file} in load_id {load_id} with table name {root_table_name} and schema {schema.name}")
-                    with normalize_storage.storage.open_file(extracted_items_file) as f:
-                        # enumerate jsonl file line by line
-                        items_count = 0
-                        for line_no, line in enumerate(f):
-                            items: List[TDataItem] = json.loads(line)
-                            partial_update, items_count, r_counts = Normalize._w_normalize_chunk(load_storage, schema, load_id, root_table_name, items)
-                            schema_updates.append(partial_update)
-                            total_items += items_count
-                            merge_row_count(row_counts, r_counts)
-                            logger.debug(f"Processed {line_no} items from file {extracted_items_file}, items {items_count} of total {total_items}")
+                    if extracted_items_file.endswith("parquet"):
+                        from dlt.common.libs.pyarrow import pyarrow
+                        table = pyarrow.parquet.ParquetFile(normalize_storage.storage.make_full_path(extracted_items_file))
+                        table_meta = table.metadata
+                        items_count = table_meta.num_rows
+                        target_folder = load_storage.storage.make_full_path(os.path.join(load_id, LoadStorage.NEW_JOBS_FOLDER))
+                        load_storage.storage.atomic_import(normalize_storage.storage.make_full_path(extracted_items_file), target_folder)
+                        total_items += items_count
+                        r_counts: TRowCount = {}
+                        increase_row_count(r_counts, root_table_name, items_count)
+                        merge_row_count(row_counts, r_counts)
                         # if any item found in the file
                         if items_count > 0:
                             populated_root_tables.add(root_table_name)
-                            logger.debug(f"Processed total {line_no + 1} lines from file {extracted_items_file}, total items {total_items}")
-                        # make sure base tables are all covered
-                        increase_row_count(row_counts, root_table_name, 0)
+                    else:
+                        with normalize_storage.storage.open_file(extracted_items_file) as f:
+                            # enumerate jsonl file line by line
+                            items_count = 0
+                            for line_no, line in enumerate(f):
+                                items: List[TDataItem] = json.loads(line)
+                                partial_update, items_count, r_counts = Normalize._w_normalize_chunk(load_storage, schema, load_id, root_table_name, items)
+                                schema_updates.append(partial_update)
+                                total_items += items_count
+                                merge_row_count(row_counts, r_counts)
+                                logger.debug(f"Processed {line_no} items from file {extracted_items_file}, items {items_count} of total {total_items}")
+                            # if any item found in the file
+                            if items_count > 0:
+                                populated_root_tables.add(root_table_name)
+                                logger.debug(f"Processed total {line_no + 1} lines from file {extracted_items_file}, total items {total_items}")
+                            # make sure base tables are all covered
+                            increase_row_count(row_counts, root_table_name, 0)
                 # write empty jobs for tables without items if table exists in schema
                 for table_name in root_tables - populated_root_tables:
                     if table_name not in schema.tables:
@@ -282,7 +297,8 @@ class Normalize(Runnable[ProcessPool]):
         self.load_storage.commit_temp_load_package(load_id)
         # delete item files to complete commit
         for file in files:
-            self.normalize_storage.storage.delete(file)
+            if not file.endswith("parquet"):
+                self.normalize_storage.storage.delete(file)
         # log and update metrics
         logger.info(f"Chunk {load_id} processed")
         self._row_counts = row_counts
