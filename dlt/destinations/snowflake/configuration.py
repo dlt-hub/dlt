@@ -37,7 +37,7 @@ def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes
     except Exception:
         # loading base64-encoded DER key failed -> assume it's a plain-text PEM key
         pkey = serialization.load_pem_private_key(
-            private_key.encode(),
+            private_key.encode(encoding="ascii"),
             password=password.encode() if password is not None else None,
             backend=default_backend(),
         )
