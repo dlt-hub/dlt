@@ -12,7 +12,7 @@ import re
 
 from dlt.common import json, pendulum, logger
 from dlt.common.data_types import TDataType
-from dlt.common.schema.typing import COLUMN_HINTS, TColumnType, TColumnSchemaBase, TTableSchema, TWriteDisposition
+from dlt.common.schema.typing import COLUMN_HINTS, TColumnSchemaBase, TTableSchema, TWriteDisposition
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import StateInfo, StorageSchemaInfo,WithStateSync, DestinationClientConfiguration, DestinationClientDwhConfiguration, DestinationClientDwhWithStagingConfiguration, NewLoadJob, WithStagingDataset, TLoadJobState, LoadJob, JobClientBase, FollowupJob, CredentialsConfiguration
@@ -242,13 +242,19 @@ WHERE """
             schema_c: TColumnSchemaBase = {
                 "name": c[0],
                 "nullable": _null_to_bool(c[2]),
-                **self._from_db_type(c[1], numeric_precision, numeric_scale),  # type: ignore[misc]
+                "data_type": self._from_db_type(c[1], numeric_precision, numeric_scale),
             }
             schema_table[c[0]] = schema_c  # type: ignore
         return True, schema_table
 
+    @classmethod
     @abstractmethod
-    def _from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+    def _to_db_type(cls, schema_type: TDataType) -> str:
+        pass
+
+    @classmethod
+    @abstractmethod
+    def _from_db_type(cls, db_type: str, precision: Optional[int], scale: Optional[int]) -> TDataType:
         pass
 
     def get_stored_schema(self) -> StorageSchemaInfo:
