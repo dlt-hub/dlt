@@ -1,20 +1,22 @@
 import contextlib
 import os
-from typing import ClassVar, List, Set
+from typing import ClassVar, List, Set, Dict, Type, Any, Sequence, Optional
+from collections import defaultdict
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.pipeline import reset_resource_state
 from dlt.common.data_writers import TLoaderFileFormat
+from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItems, TDataItem
 from dlt.common.schema import Schema, utils, TSchemaUpdate
-from dlt.common.schema.typing import TColumnSchema
-from dlt.common.storages import NormalizeStorageConfiguration, NormalizeStorage, DataItemStorage
+from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns
+from dlt.common.storages import NormalizeStorageConfiguration, NormalizeStorage, DataItemStorage, FileStorage
 from dlt.common.configuration.specs import known_sections
 
 from dlt.extract.decorators import SourceSchemaInjectableContext
@@ -22,20 +24,67 @@ from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
 from dlt.extract.pipe import PipeIterator
 from dlt.extract.source import DltResource, DltSource
 from dlt.extract.typing import TableNameMeta
+try:
+    from dlt.common.libs import pyarrow
+except MissingDependencyException:
+    pyarrow = None
+try:
+    import pandas as pd
+except ModuleNotFoundError:
+    pd = None
 
 
-class ExtractorStorage(DataItemStorage, NormalizeStorage):
+class ExtractorItemStorage(DataItemStorage):
+    load_file_type: TLoaderFileFormat
+
+    def __init__(self, storage: FileStorage, extract_folder: str="extract") -> None:
+        # data item storage with jsonl with pua encoding
+        super().__init__(self.load_file_type)
+        self.extract_folder = extract_folder
+        self.storage = storage
+
+
+    def _get_data_item_path_template(self, load_id: str, schema_name: str, table_name: str) -> str:
+        template = NormalizeStorage.build_extracted_file_stem(schema_name, table_name, "%s")
+        return self.storage.make_full_path(os.path.join(self._get_extract_path(load_id), template))
+
+    def _get_extract_path(self, extract_id: str) -> str:
+        return os.path.join(self.extract_folder, extract_id)
+
+
+class JsonLExtractorStorage(ExtractorItemStorage):
+    load_file_type: TLoaderFileFormat = "puae-jsonl"
+
+
+class ArrowExtractorStorage(ExtractorItemStorage):
+    load_file_type: TLoaderFileFormat = "arrow"
+
+
+class ExtractorStorage(NormalizeStorage):
     EXTRACT_FOLDER: ClassVar[str] = "extract"
 
-    def __init__(self, C: NormalizeStorageConfiguration, load_file_type: TLoaderFileFormat = "puae-jsonl") -> None:
-        # data item storage with jsonl with pua encoding
-        super().__init__(load_file_type, True, C)
-        self.storage.create_folder(ExtractorStorage.EXTRACT_FOLDER, exists_ok=True)
+    """Wrapper around multiple extractor storages with different file formats"""
+    def __init__(self, C: NormalizeStorageConfiguration) -> None:
+        super().__init__(True, C)
+        self._item_storages: Dict[TLoaderFileFormat, ExtractorItemStorage] = {
+            "puae-jsonl": JsonLExtractorStorage(self.storage, extract_folder=self.EXTRACT_FOLDER),
+            "arrow": ArrowExtractorStorage(self.storage, extract_folder=self.EXTRACT_FOLDER)
+        }
+
+    def _get_extract_path(self, extract_id: str) -> str:
+        return os.path.join(self.EXTRACT_FOLDER, extract_id)
 
     def create_extract_id(self) -> str:
         extract_id = uniq_id()
         self.storage.create_folder(self._get_extract_path(extract_id))
         return extract_id
+
+    def get_storage(self, loader_file_format: TLoaderFileFormat) -> ExtractorItemStorage:
+        return self._item_storages[loader_file_format]
+
+    def close_writers(self, extract_id: str) -> None:
+        for storage in self._item_storages.values():
+            storage.close_writers(extract_id)
 
     def commit_extract_files(self, extract_id: str, with_delete: bool = True) -> None:
         extract_path = self._get_extract_path(extract_id)
@@ -50,12 +99,115 @@ class ExtractorStorage(DataItemStorage, NormalizeStorage):
         if with_delete:
             self.storage.delete_folder(extract_path, recursively=True)
 
-    def _get_data_item_path_template(self, load_id: str, schema_name: str, table_name: str) -> str:
-        template = NormalizeStorage.build_extracted_file_stem(schema_name, table_name, "%s")
-        return self.storage.make_full_path(os.path.join(self._get_extract_path(load_id), template))
+    def write_data_item(self, file_format: TLoaderFileFormat, load_id: str, schema_name: str, table_name: str, item: TDataItems, columns: TTableSchemaColumns) -> None:
+        self.get_storage(file_format).write_data_item(load_id, schema_name, table_name, item, columns)
 
-    def _get_extract_path(self, extract_id: str) -> str:
-        return os.path.join(ExtractorStorage.EXTRACT_FOLDER, extract_id)
+
+def _item_format(item: TDataItems) -> TLoaderFileFormat:
+    if (pyarrow and pyarrow.is_arrow_item(item)) or (pd and isinstance(item, pd.DataFrame)):
+        return "arrow"
+    return "puae-jsonl"
+
+
+class Extractor:
+    file_format: TLoaderFileFormat
+    dynamic_tables: TSchemaUpdate
+    def __init__(
+            self,
+            extract_id: str,
+            storage: ExtractorStorage,
+            schema: Schema,
+            resources_with_items: Set[str],
+            dynamic_tables: TSchemaUpdate,
+            collector: Collector = NULL_COLLECTOR
+    ) -> None:
+        self._storage = storage
+        self.schema = schema
+        self.dynamic_tables = dynamic_tables
+        self.collector = collector
+        self.resources_with_items = resources_with_items
+        self.extract_id = extract_id
+
+    @property
+    def storage(self) -> ExtractorItemStorage:
+        return self._storage.get_storage(self.file_format)
+
+    def write_table(self, resource: DltResource, item: TDataItems, meta: Any) -> None:
+        if isinstance(meta, TableNameMeta):
+            table_name = meta.table_name
+            self._write_static_table(resource, table_name, item)
+            self._write_item(table_name, resource.name, item)
+        elif resource._table_name_hint_fun:
+            if isinstance(item, List):
+                for single_item in item:
+                    self._write_dynamic_table(resource, single_item)
+            else:
+                self._write_dynamic_table(resource, item)
+        else:
+            # write item belonging to table with static name
+            table_name = resource.table_name  # type: ignore
+            self._write_static_table(resource, table_name, item)
+            self._write_item(table_name, resource.name, item)
+
+
+    def write_empty_file(self, table_name: str) -> None:
+        table_name = self.schema.naming.normalize_table_identifier(table_name)
+        self.storage.write_empty_file(self.extract_id, self.schema.name, table_name, None)
+
+    def _write_item(self, table_name: str, resource_name: str, item: TDataItems) -> None:
+        # normalize table name before writing so the name match the name in schema
+        # note: normalize function should be cached so there's almost no penalty on frequent calling
+        # note: column schema is not required for jsonl writer used here
+        table_name = self.schema.naming.normalize_identifier(table_name)
+        self.collector.update(table_name)
+        self.resources_with_items.add(resource_name)
+        self.storage.write_data_item(self.extract_id, self.schema.name, table_name, item, None)
+
+    def _write_dynamic_table(self, resource: DltResource, item: TDataItem) -> None:
+        table_name = resource._table_name_hint_fun(item)
+        existing_table = self.dynamic_tables.get(table_name)
+        if existing_table is None:
+            self.dynamic_tables[table_name] = [resource.compute_table_schema(item)]
+        else:
+            # quick check if deep table merge is required
+            if resource._table_has_other_dynamic_hints:
+                new_table = resource.compute_table_schema(item)
+                # this merges into existing table in place
+                utils.merge_tables(existing_table[0], new_table)
+            else:
+                # if there are no other dynamic hints besides name then we just leave the existing partial table
+                pass
+        # write to storage with inferred table name
+        self._write_item(table_name, resource.name, item)
+
+    def _write_static_table(self, resource: DltResource, table_name: str, item: TDataItems) -> None:
+        existing_table = self.dynamic_tables.get(table_name)
+        if existing_table is None:
+            static_table = resource.compute_table_schema()
+            static_table["name"] = table_name
+            self.dynamic_tables[table_name] = [static_table]
+
+
+class JsonLExtractor(Extractor):
+    file_format = "puae-jsonl"
+
+
+class ArrowExtractor(Extractor):
+    file_format = "arrow"
+
+    def write_table(self, resource: DltResource, item: TDataItems, meta: Any) -> None:
+        if pd and isinstance(item, pd.DataFrame):
+            item = pyarrow.from_pandas(item)
+        super().write_table(resource, item, meta)
+
+    def _write_static_table(self, resource: DltResource, table_name: str, item: TDataItems) -> None:
+        arrow_columns = pyarrow.py_arrow_to_table_schema_columns(item.schema)  # type: ignore[union-attr]
+        static_table = resource.compute_table_schema()
+        static_table["columns"] = arrow_columns
+        static_table["name"] = table_name
+        self.dynamic_tables[table_name] = [static_table]
+        # update schema with new columns
+        self.schema.update_schema(self.schema.normalize_table_identifiers(static_table))
 
 
 def extract(
@@ -68,64 +220,20 @@ def extract(
     workers: int = None,
     futures_poll_interval: float = None
 ) -> TSchemaUpdate:
-    from dlt.common.libs.pyarrow import pyarrow, py_arrow_to_table_schema_columns
-
     dynamic_tables: TSchemaUpdate = {}
     schema = source.schema
     resources_with_items: Set[str] = set()
+    extractors: Dict[TLoaderFileFormat, Extractor] = {
+        "puae-jsonl": JsonLExtractor(
+            extract_id, storage, schema, resources_with_items, dynamic_tables, collector=collector
+        ),
+        "arrow": ArrowExtractor(
+            extract_id, storage, schema, resources_with_items, dynamic_tables, collector=collector
+        )
+    }
+    last_item_format: Optional[TLoaderFileFormat] = None
 
     with collector(f"Extract {source.name}"):
-
-        def _write_empty_file(table_name: str) -> None:
-            table_name = schema.naming.normalize_table_identifier(table_name)
-            storage.write_empty_file(extract_id, schema.name, table_name, None)
-
-        def _write_item(table_name: str, resource_name: str, item: TDataItems) -> None:
-            # normalize table name before writing so the name match the name in schema
-            # note: normalize function should be cached so there's almost no penalty on frequent calling
-            # note: column schema is not required for jsonl writer used here
-            table_name = schema.naming.normalize_table_identifier(table_name)
-            collector.update(table_name)
-            resources_with_items.add(resource_name)
-            if isinstance(item, (pyarrow.Table, pyarrow.RecordBatch)):
-                columns_schema = schema.get_table_columns(table_name)
-                storage.write_data_item(extract_id, schema.name, table_name, item, columns_schema)
-            else:
-                storage.write_data_item(extract_id, schema.name, table_name, item, None)
-
-        def _write_dynamic_table(resource: DltResource, item: TDataItem) -> None:
-            table_name = resource._table_name_hint_fun(item)
-            existing_table = dynamic_tables.get(table_name)
-            if existing_table is None:
-                dynamic_tables[table_name] = [resource.compute_table_schema(item)]
-            else:
-                # quick check if deep table merge is required
-                if resource._table_has_other_dynamic_hints:
-                    new_table = resource.compute_table_schema(item)
-                    # this merges into existing table in place
-                    utils.merge_tables(existing_table[0], new_table)
-                else:
-                    # if there are no other dynamic hints besides name then we just leave the existing partial table
-                    pass
-            # write to storage with inferred table name
-            _write_item(table_name, resource.name, item)
-
-        def _write_static_table(resource: DltResource, table_name: str) -> None:
-            existing_table = dynamic_tables.get(table_name)
-            if existing_table is None:
-                static_table = resource.compute_table_schema()
-                static_table["name"] = table_name
-                dynamic_tables[table_name] = [static_table]
-
-        def _write_arrow_table(resource: DltResource, table_name: str, pyarrow_schema: pyarrow.Schema) -> None:
-            arrow_columns = py_arrow_to_table_schema_columns(pyarrow_schema)
-            static_table = resource.compute_table_schema()
-            static_table["columns"] = arrow_columns
-            static_table["name"] = table_name
-            dynamic_tables[table_name] = [static_table]
-            # update schema with new columns
-            schema.update_schema(schema.normalize_table_identifiers(static_table))
-
         # yield from all selected pipes
         with PipeIterator.from_pipes(source.resources.selected_pipes, max_parallel_items=max_parallel_items, workers=workers, futures_poll_interval=futures_poll_interval) as pipes:
             left_gens = total_gens = len(pipes._sources)
@@ -142,28 +250,8 @@ def extract(
 
                 resource = source.resources[pipe_item.pipe.name]
 
-                table_name: str = None
-                # Change item is pyarrow table than change file format to arrow 
-                if isinstance(pipe_item.item, (pyarrow.Table, pyarrow.RecordBatch)):
-                    storage.loader_file_format = "arrow"
-                else:
-                    storage.loader_file_format = "puae-jsonl"
-                 # get partial table from table template
-                if resource._table_name_hint_fun:
-                    if isinstance(pipe_item.item, List):
-                        for item in pipe_item.item:
-                            _write_dynamic_table(resource, item)
-                    else:
-                        _write_dynamic_table(resource, pipe_item.item)
-                # write item belonging to table with static name
-                else:
-                    # if meta contains table name
-                    table_name = pipe_item.meta.table_name if isinstance(pipe_item.meta, TableNameMeta) else resource.table_name
-                    if isinstance(pipe_item.item, (pyarrow.Table, pyarrow.RecordBatch)):
-                        _write_arrow_table(resource, table_name, pipe_item.item.schema)
-                    else:
-                        _write_static_table(resource, table_name)
-                    _write_item(table_name, resource.name, pipe_item.item)
+                last_item_format = _item_format(pipe_item.item)
+                extractors[last_item_format].write_table(resource, pipe_item.item, pipe_item.meta)
 
             # find defined resources that did not yield any pipeitems and create empty jobs for them
             data_tables = {t["name"]: t for t in schema.data_tables()}
@@ -176,7 +264,7 @@ def extract(
                 for table in tables_by_resources[resource.name]:
                     # we only need to write empty files for the top tables
                     if not table.get("parent", None):
-                        _write_empty_file(table["name"])
+                        extractors[last_item_format or "puae-jsonl"].write_empty_file(table["name"])
 
             if left_gens > 0:
                 # go to 100%
@@ -215,4 +303,3 @@ def extract_with_schema(
                     schema.update_table(schema.normalize_table_identifiers(partial))
 
     return extract_id
-

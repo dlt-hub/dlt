@@ -363,7 +363,7 @@ EXPECTED_USER_TABLES = ["event", "event__parse_data__intent_ranking", "event__pa
 def extract_items(normalize_storage: NormalizeStorage, items: Sequence[StrAny], schema_name: str, table_name: str) -> None:
     extractor = ExtractorStorage(normalize_storage.config)
     extract_id = extractor.create_extract_id()
-    extractor.write_data_item(extract_id, schema_name, table_name, items, None)
+    extractor.write_data_item("puae-jsonl", extract_id, schema_name, table_name, items, None)
     extractor.close_writers(extract_id)
     extractor.commit_extract_files(extract_id)
 

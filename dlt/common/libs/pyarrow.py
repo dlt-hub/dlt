@@ -1,4 +1,4 @@
-from typing import Any, Tuple, Optional
+from typing import Any, Tuple, Optional, Union
 from dlt import version
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -12,6 +12,9 @@ try:
     import pyarrow.parquet
 except ModuleNotFoundError:
     raise MissingDependencyException("DLT parquet Helpers", [f"{version.DLT_PKG_NAME}[parquet]"], "DLT Helpers for for parquet.")
+
+
+TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
 
 def get_py_arrow_datatype(column: TColumnType, caps: DestinationCapabilitiesContext, tz: str) -> Any:
@@ -165,3 +168,7 @@ def get_row_count(parquet_file: str) -> int:
     """
     with pyarrow.parquet.ParquetFile(parquet_file) as reader:
         return reader.metadata.num_rows  # type: ignore[no-any-return]
+
+
+def is_arrow_item(item: Any) -> bool:
+    return isinstance(item, (pyarrow.Table, pyarrow.RecordBatch))
