@@ -38,7 +38,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.is_max_query_length_in_bytes = True
     caps.max_text_data_type_length = 4000
     caps.is_max_text_data_type_length_in_bytes = False
-    caps.supports_ddl_transactions = True
+    caps.supports_ddl_transactions = False
     caps.max_rows_per_insert = 1000
 
     #TODO: Add and test supports_truncate_command capability in azure synapse (TRUNCATE works in some cases for synapse)
