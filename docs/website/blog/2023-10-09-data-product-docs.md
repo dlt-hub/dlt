@@ -93,7 +93,7 @@ We will need top level docs, plus some for each of the parts described above.
 
 # Some examples from dlt
 
-Dlt is a library that enables us to build data products. By building with dlt, you benefit from simple declarative code and accessible docs for anyone maintaining later.
+Dlt is a library that enables us to build data pipelines. By building with dlt, you benefit from simple declarative code and accessible docs for anyone maintaining later.
 Assuming you use dlt or your own loading approach in your data platform, you will want to document both the tool used, to enable people to modify things, and the popelines themselves to describe semantically what is being loaded.
 Here are some examples how you could do that:
 
