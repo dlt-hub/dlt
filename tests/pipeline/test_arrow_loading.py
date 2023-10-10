@@ -71,3 +71,17 @@ def test_extract_and_normalize(item_type: str):
 
     pipeline.extract(some_data())
     pipeline.normalize()
+
+
+@pytest.mark.parametrize("item_type", ["pandas", "table"])
+def test_extract_with_incremental(item_type: str):
+    item = make_data_item(item_type)
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="filesystem")
+
+    @dlt.resource
+    def some_data(incremental = dlt.sources.incremental("datetime")):
+        yield item
+
+    pipeline.extract(some_data())
+    pipeline.normalize()
