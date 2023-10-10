@@ -30,8 +30,24 @@ they fail to discuss the importance a user manual, or documentation.
 ### So what is a data product?
 
 A data product is a self-contained piece of data-powered software that serves a single use case. For example, it could be a pipeline that loads Salesforce data to Snowflake, or it could be an ML model hosted behind an api.
-Many talk about data products as some kind of inter-company exchange - like one company does it and another reuses it. 
+Many talk about data products as some kind of inter-company exchange - like one company does it and another reuses it.
 However, the prevalent case is when we have a team building it and another using it - just like a "production backend", these internal data tools help the business run their processes and are an integral part of the company and their product.
+
+Always consider the use case for the description of the product, but the entire technical stack as part of the product - so, the code and data responsible for enabling the use case are part of the product.
+
+Examples of data products
+- Lead ranking algorithm that helps the sales team prioritise their leads based on rules and maybe data.
+- ROI calculator that enables the marketing team to optimise profits or expansion via better bidding and reinvestment efforts.
+- Data pipeline that creates a report that is core for the finance team, containing things the finance team defines and wants.
+- A data contract that alerts if salesforce leads do not have a corresponding company in the production system
+- A series of calculations that segment customers by various features we can use for targetting
+- A data mart that enables the CRM team select subsets of users by ad-hoc defined behavior
+- A data pipeline that provides externals with data.
+- A report which we offer via api for external consumption.
+- An api endpoint that produces a content recommendation for a particular website slot.
+- A dashboard that enables the Account Management team to prioritise who they should reach out to, to enable them to reach their goals.
+
+
 
 ### What makes a data pipeline a data product?
 
