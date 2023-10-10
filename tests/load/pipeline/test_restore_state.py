@@ -251,7 +251,7 @@ def test_restore_state_pipeline(destination_config: DestinationTestConfiguration
 
     # extract by creating ad hoc source in pipeline that keeps state under pipeline name
     data1 = some_data("state1")
-    data1._name = "state1_data"
+    data1._pipe.name = "state1_data"
     p.extract([data1, some_data("state2")], schema=Schema("default"))
 
     data_two = source_two("state3")
@@ -435,7 +435,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
 
     # extract two resources that modify the state
     data1 = some_data("state1")
-    data1._name = "state1_data"
+    data1._pipe.name = "state1_data"
 
     p.run([data1, some_data("state2")], schema=Schema("default"), destination=destination_config.destination, staging=destination_config.staging, dataset_name=dataset_name)
     orig_state = p.state

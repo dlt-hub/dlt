@@ -29,8 +29,8 @@ class TTableSchemaTemplate(TypedDict, total=False):
     validator: ValidateItem
 
 class DltResourceSchema:
-    def __init__(self, name: str, table_schema_template: TTableSchemaTemplate = None):
-        self.__qualname__ = self.__name__ = self._name = name
+    def __init__(self, table_schema_template: TTableSchemaTemplate = None):
+        self.__qualname__ = self.__name__ = self.name
         self._table_name_hint_fun: TFunHintTemplate[str] = None
         self._table_has_other_dynamic_hints: bool = False
         self._table_schema_template: TTableSchemaTemplate = None
@@ -38,11 +38,16 @@ class DltResourceSchema:
             self.set_template(table_schema_template)
 
     @property
+    def name(self) -> str:
+        pass
+
+    @property
     def table_name(self) -> TTableHintTemplate[str]:
         """Get table name to which resource loads data. May return a callable."""
         if self._table_name_hint_fun:
             return self._table_name_hint_fun
-        return self._table_schema_template["name"] if self._table_schema_template else self._name
+        # get table name or default name
+        return self._table_schema_template.get("name") or self.name if self._table_schema_template else self.name
 
     @table_name.setter
     def table_name(self, value: TTableHintTemplate[str]) -> None:
@@ -68,25 +73,27 @@ class DltResourceSchema:
     def compute_table_schema(self, item: TDataItem =  None) -> TPartialTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation. `item` parameter is used to resolve table hints based on data"""
         if not self._table_schema_template:
-            return new_table(self._name, resource=self._name)
+            return new_table(self.name, resource=self.name)
 
         # resolve a copy of a held template
         table_template = copy(self._table_schema_template)
+        if "name" not in table_template:
+            table_template["name"] = self.name
         table_template["columns"] = copy(self._table_schema_template["columns"])
 
         # if table template present and has dynamic hints, the data item must be provided
         if self._table_name_hint_fun and item is None:
-            raise DataItemRequiredForDynamicTableHints(self._name)
+            raise DataItemRequiredForDynamicTableHints(self.name)
         # resolve
         resolved_template: TTableSchemaTemplate = {k: self._resolve_hint(item, v) for k, v in table_template.items()}  # type: ignore
         resolved_template.pop("incremental", None)
         resolved_template.pop("validator", None)
         table_schema = self._merge_keys(resolved_template)
-        table_schema["resource"] = self._name
+        table_schema["resource"] = self.name
         validate_dict_ignoring_xkeys(
             spec=TPartialTableSchema,
             doc=table_schema,
-            path=f"new_table/{self._name}",
+            path=f"new_table/{self.name}",
         )
         return table_schema
 
@@ -124,7 +131,7 @@ class DltResourceSchema:
                 if table_name:
                     t["name"] = table_name
                 else:
-                    t["name"] = self._name
+                    t.pop("name", None)
             if parent_table_name is not None:
                 if parent_table_name:
                     t["parent"] = parent_table_name
@@ -145,7 +152,8 @@ class DltResourceSchema:
                     # this updates all columns with defaults
                     t["columns"] = update_dict_nested(t["columns"], columns)
                 else:
-                    t.pop("columns", None)
+                    # set to empty columns
+                    t["columns"] = ensure_table_schema_columns(columns)
 
             if primary_key is not None:
                 if primary_key:
@@ -165,7 +173,7 @@ class DltResourceSchema:
     def set_template(self, table_schema_template: TTableSchemaTemplate) -> None:
         DltResourceSchema.validate_dynamic_hints(table_schema_template)
         # if "name" is callable in the template then the table schema requires actual data item to be inferred
-        name_hint = table_schema_template["name"]
+        name_hint = table_schema_template.get("name")
         if callable(name_hint):
             self._table_name_hint_fun = name_hint
         else:
@@ -216,27 +224,27 @@ class DltResourceSchema:
         merge_key: TTableHintTemplate[TColumnNames] = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
         ) -> TTableSchemaTemplate:
-        if not table_name:
-            raise TableNameMissing()
-
         if columns is not None:
             validator = get_column_validator(columns)
             columns = ensure_table_schema_columns_hint(columns)
             if not callable(columns):
                 columns = columns.values()  # type: ignore
-            is_table_complete = len([c for c in columns if c.get("name") and c.get("data_type")]) # type: ignore
         else:
             validator = None
-            is_table_complete = False
 
         # freeze the columns if we have a fully defined table and no other explicit contract
-        if not schema_contract and is_table_complete:
+        if not schema_contract and validator:
             schema_contract = {
                 "columns": "freeze"
             }
         # create a table schema template where hints can be functions taking TDataItem
-        new_template: TTableSchemaTemplate = new_table(table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_contract=schema_contract)  # type: ignore
-
+        new_template: TTableSchemaTemplate = new_table(
+            table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_contract=schema_contract  # type: ignore
+        )
+        if not table_name:
+            new_template.pop("name")
+        # always remove resource
+        new_template.pop("resource", None)  # type: ignore
         if primary_key:
             new_template["primary_key"] = primary_key
         if merge_key:
@@ -248,7 +256,7 @@ class DltResourceSchema:
 
     @staticmethod
     def validate_dynamic_hints(template: TTableSchemaTemplate) -> None:
-        table_name = template["name"]
+        table_name = template.get("name")
         # if any of the hints is a function then name must be as well
         if any(callable(v) for k, v in template.items() if k not in ["name", "incremental", "validator"]) and not callable(table_name):
             raise InconsistentTableTemplate(f"Table name {table_name} must be a function if any other table hint is a function")

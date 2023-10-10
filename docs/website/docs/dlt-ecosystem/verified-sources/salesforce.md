@@ -6,7 +6,7 @@
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
-Salesforce is a cloud platform that streamlines business operations and customer relationship
+[Salesforce](https://www.salesforce.com) is a cloud platform that streamlines business operations and customer relationship
 management, encompassing sales, marketing, and customer service.
 
 This Salesforce `dlt` verified source and
@@ -55,6 +55,10 @@ To obtain the `security_token`, follow these steps:
 
 1. Check your email for the token sent by Salesforce.
 
+> Note: The Salesforce UI, which is described here, might change.
+The full guide is available at [this link.](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/quickstart_oauth.htm)
+
+
 ### Initialize the verified source
 
 To get started with your data pipeline, follow these steps:
@@ -102,6 +106,8 @@ For more information, read the
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
@@ -111,7 +117,7 @@ For more information, read the
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```bash
-   python3 salesforce_pipeline.py
+   python salesforce_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
@@ -158,13 +164,13 @@ def sf_user() -> Iterator[Dict[str, Any]]:
     yield from get_records(client, "User")
 ```
 
-Besides "sf_user", the there are several resources that use replace mode for data writing to the
+Besides "sf_user", there are several resources that use replace mode for data writing to the
 destination.
 
 | user_role() | contact() | lead() | campaign() | product_2() | pricebook_2() | pricebook_entry() |
 |-------------|-----------|--------|------------|-------------|---------------|-------------------|
 
-The described functions fetch records from endpoints based on their names, e.g., user_role()
+The described functions fetch records from endpoints based on their names, e.g. user_role()
 accesses the "user_role" endpoint.
 
 ### Resource `opportunity` (incremental loading):
@@ -189,7 +195,7 @@ def opportunity(
 It is configured to track "SystemModstamp" field in data item returned by "get_records" and then yielded.
 It will store the newest "SystemModstamp" value in dlt state and make it available in "last_timestamp.last_value" on next pipeline run.
 
-Besides "opportunity", the there are several resources that use replace mode for data writing to the
+Besides "opportunity", there are several resources that use replace mode for data writing to the
 destination.
 
 | opportunity_line_item() | opportunity_contact_role() | account() | campaign_member() | task() | event() |
@@ -202,7 +208,7 @@ opportunity_line_item() accesses the "opportunity_line_item" endpoint.
 
 ### Create your own pipeline
 
-If you wish to create your own pipelines you can leverage source and resource methods as discussed
+If you wish to create your own pipelines, you can leverage source and resource methods as discussed
 above.
 
 To create your data pipeline using single loading and

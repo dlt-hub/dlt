@@ -1,0 +1,90 @@
+version: 1
+engine_version: 3
+name: rasa
+tables:
+  _dlt_version:
+    columns:
+      version:
+        data_type: bigint
+        nullable: false
+      engine_version:
+        data_type: bigint
+        nullable: false
+      inserted_at:
+        data_type: timestamp
+        nullable: false
+    write_disposition: append
+  _dlt_loads:
+    columns:
+      load_id:
+        data_type: text
+        nullable: false
+      status:
+        data_type: bigint
+        nullable: false
+      inserted_at:
+        data_type: timestamp
+        nullable: false
+    write_disposition: append
+  event_slot:
+    columns:
+      value:
+        data_type: complex
+        nullable: true
+    write_disposition: append
+  event_user:
+    columns: {}
+    write_disposition: append
+    filters:
+      excludes:
+      - re:^parse_data
+      includes:
+      - re:^parse_data__(intent|entities|message_id$|text$)
+  event_bot:
+    columns: {}
+    write_disposition: append
+    filters:
+      excludes:
+      - re:^data
+      - re:^metadata
+      includes:
+      - re:^metadata__(utter_action|template_name|rasa_x_[a-z]+)$
+settings:
+  default_hints:
+    not_null:
+    - re:^timestamp$
+    - re:^_dlt_id$
+    - re:^_dlt_root_id$
+    - re:^_dlt_load_id$
+    - re:^_dlt_parent_id$
+    - re:^_dlt_list_idx$
+    - re:^sender_id$
+    foreign_key:
+    - re:^_dlt_parent_id$
+    unique:
+    - re:^_dlt_id$
+    partition:
+    - re:^_timestamp$
+    - re:^timestamp$
+    cluster:
+    - re:^_dist_key$
+    - re:^sender_id$
+    sort:
+    - re:^timestamp$
+    - re:^_timestamp$
+  preferred_types:
+    re:^timestamp$: timestamp
+    re:^_timestamp$: timestamp
+    re:^inserted_at$: timestamp
+    re:confidence: double
+    re:^_dlt_list_idx$: bigint
+normalizers:
+  names: dlt.common.normalizers.names.snake_case
+  json:
+    module: dlt.common.normalizers.json.relational
+    config:
+      propagation:
+        root:
+          _dlt_id: _dlt_root_id
+          timestamp: _timestamp
+          sender_id: _dist_key

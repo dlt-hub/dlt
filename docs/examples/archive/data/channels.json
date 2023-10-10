@@ -1,0 +1,834 @@
+[
+    {
+        "id": "815421435900198963",
+        "type": 4,
+        "name": "General",
+        "position": 2,
+        "flags": 0,
+        "parent_id": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": []
+    },
+    {
+        "id": "815421435900198964",
+        "type": 4,
+        "name": "Voice Channels",
+        "position": 6,
+        "flags": 0,
+        "parent_id": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": []
+    },
+    {
+        "id": "815421435900198965",
+        "last_message_id": "973962438644998144",
+        "type": 0,
+        "name": "\ud83d\udcac-general",
+        "position": 8,
+        "flags": 0,
+        "parent_id": "815421435900198963",
+        "topic": "General chat for all topics - Use specific chats if possible",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [
+            {
+                "id": "815421435900198962",
+                "type": 0,
+                "allow": "0",
+                "deny": "131072"
+            }
+        ],
+        "last_pin_timestamp": "2021-12-23T23:53:09+00:00",
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "815421435900198966",
+        "last_message_id": null,
+        "type": 2,
+        "name": "General",
+        "position": 0,
+        "flags": 0,
+        "parent_id": "815421435900198964",
+        "bitrate": 64000,
+        "user_limit": 0,
+        "rtc_region": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "816386052196532247",
+        "last_message_id": "960544041609592902",
+        "type": 0,
+        "name": "\ud83c\udfdb-governance",
+        "position": 17,
+        "flags": 0,
+        "parent_id": "875775901151932426",
+        "topic": "Discussion about snapshot proposals and general governance",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "816386123822661662",
+        "last_message_id": "960544043308314744",
+        "type": 0,
+        "name": "\ud83c\udfa8-design",
+        "position": 10,
+        "flags": 0,
+        "parent_id": "815421435900198963",
+        "topic": "Design, themes, memes, aesthetics, and content",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "817947844018176011",
+        "last_message_id": "924130008715395112",
+        "type": 0,
+        "name": "rules",
+        "position": 1,
+        "flags": 0,
+        "parent_id": null,
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [
+            {
+                "id": "815421435900198962",
+                "type": 0,
+                "allow": "0",
+                "deny": "2048"
+            },
+            {
+                "id": "816381521317462088",
+                "type": 0,
+                "allow": "2048",
+                "deny": "0"
+            },
+            {
+                "id": "817946294613966908",
+                "type": 0,
+                "allow": "2048",
+                "deny": "0"
+            }
+        ],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "817947844018176012",
+        "last_message_id": "969358692485038121",
+        "type": 0,
+        "name": "moderator-only",
+        "position": 3,
+        "flags": 0,
+        "parent_id": "817949077341208606",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [
+            {
+                "id": "815421435900198962",
+                "type": 0,
+                "allow": "0",
+                "deny": "1024"
+            }
+        ],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "817949077341208606",
+        "type": 4,
+        "name": "Moderation",
+        "position": 0,
+        "flags": 0,
+        "parent_id": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": []
+    },
+    {
+        "id": "818846550666379274",
+        "last_message_id": "973215042889744444",
+        "type": 5,
+        "name": "\ud83d\udce2-announcements",
+        "position": 4,
+        "flags": 0,
+        "parent_id": "818846677347729468",
+        "topic": "Announcements for Gamma",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [
+            {
+                "id": "817946294613966908",
+                "type": 0,
+                "allow": "2048",
+                "deny": "0"
+            },
+            {
+                "id": "815421435900198962",
+                "type": 0,
+                "allow": "0",
+                "deny": "2048"
+            },
+            {
+                "id": "816381521317462088",
+                "type": 0,
+                "allow": "2048",
+                "deny": "0"
+            }
+        ],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "818846677347729468",
+        "type": 4,
+        "name": "Resources",
+        "position": 1,
+        "flags": 0,
+        "parent_id": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [
+            {
+                "id": "816381521317462088",
+                "type": 0,
+                "allow": "2048",
+                "deny": "0"
+            },
+            {
+                "id": "817946294613966908",
+                "type": 0,
+                "allow": "2048",
+                "deny": "0"
+            },
+            {
+                "id": "815421435900198962",
+                "type": 0,
+                "allow": "0",
+                "deny": "2048"
+            }
+        ]
+    },
+    {
+        "id": "818846884751081492",
+        "last_message_id": "971452572235878462",
+        "type": 0,
+        "name": "\ud83d\udc24-tweets",
+        "position": 5,
+        "flags": 0,
+        "parent_id": "818846677347729468",
+        "topic": "Twitter activity for Gamma",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [
+            {
+                "id": "815421435900198962",
+                "type": 0,
+                "allow": "0",
+                "deny": "2048"
+            },
+            {
+                "id": "816381521317462088",
+                "type": 0,
+                "allow": "2048",
+                "deny": "0"
+            },
+            {
+                "id": "817946294613966908",
+                "type": 0,
+                "allow": "2048",
+                "deny": "0"
+            }
+        ],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "818847089731698718",
+        "last_message_id": "935632535893987418",
+        "type": 0,
+        "name": "\ud83d\udcdd-information",
+        "position": 6,
+        "flags": 0,
+        "parent_id": "818846677347729468",
+        "topic": "Information about Gamma",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [
+            {
+                "id": "815421435900198962",
+                "type": 0,
+                "allow": "0",
+                "deny": "2048"
+            },
+            {
+                "id": "817946294613966908",
+                "type": 0,
+                "allow": "2048",
+                "deny": "0"
+            },
+            {
+                "id": "816381521317462088",
+                "type": 0,
+                "allow": "2048",
+                "deny": "0"
+            }
+        ],
+        "last_pin_timestamp": "2021-10-07T23:07:27+00:00",
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "818847411585679371",
+        "last_message_id": "973959138239447102",
+        "type": 0,
+        "name": "\ud83d\udcb0-price-talk",
+        "position": 12,
+        "flags": 0,
+        "parent_id": "815421435900198963",
+        "topic": "Discussion of the GAMMA token price and financial markets",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "818848973145374810",
+        "last_message_id": "973812971266531358",
+        "type": 0,
+        "name": "\ud83d\udd27-support",
+        "position": 9,
+        "flags": 0,
+        "parent_id": "815421435900198963",
+        "topic": "Get help, report bugs, walkthroughs, feedback, and more",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "820877606450102273",
+        "last_message_id": "973208834237681705",
+        "type": 0,
+        "name": "bot-commands",
+        "position": 21,
+        "flags": 0,
+        "parent_id": "878647906498936883",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [
+            {
+                "id": "815421435900198962",
+                "type": 0,
+                "allow": "0",
+                "deny": "0"
+            }
+        ],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821245783104815115",
+        "last_message_id": "973954145813921872",
+        "type": 0,
+        "name": "\ud83d\udc4b-welcome",
+        "position": 19,
+        "flags": 0,
+        "parent_id": "878647906498936883",
+        "topic": "New members!",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [
+            {
+                "id": "816381521317462088",
+                "type": 0,
+                "allow": "2048",
+                "deny": "0"
+            },
+            {
+                "id": "817946294613966908",
+                "type": 0,
+                "allow": "2048",
+                "deny": "0"
+            },
+            {
+                "id": "815421435900198962",
+                "type": 0,
+                "allow": "0",
+                "deny": "2048"
+            }
+        ],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821361243297808406",
+        "last_message_id": "973945082619232266",
+        "type": 0,
+        "name": "\u2b06-level-up",
+        "position": 22,
+        "flags": 0,
+        "parent_id": "878647906498936883",
+        "topic": "Gamma chads RISE UP",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821515076108288060",
+        "type": 4,
+        "name": "Communities",
+        "position": 5,
+        "flags": 0,
+        "parent_id": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": []
+    },
+    {
+        "id": "821515287265935371",
+        "last_message_id": "960544062505615421",
+        "type": 0,
+        "name": "\ud83c\uddf9\ud83c\uddf7-turkish",
+        "position": 24,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821515492036313118",
+        "last_message_id": "960544064606961685",
+        "type": 0,
+        "name": "\ud83c\uddeb\ud83c\uddf7-french",
+        "position": 25,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821515576664391730",
+        "last_message_id": "960544066704121986",
+        "type": 0,
+        "name": "\ud83c\uddea\ud83c\uddf8-spanish",
+        "position": 26,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821515786924720129",
+        "last_message_id": "964675556136345660",
+        "type": 0,
+        "name": "\ud83c\uddf5\ud83c\uddf9-portugese",
+        "position": 27,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821515903966642186",
+        "last_message_id": "969677110471962644",
+        "type": 0,
+        "name": "\ud83c\uddee\ud83c\uddf9-italian",
+        "position": 28,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821516003544399922",
+        "last_message_id": "965324389996429362",
+        "type": 0,
+        "name": "\ud83c\udde9\ud83c\uddea-german",
+        "position": 29,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821516070883557447",
+        "last_message_id": "960544098635350026",
+        "type": 0,
+        "name": "\ud83c\uddf3\ud83c\uddf1-dutch",
+        "position": 30,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821516195131949067",
+        "last_message_id": "960544100216602684",
+        "type": 0,
+        "name": "\ud83c\uddec\ud83c\uddf7-greek",
+        "position": 31,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821516380666068992",
+        "last_message_id": "960544101642678353",
+        "type": 0,
+        "name": "\ud83c\uddf7\ud83c\uddf4-romanian",
+        "position": 32,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821516497834868786",
+        "last_message_id": "960544103781789717",
+        "type": 0,
+        "name": "\ud83c\udded\ud83c\uddfa-hungarian",
+        "position": 33,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821516610359525407",
+        "last_message_id": "960544106151567430",
+        "type": 0,
+        "name": "\ud83c\uddf5\ud83c\uddf1-polish",
+        "position": 35,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821516979944030248",
+        "last_message_id": "960544108139671612",
+        "type": 0,
+        "name": "\ud83c\udde6\ud83c\uddf1-albanian",
+        "position": 36,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821517304167792640",
+        "last_message_id": "966268557509943337",
+        "type": 0,
+        "name": "\ud83c\udde8\ud83c\uddf3-chinese",
+        "position": 23,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821517521265360997",
+        "last_message_id": "960544111834845254",
+        "type": 0,
+        "name": "\ud83c\udde8\ud83c\uddff-czech",
+        "position": 34,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821517630346493992",
+        "last_message_id": "960544113344790678",
+        "type": 0,
+        "name": "\ud83c\uddf7\ud83c\uddfa-russian",
+        "position": 37,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821517974955491348",
+        "last_message_id": "960544143975792642",
+        "type": 0,
+        "name": "\ud83c\uddef\ud83c\uddf5-japanese",
+        "position": 38,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "821518118609747990",
+        "last_message_id": "960544145414438932",
+        "type": 0,
+        "name": "\ud83c\uddf0\ud83c\uddf7-korean",
+        "position": 39,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "832091269218959420",
+        "last_message_id": "960544147117318174",
+        "type": 0,
+        "name": "\ud83c\uddfb\ud83c\uddf3-vietnamese",
+        "position": 40,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "839014797923057694",
+        "last_message_id": "972897403311124560",
+        "type": 0,
+        "name": "\ud83d\udcc8-lp-strategies",
+        "position": 15,
+        "flags": 0,
+        "parent_id": "875775901151932426",
+        "topic": "Discussion of Gamma's strategies for managing liquidity",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "855409536784269312",
+        "last_message_id": "967871604149330011",
+        "type": 0,
+        "name": "bot-reports",
+        "position": 20,
+        "flags": 0,
+        "parent_id": "878647906498936883",
+        "topic": "Report malicious bots here",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [
+            {
+                "id": "815421435900198962",
+                "type": 0,
+                "allow": "0",
+                "deny": "0"
+            }
+        ],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "865630648819908626",
+        "last_message_id": "960544151886245980",
+        "type": 0,
+        "name": "\ud83c\udfe2-office-hours",
+        "position": 18,
+        "flags": 0,
+        "parent_id": "875775901151932426",
+        "topic": "Venue for Q&A with the Gamma team",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "873204664936570920",
+        "last_message_id": "973857117104644146",
+        "type": 0,
+        "name": "\ud83c\udfa4-off-topic",
+        "position": 13,
+        "flags": 0,
+        "parent_id": "815421435900198963",
+        "topic": "Off-topic discussions not related to Gamma",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "875775901151932426",
+        "type": 4,
+        "name": "Operations",
+        "position": 3,
+        "flags": 0,
+        "parent_id": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": []
+    },
+    {
+        "id": "875776209466830898",
+        "last_message_id": "973160988574634014",
+        "type": 0,
+        "name": "\ud83e\udd1d-partnerships",
+        "position": 14,
+        "flags": 0,
+        "parent_id": "875775901151932426",
+        "topic": "Partnership and relationship building",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "878294599142109184",
+        "last_message_id": "972670671584899112",
+        "type": 0,
+        "name": "\ud83d\udcc9-subgraph-data",
+        "position": 16,
+        "flags": 0,
+        "parent_id": "875775901151932426",
+        "topic": "Discussion of Subgraph Data",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "878647906498936883",
+        "type": 4,
+        "name": "Discord Operations",
+        "position": 4,
+        "flags": 0,
+        "parent_id": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": []
+    },
+    {
+        "id": "889829893767061514",
+        "last_message_id": "973963235915100241",
+        "type": 0,
+        "name": "\ud83c\udf05-gm",
+        "position": 7,
+        "flags": 0,
+        "parent_id": "815421435900198963",
+        "topic": "gm",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "898273203665899590",
+        "last_message_id": "971813764850655332",
+        "type": 0,
+        "name": "\u2728gamma-twitter-mentions",
+        "position": 11,
+        "flags": 0,
+        "parent_id": "815421435900198963",
+        "topic": "Social media posts about Gamma",
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "922992292996980736",
+        "last_message_id": "964999766931042364",
+        "type": 0,
+        "name": "\ud83c\uddee\ud83c\udde9-indonesian",
+        "position": 41,
+        "flags": 0,
+        "parent_id": "821515076108288060",
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "930654463021154314",
+        "last_message_id": "945737741264617523",
+        "type": 0,
+        "name": "collabland-config",
+        "position": 42,
+        "flags": 0,
+        "parent_id": null,
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [
+            {
+                "id": "815421435900198962",
+                "type": 0,
+                "allow": "0",
+                "deny": "1024"
+            }
+        ],
+        "rate_limit_per_user": 0,
+        "nsfw": false
+    },
+    {
+        "id": "930654464770211850",
+        "last_message_id": "930654465328029726",
+        "type": 0,
+        "name": "\u2705-get-role",
+        "position": 43,
+        "flags": 0,
+        "parent_id": null,
+        "topic": null,
+        "guild_id": "815421435900198962",
+        "permission_overwrites": [
+            {
+                "id": "815421435900198962",
+                "type": 0,
+                "allow": "1024",
+                "deny": "2048"
+            }
+        ],
+        "rate_limit_per_user": 2,
+        "nsfw": false
+    }
+]

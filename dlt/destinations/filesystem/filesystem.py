@@ -6,7 +6,7 @@ from fsspec import AbstractFileSystem
 
 from dlt.common import logger
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
-from dlt.common.storages import FileStorage, LoadStorage, filesystem_from_config
+from dlt.common.storages import FileStorage, LoadStorage, fsspec_from_config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob
 
@@ -33,7 +33,7 @@ class LoadFilesystemJob(LoadJob):
         self.destination_file_name = LoadFilesystemJob.make_destination_filename(config.layout, file_name, schema_name, load_id)
 
         super().__init__(file_name)
-        fs_client, _ = filesystem_from_config(config)
+        fs_client, _ = fsspec_from_config(config)
         self.destination_file_name = LoadFilesystemJob.make_destination_filename(config.layout, file_name, schema_name, load_id)
         item = self.make_remote_path()
         logger.info("PUT file {item}")
@@ -77,7 +77,7 @@ class FilesystemClient(JobClientBase):
 
     def __init__(self, schema: Schema, config: FilesystemDestinationClientConfiguration) -> None:
         super().__init__(schema, config)
-        self.fs_client, self.fs_path = filesystem_from_config(config)
+        self.fs_client, self.fs_path = fsspec_from_config(config)
         self.config: FilesystemDestinationClientConfiguration = config
         # verify files layout. we need {table_name} and only allow {schema_name} before it, otherwise tables
         # cannot be replaced and we cannot initialize folders consistently

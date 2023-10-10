@@ -1092,3 +1092,41 @@ def test_extract_pydantic_models() -> None:
     expect_extracted_file(
         storage, pipeline.default_schema_name, "users", json.dumps([{"user_id": 1, "name": "a"}, {"user_id": 2, "name": "b"}])
     )
+
+
+def test_resource_rename_same_table():
+    @dlt.resource(write_disposition="replace")
+    def generic(start):
+        dlt.current.resource_state()["start"] = start
+        yield [{"id": idx, "text": "A"*idx} for idx in range(start, start + 10)]
+
+    pipeline = dlt.pipeline(destination='duckdb')
+    load_info = pipeline.run([
+        generic(10).with_name("state1"),
+        generic(20).with_name("state2")
+    ], table_name="single_table")
+    assert_load_info(load_info)
+    # both resources loaded
+    assert pipeline.last_trace.last_normalize_info.row_counts["single_table"] == 20
+    # only this table and state
+    assert len(pipeline.last_trace.last_normalize_info.row_counts) == 2
+
+    # check state
+    # state1 should have 10
+    assert generic(0).with_name("state1").state["start"] == 10
+    # state2 is 10
+    assert generic(0).with_name("state2").state["start"] == 20
+
+    # NOTE: only one resource will be set in table
+    assert pipeline.default_schema.get_table("single_table")["resource"] == "state2"
+
+    # now load only state1
+    load_info = pipeline.run([
+        generic(5).with_name("state1"),
+    ], table_name="single_table")
+    assert_load_info(load_info)
+    # both resources loaded
+    assert pipeline.last_trace.last_normalize_info.row_counts["single_table"] == 10
+    assert generic(0).with_name("state1").state["start"] == 5
+    # resource got swapped to the most recent one
+    assert pipeline.default_schema.get_table("single_table")["resource"] == "state1"

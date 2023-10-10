@@ -829,8 +829,10 @@ class Pipeline(SupportsPipeline):
             elif isinstance(data_item, DltResource):
                 # apply hints
                 apply_hint_args(data_item)
+                # do not set section to prevent source that represent a standalone resource
+                # to overwrite other standalone resources (ie. parents) in that source
                 sources.append(
-                    DltSource(effective_schema.name, data_item.section or self.pipeline_name, effective_schema, [data_item])
+                    DltSource(effective_schema.name, "", effective_schema, [data_item])
                     )
             else:
                 # iterator/iterable/generator

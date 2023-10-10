@@ -63,6 +63,11 @@ Follow these steps:
 
 1. Click "Show token" and store it for ".dlt/secrets.toml".
 
+
+> Note: The Hubspot UI, which is described here, might change.
+The full guide is available at [this link.](https://knowledge.hubspot.com/integrations/how-do-i-get-my-hubspot-api-key)
+
+
 ### Initialize the verified source
 
 To get started with your data pipeline, follow these steps:
@@ -105,6 +110,8 @@ For more information, read the
 
 1. Enter credentials for your chosen destination as per the [docs](../destinations/).
 
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
@@ -114,7 +121,7 @@ For more information, read the
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```bash
-   python3 hubspot_pipeline.py
+   python hubspot_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:

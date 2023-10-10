@@ -1,3 +1,4 @@
+import os
 from urllib.parse import urlparse
 from typing import TYPE_CHECKING, Any, Literal, Optional, Type, get_args, ClassVar, Dict, Union
 
@@ -74,7 +75,11 @@ class FilesystemConfiguration(BaseConfiguration):
     def protocol(self) -> str:
         """`bucket_url` protocol"""
         url = urlparse(self.bucket_url)
-        return url.scheme or "file"
+        # this prevents windows absolute paths to be recognized as schemas
+        if not url.scheme or (os.path.isabs(self.bucket_url) and "\\" in self.bucket_url):
+            return "file"
+        else:
+            return url.scheme
 
     def on_resolved(self) -> None:
         url = urlparse(self.bucket_url)

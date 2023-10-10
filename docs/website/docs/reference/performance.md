@@ -326,7 +326,6 @@ if __name__ == "__main__" or "PYTEST_CURRENT_TEST" in os.environ:
 ```
 <!--@@@DLT_SNIPPET_END ./performance_snippets/performance-snippets.py::parallel_config-->
 
-
 ### Source decomposition for serial and parallel resource execution
 
 You can decompose a pipeline into strongly connected components with

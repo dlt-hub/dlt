@@ -90,6 +90,8 @@ For more information, read the
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
@@ -102,7 +104,7 @@ For more information, read the
 1. You're now ready to run the pipeline! To get started, run the following command:
 
    ```bash
-   python3 strapi_pipeline.py
+   python strapi_pipeline.py
    ```
 
    > In the provided script, we've included a list with one endpoint, "athletes." Simply add any
@@ -145,6 +147,8 @@ def strapi_source(
 
 `domain`: Strapi API domain name, defaults to dlt secrets.
 
+
+## Customization
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this

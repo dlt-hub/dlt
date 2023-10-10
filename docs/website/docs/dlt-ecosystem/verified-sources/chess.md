@@ -74,7 +74,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. You're now ready to run the pipeline! To get started, run the following command:
 
    ```bash
-   python3 chess_pipeline.py
+   python chess_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using

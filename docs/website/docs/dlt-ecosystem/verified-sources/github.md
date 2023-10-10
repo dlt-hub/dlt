@@ -13,7 +13,7 @@ or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support
 :::
 
 This verified source can be used to load data on issues or pull requests from any GitHub repository
-onto a [destination](../../dlt-ecosystem/destinations) of your choice.
+onto a [destination](../../dlt-ecosystem/destinations) of your choice using [GitHub API](https://docs.github.com/en/rest?apiVersion=2022-11-28).
 
 Resources that can be loaded using this verified source are:
 
@@ -52,14 +52,13 @@ To get the API token, sign-in to your GitHub account and follow these steps:
 
 1. Copy the token and save it. This is to be added later in the `dlt` configuration.
 
-> You can optionally add API access tokens to avoid making requests as an unauthorized user.\
-> Note:
+> You can optionally add API access tokens to avoid making requests as an unauthorized user.
 > If you wish to load data using the github_reaction source, the access token is mandatory.
 
 More information you can see in the
 [GitHub authentication](https://docs.github.com/en/rest/overview/authenticating-to-the-rest-api?apiVersion=2022-11-28#basic-authentication)
 and
-[Github API token scopes](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps)
+[GitHub API token scopes](https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/scopes-for-oauth-apps)
 documentations.
 
 ### Initialize the verified source
@@ -106,7 +105,7 @@ For more information, read the
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
-For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
@@ -117,7 +116,7 @@ For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```bash
-   python3 github_pipeline.py
+   python github_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
@@ -126,6 +125,8 @@ For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs
    ```
    For example, the `pipeline_name` for the above pipeline example is `github_reactions`, you may
    also use any custom name instead.
+
+For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
 
 ## Sources and resources
 
@@ -233,7 +234,7 @@ def repo_events(
 dlt.sources.incremental. If no value is given, the default "initial_value" is used. The function
 "last_value_func" determines the most recent 'created_at' value.
 
-Read more about [incremental loading](../../general-usage/incremental-loading#incremental-loading-with-last-value).
+Read more about [incremental loading](../../general-usage/incremental-loading#incremental_loading-with-last-value).
 
 ## Customization
 

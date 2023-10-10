@@ -38,7 +38,7 @@ DEFAULT_RETRY_BACKOFF = Retrying(stop=stop_after_attempt(5), wait=wait_exponenti
 
 class PipelineTasksGroup(TaskGroup):
     """
-    Represents a DLT Airflow pipeline task group.
+    Represents a dlt Airflow pipeline task group.
     """
 
     def __init__(

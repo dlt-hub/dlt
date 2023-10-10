@@ -1,120 +1,145 @@
+---
+title: Stripe
+description: dlt verified source for Stripe API
+keywords: [stripe api, stripe verified source, stripe]
+---
+
 # Stripe
 
 :::info
 Need help deploying these sources, or figuring out how to run them in your data stack?
 
-[Join our slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+[Join our Slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
 
-Stripe is an online payment company that offers a platform for businesses to process payments from customers over the Internet. It's a convenient way for businesses to accept payments and manage their financial transactions securely.
+[Stripe](https://stripe.com) is an online payment platform that allows businesses to securely process and manage customer transactions over the Internet.
 
-This verified source utilizes Stripe's API and `dlt` to extract key data such as customer information, subscription details, event records, etc, and then load them into a database. Additionally, the pipeline example shows how to calculate some important metrics such as MRR (monthly recurring revenue) and churn rate.
+This Stripe `dlt` verified source and
+[pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/stripe_pipeline.py)
+loads data using Stripe API to the destination of your choice.
 
-This verified source loads data from the following default endpoints:
+This verified source loads data from the following endpoints:
 
-| Endpoint | Description |
-| --- | --- |
-| Subscription | recurring payment model offered by the Stripe payment platform |
-| Account | the entities that represent businesses or individuals using the Stripe platform to accept payments |
-| Coupon | promotional codes that businesses can create and offer to customers to provide discounts or other special offers |
-| Customer | individuals or businesses who make purchases or transactions with a business using the Stripe platform |
-| Product | specific item or service that a business offers for sale |
-| Price | represents the specific cost or pricing information associated with a product or subscription plan |
-| Event | a record or notification of a significant occurrence or activity that takes place within a Stripe account |
-| Invoice | a document that represents a request for payment from a customer |
-| BalanceTransaction | represents a record of funds movement within a Stripe account |
+| Name	            | Description                                |
+|--------------------|--------------------------------------------|
+| Subscription       | Recurring payment on Stripe                |
+| Account	         | User profile on Stripe                     |
+| Coupon	            | Discount codes offered by businesses       |
+| Customer	         | Buyers using Stripe                        |
+| Product	         | Items or services for sale                 |
+| Price	            | Cost details for products or plans         |
+| Event	            | Significant activities in a Stripe account |
+| Invoice	         | Payment request document                   |
+| BalanceTransaction | Funds movement record in Stripe            |
 
-> Please note that the endpoints within the verified source can be tailored to meet your specific requirements, as outlined in the Stripe API reference documentation Detailed instructions on customizing these endpoints can be found in the customization section here.
->
+Please note that endpoints in the verified source can be customized as per the Stripe API [reference documentation.](https://stripe.com/docs/api)
 
-## Grab API credentials
+## Setup Guide
+
+### Grab credentials
 
 1. Log in to your Stripe account.
-2. Click on the `⚙️ Settings` option in the top-right menu.
-3. Navigate to the Developers section by clicking on the `Developers` button in the top-right menu bar.
-4. Select the "API Keys" option from the Developers section.
-5. Locate the "Standard Keys" section and click on the "Reveal test key" button next to the Secret Key.
-6. Make a note of the API_secret_key that you will use to configure `secrets.toml` further.
+1. Click ⚙️ Settings in the top-right.
+1. Go to Developers from the top menu.
+1. Choose "API Keys".
+1. In "Standard Keys", click "Reveal test key" beside the Secret Key.
+1. Note down the API_secret_key for configuring secrets.toml.
 
-## Initialize the Stripe verified source and the pipeline example
+> Note: The Stripe UI, which is described here, might change.
+The full guide is available at [this link.](https://stripe.com/docs/keys)
 
-To get started with this verified source, follow these steps:
 
-1. Open up your terminal or command prompt and navigate to the directory where you'd like to create your project.
-2. Enter the following command:
-    ```properties
-    dlt init stripe_analytics duckdb
-    ```
-    This command will initialize your verified source with Stripe and creates pipeline example with duckdb as the destination. If you'd like to use a different destination, simply replace **duckdb** with the name of your preferred destination. You can find supported destinations and their configuration options in our [documentation](../destinations/)
+### Initialize the verified source
 
-3. After running this command, a new directory will be created with the necessary files and configuration settings to get started.
+To get started with your data pipeline, follow these steps:
 
-```
-stripe_analytics
-├── .dlt
-│   ├── config.toml
-│   └── secrets.toml
-├── stripe_analytics
-│   └── __init__.py
-│   └── helpers.py
-│   └── metrics.py
-│   └── settings.py
-├── .gitignore
-├── requirements.txt
-└── stripe_analytics_pipeline.py
-```
+1. Enter the following command:
 
-## Add credentials
+   ```bash
+   dlt init stripe_analytics duckdb
+   ```
 
-1. Inside the **`.dlt`** folder, you'll find a file called **`secrets.toml`**, which is where you can securely store your access tokens and other sensitive information. It's important to handle this file with care and keep it safe.
+   [This command](../../reference/command-line-interface) will initialize
+   [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/stripe_analytics_pipeline.py)
+   with Stripe as the [source](../../general-usage/source) and
+   [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
 
-Here's what the file looks like:
+1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
+   preferred [destination](../destinations).
 
-```toml
-# put your secret values and credentials here. do not share this file and do not push it to github
-[sources.stripe_analytics]
-stripe_secret_key = "stripe_secret_key"# please set me up!
-```
+1. After running this command, a new directory will be created with the necessary files and
+   configuration settings to get started.
 
-2. Replace the value of **stripe_secret_key** with the one that [you copied above](stripe.md#grab-api-credentials). This will ensure that this source can access your Stripe resources securely.
-3. Finally, follow the instructions in **[Destinations](../destinations/)** to add credentials for your chosen destination. This will ensure that your data is properly routed to its final destination.
+For more information, read the
+[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
 
-## Run the pipeline example
 
-1. Install the necessary dependencies by running the following command:
-    ```properties
-    pip install -r requirements.txt
-    ```
+### Add credentials
 
-2. Now the verified source can be run by using the command:
-    ```properties
-    python3 stripe_analytics_pipeline.py
-    ```
+1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
+   information securely, like access tokens. Keep this file safe. Here's its format for service
+   account authentication:
 
-3. To make sure that everything is loaded as expected, use the command:
-    ```properties
-    dlt pipeline <pipeline_name> show
-    ```
-    (For example, the pipeline_name for the above pipeline example is `stripe_analytics`, you may also use any custom name instead)
+   ```toml
+   # put your secret values and credentials here. do not share this file and do not push it to github
+   [sources.stripe_analytics]
+   stripe_secret_key = "stripe_secret_key"# please set me up!
+   ```
+1. Substitute "stripe_secret_key" with the value [you copied above](#grab-credentials) for secure access to your Stripe resources.
 
-## Customization
+1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
-To load data to the destination using this verified source, you have the option to write your own methods. However, it is important to note is how the `ENDPOINTS` and `INCREMENTAL_ENDPOINTS` tuples are defined by default (see `stripe_analytics/settings.py`).
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
+## Run the pipeline
+
+1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
+   running the command:
+
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+1. You're now ready to run the pipeline! To get started, run the following command:
+
+   ```bash
+   python stripe_analytics_pipeline.py
+   ```
+
+1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+   the following command:
+
+   ```bash
+   dlt pipeline <pipeline_name> show
+   ```
+
+   For example, the `pipeline_name` for the above pipeline example is `stripe_analytics`, you
+   may also use any custom name instead.
+
+For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/run-a-pipeline).
+
+## Sources and resources
+
+`dlt` works on the principle of [sources](../../general-usage/source) and
+[resources](../../general-usage/resource).
+
+### Default endpoints
+You can write your own pipelines to load data to a destination using this verified source.
+However, it is important to note is how the `ENDPOINTS` and `INCREMENTAL_ENDPOINTS` tuples are defined in `stripe_analytics/settings.py`.
 
 ```python
 # The most popular Stripe API's endpoints
-ENDPOINTS = ("Subscription", "Account", "Coupon","Customer","Product","Price")
+ENDPOINTS = ("Subscription", "Account", "Coupon", "Customer", "Product", "Price")
 # Possible incremental endpoints
 # The incremental endpoints default to Stripe API endpoints with uneditable data.
 INCREMENTAL_ENDPOINTS = ("Event", "Invoice", "BalanceTransaction")
-
 ```
+>Stripe's default API endpoints miss the "updated" key, triggering 'replace' mode. Use incremental endpoints for incremental loading.
 
-### **Source and resource methods**
-This Stripe verified source has three default methods to use in your pipelines. The methods are:
+### Source `stripe_source`
 
-#### 1. Source stripe_source:
+This function retrieves data from the Stripe API for the specified endpoint:
 
 ```python
 @dlt.source
@@ -126,13 +151,14 @@ def stripe_source(
 ) -> Iterable[DltResource]:
 ```
 
-- **`endpoints`**: A tuple of endpoint names used to retrieve data from.
-- **`start_date`**: An optional start date to limit the data retrieved. The default value is None.
-- **`end_date`**: An optional end date that limits the data retrieved. The default value is None.
+- `endpoints`: Tuple containing endpoint names.
+- `start_date`: Start datetime for data loading (default: None).
+- `end_date`: End datetime for data loading (default: None).
+>This source loads all provided endpoints in 'replace' mode. For incremental endpoints, use incremental_stripe_source.
 
-By default, this method utilizes the *replace* mode, which means that all the data will be loaded fresh into the table. In other words, the existing data in the destination is completely replaced with the new data being loaded on every run.
+### Source `incremental_stripe_source`
 
-#### 2. Source incremental_stripe_source:
+This source loads data in 'append' mode from incremental endpoints.
 
 ```python
 @dlt.source
@@ -142,85 +168,82 @@ def incremental_stripe_source(
     initial_start_date: Optional[DateTime] = None,
     end_date: Optional[DateTime] = None,
 ) -> Iterable[DltResource]:
-
 ```
+`endpoints`: Tuple containing incremental endpoint names.
 
-- **`endpoints`**: A tuple of incremental endpoint names used to retrieve data.
-- **`initial_start_date`**: An optional parameter that specifies the initial value for *dlt.sources.incremental*. If the parameter is not set to “None”, only data created after *initial_start_date* will be loaded during the first run. The default value is None.
-- **`end_date`**: An optional end date that limits the data retrieved. The default value is None.
+`initial_start_date`: Parameter for incremental loading; data after initial_start_date is loaded on the first run (default: None).
 
-After each run, the value of *initial_start_date* will be automatically updated to the date for which the pipeline last loaded data in the previous run. This ensures that in subsequent runs, only new data created after the last loaded date will be retrieved by the pipeline by using *append* mode. With this method, a massive amount of data is not downloaded each time, making the loading process more efficient and less time-consuming.
+`end_date`: End datetime for data loading (default: None).
 
-#### 3. Resource metrics_resource**
+
+After each run, 'initial_start_date' updates to the last loaded date. Subsequent runs then retrieve only new data using append mode, streamlining the process and preventing redundant data downloads.
+
+For more information, read the [General Usage: Incremental loading](../../general-usage/incremental-loading).
+
+### Resource `metrics_resource`
+
+This function loads a dictionary with calculated metrics, including MRR and Churn rate, along with the current timestamp.
 
 ```python
 @dlt.resource(name="Metrics", write_disposition="append", primary_key="created")
 def metrics_resource() -> Iterable[TDataItem]:
 ```
 
-This method is used to calculate and get metrics such as monthly recurring revenue (MRR) and churn rate from endpoints `Subscriptions` and `Events`.
+Abrevations MRR and Churn rate are as follows:
+- Monthly Recurring Revenue (MRR):
+  - Measures the predictable monthly revenue from all active subscriptions. It's the sum of the monthly-normalized subscription amounts.
+- Churn rate:
+  - Indicates the rate subscribers leave a service over a specific period. Calculated by dividing the number of recent cancellations by the total subscribers from 30 days ago, adjusted for new subscribers.
 
-- **Monthly Recurring Revenue (MRR)**:
-    - is a valuable metric used to estimate the total amount of monthly revenue that a business can expect to receive on a recurring basis. It's calculated by adding up the monthly-normalized amounts of all subscriptions from which payment is being collected at the current time.
-- **Churn rate**:
-    - is a metric used to measure the rate at which subscribers are leaving a service or product over a given period of time. It's calculated by adding up the number of subscribers who have cancelled or ended their subscription in the past 30 days and dividing that number by the total number of active subscribers 30 days ago, plus any new subscribers that have joined during that same 30-day period.
 
-### **Create Your Data Loading Pipeline using Stripe verified source**
+## Customization
+### Create your own pipeline
 
-If you wish to create your own pipelines you can leverage these functions.
+If you wish to create your own pipelines, you can leverage source and resource methods from this
+verified source.
 
-To create your data pipeline using single loading and [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading), follow these steps:
+1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
-1. Configure the pipeline by specifying the pipeline name, destination, and dataset. To read more about pipeline configuration, please refer to our [documentation here](https://dlthub.com/docs/general-usage/pipeline).
+   ```python
+   pipeline = dlt.pipeline(
+       pipeline_name="stripe_pipeline",  # Use a custom name if desired
+       destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+       dataset_name="stripe_dataset"  # Use a custom name if desired
+   )
+   ```
 
-    ```python
-    pipeline = dlt.pipeline(
-        pipeline_name="stripe_pipeline",# Use a custom name if desired
-        destination="duckdb",# Choose the appropriate destination (e.g., duckdb etc.)
-        dataset_name="stripe_dataset"# Use a custom name if desired
-    )
-    ```
+1. To load endpoints like "Plan" and "Charge" in replace mode, retrieve all data for the year 2022:
 
-2. First load only endpoints you want to be loaded in *replace* mode, for example, "Plan" and "Charge". Load all data only for the year 2022.
+   ```python
+   source_single = stripe_source(
+       endpoints=("Plan", "Charge"),
+       start_date=datetime(2022, 1, 1),
+       end_date=datetime(2022, 12, 31),
+   )
+   load_info = pipeline.run(source_single)
+   print(load_info)
+   ```
 
-    ```python
-    source_single = stripe_source(
-      endpoints=("Plan", "Charge"),
-      start_date=datetime(2022, 1, 1),
-      end_date=datetime(2022, 12, 31),
-    )
-    ```
-
-3. Then load data from the endpoint “Invoice”. This endpoint has uneditable data, so we can load it incrementally. For future runs, the **`dlt`** module will store the "end_date" for this pipeline run as the "initial_start_date" and load the data incrementally.
+1. To load data from the "Invoice" endpoint, which has static data, using incremental loading:
 
     ```python
     # Load all data on the first run that was created after start_date and before end_date
     source_incremental = incremental_stripe_source(
-      endpoints=("Invoice", ),
-      initial_start_date=datetime(2022, 1, 1),
-      end_date=datetime(2022, 12, 31),
+        endpoints=("Invoice", ),
+        initial_start_date=datetime(2022, 1, 1),
+        end_date=datetime(2022, 12, 31),
     )
-
-    ```
-
-4. Use the method **`pipeline.run()`** to execute the pipeline.
-
-    ```python
-    load_info = pipeline.run(data=[source_single, source_incremental])
+    load_info = pipeline.run(source_incremental)
     print(load_info)
     ```
+    > For subsequent runs, the dlt module sets the previous "end_date" as "initial_start_date", ensuring incremental data retrieval.
 
-5. If you need to load the new data that was created after 31, December 2022, change the data range for *stripe_source,* do this to avoid loading already loaded data again. You don’t have to provide the new data range for *incremental_stripe_source,* the value of *initial_start_date* will be automatically updated to the date for which the pipeline last loaded data in the previous run.
+1. To load data created after December 31, 2022, adjust the data range for stripe_source to prevent redundant loading. For incremental_stripe_source, the initial_start_date will auto-update to the last loaded date from the previous run.
 
     ```python
-    pipeline = dlt.pipeline(
-        pipeline_name="stripe_pipeline",
-        destination="duckdb",
-        dataset_name="stripe_dataset"
-    )
     source_single = stripe_source(
         endpoints=("Plan", "Charge"),
-    	start_date=datetime(2022, 12, 31),
+        start_date=datetime(2022, 12, 31),
     )
     source_incremental = incremental_stripe_source(
         endpoints=("Invoice", ),
@@ -228,7 +251,21 @@ To create your data pipeline using single loading and [incremental data loading
     load_info = pipeline.run(data=[source_single, source_incremental])
     print(load_info)
     ```
+    > To load data, maintain the pipeline name and destination dataset name. The pipeline name is vital for accessing the last run's [state](https://dlthub.com/docs/general-usage/state), which determines the incremental data load's end date. Altering these names can trigger a [“full_refresh”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh), disrupting the metadata (state) tracking for [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
 
-6. It's important to keep the pipeline name and destination dataset name unchanged. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) of the last pipeline run, which includes the end date needed for loading data incrementally. Modifying these names can lead to [“full_refresh”](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh) which will disrupt the tracking of relevant metadata(state) for [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
+1. To load important metrics and store them in database:
 
-That's it! Enjoy running your Stripe DLT pipeline!
+   ```python
+   # Event is an endpoint with uneditable data, so we can use 'incremental_stripe_source'.
+   source_event = incremental_stripe_source(endpoints=("Event",))
+   # Subscription is an endpoint with editable data, use stripe_source.
+   source_subs = stripe_source(endpoints=("Subscription",))
+   load_info = pipeline.run(data=[source_subs, source_event])
+   print(load_info)
+   resource = metrics_resource()
+   print(list(resource))
+   load_info = pipeline.run(resource)
+   print(load_info)
+   ```
+
+

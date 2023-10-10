@@ -17,7 +17,7 @@ documents.
 
 This MongoDB `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/mongodb_pipeline.py)
-loads data using “MongoDB" source to the destination of your choice.
+loads data using "MongoDB" source to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
@@ -59,7 +59,7 @@ Here are the typical ways to configure MongoDB and their connection URLs:
 
 #### Grab `database and collections`
 
-1. To grab "database and collections" you must have MongoDB shell installed. For installation 
+1. To grab "database and collections" you must have MongoDB shell installed. For installation
    guidance, refer to [documentation here.](https://www.mongodb.com/docs/mongodb-shell/install/)
 
 1. Modify the example URLs with your credentials (dbuser & passwd) and host details.
@@ -146,10 +146,10 @@ For more information, read the
    connection_url = "mongodb connection_url" # please set me up!
    ```
 
-1. Replace the connection_url value with the [previously copied one](#grab-connection_url) to ensure
+1. Replace the `connection_url` value with the [previously copied one](#grab-connection_url) to ensure
    secure access to your MongoDB sources.
 
-1. Next, Follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
+1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
@@ -169,6 +169,8 @@ For more information, read the
 1. Replace the value of the "database" and "collections_names" with the ones
    [copied above](#grab-database-and-collections).
 
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
@@ -178,7 +180,7 @@ For more information, read the
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```bash
-   python3 mongodb_pipeline.py
+   python mongodb_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
@@ -237,6 +239,8 @@ def mongodb_collection(
 
 `collection`: Name of the collection to load.
 
+
+## Customization
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this
@@ -246,9 +250,9 @@ verified source.
 
    ```python
    pipeline = dlt.pipeline(
-        pipeline_name="mongodb_pipeline",  # Use a custom name if desired
-        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-        dataset_name="mongodb_data"  # Use a custom name if desired
+       pipeline_name="mongodb_pipeline",  # Use a custom name if desired
+       destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+       dataset_name="mongodb_data"  # Use a custom name if desired
    )
    ```
 
@@ -281,17 +285,17 @@ verified source.
 
    ```python
    load_data = mongodb_collection(
-     collection="movies",
-     incremental=dlt.sources.incremental(
-         "lastupdated", initial_value=pendulum.DateTime(2020, 9, 10, 0, 0, 0)
+       collection="movies",
+       incremental=dlt.sources.incremental(
+           "lastupdated", initial_value=pendulum.DateTime(2020, 9, 10, 0, 0, 0)
      ))
-   
+
    load_info = pipeline.run(load_data, write_disposition="merge")
 
    ```
 
-   > The source function "mongodb_collection" loads data from a particular single 
-   > collection, where as source "mongodb" can load data from multiple collections. 
+   > The source function "mongodb_collection" loads data from a particular single
+   > collection, where as source "mongodb" can load data from multiple collections.
    > This script configures incremental loading from the "movies" collection based on the
    > "lastupdated" field, starting from midnight on September 10, 2020.
 
@@ -301,9 +305,9 @@ verified source.
    # Suitable for tables where new rows are added, but existing rows aren't updated.
    # Load data from the 'listingsAndReviews' collection in MongoDB, using 'last_scraped' for incremental addition.
    airbnb = mongodb().with_resources("listingsAndReviews")
-   
+
    airbnb.listingsAndReviews.apply_hints(
-      incremental=dlt.sources.incremental("last_scraped")
+       incremental=dlt.sources.incremental("last_scraped")
    )
    info = pipeline.run(airbnb, write_disposition="append")
 

@@ -101,6 +101,8 @@ For more information, read the
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by

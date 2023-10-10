@@ -420,12 +420,12 @@ The Python function that yields is not a function but magical object that `dlt` 
 
 ```python
 def lazy_function(endpoint_name):
-    # INIT - this will be executed only once when DLT wants!
+    # INIT - this will be executed only once when dlt wants!
     get_configuration()
     from_item = dlt.current.state.get("last_item", 0)
     l = get_item_list_from_api(api_key, endpoint_name)
 
-    # ITERATOR - this will be executed many times also when DLT wants more data!
+    # ITERATOR - this will be executed many times also when dlt wants more data!
     for item in l:
         yield requests.get(url, api_key, "%s?id=%s" % (endpoint_name, item["id"])).json()
     # CLEANUP

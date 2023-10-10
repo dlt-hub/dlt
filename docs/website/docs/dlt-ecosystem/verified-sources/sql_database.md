@@ -62,7 +62,7 @@ connection_url = "connection_string = f"{drivername}://{username}:{password}@{ho
 
 Here we use `mysql` and `pymysql` dialect to set up SSL connection to a server. All information
 taken from the
-[SQLAlchemy docs](https://docs.sqlalchemy.org/en/14/dialects/mysql.html#ssl-connections)
+[SQLAlchemy docs](https://docs.sqlalchemy.org/en/14/dialects/mysql.html#ssl-connections).
 
 1. To force SSL on the client without a client certificate you may pass the following DSN:
 
@@ -82,7 +82,7 @@ taken from the
    omitted in the example below:
 
    ```toml
-   sources.sql_database.credentials="mysql+pymysql://root:8P5gyDPNo9zo582rQG6a@35.203.96.191:3306/mysql?ssl_ca=&ssl_cert=client-cert.pem&ssl_key=client-key.pem"
+   sources.sql_database.credentials="mysql+pymysql://root:<pass>@35.203.96.191:3306/mysql?ssl_ca=&ssl_cert=client-cert.pem&ssl_key=client-key.pem"
    ```
 
 ### Initialize the verified source
@@ -143,10 +143,12 @@ For more information, read the
    > [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/sql_database_pipeline.py)
    > for details.
 
-1. Finally, follow the instructions in [Destinations](../destinations/) to add credentials for your
+1. Finally, follow the instructions in [Destinations](../destinations/) to add credentials for your
    chosen destination. This will ensure that your data is properly routed to its final destination.
 
-## Run the pipeline example
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+
+## Run the pipeline
 
 1. Install the necessary dependencies by running the following command:
 
@@ -157,7 +159,7 @@ For more information, read the
 1. Now the verified source can be run by using the command:
 
    ```bash
-   python3 sql_database_pipeline.py
+   python sql_database_pipeline.py
    ```
 
 1. To make sure that everything is loaded as expected, use the command:
@@ -166,15 +168,15 @@ For more information, read the
    dlt pipeline <pipeline_name> show
    ```
 
-   For example, the pipeline_name for the above pipeline example is `rfam`, you may also use any
-   custom name instead)
+   For example, the pipeline_name for the above pipeline example is `rfam`, you may also use any
+   custom name instead.
 
 ## Sources and resources
 
 `dlt` works on the principle of [sources](../../general-usage/source) and
 [resources](../../general-usage/resource).
 
-### Source `sql_database`:
+### Source `sql_database`:
 
 This function loads data from an SQL database via SQLAlchemy and auto-creates resources for each
 table or from a specified list.
@@ -226,6 +228,7 @@ def sql_table(
 
 `write_disposition`: Can be "merge", "replace", or "append".
 
+## Customization
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this

@@ -88,7 +88,7 @@ about the pipeline, pipeline run (that the state belongs to) and state blob.
 ## When to use pipeline state
 
 - `dlt` uses the state internally to implement
-  [last value incremental loading](incremental-loading.md#incremental-loading-with-last-value). This
+  [last value incremental loading](incremental-loading.md#incremental_loading-with-last-value). This
   use case should cover around 90% of your needs to use the pipeline state.
 - [Store a list of already requested entities](incremental-loading.md#advanced-state-usage-storing-a-list-of-processed-entities)
   if the list is not much bigger than 100k elements.

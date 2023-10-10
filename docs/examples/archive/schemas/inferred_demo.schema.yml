@@ -1,0 +1,212 @@
+engine_version: 2
+excludes: []
+hints: {}
+includes: []
+name: prod
+preferred_types: {}
+tables:
+  _dlt_loads:
+    inserted_at:
+      cluster: false
+      data_type: timestamp
+      foreign_key: false
+      name: inserted_at
+      nullable: false
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    load_id:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: load_id
+      nullable: false
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    status:
+      cluster: false
+      data_type: bigint
+      foreign_key: false
+      name: status
+      nullable: false
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+  _dlt_version:
+    engine_version:
+      cluster: false
+      data_type: bigint
+      foreign_key: false
+      name: engine_version
+      nullable: false
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    inserted_at:
+      cluster: false
+      data_type: timestamp
+      foreign_key: false
+      name: inserted_at
+      nullable: false
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    version:
+      cluster: false
+      data_type: bigint
+      foreign_key: false
+      name: version
+      nullable: false
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+  books:
+    _dlt_load_id:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: _dlt_load_id
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    _dlt_id:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: _dlt_id
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    _dlt_root_id:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: _dlt_root_id
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    author__firstname:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: author__firstname
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    author__lastname:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: author__lastname
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    editor__firstname:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: editor__firstname
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    editor__lastname:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: editor__lastname
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    isbn:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: isbn
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    title:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: title
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+  books__category:
+    _dlt_parent_id:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: _dlt_parent_id
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    _dlt_list_idx:
+      cluster: false
+      data_type: bigint
+      foreign_key: false
+      name: _dlt_list_idx
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    _dlt_id:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: _dlt_id
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    _dlt_root_id:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: _dlt_root_id
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+    value:
+      cluster: false
+      data_type: text
+      foreign_key: false
+      name: value
+      nullable: true
+      partition: false
+      primary_key: false
+      sort: false
+      unique: false
+version: 3
