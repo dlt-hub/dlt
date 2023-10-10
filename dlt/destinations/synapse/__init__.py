@@ -26,8 +26,8 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.preferred_staging_file_format = None
     caps.supported_staging_file_formats = []
     #TODO: Add a blob_storage preferred_staging_file_format capability for azure synapse
-    #caps.preferred_staging_file_format = "blob_storage"
-    #caps.supported_staging_file_formats = ["blob_storage","parquet"]
+    #caps.preferred_staging_file_format = "csv"
+    #caps.supported_staging_file_formats = ["csv","parquet"]
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_synapse_literal
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
