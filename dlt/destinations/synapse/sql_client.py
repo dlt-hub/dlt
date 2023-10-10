@@ -76,31 +76,18 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         return self._conn
 
     def drop_dataset(self) -> None:
-        # Save the current autocommit state
-        # If a transaction is active, commit it
-        if not self._conn.autocommit:
-            self._conn.commit()
+        rows = self.execute_sql(
+            "SELECT table_name FROM information_schema.views WHERE table_schema = %s;", self.dataset_name
+        )
+        view_names = [row[0] for row in rows]
+        self._drop_views(*view_names)
+        rows = self.execute_sql(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;", self.dataset_name
+        )
+        table_names = [row[0] for row in rows]
+        self.drop_tables(*table_names)
 
-        # Save the current autocommit state
-        prev_autocommit = self._conn.autocommit
-        # Set autocommit to True for DDL operations
-        self._conn.autocommit = True
-        try:
-            rows = self.execute_sql(
-                "SELECT table_name FROM information_schema.views WHERE table_schema = %s;", self.dataset_name
-            )
-            view_names = [row[0] for row in rows]
-            self._drop_views(*view_names)
-            rows = self.execute_sql(
-                "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;", self.dataset_name
-            )
-            table_names = [row[0] for row in rows]
-            self.drop_tables(*table_names)
-
-            self.execute_sql("DROP SCHEMA %s;" % self.fully_qualified_dataset_name())
-        finally:
-            # Reset autocommit to its previous state
-            self._conn.autocommit = prev_autocommit
+        self.execute_sql("DROP SCHEMA %s;" % self.fully_qualified_dataset_name())
 
     def table_exists(self, table_name: str) -> bool:
         query = """
@@ -114,40 +101,15 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     def drop_tables(self, *tables: str) -> None:
         if not tables:
             return
-        # If a transaction is active, commit it
-        if not self._conn.autocommit:
-            self._conn.commit()
-
-        # Save the current autocommit state
-        prev_autocommit = self._conn.autocommit
-        # Set autocommit to True for DDL operations
-        self._conn.autocommit = True
-        try:
-            for table in tables:
-                if self.table_exists(table):
-                    self.execute_sql(f"DROP TABLE {self.make_qualified_table_name(table)};")
-        finally:
-            # Reset autocommit to its previous state
-            self._conn.autocommit = prev_autocommit
+        for table in tables:
+            if self.table_exists(table):
+                self.execute_sql(f"DROP TABLE {self.make_qualified_table_name(table)};")
 
     def _drop_views(self, *tables: str) -> None:
-        # Save the current autocommit state
-        # If a transaction is active, commit it
-        if not self._conn.autocommit:
-            self._conn.commit()
-
-        # Save the current autocommit state
-        prev_autocommit = self._conn.autocommit
-        # Set autocommit to True for DDL operations
-        self._conn.autocommit = True
-        try:
-            if not tables:
-                return
-            statements = [f"DROP VIEW {self.make_qualified_table_name(table)};" for table in tables]
-            self.execute_fragments(statements)
-        finally:
-            # Reset autocommit to its previous state
-            self._conn.autocommit = prev_autocommit
+        if not tables:
+            return
+        statements = [f"DROP VIEW {self.make_qualified_table_name(table)};" for table in tables]
+        self.execute_fragments(statements)
 
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as curr:
@@ -162,18 +124,6 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         assert isinstance(query, str)
         curr: DBApiCursor = None
-        
-        # Check if the query is a DDL operation
-        ddl_operations = ["DROP", "CREATE", "ALTER"]
-        is_ddl = any(op in query.upper() for op in ddl_operations)
-        
-        # If it's a DDL operation, set autocommit to True temporarily
-        prev_autocommit = self._conn.autocommit
-        if is_ddl:
-            if not prev_autocommit:
-                # If inside a transaction, commit it before executing DDL
-                self._conn.commit()
-            self._conn.autocommit = True
         
         if kwargs:
             raise NotImplementedError("pyodbc does not support named parameters in queries")
@@ -192,9 +142,6 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             print("Query error:")
             print(outer)
             raise outer
-        finally:
-            # Reset autocommit to its previous state after the operation
-            self._conn.autocommit = prev_autocommit
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         return self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
