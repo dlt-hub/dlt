@@ -36,6 +36,7 @@ def test_connection_string_with_all_params() -> None:
 
 
 def test_to_connector_params() -> None:
+    # PEM key
     pkey_str = Path('./tests/common/cases/secrets/encrypted-private-key').read_text('utf8')
 
     creds = SnowflakeCredentials()
@@ -61,6 +62,7 @@ def test_to_connector_params() -> None:
         role='role1',
     )
 
+    # base64 encoded DER key
     pkey_str = Path('./tests/common/cases/secrets/encrypted-private-key-base64').read_text('utf8')
 
     creds = SnowflakeCredentials()

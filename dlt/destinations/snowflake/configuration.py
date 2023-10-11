@@ -23,22 +23,24 @@ def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes
         from cryptography.hazmat.primitives.asymmetric import rsa
         from cryptography.hazmat.primitives.asymmetric import dsa
         from cryptography.hazmat.primitives import serialization
+        from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
     except ModuleNotFoundError as e:
         raise MissingDependencyException("SnowflakeCredentials with private key", dependencies=[f"{version.DLT_PKG_NAME}[snowflake]"]) from e
 
     try:
-        # decode base64 encoded private key
-        private_key_decoded = base64.b64decode(private_key).decode('utf-8')
-    except binascii.Error:
-        # private key is not in base64 -> assume it's already provided in plain-text
-        private_key_decoded = private_key
-    except UnicodeDecodeError:
-        # private key cannot be decoded into utf-8 -> assume it's already provided in plain-text
-        private_key_decoded = private_key
-
-    pkey = serialization.load_pem_private_key(
-        private_key_decoded.encode(), password.encode() if password is not None else None, backend=default_backend()
-    )
+        # load key from base64-encoded DER key
+        pkey = serialization.load_der_private_key(
+            base64.b64decode(private_key),
+            password=password.encode() if password is not None else None,
+            backend=default_backend(),
+        )
+    except Exception:
+        # loading base64-encoded DER key failed -> assume it's a plain-text PEM key
+        pkey = serialization.load_pem_private_key(
+            private_key.encode(encoding="ascii"),
+            password=password.encode() if password is not None else None,
+            backend=default_backend(),
+        )
 
     return pkey.private_bytes(
         encoding=serialization.Encoding.DER,

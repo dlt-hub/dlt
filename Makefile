@@ -27,6 +27,8 @@ help:
 	@echo "			tests all components unsing local destinations: duckdb and postgres"
 	@echo "		test-common"
 	@echo "			tests common components"
+	@echo "		test-and-lint-snippets"
+	@echo "			tests and lints snippets and examples in docs"
 	@echo "		build-library"
 	@echo "			makes dev and then builds dlt package for distribution"
 	@echo "		publish-library"

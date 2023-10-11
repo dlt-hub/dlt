@@ -94,7 +94,7 @@ Streamlit Explore data. Schema and data for a test pipeline “quick_start”.
 :::tip
 `dlt` works in Jupyter Notebook and Google Colab! See our [Quickstart Colab Demo.](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)
 
-Looking for source code of all the snippets? You can find and run them [from this repository](https://github.com/dlt-hub/dlt/tree/devel/docs/snippets).
+Looking for source code of all the snippets? You can find and run them [from this repository](https://github.com/dlt-hub/dlt/blob/devel/docs/website/docs/getting-started-snippets.py).
 :::
 
 Learn more:
@@ -150,7 +150,7 @@ print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END json-->
 
-We import **json** from `dlt` namespace. It defaults to `orjson`(otherwise `simplejson`). It can also encode date times, dates, dataclasses and few more datat types.
+We import **json** from `dlt` namespace. It defaults to `orjson`(otherwise `simplejson`). It can also encode date times, dates, dataclasses and few more data types.
 
   </TabItem>
   <TabItem value="csv">
@@ -372,7 +372,7 @@ dlt pipeline -v github_issues_incremental info
 Learn more:
 
 - Declare your [resources](general-usage/resource) and group them in [sources](general-usage/source) using Python decorators.
-- [Set up "last value" incremental loading.](general-usage/incremental-loading#incremental-loading-with-last-value)
+- [Set up "last value" incremental loading.](general-usage/incremental-loading#incremental_loading-with-last-value)
 - [Inspect pipeline after loading.](walkthroughs/run-a-pipeline#4-inspect-a-load-process)
 - [`dlt` command line interface.](reference/command-line-interface)
 
@@ -432,7 +432,7 @@ and `updated_at.last_value` to tell GitHub to return issues updated only **after
 
 Learn more:
 
-- [You can do way more with merge.](general-usage/incremental-loading#merge-incremental-loading)
+- [You can do way more with merge.](general-usage/incremental-loading#merge-incremental_loading)
 
 ### Dispatch stream of events to tables by event type
 
@@ -635,7 +635,7 @@ If you want to take full advantage of the `dlt` library, then we strongly sugges
 - [Create your resources dynamically from data](general-usage/source#create-resources-dynamically).
 - [Append, replace and merge your tables](general-usage/incremental-loading).
 - [Transform your data before loading](general-usage/resource#customize-resources) and see some [examples of customizations like column renames and anonymization](general-usage/customising-pipelines/renaming_columns).
-- [Set up "last value" incremental loading](general-usage/incremental-loading#incremental-loading-with-last-value).
+- [Set up "last value" incremental loading](general-usage/incremental-loading#incremental_loading-with-last-value).
 - [Set primary and merge keys, define the columns nullability and data types](general-usage/resource#define-schema).
 - [Pass config and credentials into your sources and resources](general-usage/credentials).
 - [Use built-in requests client](reference/performance#using-the-built-in-requests-client).

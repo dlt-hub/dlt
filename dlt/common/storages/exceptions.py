@@ -51,7 +51,7 @@ class SchemaStorageException(StorageException):
 
 class InStorageSchemaModified(SchemaStorageException):
     def __init__(self, schema_name: str, storage_path: str) -> None:
-        msg = f"Schema {schema_name} in {storage_path} was externally modified. This is not allowed as that would prevent correct version tracking. Use import/export capabilities of DLT to provide external changes."
+        msg = f"Schema {schema_name} in {storage_path} was externally modified. This is not allowed as that would prevent correct version tracking. Use import/export capabilities of dlt to provide external changes."
         super().__init__(msg)
 
 

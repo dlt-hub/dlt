@@ -420,7 +420,7 @@ class Schema:
                 raise CannotCoerceColumnException(table_name, col_name, py_type, table_columns[col_name]["data_type"], v)
             # otherwise we must create variant extension to the table
             # pass final=True so no more auto-variants can be created recursively
-            # TODO: generate callback so DLT user can decide what to do
+            # TODO: generate callback so dlt user can decide what to do
             variant_col_name = self.naming.shorten_fragments(col_name, VARIANT_FIELD_FORMAT % py_type)
             return self._coerce_non_null_value(table_columns, table_name, variant_col_name, v, is_variant=True)
 

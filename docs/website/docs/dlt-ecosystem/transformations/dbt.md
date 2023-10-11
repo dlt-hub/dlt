@@ -28,7 +28,7 @@ The dbt runner
 ## How to use the dbt runner
 
 For an example of how to use the dbt runner, see the
-[jaffle shop example](https://github.com/dlt-hub/dlt/blob/devel/docs/examples/dbt_run_jaffle.py).
+[jaffle shop example](https://github.com/dlt-hub/dlt/blob/devel/docs/examples/archive/dbt_run_jaffle.py).
 Included below in another example where we run a `dlt` pipeline and then a dbt package via `dlt`:
 
 > 💡 Docstrings are available to read in your IDE.

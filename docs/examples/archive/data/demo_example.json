@@ -1,0 +1,29 @@
+[{"isbn": "123-456-222",
+ "author":
+    {
+      "lastname": "Panda",
+      "firstname": "Jane"
+    },
+"editor":
+    {
+      "lastname": "Smite",
+      "firstname": "Jane"
+    },
+  "title": "The Ultimate Database Study Guide",
+  "category": ["Non-Fiction", "Technology"]
+ },
+{"isbn": "123-456-789",
+ "author":
+    {
+      "lastname": "Jayson",
+      "firstname": "Joe"
+    },
+"editor":
+    {
+      "lastname": "Smite",
+      "firstname": "Jane"
+    },
+  "title": "Json for big data",
+  "category": ["SF", "Horror", "Dystopia"]
+ }
+]

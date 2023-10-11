@@ -243,7 +243,6 @@ workers=3
 ```
 <!--@@@DLT_SNIPPET_END ./performance_snippets/toml-snippets.toml::normalize_workers_toml-->
 
-```
 :::note
 The default is to not parallelize normalization and to perform it in the main process.
 :::
@@ -325,7 +324,6 @@ if __name__ == "__main__" or "PYTEST_CURRENT_TEST" in os.environ:
     print(pipeline.load())
 ```
 <!--@@@DLT_SNIPPET_END ./performance_snippets/performance-snippets.py::parallel_config-->
-
 
 ### Source decomposition for serial and parallel resource execution
 

@@ -187,6 +187,14 @@ def skip_if_not_active(destination: str) -> None:
     if destination not in ACTIVE_DESTINATIONS:
         pytest.skip(f"{destination} not in ACTIVE_DESTINATIONS", allow_module_level=True)
 
+
+def is_running_in_github_fork() -> bool:
+    is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
+    head_ref = os.environ.get("GITHUB_HEAD_REF", "")
+    repo = os.environ.get("GITHUB_REPOSITORY", "")
+    return is_github_actions and ":" in head_ref and not head_ref.startswith(repo.split("/")[0])
+
+
 skipifspawn = pytest.mark.skipif(
     multiprocessing.get_start_method() != "fork", reason="process fork not supported"
 )
@@ -201,4 +209,8 @@ skipifnotwindows = pytest.mark.skipif(
 
 skipifwindows = pytest.mark.skipif(
     platform.system() == "Windows", reason="does not runs on windows"
+)
+
+skipifgithubfork = pytest.mark.skipif(
+    is_running_in_github_fork(), reason="Skipping test because it runs on a PR coming from fork"
 )

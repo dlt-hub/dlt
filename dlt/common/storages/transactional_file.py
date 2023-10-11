@@ -16,7 +16,7 @@ from threading import Timer
 import fsspec
 
 from dlt.common.pendulum import pendulum, timedelta
-from dlt.common.storages.filesystem import MTIME_DISPATCH
+from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH
 
 
 def lock_id(k: int = 4) -> str:

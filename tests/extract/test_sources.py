@@ -5,14 +5,14 @@ import pytest
 
 import dlt
 from dlt.common.configuration.container import Container
-from dlt.common.exceptions import PipelineStateNotAvailable
+from dlt.common.exceptions import DictValidationException, PipelineStateNotAvailable
 from dlt.common.pipeline import StateInjectableContext, source_state
 from dlt.common.schema import Schema
 from dlt.common.typing import TDataItems
-from dlt.extract.exceptions import InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, ResourcesNotFoundError
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataTypeMultiplePipes, InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, ResourcesNotFoundError
 from dlt.extract.pipe import Pipe
 from dlt.extract.typing import FilterItem, MapItem
-from dlt.extract.source import DltResource, DltSource
+from dlt.extract.source import DltResource, DltResourceDict, DltSource
 
 
 def test_call_data_resource() -> None:
@@ -213,8 +213,6 @@ def test_resource_bind_call_forms() -> None:
     # resource is different instance
     assert regular is not b_regular
     assert regular._pipe is not b_regular._pipe
-    # pipe has different id
-    assert regular._pipe._pipe_id != b_regular._pipe._pipe_id
 
     # pipe is replaced on resource returning resource (new pipe created)
     returns_res.add_filter(lambda x: x == "A")
@@ -287,7 +285,7 @@ def test_call_clone_separate_pipe() -> None:
 
     # create two resource instances and extract in single ad hoc resource
     data1 = some_data("state1")
-    data1._name = "state1_data"
+    data1._pipe.name = "state1_data"
     dlt.pipeline(full_refresh=True).extract([data1, some_data("state2")], schema=Schema("default"))
     # both should be extracted. what we test here is the combination of binding the resource by calling it that clones the internal pipe
     # and then creating a source with both clones. if we keep same pipe id when cloning on call, a single pipe would be created shared by two resources
@@ -421,8 +419,8 @@ def test_clone_source() -> None:
         # resource is a clone
         assert s.resources[name] is not clone_s.resources[name]
         assert s.resources[name]._pipe is not clone_s.resources[name]._pipe
-        # but we keep pipe ids
-        assert s.resources[name]._pipe._pipe_id == clone_s.resources[name]._pipe._pipe_id
+        # but we keep pipe names
+        assert s.resources[name].name == clone_s.resources[name].name
 
     assert list(s) == ['', 'A', 'AA', 'AAA']
     # we expired generators
@@ -662,14 +660,26 @@ def test_illegal_double_bind() -> None:
     def _r1():
         yield ["a", "b", "c"]
 
+    assert _r1._args_bound is False
+    assert _r1()._args_bound is True
+
     with pytest.raises(TypeError) as py_ex:
         _r1()()
-    assert "Bound DltResource" in str(py_ex.value)
+    assert "Parametrized resource" in str(py_ex.value)
 
     with pytest.raises(TypeError) as py_ex:
         _r1.bind().bind()
-    assert "Bound DltResource" in str(py_ex.value)
+    assert "Parametrized resource" in str(py_ex.value)
 
+    bound_r = dlt.resource([1, 2, 3], name="rx")
+    assert bound_r._args_bound is True
+    with pytest.raises(TypeError):
+        _r1()
+
+    def _gen():
+        yield from [1, 2, 3]
+
+    assert dlt.resource(_gen())._args_bound is True
 
 
 @dlt.resource
@@ -707,7 +717,7 @@ def test_source_dynamic_resource_attrs() -> None:
     s = test_source(10)
     assert s.resource_1.name == s.resources["resource_1"].name
     assert id(s.resource_1) == id(s.resources["resource_1"])
-    with pytest.raises(KeyError):
+    with pytest.raises(AttributeError):
         s.resource_30
 
 
@@ -823,13 +833,175 @@ def test_resource_state() -> None:
 #     pass
 
 
-@pytest.mark.skip("not implemented")
-def test_resource_dict() -> None:
-    # the dict of resources in source
-    # test clone
-    # test delete
+def test_resource_dict_add() -> None:
+    def input_gen():
+        yield from [1, 2, 3]
 
-    pass
+    def tx_step(item):
+        return item*2
+
+    res_dict = DltResourceDict("source", "section")
+    input_r = DltResource.from_data(input_gen)
+    input_r_orig_pipe = input_r._pipe
+    input_tx = DltResource.from_data(tx_step, data_from=DltResource.Empty)
+    input_tx_orig_pipe = input_tx._pipe
+
+    res_dict["tx_step"] = input_r | input_tx
+    # pipes cloned on setter
+    assert res_dict["tx_step"] is not input_tx
+    assert res_dict["tx_step"]._pipe is not input_tx._pipe
+    # pipes in original resources not touched
+    assert input_r_orig_pipe == input_r._pipe
+    assert input_tx_orig_pipe == input_tx._pipe
+
+    # now add the parent
+    res_dict["input_gen"] = input_r
+    # got cloned
+    assert res_dict["input_gen"] is not input_r
+    # but the clone points to existing parent
+    assert res_dict["input_gen"]._pipe is res_dict["tx_step"]._pipe.parent
+    assert res_dict._new_pipes == []
+    assert len(res_dict._cloned_pairs) == 2
+    res_dict["tx_clone"] = (input_r | input_tx).with_name("tx_clone")
+    assert res_dict["tx_clone"]._pipe.parent is not res_dict["input_gen"]._pipe
+    assert len(res_dict._cloned_pairs) == 4
+    assert input_r_orig_pipe == input_r._pipe
+    assert input_tx_orig_pipe == input_tx._pipe
+
+
+    # add all together
+    res_dict = DltResourceDict("source", "section")
+    res_dict.add(input_r , input_r | input_tx)
+    assert res_dict._new_pipes == []
+    assert res_dict._suppress_clone_on_setitem is False
+    assert res_dict["input_gen"]._pipe is res_dict["tx_step"]._pipe.parent
+    # pipes in original resources not touched
+    assert input_r_orig_pipe == input_r._pipe
+    assert input_tx_orig_pipe == input_tx._pipe
+
+
+    # replace existing resource which has the old pipe
+    res_dict["input_gen"] = input_r
+    # an existing clone got assigned
+    assert res_dict["input_gen"]._pipe is res_dict["tx_step"]._pipe.parent
+    # keep originals
+    assert input_r_orig_pipe == input_r._pipe
+    assert input_tx_orig_pipe == input_tx._pipe
+
+    # replace existing resource which has the new pipe
+    res_dict["input_gen"] = input_r()
+    # we have disconnected gen and parent of tx TODO: we should handle this
+    assert res_dict["input_gen"]._pipe is not res_dict["tx_step"]._pipe.parent
+    # keep originals
+    assert input_r_orig_pipe == input_r._pipe
+    assert input_tx_orig_pipe == input_tx._pipe
+
+
+
+    # can't set with different name than resource really has
+    with pytest.raises(ValueError):
+        res_dict["input_gen_x"] = input_r.with_name("uniq")
+
+    # can't add resource with same name again
+    with pytest.raises(InvalidResourceDataTypeMultiplePipes):
+        res_dict.add(input_r)
+
+
+@pytest.mark.parametrize("add_mode", ("add", "dict", "set"))
+def test_add_transformer_to_source(add_mode: str) -> None:
+    @dlt.resource(name="numbers")
+    def number_gen(init):
+        yield from range(init, init + 5)
+
+
+    @dlt.source
+    def number_source():
+        return number_gen
+
+    source = number_source()
+
+    @dlt.transformer
+    def multiplier(item):
+        return item*2
+
+    mul_pipe = source.numbers | multiplier()
+
+    if add_mode == "add":
+        source.resources.add(mul_pipe)
+    elif add_mode == "dict":
+        source.resources["multiplier"] = mul_pipe
+    else:
+        source.multiplier = mul_pipe
+
+    # need to bind numbers
+    with pytest.raises(ParametrizedResourceUnbound):
+        list(source)
+
+    source.numbers.bind(10)
+    # both numbers and multiplier are evaluated, numbers only once
+    assert list(source) == [20, 10, 22, 11, 24, 12, 26, 13, 28, 14]
+
+
+def test_unknown_resource_access() -> None:
+    @dlt.resource(name="numbers")
+    def number_gen(init):
+        yield from range(init, init + 5)
+
+
+    @dlt.source
+    def number_source():
+        return number_gen
+
+    source = number_source()
+
+    with pytest.raises(AttributeError):
+        source.unknown
+
+    with pytest.raises(KeyError):
+        source.resources["unknown"]
+
+
+def test_clone_resource_on_call():
+    @dlt.resource(name="gene")
+    def number_gen(init):
+        yield from range(init, init + 5)
+
+    @dlt.transformer()
+    def multiplier(number, mul):
+        return number * mul
+
+    gene_clone = number_gen(10)
+    assert gene_clone is not number_gen
+    assert gene_clone._pipe is not number_gen._pipe
+    assert gene_clone.name == number_gen.name
+
+    pipe = number_gen | multiplier
+    pipe_clone = pipe(4)
+    assert pipe_clone._pipe is not pipe._pipe
+    assert pipe._pipe is multiplier._pipe
+    # but parents are the same
+    assert pipe_clone._pipe.parent is number_gen._pipe
+    with pytest.raises(ParametrizedResourceUnbound):
+        list(pipe_clone)
+    # bind the original directly via pipe
+    pipe_clone._pipe.parent.bind_gen(10)
+    assert list(pipe_clone) == [40, 44, 48, 52, 56]
+
+
+def test_clone_resource_on_bind():
+    @dlt.resource(name="gene")
+    def number_gen():
+        yield from range(1, 5)
+
+    @dlt.transformer
+    def multiplier(number, mul):
+        return number * mul
+
+    pipe = number_gen | multiplier
+    bound_pipe = pipe.bind(3)
+    assert bound_pipe is pipe is multiplier
+    assert bound_pipe._pipe is pipe._pipe
+    assert bound_pipe._pipe.parent is pipe._pipe.parent
 
 
 def test_source_multiple_iterations() -> None:
@@ -907,18 +1079,183 @@ def test_clone_resource_with_name() -> None:
     # new name of resource and pipe
     assert r1_clone.name == "r1_clone"
     assert r1_clone._pipe.name == "r1_clone"
+    assert r1_clone.table_name == "r1_clone"
     # original keeps old name and pipe
-    assert r1._pipe != r1_clone._pipe
+    assert r1._pipe is not r1_clone._pipe
     assert r1.name == "_r1"
+    assert r1.table_name == "_r1"
 
-    # clone transformer
+    # clone transformer before it is bound
     bound_t1_clone = r1_clone | _t1.with_name("t1_clone")("ax")
     bound_t1_clone_2 = r1_clone | _t1("ax_2").with_name("t1_clone_2")
     assert bound_t1_clone.name == "t1_clone"
     assert bound_t1_clone_2.name == "t1_clone_2"
-    # but parent is the same
-    assert bound_t1_clone_2._pipe.parent == bound_t1_clone._pipe.parent
+    assert bound_t1_clone.table_name == "t1_clone"
+    assert bound_t1_clone_2.table_name == "t1_clone_2"
+    # but parent is the same (we cloned only transformer - before it is bound)
+    assert bound_t1_clone_2._pipe.parent is bound_t1_clone._pipe.parent
 
     # evaluate transformers
     assert list(bound_t1_clone) == ['a_ax', 'b_ax', 'c_ax']
     assert list(bound_t1_clone_2) == ['a_ax_2', 'b_ax_2', 'c_ax_2']
+
+    # clone pipes (bound transformer)
+    pipe_r1 = _r1()
+    pipe_t1 = _t1("cx")
+    pipe_r1_t1 = pipe_r1 | pipe_t1
+    pipe_r1_t1_clone = pipe_r1_t1.with_name("pipe_clone")
+    assert pipe_r1_t1_clone.name == "pipe_clone"
+    # parent of the pipe also cloned and renamed
+    assert pipe_r1_t1_clone._pipe.parent.name == "_r1_pipe_clone"
+    # originals are not affected
+    assert pipe_r1.name == "_r1"
+    assert pipe_t1.name == "_t1"
+    # binding a transformer is not cloning the original
+    assert pipe_t1._pipe is pipe_r1_t1._pipe
+    assert pipe_r1._pipe is pipe_r1_t1._pipe.parent
+    # with_name clones
+    assert pipe_t1._pipe is not pipe_r1_t1_clone._pipe
+    assert pipe_r1._pipe is not pipe_r1_t1_clone._pipe.parent
+
+    # rename again
+    pipe_r1_t1_clone_2 = pipe_r1_t1_clone.with_name("pipe_clone_2")
+    # replace previous name part (pipe_clone in _r1_pipe_clone) with pipe_clone_2
+    assert pipe_r1_t1_clone_2._pipe.parent.name == "_r1_pipe_clone_2"
+
+    # preserves table name if set
+    table_t1 = _r1 | _t1
+    table_t1.table_name = "Test_Table"
+    table_t1_clone = table_t1.with_name("table_t1_clone")
+    assert table_t1_clone.name == "table_t1_clone"
+    assert table_t1_clone.table_name == "Test_Table"
+
+    # also preserves when set the same name as resource name
+    assert table_t1.name == "_t1"
+    table_t1.table_name = "_t1"
+    table_t1_clone = table_t1.with_name("table_t1_clone")
+    assert table_t1_clone.name == "table_t1_clone"
+    assert table_t1_clone.table_name == "_t1"
+
+
+def test_apply_hints() -> None:
+    def empty_gen():
+        yield [1, 2, 3]
+    empty_table_schema = {"name": "empty_gen", 'columns': {}, 'resource': 'empty_gen', 'write_disposition': 'append'}
+
+    empty = DltResource.from_data(empty_gen)
+
+    empty_r = empty()
+    # check defaults
+    assert empty_r.name == empty.name == empty_r.table_name == empty.table_name == "empty_gen"
+    assert empty_r._table_schema_template is None
+    assert empty_r.compute_table_schema() == empty_table_schema
+    assert empty_r.write_disposition == "append"
+
+    empty_r.apply_hints(write_disposition="replace")
+    assert empty_r.write_disposition == "replace"
+    empty_r.write_disposition = "merge"
+    assert empty_r.compute_table_schema()["write_disposition"] == "merge"
+    # delete hint
+    empty_r.apply_hints(write_disposition="")
+    empty_r.write_disposition = "append"
+    assert empty_r.compute_table_schema()["write_disposition"] == "append"
+
+    empty_r.apply_hints(table_name="table", parent_table_name="parent", primary_key=["a", "b"], merge_key=["c", "a"])
+    table = empty_r.compute_table_schema()
+    assert table["columns"]["a"] == {'merge_key': True, 'name': 'a', 'nullable': False, 'primary_key': True}
+    assert table["columns"]["b"] == {'name': 'b', 'nullable': False, 'primary_key': True}
+    assert table["columns"]["c"] == {'merge_key': True, 'name': 'c', 'nullable': False}
+    assert table["name"] == "table"
+    assert table["parent"] == "parent"
+    assert empty_r.table_name == "table"
+
+    # reset
+    empty_r.apply_hints(table_name="", parent_table_name="", primary_key=[], merge_key="", columns={})
+    assert empty_r._table_schema_template == {'columns': {}, 'incremental': None, 'validator': None, 'write_disposition': 'append'}
+    table = empty_r.compute_table_schema()
+    assert table["name"] == "empty_gen"
+    assert "parent" not in table
+    assert table["columns"] == {}
+    assert empty_r.compute_table_schema() == empty_table_schema
+
+    # combine columns with primary key
+    empty_r = empty()
+    empty_r.apply_hints(columns={"tags": {"data_type": "complex", "primary_key": False}}, primary_key="tags", merge_key="tags")
+    # primary key not set here
+    assert empty_r.columns["tags"] == {"data_type": "complex", "name": "tags", "primary_key": False}
+    # only in the computed table
+    assert empty_r.compute_table_schema()["columns"]["tags"] == {"data_type": "complex", "name": "tags", "primary_key": True, "merge_key": True}
+
+
+def test_apply_dynamic_hints() -> None:
+    def empty_gen():
+        yield [1, 2, 3]
+
+    empty = DltResource.from_data(empty_gen)
+
+    empty_r = empty()
+    with pytest.raises(InconsistentTableTemplate):
+        empty_r.apply_hints(parent_table_name=lambda ev: ev["p"])
+
+    empty_r.apply_hints(table_name=lambda ev: ev["t"], parent_table_name=lambda ev: ev["p"])
+    assert empty_r._table_name_hint_fun is not None
+    assert empty_r._table_has_other_dynamic_hints is True
+
+    with pytest.raises(DataItemRequiredForDynamicTableHints):
+        empty_r.compute_table_schema()
+    table = empty_r.compute_table_schema({"t": "table", "p": "parent"})
+    assert table["name"] == "table"
+    assert table["parent"] == "parent"
+
+    # try write disposition and primary key
+    empty_r.apply_hints(primary_key=lambda ev: ev["pk"], write_disposition=lambda ev: ev["wd"])
+    table = empty_r.compute_table_schema({"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip"})
+    assert table["write_disposition"] == "skip"
+    assert "a" in table["columns"]
+
+    # validate fails
+    with pytest.raises(DictValidationException):
+        empty_r.compute_table_schema({"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "x-skip"})
+
+    # dynamic columns
+    empty_r.apply_hints(columns=lambda ev: ev["c"])
+    table = empty_r.compute_table_schema({"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip", "c": [{"name": "tags"}]})
+    assert table["columns"]["tags"] == {"name": "tags"}
+
+
+def test_selected_pipes_with_duplicates():
+    def input_gen():
+        yield from [1, 2, 3]
+
+    def tx_step(item):
+        return item*2
+
+    input_r = DltResource.from_data(input_gen)
+    input_r_clone = input_r.with_name("input_gen_2")
+
+    # separate resources have separate pipe instances
+    source = DltSource("dupes", "module", Schema("dupes"), [input_r, input_r_clone])
+    pipes = source.resources.pipes
+    assert len(pipes) == 2
+    assert pipes[0].name == "input_gen"
+    assert source.resources[pipes[0].name] == source.input_gen
+    selected_pipes = source.resources.selected_pipes
+    assert len(selected_pipes) == 2
+    assert selected_pipes[0].name == "input_gen"
+    assert list(source) == [1, 2, 3, 1, 2, 3]
+
+    # cloned from fresh resource
+    source = DltSource("dupes", "module", Schema("dupes"), [DltResource.from_data(input_gen), DltResource.from_data(input_gen).with_name("gen_2")])
+    assert list(source) == [1, 2, 3, 1, 2, 3]
+
+    # clone transformer
+    input_r = DltResource.from_data(input_gen)
+    input_tx = DltResource.from_data(tx_step, data_from=DltResource.Empty)
+    source = DltSource("dupes", "module", Schema("dupes"), [input_r, (input_r | input_tx).with_name("tx_clone")])
+    pipes = source.resources.pipes
+    assert len(pipes) == 2
+    assert source.resources[pipes[0].name] == source.input_gen
+    assert source.resources[pipes[1].name] == source.tx_clone
+    selected_pipes = source.resources.selected_pipes
+    assert len(selected_pipes) == 2
+    assert list(source) == [1, 2, 3, 2, 4, 6]

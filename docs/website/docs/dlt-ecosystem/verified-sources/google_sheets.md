@@ -41,10 +41,10 @@ OAuth tokens are preferred when user consent is required, while service account 
 better suited for server-to-server interactions. Here we recommend using service account
 credentials. You can choose the method of authentication as per your requirement.
 
-### Grab google service account credentials
+### Grab Google service account credentials
 
-You need to create a GCP service account to get API credentials, if you don't have one. To create
-one follow these steps:
+You need to create a GCP service account to get API credentials if you don't have one. To create
+ one, follow these steps:
 
 1. Sign in to [console.cloud.google.com](http://console.cloud.google.com/).
 
@@ -52,7 +52,7 @@ one follow these steps:
    needed.
 
 1. Enable "Google Sheets API", refer
-   [google documentation](https://developers.google.com/sheets/api/guides/concepts) for
+   [Google documentation](https://developers.google.com/sheets/api/guides/concepts) for
    comprehensive instructions on this process.
 
 1. Generate credentials:
@@ -65,7 +65,7 @@ one follow these steps:
 
 ### Grab google OAuth credentials
 
-You need to create a GCP account to get OAuth credentials, if you don't have one. To create one
+You need to create a GCP account to get OAuth credentials if you don't have one. To create one,
 follow these steps:
 
 1. Ensure your email used for the GCP account has access to the GA4 property.
@@ -98,10 +98,10 @@ follow these steps:
 1. Generate `refresh_token`:
 
    After configuring "client_id", "client_secret" and "project_id" in "secrets.toml". To generate
-   the refresh token run the following script from the root folder:
+   the refresh token, run the following script from the root folder:
 
    ```bash
-   python3 google_sheets/setup_script_gcp_oauth.py
+   python google_sheets/setup_script_gcp_oauth.py
    ```
 
    Once you have executed the script and completed the authentication, you will receive a "refresh
@@ -115,7 +115,7 @@ follow these steps:
 To allow the API to access the Google Sheet, open the sheet that you wish to use and do the
 following:
 
-1. Select the share button on the top left corner.
+1. Select the share button in the top left corner.
 
    ![Share_Button](docs_images/Share_button.png)
 
@@ -128,37 +128,37 @@ following:
 
 ### Guidelines about headers
 
-Make sure your data has headers and is in a form of well structured table.
+Make sure your data has headers and is in the form of well-structured table.
 
-First row of any extracted range should contain headers. Please make sure:
+The first row of any extracted range should contain headers. Please make sure:
 
 1. The header names are strings and are unique.
-1. That all the columns that you intend to extract have a header.
-1. That data starts exactly at the origin of the range - otherwise source will remove padding but it
+1. All the columns that you intend to extract have a header.
+1. The data starts exactly at the origin of the range - otherwise a source will remove padding, but it
    is a waste of resources.
-   > When source detects any problems with headers or table layout it will issue a WARNING in the
-   > log. Hence we advice to run your pipeline script manually/locally and fix all the problems.
+   > When a source detects any problems with headers or table layout, it will issue a WARNING in the
+   > log. Hence, we advise running your pipeline script manually/locally and fixing all the problems.
 1. Columns without headers will be removed and not extracted.
-1. Columns with headers that does not contain any data will be removed.
-1. If there's any problems with reading headers (ie. header is not string or is empty or not
+1. Columns with headers that do not contain any data will be removed.
+1. If there are any problems with reading headers (i.e. header is not string or is empty or not
    unique): the headers row will be extracted as data and automatic header names will be used.
 1. Empty rows are ignored
 1. `dlt` will normalize range names and headers into table and column names - so they may be
-   different in the database than in google sheets. Prefer small cap names without special
+   different in the database than in Google Sheets. Prefer small cap names without special
    characters.
 
 ### Guidelines about named ranges
 
-We recommend to to use
+We recommend to use
 [Named Ranges](https://support.google.com/docs/answer/63175?hl=en&co=GENIE.Platform%3DDesktop) to
-indicate which data should be extracted from a particular spreadsheet and this is how this source
+indicate which data should be extracted from a particular spreadsheet, and this is how this source
 will work by default - when called without setting any other options. All the named ranges will be
 converted into tables, named after them and stored in the destination.
 
-1. You can let the spreadsheet users to add and remove tables by just adding/removing the ranges,
+1. You can let the spreadsheet users add and remove tables by just adding/removing the ranges,
    you do not need to configure the pipeline again.
 
-1. You can indicate exactly the fragments of interest and only this data will be retrieved so it is
+1. You can indicate exactly the fragments of interest, and only this data will be retrieved, so it is
    the fastest.
 
 1. You can name database tables by changing the range names.
@@ -169,7 +169,7 @@ converted into tables, named after them and stored in the destination.
    range_names = ["Range_1","Range_2","Sheet1!A1:D10"]
    ```
 
-1. You can pass explicit ranges to the google spreadsheet "ranged_names" as:
+1. You can pass explicit ranges to the Google Spreadsheet "ranged_names" as:
 
    | Name         | Example                                   |
    | ------------ | ----------------------------------------- |
@@ -186,8 +186,8 @@ If you are not happy with the workflow above, you can:
 1. Pass a list of ranges as supported by Google Sheets in range_names.
 
    > Note: To retrieve all named ranges with "get_named_ranges" or all sheets with "get_sheets"
-   > methods, pass an empty `range_names` list as `range_names = []`. Even when you use set
-   > "get_named_ranges" to false pass the range_names as empty list to get all the sheets with
+   > methods, pass an empty `range_names` list as `range_names = []`. Even when you use a set
+   > "get_named_ranges" to false pass the range_names as an empty list to get all the sheets with
    > "get_sheets" method.
 
 ### Initialize the verified source
@@ -231,7 +231,7 @@ For more information, read the
    [downloaded earlier](google_sheets.md#grab-google-service-account-credentials), copy
    `project_id`, `private_key`, and `client_email` under `[sources.google_sheets.credentials]`.
 
-1. Alternatively, if you're using OAuth credentials, replace the the fields and values with those
+1. Alternatively, if you're using OAuth credentials, replace the fields and values with those
    you [grabbed for OAuth credentials](google_sheets.md#grab-google-oauth-credentials).
 
 1. The secrets.toml for OAuth authentication looks like:
@@ -269,8 +269,10 @@ For more information, read the
    spreadsheet_identifier="1VTtCiYgxjAwcIw7UM1_BSaxC3rzIpr0HwXZwd2OlPD4"
    ```
 
-> Note: You have option to pass "range_names" and "spreadsheet_identifier" directly to the
+> Note: You have an option to pass "range_names" and "spreadsheet_identifier" directly to the
 > google_spreadsheet function or in ".dlt/config.toml"
+
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
@@ -380,8 +382,9 @@ dlt.resource(
 
 `merge_key`: Parameter is used to specify the column used to identify records for merging. In this
 case,"spreadsheet_id", means that the records will be merged based on the values in this column.
-[Read more](https://dlthub.com/docs/general-usage/incremental-loading#merge-incremental-loading).
+[Read more](https://dlthub.com/docs/general-usage/incremental-loading#merge-incremental_loading).
 
+## Customization
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this

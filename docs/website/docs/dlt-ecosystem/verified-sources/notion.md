@@ -29,6 +29,7 @@ Sources that can be loaded using this verified source are:
 1. Click "New Integration" on the left and name it appropriately.
 1. Finally, click on "Submit" located at the bottom of the page.
 
+
 ### Add a connection to the database
 
 1. Open the database that you want to load to the destination.
@@ -38,6 +39,10 @@ Sources that can be loaded using this verified source are:
    ![Notion Database](./docs_images/Notion_Database_2.jpeg)
 
 1. From the list of options, select the integration you previously created and click on "Confirm".
+
+> Note: The Notion UI, which is described here, might change.
+The full guide is available at [this link.](https://developers.notion.com/docs/authorization)
+
 
 ### Initialize the verified source
 
@@ -77,11 +82,13 @@ For more information, read the
    ```
 
 1. Replace the value of `api_key` with the one that [you copied above](notion.md#grab-credentials).
-   This will ensure that your data-verified source can access your notion resources securely.
+   This will ensure that your data-verified source can access your Notion resources securely.
 
 1. Next, follow the instructions in [Destinations](../destinations/duckdb) to add credentials for
    your chosen destination. This will ensure that your data is properly routed to its final
    destination.
+
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
@@ -92,7 +99,7 @@ For more information, read the
    ```
 1. You're now ready to run the pipeline! To get started, run the following command:
    ```bash
-   python3 notion_pipeline.py
+   python notion_pipeline.py
    ```
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
@@ -131,6 +138,8 @@ def notion_databases(
 It is important to note that the data is loaded in “replace” mode where the existing data is
 completely replaced.
 
+
+## Customization
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this
