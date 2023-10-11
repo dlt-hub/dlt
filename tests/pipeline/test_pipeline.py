@@ -739,11 +739,13 @@ def test_resource_name_in_schema() -> None:
     p = dlt.pipeline(pipeline_name=uniq_id(), destination='dummy')
     p.run(source)
 
-    assert source.schema.tables['some_table']['resource'] == 'static_data'
-    assert source.schema.tables['dynamic_func_table']['resource'] == 'dynamic_func_data'
-    assert source.schema.tables['dynamic_mark_table']['resource'] == 'dynamic_mark_data'
-    assert source.schema.tables['parent_table']['resource'] == 'nested_data'
-    assert 'resource' not in source.schema.tables['parent_table__items']
+    schema = p.default_schema
+
+    assert schema.tables['some_table']['resource'] == 'static_data'
+    assert schema.tables['dynamic_func_table']['resource'] == 'dynamic_func_data'
+    assert schema.tables['dynamic_mark_table']['resource'] == 'dynamic_mark_data'
+    assert schema.tables['parent_table']['resource'] == 'nested_data'
+    assert 'resource' not in schema.tables['parent_table__items']
 
 
 def test_preserve_fields_order() -> None:

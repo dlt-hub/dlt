@@ -215,6 +215,7 @@ class Schema:
             self.update_table(table)
         # update other settings
         self.data_item_normalizer.update_normalizer_config(self, self.data_item_normalizer.get_normalizer_config(schema))
+        self.merge_hints(schema.settings.get("default_hints", {}))
 
 
     def bump_version(self) -> Tuple[int, str]:
