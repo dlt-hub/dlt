@@ -511,11 +511,11 @@ def get_inherited_table_hint(tables: TSchemaTables, table_name: str, table_hint_
 
 def get_write_disposition(tables: TSchemaTables, table_name: str) -> TWriteDisposition:
     """Returns table hint of a table if present. If not, looks up into parent table"""
-    return get_inherited_table_hint(tables, table_name, "write_disposition", allow_none=False)
+    return cast(TWriteDisposition, get_inherited_table_hint(tables, table_name, "write_disposition", allow_none=False))
 
 
 def get_table_format(tables: TSchemaTables, table_name: str) -> TTableFormat:
-    return get_inherited_table_hint(tables, table_name, "table_format", allow_none=True)
+    return cast(TTableFormat, get_inherited_table_hint(tables, table_name, "table_format", allow_none=True))
 
 
 def table_schema_has_type(table: TTableSchema, _typ: TDataType) -> bool:
@@ -536,18 +536,6 @@ def get_top_level_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
         return get_top_level_table(tables, parent)
     return table
 
-def get_load_table(tables: TSchemaTables, table_name: str) -> TTableSchema:
-    try:
-        # make a copy of the schema so modifications do not affect the original document
-        table = copy(tables[table_name])
-        # add write disposition if not specified - in child tables
-        if "write_disposition" not in table:
-            table["write_disposition"] = get_write_disposition(tables, table_name)
-        if "table_format" not in table:
-            table["table_format"] = get_table_format(tables, table_name)
-        return table
-    except KeyError:
-        raise UnknownTableException(table_name)
 
 def get_child_tables(tables: TSchemaTables, table_name: str) -> List[TTableSchema]:
     """Get child tables for table name and return a list of tables ordered by ancestry so the child tables are always after their parents"""

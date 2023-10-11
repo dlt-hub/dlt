@@ -4,18 +4,20 @@ from types import TracebackType, ModuleType
 from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager, Dict, Any
 from contextlib import contextmanager
 import datetime  # noqa: 251
+from copy import deepcopy
 
 from dlt.common import logger
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.exceptions import InvalidDatasetName
-from dlt.common.schema.utils import get_load_table
+from dlt.common.schema.utils import get_write_disposition, get_table_format
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.accessors import config
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.utils import is_complete_column
+from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import get_module_name
@@ -286,6 +288,19 @@ class JobClientBase(ABC):
                     )
                 if not is_complete_column(column):
                     logger.warning(f"A column {column_name} in table {table_name} in schema {self.schema.name} is incomplete. It was not bound to the data during normalizations stage and its data type is unknown. Did you add this column manually in code ie. as a merge key?")
+
+    def get_load_table(self, table_name: str, prepare_for_staging: bool = False) -> TTableSchema:
+        try:
+            # make a copy of the schema so modifications do not affect the original document
+            table = deepcopy(self.schema.tables[table_name])
+            # add write disposition if not specified - in child tables
+            if "write_disposition" not in table:
+                table["write_disposition"] = get_write_disposition(self.schema.tables, table_name)
+            if "table_format" not in table:
+                table["table_format"] = get_table_format(self.schema.tables, table_name)
+            return table
+        except KeyError:
+            raise UnknownTableException(table_name)
 
 
 class WithStateSync(ABC):

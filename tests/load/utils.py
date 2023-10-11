@@ -17,7 +17,7 @@ from dlt.common.destination import TLoaderFileFormat
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns, Schema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
-from dlt.common.schema.utils import new_table, get_load_table
+from dlt.common.schema.utils import new_table
 from dlt.common.storages.load_storage import ParsedLoadJobFileName, LoadStorage
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
@@ -26,7 +26,7 @@ from dlt.load import Load
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, SQL_DESTINATIONS
+from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, SQL_DESTINATIONS, EXCLUDED_DESTINATION_CONFIGURATIONS
 from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES, assert_all_data_types_row
 
 # bucket urls
@@ -53,6 +53,7 @@ class DestinationTestConfiguration:
     staging_iam_role: Optional[str] = None
     extra_info: Optional[str] = None
     supports_merge: bool = True  # TODO: take it from client base class
+    force_iceberg: bool = True
 
     @property
     def name(self) -> str:
@@ -72,6 +73,7 @@ class DestinationTestConfiguration:
         os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = self.bucket_url or ""
         os.environ['DESTINATION__STAGE_NAME'] = self.stage_name or ""
         os.environ['DESTINATION__STAGING_IAM_ROLE'] = self.staging_iam_role or ""
+        os.environ['DESTINATION__ATHENA__FORCE_ICEBERG'] = str(self.force_iceberg) or ""
 
         """For the filesystem destinations we disable compression to make analyzing the result easier"""
         if self.destination == "filesystem":
@@ -108,6 +110,7 @@ def destinations_configs(
         destination_configs += [DestinationTestConfiguration(destination=destination) for destination in SQL_DESTINATIONS if destination != "athena"]
         # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
         destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
+        destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, force_iceberg=True, supports_merge=False, extra_info="iceberg")]
 
     if default_vector_configs:
         # for now only weaviate
@@ -170,7 +173,7 @@ def load_table(name: str) -> Dict[str, TTableSchemaColumns]:
 def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
     file_name = ParsedLoadJobFileName(table_name, uniq_id(), 0, client.capabilities.preferred_loader_file_format).job_id()
     file_storage.save(file_name, query.encode("utf-8"))
-    table = get_load_table(client.schema.tables, table_name)
+    table = client.get_load_table(table_name)
     job = client.start_file_load(table, file_storage.make_full_path(file_name), uniq_id())
     while job.state() == "running":
         sleep(0.5)

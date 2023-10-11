@@ -100,16 +100,7 @@ def test_get_new_jobs_info() -> None:
     )
 
     # no write disposition specified - get all new jobs
-    assert len(load.get_new_jobs_info(load_id, schema)) == 2
-    # empty list - none
-    assert len(load.get_new_jobs_info(load_id, schema, [])) == 0
-    # two appends
-    assert len(load.get_new_jobs_info(load_id, schema, ["append"])) == 2
-    assert len(load.get_new_jobs_info(load_id, schema, ["replace"])) == 0
-    assert len(load.get_new_jobs_info(load_id, schema, ["replace", "append"])) == 2
-
-    load.load_storage.start_job(load_id, "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl")
-    assert len(load.get_new_jobs_info(load_id, schema, ["replace", "append"])) == 1
+    assert len(load.get_new_jobs_info(load_id)) == 2
 
 
 def test_get_completed_table_chain_single_job_per_table() -> None:

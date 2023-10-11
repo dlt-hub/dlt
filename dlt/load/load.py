@@ -10,7 +10,7 @@ from dlt.common import sleep, logger
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.pipeline import LoadInfo, SupportsPipeline
-from dlt.common.schema.utils import get_child_tables, get_top_level_table, get_load_table
+from dlt.common.schema.utils import get_child_tables, get_top_level_table
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
 from dlt.common.typing import StrAny
 from dlt.common.runners import TRunMetrics, Runnable, workermethod
@@ -98,7 +98,7 @@ class Load(Runnable[ThreadPool]):
                 if job_info.file_format not in self.load_storage.supported_file_formats:
                     raise LoadClientUnsupportedFileFormats(job_info.file_format, self.capabilities.supported_loader_file_formats, file_path)
                 logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
-                table = get_load_table(schema.tables, job_info.table_name)
+                table = job_client.get_load_table(job_info.table_name)
                 if table["write_disposition"] not in ["append", "replace", "merge"]:
                     raise LoadClientUnsupportedWriteDisposition(job_info.table_name, table["write_disposition"], file_path)
                 with self.maybe_with_staging_dataset(job_client, table):

@@ -31,6 +31,10 @@ IMPLEMENTED_DESTINATIONS = {"athena", "duckdb", "bigquery", "redshift", "postgre
 NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck"}
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
 
+# exclude destination configs (for now used for athena and athena iceberg separation)
+EXCLUDED_DESTINATION_CONFIGURATIONS = set(dlt.config.get("EXCLUDED_DESTINATION_CONFIGURATIONS", list) or set())
+
+
 # filter out active destinations for current tests
 ACTIVE_DESTINATIONS = set(dlt.config.get("ACTIVE_DESTINATIONS", list) or IMPLEMENTED_DESTINATIONS)
 
