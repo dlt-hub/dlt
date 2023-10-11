@@ -428,14 +428,14 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: TWrite
     client.schema.bump_version()
     client.update_stored_schema()
 
-    if write_disposition in client.get_stage_dispositions():  # type: ignore[attr-defined]
+    if client.table_needs_staging_dataset(client.schema.tables[table_name]):  # type: ignore[attr-defined]
         with client.with_staging_dataset():  # type: ignore[attr-defined]
             # create staging for merge dataset
             client.initialize_storage()
             client.update_stored_schema()
 
     with client.sql_client.with_staging_dataset(
-            write_disposition in client.get_stage_dispositions()  # type: ignore[attr-defined]
+            client.table_needs_staging_dataset(client.schema.tables[table_name])  # type: ignore[attr-defined]
     ):
         canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
@@ -493,7 +493,7 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: TWriteD
             with io.BytesIO() as f:
                 write_dataset(client, f, [table_row], TABLE_UPDATE_COLUMNS_SCHEMA)
                 query = f.getvalue().decode()
-            if write_disposition in client.get_stage_dispositions():  # type: ignore[attr-defined]
+            if client.table_needs_staging_dataset(client.schema.tables[table_name]):  # type: ignore[attr-defined]
                 # load to staging dataset on merge
                 with client.with_staging_dataset():  # type: ignore[attr-defined]
                     expect_load_file(client, file_storage, query, t)
