@@ -73,7 +73,7 @@ class DestinationTestConfiguration:
         os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = self.bucket_url or ""
         os.environ['DESTINATION__STAGE_NAME'] = self.stage_name or ""
         os.environ['DESTINATION__STAGING_IAM_ROLE'] = self.staging_iam_role or ""
-        os.environ['DESTINATION__ATHENA__FORCE_ICEBERG'] = str(self.force_iceberg) or ""
+        os.environ['DESTINATION__FORCE_ICEBERG'] = str(self.force_iceberg) or ""
 
         """For the filesystem destinations we disable compression to make analyzing the result easier"""
         if self.destination == "filesystem":
