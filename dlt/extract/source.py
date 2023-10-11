@@ -697,13 +697,11 @@ class DltSource(Iterable[TDataItem]):
     @root_key.setter
     def root_key(self, value: bool) -> None:
         if value is True:
-            propagation_config: RelationalNormalizerConfigPropagation = {
-                "root": {
-                    "_dlt_id": TColumnName("_dlt_root_id")
-                },
-                "tables": {}
-            }
-            RelationalNormalizer.update_normalizer_config(self._schema, {"propagation": propagation_config})
+            RelationalNormalizer.update_normalizer_config(self._schema,
+                {"propagation": {
+                    "root": {
+                        "_dlt_id": TColumnName("_dlt_root_id")
+                    }}})
         else:
             if self.root_key:
                 propagation_config = RelationalNormalizer.get_normalizer_config(self._schema)["propagation"]

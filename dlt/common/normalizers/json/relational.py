@@ -30,7 +30,7 @@ class TDataItemRowChild(TDataItemRow, total=False):
     value: Any  # for lists of simple types
 
 
-class RelationalNormalizerConfigPropagation(TypedDict, total=True):
+class RelationalNormalizerConfigPropagation(TypedDict, total=False):
     root: Optional[Mapping[str, TColumnName]]
     tables: Optional[Mapping[str, Mapping[str, TColumnName]]]
 
@@ -261,16 +261,12 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         # for every table with the write disposition merge, we propagate the root_key
         for table_name, table in self.schema.tables.items():
             if not table.get("parent") and table["write_disposition"] == "merge":
-                prop_config: RelationalNormalizerConfigPropagation = {
-                    "root": {
-                    },
+                DataItemNormalizer.update_normalizer_config(self.schema, {"propagation": {
                     "tables": {
-                    table_name: {
+                        table_name: {
                             "_dlt_id": TColumnName("_dlt_root_id")
                         }
-                    }
-                }
-                DataItemNormalizer.update_normalizer_config(self.schema, {"propagation": prop_config})
+                    }}})
 
     def normalize_data_item(self, item: TDataItem, load_id: str, table_name: str) -> TNormalizedRowIterator:
         # wrap items that are not dictionaries in dictionary, otherwise they cannot be processed by the JSON normalizer
