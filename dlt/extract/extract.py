@@ -103,11 +103,6 @@ class ExtractorStorage(NormalizeStorage):
         self.get_storage(file_format).write_data_item(load_id, schema_name, table_name, item, columns)
 
 
-def _item_format(item: TDataItems) -> TLoaderFileFormat:
-    if (pyarrow and pyarrow.is_arrow_item(item)) or (pd and isinstance(item, pd.DataFrame)):
-        return "arrow"
-    return "puae-jsonl"
-
 
 class Extractor:
     file_format: TLoaderFileFormat
@@ -131,6 +126,21 @@ class Extractor:
     @property
     def storage(self) -> ExtractorItemStorage:
         return self._storage.get_storage(self.file_format)
+
+    @staticmethod
+    def item_format(items: TDataItems) -> Optional[TLoaderFileFormat]:
+        """Detect the loader file format of the data items based on type.
+        Currently this is either 'arrow' or 'puae-jsonl'
+
+        Returns:
+            The loader file format or `None` if if can't be detected.
+        """
+        for item in items if isinstance(items, list) else [items]:
+            # Assume all items in list are the same type
+            if (pyarrow and pyarrow.is_arrow_item(item)) or (pd and isinstance(item, pd.DataFrame)):
+                return "arrow"
+            return "puae-jsonl"
+        return None # Empty list is unknown format
 
     def write_table(self, resource: DltResource, item: TDataItems, meta: Any) -> None:
         if isinstance(meta, TableNameMeta):
@@ -249,9 +259,10 @@ def extract(
                 signals.raise_if_signalled()
 
                 resource = source.resources[pipe_item.pipe.name]
-
-                last_item_format = _item_format(pipe_item.item)
-                extractors[last_item_format].write_table(resource, pipe_item.item, pipe_item.meta)
+                # Fallback to last item's format or default (puae-jsonl) if the current item is an empty list
+                item_format = Extractor.item_format(pipe_item.item) or last_item_format or "puae-jsonl"
+                extractors[item_format].write_table(resource, pipe_item.item, pipe_item.meta)
+                last_item_format = item_format
 
             # find defined resources that did not yield any pipeitems and create empty jobs for them
             data_tables = {t["name"]: t for t in schema.data_tables()}
