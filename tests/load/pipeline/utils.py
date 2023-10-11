@@ -222,6 +222,15 @@ def load_table_counts(p: dlt.Pipeline, *table_names: str) -> DictStrAny:
         result[table_name] = len(items)
     return result
 
+def load_data_table_counts(p: dlt.Pipeline) -> DictStrAny:
+    tables = [table["name"] for table in p.default_schema.data_tables()]
+    return load_table_counts(p, *tables)
+
+
+def assert_data_table_counts(p: dlt.Pipeline, expected_counts: DictStrAny) -> None:
+    table_counts = load_data_table_counts(p)
+    assert table_counts == expected_counts, f"Table counts do not match, expected {expected_counts}, got {table_counts}"
+
 
 def load_tables_to_dicts(p: dlt.Pipeline, *table_names: str) -> Dict[str, List[Dict[str, Any]]]:
 

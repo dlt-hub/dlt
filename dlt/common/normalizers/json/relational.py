@@ -258,15 +258,16 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             }
         )
 
-        # for every table with the write disposition merge, we propagate the root_key
-        for table_name, table in self.schema.tables.items():
-            if not table.get("parent") and table["write_disposition"] == "merge":
-                DataItemNormalizer.update_normalizer_config(self.schema, {"propagation": {
-                    "tables": {
-                        table_name: {
-                            "_dlt_id": TColumnName("_dlt_root_id")
-                        }
-                    }}})
+    def extend_table(self, table_name: str) -> None:
+        # if the table has a merge w_d, add propagation info to normalizer
+        table = self.schema.tables.get(table_name)
+        if not table.get("parent") and table["write_disposition"] == "merge":
+            DataItemNormalizer.update_normalizer_config(self.schema, {"propagation": {
+                "tables": {
+                    table_name: {
+                        "_dlt_id": TColumnName("_dlt_root_id")
+                    }
+                }}})
 
     def normalize_data_item(self, item: TDataItem, load_id: str, table_name: str) -> TNormalizedRowIterator:
         # wrap items that are not dictionaries in dictionary, otherwise they cannot be processed by the JSON normalizer

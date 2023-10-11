@@ -856,25 +856,25 @@ class Pipeline(SupportsPipeline):
         source_schema = source.schema
         source_schema.update_normalizers()
 
+        # extract into pipeline schema
+        extract_id = extract_with_schema(storage, source, source_schema, self.collector, max_parallel_items, workers)
+
+        # save import with fully discovered schema
+        self._schema_storage.save_import_schema_if_not_exists(source_schema)
+
         # if source schema does not exist in the pipeline
         if source_schema.name not in self._schema_storage:
-            # create a new schema with the right name
+            # create new schema
             self._schema_storage.save_schema(Schema(source_schema.name))
 
-        # get the schema from pipeline storage and merge stuff from the new schema
+        # update pipeline schema (do contract checks here)
         pipeline_schema = self._schema_storage[source_schema.name]
         pipeline_schema.update_schema(source_schema)
 
-        # extract into pipeline schema
-        extract_id = extract_with_schema(storage, source, pipeline_schema, self.collector, max_parallel_items, workers)
-
-        # and set as default if this is first schema in pipeline
+        # set as default if this is first schema in pipeline
         if not self.default_schema_name:
             # this performs additional validations as schema contains the naming module
             self._set_default_schema_name(pipeline_schema)
-
-        # save import with fully discovered schema
-        self._schema_storage.save_import_schema_if_not_exists(pipeline_schema)
 
         return extract_id
 
