@@ -1,7 +1,6 @@
 import os
 from typing import Any, Callable, List, Dict, Sequence, Tuple, Set
 from multiprocessing.pool import AsyncResult, Pool as ProcessPool
-from pathlib import Path
 
 from dlt.common import pendulum, json, logger, sleep
 from dlt.common.configuration import with_config, known_sections
@@ -53,7 +52,7 @@ class Normalize(Runnable[ProcessPool]):
     def create_storages(self) -> None:
         # pass initial normalize storage config embedded in normalize config
         self.normalize_storage = NormalizeStorage(True, config=self.config._normalize_storage_config)
-        # normalize saves in preferred format but can read all supported formats
+        # # normalize saves in preferred format but can read all supported formats
         self.load_storage = LoadStorage(True, self.config.destination_capabilities.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, config=self.config._load_storage_config)
 
     @staticmethod
@@ -80,6 +79,13 @@ class Normalize(Runnable[ProcessPool]):
         schema_updates: List[TSchemaUpdate] = []
         total_items = 0
         row_counts: TRowCount = {}
+        load_storages: Dict[TLoaderFileFormat, LoadStorage] = {}
+
+        def _get_load_storage(file_format: TLoaderFileFormat) -> LoadStorage:
+            if storage := load_storages.get(file_format):
+                return storage
+            storage = load_storages[file_format] = LoadStorage(False, file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
+            return storage
 
         # process all files with data items and write to buffered item storage
         with Container().injectable_context(destination_caps):
@@ -92,13 +98,16 @@ class Normalize(Runnable[ProcessPool]):
                 populated_root_tables: Set[str] = set()
                 for extracted_items_file in extracted_items_files:
                     line_no: int = 0
-                    root_table_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file).table_name
+                    parsed_file_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file)
+                    root_table_name = parsed_file_name.table_name
                     root_tables.add(root_table_name)
                     logger.debug(f"Processing extracted items in {extracted_items_file} in load_id {load_id} with table name {root_table_name} and schema {schema.name}")
 
-                    extension = Path(extracted_items_file).suffix
+                    file_format = parsed_file_name.file_format
+                    load_storage = _get_load_storage(file_format)
+                    file_format = NormalizeStorage.parse_normalize_file_name(extracted_items_file).file_format
                     normalizer: ItemsNormalizer
-                    if extension == ".parquet":
+                    if file_format == "parquet":
                         normalizer = ParquetItemsNormalizer()
                     else:
                         normalizer = JsonLItemsNormalizer()

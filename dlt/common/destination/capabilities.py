@@ -15,6 +15,7 @@ from dlt.common.wei import EVM_DECIMAL_PRECISION
 # insert_values - insert SQL statements
 # sql - any sql statement
 TLoaderFileFormat = Literal["jsonl", "puae-jsonl", "insert_values", "sql", "parquet", "reference", "arrow"]
+ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
 # file formats used internally by dlt
 INTERNAL_LOADER_FILE_FORMATS: Set[TLoaderFileFormat] = {"puae-jsonl", "sql", "reference", "arrow"}
 # file formats that may be chosen by the user

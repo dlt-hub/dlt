@@ -68,6 +68,19 @@ class FileStorage:
                 raise
         return dest_file_path
 
+    @staticmethod
+    def copy_atomic_to_file(source_file_path: str, dest_file_path: str) -> str:
+        folder_name = os.path.dirname(dest_file_path)
+        dest_temp_file = os.path.join(folder_name, uniq_id())
+        try:
+            shutil.copyfile(source_file_path, dest_temp_file)
+            os.rename(dest_temp_file, dest_file_path)
+        except Exception:
+            if os.path.isfile(dest_temp_file):
+                os.remove(dest_temp_file)
+            raise
+        return dest_file_path
+
     def load(self, relative_path: str) -> Any:
         # raises on file not existing
         with self.open_file(relative_path) as text_file:
@@ -148,6 +161,19 @@ class FileStorage:
             self.make_full_path(from_relative_path),
             self.make_full_path(to_relative_path)
         )
+
+    @staticmethod
+    def link_hard_with_fallback(external_file_path: str, to_file_path: str) -> None:
+        """Try to create a hardlink and fallback to copying when filesystem doesn't support links
+        """
+        try:
+            os.link(external_file_path, to_file_path)
+        except OSError as ex:
+            # Fallback to copy when fs doesn't support links or attempting to make a cross-device link
+            if ex.errno in (errno.EPERM, errno.EXDEV, errno.EMLINK):
+                FileStorage.copy_atomic_to_file(external_file_path, to_file_path)
+            else:
+                raise
 
     def atomic_rename(self, from_relative_path: str, to_relative_path: str) -> None:
         """Renames a path using os.rename which is atomic on POSIX, Windows and NFS v4.
