@@ -440,7 +440,7 @@ class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):
         finally:
             self.in_staging_mode = False
 
-    def table_needs_staging(self, table: TTableSchema) -> bool:
+    def table_needs_staging_dataset(self, table: TTableSchema) -> bool:
         if table["write_disposition"] == "merge":
             return True
         elif table["write_disposition"] == "replace" and (self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]):

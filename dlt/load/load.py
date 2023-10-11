@@ -80,7 +80,7 @@ class Load(Runnable[ThreadPool]):
     @contextlib.contextmanager
     def maybe_with_staging_dataset(self, job_client: JobClientBase, table: TTableSchema) -> Iterator[None]:
         """Executes job client methods in context of staging dataset if `table` has `write_disposition` that requires it"""
-        if isinstance(job_client, WithStagingDataset) and job_client.table_needs_staging(table):
+        if isinstance(job_client, WithStagingDataset) and job_client.table_needs_staging_dataset(table):
             with job_client.with_staging_dataset():
                 yield
         else:
@@ -295,17 +295,17 @@ class Load(Runnable[ThreadPool]):
                 truncate_tables = self._get_table_chain_tables_with_filter(schema, job_client.table_needs_truncating, tables_with_jobs)
                 applied_update = self._init_client_and_update_schema(job_client, expected_update, tables_with_jobs | dlt_tables, truncate_tables)
 
+                # update the staging dataset if client supports this
+                if isinstance(job_client, WithStagingDataset):
+                    if staging_tables := self._get_table_chain_tables_with_filter(schema, job_client.table_needs_staging_dataset, tables_with_jobs):
+                        with job_client.with_staging_dataset():
+                            self._init_client_and_update_schema(job_client, expected_update, staging_tables | {schema.version_table_name}, staging_tables, staging_info=True)
+
                 # only update tables that are present in the load package
                 if self.staging_destination:
                     with self.get_staging_destination_client(schema) as staging_client:
-                        truncate_tables = self._get_table_chain_tables_with_filter(schema, job_client.table_needs_truncating, tables_with_jobs)
+                        truncate_tables = self._get_table_chain_tables_with_filter(schema, staging_client.table_needs_truncating, tables_with_jobs)
                         self._init_client_and_update_schema(staging_client, expected_update, tables_with_jobs | dlt_tables, truncate_tables)
-
-                # update the staging dataset if client supports this
-                if isinstance(job_client, WithStagingDataset):
-                    if staging_tables := self._get_table_chain_tables_with_filter(schema, job_client.table_needs_staging, tables_with_jobs):
-                        with job_client.with_staging_dataset():
-                            self._init_client_and_update_schema(job_client, expected_update, staging_tables | {schema.version_table_name}, staging_tables, staging_info=True)
 
                 self.load_storage.commit_schema_update(load_id, applied_update)
 

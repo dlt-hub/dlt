@@ -177,8 +177,8 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         pass
 
-    def table_needs_staging(self, table: TTableSchema) -> bool:
+    def table_needs_staging_dataset(self, table: TTableSchema) -> bool:
         # not so nice, how to do it better, collect this info from the main destination as before?
         if table["table_format"] == "iceberg" or self.config.force_iceberg:
             return True
-        return super().table_needs_staging(table)
+        return super().table_needs_staging_dataset(table)

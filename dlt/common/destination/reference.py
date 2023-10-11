@@ -324,7 +324,7 @@ class WithStagingDataset(ABC):
     """Adds capability to use staging dataset and request it from the loader"""
 
     @abstractmethod
-    def table_needs_staging(self, table: TTableSchema) -> bool:
+    def table_needs_staging_dataset(self, table: TTableSchema) -> bool:
         return False
 
     @abstractmethod
