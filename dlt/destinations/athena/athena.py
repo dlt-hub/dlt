@@ -325,7 +325,7 @@ class AthenaClient(SqlJobClientWithStaging):
 
         # for the system tables we need to create empty iceberg tables to be able to run, DELETE and UPDATE queries
         # or if we are in iceberg mode, we create iceberg tables for all tables
-        is_iceberg = (self.schema.tables[table_name].get("write_disposition", None) == "skip") or self._is_iceberg_table(self.schema.tables[table_name])
+        is_iceberg = (self.schema.tables[table_name].get("write_disposition", None) == "skip") or (self._is_iceberg_table(self.schema.tables[table_name]) and not self.in_staging_mode)
         columns = ", ".join([self._get_column_def_sql(c) for c in new_columns])
 
         # this will fail if the table prefix is not properly defined
@@ -374,18 +374,18 @@ class AthenaClient(SqlJobClientWithStaging):
 
     def _is_iceberg_table(self, table: TTableSchema) -> bool:
         table_format = get_table_format(self.schema.tables, table["name"])
-        return table_format == "iceberg"
+        return table_format == "iceberg" or self.config.force_iceberg
     
-    def table_needs_staging(self, table: TTableSchema) -> bool:
+    def table_needs_staging_dataset(self, table: TTableSchema) -> bool:
         # all iceberg tables need staging
         if self._is_iceberg_table(table):
             return True
-        return super().table_needs_staging(table)
+        return super().table_needs_staging_dataset(table)
     
     def get_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
         table = super().get_load_table(table_name, staging)
-        if staging and table.get("table_format", None) == "iceberg":
-            table.pop("table_format")
+        # if staging and table.get("table_format", None) == "iceberg":
+        #    table.pop("table_format")
         return table
 
     @staticmethod
