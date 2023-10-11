@@ -856,29 +856,25 @@ class Pipeline(SupportsPipeline):
         source_schema = source.schema
         source_schema.update_normalizers()
 
-        extract_id = extract_with_schema(storage, source, source_schema, self.collector, max_parallel_items, workers)
-
         # if source schema does not exist in the pipeline
         if source_schema.name not in self._schema_storage:
-            # save schema into the pipeline
-            self._schema_storage.save_schema(source_schema)
+            # create a new schema with the right name
+            self._schema_storage.save_schema(Schema(source_schema.name))
+
+        # get the schema from pipeline storage and merge stuff from the new schema
+        pipeline_schema = self._schema_storage[source_schema.name]
+        pipeline_schema.update_schema(source_schema)
+
+        # extract into pipeline schema
+        extract_id = extract_with_schema(storage, source, pipeline_schema, self.collector, max_parallel_items, workers)
 
         # and set as default if this is first schema in pipeline
         if not self.default_schema_name:
             # this performs additional validations as schema contains the naming module
-            self._set_default_schema_name(source_schema)
+            self._set_default_schema_name(pipeline_schema)
 
-        pipeline_schema = self._schema_storage[source_schema.name]
-
-        # initialize import with fully discovered schema
-        self._schema_storage.save_import_schema_if_not_exists(source_schema)
-
-        # get the current schema and merge tables from source_schema
-        # note we are not merging props like max nesting or column propagation
-        for table in source_schema.data_tables(include_incomplete=True):
-            pipeline_schema.update_schema(
-                pipeline_schema.normalize_table_identifiers(table)
-            )
+        # save import with fully discovered schema
+        self._schema_storage.save_import_schema_if_not_exists(pipeline_schema)
 
         return extract_id
 

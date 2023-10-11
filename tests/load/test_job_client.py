@@ -164,7 +164,7 @@ def test_schema_update_create_table_redshift(client: SqlJobClientBase) -> None:
     # this will be not null
     record_hash = schema._infer_column("_dlt_id", "m,i0392903jdlkasjdlk")
     assert record_hash["unique"] is True
-    schema.update_schema(new_table(table_name, columns=[timestamp, sender_id, record_hash]))
+    schema.update_table(new_table(table_name, columns=[timestamp, sender_id, record_hash]))
     schema.bump_version()
     schema_update = client.update_stored_schema()
     # check hints in schema update
@@ -186,7 +186,7 @@ def test_schema_update_create_table_bigquery(client: SqlJobClientBase) -> None:
     sender_id = schema._infer_column("sender_id", "982398490809324")
     # this will be not null
     record_hash = schema._infer_column("_dlt_id", "m,i0392903jdlkasjdlk")
-    schema.update_schema(new_table("event_test_table", columns=[timestamp, sender_id, record_hash]))
+    schema.update_table(new_table("event_test_table", columns=[timestamp, sender_id, record_hash]))
     schema.bump_version()
     schema_update = client.update_stored_schema()
     # check hints in schema update
@@ -210,7 +210,7 @@ def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
         schema = client.schema
         col1 = schema._infer_column("col1", "string")
         table_name = "event_test_table" + uniq_id()
-        schema.update_schema(new_table(table_name, columns=[col1]))
+        schema.update_table(new_table(table_name, columns=[col1]))
         schema.bump_version()
         schema_update = client.update_stored_schema()
         assert table_name in schema_update
@@ -218,7 +218,7 @@ def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
         assert schema_update[table_name]["columns"]["col1"]["data_type"] == "text"
         # with single alter table
         col2 = schema._infer_column("col2", 1)
-        schema.update_schema(new_table(table_name, columns=[col2]))
+        schema.update_table(new_table(table_name, columns=[col2]))
         schema.bump_version()
         schema_update = client.update_stored_schema()
         assert len(schema_update) == 1
@@ -229,7 +229,7 @@ def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
         col3 = schema._infer_column("col3", 1.2)
         col4 = schema._infer_column("col4", 182879721.182912)
         col4["data_type"] = "timestamp"
-        schema.update_schema(new_table(table_name, columns=[col3, col4]))
+        schema.update_table(new_table(table_name, columns=[col3, col4]))
         schema.bump_version()
         schema_update = client.update_stored_schema()
         assert len(schema_update[table_name]["columns"]) == 2
@@ -304,7 +304,7 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
 def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     schema = client.schema
     table_name = "event_test_table" + uniq_id()
-    schema.update_schema(new_table(table_name, columns=TABLE_UPDATE))
+    schema.update_table(new_table(table_name, columns=TABLE_UPDATE))
     schema.bump_version()
     schema_update = client.update_stored_schema()
     # we have all columns in the update
@@ -338,7 +338,7 @@ def test_preserve_column_order(client: SqlJobClientBase) -> None:
     columns = deepcopy(TABLE_UPDATE)
     random.shuffle(columns)
     print(columns)
-    schema.update_schema(new_table(table_name, columns=columns))
+    schema.update_table(new_table(table_name, columns=columns))
     schema.bump_version()
 
     def _assert_columns_order(sql_: str) -> None:
@@ -424,7 +424,7 @@ def test_load_with_all_types(client: SqlJobClientBase, write_disposition: TWrite
         pytest.skip("preferred loader file format not set, destination will only work with staging")
     table_name = "event_test_table" + uniq_id()
     # we should have identical content with all disposition types
-    client.schema.update_schema(new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE))
+    client.schema.update_table(new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE))
     client.schema.bump_version()
     client.update_stored_schema()
 
@@ -461,12 +461,12 @@ def test_write_dispositions(client: SqlJobClientBase, write_disposition: TWriteD
     os.environ['DESTINATION__REPLACE_STRATEGY'] = replace_strategy
 
     table_name = "event_test_table" + uniq_id()
-    client.schema.update_schema(
+    client.schema.update_table(
         new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE)
         )
     child_table = client.schema.naming.make_path(table_name, "child")
     # add child table without write disposition so it will be inferred from the parent
-    client.schema.update_schema(
+    client.schema.update_table(
         new_table(child_table, columns=TABLE_UPDATE, parent_table_name=table_name)
         )
     client.schema.bump_version()
@@ -592,7 +592,7 @@ def test_many_schemas_single_dataset(destination_config: DestinationTestConfigur
             pytest.skip("preferred loader file format not set, destination will only work with staging")
 
         user_table = load_table("event_user")["event_user"]
-        client.schema.update_schema(new_table("event_user", columns=list(user_table.values())))
+        client.schema.update_table(new_table("event_user", columns=list(user_table.values())))
         client.schema.bump_version()
         schema_update = client.update_stored_schema()
         assert len(schema_update) > 0
@@ -646,7 +646,7 @@ def prepare_schema(client: SqlJobClientBase, case: str) -> Tuple[List[Dict[str, 
     # use first row to infer table
     table: TTableSchemaColumns = {k: client.schema._infer_column(k, v) for k, v in rows[0].items()}
     table_name = f"event_{case}_{uniq_id()}"
-    client.schema.update_schema(new_table(table_name, columns=list(table.values())))
+    client.schema.update_table(new_table(table_name, columns=list(table.values())))
     client.schema.bump_version()
     client.update_stored_schema()
     return rows, table_name

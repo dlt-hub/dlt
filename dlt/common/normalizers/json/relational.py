@@ -157,9 +157,6 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     def _get_propagated_values(self, table: str, row: TDataItemRow, _r_lvl: int) -> StrAny:
         extend: DictStrAny = {}
-        # propagate root id for merge tables
-        if _r_lvl == 0 and self.schema.tables.get(table, {}).get("write_disposition") == "merge":
-            extend["_dlt_root_id"] = row["_dlt_id"]
 
         config = self.propagation_config
         if config:
@@ -260,6 +257,20 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 "unique": [TSimpleRegex("_dlt_id")]
             }
         )
+
+        # for every table with the write disposition merge, we propagate the root_key
+        for table_name, table in self.schema.tables.items():
+            if not table.get("parent") and table["write_disposition"] == "merge":
+                prop_config: RelationalNormalizerConfigPropagation = {
+                    "root": {
+                    },
+                    "tables": {
+                    table_name: {
+                            "_dlt_id": TColumnName("_dlt_root_id")
+                        }
+                    }
+                }
+                DataItemNormalizer.update_normalizer_config(self.schema, {"propagation": prop_config})
 
     def normalize_data_item(self, item: TDataItem, load_id: str, table_name: str) -> TNormalizedRowIterator:
         # wrap items that are not dictionaries in dictionary, otherwise they cannot be processed by the JSON normalizer

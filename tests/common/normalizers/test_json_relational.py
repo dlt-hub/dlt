@@ -47,7 +47,7 @@ def test_flatten_fix_field_name(norm: RelationalNormalizer) -> None:
 
 def test_preserve_complex_value(norm: RelationalNormalizer) -> None:
     # add table with complex column
-    norm.schema.update_schema(
+    norm.schema.update_table(
         new_table("with_complex",
             columns = [{
                 "name": "value",
@@ -372,10 +372,10 @@ def test_list_in_list() -> None:
 
     # test the same setting webpath__list to complex
     zen_table = new_table("zen")
-    schema.update_schema(zen_table)
+    schema.update_table(zen_table)
 
     path_table = new_table("zen__webpath", parent_table_name="zen", columns=[{"name": "list", "data_type": "complex"}])
-    schema.update_schema(path_table)
+    schema.update_table(path_table)
     rows = list(schema.normalize_data_item(chats, "1762162.1212", "zen"))
     # both lists are complex types now
     assert len(rows) == 3
@@ -544,7 +544,7 @@ def test_preserves_complex_types_list(norm: RelationalNormalizer) -> None:
     # the exception to test_removes_normalized_list
     # complex types should be left as they are
     # add table with complex column
-    norm.schema.update_schema(new_table("event_slot",
+    norm.schema.update_table(new_table("event_slot",
         columns = [{
                 "name": "value",
                 "data_type": "complex",

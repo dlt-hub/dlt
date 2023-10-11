@@ -62,7 +62,7 @@ def test_infer_column_bumps_version() -> None:
     schema = Schema("event")
     row = {"floatX": 78172.128, "confidenceX": 1.2, "strX": "STR"}
     _, new_table = schema.coerce_row("event_user", None, row)
-    schema.update_schema(new_table)
+    schema.update_table(new_table)
     # schema version will be recomputed
     assert schema.version == 2
     assert schema.version_hash is not None
@@ -70,7 +70,7 @@ def test_infer_column_bumps_version() -> None:
 
     # another table
     _, new_table = schema.coerce_row("event_bot", None, row)
-    schema.update_schema(new_table)
+    schema.update_table(new_table)
     # version is still 2 (increment of 1)
     assert schema.version == 2
     # but the hash changed
