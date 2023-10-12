@@ -158,10 +158,10 @@ def get_generic_type_argument_from_instance(instance: Any, sample_value: Optiona
 TInputArgs = ParamSpec("TInputArgs")
 TReturnVal = TypeVar("TReturnVal")
 
-def copy_sig(wrapper: Callable[TInputArgs, TReturnVal]) -> Callable[[Callable[..., Any]], Callable[TInputArgs, TReturnVal]]:
-    """Copies docstring and signature from wrapper to func"""
+def copy_sig(wrapper: Callable[TInputArgs, Any]) -> Callable[[Callable[..., TReturnVal]], Callable[TInputArgs, TReturnVal]]:
+    """Copies docstring and signature from wrapper to func but keeps the func return value type"""
 
-    def decorator(func: Callable[..., Any]) -> Callable[TInputArgs, TReturnVal]:
+    def decorator(func: Callable[..., TReturnVal]) -> Callable[TInputArgs, TReturnVal]:
         func.__doc__ = wrapper.__doc__
         return func
 
