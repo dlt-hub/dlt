@@ -18,6 +18,7 @@ from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage, Lo
 from dlt.common.typing import TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.pipeline import NormalizeInfo
 from dlt.common.utils import chunks, TRowCount, merge_row_count, increase_row_count
 
@@ -84,13 +85,20 @@ class Normalize(Runnable[ProcessPool]):
         def _get_load_storage(file_format: TLoaderFileFormat) -> LoadStorage:
             if storage := load_storages.get(file_format):
                 return storage
-            storage = load_storages[file_format] = LoadStorage(False, file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
+            if file_format not in destination_caps.supported_loader_file_formats:
+                if file_format == "parquet":  # Give users a helpful error message for parquet
+                    raise TerminalValueError((
+                        "The destination doesn't support direct loading of arrow tables. "
+                        "Either use a different destination with parquet support or yield dicts instead of pyarrow tables/pandas dataframes from your sources."
+                    ))
+            # Load storage throws a generic error for other unsupported formats, normally that shouldn't happen
+            storage = load_storages[file_format] = LoadStorage(False, file_format, destination_caps.supported_loader_file_formats, loader_storage_config)
             return storage
 
         # process all files with data items and write to buffered item storage
         with Container().injectable_context(destination_caps):
             schema = Schema.from_stored_schema(stored_schema)
-            load_storage = LoadStorage(False, destination_caps.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
+            load_storage = _get_load_storage(destination_caps.preferred_loader_file_format)  # Default load storage, used for empty tables when no data
             normalize_storage = NormalizeStorage(False, normalize_storage_config)
 
             try:

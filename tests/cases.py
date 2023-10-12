@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Sequence, Tuple
+from typing import Dict, List, Any, Sequence, Tuple, Literal
 import base64
 from hexbytes import HexBytes
 from copy import deepcopy
@@ -9,6 +9,9 @@ from dlt.common.typing import StrAny
 from dlt.common.wei import Wei
 from dlt.common.time import ensure_pendulum_datetime, reduce_pendulum_datetime_precision, ensure_pendulum_time, ensure_pendulum_date
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns
+
+
+TArrowFormat = Literal["pandas", "table", "record_batch"]
 
 
 # _UUID = "c8209ee7-ee95-4b90-8c9f-f7a0f8b51014"
@@ -326,3 +329,36 @@ def assert_all_data_types_row(
     for expected, actual in zip(expected_rows.values(), db_mapping.values()):
         assert expected == actual
     assert db_mapping == expected_rows
+
+
+def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool = True) -> Tuple[Any, List[Dict[str, Any]]]:
+    """Create an arrow object or pandas dataframe with all supported data types.
+
+    Returns the table and its records in python format
+    """
+    import pandas as pd
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    data = {
+        "string": ["a", "b", "c"],
+        "float": [1.0, 2.0, 3.0],
+        "int": [1, 2, 3],
+        "datetime": pd.date_range("2021-01-01", periods=3, tz="UTC"),
+        "time": pd.date_range("2021-01-01", periods=3, tz="UTC").time,
+        "date": pd.date_range("2021-01-01", periods=3, tz="UTC").date,
+        "binary": [b"a", b"b", b"c"],
+        "decimal": [Decimal("1.0"), Decimal("2.0"), Decimal("3.0")],
+    }
+
+    if include_json:
+        data["json"] = [{"a": 1}, {"b": 2}, {"c": 3}]
+
+    df = pd.DataFrame(data)
+    rows = df.to_dict("records")
+    if object_format == "pandas":
+        return df, rows
+    elif object_format == "table":
+        return pa.Table.from_pandas(df), rows
+    elif object_format == "record_batch":
+        return pa.RecordBatch.from_pandas(df), rows
+    raise ValueError("Unknown item type: " + object_format)

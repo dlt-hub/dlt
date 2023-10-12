@@ -94,6 +94,7 @@ def destinations_configs(
         all_buckets_filesystem_configs: bool = False,
         subset: Sequence[str] = (),
         exclude: Sequence[str] = (),
+        file_format: Optional[TLoaderFileFormat] = None,
 ) -> List[DestinationTestConfiguration]:
 
     # sanity check
@@ -152,6 +153,8 @@ def destinations_configs(
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
     if exclude:
         destination_configs = [conf for conf in destination_configs if conf.destination not in exclude]
+    if file_format:
+        destination_configs = [conf for conf in destination_configs if conf.file_format == file_format]
 
     return destination_configs
 
