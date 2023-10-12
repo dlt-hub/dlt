@@ -20,7 +20,7 @@ from dlt.common.exceptions import TerminalValueError, DestinationTerminalExcepti
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, WithStagingDataset, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, WithStagingDataset, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration, SupportsStagingDestination
 
 from dlt.destinations.job_impl import EmptyLoadJob
 
@@ -78,9 +78,9 @@ class Load(Runnable[ThreadPool]):
         return self.staging_destination is not None and os.path.splitext(file_path)[1][1:] in self.staging_destination.capabilities().supported_loader_file_formats
 
     @contextlib.contextmanager
-    def maybe_with_staging_dataset(self, job_client: JobClientBase, table: TTableSchema) -> Iterator[None]:
+    def maybe_with_staging_dataset(self, job_client: JobClientBase, use_staging: bool) -> Iterator[None]:
         """Executes job client methods in context of staging dataset if `table` has `write_disposition` that requires it"""
-        if isinstance(job_client, WithStagingDataset) and job_client.table_needs_staging_dataset(table):
+        if isinstance(job_client, WithStagingDataset) and use_staging:
             with job_client.with_staging_dataset():
                 yield
         else:
@@ -91,18 +91,26 @@ class Load(Runnable[ThreadPool]):
     def w_spool_job(self: "Load", file_path: str, load_id: str, schema: Schema) -> Optional[LoadJob]:
         job: LoadJob = None
         try:
+            is_staging_destination_job = self.is_staging_destination_job(file_path)
+            job_client = self.get_destination_client(schema)
+
             # if we have a staging destination and the file is not a reference, send to staging
-            job_client = self.get_staging_destination_client(schema) if self.is_staging_destination_job(file_path) else self.get_destination_client(schema)
-            with job_client as job_client:
+            with (self.get_staging_destination_client(schema) if is_staging_destination_job else job_client) as client:
                 job_info = self.load_storage.parse_job_file_name(file_path)
                 if job_info.file_format not in self.load_storage.supported_file_formats:
                     raise LoadClientUnsupportedFileFormats(job_info.file_format, self.capabilities.supported_loader_file_formats, file_path)
                 logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
-                table = job_client.get_load_table(job_info.table_name)
+                table = client.get_load_table(job_info.table_name)
                 if table["write_disposition"] not in ["append", "replace", "merge"]:
                     raise LoadClientUnsupportedWriteDisposition(job_info.table_name, table["write_disposition"], file_path)
-                with self.maybe_with_staging_dataset(job_client, table):
-                    job = job_client.start_file_load(table, self.load_storage.storage.make_full_path(file_path), load_id)
+
+                if is_staging_destination_job:
+                    use_staging_dataset = isinstance(job_client, SupportsStagingDestination) and job_client.should_load_data_to_staging_dataset_on_staging_destination(table)
+                else:
+                    use_staging_dataset = isinstance(job_client, WithStagingDataset) and job_client.should_load_data_to_staging_dataset(table)
+
+                with self.maybe_with_staging_dataset(client, use_staging_dataset):
+                    job = client.start_file_load(table, self.load_storage.storage.make_full_path(file_path), load_id)
         except (DestinationTerminalException, TerminalValueError):
             # if job irreversibly cannot be started, mark it as failed
             logger.exception(f"Terminal problem when adding job {file_path}")
@@ -272,7 +280,7 @@ class Load(Runnable[ThreadPool]):
         return result
 
     @staticmethod
-    def _init_client_and_update_schema(job_client: JobClientBase, expected_update: TSchemaTables, update_tables: Iterable[str], truncate_tables: Iterable[str] = None, staging_info: bool = False) -> TSchemaTables:
+    def _init_dataset_and_update_schema(job_client: JobClientBase, expected_update: TSchemaTables, update_tables: Iterable[str], truncate_tables: Iterable[str] = None, staging_info: bool = False) -> TSchemaTables:
         staging_text = "for staging dataset" if staging_info else ""
         logger.info(f"Client for {job_client.config.destination_name} will start initialize storage {staging_text}")
         job_client.initialize_storage()
@@ -282,31 +290,38 @@ class Load(Runnable[ThreadPool]):
         job_client.initialize_storage(truncate_tables=truncate_tables)
         return applied_update
 
+
+    def _init_client(self, job_client: JobClientBase, schema: Schema, expected_update: TSchemaTables, load_id: str, truncate_filter: Callable[[TTableSchema], bool], truncate_staging_filter: Callable[[TTableSchema], bool]) -> TSchemaTables:
+
+        tables_with_jobs = set(job.table_name for job in self.get_new_jobs_info(load_id))
+        dlt_tables = set(t["name"] for t in schema.dlt_tables())
+
+        # update the default dataset
+        truncate_tables = self._get_table_chain_tables_with_filter(schema, truncate_filter, tables_with_jobs)
+        applied_update = self._init_dataset_and_update_schema(job_client, expected_update, tables_with_jobs | dlt_tables, truncate_tables)
+
+        # update the staging dataset if client supports this
+        if isinstance(job_client, WithStagingDataset):
+            if staging_tables := self._get_table_chain_tables_with_filter(schema, truncate_staging_filter, tables_with_jobs):
+                with job_client.with_staging_dataset():
+                    self._init_dataset_and_update_schema(job_client, expected_update, staging_tables | {schema.version_table_name}, staging_tables, staging_info=True)
+
+        return applied_update
+
+
     def load_single_package(self, load_id: str, schema: Schema) -> None:
         # initialize analytical storage ie. create dataset required by passed schema
         with self.get_destination_client(schema) as job_client:
 
             if (expected_update := self.load_storage.begin_schema_update(load_id)) is not None:
 
-                tables_with_jobs = set(job.table_name for job in self.get_new_jobs_info(load_id))
-                dlt_tables = set(t["name"] for t in schema.dlt_tables())
+                # init job client
+                applied_update = self._init_client(job_client, schema, expected_update, load_id, job_client.should_truncate_table_before_load, job_client.should_load_data_to_staging_dataset if isinstance(job_client, WithStagingDataset) else None)
 
-                # update the default dataset
-                truncate_tables = self._get_table_chain_tables_with_filter(schema, job_client.table_needs_truncating, tables_with_jobs)
-                applied_update = self._init_client_and_update_schema(job_client, expected_update, tables_with_jobs | dlt_tables, truncate_tables)
-
-                # update the staging dataset if client supports this
-                if isinstance(job_client, WithStagingDataset):
-                    if staging_tables := self._get_table_chain_tables_with_filter(schema, job_client.table_needs_staging_dataset, tables_with_jobs):
-                        with job_client.with_staging_dataset():
-                            self._init_client_and_update_schema(job_client, expected_update, staging_tables | {schema.version_table_name}, staging_tables, staging_info=True)
-
-                # only update tables that are present in the load package
-                if self.staging_destination and isinstance(job_client, WithStagingDataset):
+                # init staging client
+                if self.staging_destination and isinstance(job_client, SupportsStagingDestination):
                     with self.get_staging_destination_client(schema) as staging_client:
-                        # truncate all the tables in staging that are requested by the job client (TODO: make this better...)
-                        truncate_tables = self._get_table_chain_tables_with_filter(schema, job_client.table_needs_staging_dataset, tables_with_jobs)
-                        self._init_client_and_update_schema(staging_client, expected_update, tables_with_jobs | dlt_tables, truncate_tables)
+                        self._init_client(staging_client, schema, expected_update, load_id, job_client.should_truncate_table_before_load_on_staging_destination, job_client.should_load_data_to_staging_dataset_on_staging_destination)
 
                 self.load_storage.commit_schema_update(load_id, applied_update)
 

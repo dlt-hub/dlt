@@ -7,7 +7,7 @@ from google.api_core import exceptions as api_core_exceptions
 
 from dlt.common import json, logger
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob
+from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, SupportsStagingDestination
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
@@ -151,7 +151,7 @@ class BigqueryStagingCopyJob(SqlStagingCopyJob):
             sql.append(f"CREATE TABLE {table_name} CLONE {staging_table_name};")
         return sql
 
-class BigQueryClient(SqlJobClientWithStaging):
+class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 

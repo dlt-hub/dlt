@@ -1,9 +1,9 @@
-from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, Any
+from typing import ClassVar, Optional, Sequence, Tuple, List, Any
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, CredentialsConfiguration
-from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults, AzureCredentials, AzureCredentialsWithoutDefaults
+from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, CredentialsConfiguration, SupportsStagingDestination
+from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults, AzureCredentialsWithoutDefaults
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
@@ -169,7 +169,7 @@ class SnowflakeStagingCopyJob(SqlStagingCopyJob):
         return sql
 
 
-class SnowflakeClient(SqlJobClientWithStaging):
+class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: SnowflakeClientConfiguration) -> None:

@@ -247,7 +247,7 @@ class JobClientBase(ABC):
         """Finds and restores already started loading job identified by `file_path` if destination supports it."""
         pass
 
-    def table_needs_truncating(self, table: TTableSchema) -> bool:
+    def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
         return table["write_disposition"] == "replace"
 
     def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
@@ -324,7 +324,7 @@ class WithStagingDataset(ABC):
     """Adds capability to use staging dataset and request it from the loader"""
 
     @abstractmethod
-    def table_needs_staging_dataset(self, table: TTableSchema) -> bool:
+    def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
         return False
 
     @abstractmethod
@@ -332,6 +332,15 @@ class WithStagingDataset(ABC):
         """Executes job client methods on staging dataset"""
         return self  # type: ignore
 
+class SupportsStagingDestination():
+    """Adds capability to support a staging destination for the load"""
+
+    def should_load_data_to_staging_dataset_on_staging_destination(self, table: TTableSchema) -> bool:
+        return False
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        # the default is to truncate the tables on the staging destination...
+        return True
 
 TDestinationReferenceArg = Union["DestinationReference", ModuleType, None, str]
 

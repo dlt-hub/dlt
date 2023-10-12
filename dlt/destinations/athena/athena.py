@@ -20,7 +20,7 @@ from dlt.common.schema.typing import TTableSchema, TColumnType, TWriteDispositio
 from dlt.common.schema.utils import table_schema_has_type, get_table_format
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import LoadJob, FollowupJob
-from dlt.common.destination.reference import TLoadJobState, NewLoadJob
+from dlt.common.destination.reference import TLoadJobState, NewLoadJob, SupportsStagingDestination
 from dlt.common.storages import FileStorage
 from dlt.common.data_writers.escape import escape_bigquery_identifier
 from dlt.destinations.sql_jobs import SqlStagingCopyJob
@@ -286,7 +286,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         return len(rows) > 0
 
 
-class AthenaClient(SqlJobClientWithStaging):
+class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
@@ -376,11 +376,22 @@ class AthenaClient(SqlJobClientWithStaging):
         table_format = get_table_format(self.schema.tables, table["name"])
         return table_format == "iceberg" or self.config.force_iceberg
 
-    def table_needs_staging_dataset(self, table: TTableSchema) -> bool:
+    def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
         # all iceberg tables need staging
         if self._is_iceberg_table(table):
             return True
-        return super().table_needs_staging_dataset(table)
+        return super().should_load_data_to_staging_dataset(table)
+
+    def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
+        # on athena we only truncate replace tables that are not iceberg
+        table = self.get_load_table(table["name"])
+        if table["write_disposition"] == "replace" and not self._is_iceberg_table(table):
+            return True
+        return False
+
+    def should_load_data_to_staging_dataset_on_staging_destination(self, table: TTableSchema) -> bool:
+        """iceberg table data goes into staging on staging destination"""
+        return self._is_iceberg_table(table)
 
     def get_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
         table = super().get_load_table(table_name, staging)

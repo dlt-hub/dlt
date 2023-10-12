@@ -14,7 +14,7 @@ else:
 from typing import ClassVar, Dict, List, Optional, Sequence, Any
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import NewLoadJob, CredentialsConfiguration
+from dlt.common.destination.reference import NewLoadJob, CredentialsConfiguration, SupportsStagingDestination
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType
@@ -187,7 +187,7 @@ class RedshiftMergeJob(SqlMergeJob):
         return SqlMergeJob.gen_key_table_clauses(root_table_name, staging_root_table_name, key_clauses, for_delete)
 
 
-class RedshiftClient(InsertValuesJobClient):
+class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
