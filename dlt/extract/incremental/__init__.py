@@ -166,6 +166,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             constructor = self.__orig_class__
         else:
             constructor = other.__orig_class__ if hasattr(other, "__orig_class__") else other.__class__
+        constructor = extract_inner_type(constructor)
         return constructor(**kwargs)  # type: ignore
 
     def on_resolved(self) -> None:
@@ -333,7 +334,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             return rows
 
         transformer = self._get_transformer(rows)
-        # TODO: Primary key is not applied at bind time?
         transformer.primary_key = self.primary_key
 
         if isinstance(rows, list):

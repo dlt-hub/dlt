@@ -282,6 +282,6 @@ class ArrowWriter(ParquetDataWriter):
             file_extension="parquet",
             is_binary_format=True,
             supports_schema_changes=False,
-            requires_destination_capabilities=True,
+            requires_destination_capabilities=False,
             supports_compression=False,
         )

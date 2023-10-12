@@ -137,22 +137,35 @@ class ArrowIncremental(IncrementalTransformer):
     def unique_values(
         self,
         item: "TAnyArrowItem",
-        primary_key: Optional[TTableHintTemplate[TColumnNames]],
+        unique_columns: List[str],
         resource_name: str
     ) -> List[Tuple[int, str]]:
+        if not unique_columns:
+            return []
         item = item
-        indices = item["_dlt_index"]
-        item = item.drop(["_dlt_index"])  # Don't include the index in unique hash
-        if primary_key:
-            columns = primary_key(item) if callable(primary_key) else primary_key
-            if isinstance(columns, str):
-                item = item[columns]
-            else:
-                item = item.select(columns)
-        rows = item.to_pylist()
+        indices = item["_dlt_index"].to_pylist()
+        rows = item.select(unique_columns).to_pylist()
         return [
             (index, digest128(json.dumps(row, sort_keys=True))) for index, row in zip(indices, rows)
         ]
+
+    def _deduplicate(self, tbl: "pa.Table",  unique_columns: Optional[List[str]], aggregate: str, cursor_path: str) -> "pa.Table":
+        if unique_columns is None:
+            return tbl
+        group_cols = unique_columns + [cursor_path]
+        tbl = tbl.append_column("_dlt_index", pa.array(range(tbl.num_rows)))
+        try:
+            tbl = tbl.filter(
+                pa.compute.is_in(
+                    tbl['_dlt_index'],
+                    tbl.group_by(group_cols).aggregate(
+                        [("_dlt_index", "one"), (cursor_path, aggregate)]
+                    )['_dlt_index_one']
+                )
+            )
+        except KeyError as e:
+            raise IncrementalPrimaryKeyMissing(self.resource_name, unique_columns[0], tbl) from e
+        return tbl
 
     def __call__(
         self,
@@ -170,14 +183,14 @@ class ArrowIncremental(IncrementalTransformer):
 
         if self.last_value_func is max:
             compute = pa.compute.max
+            aggregate = "max"
             end_compare = pa.compute.less
-            start_compare = pa.compute.greater_equal
             last_value_compare = pa.compute.greater_equal
             new_value_compare = pa.compute.greater
         elif self.last_value_func is min:
             compute = pa.compute.min
+            aggregate = "min"
             end_compare = pa.compute.greater
-            start_compare = pa.compute.less_equal
             last_value_compare = pa.compute.less_equal
             new_value_compare = pa.compute.less
         else:
@@ -187,55 +200,72 @@ class ArrowIncremental(IncrementalTransformer):
         # TODO: Json path support. For now assume the cursor_path is a column name
         cursor_path = str(self.cursor_path)
         # The new max/min value
-        row_value = compute(tbl[cursor_path]).as_py()
+        try:
+            row_value = compute(tbl[cursor_path]).as_py()
+        except KeyError as e:
+            raise IncrementalCursorPathMissing(
+                self.resource_name, cursor_path, tbl,
+                f"Column name {str(cursor_path)} was not found in the arrow table. Note nested JSON paths are not supported for arrow tables and dataframes, the incremental cursor_path must be a column name."
+            ) from e
 
+        primary_key = self.primary_key(tbl) if callable(self.primary_key) else self.primary_key
+        if primary_key:
+            if  isinstance(primary_key, str):
+                unique_columns = [primary_key]
+            else:
+                unique_columns = list(primary_key)
+        elif primary_key is None:
+            unique_columns = tbl.column_names
+        else:  # deduplicating is disabled
+            unique_columns = None
+        # Deduplicate the table
+        tbl = self._deduplicate(tbl, unique_columns, aggregate, cursor_path)
         # If end_value is provided, filter to include table rows that are "less" than end_value
         if self.end_value is not None:
             tbl = tbl.filter(end_compare(tbl[cursor_path], self.end_value))
             # Is max row value higher than end value?
-            end_out_of_range = not end_compare(row_value, self.end_value)
-            if end_out_of_range:
-                if is_pandas:
-                    tbl = tbl.to_pandas()
-                return tbl, start_out_of_range, end_out_of_range
+            # NOTE: pyarrow bool *always* evaluates to python True. `as_py()` is necessary
+            end_out_of_range = not end_compare(row_value, self.end_value).as_py()
 
-        # Filter out all rows which have cursor value equal to last value
-        # and unique id exists in state
-        tbl = tbl.append_column("_dlt_index", pa.array(range(tbl.num_rows)))
         if last_value is not None:
-            tbl = tbl.filter(last_value_compare(tbl[cursor_path], last_value))
-            # Exclude rows from the table which have unique hashes already seen before
+            if self.start_value is not None:
+                # Remove rows lower than the last start value
+                keep_filter = last_value_compare(tbl[cursor_path], self.start_value)
+                start_out_of_range = bool(pa.compute.any(pa.compute.invert(keep_filter)).as_py())
+                tbl = tbl.filter(keep_filter)
 
+            # Filter out all rows which have cursor value equal to last value
+            # and unique id exists in state
             # Rows with same cursor as stored last value
             eq_rows = tbl.filter(pa.compute.equal(tbl[cursor_path], last_value))
             # compute index, unique hash mapping
-            unique_values = self.unique_values(eq_rows, self.primary_key, self.resource_name)
+            unique_values = self.unique_values(eq_rows, unique_columns, self.resource_name)
             unique_values = [(i, uq_val) for i, uq_val in unique_values if uq_val in self.incremental_state['unique_hashes']]
             remove_idx = pa.array(i for i, _ in unique_values)
             # Filter the table
-            tbl = tbl.filter(pa.invert(pa.compute.is_in(tbl["_dlt_index"], remove_idx)))
+            tbl = tbl.filter(pa.compute.invert(pa.compute.is_in(tbl["_dlt_index"], remove_idx)))
 
-            if new_value_compare(row_value, last_value):  # Last value has changed
+            if new_value_compare(row_value, last_value).as_py() and row_value != last_value:  # Last value has changed
                 self.incremental_state['last_value'] = row_value
                 # Compute unique hashes for all rows equal to row value
                 self.incremental_state['unique_hashes'] = [uq_val for _, uq_val in self.unique_values(
-                    tbl.filter(pa.compute.equal(tbl[cursor_path], row_value)), self.primary_key, self.resource_name
+                    tbl.filter(pa.compute.equal(tbl[cursor_path], row_value)), unique_columns, self.resource_name
                 )]
             else:
                 # last value is unchanged, add the hashes
-                self.incremental_state['unique_hashes'].extend(uq_val for _, uq_val in unique_values)
+                self.incremental_state['unique_hashes'] = list(set(self.incremental_state['unique_hashes'] + [uq_val for _, uq_val in unique_values]))
         else:
             self.incremental_state['last_value'] = row_value
             self.incremental_state['unique_hashes'] = [uq_val for _, uq_val in self.unique_values(
-                tbl.filter(pa.compute.equal(tbl[cursor_path], row_value)), self.primary_key, self.resource_name
+                tbl.filter(pa.compute.equal(tbl[cursor_path], row_value)), unique_columns, self.resource_name
             )]
 
-        if self.start_value is not None:
-            # Is any value lower than start value
-            start_out_of_range = pa.compute.any(end_compare(tbl[cursor_path], self.start_value)).as_py()
-            # Include rows >= start_value
-            tbl = tbl.filter(start_compare(tbl[cursor_path], self.start_value))
-
+        if len(tbl) == 0:
+            return None, start_out_of_range, end_out_of_range
+        try:
+            tbl = tbl.drop(["_dlt_index"])
+        except KeyError:
+            pass
         if is_pandas:
-            return tbl.drop(["_dlt_index"]).to_pandas(), start_out_of_range, end_out_of_range
-        return tbl.drop(["_dlt_index"]), start_out_of_range, end_out_of_range
+            return tbl.to_pandas(), start_out_of_range, end_out_of_range
+        return tbl, start_out_of_range, end_out_of_range

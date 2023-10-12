@@ -142,22 +142,19 @@ class Extractor:
             return "puae-jsonl"
         return None # Empty list is unknown format
 
-    def write_table(self, resource: DltResource, item: TDataItems, meta: Any) -> None:
-        if isinstance(meta, TableNameMeta):
-            table_name = meta.table_name
-            self._write_static_table(resource, table_name, item)
-            self._write_item(table_name, resource.name, item)
-        elif resource._table_name_hint_fun:
-            if isinstance(item, List):
-                for single_item in item:
-                    self._write_dynamic_table(resource, single_item)
-            else:
+    def write_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
+        for item in items if isinstance(items, list) else [items]:
+            if isinstance(meta, TableNameMeta):
+                table_name = meta.table_name
+                self._write_static_table(resource, table_name, item)
+                self._write_item(table_name, resource.name, item)
+            elif resource._table_name_hint_fun:
                 self._write_dynamic_table(resource, item)
-        else:
-            # write item belonging to table with static name
-            table_name = resource.table_name  # type: ignore
-            self._write_static_table(resource, table_name, item)
-            self._write_item(table_name, resource.name, item)
+            else:
+                # write item belonging to table with static name
+                table_name = resource.table_name  # type: ignore
+                self._write_static_table(resource, table_name, item)
+                self._write_item(table_name, resource.name, item)
 
 
     def write_empty_file(self, table_name: str) -> None:
@@ -205,14 +202,22 @@ class JsonLExtractor(Extractor):
 class ArrowExtractor(Extractor):
     file_format = "arrow"
 
-    def write_table(self, resource: DltResource, item: TDataItems, meta: Any) -> None:
-        if pd and isinstance(item, pd.DataFrame):
-            item = pyarrow.pyarrow.Table.from_pandas(item)
-        super().write_table(resource, item, meta)
+    def write_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
+        items = [
+            pyarrow.pyarrow.Table.from_pandas(item) if (pd and isinstance(item, pd.DataFrame)) else item
+            for item in (items if isinstance(items, list) else [items])
+        ]
+        super().write_table(resource, items, meta)
 
     def _write_static_table(self, resource: DltResource, table_name: str, item: TDataItems) -> None:
+        existing_table = self.dynamic_tables.get(table_name)
+        if existing_table is not None:
+            return
         arrow_columns = pyarrow.py_arrow_to_table_schema_columns(item.schema)  # type: ignore[union-attr]
         static_table = resource.compute_table_schema()
+        for key, value in static_table['columns'].items():
+            # Merge the columns to include primary_key and other hints that may be set on the resource
+            arrow_columns[key] = utils.merge_columns(value, arrow_columns.get(key, {}))
         static_table["columns"] = arrow_columns
         static_table["name"] = table_name
         self.dynamic_tables[table_name] = [static_table]

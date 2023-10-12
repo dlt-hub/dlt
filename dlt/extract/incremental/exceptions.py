@@ -3,10 +3,10 @@ from dlt.common.typing import TDataItem
 
 
 class IncrementalCursorPathMissing(PipeException):
-    def __init__(self, pipe_name: str, json_path: str, item: TDataItem) -> None:
+    def __init__(self, pipe_name: str, json_path: str, item: TDataItem, msg: str=None) -> None:
         self.json_path = json_path
         self.item = item
-        msg = f"Cursor element with JSON path {json_path} was not found in extracted data item. All data items must contain this path. Use the same names of fields as in your JSON document - if those are different from the names you see in database."
+        msg = msg or f"Cursor element with JSON path {json_path} was not found in extracted data item. All data items must contain this path. Use the same names of fields as in your JSON document - if those are different from the names you see in database."
         super().__init__(pipe_name, msg)
 
 

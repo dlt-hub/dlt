@@ -59,3 +59,16 @@ def test_extract_with_incremental(item_type: TArrowFormat):
 
     pipeline.extract(some_data())
     pipeline.normalize()
+
+
+@pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
+def test_map_filter_item(item: TArrowFormat):
+    item, _ = arrow_table_all_data_types(item_type)
+
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="filesystem")
+
+    @dlt.resource
+    def some_data():
+        yield item
+
+    some_data.add_map(lambda x: x)
