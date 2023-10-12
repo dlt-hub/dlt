@@ -179,6 +179,6 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
 
     def table_needs_staging_dataset(self, table: TTableSchema) -> bool:
         # not so nice, how to do it better, collect this info from the main destination as before?
-        if table["table_format"] == "iceberg" or self.config.force_iceberg:
+        if table.get("table_format") == "iceberg" or self.config.force_iceberg:
             return True
         return super().table_needs_staging_dataset(table)

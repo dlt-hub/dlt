@@ -494,7 +494,7 @@ def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTabl
 
 
 def get_inherited_table_hint(tables: TSchemaTables, table_name: str, table_hint_name: str, allow_none: bool = False) -> Any:
-    table = tables[table_name]
+    table = tables.get(table_name, {})
     hint = table.get(table_hint_name)
     if hint:
         return hint
