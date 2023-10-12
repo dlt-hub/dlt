@@ -1,5 +1,5 @@
 ---
-title: Advanced Tutorial
+title: Pipeline Tutorial
 description: Build a data pipeline with dlt from scratch
 keywords: [getting started, quick start, basics]
 ---

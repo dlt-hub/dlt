@@ -19,10 +19,10 @@ const sidebars = {
     'build-a-pipeline-tutorial',
     {
       type: 'category',
-      label: 'dlt Ecosystem / Connectors',
+      label: 'Integrations',
       link: {
         type: 'generated-index',
-        title: 'dlt Ecosystem',
+        title: 'Integrations',
         description: 'dlt fits everywhere where the data flows. check out our curated data sources, destinations and unexpected places where dlt runs',
         slug: 'dlt-ecosystem',
         keywords: ['getting started'],
@@ -84,12 +84,12 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'Concepts',
+      label: 'Using dlt',
       link: {
         type: 'generated-index',
-        title: 'Concepts',
+        title: 'Using dlt',
         slug: 'general-usage',
-        keywords: ['concepts'],
+        keywords: ['concepts', 'usage'],
       },
       items: [
         'reference/explainers/how-dlt-works',
@@ -105,8 +105,6 @@ const sidebars = {
         'general-usage/schema',
         'general-usage/configuration',
         'reference/performance',
-        'reference/telemetry',
-        'general-usage/glossary',
         {
           type: 'category',
           label: 'File formats',
@@ -123,22 +121,14 @@ const sidebars = {
             'dlt-ecosystem/file-formats/insert-format',
           ]
         },
-        {
-          type: 'category',
-          label: 'Customising pipelines',
-          items: [
-            'general-usage/customising-pipelines/renaming_columns',
-            'general-usage/customising-pipelines/pseudonymizing_columns',
-          ]
-        },
       ],
     },
     {
       type: 'category',
-      label: 'How-to guides',
+      label: 'How-to Guides',
       link: {
         type: 'generated-index',
-        title: 'Walktroughs',
+        title: 'How-to Guides',
         description: 'Overview of our walkthroughs. Learn how to use and deploy dlt.',
         slug: 'walkthroughs',
         keywords: ['walkthrough'],
@@ -181,6 +171,14 @@ const sidebars = {
             'reference/explainers/airflow-gcp-cloud-composer',
             'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
             'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Customising pipelines',
+          items: [
+            'general-usage/customising-pipelines/renaming_columns',
+            'general-usage/customising-pipelines/pseudonymizing_columns',
           ]
         },
         {
@@ -233,6 +231,8 @@ const sidebars = {
         require("./docs/api_reference/sidebar.json"),
         'reference/installation',
         'reference/command-line-interface',
+        'reference/telemetry',
+        'general-usage/glossary',
       ],
     },
     // {
