@@ -217,6 +217,7 @@ class Schema:
             self.update_table(table)
         # update normalizer config nondestructively
         self.data_item_normalizer.update_normalizer_config(self, self.data_item_normalizer.get_normalizer_config(schema))
+        self.update_normalizers()
         # update and compile settings
         self._settings = deepcopy(schema.settings)
         self._compile_settings()

@@ -865,7 +865,7 @@ class Pipeline(SupportsPipeline):
         # if source schema does not exist in the pipeline
         if source_schema.name not in self._schema_storage:
             # create new schema
-            self._schema_storage.save_schema(Schema(source_schema.name))
+            self._schema_storage.save_schema(source_schema)
 
         # update pipeline schema (do contract checks here)
         pipeline_schema = self._schema_storage[source_schema.name]

@@ -258,6 +258,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             }
         )
 
+        for table_name in self.schema.tables.keys():
+            self.extend_table(table_name)
+
     def extend_table(self, table_name: str) -> None:
         # if the table has a merge w_d, add propagation info to normalizer
         table = self.schema.tables.get(table_name)

@@ -30,16 +30,16 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
     info = (pipeline.run(data_with_subtables(10), table_name="items", write_disposition="merge"))
     assert_load_info(info)
     assert_data_table_counts(pipeline, {
-        "items": 100,
-        "items__sub_items": 100
+        "items": 100 if destination_config.supports_merge else 200,
+        "items__sub_items": 100 if destination_config.supports_merge else 200
     })
     assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"]["items"] == {'_dlt_id': '_dlt_root_id'}
 
     info = (pipeline.run(data_with_subtables(10), table_name="items", write_disposition="append"))
     assert_load_info(info)
     assert_data_table_counts(pipeline, {
-        "items": 200,
-        "items__sub_items": 200
+        "items": 200 if destination_config.supports_merge else 300,
+        "items__sub_items": 200 if destination_config.supports_merge else 300
     })
     assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"]["items"] == {'_dlt_id': '_dlt_root_id'}
 
@@ -88,8 +88,8 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
     info = (pipeline.run(s, table_name="items", write_disposition="merge"))
     assert_load_info(info)
     assert_data_table_counts(pipeline, {
-        "items": 100,
-        "items__sub_items": 100
+        "items": 100 if destination_config.supports_merge else 200,
+        "items__sub_items": 100 if destination_config.supports_merge else 200,
     })
     assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"]["items"] == {'_dlt_id': '_dlt_root_id'}
 
