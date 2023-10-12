@@ -242,7 +242,7 @@ WHERE """
             schema_c: TColumnSchemaBase = {
                 "name": c[0],
                 "nullable": _null_to_bool(c[2]),
-                **self._from_db_type(c[1], numeric_precision, numeric_scale),  # type: ignore[misc]
+                **self._from_db_type(c[1], numeric_precision, numeric_scale)
             }
             schema_table[c[0]] = schema_c  # type: ignore
         return True, schema_table

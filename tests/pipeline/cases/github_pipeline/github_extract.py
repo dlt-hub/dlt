@@ -2,7 +2,7 @@ import sys
 
 import dlt
 
-from github_pipeline import github  # type: ignore[import]
+from github_pipeline import github  # type: ignore[import-not-found]
 
 if __name__ == "__main__":
     p = dlt.pipeline("dlt_github_pipeline", destination="duckdb", dataset_name="github_3", full_refresh=False)

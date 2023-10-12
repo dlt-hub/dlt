@@ -26,10 +26,6 @@ from dlt.destinations.type_mapping import TypeMapper
 
 from dlt.common.schema.utils import table_schema_has_type
 
-BQT_TO_SCT: Dict[str, TDataType] = {
-
-}
-
 
 class BigQueryTypeMapper(TypeMapper):
     sct_to_unbound_dbt = {
@@ -270,7 +266,7 @@ class BigQueryClient(SqlJobClientWithStaging):
                     "foreign_key": False,
                     "cluster": c.name in (table.clustering_fields or []),
                     "partition": c.name == partition_field,
-                    **self._from_db_type(c.field_type, c.precision, c.scale)  # type: ignore[misc]
+                    **self._from_db_type(c.field_type, c.precision, c.scale)
                 }
                 schema_table[c.name] = schema_c
             return True, schema_table

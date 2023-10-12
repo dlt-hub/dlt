@@ -110,7 +110,7 @@ def remove_column_defaults(column_schema: TColumnSchema) -> TColumnSchema:
 def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
     """Adds default boolean hints to column"""
     return {
-            **{  # type:ignore
+            **{
                 "nullable": True,
                 "partition": False,
                 "cluster": False,

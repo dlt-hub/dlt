@@ -8,7 +8,7 @@ from dlt.common.pipeline import reset_resource_state
 from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
 from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name
-from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator
+from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidStepFunctionArguments
 
 from dlt.extract.typing import TTableHintTemplate, TDataItem, TFunHintTemplate, SupportsPipe
 
@@ -88,8 +88,23 @@ def simulate_func_call(f: Union[Any, AnyFun], args_to_skip: int, *args: Any, **k
     return sig
 
 
+def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> inspect.Parameter:
+    sig_arg_count = len(sig.parameters)
+    callable_name = get_callable_name(f)
+    if sig_arg_count == 0:
+        raise InvalidStepFunctionArguments(name, callable_name, sig, "Function takes no arguments")
+
+    # see if meta is present in kwargs
+    meta_arg = next((p for p in sig.parameters.values() if p.name == "meta"), None)
+    if meta_arg is not None:
+        if meta_arg.kind not in (meta_arg.KEYWORD_ONLY, meta_arg.POSITIONAL_OR_KEYWORD):
+            raise InvalidStepFunctionArguments(name, callable_name, sig, "'meta' cannot be pos only argument '")
+    return meta_arg
+
+
 def wrap_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature, *args: Any, **kwargs: Any) -> AnyFun:
     """Creates a compatible wrapper over transformer function. A pure transformer function expects data item in first argument and one keyword argument called `meta`"""
+    check_compat_transformer(name, f, sig)
     if len(sig.parameters) == 2 and "meta" in sig.parameters:
         return f
 
