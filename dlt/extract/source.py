@@ -3,8 +3,8 @@ import contextlib
 from copy import copy, deepcopy
 import makefun
 import inspect
-from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, ContextManager, Dict, Iterable, Iterator, List, Sequence, Tuple, Union, Any, Optional
-import types
+from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, Dict, Iterable, Iterator, List, Sequence, Tuple, Union, Any, Optional
+from typing_extensions import Self
 
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
@@ -23,9 +23,9 @@ from dlt.extract.pipe import Pipe, ManagedPipeIterator, TPipeStep
 from dlt.extract.schema import DltResourceSchema, TTableSchemaTemplate
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
-    InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidTransformerGeneratorFunction,
+    InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeIsNone, InvalidTransformerGeneratorFunction,
     DataItemRequiredForDynamicTableHints, InvalidResourceDataTypeAsync, InvalidResourceDataTypeBasic,
-    InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, ResourceNameMissing, ResourceNotATransformer, ResourcesNotFoundError, SourceExhausted, DeletingResourcesNotSupported)
+    InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, ResourceNameMissing, ResourceNotATransformer, ResourcesNotFoundError, DeletingResourcesNotSupported)
 
 
 def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
@@ -653,11 +653,11 @@ class DltSource(Iterable[TDataItem]):
             self.resources.add(*resources)
 
     @classmethod
-    def from_data(cls, name: str, section: str, schema: Schema, data: Any) -> "DltSource":
+    def from_data(cls, name: str, section: str, schema: Schema, data: Any) -> Self:
         """Converts any `data` supported by `dlt` `run` method into `dlt source` with a name `section`.`name` and `schema` schema."""
         # creates source from various forms of data
         if isinstance(data, DltSource):
-            return data
+            return data  # type: ignore[return-value]
 
         # in case of sequence, enumerate items and convert them into resources
         if isinstance(data, Sequence):

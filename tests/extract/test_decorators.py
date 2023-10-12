@@ -23,6 +23,7 @@ from dlt.common.typing import TDataItem
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ExplicitSourceNameInvalid, InconsistentTableTemplate, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, PipeGenInvalid, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
 from dlt.common.schema.exceptions import InvalidSchemaName
+from dlt.extract.typing import TableNameMeta
 
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V6
 
@@ -130,6 +131,27 @@ def test_transformer_no_parens() -> None:
     # create dynamic transformer with explicit func
     t = dlt.transformer(empty_t_2, data_from=bound_r)
     assert list(t("m")) == ["m", "mm", "mmm"]
+
+
+def test_transformer_kwargs() -> None:
+    @dlt.resource
+    def emit_tables():
+        yield dlt.mark.with_table_name(1, "table_1")
+        yield dlt.mark.with_table_name(2, "table_2")
+
+    @dlt.transformer
+    def ignore_meta(item, **kwargs):
+        assert "meta" not in kwargs
+        yield item
+
+    @dlt.transformer
+    def accept_meta(item, meta=None, **kwargs):
+        assert "meta" not in kwargs
+        assert isinstance(meta, TableNameMeta)
+        yield item
+
+    assert list(emit_tables | ignore_meta) == [1, 2]
+    assert list(emit_tables | accept_meta) == [1, 2]
 
 
 def test_source_name_is_invalid_schema_name() -> None:
@@ -586,6 +608,25 @@ def test_resource_sets_invalid_write_disposition() -> None:
     with pytest.raises(DictValidationException) as py_ex:
         r.compute_table_schema()
     assert "write_disposition" in str(py_ex.value)
+
+
+def test_custom_source_impl() -> None:
+
+    class TypedSource(DltSource):
+        def users(self, mode: str) -> DltResource:
+            return self.resources["users"](mode)
+
+    @dlt.source(_impl_cls=TypedSource)
+    def all_users():
+
+        @dlt.resource
+        def users(mode: str):
+            yield mode
+
+        return users
+
+    s = all_users()
+    assert list(s.users("group")) == ["group"]
 
 
 # wrapped flag will not create the resource but just simple function wrapper that must be called before use

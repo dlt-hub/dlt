@@ -1,9 +1,9 @@
 import os
 import inspect
-import makefun
 from types import ModuleType
 from functools import wraps
-from typing import TYPE_CHECKING, Any, Callable, ClassVar, Iterator, List, Literal, Optional, Tuple, Type, TypeVar, Union, cast, overload
+from typing import TYPE_CHECKING, Any, Callable, ClassVar, Iterator, List, Literal, Optional, Tuple, Type, Union, cast, overload
+from typing_extensions import TypeVar
 
 from dlt.common.configuration import with_config, get_fun_spec, known_sections, configspec
 from dlt.common.configuration.container import Container
@@ -28,7 +28,6 @@ from dlt.extract.typing import TTableHintTemplate
 from dlt.extract.source import DltResource, DltSource, TUnboundDltResource
 
 
-
 @configspec
 class SourceSchemaInjectableContext(ContainerInjectableContext):
     """A context containing the source schema, present when decorated function is executed"""
@@ -42,6 +41,7 @@ class SourceSchemaInjectableContext(ContainerInjectableContext):
 
 TSourceFunParams = ParamSpec("TSourceFunParams")
 TResourceFunParams = ParamSpec("TResourceFunParams")
+TDltSourceImpl = TypeVar("TDltSourceImpl", bound=DltSource, default=DltSource)
 
 
 @overload
@@ -53,8 +53,9 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
-    spec: Type[BaseConfiguration] = None
-) -> Callable[TSourceFunParams, DltSource]:
+    spec: Type[BaseConfiguration] = None,
+    _impl_cls: Type[TDltSourceImpl] = DltSource  # type: ignore[assignment]
+) -> Callable[TSourceFunParams, TDltSourceImpl]:
     ...
 
 @overload
@@ -66,8 +67,9 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
-    spec: Type[BaseConfiguration] = None
-) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, DltSource]]:
+    spec: Type[BaseConfiguration] = None,
+    _impl_cls: Type[TDltSourceImpl] = DltSource  # type: ignore[assignment]
+) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, TDltSourceImpl]]:
     ...
 
 def source(
@@ -78,7 +80,8 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
-    spec: Type[BaseConfiguration] = None
+    spec: Type[BaseConfiguration] = None,
+    _impl_cls: Type[TDltSourceImpl] = DltSource  # type: ignore[assignment]
 ) -> Any:
     """A decorator that transforms a function returning one or more `dlt resources` into a `dlt source` in order to load it with `dlt`.
 
@@ -114,6 +117,8 @@ def source(
 
         spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
 
+        _impl_cls (Type[TDltSourceImpl], optional): A custom implementation of DltSource, may be also used to providing just a typing stub
+
     Returns:
         `DltSource` instance
     """
@@ -121,7 +126,7 @@ def source(
     if name and schema:
         raise ArgumentsOverloadException("'name' has no effect when `schema` argument is present", source.__name__)
 
-    def decorator(f: Callable[TSourceFunParams, Any]) -> Callable[TSourceFunParams, DltSource]:
+    def decorator(f: Callable[TSourceFunParams, Any]) -> Callable[TSourceFunParams, TDltSourceImpl]:
         nonlocal schema, name
 
         if not callable(f) or isinstance(f, DltResource):
@@ -151,7 +156,7 @@ def source(
         conf_f = with_config(f, spec=spec, sections=source_sections)
 
         @wraps(conf_f)
-        def _wrap(*args: Any, **kwargs: Any) -> DltSource:
+        def _wrap(*args: Any, **kwargs: Any) -> TDltSourceImpl:
             # make schema available to the source
             with Container().injectable_context(SourceSchemaInjectableContext(schema)):
                 # configurations will be accessed in this section in the source
@@ -166,7 +171,7 @@ def source(
                         rv = list(rv)
 
             # convert to source
-            s = DltSource.from_data(name, source_section, schema.clone(update_normalizers=True), rv)
+            s = _impl_cls.from_data(name, source_section, schema.clone(update_normalizers=True), rv)
             # apply hints
             if max_table_nesting is not None:
                 s.max_table_nesting = max_table_nesting
@@ -463,6 +468,23 @@ def transformer(
 ) -> DltResource:
     ...
 
+@overload
+def transformer(
+    f: Callable[Concatenate[TDataItem, TResourceFunParams], Any],
+    /,
+    data_from: TUnboundDltResource = DltResource.Empty,
+    name: str = None,
+    table_name: TTableHintTemplate[str] = None,
+    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    columns: TTableHintTemplate[TAnySchemaColumns] = None,
+    primary_key: TTableHintTemplate[TColumnNames] = None,
+    merge_key: TTableHintTemplate[TColumnNames] = None,
+    selected: bool = True,
+    spec: Type[BaseConfiguration] = None,
+    standalone: Literal[True] = True
+) -> Callable[..., DltResource]:  # TODO: change back to Callable[TResourceFunParams, DltResource] when mypy 1.6 is fixed
+    ...
+
 def transformer(
     f: Optional[Callable[Concatenate[TDataItem, TResourceFunParams], Any]] = None,
     /,
@@ -476,7 +498,7 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     standalone: bool = False
-) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource]:
+) -> Any:
     """A form of `dlt resource` that takes input from other resources via `data_from` argument in order to enrich or transform the data.
 
     The decorated function `f` must take at least one argument of type TDataItems (a single item or list of items depending on the resource `data_from`). `dlt` will pass
