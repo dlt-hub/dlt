@@ -80,7 +80,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
         assert "propagation" not in pipeline.default_schema._normalizers_config["json"]["config"]
 
     # without a root key this will fail, it is expected
-    if not with_root_key:
+    if not with_root_key and destination_config.supports_merge:
         with pytest.raises(PipelineStepFailed):
             pipeline.run(s, table_name="items", write_disposition="merge")
         return
