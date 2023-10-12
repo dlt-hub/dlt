@@ -364,26 +364,32 @@ html[data-theme='dark'] .footer__item a:hover{
   opacity: 0.8;
 }
 
+
 .github-navbar,
 .slack-navbar,
 .slack-navbar:hover,
 .github-navbar:hover {
   display: flex;
-  color: transparent;
+  position: relative;
+  top:3px;
 }
 
-.github-navbar:before {
+.github-navbar {
+  margin-right:10px;
+}
+
+.github-navbar:after {
   content: '';
   width: 32px;
   height: 32px;
   display: flex;
   background: url("../../static/img/GithubDark.svg") no-repeat;
   position: relative;
-  left: 0px;
-  top: 0px;
+  right: -10px;
+  top: -3px;
 }
 
-html[data-theme='dark'] .github-navbar:before {
+html[data-theme='dark'] .github-navbar:after {
   background:  url("../../static/img/GithubLight.svg") no-repeat;
 }
 
@@ -414,20 +420,21 @@ html[data-theme='dark'] .theme-edit-this-page::before {
   display: flex;
 }
 
-.slack-navbar:before {
+.slack-navbar:after {
   content: '';
   width: 32px;
   height: 32px;
   display: flex;
   background: url("../../static/img/SlackDark.svg") no-repeat;
+  background-size: 32px 32px;
   position: relative;
-  left: 10px;
-  top: 0px;
-
+  right: -10px;
+  top: -3px;
 }
 
-html[data-theme='dark'] .slack-navbar::before {
+html[data-theme='dark'] .slack-navbar::after {
   background: url("../../static/img/SlackLight.svg") no-repeat;
+  background-size: 32px 32px;
 }
 
 /* siderbar-icons */

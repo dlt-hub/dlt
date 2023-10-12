@@ -86,22 +86,18 @@ const config = {
           { to: 'blog', label: 'Blog', position: 'left' },
           {
             href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g',
-            label: '.',
+            label: 'Join community',
             position: 'right',
             className: 'slack-navbar',
           },
           {
             href: 'https://github.com/dlt-hub/dlt',
-            label: '.',
+            label: 'Star us',
             position: 'right',
             className: 'github-navbar',
             "aria-label": "GitHub repository",
           },
         ],
-      },
-      announcementBar: {
-        content:
-          '⭐️ If you like data load tool (dlt), give it a star on <a target="_blank" rel="noopener noreferrer" href="https://github.com/dlt-hub/dlt">GitHub</a>! ⭐️',
       },
       footer: {
         style: 'dark',
