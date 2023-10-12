@@ -260,27 +260,27 @@ class Load(Runnable[ThreadPool]):
         logger.info(f"All jobs completed, archiving package {load_id} with aborted set to {aborted}")
 
     @staticmethod
-    def _get_table_chain_tables_with_filter(schema: Schema, filter: Callable, tables_with_jobs: Iterable[str]) -> Set[str]:
+    def _get_table_chain_tables_with_filter(schema: Schema, f: Callable[[TTableSchema], bool], tables_with_jobs: Iterable[str]) -> Set[str]:
         """Get all jobs for tables with given write disposition and resolve the table chain"""
         result: Set[str] = set()
         for table_name in tables_with_jobs:
             top_job_table = get_top_level_table(schema.tables, table_name)
-            if not filter(top_job_table):
+            if not f(top_job_table):
                 continue
             for table in get_child_tables(schema.tables, top_job_table["name"]):
                 result.add(table["name"])
         return result
 
     @staticmethod
-    def _init_client_and_update_schema(job_client: JobClientBase, expected_update: TSchemaTables, update_tables: Iterable[str], truncate_tables: Iterable[str] = None, staging_info: bool = False) -> TSchemaTables:     
-        staging_text = "for staging dataset" if staging_info else ""       
+    def _init_client_and_update_schema(job_client: JobClientBase, expected_update: TSchemaTables, update_tables: Iterable[str], truncate_tables: Iterable[str] = None, staging_info: bool = False) -> TSchemaTables:
+        staging_text = "for staging dataset" if staging_info else ""
         logger.info(f"Client for {job_client.config.destination_name} will start initialize storage {staging_text}")
         job_client.initialize_storage()
         logger.info(f"Client for {job_client.config.destination_name} will update schema to package schema {staging_text}")
         applied_update = job_client.update_stored_schema(only_tables=update_tables, expected_update=expected_update)
         logger.info(f"Client for {job_client.config.destination_name} will truncate tables {staging_text}")
         job_client.initialize_storage(truncate_tables=truncate_tables)
-        return applied_update 
+        return applied_update
 
     def load_single_package(self, load_id: str, schema: Schema) -> None:
         # initialize analytical storage ie. create dataset required by passed schema
@@ -302,9 +302,10 @@ class Load(Runnable[ThreadPool]):
                             self._init_client_and_update_schema(job_client, expected_update, staging_tables | {schema.version_table_name}, staging_tables, staging_info=True)
 
                 # only update tables that are present in the load package
-                if self.staging_destination:
+                if self.staging_destination and isinstance(job_client, WithStagingDataset):
                     with self.get_staging_destination_client(schema) as staging_client:
-                        truncate_tables = self._get_table_chain_tables_with_filter(schema, staging_client.table_needs_truncating, tables_with_jobs)
+                        # truncate all the tables in staging that are requested by the job client (TODO: make this better...)
+                        truncate_tables = self._get_table_chain_tables_with_filter(schema, job_client.table_needs_staging_dataset, tables_with_jobs)
                         self._init_client_and_update_schema(staging_client, expected_update, tables_with_jobs | dlt_tables, truncate_tables)
 
                 self.load_storage.commit_schema_update(load_id, applied_update)

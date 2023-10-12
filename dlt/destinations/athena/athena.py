@@ -375,13 +375,13 @@ class AthenaClient(SqlJobClientWithStaging):
     def _is_iceberg_table(self, table: TTableSchema) -> bool:
         table_format = get_table_format(self.schema.tables, table["name"])
         return table_format == "iceberg" or self.config.force_iceberg
-    
+
     def table_needs_staging_dataset(self, table: TTableSchema) -> bool:
         # all iceberg tables need staging
         if self._is_iceberg_table(table):
             return True
         return super().table_needs_staging_dataset(table)
-    
+
     def get_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
         table = super().get_load_table(table_name, staging)
         # if staging and table.get("table_format", None) == "iceberg":

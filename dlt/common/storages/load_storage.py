@@ -238,7 +238,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
 
     def list_jobs_for_table(self, load_id: str, table_name: str) -> Sequence[LoadJobInfo]:
         return [job for job in self.list_all_jobs(load_id) if job.job_file_info.table_name == table_name]
-    
+
     def list_all_jobs(self, load_id: str) -> Sequence[LoadJobInfo]:
         info = self.get_load_package_info(load_id)
         return [job for job in flatten_list_or_items(iter(info.jobs.values()))]  # type: ignore

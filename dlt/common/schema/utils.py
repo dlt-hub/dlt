@@ -15,7 +15,7 @@ from dlt.common.typing import DictStrAny, REPattern, is_dict_generic_type
 from dlt.common.validation import TCustomValidator, validate_dict, validate_dict_ignoring_xkeys
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TPartialTableSchema, TSchemaTables, TSchemaUpdate,
-                                      TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TTableFormat, 
+                                      TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TTableFormat,
                                       TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, ParentTableNotFoundException, SchemaEngineNoUpgradePathException, SchemaException,
                                           TablePropertiesConflictException, InvalidSchemaName, UnknownTableException)
@@ -502,7 +502,7 @@ def get_inherited_table_hint(tables: TSchemaTables, table_name: str, table_hint_
     parent = table.get("parent")
     if parent:
         return get_inherited_table_hint(tables, parent, table_hint_name, allow_none)
-    
+
     if allow_none:
         return None
 
