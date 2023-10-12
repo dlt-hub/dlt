@@ -19,10 +19,10 @@ const sidebars = {
     'build-a-pipeline-tutorial',
     {
       type: 'category',
-      label: 'dlt Ecosystem',
+      label: 'Integrations',
       link: {
         type: 'generated-index',
-        title: 'dlt Ecosystem',
+        title: 'Integrations',
         description: 'dlt fits everywhere where the data flows. check out our curated data sources, destinations and unexpected places where dlt runs',
         slug: 'dlt-ecosystem',
         keywords: ['getting started'],
@@ -30,7 +30,7 @@ const sidebars = {
       items: [
         {
           type: 'category',
-          label: 'Verified Sources',
+          label: 'Sources',
           link: {
             type: 'doc',
             id: 'dlt-ecosystem/verified-sources/index',
@@ -62,22 +62,6 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'File formats',
-          link: {
-            type: 'generated-index',
-            title: 'File formats',
-            description: 'Overview of our loader file formats',
-            slug: 'dlt-ecosystem/file-formats',
-            keywords: ['destination'],
-          },
-          items: [
-            'dlt-ecosystem/file-formats/jsonl',
-            'dlt-ecosystem/file-formats/parquet',
-            'dlt-ecosystem/file-formats/insert-format',
-          ]
-        },
-        {
-          type: 'category',
           label: 'Destinations',
           link: {
             type: 'doc',
@@ -96,21 +80,66 @@ const sidebars = {
             'dlt-ecosystem/destinations/weaviate',
           ]
         },
+      ],
+    },
+    {
+      type: 'category',
+      label: 'Using dlt',
+      link: {
+        type: 'generated-index',
+        title: 'Using dlt',
+        slug: 'general-usage',
+        keywords: ['concepts', 'usage'],
+      },
+      items: [
+        'reference/explainers/how-dlt-works',
+        'general-usage/resource',
+        'general-usage/source',
+        'general-usage/pipeline',
+        'general-usage/destination-tables',
         'dlt-ecosystem/staging',
+        'general-usage/state',
+        'general-usage/incremental-loading',
+        'general-usage/full-loading',
+        'general-usage/credentials',
+        'general-usage/schema',
+        'general-usage/configuration',
+        'reference/performance',
         {
           type: 'category',
-          label: 'Deployments',
+          label: 'File formats',
           link: {
-            type: 'doc',
-            id: 'dlt-ecosystem/deployments/index',
+            type: 'generated-index',
+            title: 'File formats',
+            description: 'Overview of our loader file formats',
+            slug: 'dlt-ecosystem/file-formats',
+            keywords: ['destination'],
           },
           items: [
-            'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
-            'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
-            'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
-            'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
+            'dlt-ecosystem/file-formats/jsonl',
+            'dlt-ecosystem/file-formats/parquet',
+            'dlt-ecosystem/file-formats/insert-format',
           ]
         },
+      ],
+    },
+    {
+      type: 'category',
+      label: 'How-to Guides',
+      link: {
+        type: 'generated-index',
+        title: 'How-to Guides',
+        description: 'Overview of our walkthroughs. Learn how to use and deploy dlt.',
+        slug: 'walkthroughs',
+        keywords: ['walkthrough'],
+      },
+      items: [
+        'walkthroughs/create-a-pipeline',
+        'walkthroughs/add-a-verified-source',
+        'walkthroughs/run-a-pipeline',
+        'walkthroughs/adjust-a-schema',
+        'walkthroughs/share-a-dataset',
+        'dlt-ecosystem/visualizations/exploring-the-data',
         {
           type: 'category',
           label: 'Transformations',
@@ -129,31 +158,6 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'Visualizations',
-          items: [
-            'dlt-ecosystem/visualizations/exploring-the-data',
-          ]
-        },
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Walkthroughs',
-      link: {
-        type: 'generated-index',
-        title: 'Walktroughs',
-        description: 'Overview of our walkthroughs. Learn how to use and deploy dlt.',
-        slug: 'walkthroughs',
-        keywords: ['walkthrough'],
-      },
-      items: [
-        'walkthroughs/create-a-pipeline',
-        'walkthroughs/add-a-verified-source',
-        'walkthroughs/run-a-pipeline',
-        'walkthroughs/adjust-a-schema',
-        'walkthroughs/share-a-dataset',
-         {
-          type: 'category',
           label: 'Deploy a pipeline',
           link: {
             type: 'generated-index',
@@ -164,35 +168,11 @@ const sidebars = {
           items: [
             'walkthroughs/deploy-a-pipeline/deploy-with-github-actions',
             'walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer',
+            'reference/explainers/airflow-gcp-cloud-composer',
             'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
             'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
           ]
         },
-        'walkthroughs/create-new-destination',
-        'walkthroughs/zendesk-weaviate',
-      ],
-    },
-    {
-      type: 'category',
-      label: 'General Usage',
-      link: {
-        type: 'generated-index',
-        title: 'General usage',
-        slug: 'general-usage',
-        keywords: ['general usage'],
-      },
-      items: [
-        'general-usage/resource',
-        'general-usage/source',
-        'general-usage/pipeline',
-        'general-usage/destination-tables',
-        'general-usage/state',
-        'general-usage/incremental-loading',
-        'general-usage/full-loading',
-        'general-usage/credentials',
-        'general-usage/schema',
-        'general-usage/configuration',
-        'general-usage/glossary',
         {
           type: 'category',
           label: 'Customising pipelines',
@@ -201,23 +181,25 @@ const sidebars = {
             'general-usage/customising-pipelines/pseudonymizing_columns',
           ]
         },
-      ],
-    },
-    {
-      type: 'category',
-      label: 'Running in production',
-      link: {
-        type: 'generated-index',
-        title: 'Running in production',
-        description: 'Learn how to run dlt in production.',
-        slug: 'running-in-production',
-        keywords: ['production'],
-      },
-      items: [
-        'running-in-production/running',
-        'running-in-production/monitoring',
-        'running-in-production/alerting',
-        'running-in-production/tracing',
+        {
+          type: 'category',
+          label: 'Running in production',
+          link: {
+            type: 'generated-index',
+            title: 'Running in production',
+            description: 'Learn how to run dlt in production.',
+            slug: 'running-in-production',
+            keywords: ['production'],
+          },
+          items: [
+            'running-in-production/running',
+            'running-in-production/monitoring',
+            'running-in-production/alerting',
+            'running-in-production/tracing',
+          ],
+        },
+        'walkthroughs/create-new-destination',
+        'walkthroughs/zendesk-weaviate',
       ],
     },
     {
@@ -249,10 +231,8 @@ const sidebars = {
         require("./docs/api_reference/sidebar.json"),
         'reference/installation',
         'reference/command-line-interface',
-        'reference/performance',
         'reference/telemetry',
-        'reference/explainers/how-dlt-works',
-        'reference/explainers/airflow-gcp-cloud-composer',
+        'general-usage/glossary',
       ],
     },
     // {
