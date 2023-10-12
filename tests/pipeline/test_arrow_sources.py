@@ -48,7 +48,7 @@ def test_normalize_unsupported_loader_format(item_type: TArrowFormat):
 
 @pytest.mark.parametrize("item_type", ["pandas", "table"])
 def test_extract_with_incremental(item_type: TArrowFormat):
-    # TODO: Just a smoke test
+    # TODO: Add complete incremental tests or include with existing tests in extract/incremental
     item, _ = arrow_table_all_data_types(item_type)
 
     pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="filesystem")

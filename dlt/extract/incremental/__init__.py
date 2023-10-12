@@ -1,10 +1,16 @@
 import os
-from typing import Generic, TypeVar, Any, Optional, Callable, List, TypedDict, get_args, get_origin, Sequence, Type
+from typing import Generic, TypeVar, Any, Optional, Callable, List, TypedDict, get_args, get_origin, Sequence, Type, Dict
 import inspect
-from functools import wraps
+from functools import wraps, partial
 from datetime import datetime  # noqa: I251
 
+try:
+    import pandas as pd
+except ModuleNotFoundError:
+    pd = None
+
 import dlt
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common import pendulum, logger
 from dlt.common.json import json
 from dlt.common.jsonpath import compile_path, find_values, JSONPath
@@ -21,13 +27,16 @@ from dlt.extract.incremental.exceptions import IncrementalCursorPathMissing, Inc
 from dlt.extract.incremental.typing import IncrementalColumnState, TCursorValue, LastValueFunc
 from dlt.extract.pipe import Pipe
 from dlt.extract.utils import resolve_column_value
-from dlt.extract.typing import SupportsPipe, TTableHintTemplate, MapItem, YieldMapItem, FilterItem
-from dlt.extract.incremental.transform import get_transformer
-
+from dlt.extract.typing import SupportsPipe, TTableHintTemplate, MapItem, YieldMapItem, FilterItem, ItemTransform
+from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental, IncrementalTransformer
+try:
+    from dlt.common.libs.pyarrow import is_arrow_item, pyarrow as pa, TAnyArrowItem
+except MissingDependencyException:
+    is_arrow_item = lambda x: False
 
 
 @configspec
-class Incremental(YieldMapItem, BaseConfiguration, Generic[TCursorValue]):
+class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorValue]):
     """Adds incremental extraction for a resource by storing a cursor value in persistent state.
 
     The cursor could for example be a timestamp for when the record was created and you can use this to load only
@@ -93,12 +102,28 @@ class Incremental(YieldMapItem, BaseConfiguration, Generic[TCursorValue]):
 
         self._cached_state: IncrementalColumnState = None
         """State dictionary cached on first access"""
-        super().__init__(self.transform)
+        super().__init__(lambda x: x)  # TODO:
 
         self.end_out_of_range: bool = False
         """Becomes true on the first item that is out of range of `end_value`. I.e. when using `max` function this means a value that is equal or higher"""
         self.start_out_of_range: bool = False
         """Becomes true on the first item that is out of range of `start_value`. I.e. when using `max` this is a value that is lower than `start_value`"""
+
+        self._transformers: Dict[str, IncrementalTransformer] = {}
+
+    def _make_transformers(self) -> None:
+        types = [("arrow", ArrowIncremental), ("json", JsonIncremental)]
+        for dt, kls in types:
+            self._transformers[dt] = kls(
+                self.resource_name,
+                self.cursor_path_p,
+                self.start_value,
+                self.end_value,
+                self._cached_state,
+                self.last_value_func,
+                self.primary_key
+            )
+
 
     @classmethod
     def from_existing_state(cls, resource_name: str, cursor_path: str) -> "Incremental[TCursorValue]":
@@ -211,31 +236,11 @@ class Incremental(YieldMapItem, BaseConfiguration, Generic[TCursorValue]):
         s = self.get_state()
         return s['last_value']  # type: ignore
 
-    def unique_value(self, row: TDataItem) -> str:
-        try:
-            if self.primary_key:
-                return digest128(json.dumps(resolve_column_value(self.primary_key, row), sort_keys=True))
-            elif self.primary_key is None:
-                return digest128(json.dumps(row, sort_keys=True))
-            else:
-                return None
-        except KeyError as k_err:
-            raise IncrementalPrimaryKeyMissing(self.resource_name, k_err.args[0], row)
-
-    def transform(self, row: TDataItem) -> TDataItem:
-        if row is None:
-            yield row
-            return
-
-        transformer = get_transformer(row)
-
-        row, start_out_of_range, end_out_of_range = transformer(
-            row, self.resource_name, self.cursor_path_p, self.start_value, self.end_value, self._cached_state, self.last_value_func, self.primary_key
-        )
+    def _transform_item(self, transformer: IncrementalTransformer, row: TDataItem) -> Optional[TDataItem]:
+        row, start_out_of_range, end_out_of_range = transformer(row)
         self.start_out_of_range = start_out_of_range
         self.end_out_of_range = end_out_of_range
-        if row is not None:
-            yield row
+        return row
 
     def get_incremental_value_type(self) -> Type[Any]:
         """Infers the type of incremental value from a class of an instance if those preserve the Generic arguments information."""
@@ -307,13 +312,36 @@ class Incremental(YieldMapItem, BaseConfiguration, Generic[TCursorValue]):
         logger.info(f"Bind incremental on {self.resource_name} with initial_value: {self.initial_value}, start_value: {self.start_value}, end_value: {self.end_value}")
         # cache state
         self._cached_state = self.get_state()
+        self._make_transformers()
         return self
 
     def __str__(self) -> str:
         return f"Incremental at {id(self)} for resource {self.resource_name} with cursor path: {self.cursor_path} initial {self.initial_value} lv_func {self.last_value_func}"
 
+    def _get_transformer(self, items: TDataItems) -> IncrementalTransformer:
+        # Assume list is all of the same type
+        for item in items if isinstance(items, list) else [items]:
+            if is_arrow_item(item):
+                return self._transformers['arrow']
+            elif pd is not None and isinstance(item, pd.DataFrame):
+                return self._transformers['arrow']
+            return self._transformers['json']
+        return self._transformers['json']
 
-class IncrementalResourceWrapper(YieldMapItem):
+    def __call__(self, rows: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+        if rows is None:
+            return rows
+
+        transformer = self._get_transformer(rows)
+        # TODO: Primary key is not applied at bind time?
+        transformer.primary_key = self.primary_key
+
+        if isinstance(rows, list):
+            return  [item for item in (self._transform_item(transformer, row) for row in rows) if item is not None]
+        return self._transform_item(transformer, rows)
+
+
+class IncrementalResourceWrapper(ItemTransform[TDataItem]):
     _incremental: Optional[Incremental[Any]] = None
     """Keeps the injectable incremental"""
     _resource_name: str = None
@@ -421,11 +449,7 @@ class IncrementalResourceWrapper(YieldMapItem):
 
     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         if not self._incremental:
-            yield item
-            return
+            return item
         if self._incremental.primary_key is None:
             self._incremental.primary_key = self.primary_key
-        if isinstance(item, list):
-            yield list(self._incremental(item, meta))
-        else:
-            yield self._incremental(item, meta)
+        return self._incremental(item, meta)
