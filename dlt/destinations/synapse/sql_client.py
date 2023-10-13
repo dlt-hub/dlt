@@ -42,7 +42,6 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         )
         self._conn.add_output_converter(-155, handle_datetimeoffset)
         self._conn.autocommit = True
-        print("Conn string: ", self.credentials.to_odbc_dsn())
         return self._conn
 
     @raise_open_connection_error
@@ -132,15 +131,9 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         curr = self._conn.cursor()
         
         try:
-            print("Executing query:")
-            print(query)
             curr.execute(query, *args)
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
         except pyodbc.Error as outer:
-            print(f"Error in query:")
-            print(query)
-            print("Query error:")
-            print(outer)
             raise outer
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
