@@ -219,7 +219,7 @@ class ParquetDataWriter(DataWriter):
             [pyarrow.field(
                 name,
                 get_py_arrow_datatype(schema_item, self._caps, self.timestamp_timezone),
-                nullable=schema_item["nullable"]
+                nullable=schema_item.get("nullable", True)
             ) for name, schema_item in columns_schema.items()]
         )
         # find row items that are of the complex type (could be abstracted out for use in other writers?)
