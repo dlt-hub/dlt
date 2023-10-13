@@ -21,7 +21,7 @@ from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name, get_module_name, is_inner_callable
-from dlt.extract.exceptions import InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, ExplicitSourceNameInvalid, SourceNotAFunction, SourceSchemaNotAvailable
+from dlt.extract.exceptions import DynamicNameNotStandaloneResource, InvalidTransformerDataTypeGeneratorFunctionRequired, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, ExplicitSourceNameInvalid, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.incremental import IncrementalResourceWrapper
 
 from dlt.extract.typing import TTableHintTemplate
@@ -230,7 +230,7 @@ def resource(
 def resource(
     data: None = ...,
     /,
-    name: str = None,
+    name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
@@ -262,7 +262,7 @@ def resource(
 def resource(
     data: Optional[Any] = None,
     /,
-    name: str = None,
+    name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
@@ -349,8 +349,11 @@ def resource(
                 # raise more descriptive exception if we construct transformer
                 raise InvalidTransformerDataTypeGeneratorFunctionRequired(name or "<no name>", f, type(f))
             raise ResourceFunctionExpected(name or "<no name>", f, type(f))
+        if not standalone and callable(name):
+            raise DynamicNameNotStandaloneResource(get_callable_name(f))
 
-        resource_name = name or get_callable_name(f)
+        # resource_section = name if name and not callable(name) else get_callable_name(f)
+        resource_name = name if name and not callable(name) else get_callable_name(f)
 
         # do not inject config values for inner functions, we assume that they are part of the source
         SPEC: Type[BaseConfiguration] = None
@@ -390,12 +393,13 @@ def resource(
 
             @wraps(conf_f)
             def _wrap(*args: Any, **kwargs: Any) -> DltResource:
-                sig = simulate_func_call(conf_f, skip_args, *args, **kwargs)
-                r = make_resource(resource_name, source_section, compat_wrapper(resource_name, conf_f, sig, *args, **kwargs), incremental)
+                _, mod_sig, bound_args = simulate_func_call(conf_f, skip_args, *args, **kwargs)
+                actual_resource_name = name(bound_args.arguments) if callable(name) else resource_name
+                r = make_resource(actual_resource_name, source_section, compat_wrapper(actual_resource_name, conf_f, sig, *args, **kwargs), incremental)
                 # consider transformer arguments bound
                 r._args_bound = True
                 # keep explicit args passed
-                r._set_explicit_args(conf_f, sig, *args, **kwargs)
+                r._set_explicit_args(conf_f, mod_sig, *args, **kwargs)
                 return r
             return _wrap
         else:
@@ -415,7 +419,7 @@ def resource(
             name = name or get_callable_name(data)  # type: ignore
             func_module = inspect.getmodule(data.gi_frame)
             source_section = _get_source_section_name(func_module)
-
+        assert not callable(name)
         return make_resource(name, source_section, data)
 
 
@@ -440,7 +444,7 @@ def transformer(
     f: None = ...,
     /,
     data_from: TUnboundDltResource = DltResource.Empty,
-    name: str = None,
+    name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
@@ -473,7 +477,7 @@ def transformer(
     f: Callable[Concatenate[TDataItem, TResourceFunParams], Any],
     /,
     data_from: TUnboundDltResource = DltResource.Empty,
-    name: str = None,
+    name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
@@ -489,7 +493,7 @@ def transformer(
     f: Optional[Callable[Concatenate[TDataItem, TResourceFunParams], Any]] = None,
     /,
     data_from: TUnboundDltResource = DltResource.Empty,
-    name: str = None,
+    name: TTableHintTemplate[str] = None,
     table_name: TTableHintTemplate[str] = None,
     write_disposition: TTableHintTemplate[TWriteDisposition] = None,
     columns: TTableHintTemplate[TAnySchemaColumns] = None,

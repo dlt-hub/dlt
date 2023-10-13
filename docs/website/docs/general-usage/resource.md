@@ -226,6 +226,16 @@ def filesystem(bucket_url=dlt.config.value):
 pipeline.run(filesystem("s3://my-bucket/reports"), table_name="reports")
 ```
 
+Standalone may have dynamic name that depends on the arguments passed to the decorated function. For example::
+```python
+@dlt.resource(standalone=True, name=lambda args: args["stream_name"])
+def kinesis(stream_name: str):
+    ...
+
+kinesis_stream = kinesis("telemetry_stream")
+```
+`kinesis_stream` resource has a name **telemetry_stream**
+
 ## Customize resources
 
 ### Filter, transform and pivot data

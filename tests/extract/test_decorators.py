@@ -20,7 +20,7 @@ from dlt.common.schema.typing import TTableSchemaColumns
 
 from dlt.cli.source_detection import detect_source_configs
 from dlt.common.typing import TDataItem
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ExplicitSourceNameInvalid, InconsistentTableTemplate, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, PipeGenInvalid, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, DynamicNameNotStandaloneResource, ExplicitSourceNameInvalid, InconsistentTableTemplate, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, PipeGenInvalid, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.extract.typing import TableNameMeta
@@ -722,6 +722,35 @@ def test_standalone_transformer() -> None:
     os.environ["SOURCES__TEST_DECORATORS__STANDALONE_SIGNATURE__SECRET_END"] = "5"
     os.environ["SOURCES__TEST_DECORATORS__STANDALONE_TRANSFORMER_RETURNS__INIT"] = "2"
     assert list(standalone_signature(1) | standalone_transformer_returns()) == ["AA", "AAAA", "AAAAAA", "AAAAAAAA"]
+
+
+@dlt.transformer(standalone=True, name=lambda args: args["res_name"])
+def standalone_tx_with_name(item: TDataItem, res_name: str, init: int = dlt.config.value):
+    return res_name * item * init
+
+
+def test_standalone_resource_with_name() -> None:
+    my_tx = standalone_tx_with_name("my_tx")
+    assert my_tx.section == "test_decorators"
+    assert my_tx.name == "my_tx"
+
+    # still the config comes via the function name
+    os.environ["SOURCES__TEST_DECORATORS__STANDALONE_TX_WITH_NAME__INIT"] = "2"
+    assert list(dlt.resource([1, 2, 3], name="x") | my_tx) == ['my_txmy_tx', 'my_txmy_txmy_txmy_tx', 'my_txmy_txmy_txmy_txmy_txmy_tx']
+
+    with pytest.raises(DynamicNameNotStandaloneResource):
+        @dlt.resource(standalone=False, name=lambda args: args["res_name"])  # type: ignore[call-overload]
+        def standalone_name():
+            yield "A"
+
+    # we looks for non existing argument in lambda
+    @dlt.resource(standalone=True, name=lambda args: args["res_name"])
+    def standalone_name_2(_name: str):
+        yield "A"
+
+    # so resource will not instantiate
+    with pytest.raises(KeyError):
+        standalone_name_2("_N")
 
 
 def test_resource_rename_credentials_separation():

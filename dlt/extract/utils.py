@@ -1,6 +1,6 @@
 import inspect
 import makefun
-from typing import Optional, Union, List, Any, Sequence, cast
+from typing import Optional, Tuple, Union, List, Any, Sequence, cast
 from collections.abc import Mapping as C_Mapping
 
 from dlt.common.exceptions import MissingDependencyException
@@ -70,8 +70,11 @@ def reset_pipe_state(pipe: SupportsPipe, source_state_: Optional[DictStrAny] = N
     reset_resource_state(pipe.name, source_state_)
 
 
-def simulate_func_call(f: Union[Any, AnyFun], args_to_skip: int, *args: Any, **kwargs: Any) -> inspect.Signature:
-    """Simulates a call to a resource or transformer function before it will be wrapped for later execution in the pipe"""
+def simulate_func_call(f: Union[Any, AnyFun], args_to_skip: int, *args: Any, **kwargs: Any) -> Tuple[inspect.Signature, inspect.Signature, inspect.BoundArguments]:
+    """Simulates a call to a resource or transformer function before it will be wrapped for later execution in the pipe
+
+       Returns a tuple with a `f` signature, modified signature in case of transformers and bound arguments
+    """
     if not callable(f):
         # just provoke a call to raise default exception
         f()
@@ -79,13 +82,12 @@ def simulate_func_call(f: Union[Any, AnyFun], args_to_skip: int, *args: Any, **k
 
     sig = inspect.signature(f)
     # simulate the call to the underlying callable
-    if args or kwargs:
-        no_item_sig = sig.replace(parameters=list(sig.parameters.values())[args_to_skip:])
-        try:
-            no_item_sig.bind(*args, **kwargs)
-        except TypeError as v_ex:
-            raise TypeError(f"{get_callable_name(f)}(): " + str(v_ex))
-    return sig
+    no_item_sig = sig.replace(parameters=list(sig.parameters.values())[args_to_skip:])
+    try:
+        bound_args = no_item_sig.bind(*args, **kwargs)
+    except TypeError as v_ex:
+        raise TypeError(f"{get_callable_name(f)}(): " + str(v_ex))
+    return sig, no_item_sig, bound_args
 
 
 def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> inspect.Parameter:

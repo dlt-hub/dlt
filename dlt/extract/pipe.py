@@ -296,7 +296,7 @@ class Pipe(SupportsPipe):
         # skip the data item argument for transformers
         args_to_skip = 1 if self.has_parent else 0
         # simulate function call
-        sig = simulate_func_call(head, args_to_skip, *args, **kwargs)
+        sig, _, _ = simulate_func_call(head, args_to_skip, *args, **kwargs)
         assert callable(head)
 
         # create wrappers with partial
