@@ -311,7 +311,7 @@ WHERE """
                         sql += ";"
                     sql_updates.append(sql)
                 # create a schema update for particular table
-                partial_table = copy(self.schema.get_table(table_name))
+                partial_table = copy(self.get_load_table(table_name))
                 # keep only new columns
                 partial_table["columns"] = {c["name"]: c for c in new_columns}
                 schema_update[table_name] = partial_table

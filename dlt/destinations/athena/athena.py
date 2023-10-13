@@ -69,18 +69,17 @@ class AthenaTypeMapper(TypeMapper):
         "int": "bigint",
     }
 
-    def __init__(self, capabilities: DestinationCapabilitiesContext, iceberg_mode: bool):
+    def __init__(self, capabilities: DestinationCapabilitiesContext):
         super().__init__(capabilities)
-        self.iceberg_mode = iceberg_mode
 
     def to_db_integer_type(self, precision: Optional[int]) -> str:
         if precision is None:
             return "bigint"
-        # iceberg does not support smallint and tinyint
+        # TODO: iceberg does not support smallint and tinyint
         if precision <= 8:
-            return "int" if self.iceberg_mode else "tinyint"
+            return "int"
         elif precision <= 16:
-            return "int" if self.iceberg_mode else "smallint"
+            return "int"
         elif precision <= 32:
             return "int"
         return "bigint"
@@ -303,7 +302,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         super().__init__(schema, config, sql_client)
         self.sql_client: AthenaSQLClient = sql_client  # type: ignore
         self.config: AthenaClientConfiguration = config
-        self.type_mapper = AthenaTypeMapper(self.capabilities, True)
+        self.type_mapper = AthenaTypeMapper(self.capabilities)
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # only truncate tables in iceberg mode
@@ -364,12 +363,12 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return job
 
     def _create_append_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        if self._is_iceberg_table(table_chain[0]):
+        if self._is_iceberg_table(self.get_load_table(table_chain[0]["name"])):
             return [SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": False})]
         return super()._create_append_followup_jobs(table_chain)
 
     def _create_replace_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        if self._is_iceberg_table(table_chain[0]):
+        if self._is_iceberg_table(self.get_load_table(table_chain[0]["name"])):
             return [SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": True})]
         return super()._create_replace_followup_jobs(table_chain)
 
@@ -400,10 +399,10 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def get_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
         table = super().get_load_table(table_name, staging)
+        if self.config.force_iceberg:
+            table["table_format"] ="iceberg"
         if staging and table.get("table_format", None) == "iceberg":
             table.pop("table_format")
-        elif self.config.force_iceberg:
-            table["table_format"] = "iceberg"
         return table
 
     @staticmethod
