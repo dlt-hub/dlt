@@ -33,42 +33,71 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     def __init__(self, dataset_name: str, credentials: SynapseCredentials) -> None:
         super().__init__(credentials.database, dataset_name)
         self._conn: pyodbc.Connection = None
+        self._transaction_in_progress = False  # Transaction state flag
         self.credentials = credentials
 
     def open_connection(self) -> pyodbc.Connection:
-        self._conn = pyodbc.connect(
-            self.credentials.to_odbc_dsn(),
-            timeout=self.credentials.connect_timeout,
-        )
-        self._conn.add_output_converter(-155, handle_datetimeoffset)
-        self._conn.autocommit = True
-        return self._conn
+        try:
+            self._conn = pyodbc.connect(
+                self.credentials.to_odbc_dsn(),
+                timeout=self.credentials.connect_timeout,
+            )
+            self._conn.add_output_converter(-155, handle_datetimeoffset)
+            self._conn.autocommit = True
+            return self._conn
+        except pyodbc.Error as e:
+            # Log detailed error information here
+            raise CustomDatabaseError("Failed to open connection") from e
+
 
     @raise_open_connection_error
     def close_connection(self) -> None:
-        if self._conn:
-            self._conn.close()
-            self._conn = None
+        try:
+            if self._conn:
+                if self._transaction_in_progress:
+                    # Log that a transaction was in progress and is being committed
+                    self._conn.commit()  # Or self._conn.rollback() based on desired behavior
+                self._conn.close()
+        except pyodbc.Error as e:
+            # Log detailed error information here
+            raise CustomDatabaseError("Failed to close connection") from e
+
 
     @contextmanager
     def begin_transaction(self) -> Iterator[DBTransaction]:
         try:
+            if self._transaction_in_progress:
+                raise CustomDatabaseError("Transaction already in progress")
+            
             self._conn.autocommit = False
+            self._transaction_in_progress = True
+            
             yield self
+            
             self.commit_transaction()
         except Exception:
             self.rollback_transaction()
             raise
+        finally:
+            self._transaction_in_progress = False
 
     @raise_database_error
     def commit_transaction(self) -> None:
+        if not self._transaction_in_progress:
+            raise CustomDatabaseError("No transaction in progress")
+        
         self._conn.commit()
         self._conn.autocommit = True
+        self._transaction_in_progress = False
 
     @raise_database_error
     def rollback_transaction(self) -> None:
+        if not self._transaction_in_progress:
+            raise CustomDatabaseError("No transaction in progress")
+        
         self._conn.rollback()
         self._conn.autocommit = True
+        self._transaction_in_progress = False
 
     @property
     def native_connection(self) -> pyodbc.Connection:
