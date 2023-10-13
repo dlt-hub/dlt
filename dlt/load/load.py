@@ -277,7 +277,7 @@ class Load(Runnable[ThreadPool]):
                 continue
             for table in get_child_tables(schema.tables, top_job_table["name"]):
                 # only add tables for tables that have jobs unless the disposition is replace
-                # TODO: this is a (formerly used) hack to make test_merge_on_keys_in_schema, 
+                # TODO: this is a (formerly used) hack to make test_merge_on_keys_in_schema,
                 # we should change that test
                 if not table["name"] in tables_with_jobs and top_job_table["write_disposition"] != "replace":
                     continue

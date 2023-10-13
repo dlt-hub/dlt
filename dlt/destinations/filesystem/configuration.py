@@ -10,7 +10,6 @@ from dlt.common.storages import FilesystemConfiguration
 @configspec
 class FilesystemDestinationClientConfiguration(FilesystemConfiguration, DestinationClientStagingConfiguration): # type: ignore[misc]
     destination_name: Final[str] = "filesystem"  # type: ignore
-    force_iceberg: Optional[bool] = False
 
     @resolve_type('credentials')
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
