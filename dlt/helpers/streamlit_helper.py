@@ -226,11 +226,13 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
         except SqlClientNotAvailable:
             st.error("Cannot load data - SqlClient not available")
 
-    st.header(f"Schemas and their tables")
-    if schema_name:
-        schema = pipeline.schemas[schema_name]
-    else:
-        schema = pipeline.default_schema
+    # Not needed anymore(?)
+    # if schema_name:
+    #     schema = pipeline.schemas[schema_name]
+    # else:
+    #     schema = pipeline.default_schema
+
+    st.header("Schemas and their tables")
 
     num_schemas = len(pipeline.schema_names)
     if num_schemas == 1:
