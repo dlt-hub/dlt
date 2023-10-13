@@ -2,7 +2,6 @@ import sys
 from typing import Dict, List
 import humanize
 
-
 from dlt.common import pendulum
 from dlt.common.typing import AnyFun
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
@@ -117,11 +116,13 @@ def write_load_status_page(pipeline: Pipeline) -> None:
     try:
         st.header("Pipeline info")
         credentials = pipeline.sql_client().credentials
+        schema_names = ", ".join(sorted(pipeline.schema_names))
         st.markdown(f"""
         * pipeline name: **{pipeline.pipeline_name}**
         * destination: **{str(credentials)}** in **{pipeline.destination.__name__}**
         * dataset name: **{pipeline.dataset_name}**
         * default schema name: **{pipeline.default_schema_name}**
+        * all schema names: **{schema_names}**
         """)
 
         st.header("Last load info")
@@ -225,16 +226,26 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
         except SqlClientNotAvailable:
             st.error("Cannot load data - SqlClient not available")
 
-
+    st.header(f"Schemas and their tables")
     if schema_name:
         schema = pipeline.schemas[schema_name]
     else:
         schema = pipeline.default_schema
-    st.title(f"Available tables in {schema.name} schema")
 
-    for table in schema.data_tables():
+    num_schemas = len(pipeline.schema_names)
+    if num_schemas == 1:
+        schema_name = pipeline.schema_names[0]
+        selected_schema = pipeline.schemas.get(schema_name)
+        st.subheader(f"Schema: {schema_name}")
+    elif num_schemas > 1:
+        st.subheader("Schema:")
+        text = "Pick a schema name to see all its tables below"
+        selected_schema_name = st.selectbox(text, sorted(pipeline.schema_names))
+        selected_schema = pipeline.schemas.get(selected_schema_name)
+
+    for table in sorted(selected_schema.data_tables(), key=lambda table: table["name"]):
         table_name = table["name"]
-        st.header(table_name)
+        st.subheader(f"Table: {table_name}")
         if "description" in table:
             st.text(table["description"])
         table_hints: List[str] = []
@@ -264,7 +275,7 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
                     st.text(f"Top {rows_count} row(s)")
                 st.dataframe(df)
 
-    st.title("Run your query")
+    st.header("Run your query")
     sql_query = st.text_area("Enter your SQL query", value=example_query)
     if st.button("Run Query"):
         if sql_query:
