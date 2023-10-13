@@ -187,7 +187,8 @@ class Schema:
 
         return new_row, updated_table_partial
 
-    def update_schema(self, partial_table: TPartialTableSchema) -> TPartialTableSchema:
+    def update_table(self, partial_table: TPartialTableSchema) -> TPartialTableSchema:
+        """Update table in this schema"""
         table_name = partial_table["name"]
         parent_table_name = partial_table.get("parent")
         # check if parent table present
@@ -204,7 +205,23 @@ class Schema:
         else:
             # merge tables performing additional checks
             partial_table = utils.merge_tables(table, partial_table)
+
+        self.data_item_normalizer.extend_table(table_name)
         return partial_table
+
+
+    def update_schema(self, schema: "Schema") -> None:
+        """Updates this schema from an incoming schema"""
+        # update all tables
+        for table in schema.tables.values():
+            self.update_table(table)
+        # update normalizer config nondestructively
+        self.data_item_normalizer.update_normalizer_config(self, self.data_item_normalizer.get_normalizer_config(schema))
+        self.update_normalizers()
+        # update and compile settings
+        self._settings = deepcopy(schema.settings)
+        self._compile_settings()
+
 
     def bump_version(self) -> Tuple[int, str]:
         """Computes schema hash in order to check if schema content was modified. In such case the schema ``stored_version`` and ``stored_version_hash`` are updated.

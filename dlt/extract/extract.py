@@ -191,7 +191,7 @@ def extract_with_schema(
             # iterate over all items in the pipeline and update the schema if dynamic table hints were present
             for _, partials in extractor.items():
                 for partial in partials:
-                    schema.update_schema(schema.normalize_table_identifiers(partial))
+                    schema.update_table(schema.normalize_table_identifiers(partial))
 
     return extract_id
 

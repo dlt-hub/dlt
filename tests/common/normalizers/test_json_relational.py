@@ -4,7 +4,7 @@ from dlt.common.typing import StrAny, DictStrAny
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.utils import digest128, uniq_id
-from dlt.common.schema import Schema
+from dlt.common.schema import Schema, TTableSchema
 from dlt.common.schema.utils import new_table
 
 from dlt.common.normalizers.json.relational import RelationalNormalizerConfigPropagation, DataItemNormalizer as RelationalNormalizer, DLT_ID_LENGTH_BYTES, TDataItemRow
@@ -47,7 +47,7 @@ def test_flatten_fix_field_name(norm: RelationalNormalizer) -> None:
 
 def test_preserve_complex_value(norm: RelationalNormalizer) -> None:
     # add table with complex column
-    norm.schema.update_schema(
+    norm.schema.update_table(
         new_table("with_complex",
             columns = [{
                 "name": "value",
@@ -372,10 +372,10 @@ def test_list_in_list() -> None:
 
     # test the same setting webpath__list to complex
     zen_table = new_table("zen")
-    schema.update_schema(zen_table)
+    schema.update_table(zen_table)
 
     path_table = new_table("zen__webpath", parent_table_name="zen", columns=[{"name": "list", "data_type": "complex"}])
-    schema.update_schema(path_table)
+    schema.update_table(path_table)
     rows = list(schema.normalize_data_item(chats, "1762162.1212", "zen"))
     # both lists are complex types now
     assert len(rows) == 3
@@ -544,7 +544,7 @@ def test_preserves_complex_types_list(norm: RelationalNormalizer) -> None:
     # the exception to test_removes_normalized_list
     # complex types should be left as they are
     # add table with complex column
-    norm.schema.update_schema(new_table("event_slot",
+    norm.schema.update_table(new_table("event_slot",
         columns = [{
                 "name": "value",
                 "data_type": "complex",
@@ -772,6 +772,35 @@ def test_normalize_empty_keys() -> None:
     data = {"a": 1, "b": [{"": 2}]}
     rows = list(schema.normalize_data_item(data, "1762162.1212", "s"))
     assert rows[1][1]["_empty"] == 2
+
+
+# could also be in schema tests
+def test_propagation_update_on_table_change(norm: RelationalNormalizer):
+
+    # append does not have propagated columns
+    table_1 = new_table("table_1", write_disposition="append")
+    norm.schema.update_table(table_1)
+    assert "config" not in norm.schema._normalizers_config["json"]
+
+    # change table to merge
+    table_1["write_disposition"] = "merge"
+    norm.schema.update_table(table_1)
+    assert norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"][table_1["name"]] == {'_dlt_id': '_dlt_root_id'}
+
+    # add subtable
+    table_2 = new_table("table_2", parent_table_name="table_1")
+    norm.schema.update_table(table_2)
+    assert "table_2" not in norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]
+
+    # test merging into existing propagation
+    norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]["table_3"] = {'prop1': 'prop2'}
+    table_3 = new_table("table_3", write_disposition="merge")
+    norm.schema.update_table(table_3)
+    assert norm.schema._normalizers_config["json"]["config"]["propagation"]["tables"]["table_3"] == {
+        '_dlt_id': '_dlt_root_id',
+        'prop1': 'prop2'
+    }
+
 
 
 def set_max_nesting(norm: RelationalNormalizer, max_nesting: int) -> None:

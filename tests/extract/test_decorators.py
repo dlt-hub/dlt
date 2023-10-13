@@ -435,7 +435,7 @@ def test_source_schema_context() -> None:
         schema = dlt.current.source_schema()
         assert schema.name == "created_ad_hoc"
         # modify schema in place
-        schema.update_schema(new_table("source_table"))
+        schema.update_table(new_table("source_table"))
         return dlt.resource([1, 2, 3], name="res")
 
     _assert_source_schema(created_ad_hoc(), "created_ad_hoc")
@@ -446,7 +446,7 @@ def test_source_schema_context() -> None:
         schema = dlt.current.source_schema()
         assert schema.name == "explicit"
         # modify schema in place
-        schema.update_schema(new_table("source_table"))
+        schema.update_table(new_table("source_table"))
         return dlt.resource([1, 2, 3], name="res")
 
     _assert_source_schema(created_explicit(), "explicit")
@@ -457,7 +457,7 @@ def test_source_schema_context() -> None:
         schema = dlt.current.source_schema()
         assert schema.name == "global"
         # modify schema in place
-        schema.update_schema(new_table("source_table"))
+        schema.update_table(new_table("source_table"))
         return dlt.resource([1, 2, 3], name="res")
 
     _assert_source_schema(created_global(), "global")
@@ -502,7 +502,7 @@ def test_source_schema_modified() -> None:
 
     s = schema_test()
     schema = s.discover_schema()
-    schema.update_schema(new_table("table"))
+    schema.update_table(new_table("table"))
     s = schema_test()
     assert "table" not in s.discover_schema().tables
 

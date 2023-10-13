@@ -30,7 +30,7 @@ class TDataItemRowChild(TDataItemRow, total=False):
     value: Any  # for lists of simple types
 
 
-class RelationalNormalizerConfigPropagation(TypedDict, total=True):
+class RelationalNormalizerConfigPropagation(TypedDict, total=False):
     root: Optional[Mapping[str, TColumnName]]
     tables: Optional[Mapping[str, Mapping[str, TColumnName]]]
 
@@ -157,9 +157,6 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     def _get_propagated_values(self, table: str, row: TDataItemRow, _r_lvl: int) -> StrAny:
         extend: DictStrAny = {}
-        # propagate root id for merge tables
-        if _r_lvl == 0 and self.schema.tables.get(table, {}).get("write_disposition") == "merge":
-            extend["_dlt_root_id"] = row["_dlt_id"]
 
         config = self.propagation_config
         if config:
@@ -260,6 +257,20 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 "unique": [TSimpleRegex("_dlt_id")]
             }
         )
+
+        for table_name in self.schema.tables.keys():
+            self.extend_table(table_name)
+
+    def extend_table(self, table_name: str) -> None:
+        # if the table has a merge w_d, add propagation info to normalizer
+        table = self.schema.tables.get(table_name)
+        if not table.get("parent") and table["write_disposition"] == "merge":
+            DataItemNormalizer.update_normalizer_config(self.schema, {"propagation": {
+                "tables": {
+                    table_name: {
+                        "_dlt_id": TColumnName("_dlt_root_id")
+                    }
+                }}})
 
     def normalize_data_item(self, item: TDataItem, load_id: str, table_name: str) -> TNormalizedRowIterator:
         # wrap items that are not dictionaries in dictionary, otherwise they cannot be processed by the JSON normalizer

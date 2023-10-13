@@ -63,7 +63,7 @@ def file_storage() -> FileStorage:
 def test_all_data_types(client: WeaviateClient, write_disposition: TWriteDisposition, file_storage: FileStorage) -> None:
     class_name = "AllTypes"
     # we should have identical content with all disposition types
-    client.schema.update_schema(new_table(class_name, write_disposition=write_disposition, columns=TABLE_UPDATE))
+    client.schema.update_table(new_table(class_name, write_disposition=write_disposition, columns=TABLE_UPDATE))
     client.schema.bump_version()
     client.update_stored_schema()
 
@@ -103,7 +103,7 @@ def test_case_sensitive_properties_create(client: WeaviateClient) -> None:
         "nullable": False
     },
     ]
-    client.schema.update_schema(client.schema.normalize_table_identifiers(new_table(class_name, columns=table_create)))
+    client.schema.update_table(client.schema.normalize_table_identifiers(new_table(class_name, columns=table_create)))
     client.schema.bump_version()
     with pytest.raises(PropertyNameConflict):
         client.update_stored_schema()
@@ -124,7 +124,7 @@ def test_case_insensitive_properties_create(ci_client: WeaviateClient) -> None:
         "nullable": False
     },
     ]
-    ci_client.schema.update_schema(ci_client.schema.normalize_table_identifiers(new_table(class_name, columns=table_create)))
+    ci_client.schema.update_table(ci_client.schema.normalize_table_identifiers(new_table(class_name, columns=table_create)))
     ci_client.schema.bump_version()
     ci_client.update_stored_schema()
     _, table_columns = ci_client.get_storage_table("ColClass")
@@ -146,13 +146,13 @@ def test_case_sensitive_properties_add(client: WeaviateClient) -> None:
         "nullable": False
     },
     ]
-    client.schema.update_schema(
+    client.schema.update_table(
         client.schema.normalize_table_identifiers(new_table(class_name, columns=table_create))
     )
     client.schema.bump_version()
     client.update_stored_schema()
 
-    client.schema.update_schema(
+    client.schema.update_table(
         client.schema.normalize_table_identifiers(new_table(class_name, columns=table_update))
     )
     client.schema.bump_version()
@@ -172,7 +172,7 @@ def test_load_case_sensitive_data(client: WeaviateClient, file_storage: FileStor
         "data_type": "bigint",
         "nullable": False
     }}
-    client.schema.update_schema(new_table(class_name, columns=[table_create["col1"]]))
+    client.schema.update_table(new_table(class_name, columns=[table_create["col1"]]))
     client.schema.bump_version()
     client.update_stored_schema()
     # prepare a data item where is name clash due to Weaviate being CI
@@ -194,7 +194,7 @@ def test_load_case_sensitive_data_ci(ci_client: WeaviateClient, file_storage: Fi
         "data_type": "bigint",
         "nullable": False
     }}
-    ci_client.schema.update_schema(new_table(class_name, columns=[table_create["col1"]]))
+    ci_client.schema.update_table(new_table(class_name, columns=[table_create["col1"]]))
     ci_client.schema.bump_version()
     ci_client.update_stored_schema()
     # prepare a data item where is name clash due to Weaviate being CI

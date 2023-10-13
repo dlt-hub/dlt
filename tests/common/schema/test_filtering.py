@@ -85,10 +85,10 @@ def test_filter_parent_table_schema_update(schema: Schema) -> None:
     # try to apply updates
     assert len(updates) == 2
     # event bot table
-    schema.update_schema(updates[0])
+    schema.update_table(updates[0])
     # event_bot__metadata__elvl1__elvl2
     with pytest.raises(ParentTableNotFoundException) as e:
-        schema.update_schema(updates[1])
+        schema.update_table(updates[1])
     assert e.value.table_name == "event_bot__metadata__elvl1__elvl2"
     assert e.value.parent_table_name == "event_bot__metadata__elvl1"
 
@@ -107,7 +107,7 @@ def test_filter_parent_table_schema_update(schema: Schema) -> None:
             assert set(row.keys()).issuperset(["_dlt_id", "_dlt_parent_id", "_dlt_list_idx"])
         row, partial_table = schema.coerce_row(t, p, row)
         updates.append(partial_table)
-        schema.update_schema(partial_table)
+        schema.update_table(partial_table)
 
     assert len(updates) == 4
     # we must have leaf table
@@ -120,5 +120,5 @@ def _add_excludes(schema: Schema) -> None:
     bot_table["filters"]["includes"] = [
         TSimpleRegex("re:^data__custom$"), TSimpleRegex("re:^custom_data__included_object__"), TSimpleRegex("re:^metadata__elvl1__elvl2__")
     ]
-    schema.update_schema(bot_table)
+    schema.update_table(bot_table)
     schema._compile_settings()
