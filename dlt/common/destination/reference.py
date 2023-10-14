@@ -290,6 +290,8 @@ class JobClientBase(ABC):
                     logger.warning(f"A column {column_name} in table {table_name} in schema {self.schema.name} is incomplete. It was not bound to the data during normalizations stage and its data type is unknown. Did you add this column manually in code ie. as a merge key?")
 
     def get_load_table(self, table_name: str, prepare_for_staging: bool = False) -> TTableSchema:
+        if table_name not in self.schema.tables:
+            return None
         try:
             # make a copy of the schema so modifications do not affect the original document
             table = deepcopy(self.schema.tables[table_name])

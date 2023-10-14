@@ -326,16 +326,17 @@ WHERE """
         # build sql
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
         table = self.get_load_table(table_name)
+        table_format = table.get("table_format") if table else None
         sql_result: List[str] = []
         if not generate_alter:
             # build CREATE
             sql = f"CREATE TABLE {canonical_name} (\n"
-            sql += ",\n".join([self._get_column_def_sql(c, table.get("table_format")) for c in new_columns])
+            sql += ",\n".join([self._get_column_def_sql(c, table_format) for c in new_columns])
             sql += ")"
             sql_result.append(sql)
         else:
             sql_base = f"ALTER TABLE {canonical_name}\n"
-            add_column_statements = self._make_add_column_sql(new_columns, table.get("table_format"))
+            add_column_statements = self._make_add_column_sql(new_columns, table_format)
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"
                 sql_result.append(sql_base + column_sql.join(add_column_statements))
