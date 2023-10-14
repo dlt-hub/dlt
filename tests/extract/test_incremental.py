@@ -844,7 +844,7 @@ def endless_sequence(
     data = [{'updated_at': i} for i in range(start, start + max_values)]
     source_items = data_to_item_format(item_type, data)
     yield from source_items
-    
+
 
 @pytest.mark.parametrize("item_type", ALL_ITEM_FORMATS)
 def test_chunked_ranges(item_type: TItemFormat) -> None:
