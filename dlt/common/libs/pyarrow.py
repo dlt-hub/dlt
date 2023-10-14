@@ -152,3 +152,16 @@ def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColu
             **_get_column_type_from_py_arrow(field.type),  # type: ignore[misc]
         }
     return result
+
+
+def get_row_count(parquet_file: str) -> int:
+    """Get the number of rows in a parquet file.
+
+    Args:
+        parquet_file (str): path to parquet file
+
+    Returns:
+        int: number of rows
+    """
+    with pyarrow.parquet.ParquetFile(parquet_file) as reader:
+        return reader.metadata.num_rows  # type: ignore[no-any-return]

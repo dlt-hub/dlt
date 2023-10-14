@@ -1,6 +1,7 @@
 import os
 from typing import Any, Callable, List, Dict, Sequence, Tuple, Set
 from multiprocessing.pool import AsyncResult, Pool as ProcessPool
+from pathlib import Path
 
 from dlt.common import pendulum, json, logger, sleep
 from dlt.common.configuration import with_config, known_sections
@@ -22,6 +23,7 @@ from dlt.common.pipeline import NormalizeInfo
 from dlt.common.utils import chunks, TRowCount, merge_row_count, increase_row_count
 
 from dlt.normalize.configuration import NormalizeConfiguration
+from dlt.normalize.items_normalizers import ParquetItemsNormalizer, JsonLItemsNormalizer, ItemsNormalizer
 
 # normalize worker wrapping function (map_parallel, map_single) return type
 TMapFuncRV = Tuple[Sequence[TSchemaUpdate], TRowCount]
@@ -67,13 +69,13 @@ class Normalize(Runnable[ProcessPool]):
 
     @staticmethod
     def w_normalize_files(
-            normalize_storage_config: NormalizeStorageConfiguration,
-            loader_storage_config: LoadStorageConfiguration,
-            destination_caps: DestinationCapabilitiesContext,
-            stored_schema: TStoredSchema,
-            load_id: str,
-            extracted_items_files: Sequence[str],
-        ) -> TWorkerRV:
+        normalize_storage_config: NormalizeStorageConfiguration,
+        loader_storage_config: LoadStorageConfiguration,
+        destination_caps: DestinationCapabilitiesContext,
+        stored_schema: TStoredSchema,
+        load_id: str,
+        extracted_items_files: Sequence[str],
+    ) -> TWorkerRV:
 
         schema_updates: List[TSchemaUpdate] = []
         total_items = 0
@@ -93,37 +95,22 @@ class Normalize(Runnable[ProcessPool]):
                     root_table_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file).table_name
                     root_tables.add(root_table_name)
                     logger.debug(f"Processing extracted items in {extracted_items_file} in load_id {load_id} with table name {root_table_name} and schema {schema.name}")
-                    if extracted_items_file.endswith("parquet"):
-                        from dlt.common.libs.pyarrow import pyarrow
-                        table = pyarrow.parquet.ParquetFile(normalize_storage.storage.make_full_path(extracted_items_file))
-                        table_meta = table.metadata
-                        items_count = table_meta.num_rows
-                        target_folder = load_storage.storage.make_full_path(os.path.join(load_id, LoadStorage.NEW_JOBS_FOLDER))
-                        load_storage.storage.atomic_import(normalize_storage.storage.make_full_path(extracted_items_file), target_folder)
-                        total_items += items_count
-                        r_counts: TRowCount = {}
-                        increase_row_count(r_counts, root_table_name, items_count)
-                        merge_row_count(row_counts, r_counts)
-                        # if any item found in the file
-                        if items_count > 0:
-                            populated_root_tables.add(root_table_name)
+
+                    extension = Path(extracted_items_file).suffix
+                    normalizer: ItemsNormalizer
+                    if extension == ".parquet":
+                        normalizer = ParquetItemsNormalizer()
                     else:
-                        with normalize_storage.storage.open_file(extracted_items_file) as f:
-                            # enumerate jsonl file line by line
-                            items_count = 0
-                            for line_no, line in enumerate(f):
-                                items: List[TDataItem] = json.loads(line)
-                                partial_update, items_count, r_counts = Normalize._w_normalize_chunk(load_storage, schema, load_id, root_table_name, items)
-                                schema_updates.append(partial_update)
-                                total_items += items_count
-                                merge_row_count(row_counts, r_counts)
-                                logger.debug(f"Processed {line_no} items from file {extracted_items_file}, items {items_count} of total {total_items}")
-                            # if any item found in the file
-                            if items_count > 0:
-                                populated_root_tables.add(root_table_name)
-                                logger.debug(f"Processed total {line_no + 1} lines from file {extracted_items_file}, total items {total_items}")
-                            # make sure base tables are all covered
-                            increase_row_count(row_counts, root_table_name, 0)
+                        normalizer = JsonLItemsNormalizer()
+                    partial_updates, items_count, r_counts = normalizer(extracted_items_file, load_storage, normalize_storage, schema, load_id, root_table_name)
+                    schema_updates.extend(partial_updates)
+                    total_items += items_count
+                    merge_row_count(row_counts, r_counts)
+                    if items_count > 0:
+                        populated_root_tables.add(root_table_name)
+                        logger.debug(f"Processed total {line_no + 1} lines from file {extracted_items_file}, total items {total_items}")
+                    # make sure base tables are all covered
+                    increase_row_count(row_counts, root_table_name, 0)
                 # write empty jobs for tables without items if table exists in schema
                 for table_name in root_tables - populated_root_tables:
                     if table_name not in schema.tables:
@@ -140,47 +127,6 @@ class Normalize(Runnable[ProcessPool]):
         logger.info(f"Processed total {total_items} items in {len(extracted_items_files)} files")
 
         return schema_updates, total_items, load_storage.closed_files(), row_counts
-
-    @staticmethod
-    def _w_normalize_chunk(load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem]) -> Tuple[TSchemaUpdate, int, TRowCount]:
-        column_schemas: Dict[str, TTableSchemaColumns] = {}  # quick access to column schema for writers below
-        schema_update: TSchemaUpdate = {}
-        schema_name = schema.name
-        items_count = 0
-        row_counts: TRowCount = {}
-
-        for item in items:
-            for (table_name, parent_table), row in schema.normalize_data_item(item, load_id, root_table_name):
-                # filter row, may eliminate some or all fields
-                row = schema.filter_row(table_name, row)
-                # do not process empty rows
-                if row:
-                    # decode pua types
-                    for k, v in row.items():
-                        row[k] = custom_pua_decode(v)  # type: ignore
-                    # coerce row of values into schema table, generating partial table with new columns if any
-                    row, partial_table = schema.coerce_row(table_name, parent_table, row)
-                    # theres a new table or new columns in existing table
-                    if partial_table:
-                        # update schema and save the change
-                        schema.update_table(partial_table)
-                        table_updates = schema_update.setdefault(table_name, [])
-                        table_updates.append(partial_table)
-                        # update our columns
-                        column_schemas[table_name] = schema.get_table_columns(table_name)
-                    # get current columns schema
-                    columns = column_schemas.get(table_name)
-                    if not columns:
-                        columns = schema.get_table_columns(table_name)
-                        column_schemas[table_name] = columns
-                    # store row
-                    # TODO: it is possible to write to single file from many processes using this: https://gitlab.com/warsaw/flufl.lock
-                    load_storage.write_data_item(load_id, schema_name, table_name, row, columns)
-                    # count total items
-                    items_count += 1
-                    increase_row_count(row_counts, table_name, 1)
-            signals.raise_if_signalled()
-        return schema_update, items_count, row_counts
 
     def update_table(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
         for schema_update in schema_updates:
