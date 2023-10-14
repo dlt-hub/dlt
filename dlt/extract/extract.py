@@ -221,8 +221,6 @@ class ArrowExtractor(Extractor):
         static_table["columns"] = arrow_columns
         static_table["name"] = table_name
         self.dynamic_tables[table_name] = [static_table]
-        # update schema with new columns
-        self.schema.update_schema(self.schema.normalize_table_identifiers(static_table))
 
 
 def extract(

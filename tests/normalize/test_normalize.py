@@ -392,7 +392,7 @@ def normalize_pending(normalize: Normalize, schema_name: str = "event") -> str:
 
 def extract_cases(normalize_storage: NormalizeStorage, cases: Sequence[str]) -> None:
     for case in cases:
-        schema_name, table_name, _ = NormalizeStorage.parse_normalize_file_name(case + ".jsonl")
+        schema_name, table_name, _, _ = NormalizeStorage.parse_normalize_file_name(case + ".jsonl")
         with open(json_case_path(case), "rb") as f:
             items = json.load(f)
         extract_items(normalize_storage, items, schema_name, table_name)

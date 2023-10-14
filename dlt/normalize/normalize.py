@@ -83,6 +83,8 @@ class Normalize(Runnable[ProcessPool]):
         load_storages: Dict[TLoaderFileFormat, LoadStorage] = {}
 
         def _get_load_storage(file_format: TLoaderFileFormat) -> LoadStorage:
+            if file_format != "parquet":
+                file_format = destination_caps.preferred_loader_file_format
             if storage := load_storages.get(file_format):
                 return storage
             if file_format not in destination_caps.supported_loader_file_formats:
@@ -113,7 +115,6 @@ class Normalize(Runnable[ProcessPool]):
 
                     file_format = parsed_file_name.file_format
                     load_storage = _get_load_storage(file_format)
-                    file_format = NormalizeStorage.parse_normalize_file_name(extracted_items_file).file_format
                     normalizer: ItemsNormalizer
                     if file_format == "parquet":
                         normalizer = ParquetItemsNormalizer()
