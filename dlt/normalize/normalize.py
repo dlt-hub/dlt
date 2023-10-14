@@ -87,7 +87,8 @@ class Normalize(Runnable[ProcessPool]):
                 file_format = destination_caps.preferred_loader_file_format or destination_caps.preferred_staging_file_format
             if storage := load_storages.get(file_format):
                 return storage
-            supported_formats = list(set(destination_caps.supported_loader_file_formats) | set(destination_caps.supported_staging_file_formats))
+            # TODO: capabilities.supporteed_*_formats can be None, it should have defaults
+            supported_formats = list(set(destination_caps.supported_loader_file_formats or []) | set(destination_caps.supported_staging_file_formats or []))
             if file_format not in supported_formats:
                 if file_format == "parquet":  # Give users a helpful error message for parquet
                     raise TerminalValueError((
