@@ -84,17 +84,18 @@ class Normalize(Runnable[ProcessPool]):
 
         def _get_load_storage(file_format: TLoaderFileFormat) -> LoadStorage:
             if file_format != "parquet":
-                file_format = destination_caps.preferred_loader_file_format
+                file_format = destination_caps.preferred_loader_file_format or destination_caps.preferred_staging_file_format
             if storage := load_storages.get(file_format):
                 return storage
-            if file_format not in destination_caps.supported_loader_file_formats:
+            supported_formats = list(set(destination_caps.supported_loader_file_formats) | set(destination_caps.supported_staging_file_formats))
+            if file_format not in supported_formats:
                 if file_format == "parquet":  # Give users a helpful error message for parquet
                     raise TerminalValueError((
                         "The destination doesn't support direct loading of arrow tables. "
                         "Either use a different destination with parquet support or yield dicts instead of pyarrow tables/pandas dataframes from your sources."
                     ))
             # Load storage throws a generic error for other unsupported formats, normally that shouldn't happen
-            storage = load_storages[file_format] = LoadStorage(False, file_format, destination_caps.supported_loader_file_formats, loader_storage_config)
+            storage = load_storages[file_format] = LoadStorage(False, file_format, supported_formats, loader_storage_config)
             return storage
 
         # process all files with data items and write to buffered item storage

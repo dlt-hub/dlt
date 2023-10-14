@@ -331,7 +331,7 @@ def assert_all_data_types_row(
     assert db_mapping == expected_rows
 
 
-def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool = True) -> Tuple[Any, List[Dict[str, Any]]]:
+def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool = True, include_time: bool = True) -> Tuple[Any, List[Dict[str, Any]]]:
     """Create an arrow object or pandas dataframe with all supported data types.
 
     Returns the table and its records in python format
@@ -344,7 +344,6 @@ def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool =
         "float": [1.0, 2.0, 3.0],
         "int": [1, 2, 3],
         "datetime": pd.date_range("2021-01-01", periods=3, tz="UTC"),
-        "time": pd.date_range("2021-01-01", periods=3, tz="UTC").time,
         "date": pd.date_range("2021-01-01", periods=3, tz="UTC").date,
         "binary": [b"a", b"b", b"c"],
         "decimal": [Decimal("1.0"), Decimal("2.0"), Decimal("3.0")],
@@ -352,6 +351,9 @@ def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool =
 
     if include_json:
         data["json"] = [{"a": 1}, {"b": 2}, {"c": 3}]
+
+    if include_time:
+        data["time"] = pd.date_range("2021-01-01", periods=3, tz="UTC").time
 
     df = pd.DataFrame(data)
     rows = df.to_dict("records")
