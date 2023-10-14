@@ -11,7 +11,7 @@ from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobSt
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.typing import TTableSchema, TColumnType
+from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.schema.exceptions import UnknownTableException
 
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
@@ -250,9 +250,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         return sql
 
-    def _get_column_def_sql(self, c: TColumnSchema) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         name = self.capabilities.escape_identifier(c["name"])
-        return f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
+        return f"{name} {self.type_mapper.to_db_type(c, table_format)} {self._gen_not_null(c.get('nullable', True))}"
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         schema_table: TTableSchemaColumns = {}

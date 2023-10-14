@@ -5,7 +5,7 @@ from dlt.common.destination.reference import NewLoadJob
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TTableSchema, TColumnType
+from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlJobParams
 
@@ -59,7 +59,7 @@ class PostgresTypeMapper(TypeMapper):
         "integer": "bigint",
     }
 
-    def to_db_integer_type(self, precision: Optional[int]) -> str:
+    def to_db_integer_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
         if precision is None:
             return "bigint"
         # Precision is number of bits
@@ -109,7 +109,7 @@ class PostgresClient(InsertValuesJobClient):
         self.active_hints = HINT_TO_POSTGRES_ATTR if self.config.create_indexes else {}
         self.type_mapper = PostgresTypeMapper(self.capabilities)
 
-    def _get_column_def_sql(self, c: TColumnSchema) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         hints_str = " ".join(self.active_hints.get(h, "") for h in self.active_hints.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
         return f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"

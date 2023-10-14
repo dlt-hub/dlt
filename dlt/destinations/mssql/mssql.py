@@ -5,7 +5,7 @@ from dlt.common.destination.reference import NewLoadJob
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TTableSchema, TColumnType
+from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob, SqlJobParams
@@ -62,7 +62,7 @@ class MsSqlTypeMapper(TypeMapper):
         "int": "bigint",
     }
 
-    def to_db_integer_type(self, precision: Optional[int]) -> str:
+    def to_db_integer_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
         if precision is None:
             return "bigint"
         if precision <= 8:
@@ -136,11 +136,11 @@ class MsSqlClient(InsertValuesJobClient):
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return [MsSqlMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
+    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None) -> List[str]:
         # Override because mssql requires multiple columns in a single ADD COLUMN clause
-        return ["ADD \n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
+        return ["ADD \n" + ",\n".join(self._get_column_def_sql(c, table_format) for c in new_columns)]
 
-    def _get_column_def_sql(self, c: TColumnSchema) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         sc_type = c["data_type"]
         if sc_type == "text" and c.get("unique"):
             # MSSQL does not allow index on large TEXT columns

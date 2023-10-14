@@ -16,7 +16,7 @@ from dlt.common import logger
 from dlt.common.utils import without_none
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, Schema, TSchemaTables, TTableSchema
-from dlt.common.schema.typing import TTableSchema, TColumnType, TWriteDisposition
+from dlt.common.schema.typing import TTableSchema, TColumnType, TWriteDisposition, TTableFormat
 from dlt.common.schema.utils import table_schema_has_type, get_table_format
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import LoadJob, FollowupJob
@@ -72,14 +72,13 @@ class AthenaTypeMapper(TypeMapper):
     def __init__(self, capabilities: DestinationCapabilitiesContext):
         super().__init__(capabilities)
 
-    def to_db_integer_type(self, precision: Optional[int]) -> str:
+    def to_db_integer_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
         if precision is None:
             return "bigint"
-        # TODO: iceberg does not support smallint and tinyint
         if precision <= 8:
-            return "int"
+            return "int" if table_format == "iceberg" else "tinyint"
         elif precision <= 16:
-            return "int"
+            return "int" if table_format == "iceberg" else "smallint"
         elif precision <= 32:
             return "int"
         return "bigint"
@@ -312,8 +311,8 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def _from_db_type(self, hive_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
         return self.type_mapper.from_db_type(hive_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema) -> str:
-        return f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c)}"
+    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
+        return f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c, table_format)}"
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
 
@@ -326,7 +325,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         # or if we are in iceberg mode, we create iceberg tables for all tables
         table = self.get_load_table(table_name, self.in_staging_mode)
         is_iceberg = self._is_iceberg_table(table) or table.get("write_disposition", None) == "skip"
-        columns = ", ".join([self._get_column_def_sql(c) for c in new_columns])
+        columns = ", ".join([self._get_column_def_sql(c, table.get("table_format")) for c in new_columns])
 
         # this will fail if the table prefix is not properly defined
         table_prefix = self.table_prefix_layout.format(table_name=table_name)

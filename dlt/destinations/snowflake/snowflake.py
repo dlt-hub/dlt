@@ -7,7 +7,7 @@ from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults, AzureC
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.typing import TTableSchema, TColumnType
+from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 
 
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
@@ -200,9 +200,9 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
-    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
+    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None) -> List[str]:
         # Override because snowflake requires multiple columns in a single ADD COLUMN clause
-        return ["ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
+        return ["ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c, table_format) for c in new_columns)]
 
     def _create_replace_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         if self.config.replace_strategy == "staging-optimized":
@@ -222,7 +222,7 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def _from_db_type(self, bq_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         name = self.capabilities.escape_identifier(c["name"])
         return f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
 

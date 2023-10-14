@@ -12,7 +12,7 @@ import re
 
 from dlt.common import json, pendulum, logger
 from dlt.common.data_types import TDataType
-from dlt.common.schema.typing import COLUMN_HINTS, TColumnType, TColumnSchemaBase, TTableSchema, TWriteDisposition
+from dlt.common.schema.typing import COLUMN_HINTS, TColumnType, TColumnSchemaBase, TTableSchema, TWriteDisposition, TTableFormat
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import StateInfo, StorageSchemaInfo,WithStateSync, DestinationClientConfiguration, DestinationClientDwhConfiguration, DestinationClientDwhWithStagingConfiguration, NewLoadJob, WithStagingDataset, TLoadJobState, LoadJob, JobClientBase, FollowupJob, CredentialsConfiguration
@@ -318,23 +318,24 @@ WHERE """
 
         return sql_updates, schema_update
 
-    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
+    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None) -> List[str]:
         """Make one or more  ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
-        return [f"ADD COLUMN {self._get_column_def_sql(c)}" for c in new_columns]
+        return [f"ADD COLUMN {self._get_column_def_sql(c, table_format)}" for c in new_columns]
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
         # build sql
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
+        table = self.get_load_table(table_name)
         sql_result: List[str] = []
         if not generate_alter:
             # build CREATE
             sql = f"CREATE TABLE {canonical_name} (\n"
-            sql += ",\n".join([self._get_column_def_sql(c) for c in new_columns])
+            sql += ",\n".join([self._get_column_def_sql(c, table.get("table_format")) for c in new_columns])
             sql += ")"
             sql_result.append(sql)
         else:
             sql_base = f"ALTER TABLE {canonical_name}\n"
-            add_column_statements = self._make_add_column_sql(new_columns)
+            add_column_statements = self._make_add_column_sql(new_columns, table.get("table_format"))
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"
                 sql_result.append(sql_base + column_sql.join(add_column_statements))
@@ -357,7 +358,7 @@ WHERE """
         return sql_result
 
     @abstractmethod
-    def _get_column_def_sql(self, c: TColumnSchema) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         pass
 
     @staticmethod
