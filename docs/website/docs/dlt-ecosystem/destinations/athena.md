@@ -6,7 +6,7 @@ keywords: [aws, athena, glue catalog]
 
 # AWS Athena / Glue Catalog
 
-The athena destination stores data as parquet files in s3 buckets and creates [external tables in aws athena](https://docs.aws.amazon.com/athena/latest/ug/creating-tables.html). You can then query those tables with athena sql commands which will then scan the whole folder of parquet files and return the results. This destination works very similar to other sql based destinations, with the exception of the merge write disposition not being supported at this time. dlt metadata will be stored in the same bucket as the parquet files, but as iceberg tables.
+The athena destination stores data as parquet files in s3 buckets and creates [external tables in aws athena](https://docs.aws.amazon.com/athena/latest/ug/creating-tables.html). You can then query those tables with athena sql commands which will then scan the whole folder of parquet files and return the results. This destination works very similar to other sql based destinations, with the exception of the merge write disposition not being supported at this time. dlt metadata will be stored in the same bucket as the parquet files, but as iceberg tables. Athena additionally supports writing individual data tables as iceberg tables, so the may be manipulated later, a common use-case would be to strip gdpr data from them.
 
 ## Setup Guide
 ### 1. Initialize the dlt project
@@ -110,11 +110,31 @@ Using a staging destination is mandatory when using the athena destination. If y
 If you decide to change the [filename layout](./filesystem#data-loading) from the default value, keep the following in mind so that athena can reliable build your tables:
  - You need to provide the `{table_name}` placeholder and this placeholder needs to be followed by a forward slash
  - You need to provide the `{file_id}` placeholder and it needs to be somewhere after the `{table_name}` placeholder.
- - {table_name} must be a first placeholder in the layout.
+ - {table_name} must be the first placeholder in the layout.
 
 
 ## Additional destination options
 
+### iceberg data tables
+You can save your tables as iceberg tables to athena. This will enable you to for example delete data from them later if you need to. To switch a resouce to the iceberg table-format,
+supply the table_format argument like this:
+
+```python
+@dlt.resource(table_format="iceberg")
+def data() -> Iterable[TDataItem]:
+    ...
+```
+
+Alternatively you can set all tables to use the iceberg format with a config variable:
+
+```toml
+[destination.athena]
+force_iceberg = "True"
+```
+
+For every table created as an iceberg table, the athena destination will create a regular athena table in the staging dataset of both the filesystem as well as the athena glue catalog and then 
+copy all data into the final iceberg table that lives with the non-iceberg tables in the same dataset on both filesystem and the glue catalog. Switching from iceberg to regular table or vice versa
+is not supported.
 
 ### dbt support
 
