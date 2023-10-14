@@ -143,32 +143,35 @@ class Extractor:
         return None # Empty list is unknown format
 
     def write_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
-        for item in items if isinstance(items, list) else [items]:
-            if isinstance(meta, TableNameMeta):
-                table_name = meta.table_name
-                self._write_static_table(resource, table_name, item)
-                self._write_item(table_name, resource.name, item)
-            elif resource._table_name_hint_fun:
-                self._write_dynamic_table(resource, item)
+        if isinstance(meta, TableNameMeta):
+            table_name = meta.table_name
+            self._write_static_table(resource, table_name, items)
+            self._write_item(table_name, resource.name, items)
+        else:
+            if resource._table_name_hint_fun:
+                if isinstance(items, list):
+                    for item in items:
+                        self._write_dynamic_table(resource, item)
+                else:
+                    self._write_dynamic_table(resource, items)
             else:
                 # write item belonging to table with static name
-                table_name = resource.table_name  # type: ignore
-                self._write_static_table(resource, table_name, item)
-                self._write_item(table_name, resource.name, item)
-
+                table_name = resource.table_name  # type: ignore[assignment]
+                self._write_static_table(resource, table_name, items)
+                self._write_item(table_name, resource.name, items)
 
     def write_empty_file(self, table_name: str) -> None:
         table_name = self.schema.naming.normalize_table_identifier(table_name)
         self.storage.write_empty_file(self.extract_id, self.schema.name, table_name, None)
 
-    def _write_item(self, table_name: str, resource_name: str, item: TDataItems) -> None:
+    def _write_item(self, table_name: str, resource_name: str, items: TDataItems) -> None:
         # normalize table name before writing so the name match the name in schema
         # note: normalize function should be cached so there's almost no penalty on frequent calling
         # note: column schema is not required for jsonl writer used here
         table_name = self.schema.naming.normalize_identifier(table_name)
         self.collector.update(table_name)
         self.resources_with_items.add(resource_name)
-        self.storage.write_data_item(self.extract_id, self.schema.name, table_name, item, None)
+        self.storage.write_data_item(self.extract_id, self.schema.name, table_name, items, None)
 
     def _write_dynamic_table(self, resource: DltResource, item: TDataItem) -> None:
         table_name = resource._table_name_hint_fun(item)
@@ -187,7 +190,7 @@ class Extractor:
         # write to storage with inferred table name
         self._write_item(table_name, resource.name, item)
 
-    def _write_static_table(self, resource: DltResource, table_name: str, item: TDataItems) -> None:
+    def _write_static_table(self, resource: DltResource, table_name: str, items: TDataItems) -> None:
         existing_table = self.dynamic_tables.get(table_name)
         if existing_table is None:
             static_table = resource.compute_table_schema()
@@ -209,14 +212,18 @@ class ArrowExtractor(Extractor):
         ]
         super().write_table(resource, items, meta)
 
-    def _write_static_table(self, resource: DltResource, table_name: str, item: TDataItems) -> None:
+    def _write_static_table(self, resource: DltResource, table_name: str, items: TDataItems) -> None:
         existing_table = self.dynamic_tables.get(table_name)
         if existing_table is not None:
             return
-        arrow_columns = pyarrow.py_arrow_to_table_schema_columns(item.schema)  # type: ignore[union-attr]
         static_table = resource.compute_table_schema()
-        for key, value in static_table['columns'].items():
-            # Merge the columns to include primary_key and other hints that may be set on the resource
+        if isinstance(items, list):
+            item = items[0]
+        else:
+            item = items
+        # Merge the columns to include primary_key and other hints that may be set on the resource
+        arrow_columns = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+        for key, value in static_table["columns"].items():
             arrow_columns[key] = utils.merge_columns(value, arrow_columns.get(key, {}))
         static_table["columns"] = arrow_columns
         static_table["name"] = table_name
