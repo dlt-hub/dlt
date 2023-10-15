@@ -53,7 +53,7 @@ class Normalize(Runnable[ProcessPool]):
     def create_storages(self) -> None:
         # pass initial normalize storage config embedded in normalize config
         self.normalize_storage = NormalizeStorage(True, config=self.config._normalize_storage_config)
-        # # normalize saves in preferred format but can read all supported formats
+        # normalize saves in preferred format but can read all supported formats
         self.load_storage = LoadStorage(True, self.config.destination_capabilities.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, config=self.config._load_storage_config)
 
     @staticmethod
