@@ -153,7 +153,7 @@ def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColu
         result[field.name] = {
             "name": field.name,
             "nullable": field.nullable,
-            **_get_column_type_from_py_arrow(field.type),  # type: ignore[misc]
+            **_get_column_type_from_py_arrow(field.type),
         }
     return result
 

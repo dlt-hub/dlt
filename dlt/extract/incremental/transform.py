@@ -18,9 +18,9 @@ from dlt.extract.utils import resolve_column_value
 from dlt.extract.typing import TTableHintTemplate
 from dlt.common.schema.typing import TColumnNames
 try:
-    from dlt.common.libs.pyarrow import is_arrow_item, pyarrow as pa, TAnyArrowItem
+    from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
 except MissingDependencyException:
-    is_arrow_item = lambda x: False
+    pa = None
 
 
 

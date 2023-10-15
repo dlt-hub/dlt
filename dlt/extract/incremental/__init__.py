@@ -32,7 +32,7 @@ from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental,
 try:
     from dlt.common.libs.pyarrow import is_arrow_item, pyarrow as pa, TAnyArrowItem
 except MissingDependencyException:
-    is_arrow_item = lambda x: False
+    is_arrow_item = lambda item: False
 
 
 @configspec
