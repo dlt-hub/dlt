@@ -6,6 +6,11 @@ try:
 except ModuleNotFoundError:
     pd = None
 
+try:
+    import numpy as np
+except ModuleNotFoundError:
+    np = None
+
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.utils import digest128
 from dlt.common.json import json
@@ -153,7 +158,7 @@ class ArrowIncremental(IncrementalTransformer):
         if unique_columns is None:
             return tbl
         group_cols = unique_columns + [cursor_path]
-        tbl = tbl.append_column("_dlt_index", pa.array(range(tbl.num_rows)))
+        tbl = tbl.append_column("_dlt_index", pa.array(np.arange(tbl.num_rows)))
         try:
             tbl = tbl.filter(
                 pa.compute.is_in(
@@ -218,8 +223,7 @@ class ArrowIncremental(IncrementalTransformer):
             unique_columns = tbl.column_names
         else:  # deduplicating is disabled
             unique_columns = None
-        # Deduplicate the table
-        tbl = self._deduplicate(tbl, unique_columns, aggregate, cursor_path)
+
         # If end_value is provided, filter to include table rows that are "less" than end_value
         if self.end_value is not None:
             tbl = tbl.filter(end_compare(tbl[cursor_path], self.end_value))
@@ -234,9 +238,9 @@ class ArrowIncremental(IncrementalTransformer):
                 start_out_of_range = bool(pa.compute.any(pa.compute.invert(keep_filter)).as_py())
                 tbl = tbl.filter(keep_filter)
 
-            # Filter out all rows which have cursor value equal to last value
-            # and unique id exists in state
-            # Rows with same cursor as stored last value
+            # Deduplicate after filtering old values
+            tbl = self._deduplicate(tbl, unique_columns, aggregate, cursor_path)
+            # Remove already processed rows where the cursor is equal to the last value
             eq_rows = tbl.filter(pa.compute.equal(tbl[cursor_path], last_value))
             # compute index, unique hash mapping
             unique_values = self.unique_values(eq_rows, unique_columns, self.resource_name)
@@ -255,6 +259,7 @@ class ArrowIncremental(IncrementalTransformer):
                 # last value is unchanged, add the hashes
                 self.incremental_state['unique_hashes'] = list(set(self.incremental_state['unique_hashes'] + [uq_val for _, uq_val in unique_values]))
         else:
+            tbl = self._deduplicate(tbl, unique_columns, aggregate, cursor_path)
             self.incremental_state['last_value'] = row_value
             self.incremental_state['unique_hashes'] = [uq_val for _, uq_val in self.unique_values(
                 tbl.filter(pa.compute.equal(tbl[cursor_path], row_value)), unique_columns, self.resource_name
