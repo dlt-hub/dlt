@@ -178,7 +178,7 @@ def inbox_source(
 
 ### Resource `get_messages_uids`
 
-This function retrieves email message UIDs (Unique IDs) from the mailbox.
+This resource collects email message UIDs (Unique IDs) from the mailbox.
 
 ```python
     @dlt.resource(name="uids")
@@ -193,7 +193,7 @@ This function retrieves email message UIDs (Unique IDs) from the mailbox.
 
 ### Resource `get_messages`
 
-This function reads mailbox emails using the given UIDs.
+This resource retrieves emails by UID (Unique IDs), yielding a dictionary with metadata like UID, ID, sender, subject, dates, content type, and body.
 
 ```python
 @dlt.transformer(name="messages", primary_key="message_uid")
@@ -207,7 +207,7 @@ def get_messages(
 
 `include_body` (bool, optional): Includes email body if True. Default: True.
 
-Similar to the previous resources, resource `get_attachments` downloads email attachments using the provided UIDs.
+Similar to the previous resources, resource `get_attachments` extracts email attachments by UID from the IMAP server. It yields file items with attachments in the file_content field and the original email in the message field.
 
 ## Customization
 
@@ -245,6 +245,7 @@ verified source.
       # Return the configured pipeline.
       return pipeline
       ```
+      > Please refer to inbox_source() docstring for email filtering options by sender, date, or mime type.
 1. To load messages from multiple emails, including "community@dlthub.com":
 
    ```python
