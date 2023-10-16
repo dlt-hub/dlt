@@ -30,13 +30,14 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
             self.password = TSecretValue(self.query.pop("token"))
 
     def borrow_conn(self, read_only: bool) -> Any:
-        from duckdb import HTTPException
+        from duckdb import HTTPException, InvalidInputException
         try:
             return super().borrow_conn(read_only)
-        except HTTPException as http_ex:
-            if http_ex.status_code == 403 and 'Failed to download extension "motherduck"' in str(http_ex):
+        except (InvalidInputException, HTTPException) as ext_ex:
+            if 'Failed to download extension' in str(ext_ex) and "motherduck" in str(ext_ex):
                 from importlib.metadata import version as pkg_version
-                raise MotherduckLocalVersionNotSupported(pkg_version("duckdb")) from http_ex
+                raise MotherduckLocalVersionNotSupported(pkg_version("duckdb")) from ext_ex
+
             raise
 
     def parse_native_representation(self, native_value: Any) -> None:
