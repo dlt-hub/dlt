@@ -7,7 +7,7 @@ authors:
   title: Open source data engineer
   url: https://github.com/adrianbr
   image_url: https://avatars.githubusercontent.com/u/5762770?v=4
-tags: [data product, data as a product, data documentation, data product documentation]
+tags: [first data warehouse]
 ---
 
 > In this article I will not discuss the best data warehouse you could in theory build. Instead, I will describe how data warehousing projects pragmatically start in order to have an easy time building and improving without running into early limits.
