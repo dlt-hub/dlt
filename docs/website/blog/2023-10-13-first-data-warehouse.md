@@ -17,9 +17,9 @@ Building a data warehouse is a complex endeavor, often too intricate to navigate
 
 ![hard coded dashboard](/img/oil-painted-dashboard.png)
 
-## Understanding the Business Landscape
 
-## The Requirements
+
+## The Business requirements
 
 Understanding the business's performance is the initial priority, and achieving this necessitates a comprehensive understanding of the business model and its various intricacies. Tracking key processes and Key Performance Indicators (KPIs) is fundamental as they provide insights into the business's health and performance across various aspects such as sales, marketing, customer engagement, operational efficiency, and financial health.
 
@@ -27,7 +27,7 @@ Collaboration with different departments is crucial to comprehensively grasp the
 
 Furthermore, identifying pivotal business drivers is essential. Beyond explicit feedback, it's crucial to recognize the primary business levers often represented by cross-departmental data. These drivers shed light on the core aspects that significantly impact the business's success. For instance, in an e-commerce business, the main levers might focus on increasing customer lifetime value, improving conversion rates, and optimizing ad spend to align with the customer's worth.
 
-## The Tech Stack
+## The Tech stack
 
 ### Orchestration
 
