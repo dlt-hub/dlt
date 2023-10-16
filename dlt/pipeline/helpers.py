@@ -143,10 +143,12 @@ class DropCommand:
             return state  # type: ignore[return-value]
         source_states = _sources_state(state).items()
         for source_name, source_state in source_states:
-            if self.drop_state:
+            # drop table states
+            if self.drop_state and self.resource_pattern:
                 for key in _get_matching_resources(self.resource_pattern, source_state):
                     self.info['resource_states'].append(key)
                     reset_resource_state(key, source_state)
+            # drop additional state paths
             resolved_paths = resolve_paths(self.state_paths_to_drop, source_state)
             if self.state_paths_to_drop and not resolved_paths:
                 self.info['warnings'].append(f"State paths {self.state_paths_to_drop} did not select any paths in source {source_name}")
