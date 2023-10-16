@@ -16,7 +16,7 @@ from tests.cases import arrow_table_all_data_types
 @pytest.mark.parametrize("destination_config", destinations_configs(file_format="parquet", default_sql_configs=True, default_staging_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
 def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destination_config: DestinationTestConfiguration):
-    include_time = destination_config.destination in ("athena", "redshift")  # athena/redshift can't load TIME columns from parquet
+    include_time = destination_config.destination not in ("athena", "redshift")  # athena/redshift can't load TIME columns from parquet
     item, records = arrow_table_all_data_types(item_type, include_json=False, include_time=include_time)
 
     pipeline = destination_config.setup_pipeline("arrow_" + uniq_id())
