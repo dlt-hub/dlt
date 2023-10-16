@@ -15,5 +15,7 @@ class DBTCloudConfiguration(BaseConfiguration):
     environment_id: Optional[str]
     run_id: Optional[str]
 
-    package_sha: Optional[str]
-    package_repository_branch: Optional[str]
+    cause: str = "Triggered via API"
+    git_sha: Optional[str]
+    git_branch: Optional[str]
+    schema_override: Optional[str]

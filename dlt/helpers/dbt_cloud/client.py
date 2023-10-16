@@ -106,7 +106,7 @@ class DBTCloudClientV2:
                 f"account_id and job_id are required, got account_id: {self.account_id} and job_id: {job_id}"
             )
 
-        json_body = {"cause": "Triggered via API"}
+        json_body = {}
         if data:
             json_body.update(data)
 
