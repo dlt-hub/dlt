@@ -1,5 +1,5 @@
 import time
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 import dlt
 from dlt.common.configuration import known_sections, with_config
@@ -13,7 +13,7 @@ from dlt.helpers.dbt_cloud.configuration import DBTCloudConfiguration
 )
 def run_dbt_cloud_job(
     credentials: DBTCloudConfiguration = dlt.secrets.value,
-    data: Optional[dict] = None,
+    data: Optional[Dict[Any, Any]] = None,
     wait_for_outcome: bool = True,
     wait_seconds: int = 10,
 ) -> Dict[Any, Any]:
@@ -55,7 +55,7 @@ def run_dbt_cloud_job(
 )
 def get_dbt_cloud_run_status(
     credentials: DBTCloudConfiguration = dlt.secrets.value,
-    run_id: Optional[int | str] = None,
+    run_id: Union[int, str, None] = None,
     wait_for_outcome: bool = True,
     wait_seconds: int = 10,
 ) -> Dict[Any, Any]:

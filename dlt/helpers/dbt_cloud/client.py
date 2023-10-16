@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional
+from typing import Any, Dict, Optional, Union
 
 from dlt.sources.helpers import requests
 
@@ -40,7 +40,7 @@ class DBTCloudClientV2:
         self.account_id = account_id
         self.accounts_url = f"accounts/{self.account_id}"
 
-    def get_endpoint(self, endpoint: str) -> Dict[Any, Any]:
+    def get_endpoint(self, endpoint: str) -> Any:
         response = requests.get(
             f"{self.base_api_url}/{endpoint}", headers=self._headers
         )
@@ -49,7 +49,7 @@ class DBTCloudClientV2:
 
     def post_endpoint(
         self, endpoint: str, json_body: Optional[dict] = None
-    ) -> Dict[Any, Any]:
+    ) -> Any:
         response = requests.post(
             f"{self.base_api_url}/{endpoint}",
             headers=self._headers,
@@ -58,7 +58,7 @@ class DBTCloudClientV2:
         results = response.json()
         return results
 
-    def trigger_job_run(self, job_id: int | str, data: Optional[dict] = None) -> int:
+    def trigger_job_run(self, job_id: Union[int, str], data: Optional[dict] = None) -> int:
         """
          Trigger a job run in dbt Cloud.
 
@@ -113,9 +113,9 @@ class DBTCloudClientV2:
         response = self.post_endpoint(
             f"{self.accounts_url}/jobs/{job_id}/run", json_body=json_body
         )
-        return response["data"]["id"]
+        return int(response["data"]["id"])
 
-    def get_run_status(self, run_id: int | str) -> Dict[Any, Any]:
+    def get_run_status(self, run_id: Union[int, str]) -> Dict[Any, Any]:
         """
         Get the status of a dbt Cloud job run by run_id.
 
@@ -140,4 +140,4 @@ class DBTCloudClientV2:
             )
 
         response = self.get_endpoint(f"{self.accounts_url}/runs/{run_id}")
-        return response["data"]
+        return dict(response["data"])
