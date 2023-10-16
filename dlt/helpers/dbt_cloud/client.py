@@ -47,9 +47,7 @@ class DBTCloudClientV2:
         results = response.json()
         return results
 
-    def post_endpoint(
-        self, endpoint: str, json_body: Optional[dict] = None
-    ) -> Any:
+    def post_endpoint(self, endpoint: str, json_body: Optional[Dict] = None) -> Any:
         response = requests.post(
             f"{self.base_api_url}/{endpoint}",
             headers=self._headers,
@@ -58,7 +56,9 @@ class DBTCloudClientV2:
         results = response.json()
         return results
 
-    def trigger_job_run(self, job_id: Union[int, str], data: Optional[dict] = None) -> int:
+    def trigger_job_run(
+        self, job_id: Union[int, str], data: Optional[Dict] = None
+    ) -> int:
         """
          Trigger a job run in dbt Cloud.
 
