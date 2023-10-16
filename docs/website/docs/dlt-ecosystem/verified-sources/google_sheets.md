@@ -147,6 +147,25 @@ The first row of any extracted range should contain headers. Please make sure:
    different in the database than in Google Sheets. Prefer small cap names without special
    characters.
 
+### Provide the spreadsheet ID/URL and explicit range names
+
+When setting up the pipeline, you can use either the browser-copied URL of your spreadsheet:
+
+```bash
+https://docs.google.com/spreadsheets/d/1VTtCiYgxjAwcIw7UM1_BSaxC3rzIpr0HwXZwd2OlPD4/edit?usp=sharing
+```
+
+or spreadsheet id (which is a part of the url)
+
+```bash
+1VTtCiYgxjAwcIw7UM1_BSaxC3rzIpr0HwXZwd2OlPD4
+```
+
+typically you pass it directly to the [google_spreadsheet function](#create-your-own-pipeline) or in [config.toml](#add-credentials) as defined here.
+
+
+You can provide specific ranges to google_spreadsheet pipeline, as detailed in following.
+
 ### Guidelines about named ranges
 
 We recommend to use
@@ -189,6 +208,10 @@ If you are not happy with the workflow above, you can:
    > methods, pass an empty `range_names` list as `range_names = []`. Even when you use a set
    > "get_named_ranges" to false pass the range_names as an empty list to get all the sheets with
    > "get_sheets" method.
+
+### Datatypes
+
+The dlt normalizer uses the first row of data to infer types and attempts to coerce subsequent rows, creating variant columns if unsuccessful. This is standard behavior. It also recognizes date and time types using additional metadata from the first row.
 
 ### Initialize the verified source
 
@@ -362,7 +385,12 @@ headers, and data types as arguments.
 
 ### Resource `spreadsheet_info`
 
-This resource loads the info about the sheets and range names into the destination.
+This resource loads the info about the sheets and range names into the destination as a table.
+This table refreshes after each load, storing information on loaded ranges:
+
+- Spreadsheet ID and title.
+- Range name as given to the source.
+- String and parsed representation of the loaded range.
 
 ```python
 dlt.resource(
@@ -491,3 +519,55 @@ verified source.
    print(load_info)
    }
    ```
+
+### Using Airflow with Google Spreadsheets:
+
+Consider the following when using Google Spreadsheets with Airflow:
+
+`Efficient Data Retrieval` 
+
+- Our source fetches all required data with just two API calls, regardless of the number of specified data ranges. This allows for swift data loading from google_spreadsheet before executing the pipeline.
+
+`Airflow Specificity`
+
+- With Airflow, data source creation and execution are distinct processes.
+- If your execution environment (runner) is on a different machine, this might cause the data to be loaded twice, leading to inefficiencies.
+
+`Airflow Helper Caution` 
+- Avoid using `scc decomposition` because it unnecessarily creates a new source instance for every specified data range. This is not efficient and can cause redundant tasks.
+
+#### Recommended Airflow Deployment
+
+Below is the correct way to set up an Airflow DAG  for this purpose:
+
+- Define a DAG to run daily, starting from say February 1, 2023. It avoids catching up for missed runs and ensures only one instance runs at a time.
+
+- Data is imported from Google Spreadsheets and directed BigQuery.
+
+- When adding the Google Spreadsheet task to the pipeline, avoid decomposing it; run it as a single task for efficiency.
+
+```python
+@dag(
+    schedule_interval='@daily',
+    start_date=pendulum.datetime(2023, 2, 1),
+    catchup=False,
+    max_active_runs=1,
+    default_args=default_task_args
+)
+def get_named_ranges():
+    tasks = PipelineTasksGroup("get_named_ranges", use_data_folder=False, wipe_local_data=True)
+
+    # import your source from pipeline script
+    from google_sheets import google_spreadsheet
+
+    pipeline = dlt.pipeline(
+        pipeline_name="get_named_ranges",
+        dataset_name="named_ranges_data",
+        destination='bigquery',
+    )
+
+    # do not use decompose to run `google_spreadsheet` in single task
+    tasks.add_run(pipeline, google_spreadsheet("1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580"), decompose="none", trigger_rule="all_done", retries=0, provide_context=True)
+```
+
+Enjoy the DLT Google Sheets pipeline experience!
