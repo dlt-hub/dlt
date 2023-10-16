@@ -9,10 +9,11 @@ from dlt.common.typing import TSecretValue
 class DBTCloudConfiguration(BaseConfiguration):
     api_token: TSecretValue = TSecretValue("")
 
-    account_id: Optional[str] = None
-    job_id: Optional[str] = None
-    project_id: Optional[str] = None
-    environment_id: Optional[str] = None
+    account_id: Optional[str]
+    job_id: Optional[str]
+    project_id: Optional[str]
+    environment_id: Optional[str]
+    run_id: Optional[str]
 
-    package_sha: Optional[str] = None
-    package_repository_branch: Optional[str] = None
+    package_sha: Optional[str]
+    package_repository_branch: Optional[str]
