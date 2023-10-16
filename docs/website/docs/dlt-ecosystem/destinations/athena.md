@@ -138,8 +138,8 @@ is not supported.
 
 ### dbt support
 
-Athena is supported via `dbt-athena-community`. Credentials are passed into `aws_access_key_id` and `aws_secret_access_key` of generated dbt profile.
-Athena adapter requires that you setup **region_name** in Athena configuration below. You can also setup table catalog name to change the default: **awsdatacatalog**
+Athena is supported via `dbt-athena-community`. Credentials are passed into `aws_access_key_id` and `aws_secret_access_key` of generated dbt profile. At this point dbt is not supported for iceberg tables
+on Athena. The Athena adapter requires that you setup **region_name** in Athena configuration below. You can also setup table catalog name to change the default: **awsdatacatalog**
 ```toml
 [destination.athena]
 aws_data_catalog="awsdatacatalog"

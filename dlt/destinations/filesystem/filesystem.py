@@ -83,21 +83,26 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
         # verify files layout. we need {table_name} and only allow {schema_name} before it, otherwise tables
         # cannot be replaced and we cannot initialize folders consistently
         self.table_prefix_layout = path_utils.get_table_prefix_layout(config.layout)
-        self.dataset_path = posixpath.join(self.fs_path, self.config.normalize_dataset_name(self.schema))
+        self._dataset_path = self.config.normalize_dataset_name(self.schema)
 
     def drop_storage(self) -> None:
         if self.is_storage_initialized():
             self.fs_client.rm(self.dataset_path, recursive=True)
 
+    @property
+    def dataset_path(self) -> str:
+        return posixpath.join(self.fs_path, self._dataset_path)
+
+
     @contextmanager
     def with_staging_dataset(self) -> Iterator["FilesystemClient"]:
-        current_dataset_path = self.dataset_path
+        current_dataset_path = self._dataset_path
         try:
-            self.dataset_path = posixpath.join(self.fs_path, self.config.normalize_dataset_name(self.schema)) + "_staging"
+            self._dataset_path = self.schema.naming.normalize_table_identifier(current_dataset_path + "_staging")
             yield self
         finally:
             # restore previous dataset name
-            self.dataset_path = current_dataset_path
+            self._dataset_path = current_dataset_path
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # clean up existing files for tables selected for truncating
