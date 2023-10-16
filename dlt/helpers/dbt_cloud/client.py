@@ -141,30 +141,3 @@ class DBTCloudClientV2:
 
         response = self.get_endpoint(f"{self.accounts_url}/runs/{run_id}")
         return response["data"]
-
-    def get_job_status(self, job_id: int | str) -> Dict[Any, Any]:
-        """
-        Get the status of a dbt Cloud job by job_id.
-
-        Uses `https://cloud.getdbt.com/api/v2/accounts/{account_id}/jobs/{id}/`
-        to get job status.
-
-        More info: https://docs.getdbt.com/dbt-cloud/api-v2#/operations/Retrieve%20Job.
-
-        Args:
-            job_id (int | str): The ID of the job.
-
-        Returns:
-            Dict[Any, Any]: The status information of the job.
-
-        Raises:
-            InvalidCredentialsException: If account_id or job_id is missing.
-
-        """
-        if not (self.account_id and job_id):
-            raise InvalidCredentialsException(
-                f"account_id and job_id are required, got account_id: {self.account_id} and job_id: {job_id}"
-            )
-
-        response = self.get_endpoint(f"{self.accounts_url}/jobs/{job_id}")
-        return response["data"]
