@@ -1,5 +1,5 @@
 ---
-slug: data-product-docs
+slug: first-data-warehouse
 title: "Your first data warehouse: A practical approach"
 image: /img/oil-painted-dashboard.png
 authors:
@@ -89,7 +89,7 @@ for row in data_table:
 
 For those seeking tools, Census and Hightouch are prominent players in this space.
 
-## Dashboards: Unveiling Unique Paradigms
+## Dashboards & their usage paradigms
 
 When it comes to dashboards, each tool follows its distinctive paradigm. For example, Tableau and PowerBI are good for analysts to make polished dashboards for business users, while Metabase offers more simplicity and self service for more technically able business users.
 
@@ -107,7 +107,7 @@ commonly found in BI tools.
 By using ROLAP, we are able to maintain single versions of dimension tables,
 and reduce maintenance efforts while increasing flexibility and velocity for the end user.
 
-## Data Stack Governance
+## Data stack Governance
 
 This section sheds light on strategies for efficient management of your data stack. Here are key tips to get you started:
 
@@ -131,7 +131,7 @@ This section sheds light on strategies for efficient management of your data sta
 
 These foundational practices form the cornerstone of effective data stack governance, ensuring a sturdy structure that grows with your data needs.
 
-## In Conclusion: A Simple Beginning, A Challenging Growth
+## In Conclusion: a simple beginning, a challenging growth
 
 Initiating a data warehouse project doesn't have to be an uphill struggle.
 In fact, starting with simplicity can often be the wisest path.
