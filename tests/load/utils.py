@@ -97,6 +97,7 @@ def destinations_configs(
         all_buckets_filesystem_configs: bool = False,
         subset: Sequence[str] = (),
         exclude: Sequence[str] = (),
+        file_format: Optional[TLoaderFileFormat] = None,
 ) -> List[DestinationTestConfiguration]:
 
     # sanity check
@@ -109,6 +110,7 @@ def destinations_configs(
     # default non staging sql based configs, one per destination
     if default_sql_configs:
         destination_configs += [DestinationTestConfiguration(destination=destination) for destination in SQL_DESTINATIONS if destination != "athena"]
+        destination_configs += [DestinationTestConfiguration(destination="duckdb", file_format="parquet")]
         # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
         destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
         destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, force_iceberg=True, supports_merge=False, supports_dbt=False, extra_info="iceberg")]
@@ -154,6 +156,8 @@ def destinations_configs(
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
     if exclude:
         destination_configs = [conf for conf in destination_configs if conf.destination not in exclude]
+    if file_format:
+        destination_configs = [conf for conf in destination_configs if conf.file_format == file_format]
 
     # filter out excluded configs
     destination_configs = [conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS]

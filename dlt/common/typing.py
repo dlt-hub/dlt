@@ -1,8 +1,9 @@
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from datetime import datetime, date  # noqa: I251
 import inspect
+import os
 from re import Pattern as _REPattern
-from typing import Callable, Dict, Any, Final, Literal, List, Mapping, NewType, Optional, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin
+from typing import Callable, Dict, Any, Final, Literal, List, Mapping, NewType, Optional, Tuple, Type, TypeVar, Generic, Protocol, TYPE_CHECKING, Union, runtime_checkable, get_args, get_origin, IO
 from typing_extensions import TypeAlias, ParamSpec, Concatenate
 
 from dlt.common.pendulum import timedelta, pendulum
@@ -44,6 +45,7 @@ ConfigValue: None = None
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
+TFileOrPath = Union[str, os.PathLike, IO[Any]]
 
 @runtime_checkable
 class SupportsVariant(Protocol, Generic[TVariantBase]):

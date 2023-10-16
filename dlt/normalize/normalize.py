@@ -18,10 +18,12 @@ from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage, Lo
 from dlt.common.typing import TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.pipeline import NormalizeInfo
 from dlt.common.utils import chunks, TRowCount, merge_row_count, increase_row_count
 
 from dlt.normalize.configuration import NormalizeConfiguration
+from dlt.normalize.items_normalizers import ParquetItemsNormalizer, JsonLItemsNormalizer, ItemsNormalizer
 
 # normalize worker wrapping function (map_parallel, map_single) return type
 TMapFuncRV = Tuple[Sequence[TSchemaUpdate], TRowCount]
@@ -67,22 +69,40 @@ class Normalize(Runnable[ProcessPool]):
 
     @staticmethod
     def w_normalize_files(
-            normalize_storage_config: NormalizeStorageConfiguration,
-            loader_storage_config: LoadStorageConfiguration,
-            destination_caps: DestinationCapabilitiesContext,
-            stored_schema: TStoredSchema,
-            load_id: str,
-            extracted_items_files: Sequence[str],
-        ) -> TWorkerRV:
+        normalize_storage_config: NormalizeStorageConfiguration,
+        loader_storage_config: LoadStorageConfiguration,
+        destination_caps: DestinationCapabilitiesContext,
+        stored_schema: TStoredSchema,
+        load_id: str,
+        extracted_items_files: Sequence[str],
+    ) -> TWorkerRV:
 
         schema_updates: List[TSchemaUpdate] = []
         total_items = 0
         row_counts: TRowCount = {}
+        load_storages: Dict[TLoaderFileFormat, LoadStorage] = {}
+
+        def _get_load_storage(file_format: TLoaderFileFormat) -> LoadStorage:
+            if file_format != "parquet":
+                file_format = destination_caps.preferred_loader_file_format or destination_caps.preferred_staging_file_format
+            if storage := load_storages.get(file_format):
+                return storage
+            # TODO: capabilities.supporteed_*_formats can be None, it should have defaults
+            supported_formats = list(set(destination_caps.supported_loader_file_formats or []) | set(destination_caps.supported_staging_file_formats or []))
+            if file_format not in supported_formats:
+                if file_format == "parquet":  # Give users a helpful error message for parquet
+                    raise TerminalValueError((
+                        "The destination doesn't support direct loading of arrow tables. "
+                        "Either use a different destination with parquet support or yield dicts instead of pyarrow tables/pandas dataframes from your sources."
+                    ))
+            # Load storage throws a generic error for other unsupported formats, normally that shouldn't happen
+            storage = load_storages[file_format] = LoadStorage(False, file_format, supported_formats, loader_storage_config)
+            return storage
 
         # process all files with data items and write to buffered item storage
         with Container().injectable_context(destination_caps):
             schema = Schema.from_stored_schema(stored_schema)
-            load_storage = LoadStorage(False, destination_caps.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, loader_storage_config)
+            load_storage = _get_load_storage(destination_caps.preferred_loader_file_format)  # Default load storage, used for empty tables when no data
             normalize_storage = NormalizeStorage(False, normalize_storage_config)
 
             try:
@@ -90,25 +110,27 @@ class Normalize(Runnable[ProcessPool]):
                 populated_root_tables: Set[str] = set()
                 for extracted_items_file in extracted_items_files:
                     line_no: int = 0
-                    root_table_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file).table_name
+                    parsed_file_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file)
+                    root_table_name = parsed_file_name.table_name
                     root_tables.add(root_table_name)
                     logger.debug(f"Processing extracted items in {extracted_items_file} in load_id {load_id} with table name {root_table_name} and schema {schema.name}")
-                    with normalize_storage.storage.open_file(extracted_items_file) as f:
-                        # enumerate jsonl file line by line
-                        items_count = 0
-                        for line_no, line in enumerate(f):
-                            items: List[TDataItem] = json.loads(line)
-                            partial_update, items_count, r_counts = Normalize._w_normalize_chunk(load_storage, schema, load_id, root_table_name, items)
-                            schema_updates.append(partial_update)
-                            total_items += items_count
-                            merge_row_count(row_counts, r_counts)
-                            logger.debug(f"Processed {line_no} items from file {extracted_items_file}, items {items_count} of total {total_items}")
-                        # if any item found in the file
-                        if items_count > 0:
-                            populated_root_tables.add(root_table_name)
-                            logger.debug(f"Processed total {line_no + 1} lines from file {extracted_items_file}, total items {total_items}")
-                        # make sure base tables are all covered
-                        increase_row_count(row_counts, root_table_name, 0)
+
+                    file_format = parsed_file_name.file_format
+                    load_storage = _get_load_storage(file_format)
+                    normalizer: ItemsNormalizer
+                    if file_format == "parquet":
+                        normalizer = ParquetItemsNormalizer()
+                    else:
+                        normalizer = JsonLItemsNormalizer()
+                    partial_updates, items_count, r_counts = normalizer(extracted_items_file, load_storage, normalize_storage, schema, load_id, root_table_name)
+                    schema_updates.extend(partial_updates)
+                    total_items += items_count
+                    merge_row_count(row_counts, r_counts)
+                    if items_count > 0:
+                        populated_root_tables.add(root_table_name)
+                        logger.debug(f"Processed total {line_no + 1} lines from file {extracted_items_file}, total items {total_items}")
+                    # make sure base tables are all covered
+                    increase_row_count(row_counts, root_table_name, 0)
                 # write empty jobs for tables without items if table exists in schema
                 for table_name in root_tables - populated_root_tables:
                     if table_name not in schema.tables:
@@ -125,47 +147,6 @@ class Normalize(Runnable[ProcessPool]):
         logger.info(f"Processed total {total_items} items in {len(extracted_items_files)} files")
 
         return schema_updates, total_items, load_storage.closed_files(), row_counts
-
-    @staticmethod
-    def _w_normalize_chunk(load_storage: LoadStorage, schema: Schema, load_id: str, root_table_name: str, items: List[TDataItem]) -> Tuple[TSchemaUpdate, int, TRowCount]:
-        column_schemas: Dict[str, TTableSchemaColumns] = {}  # quick access to column schema for writers below
-        schema_update: TSchemaUpdate = {}
-        schema_name = schema.name
-        items_count = 0
-        row_counts: TRowCount = {}
-
-        for item in items:
-            for (table_name, parent_table), row in schema.normalize_data_item(item, load_id, root_table_name):
-                # filter row, may eliminate some or all fields
-                row = schema.filter_row(table_name, row)
-                # do not process empty rows
-                if row:
-                    # decode pua types
-                    for k, v in row.items():
-                        row[k] = custom_pua_decode(v)  # type: ignore
-                    # coerce row of values into schema table, generating partial table with new columns if any
-                    row, partial_table = schema.coerce_row(table_name, parent_table, row)
-                    # theres a new table or new columns in existing table
-                    if partial_table:
-                        # update schema and save the change
-                        schema.update_table(partial_table)
-                        table_updates = schema_update.setdefault(table_name, [])
-                        table_updates.append(partial_table)
-                        # update our columns
-                        column_schemas[table_name] = schema.get_table_columns(table_name)
-                    # get current columns schema
-                    columns = column_schemas.get(table_name)
-                    if not columns:
-                        columns = schema.get_table_columns(table_name)
-                        column_schemas[table_name] = columns
-                    # store row
-                    # TODO: it is possible to write to single file from many processes using this: https://gitlab.com/warsaw/flufl.lock
-                    load_storage.write_data_item(load_id, schema_name, table_name, row, columns)
-                    # count total items
-                    items_count += 1
-                    increase_row_count(row_counts, table_name, 1)
-            signals.raise_if_signalled()
-        return schema_update, items_count, row_counts
 
     def update_table(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
         for schema_update in schema_updates:
@@ -281,8 +262,7 @@ class Normalize(Runnable[ProcessPool]):
         # rename temp folder to processing
         self.load_storage.commit_temp_load_package(load_id)
         # delete item files to complete commit
-        for file in files:
-            self.normalize_storage.storage.delete(file)
+        self.normalize_storage.delete_extracted_files(files)
         # log and update metrics
         logger.info(f"Chunk {load_id} processed")
         self._row_counts = row_counts

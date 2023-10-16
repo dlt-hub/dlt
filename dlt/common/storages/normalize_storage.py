@@ -1,4 +1,4 @@
-from typing import ClassVar, Sequence, NamedTuple
+from typing import ClassVar, Sequence, NamedTuple, Union
 from itertools import groupby
 from pathlib import Path
 
@@ -7,11 +7,14 @@ from dlt.common.configuration.accessors import config
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.configuration import NormalizeStorageConfiguration
 from dlt.common.storages.versioned_storage import VersionedStorage
+from dlt.common.destination import TLoaderFileFormat, ALL_SUPPORTED_FILE_FORMATS
+from dlt.common.exceptions import TerminalValueError
 
 class TParsedNormalizeFileName(NamedTuple):
     schema_name: str
     table_name: str
     file_id: str
+    file_format: TLoaderFileFormat
 
 
 class NormalizeStorage(VersionedStorage):
@@ -47,10 +50,13 @@ class NormalizeStorage(VersionedStorage):
     @staticmethod
     def parse_normalize_file_name(file_name: str) -> TParsedNormalizeFileName:
         # parse extracted file name and returns (events found, load id, schema_name)
-        if not file_name.endswith("jsonl"):
-            raise ValueError(file_name)
+        file_name_p: Path = Path(file_name)
+        parts = file_name_p.name.split(".")
+        ext = parts[-1]
+        if ext not in ALL_SUPPORTED_FILE_FORMATS:
+            raise TerminalValueError(f"File format {ext} not supported. Filename: {file_name}")
+        return TParsedNormalizeFileName(*parts)  # type: ignore[arg-type]
 
-        parts = Path(file_name).stem.split(".")
-        if len(parts) != 3:
-            raise ValueError(file_name)
-        return TParsedNormalizeFileName(*parts)
+    def delete_extracted_files(self, files: Sequence[str]) -> None:
+        for file_name in files:
+            self.storage.delete(file_name)
