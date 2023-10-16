@@ -132,14 +132,15 @@ Alternatively you can set all tables to use the iceberg format with a config var
 force_iceberg = "True"
 ```
 
-For every table created as an iceberg table, the athena destination will create a regular athena table in the staging dataset of both the filesystem as well as the athena glue catalog and then 
+For every table created as an iceberg table, the athena destination will create a regular athena table in the staging dataset of both the filesystem as well as the athena glue catalog and then
 copy all data into the final iceberg table that lives with the non-iceberg tables in the same dataset on both filesystem and the glue catalog. Switching from iceberg to regular table or vice versa
 is not supported.
 
 ### dbt support
 
-Athena is supported via `dbt-athena-community`. Credentials are passed into `aws_access_key_id` and `aws_secret_access_key` of generated dbt profile. At this point dbt is not supported for iceberg tables
-on Athena. The Athena adapter requires that you setup **region_name** in Athena configuration below. You can also setup table catalog name to change the default: **awsdatacatalog**
+Athena is supported via `dbt-athena-community`. Credentials are passed into `aws_access_key_id` and `aws_secret_access_key` of generated dbt profile. Iceberg tables are supported but you need to make sure that you materialize your models as iceberg tables if your source table is iceberg. We encountered problems with materializing
+date time columns due to different precision on iceberg (nanosecond) and regular Athena tables (millisecond).
+The Athena adapter requires that you setup **region_name** in Athena configuration below. You can also setup table catalog name to change the default: **awsdatacatalog**
 ```toml
 [destination.athena]
 aws_data_catalog="awsdatacatalog"
