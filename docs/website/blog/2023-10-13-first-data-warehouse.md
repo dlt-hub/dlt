@@ -153,7 +153,7 @@ If you're building on Google Cloud Platform (GCP), here are some tutorials and r
    Tutorial Link: [Deploy Cloud Composer with CI/CD](https://dlthub.com/docs/reference/explainers/airflow-gcp-cloud-composer)
 
 2. **Deploy DLT to Cloud Composer**
-   Tutorial Link: [Deploy DLT to Cloud Composer](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer)
+   Tutorial Link: [Deploy dlt to Cloud Composer](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer)
 
 3. **Deploy dbt to Cloud Composer**
    Tutorial Link: [Deploy dbt to Cloud Composer](https://dlthub.com/docs/dlt-ecosystem/transformations/dbt)
