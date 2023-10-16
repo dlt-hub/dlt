@@ -63,12 +63,6 @@ class LoadJobTerminalException(DestinationTerminalException):
         super().__init__(f"Job with id/file name {file_path} encountered unrecoverable problem: {message}")
 
 
-class LoadJobUnknownTableException(DestinationTerminalException):
-    def __init__(self, table_name: str, file_name: str) -> None:
-        self.table_name = table_name
-        super().__init__(f"Client does not know table {table_name} for load file {file_name}")
-
-
 class LoadJobInvalidStateTransitionException(DestinationTerminalException):
     def __init__(self, from_state: TLoadJobState, to_state: TLoadJobState) -> None:
         self.from_state = from_state

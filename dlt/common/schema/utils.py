@@ -15,10 +15,10 @@ from dlt.common.typing import DictStrAny, REPattern, is_dict_generic_type
 from dlt.common.validation import TCustomValidator, validate_dict, validate_dict_ignoring_xkeys
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TPartialTableSchema, TSchemaTables, TSchemaUpdate,
-                                      TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp,
+                                      TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TTableFormat,
                                       TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, ParentTableNotFoundException, SchemaEngineNoUpgradePathException, SchemaException,
-                                          TablePropertiesConflictException, InvalidSchemaName)
+                                          TablePropertiesConflictException, InvalidSchemaName, UnknownTableException)
 
 from dlt.common.normalizers.utils import import_normalizers
 from dlt.common.schema.typing import TAnySchemaColumns
@@ -493,18 +493,29 @@ def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTabl
     return aggregated_update
 
 
-def get_write_disposition(tables: TSchemaTables, table_name: str) -> TWriteDisposition:
-    """Returns write disposition of a table if present. If not, looks up into parent table"""
-    table = tables[table_name]
-    w_d = table.get("write_disposition")
-    if w_d:
-        return w_d
+def get_inherited_table_hint(tables: TSchemaTables, table_name: str, table_hint_name: str, allow_none: bool = False) -> Any:
+    table = tables.get(table_name, {})
+    hint = table.get(table_hint_name)
+    if hint:
+        return hint
 
     parent = table.get("parent")
     if parent:
-        return get_write_disposition(tables, parent)
+        return get_inherited_table_hint(tables, parent, table_hint_name, allow_none)
 
-    raise ValueError(f"No write disposition found in the chain of tables for '{table_name}'.")
+    if allow_none:
+        return None
+
+    raise ValueError(f"No table hint '{table_hint_name} found in the chain of tables for '{table_name}'.")
+
+
+def get_write_disposition(tables: TSchemaTables, table_name: str) -> TWriteDisposition:
+    """Returns table hint of a table if present. If not, looks up into parent table"""
+    return cast(TWriteDisposition, get_inherited_table_hint(tables, table_name, "write_disposition", allow_none=False))
+
+
+def get_table_format(tables: TSchemaTables, table_name: str) -> TTableFormat:
+    return cast(TTableFormat, get_inherited_table_hint(tables, table_name, "table_format", allow_none=True))
 
 
 def table_schema_has_type(table: TTableSchema, _typ: TDataType) -> bool:
@@ -637,7 +648,8 @@ def new_table(
     write_disposition: TWriteDisposition = None,
     columns: Sequence[TColumnSchema] = None,
     validate_schema: bool = False,
-    resource: str = None
+    resource: str = None,
+    table_format: TTableFormat = None
 ) -> TTableSchema:
 
     table: TTableSchema = {
@@ -652,6 +664,8 @@ def new_table(
         # set write disposition only for root tables
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
         table["resource"] = resource or table_name
+        if table_format:
+            table["table_format"] = table_format
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,

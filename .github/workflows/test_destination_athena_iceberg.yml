@@ -1,5 +1,5 @@
 
-name: test athena
+name: test athena iceberg
 
 on:
   pull_request:
@@ -21,7 +21,7 @@ env:
   RUNTIME__DLTHUB_TELEMETRY_SEGMENT_WRITE_KEY: TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB
   ACTIVE_DESTINATIONS: "[\"athena\"]"
   ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
-  EXCLUDED_DESTINATION_CONFIGURATIONS: "[\"athena-parquet-staging-iceberg\"]"
+  EXCLUDED_DESTINATION_CONFIGURATIONS: "[\"athena-no-staging\"]"
 
 jobs:
   get_docs_changes:
@@ -30,7 +30,7 @@ jobs:
     if: ${{ !github.event.pull_request.head.repo.fork }}
 
   run_loader:
-    name: test destination athena
+    name: test destination athena iceberg
     needs: get_docs_changes
     if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:

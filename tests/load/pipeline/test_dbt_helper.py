@@ -58,6 +58,8 @@ def test_run_jaffle_package(destination_config: DestinationTestConfiguration, db
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
     from docs.examples.chess.chess import chess
+    if not destination_config.supports_dbt:
+        pytest.skip("dbt is not supported for this destination configuration")
 
     # provide chess url via environ
     os.environ["CHESS_URL"] = "https://api.chess.com/pub/"
@@ -95,6 +97,8 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_run_chess_dbt_to_other_dataset(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
     from docs.examples.chess.chess import chess
+    if not destination_config.supports_dbt:
+        pytest.skip("dbt is not supported for this destination configuration")
 
     # provide chess url via environ
     os.environ["CHESS_URL"] = "https://api.chess.com/pub/"
