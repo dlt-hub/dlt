@@ -123,6 +123,28 @@ def test_drop_command_resources_and_state(destination_config: DestinationTestCon
 
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
+def test_drop_command_only_state(destination_config: DestinationTestConfiguration) -> None:
+    """Test the drop command with resource and state path options and
+    verify correct data is deleted from destination and locally"""
+    source = droppable_source()
+    pipeline = destination_config.setup_pipeline('drop_test_' + uniq_id(), full_refresh=True)
+    pipeline.run(source)
+
+    attached = _attach(pipeline)
+    helpers.drop(attached, state_paths='data_from_d.*.bar')
+
+    attached = _attach(pipeline)
+
+    assert_dropped_resources(attached, [])
+
+    # Verify extra json paths are removed from state
+    sources_state = pipeline.state['sources']
+    assert sources_state['droppable']['data_from_d'] == {'foo1': {}, 'foo2': {}}
+
+    assert_destination_state_loaded(pipeline)
+
+
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_drop_destination_tables_fails(destination_config: DestinationTestConfiguration) -> None:
     """Fail on drop tables. Command runs again."""
     source = droppable_source()
