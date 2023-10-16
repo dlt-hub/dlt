@@ -347,6 +347,7 @@ def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool =
         "date": pd.date_range("2021-01-01", periods=3, tz="UTC").date,
         "binary": [b"a", b"b", b"c"],
         "decimal": [Decimal("1.0"), Decimal("2.0"), Decimal("3.0")],
+        "bool": [True, True, False]
     }
 
     if include_json:

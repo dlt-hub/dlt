@@ -26,6 +26,17 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
         yield item
 
     pipeline.run(some_data())
+    # assert the table types
+    some_table_columns = pipeline.default_schema.get_table("some_data")["columns"]
+    assert some_table_columns["string"]["data_type"] == "text"
+    assert some_table_columns["float"]["data_type"] == "double"
+    assert some_table_columns["int"]["data_type"] == "bigint"
+    assert some_table_columns["datetime"]["data_type"] == "timestamp"
+    assert some_table_columns["binary"]["data_type"] == "binary"
+    assert some_table_columns["decimal"]["data_type"] == "decimal"
+    assert some_table_columns["bool"]["data_type"] == "bool"
+    if include_time:
+        assert some_table_columns["time"]["data_type"] == "time"
 
     rows = [list(row) for row in select_data(pipeline, "SELECT * FROM some_data ORDER BY 1")]
 

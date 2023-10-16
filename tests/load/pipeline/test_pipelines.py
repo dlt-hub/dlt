@@ -619,7 +619,7 @@ def test_snowflake_delete_file_after_copy(destination_config: DestinationTestCon
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, subset=["bigquery", "snowflake", "duckdb"]), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, file_format="parquet"), ids=lambda x: x.name)
 def test_parquet_loading(destination_config: DestinationTestConfiguration) -> None:
     """Run pipeline twice with merge write disposition
     Resource with primary key falls back to append. Resource without keys falls back to replace.
