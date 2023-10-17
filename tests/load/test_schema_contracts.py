@@ -123,7 +123,7 @@ def run_resource(pipeline, resource_fun, settings) -> None:
     pipeline.run(source(), schema_contract=settings.get("override"))
 
     # check updated schema
-    assert pipeline.default_schema._settings.get("schema_contract", {}) == (settings.get("override") or settings.get("source"))
+    assert pipeline.default_schema._settings.get("schema_contract", None) == (settings.get("override") or settings.get("source"))
 
     # check items table settings
     assert pipeline.default_schema.tables["items"].get("schema_contract", {}) == (settings.get("override") or settings.get("resource") or {})

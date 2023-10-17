@@ -245,7 +245,7 @@ def test_check_adding_new_columns(base_settings) -> None:
         "column_2": 123
     }
     data_with_new_row = {
-        **data, # type: ignore
+        **data,
         "new_column": "some string"
     }
     table_update: TTableSchema = {
@@ -276,7 +276,7 @@ def test_check_adding_new_columns(base_settings) -> None:
         "column_2": 123,
     }
     data_with_new_row = {
-        **data, # type: ignore
+        **data,
         "incomplete_column_1": "some other string",
     }
     table_update = {
@@ -312,7 +312,7 @@ def test_check_adding_new_variant() -> None:
         "column_2": 123
     }
     data_with_new_row = {
-        **data, # type: ignore
+        **data,
         "column_2_variant": 345345
     }
     table_update: TTableSchema = {

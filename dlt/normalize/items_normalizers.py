@@ -5,12 +5,12 @@ from pathlib import Path
 from dlt.common import json, logger
 from dlt.common.json import custom_pua_decode
 from dlt.common.runtime import signals
-from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.common.storages import NormalizeStorage, LoadStorage, NormalizeStorageConfiguration, FileStorage
+from dlt.common.schema.typing import TTableSchemaColumns, TSchemaContractDict
+from dlt.common.storages import NormalizeStorage, LoadStorage, FileStorage
 from dlt.common.typing import TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.utils import TRowCount, merge_row_count, increase_row_count
-
+from dlt.common.schema.schema import resolve_contract_settings_for_table
 
 class ItemsNormalizer(Protocol):
     def __call__(
@@ -41,45 +41,57 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         schema_name = schema.name
         items_count = 0
         row_counts: TRowCount = {}
+        schema_contract: TSchemaContractDict = None
 
         for item in items:
             for (table_name, parent_table), row in schema.normalize_data_item(
                 item, load_id, root_table_name
             ):
+                if not schema_contract:
+                    schema_contract = resolve_contract_settings_for_table(parent_table, table_name, schema)
                 # filter row, may eliminate some or all fields
                 row = schema.filter_row(table_name, row)
                 # do not process empty rows
-                if row:
-                    # decode pua types
-                    for k, v in row.items():
-                        row[k] = custom_pua_decode(v)  # type: ignore
-                    # coerce row of values into schema table, generating partial table with new columns if any
-                    row, partial_table = schema.coerce_row(
-                        table_name, parent_table, row
+                if not row:
+                    continue
+
+                # decode pua types
+                for k, v in row.items():
+                    row[k] = custom_pua_decode(v)  # type: ignore
+                # coerce row of values into schema table, generating partial table with new columns if any
+                row, partial_table = schema.coerce_row(
+                    table_name, parent_table, row
+                )
+
+                # if we detect a migration, check schema contract
+                if partial_table:
+                    row, partial_table = Schema.apply_schema_contract(schema, schema_contract, table_name, row, partial_table)
+                if not row:
+                    continue
+
+                # theres a new table or new columns in existing table
+                if partial_table:
+                    # update schema and save the change
+                    schema.update_table(partial_table)
+                    table_updates = schema_update.setdefault(table_name, [])
+                    table_updates.append(partial_table)
+                    # update our columns
+                    column_schemas[table_name] = schema.get_table_columns(
+                        table_name
                     )
-                    # theres a new table or new columns in existing table
-                    if partial_table:
-                        # update schema and save the change
-                        schema.update_table(partial_table)
-                        table_updates = schema_update.setdefault(table_name, [])
-                        table_updates.append(partial_table)
-                        # update our columns
-                        column_schemas[table_name] = schema.get_table_columns(
-                            table_name
-                        )
-                    # get current columns schema
-                    columns = column_schemas.get(table_name)
-                    if not columns:
-                        columns = schema.get_table_columns(table_name)
-                        column_schemas[table_name] = columns
-                    # store row
-                    # TODO: it is possible to write to single file from many processes using this: https://gitlab.com/warsaw/flufl.lock
-                    load_storage.write_data_item(
-                        load_id, schema_name, table_name, row, columns
-                    )
-                    # count total items
-                    items_count += 1
-                    increase_row_count(row_counts, table_name, 1)
+                # get current columns schema
+                columns = column_schemas.get(table_name)
+                if not columns:
+                    columns = schema.get_table_columns(table_name)
+                    column_schemas[table_name] = columns
+                # store row
+                # TODO: it is possible to write to single file from many processes using this: https://gitlab.com/warsaw/flufl.lock
+                load_storage.write_data_item(
+                    load_id, schema_name, table_name, row, columns
+                )
+                # count total items
+                items_count += 1
+                increase_row_count(row_counts, table_name, 1)
             signals.raise_if_signalled()
         return schema_update, items_count, row_counts
 

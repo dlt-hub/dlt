@@ -69,7 +69,7 @@ def source(
     root_key: bool = False,
     schema: Schema = None,
     schema_contract: TSchemaContract = None,
-    spec: Type[BaseConfiguration] = None
+    spec: Type[BaseConfiguration] = None,
     _impl_cls: Type[TDltSourceImpl] = DltSource  # type: ignore[assignment]
 ) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, TDltSourceImpl]]:
     ...
@@ -83,9 +83,8 @@ def source(
     root_key: bool = False,
     schema: Schema = None,
     schema_contract: TSchemaContract = None,
-    spec: Type[BaseConfiguration] = None
+    spec: Type[BaseConfiguration] = None,
     _impl_cls: Type[TDltSourceImpl] = DltSource  # type: ignore[assignment]
->>>>>>> devel
 ) -> Any:
     """A decorator that transforms a function returning one or more `dlt resources` into a `dlt source` in order to load it with `dlt`.
 
@@ -358,7 +357,7 @@ def resource(
             columns=columns,
             primary_key=primary_key,
             merge_key=merge_key,
-            schema_contract=schema_contract
+            schema_contract=schema_contract,
             table_format=table_format
         )
         return DltResource.from_data(_data, _name, _section, table_template, selected, cast(DltResource, data_from), incremental=incremental)
