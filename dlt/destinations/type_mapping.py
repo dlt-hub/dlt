@@ -24,11 +24,23 @@ class TypeMapper:
         # Override in subclass if db supports other integer types (e.g. smallint, integer, tinyint, etc.)
         return self.sct_to_unbound_dbt["bigint"]
 
+    def to_db_datetime_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
+        # Override in subclass if db supports other timestamp types (e.g. with different time resolutions)
+        return self.sct_to_unbound_dbt["timestamp"]
+
+    def to_db_time_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
+        # Override in subclass if db supports other time types (e.g. with different time resolutions)
+        return self.sct_to_unbound_dbt["time"]
+
     def to_db_type(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
         precision, scale = column.get("precision"), column.get("scale")
         sc_t = column["data_type"]
         if sc_t == "bigint":
             return self.to_db_integer_type(precision, table_format)
+        if sc_t == "timestamp":
+            return self.to_db_datetime_type(precision, table_format)
+        if sc_t == "time":
+            return self.to_db_time_type(precision, table_format)
         bounded_template = self.sct_to_dbt.get(sc_t)
         if not bounded_template:
             return self.sct_to_unbound_dbt[sc_t]

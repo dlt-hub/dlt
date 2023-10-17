@@ -112,7 +112,7 @@ def destinations_configs(
         destination_configs += [DestinationTestConfiguration(destination=destination) for destination in SQL_DESTINATIONS if destination != "athena"]
         destination_configs += [DestinationTestConfiguration(destination="duckdb", file_format="parquet")]
         # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
-        destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
+        destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", supports_merge=False, bucket_url=AWS_BUCKET)]
         destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, force_iceberg=True, supports_merge=False, supports_dbt=False, extra_info="iceberg")]
 
     if default_vector_configs:

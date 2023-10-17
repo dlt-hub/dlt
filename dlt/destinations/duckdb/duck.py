@@ -3,6 +3,7 @@ from typing import ClassVar, Dict, Optional
 
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
@@ -63,6 +64,9 @@ class DuckDbTypeMapper(TypeMapper):
         "INTEGER": "bigint",
         "BIGINT": "bigint",
         "HUGEINT": "bigint",
+        "TIMESTAMP_S": "timestamp",
+        "TIMESTAMP_MS": "timestamp",
+        "TIMESTAMP_NS": "timestamp",
     }
 
     def to_db_integer_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
@@ -79,6 +83,16 @@ class DuckDbTypeMapper(TypeMapper):
             return "BIGINT"
         return "HUGEINT"
 
+    def to_db_datetime_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
+        if precision is None or precision == 6:
+            return super().to_db_datetime_type(precision, table_format)
+        if precision == 0:
+            return "TIMESTAMP_S"
+        if precision == 3:
+            return "TIMESTAMP_MS"
+        if precision == 9:
+            return "TIMESTAMP_NS"
+        raise TerminalValueError(f"timestamp {precision} cannot be mapped into duckdb TIMESTAMP typ")
 
     def from_db_type(self, db_type: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
         # duckdb provides the types with scale and precision

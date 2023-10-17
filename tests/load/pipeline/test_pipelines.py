@@ -619,7 +619,7 @@ def test_snowflake_delete_file_after_copy(destination_config: DestinationTestCon
 
 
 # do not remove - it allows us to filter tests by destination
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, file_format="parquet"), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, all_staging_configs=True, file_format="parquet"), ids=lambda x: x.name)
 def test_parquet_loading(destination_config: DestinationTestConfiguration) -> None:
     """Run pipeline twice with merge write disposition
     Resource with primary key falls back to append. Resource without keys falls back to replace.
@@ -641,6 +641,23 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     if destination_config.destination == "bigquery":
         column_schemas["col9_null"]["data_type"] = column_schemas["col9"]["data_type"] = "text"
 
+    # duckdb 0.9.1 does not support TIME other than 6
+    if destination_config.destination in ["duckdb", "motherduck"]:
+        column_schemas["col11_precision"]["precision"] = 0
+
+    # drop TIME from databases not supporting it via parquet
+    if destination_config.destination in ["redshift", "athena"]:
+        data_types.pop("col11")
+        data_types.pop("col11_null")
+        data_types.pop("col11_precision")
+        column_schemas.pop("col11")
+        column_schemas.pop("col11_null")
+        column_schemas.pop("col11_precision")
+
+    if destination_config.destination == "redshift":
+        data_types.pop("col7_precision")
+        column_schemas.pop("col7_precision")
+
     # apply the exact columns definitions so we process complex and wei types correctly!
     @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
     def my_resource():
@@ -653,19 +670,33 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
 
     info = pipeline.run(some_source(), loader_file_format="parquet")
     package_info = pipeline.get_load_package_info(info.loads_ids[0])
+    # print(package_info.asstr(verbosity=2))
     assert package_info.state == "loaded"
     # all three jobs succeeded
     assert len(package_info.jobs["failed_jobs"]) == 0
-    assert len(package_info.jobs["completed_jobs"]) == 5  # 3 tables + 1 state + 1 sql merge job
+    # 3 tables + 1 state + 4 reference jobs if staging
+    expected_completed_jobs = 4 + 4 if destination_config.staging else 4
+    # add sql merge job
+    if destination_config.supports_merge:
+        expected_completed_jobs += 1
+    # add iceberg copy jobs
+    if destination_config.force_iceberg:
+        expected_completed_jobs += 4
+    assert len(package_info.jobs["completed_jobs"]) == expected_completed_jobs
 
     with pipeline.sql_client() as sql_client:
-        assert [row[0] for row in sql_client.execute_sql("SELECT * FROM other_data")] == [1, 2, 3, 4, 5]
-        assert [row[0] for row in sql_client.execute_sql("SELECT * FROM some_data")] == [1, 2, 3]
+        assert [row[0] for row in sql_client.execute_sql("SELECT * FROM other_data ORDER BY 1")] == [1, 2, 3, 4, 5]
+        assert [row[0] for row in sql_client.execute_sql("SELECT * FROM some_data ORDER BY 1")] == [1, 2, 3]
         db_rows = sql_client.execute_sql("SELECT * FROM data_types")
         assert len(db_rows) == 10
         db_row = list(db_rows[0])
         # "snowflake" and "bigquery" do not parse JSON form parquet string so double parse
-        assert_all_data_types_row(db_row[:-2], parse_complex_strings=destination_config.destination in ["snowflake", "bigquery"])
+        assert_all_data_types_row(
+            db_row,
+            schema=column_schemas,
+            parse_complex_strings=destination_config.destination in ["snowflake", "bigquery", "redshift"],
+            timestamp_precision= 3 if destination_config.destination == "athena" else 6
+        )
 
 
 def simple_nested_pipeline(destination_config: DestinationTestConfiguration, dataset_name: str, full_refresh: bool) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:
