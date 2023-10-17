@@ -12,7 +12,7 @@ import re
 
 from dlt.common import json, pendulum, logger
 from dlt.common.data_types import TDataType
-from dlt.common.schema.typing import COLUMN_HINTS, TColumnType, TColumnSchemaBase, TTableSchema, TWriteDisposition
+from dlt.common.schema.typing import COLUMN_HINTS, TColumnType, TColumnSchemaBase, TTableSchema, TWriteDisposition, TTableFormat
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import StateInfo, StorageSchemaInfo,WithStateSync, DestinationClientConfiguration, DestinationClientDwhConfiguration, DestinationClientDwhWithStagingConfiguration, NewLoadJob, WithStagingDataset, TLoadJobState, LoadJob, JobClientBase, FollowupJob, CredentialsConfiguration
@@ -140,34 +140,31 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         else:
             yield
 
-    def get_truncate_destination_table_dispositions(self) -> List[TWriteDisposition]:
-        if self.config.replace_strategy == "truncate-and-insert":
-            return ["replace"]
+    def should_truncate_table_before_load(self, table: TTableSchema) -> bool:
+        return table["write_disposition"] == "replace" and self.config.replace_strategy == "truncate-and-insert"
+
+    def _create_append_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return []
 
-    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return SqlMergeJob.from_table_chain(table_chain, self.sql_client)
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        return [SqlMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        """update destination tables from staging tables"""
-        return SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)
-
-    def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        """optimized replace strategy, defaults to _create_staging_copy_job for the basic client
-           for some destinations there are much faster destination updates at the cost of
-           dropping tables possible"""
-        return self._create_staging_copy_job(table_chain)
+    def _create_replace_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        jobs: List[NewLoadJob] = []
+        if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
+            jobs.append(SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": True}))
+        return jobs
 
     def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         """Creates a list of followup jobs for merge write disposition and staging replace strategies"""
         jobs = super().create_table_chain_completed_followup_jobs(table_chain)
         write_disposition = table_chain[0]["write_disposition"]
-        if write_disposition == "merge":
-            jobs.append(self._create_merge_job(table_chain))
-        elif write_disposition == "replace" and self.config.replace_strategy == "insert-from-staging":
-            jobs.append(self._create_staging_copy_job(table_chain))
-        elif write_disposition == "replace" and self.config.replace_strategy == "staging-optimized":
-            jobs.append(self._create_optimized_replace_job(table_chain))
+        if write_disposition == "append":
+            jobs.extend(self._create_append_followup_jobs(table_chain))
+        elif write_disposition == "merge":
+            jobs.extend(self._create_merge_followup_jobs(table_chain))
+        elif write_disposition == "replace":
+            jobs.extend(self._create_replace_followup_jobs(table_chain))
         return jobs
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
@@ -242,7 +239,7 @@ WHERE """
             schema_c: TColumnSchemaBase = {
                 "name": c[0],
                 "nullable": _null_to_bool(c[2]),
-                **self._from_db_type(c[1], numeric_precision, numeric_scale),  # type: ignore[misc]
+                **self._from_db_type(c[1], numeric_precision, numeric_scale)
             }
             schema_table[c[0]] = schema_c  # type: ignore
         return True, schema_table
@@ -314,30 +311,32 @@ WHERE """
                         sql += ";"
                     sql_updates.append(sql)
                 # create a schema update for particular table
-                partial_table = copy(self.schema.get_table(table_name))
+                partial_table = copy(self.get_load_table(table_name))
                 # keep only new columns
                 partial_table["columns"] = {c["name"]: c for c in new_columns}
                 schema_update[table_name] = partial_table
 
         return sql_updates, schema_update
 
-    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
+    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None) -> List[str]:
         """Make one or more  ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
-        return [f"ADD COLUMN {self._get_column_def_sql(c)}" for c in new_columns]
+        return [f"ADD COLUMN {self._get_column_def_sql(c, table_format)}" for c in new_columns]
 
     def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
         # build sql
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
+        table = self.get_load_table(table_name)
+        table_format = table.get("table_format") if table else None
         sql_result: List[str] = []
         if not generate_alter:
             # build CREATE
             sql = f"CREATE TABLE {canonical_name} (\n"
-            sql += ",\n".join([self._get_column_def_sql(c) for c in new_columns])
+            sql += ",\n".join([self._get_column_def_sql(c, table_format) for c in new_columns])
             sql += ")"
             sql_result.append(sql)
         else:
             sql_base = f"ALTER TABLE {canonical_name}\n"
-            add_column_statements = self._make_add_column_sql(new_columns)
+            add_column_statements = self._make_add_column_sql(new_columns, table_format)
             if self.capabilities.alter_add_multi_column:
                 column_sql = ",\n"
                 sql_result.append(sql_base + column_sql.join(add_column_statements))
@@ -360,7 +359,7 @@ WHERE """
         return sql_result
 
     @abstractmethod
-    def _get_column_def_sql(self, c: TColumnSchema) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         pass
 
     @staticmethod
@@ -431,15 +430,22 @@ WHERE """
 
 
 class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):
+
+    in_staging_mode: bool = False
+
     @contextlib.contextmanager
     def with_staging_dataset(self)-> Iterator["SqlJobClientBase"]:
-        with self.sql_client.with_staging_dataset(True):
-            yield self
+        try:
+            with self.sql_client.with_staging_dataset(True):
+                self.in_staging_mode = True
+                yield self
+        finally:
+            self.in_staging_mode = False
 
-    def get_stage_dispositions(self) -> List[TWriteDisposition]:
-        """Returns a list of dispositions that require staging tables to be populated"""
-        dispositions: List[TWriteDisposition] = ["merge"]
-        # if we have anything but the truncate-and-insert replace strategy, we need staging tables
-        if self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]:
-            dispositions.append("replace")
-        return dispositions
+    def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
+        if table["write_disposition"] == "merge":
+            return True
+        elif table["write_disposition"] == "replace" and (self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]):
+            return True
+        return False
+

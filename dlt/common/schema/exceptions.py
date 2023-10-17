@@ -76,3 +76,9 @@ class SchemaFrozenException(SchemaException):
         super().__init__(msg)
         self.schema_name = schema_name
         self.table_name = table_name
+
+        
+class UnknownTableException(SchemaException):
+    def __init__(self, table_name: str) -> None:
+        self.table_name = table_name
+        super().__init__(f"Trying to access unknown table {table_name}.")

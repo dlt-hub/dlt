@@ -36,6 +36,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.alter_add_multi_column = True
     caps.schema_supports_numeric_precision = False
     caps.timestamp_precision = 3
+    caps.supports_truncate_command = False
     return caps
 
 

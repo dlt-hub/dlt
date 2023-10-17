@@ -863,42 +863,25 @@ class Pipeline(SupportsPipeline):
         source_schema = source.schema
         source_schema.update_normalizers()
 
-        # if source schema does not exist in the pipeline
-        if source_schema.name not in self._schema_storage:
-            # TODO: here we should create a new schema but copy hints and possibly other settings
-            # over from the schema table. Is this the right way?
-            new_schema = Schema(source_schema.name)
-            new_schema._settings = source_schema._settings
-            self._schema_storage.save_schema(new_schema)
+        # extract into pipeline schema
+        extract_id = extract_with_schema(storage, source, source_schema, self.collector, max_parallel_items, workers)
 
-        # and set as default if this is first schema in pipeline
-        if not self.default_schema_name:
-            # this performs additional validations as schema contains the naming module
-            self._set_default_schema_name(source_schema)
-
-        pipeline_schema = self._schema_storage[source_schema.name]
-
-        # update global schema contract settings
-        if global_contract is not None:
-            source_schema.set_schema_contract(global_contract, True)
-
-        extract_id = extract_with_schema(storage, source, pipeline_schema, self.collector, max_parallel_items, workers)
-
-
-        # initialize import with fully discovered schema
-        # TODO: is this the right location for this?
+        # save import with fully discovered schema
         self._schema_storage.save_import_schema_if_not_exists(source_schema)
 
-        # update the pipeline schema with all tables and contract settings
-        for table in source_schema.data_tables(include_incomplete=True):
-            pipeline_schema.update_table(
-                table
-            )
-        pipeline_schema.set_schema_contract(source_schema._settings.get("schema_contract", {}))
+        # if source schema does not exist in the pipeline
+        if source_schema.name not in self._schema_storage:
+            # create new schema
+            self._schema_storage.save_schema(source_schema)
 
-        # globally apply contract override again for all merged tables
-        if global_contract is not None:
-            pipeline_schema.set_schema_contract(global_contract, True)
+        # update pipeline schema (do contract checks here)
+        pipeline_schema = self._schema_storage[source_schema.name]
+        pipeline_schema.update_schema(source_schema)
+
+        # set as default if this is first schema in pipeline
+        if not self.default_schema_name:
+            # this performs additional validations as schema contains the naming module
+            self._set_default_schema_name(pipeline_schema)
 
         return extract_id
 

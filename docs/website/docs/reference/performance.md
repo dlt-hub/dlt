@@ -243,7 +243,6 @@ workers=3
 ```
 <!--@@@DLT_SNIPPET_END ./performance_snippets/toml-snippets.toml::normalize_workers_toml-->
 
-```
 :::note
 The default is to not parallelize normalization and to perform it in the main process.
 :::
@@ -382,6 +381,23 @@ next_item_mode="round_robin"
 next_item_mode="fifo"
 ```
 <!--@@@DLT_SNIPPET_END ./performance_snippets/toml-snippets.toml::item_mode_toml-->
+
+## Use built in json parser
+`dlt` uses **orjson** if available. If not it falls back to  **simplejson**. The built in parsers serialize several Python types:
+- Decimal
+- DateTime, Date
+- Dataclasses
+
+Import the module as follows
+```python
+from dlt.common import json
+```
+
+:::tip
+**orjson** is fast and available on most platforms. It uses binary streams, not strings to load data natively.
+- open files as binary, not string to use `load` and `dump`
+- use `loadb` and `dumpb` methods to work with bytes without decoding strings
+:::
 
 ## Using the built in requests client
 

@@ -20,9 +20,10 @@ from dlt.common.schema.typing import TTableSchemaColumns
 
 from dlt.cli.source_detection import detect_source_configs
 from dlt.common.typing import TDataItem
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ExplicitSourceNameInvalid, InconsistentTableTemplate, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, PipeGenInvalid, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, DynamicNameNotStandaloneResource, ExplicitSourceNameInvalid, InconsistentTableTemplate, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, PipeGenInvalid, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
 from dlt.extract.source import DltResource, DltSource
 from dlt.common.schema.exceptions import InvalidSchemaName
+from dlt.extract.typing import TableNameMeta
 
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V7
 
@@ -130,6 +131,27 @@ def test_transformer_no_parens() -> None:
     # create dynamic transformer with explicit func
     t = dlt.transformer(empty_t_2, data_from=bound_r)
     assert list(t("m")) == ["m", "mm", "mmm"]
+
+
+def test_transformer_kwargs() -> None:
+    @dlt.resource
+    def emit_tables():
+        yield dlt.mark.with_table_name(1, "table_1")
+        yield dlt.mark.with_table_name(2, "table_2")
+
+    @dlt.transformer
+    def ignore_meta(item, **kwargs):
+        assert "meta" not in kwargs
+        yield item
+
+    @dlt.transformer
+    def accept_meta(item, meta=None, **kwargs):
+        assert "meta" not in kwargs
+        assert isinstance(meta, TableNameMeta)
+        yield item
+
+    assert list(emit_tables | ignore_meta) == [1, 2]
+    assert list(emit_tables | accept_meta) == [1, 2]
 
 
 def test_source_name_is_invalid_schema_name() -> None:
@@ -588,6 +610,25 @@ def test_resource_sets_invalid_write_disposition() -> None:
     assert "write_disposition" in str(py_ex.value)
 
 
+def test_custom_source_impl() -> None:
+
+    class TypedSource(DltSource):
+        def users(self, mode: str) -> DltResource:
+            return self.resources["users"](mode)
+
+    @dlt.source(_impl_cls=TypedSource)
+    def all_users():
+
+        @dlt.resource
+        def users(mode: str):
+            yield mode
+
+        return users
+
+    s = all_users()
+    assert list(s.users("group")) == ["group"]
+
+
 # wrapped flag will not create the resource but just simple function wrapper that must be called before use
 @dlt.resource(standalone=True)
 def standalone_signature(init: int, secret_end: int = dlt.secrets.value):
@@ -681,6 +722,35 @@ def test_standalone_transformer() -> None:
     os.environ["SOURCES__TEST_DECORATORS__STANDALONE_SIGNATURE__SECRET_END"] = "5"
     os.environ["SOURCES__TEST_DECORATORS__STANDALONE_TRANSFORMER_RETURNS__INIT"] = "2"
     assert list(standalone_signature(1) | standalone_transformer_returns()) == ["AA", "AAAA", "AAAAAA", "AAAAAAAA"]
+
+
+@dlt.transformer(standalone=True, name=lambda args: args["res_name"])
+def standalone_tx_with_name(item: TDataItem, res_name: str, init: int = dlt.config.value):
+    return res_name * item * init
+
+
+def test_standalone_resource_with_name() -> None:
+    my_tx = standalone_tx_with_name("my_tx")
+    assert my_tx.section == "test_decorators"
+    assert my_tx.name == "my_tx"
+
+    # still the config comes via the function name
+    os.environ["SOURCES__TEST_DECORATORS__STANDALONE_TX_WITH_NAME__INIT"] = "2"
+    assert list(dlt.resource([1, 2, 3], name="x") | my_tx) == ['my_txmy_tx', 'my_txmy_txmy_txmy_tx', 'my_txmy_txmy_txmy_txmy_txmy_tx']
+
+    with pytest.raises(DynamicNameNotStandaloneResource):
+        @dlt.resource(standalone=False, name=lambda args: args["res_name"])  # type: ignore[call-overload]
+        def standalone_name():
+            yield "A"
+
+    # we looks for non existing argument in lambda
+    @dlt.resource(standalone=True, name=lambda args: args["res_name"])
+    def standalone_name_2(_name: str):
+        yield "A"
+
+    # so resource will not instantiate
+    with pytest.raises(KeyError):
+        standalone_name_2("_N")
 
 
 def test_resource_rename_credentials_separation():

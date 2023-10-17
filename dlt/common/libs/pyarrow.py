@@ -1,15 +1,21 @@
-from typing import Any, Tuple, Optional
+from typing import Any, Tuple, Optional, Union
 from dlt import version
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.schema.typing import TTableSchemaColumns
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
+from dlt.common.data_types import TDataType
+from dlt.common.typing import TFileOrPath
 
 try:
     import pyarrow
     import pyarrow.parquet
 except ModuleNotFoundError:
     raise MissingDependencyException("DLT parquet Helpers", [f"{version.DLT_PKG_NAME}[parquet]"], "DLT Helpers for for parquet.")
+
+
+TAnyArrowItem = Union[pyarrow.Table, pyarrow.RecordBatch]
 
 
 def get_py_arrow_datatype(column: TColumnType, caps: DestinationCapabilitiesContext, tz: str) -> Any:
@@ -82,3 +88,88 @@ def get_pyarrow_int(precision: Optional[int]) -> Any:
     elif precision <= 32:
         return pyarrow.int32()
     return pyarrow.int64()
+
+
+def _get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
+    """Returns (data_type, precision, scale) tuple from pyarrow.DataType
+    """
+    if pyarrow.types.is_string(dtype) or pyarrow.types.is_large_string(dtype):
+        return dict(data_type="text")
+    elif pyarrow.types.is_floating(dtype):
+        return dict(data_type="double")
+    elif pyarrow.types.is_boolean(dtype):
+        return dict(data_type="bool")
+    elif pyarrow.types.is_timestamp(dtype):
+        if dtype.unit == "s":
+            precision = 0
+        elif dtype.unit == "ms":
+            precision = 3
+        elif dtype.unit == "us":
+            precision = 6
+        else:
+            precision = 9
+        return dict(data_type="timestamp", precision=precision)
+    elif pyarrow.types.is_date(dtype):
+        return dict(data_type="date")
+    elif pyarrow.types.is_time(dtype):
+        # Time fields in schema are `DataType` instead of `Time64Type` or `Time32Type`
+        if dtype == pyarrow.time32("s"):
+            precision = 0
+        elif dtype == pyarrow.time32("ms"):
+            precision = 3
+        elif dtype == pyarrow.time64("us"):
+            precision = 6
+        else:
+            precision = 9
+        return dict(data_type="time", precision=precision)
+    elif pyarrow.types.is_integer(dtype):
+        result: TColumnType = dict(data_type="bigint")
+        if dtype.bit_width != 64: # 64bit is a default bigint
+            result["precision"] = dtype.bit_width
+        return result
+    elif pyarrow.types.is_fixed_size_binary(dtype):
+        return dict(data_type="binary", precision=dtype.byte_width)
+    elif pyarrow.types.is_binary(dtype) or pyarrow.types.is_large_binary(dtype):
+        return dict(data_type="binary")
+    elif pyarrow.types.is_decimal(dtype):
+        return dict(data_type="decimal", precision=dtype.precision, scale=dtype.scale)
+    elif pyarrow.types.is_nested(dtype):
+        return dict(data_type="complex")
+    else:
+        raise ValueError(dtype)
+
+
+def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColumns:
+    """Convert a PyArrow schema to a table schema columns dict.
+
+    Args:
+        schema (pyarrow.Schema): pyarrow schema
+
+    Returns:
+        TTableSchemaColumns: table schema columns
+    """
+    result: TTableSchemaColumns = {}
+    for field in schema:
+        result[field.name] = {
+            "name": field.name,
+            "nullable": field.nullable,
+            **_get_column_type_from_py_arrow(field.type),
+        }
+    return result
+
+
+def get_row_count(parquet_file: TFileOrPath) -> int:
+    """Get the number of rows in a parquet file.
+
+    Args:
+        parquet_file (str): path to parquet file
+
+    Returns:
+        int: number of rows
+    """
+    with pyarrow.parquet.ParquetFile(parquet_file) as reader:
+        return reader.metadata.num_rows  # type: ignore[no-any-return]
+
+
+def is_arrow_item(item: Any) -> bool:
+    return isinstance(item, (pyarrow.Table, pyarrow.RecordBatch))

@@ -26,7 +26,7 @@ from dlt.load import Load
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, SQL_DESTINATIONS
+from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, SQL_DESTINATIONS, EXCLUDED_DESTINATION_CONFIGURATIONS
 from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES, assert_all_data_types_row
 
 # bucket urls
@@ -53,6 +53,8 @@ class DestinationTestConfiguration:
     staging_iam_role: Optional[str] = None
     extra_info: Optional[str] = None
     supports_merge: bool = True  # TODO: take it from client base class
+    force_iceberg: bool = False
+    supports_dbt: bool = True
 
     @property
     def name(self) -> str:
@@ -72,6 +74,7 @@ class DestinationTestConfiguration:
         os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = self.bucket_url or ""
         os.environ['DESTINATION__STAGE_NAME'] = self.stage_name or ""
         os.environ['DESTINATION__STAGING_IAM_ROLE'] = self.staging_iam_role or ""
+        os.environ['DESTINATION__FORCE_ICEBERG'] = str(self.force_iceberg) or ""
 
         """For the filesystem destinations we disable compression to make analyzing the result easier"""
         if self.destination == "filesystem":
@@ -94,6 +97,7 @@ def destinations_configs(
         all_buckets_filesystem_configs: bool = False,
         subset: Sequence[str] = (),
         exclude: Sequence[str] = (),
+        file_format: Optional[TLoaderFileFormat] = None,
 ) -> List[DestinationTestConfiguration]:
 
     # sanity check
@@ -106,17 +110,17 @@ def destinations_configs(
     # default non staging sql based configs, one per destination
     if default_sql_configs:
         destination_configs += [DestinationTestConfiguration(destination=destination) for destination in SQL_DESTINATIONS if destination != "athena"]
+        destination_configs += [DestinationTestConfiguration(destination="duckdb", file_format="parquet")]
         # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
         destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
+        destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, force_iceberg=True, supports_merge=False, supports_dbt=False, extra_info="iceberg")]
 
     if default_vector_configs:
         # for now only weaviate
         destination_configs += [DestinationTestConfiguration(destination="weaviate")]
 
-
     if default_staging_configs or all_staging_configs:
         destination_configs += [
-            DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, supports_merge=False),
             DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, staging_iam_role="arn:aws:iam::267388281016:role/redshift_s3_read", extra_info="s3-role"),
             DestinationTestConfiguration(destination="bigquery", staging="filesystem", file_format="parquet", bucket_url=GCS_BUCKET, extra_info="gcs-authorization"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, stage_name="PUBLIC.dlt_gcs_stage", extra_info="gcs-integration"),
@@ -152,6 +156,11 @@ def destinations_configs(
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
     if exclude:
         destination_configs = [conf for conf in destination_configs if conf.destination not in exclude]
+    if file_format:
+        destination_configs = [conf for conf in destination_configs if conf.file_format == file_format]
+
+    # filter out excluded configs
+    destination_configs = [conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS]
 
     return destination_configs
 
@@ -171,7 +180,7 @@ def load_table(name: str) -> Dict[str, TTableSchemaColumns]:
 def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
     file_name = ParsedLoadJobFileName(table_name, uniq_id(), 0, client.capabilities.preferred_loader_file_format).job_id()
     file_storage.save(file_name, query.encode("utf-8"))
-    table = Load.get_load_table(client.schema, file_name)
+    table = client.get_load_table(table_name)
     job = client.start_file_load(table, file_storage.make_full_path(file_name), uniq_id())
     while job.state() == "running":
         sleep(0.5)

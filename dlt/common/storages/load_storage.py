@@ -13,7 +13,8 @@ from dlt.common.configuration import known_sections
 from dlt.common.configuration.inject import with_config
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.data_writers import TLoaderFileFormat, DataWriter
+from dlt.common.data_writers import DataWriter
+from dlt.common.destination import ALL_SUPPORTED_FILE_FORMATS, TLoaderFileFormat
 from dlt.common.configuration.accessors import config
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaTables, TTableSchemaColumns
@@ -138,7 +139,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     SCHEMA_FILE_NAME = "schema.json"  # package schema
     PACKAGE_COMPLETED_FILE_NAME = "package_completed.json"  # completed package marker file, currently only to store data with os.stat
 
-    ALL_SUPPORTED_FILE_FORMATS: Set[TLoaderFileFormat] = set(get_args(TLoaderFileFormat))
+    ALL_SUPPORTED_FILE_FORMATS = ALL_SUPPORTED_FILE_FORMATS
 
     @with_config(spec=LoadStorageConfiguration, sections=(known_sections.LOAD,))
     def __init__(
@@ -237,8 +238,11 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         return self.storage.list_folder_files(self._get_job_folder_path(load_id, LoadStorage.FAILED_JOBS_FOLDER))
 
     def list_jobs_for_table(self, load_id: str, table_name: str) -> Sequence[LoadJobInfo]:
+        return [job for job in self.list_all_jobs(load_id) if job.job_file_info.table_name == table_name]
+
+    def list_all_jobs(self, load_id: str) -> Sequence[LoadJobInfo]:
         info = self.get_load_package_info(load_id)
-        return [job for job in flatten_list_or_items(iter(info.jobs.values())) if job.job_file_info.table_name == table_name]  # type: ignore
+        return [job for job in flatten_list_or_items(iter(info.jobs.values()))]  # type: ignore
 
     def list_completed_failed_jobs(self, load_id: str) -> Sequence[str]:
         return self.storage.list_folder_files(self._get_job_folder_completed_path(load_id, LoadStorage.FAILED_JOBS_FOLDER))
@@ -310,6 +314,11 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def add_new_job(self, load_id: str, job_file_path: str, job_state: TJobState = "new_jobs") -> None:
         """Adds new job by moving the `job_file_path` into `new_jobs` of package `load_id`"""
         self.storage.atomic_import(job_file_path, self._get_job_folder_path(load_id, job_state))
+
+    def atomic_import(self, external_file_path: str, to_folder: str) -> str:
+        """Copies or links a file at `external_file_path` into the `to_folder` effectively importing file into storage"""
+        # LoadStorage.parse_job_file_name
+        return self.storage.to_relative_path(FileStorage.move_atomic_to_folder(external_file_path, self.storage.make_full_path(to_folder)))
 
     def start_job(self, load_id: str, file_name: str) -> str:
         return self._move_job(load_id, LoadStorage.NEW_JOBS_FOLDER, LoadStorage.STARTED_JOBS_FOLDER, file_name)

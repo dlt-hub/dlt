@@ -25,7 +25,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
 
     # TODO: start storing _dlt_loads with right json content
     increase_loads = lambda x: x if destination_config.destination == "filesystem" else x + 1
-    increase_state_loads = lambda info: len([job for job in info.load_packages[0].jobs["completed_jobs"] if job.job_file_info.table_name == "_dlt_pipeline_state" and job.job_file_info.file_format != "reference"])
+    increase_state_loads = lambda info: len([job for job in info.load_packages[0].jobs["completed_jobs"] if job.job_file_info.table_name == "_dlt_pipeline_state" and job.job_file_info.file_format not in ["sql", "reference"]])
 
     # filesystem does not have versions and child tables
     def norm_table_counts(counts: Dict[str, int], *child_tables: str) -> Dict[str, int]:
@@ -72,6 +72,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
                 "name": f"item {index}",
             }
 
+
     # first run with offset 0
     info = pipeline.run([load_items, append_items], loader_file_format=destination_config.file_format)
     assert_load_info(info)
@@ -98,6 +99,7 @@ def test_replace_disposition(destination_config: DestinationTestConfiguration, r
         "_dlt_loads": dlt_loads,
         "_dlt_version": dlt_versions
     }
+
     # check trace
     assert pipeline.last_trace.last_normalize_info.row_counts == {
         "append_items": 12,

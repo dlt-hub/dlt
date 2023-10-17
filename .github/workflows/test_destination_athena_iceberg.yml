@@ -1,0 +1,94 @@
+
+name: test athena iceberg
+
+on:
+  pull_request:
+    branches:
+      - master
+      - devel
+  workflow_dispatch:
+
+env:
+  DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4J46G55G4
+  DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  DESTINATION__ATHENA__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4J46G55G4
+  DESTINATION__ATHENA__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  DESTINATION__ATHENA__CREDENTIALS__REGION_NAME: eu-central-1
+  DESTINATION__ATHENA__QUERY_RESULT_BUCKET: s3://dlt-athena-output
+
+  RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
+  RUNTIME__LOG_LEVEL: ERROR
+  RUNTIME__DLTHUB_TELEMETRY_SEGMENT_WRITE_KEY: TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB
+  ACTIVE_DESTINATIONS: "[\"athena\"]"
+  ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
+  EXCLUDED_DESTINATION_CONFIGURATIONS: "[\"athena-no-staging\"]"
+
+jobs:
+  get_docs_changes:
+    uses: ./.github/workflows/get_docs_changes.yml
+    # Tests that require credentials do not run in forks
+    if: ${{ !github.event.pull_request.head.repo.fork }}
+
+  run_loader:
+    name: test destination athena iceberg
+    needs: get_docs_changes
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        os: ["ubuntu-latest"]
+        # os: ["ubuntu-latest", "macos-latest", "windows-latest"]
+    defaults:
+      run:
+        shell: bash
+    runs-on: ${{ matrix.os }}
+
+    steps:
+
+      - name: Check out
+        uses: actions/checkout@master
+
+      - name: Setup Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.10.x"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1.3.2
+        with:
+          virtualenvs-create: true
+          virtualenvs-in-project: true
+          installer-parallel: true
+
+      - name: Load cached venv
+        id: cached-poetry-dependencies
+        uses: actions/cache@v3
+        with:
+          # path: ${{ steps.pip-cache.outputs.dir }}
+          path: .venv
+          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-athena
+
+      - name: Install dependencies
+        # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
+        run: poetry install --no-interaction -E athena
+
+      - run: |
+          poetry run pytest tests/load
+        if: runner.os != 'Windows'
+        name: Run tests Linux/MAC
+      - run: |
+          poetry run pytest tests/load
+        if: runner.os == 'Windows'
+        name: Run tests Windows
+        shell: cmd
+
+  matrix_job_required_check:
+    name: Redshift, PostgreSQL and DuckDB tests
+    needs: run_loader
+    runs-on: ubuntu-latest
+    if: always()
+    steps:
+      - name: Check matrix job results
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "One or more matrix job tests failed or were cancelled. You may need to re-run them." && exit 1

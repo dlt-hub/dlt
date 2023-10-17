@@ -364,26 +364,32 @@ html[data-theme='dark'] .footer__item a:hover{
   opacity: 0.8;
 }
 
+
 .github-navbar,
 .slack-navbar,
 .slack-navbar:hover,
 .github-navbar:hover {
   display: flex;
-  color: transparent;
+  position: relative;
+  top:3px;
 }
 
-.github-navbar:before {
+.github-navbar {
+  margin-right:10px;
+}
+
+.github-navbar:after {
   content: '';
   width: 32px;
   height: 32px;
   display: flex;
   background: url("../../static/img/GithubDark.svg") no-repeat;
   position: relative;
-  left: 0px;
-  top: 0px;
+  right: -10px;
+  top: -3px;
 }
 
-html[data-theme='dark'] .github-navbar:before {
+html[data-theme='dark'] .github-navbar:after {
   background:  url("../../static/img/GithubLight.svg") no-repeat;
 }
 
@@ -414,20 +420,21 @@ html[data-theme='dark'] .theme-edit-this-page::before {
   display: flex;
 }
 
-.slack-navbar:before {
+.slack-navbar:after {
   content: '';
   width: 32px;
   height: 32px;
   display: flex;
   background: url("../../static/img/SlackDark.svg") no-repeat;
+  background-size: 32px 32px;
   position: relative;
-  left: 10px;
-  top: 0px;
-
+  right: -10px;
+  top: -3px;
 }
 
-html[data-theme='dark'] .slack-navbar::before {
+html[data-theme='dark'] .slack-navbar::after {
   background: url("../../static/img/SlackLight.svg") no-repeat;
+  background-size: 32px 32px;
 }
 
 /* siderbar-icons */
@@ -538,7 +545,7 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a.men
   background-image: url(../../static/img/GettingStarted-Active-1.svg);
 }
 
-/* Pipeline tutorial */
+/* Pipeline Tutorial */
 
 .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>a::before {
   background-image: url(../../static/img/Pipelines-Inactive.svg);
@@ -558,7 +565,7 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>a.men
   background-image: url(../../static/img/Pipelines-Active-1.svg);
 }
 
-/* Ecosystem */
+/* Integrations */
 
 .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>a::before {
   background-image: url(../../static/img/UsingLoadedData-Inactive.svg);
@@ -578,103 +585,83 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(4)>div>[
   background-image: url(../../static/img/UsingLoadedData-Active-1.svg);
 }
 
-/* walkthrough */
+/* Using dlt */
 
 .theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>a::before {
-  background-image: url(../../static/img/Walkthrough-Inactive.svg);
+  background-image: url(../../static/img/GeneralUsage-Inactive.svg);
 }
 
 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(5)>div>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/Walkthrough-Active.svg);
+  background-image: url(../../static/img/GeneralUsage-Active.svg);
 }
 
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>a::before {
-  background-image: url(../../static/img/Walkthrough-Inactive-1.svg);
+  background-image: url(../../static/img/GeneralUsage-Inactive-1.svg);
 }
 
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(5)>div>a::before,
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(5)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/Walkthrough-Active-1.svg);
+  background-image: url(../../static/img/GeneralUsage-Active-1.svg);
 }
 
-/* general usage */
+/* How-to Guides */
 
 .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>a::before {
-  background-image: url(../../static/img/GeneralUsage-Inactive.svg);
+  background-image: url(../../static/img/Walkthrough-Inactive.svg);
 }
 
 .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(6)>div>a::before,
 .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/GeneralUsage-Active.svg);
+  background-image: url(../../static/img/Walkthrough-Active.svg);
 }
 
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>a::before {
-  background-image: url(../../static/img/GeneralUsage-Inactive-1.svg);
+  background-image: url(../../static/img/Walkthrough-Inactive-1.svg);
 }
 
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(6)>div>a::before,
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(6)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/GeneralUsage-Active-1.svg);
-}
-
-/*  Running in production */
-
-.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
-  background-image: url(../../static/img/RunningInProduction-Inactive.svg);
-}
-
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/RunningInProduction-Active.svg);
-}
-
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
-  background-image: url(../../static/img/RunningInProduction-Inactive-1.svg);
-}
-
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>div>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>[aria-expanded="true"]::before {
-  background-image: url(../../static/img/RunningInProduction-Active-1.svg);
+  background-image: url(../../static/img/Walkthrough-Active-1.svg);
 }
 
 /* Code Examples */
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
   background-image: url(../../static/img/Howdltworks-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Howdltworks-Active.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>a::before {
   background-image: url(../../static/img/Howdltworks-Inactive-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(7)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(7)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Howdltworks-Active-1.svg);
 }
 
 /* Reference */
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>a::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
   background-image: url(../../static/img/Reference-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(9)>div>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>[aria-expanded="true"]::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Reference-Active.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>a::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a::before {
   background-image: url(../../static/img/Reference-Inactive-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(9)>div>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(9)>div>[aria-expanded="true"]::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Reference-Active-1.svg);
 }
 

@@ -14,10 +14,10 @@ else:
 from typing import ClassVar, Dict, List, Optional, Sequence, Any
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import NewLoadJob, CredentialsConfiguration
+from dlt.common.destination.reference import NewLoadJob, CredentialsConfiguration, SupportsStagingDestination
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TTableSchema, TColumnType
+from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
@@ -76,7 +76,7 @@ class RedshiftTypeMapper(TypeMapper):
         "integer": "bigint",
     }
 
-    def to_db_integer_type(self, precision: Optional[int]) -> str:
+    def to_db_integer_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
         if precision is None:
             return "bigint"
         if precision <= 16:
@@ -187,7 +187,7 @@ class RedshiftMergeJob(SqlMergeJob):
         return SqlMergeJob.gen_key_table_clauses(root_table_name, staging_root_table_name, key_clauses, for_delete)
 
 
-class RedshiftClient(InsertValuesJobClient):
+class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
@@ -201,10 +201,10 @@ class RedshiftClient(InsertValuesJobClient):
         self.config: RedshiftClientConfiguration = config
         self.type_mapper = RedshiftTypeMapper(self.capabilities)
 
-    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        return [RedshiftMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _get_column_def_sql(self, c: TColumnSchema) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         hints_str = " ".join(HINT_TO_REDSHIFT_ATTR.get(h, "") for h in HINT_TO_REDSHIFT_ATTR.keys() if c.get(h, False) is True)
         column_name = self.capabilities.escape_identifier(c["name"])
         return f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
