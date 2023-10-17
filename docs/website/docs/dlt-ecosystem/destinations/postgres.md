@@ -86,7 +86,7 @@ create_indexes=false
 ```
 
 ### dbt support
-This destination [integrates with dbt](../transformations/dbt.md) via dbt-postgres.
+This destination [integrates with dbt](../transformations/dbt/dbt.md) via dbt-postgres.
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
