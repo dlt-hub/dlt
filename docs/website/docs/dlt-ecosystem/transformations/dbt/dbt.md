@@ -83,5 +83,5 @@ for m in models:
 If you want to transform the data before loading, you can use Python. If you want to transform the
 data after loading, you can use dbt or one of the following:
 
-1. [`dlt` SQL client.](sql.md)
-1. [Pandas.](pandas.md)
+1. [`dlt` SQL client.](../sql.md)
+1. [Pandas.](../pandas.md)

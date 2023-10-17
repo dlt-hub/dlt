@@ -21,3 +21,6 @@ DATA_WRITER = "data_writer"
 
 DBT_PACKAGE_RUNNER =  "dbt_package_runner"
 """dbt package runner configuration (DBTRunnerConfiguration)"""
+
+DBT_CLOUD =  "dbt_cloud"
+"""dbt cloud helpers configuration (DBTCloudConfiguration)"""

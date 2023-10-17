@@ -43,5 +43,5 @@ try:
 If you want to transform the data before loading, you can use Python. If you want to transform the
 data after loading, you can use SQL or one of the following:
 
-1. [dbt](dbt.md) (recommended).
+1. [dbt](dbt/dbt.md) (recommended).
 1. [Pandas.](pandas.md)
