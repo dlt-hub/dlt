@@ -60,6 +60,10 @@ jobs:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-dbt-cloud
 
+      - name: Install dependencies
+        # install dlt with postgres support
+        run: poetry install --no-interaction
+
       - run: |
           poetry run pytest tests/helpers/dbt_cloud_tests -k '(not venv)'
         if: runner.os != 'Windows'
