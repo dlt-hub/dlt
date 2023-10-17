@@ -264,7 +264,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def extend_table(self, table_name: str) -> None:
         # if the table has a merge w_d, add propagation info to normalizer
         table = self.schema.tables.get(table_name)
-        if not table.get("parent") and table["write_disposition"] == "merge":
+        if not table.get("parent") and table.get("write_disposition") == "merge":
             DataItemNormalizer.update_normalizer_config(self.schema, {"propagation": {
                 "tables": {
                     table_name: {

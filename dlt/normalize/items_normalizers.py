@@ -65,7 +65,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
                 # if we detect a migration, check schema contract
                 if partial_table:
-                    row, partial_table = Schema.apply_schema_contract(schema, schema_contract, table_name, row, partial_table)
+                    row, partial_table = schema.apply_schema_contract(schema, schema_contract, table_name, row, partial_table)
                 if not row:
                     continue
 

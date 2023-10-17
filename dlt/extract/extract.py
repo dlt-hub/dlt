@@ -216,7 +216,7 @@ class Extractor:
 
         # this is a new table so allow evolve once
         # TODO: is this the correct check for a new table, should a table with only incomplete columns be new too?
-        is_new_table = (self.pipeline_schema == None) or (table["name"] not in self.pipeline_schema.tables) or (not self.pipeline_schema.tables[table["name"]]["columns"])
+        is_new_table = (self.pipeline_schema is None) or (table["name"] not in self.pipeline_schema.tables) or (not self.pipeline_schema.tables[table["name"]]["columns"])
         if is_new_table:
             table["x-normalizer"] = {"evolve_once": True}  # type: ignore[typeddict-unknown-key]
 
@@ -263,6 +263,7 @@ class ArrowExtractor(Extractor):
         static_table["columns"] = arrow_columns
         static_table["name"] = table_name
         self.dynamic_tables[table_name] = [static_table]
+        self._write_item(table_name, resource.name, items)
 
 
 def extract(

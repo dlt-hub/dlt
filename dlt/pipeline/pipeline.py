@@ -879,7 +879,6 @@ class Pipeline(SupportsPipeline):
             pipeline_schema = source_schema
 
         # update pipeline schema
-        print(source_schema.tables)
         pipeline_schema.update_schema(source_schema)
         pipeline_schema.set_schema_contract(global_contract, True)
 

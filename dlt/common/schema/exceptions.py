@@ -77,7 +77,7 @@ class SchemaFrozenException(SchemaException):
         self.schema_name = schema_name
         self.table_name = table_name
 
-        
+
 class UnknownTableException(SchemaException):
     def __init__(self, table_name: str) -> None:
         self.table_name = table_name
