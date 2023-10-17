@@ -29,6 +29,24 @@ def run_dbt_cloud_job(
             Defaults to None.
         data (dict, optional): Additional data to include when triggering the job run.
             Defaults to None.
+            Fields of data:
+                 '{
+                    "cause": "string",
+                    "git_sha": "string",
+                    "git_branch": "string",
+                    "azure_pull_request_id": integer,
+                    "github_pull_request_id": integer,
+                    "gitlab_merge_request_id": integer,
+                    "schema_override": "string",
+                    "dbt_version_override": "string",
+                    "threads_override": integer,
+                    "target_name_override": "string",
+                    "generate_docs_override": boolean,
+                    "timeout_seconds_override": integer,
+                    "steps_override": [
+                        "string"
+                    ]
+                }'
         wait_for_outcome (bool, optional): Whether to wait for the job run to complete before returning.
             Defaults to True.
         wait_seconds (int, optional): The interval (in seconds) between status checks while waiting for completion.
