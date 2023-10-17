@@ -13,10 +13,33 @@ from dlt.helpers.dbt_cloud.configuration import DBTCloudConfiguration
 )
 def run_dbt_cloud_job(
     credentials: DBTCloudConfiguration = dlt.secrets.value,
+    job_id: Union[int, str, None] = None,
     data: Optional[Dict[Any, Any]] = None,
     wait_for_outcome: bool = True,
     wait_seconds: int = 10,
 ) -> Dict[Any, Any]:
+    """
+    Trigger a dbt Cloud job run and retrieve its status.
+
+    Args:
+        credentials (DBTCloudConfiguration): Configuration parameters for dbt Cloud.
+            Defaults to dlt.secrets.value.
+        job_id (int | str, optional): The ID of the specific job to run.
+            If not provided, it will use the job ID specified in the credentials.
+            Defaults to None.
+        data (dict, optional): Additional data to include when triggering the job run.
+            Defaults to None.
+        wait_for_outcome (bool, optional): Whether to wait for the job run to complete before returning.
+            Defaults to True.
+        wait_seconds (int, optional): The interval (in seconds) between status checks while waiting for completion.
+            Defaults to 10.
+
+    Returns:
+        dict: A dictionary containing the status information of the job run.
+
+    Raises:
+        InvalidCredentialsException: If account_id or job_id is missing.
+    """
     operator = DBTCloudClientV2(
         api_token=credentials.api_token,
         account_id=credentials.account_id,
@@ -35,7 +58,9 @@ def run_dbt_cloud_job(
     if data:
         json_data.update(json_data)
 
-    run_id = operator.trigger_job_run(job_id=credentials.job_id, data=json_data)
+    job_id = job_id or credentials.job_id
+
+    run_id = operator.trigger_job_run(job_id=job_id, data=json_data)
     status = operator.get_run_status(run_id)
 
     if wait_for_outcome and status["in_progress"]:
@@ -59,6 +84,26 @@ def get_dbt_cloud_run_status(
     wait_for_outcome: bool = True,
     wait_seconds: int = 10,
 ) -> Dict[Any, Any]:
+    """
+    Retrieve the status of a dbt Cloud job run.
+
+    Args:
+        credentials (DBTCloudConfiguration): Configuration parameters for dbt Cloud.
+            Defaults to dlt.secrets.value.
+        run_id (int | str, optional): The ID of the specific job run to retrieve status for.
+            If not provided, it will use the run ID specified in the credentials.
+            Defaults to None.
+        wait_for_outcome (bool, optional): Whether to wait for the job run to complete before returning.
+            Defaults to True.
+        wait_seconds (int, optional): The interval (in seconds) between status checks while waiting for completion.
+            Defaults to 10.
+
+    Returns:
+        dict: A dictionary containing the status information of the specified job run.
+
+    Raises:
+        InvalidCredentialsException: If account_id or run_id is missing.
+    """
     operator = DBTCloudClientV2(
         api_token=credentials.api_token,
         account_id=credentials.account_id,
