@@ -1,30 +1,38 @@
-# DBT Cloud Helpers
+# DBT Cloud Client and Helper Functions
 
-These Python functions provide an interface to interact with the dbt Cloud API. They simplify the process of triggering and monitoring job runs in dbt Cloud.
+## API Client
 
-## `run_dbt_cloud_job`
+The DBT Cloud Client is a Python class designed to interact with the dbt Cloud API (version 2).
+It provides methods to perform various operations on dbt Cloud, such as triggering job runs and retrieving job run status.
+
+### Usage
+
+```python
+from dlt.helpers.dbt_cloud import DBTCloudClientV2
+
+# Initialize the client
+client = DBTCloudClientV2(api_token="YOUR_API_TOKEN", account_id="YOUR_ACCOUNT_ID")
+
+# Example: Trigger a job run
+job_run_id = client.trigger_job_run(job_id=1234, data={"cause": "Triggered via API"})
+print(f"Job run triggered successfully. Run ID: {job_run_id}")
+
+# Example: Get run status
+run_status = client.get_run_status(run_id=job_run_id)
+print(f"Job run status: {run_status["status_humanized"]}")
+```
+
+## Helper functions
+
+These Python functions provide an interface to interact with the dbt Cloud API.
+They simplify the process of triggering and monitoring job runs in dbt Cloud.
+
+## `run_dbt_cloud_job()`
 
 ### Overview
 
-This function triggers a job run in dbt Cloud using the specified configuration. It supports various customization options and allows for monitoring the job's status.
-
-### Set credentials
-
-If you used the `dlt init` command, then the `.dlt` folder has already been created.
-Otherwise, create a `.dlt` folder in your working directory and a `secrets.toml` file inside it.
-
-It's where you store sensitive information securely, like access tokens. Keep this file safe.
-
-Use the following format for dbt Cloud API authentication:
-
-```toml
-[dbt_cloud]
-api_token = "set me up!" # required for authentication
-account_id = "set me up!" #
-job_id = "set me up!"
-```
-
-For more information, read the [Credentials](https://dlthub.com/docs/general-usage/credentials) documentation.
+This function triggers a job run in dbt Cloud using the specified configuration.
+It supports various customization options and allows for monitoring the job's status.
 
 ### Usage
 
@@ -40,28 +48,17 @@ additional_data = {
     "schema_override": "custom_schema",
     # ... other parameters
 }
-status = run_dbt_cloud_job(data=additional_data, wait_for_outcome=True)
+status = run_dbt_cloud_job(job_id=1234, data=additional_data, wait_for_outcome=True)
 ```
 
-### Parameters
-
-- `credentials`: Configuration parameters for dbt Cloud.
-
-- `data` (optional): Additional data to pass when triggering the job run, in the form of a dictionary.
-
-- `wait_for_outcome` (optional): If set to `True`, the function will wait for the job run to complete before returning. Default is `True`.
-
-- `wait_seconds` (optional): The interval (in seconds) at which to check the job's status while waiting for completion. Default is `10` seconds.
-
-### Returns
-
-A dictionary containing the status information of the job run.
-
-## `get_dbt_cloud_run_status`
+## `get_dbt_cloud_run_status()`
 
 ### Overview
 
-This function retrieves the status of a specific dbt Cloud job run. It also supports options for waiting until the run is complete.
+If you have already started job run and have a run ID, then you can use the `get_dbt_cloud_run_status` function.
+
+This function retrieves the full information about a specific dbt Cloud job run.
+It also supports options for waiting until the run is complete.
 
 ### Usage
 
@@ -69,19 +66,44 @@ This function retrieves the status of a specific dbt Cloud job run. It also supp
 from dlt.helpers.dbt_cloud import get_dbt_cloud_run_status
 
 # Retrieve status for a specific run
-status = get_dbt_cloud_run_status(run_id=1234)
+status = get_dbt_cloud_run_status(run_id=1234, wait_for_outcome=True)
 ```
 
-### Parameters
+## Set credentials
 
-- `credentials`: Configuration parameters for dbt Cloud.
+### secrets.toml
 
-- `run_id` (optional): The ID of the specific job run to retrieve status for. If not provided, it will use the run ID specified in the credentials.
+When using a dlt locally, we recommend using the `.dlt/secrets.toml` method to set credentials.
 
-- `wait_for_outcome` (optional): If set to `True`, the function will wait for the job run to complete before returning. Default is `True`.
+If you used the `dlt init` command, then the `.dlt` folder has already been created.
+Otherwise, create a `.dlt` folder in your working directory and a `secrets.toml` file inside it.
 
-- `wait_seconds` (optional): The interval (in seconds) at which to check the job's status while waiting for completion. Default is `10` seconds.
+It's where you store sensitive information securely, like access tokens. Keep this file safe.
 
-### Returns
+Use the following format for dbt Cloud API authentication:
 
-A dictionary containing the status information of the specified job run.
+```toml
+[dbt_cloud]
+api_token = "set me up!" # required for authentication
+account_id = "set me up!" # required for both helpers function
+job_id = "set me up!" # optional only for run_dbt_cloud_job function (you can pass this explicitly as an argument to the function)
+run_id = "set me up!" # optional for get_dbt_cloud_run_status (you can pass this explicitly as an argument to the function)
+```
+
+### Environment variables
+
+`dlt` supports reading credentials from environment.
+
+If dlt tries to read this from environment variables, it will use a different naming convention.
+
+For environment variables all names are capitalized and sections are separated with double underscore "__".
+
+For example, for the above secrets, we would need to put into environment:
+
+```
+DBT_CLOUD__API_TOKEN
+DBT_CLOUD__ACCOUNT_ID
+DBT_CLOUD__JOB_ID
+```
+
+For more information, read the [Credentials](https://dlthub.com/docs/general-usage/credentials) documentation.
