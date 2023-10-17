@@ -1,3 +1,9 @@
+---
+title: Transforming the data with dbt Cloud
+description: Transforming the data loaded by a dlt pipeline with dbt Cloud
+keywords: [transform, sql]
+---
+
 # DBT Cloud Client and Helper Functions
 
 ## API Client

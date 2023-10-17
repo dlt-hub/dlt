@@ -151,7 +151,14 @@ const sidebars = {
             keywords: ['transformations'],
           },
           items: [
-            'dlt-ecosystem/transformations/dbt',
+            {
+              type: 'category',
+              label: 'Transforming data with dbt',
+              items: [
+                'dlt-ecosystem/transformations/dbt/dbt',
+                'dlt-ecosystem/transformations/dbt/dbt_cloud',
+              ]
+            },
             'dlt-ecosystem/transformations/sql',
             'dlt-ecosystem/transformations/pandas',
           ]
