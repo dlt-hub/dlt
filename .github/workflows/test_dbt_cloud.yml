@@ -67,7 +67,7 @@ jobs:
       - run: |
           poetry run pytest tests/helpers/dbt_cloud_tests -k '(not venv)'
         if: runner.os != 'Windows'
-        name: Run dbt runner - Linux/MAC
+        name: Run dbt cloud - Linux/MAC
       - run: |
           poetry run pytest tests/helpers/dbt_cloud_tests -k "(not venv)"
         if: runner.os == 'Windows'
