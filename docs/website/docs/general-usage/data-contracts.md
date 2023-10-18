@@ -21,6 +21,8 @@ def items():
 This resource will allow new subtables to be created, but will throw an exception if data is extracted for an existing table which 
 contains a new column. 
 
+### Possible settings
+
 The `schema_contract` exists on the `source` decorator as a directive for all resources of that source and on the 
 `resource` decorator as a directive for the individual resource.  Additionally it exists on the `pipeline.run()` method, which will override all existing settings. 
 The `schema_contract` is a dictionary with keys that control the following:
@@ -33,6 +35,8 @@ Each property can be set to one of three values:
 * `freeze`: This will raise an exception if data is encountered that does not fit the existing schema, so no data will be loaded to the destination
 * `discard_row`: This will discard any extracted row if it does not adhere to the existing schema, and this row will not be loaded to the destination. All other rows will be.
 * `discard_value`: This will discard data in an extracted row that does not adhere to the existing schema and the row will be loaded without this data.
+
+If a table is a new table that has not been created on the destination yet, dlt will allow the creation of all columns and variants on the first run
 
 ### Code Examples
 
