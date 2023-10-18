@@ -282,5 +282,4 @@ verified source.
    load_info = pipeline.run((attachments | pdf_to_text).with_name("my_pages"))
    # Display loaded data details.
    print(load_info)
-   return pipeline
    ```
