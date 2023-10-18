@@ -205,9 +205,9 @@ def get_messages(
 ) -> TDataItem:
 ```
 
-`items` (TDataItems): An iterable containing dictionaries with 'message_uid' representing the email message UIDs.
+`items`: An iterable containing dictionaries with 'message_uid' representing the email message UIDs.
 
-`include_body` (bool): Includes email body if True. Default: True.
+`include_body`: Includes email body if True. Default: True.
 
 ### Resource `get_attachments_by_uid`
 
@@ -223,7 +223,7 @@ def get_attachments(
     items: TDataItems,
 ) -> Iterable[List[FileItem]]:
 ```
-`items` (TDataItems): An iterable containing dictionaries with 'message_uid' representing the email message UIDs.
+`items`: An iterable containing dictionaries with 'message_uid' representing the email message UIDs.
 
 We use the document hash as a primary key to avoid duplicating them in tables.
 
