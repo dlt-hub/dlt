@@ -127,6 +127,7 @@ class Extractor:
         self.extract_id = extract_id
         self.disallowed_tables: Set[str] = set()
         self.pipeline_schema = pipeline_schema
+        self.normalized_table_names: Dict[str, str] = {}
 
     @property
     def storage(self) -> ExtractorItemStorage:
@@ -147,6 +148,14 @@ class Extractor:
             return "puae-jsonl"
         return None # Empty list is unknown format
 
+    def normalize_table_name(self, table_name: str) -> str:
+        """Cache normalized table names"""
+        if normalized_name := self.normalized_table_names.get(table_name):
+            return normalized_name
+        normalized_name = self.schema.naming.normalize_table_identifier(table_name)
+        self.normalized_table_names[table_name] = normalized_name
+        return normalized_name
+
     def write_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         if isinstance(meta, TableNameMeta):
             table_name = meta.table_name
@@ -164,14 +173,13 @@ class Extractor:
                 self._write_static_table(resource, table_name, items)
 
     def write_empty_file(self, table_name: str) -> None:
-        table_name = self.schema.naming.normalize_table_identifier(table_name)
+        table_name = self.normalize_table_name(table_name)
         self.storage.write_empty_file(self.extract_id, self.schema.name, table_name, None)
 
     def _write_item(self, table_name: str, resource_name: str, items: TDataItems) -> None:
         # normalize table name before writing so the name match the name in schema
-        # note: normalize function should be cached so there's almost no penalty on frequent calling
         # note: column schema is not required for jsonl writer used here
-        table_name = self.schema.naming.normalize_identifier(table_name)
+        table_name = self.normalize_table_name(table_name)
         self.collector.update(table_name)
         self.resources_with_items.add(resource_name)
         self.storage.write_data_item(self.extract_id, self.schema.name, table_name, items, None)
@@ -203,9 +211,8 @@ class Extractor:
 
     def _add_dynamic_table(self, resource: DltResource, data_item: TDataItem = None, table_name: Optional[str] = None) -> bool:
         """
-        Computes new table and does contract checks
+        Computes new table and does contract checks, if false is returned, the table may not be created and not items should be written
         """
-        # TODO: We have to normalize table identifiers here
         table = resource.compute_table_schema(data_item)
         if table_name:
             table["name"] = table_name
@@ -215,15 +222,14 @@ class Extractor:
             return False
 
         # this is a new table so allow evolve once
-        # TODO: is this the correct check for a new table, should a table with only incomplete columns be new too?
-        is_new_table = (self.pipeline_schema is None) or (table["name"] not in self.pipeline_schema.tables) or (not self.pipeline_schema.tables[table["name"]]["columns"])
+        is_new_table = (self.pipeline_schema is None) or self.pipeline_schema.is_new_table(table["name"])
         if is_new_table:
             table["x-normalizer"] = {"evolve_once": True}  # type: ignore[typeddict-unknown-key]
 
         # apply schema contract and apply on pipeline schema
         # here we only check that table may be created
         schema_contract = resolve_contract_settings_for_table(None, table["name"], self.pipeline_schema, self.schema, table)
-        _, checked_table = Schema.apply_schema_contract(self.pipeline_schema, schema_contract, table["name"], None, table)
+        _, checked_table = Schema.apply_schema_contract(self.pipeline_schema, schema_contract, None, table)
 
         if not checked_table:
             self.disallowed_tables.add(table["name"])

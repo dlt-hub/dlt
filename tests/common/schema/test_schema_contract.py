@@ -225,12 +225,12 @@ def test_check_adding_table(base_settings) -> None:
     #
     # check adding new table
     #
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"tables": "evolve"}}), "new_table", data, new_table) == (data, new_table)
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"tables": "discard_row"}}), "new_table", data, new_table) == (None, None)
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"tables": "discard_value"}}), "new_table", data, new_table) == (None, None)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"tables": "evolve"}}), data, new_table) == (data, new_table)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"tables": "discard_row"}}), data, new_table) == (None, None)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"tables": "discard_value"}}), data, new_table) == (None, None)
 
     with pytest.raises(SchemaFrozenException):
-        schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"tables": "freeze"}}), "new_table", data, new_table)
+        schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"tables": "freeze"}}), data, new_table)
 
 
 @pytest.mark.parametrize("base_settings", base_settings)
@@ -260,12 +260,12 @@ def test_check_adding_new_columns(base_settings) -> None:
     popped_table_update = copy.deepcopy(table_update)
     popped_table_update["columns"].pop("new_column")
 
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "evolve"}}), "tables", copy.deepcopy(data_with_new_row), table_update) == (data_with_new_row, table_update)
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "discard_row"}}), "tables", copy.deepcopy(data_with_new_row), table_update) == (None, None)
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "discard_value"}}), "tables", copy.deepcopy(data_with_new_row), table_update) == (data, popped_table_update)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "evolve"}}), copy.deepcopy(data_with_new_row), table_update) == (data_with_new_row, table_update)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "discard_row"}}), copy.deepcopy(data_with_new_row), table_update) == (None, None)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "discard_value"}}), copy.deepcopy(data_with_new_row), table_update) == (data, popped_table_update)
 
     with pytest.raises(SchemaFrozenException):
-        schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "freeze"}}), "tables", copy.deepcopy(data_with_new_row), table_update)
+        schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "freeze"}}), copy.deepcopy(data_with_new_row), table_update)
 
 
     #
@@ -292,12 +292,12 @@ def test_check_adding_new_columns(base_settings) -> None:
     popped_table_update["columns"].pop("incomplete_column_1")
 
     # incomplete columns should be treated like new columns
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "evolve"}}), "mixed_table", copy.deepcopy(data_with_new_row), table_update) == (data_with_new_row, table_update)
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "discard_row"}}), "mixed_table", copy.deepcopy(data_with_new_row), table_update) == (None, None)
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "discard_value"}}), "mixed_table", copy.deepcopy(data_with_new_row), table_update) == (data, popped_table_update)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "evolve"}}), copy.deepcopy(data_with_new_row), table_update) == (data_with_new_row, table_update)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "discard_row"}}), copy.deepcopy(data_with_new_row), table_update) == (None, None)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "discard_value"}}), copy.deepcopy(data_with_new_row), table_update) == (data, popped_table_update)
 
     with pytest.raises(SchemaFrozenException):
-        schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "freeze"}}), "mixed_table", copy.deepcopy(data_with_new_row), table_update)
+        schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**base_settings, **{"columns": "freeze"}}), copy.deepcopy(data_with_new_row), table_update)
 
 
 
@@ -328,16 +328,16 @@ def test_check_adding_new_variant() -> None:
     popped_table_update = copy.deepcopy(table_update)
     popped_table_update["columns"].pop("column_2_variant")
 
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve"}}), "tables", copy.deepcopy(data_with_new_row), copy.deepcopy(table_update)) == (data_with_new_row, table_update)
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard_row"}}), "tables", copy.deepcopy(data_with_new_row), copy.deepcopy(table_update)) == (None, None)
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard_value"}}), "tables", copy.deepcopy(data_with_new_row), copy.deepcopy(table_update)) == (data, popped_table_update)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve"}}), copy.deepcopy(data_with_new_row), copy.deepcopy(table_update)) == (data_with_new_row, table_update)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard_row"}}), copy.deepcopy(data_with_new_row), copy.deepcopy(table_update)) == (None, None)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "discard_value"}}), copy.deepcopy(data_with_new_row), copy.deepcopy(table_update)) == (data, popped_table_update)
 
     with pytest.raises(SchemaFrozenException):
-        schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}), "tables", copy.deepcopy(data_with_new_row), copy.deepcopy(table_update))
+        schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}), copy.deepcopy(data_with_new_row), copy.deepcopy(table_update))
 
     # check interaction with new columns settings, variants are new columns..
     with pytest.raises(SchemaFrozenException):
-        assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve", "columns": "freeze"}}), "tables", copy.deepcopy(data_with_new_row), copy.deepcopy(table_update)) == (data_with_new_row, table_update)
+        assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve", "columns": "freeze"}}), copy.deepcopy(data_with_new_row), copy.deepcopy(table_update)) == (data_with_new_row, table_update)
 
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve", "columns": "discard_row"}}), "tables", copy.deepcopy(data_with_new_row), copy.deepcopy(table_update)) == (None, None)
-    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve", "columns": "discard_value"}}), "tables", copy.deepcopy(data_with_new_row), copy.deepcopy(table_update)) == (data, popped_table_update)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve", "columns": "discard_row"}}), copy.deepcopy(data_with_new_row), copy.deepcopy(table_update)) == (None, None)
+    assert schema.apply_schema_contract(schema, cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve", "columns": "discard_value"}}), copy.deepcopy(data_with_new_row), copy.deepcopy(table_update)) == (data, popped_table_update)

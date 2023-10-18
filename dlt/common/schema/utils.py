@@ -704,7 +704,6 @@ def new_column(column_name: str, data_type: TDataType = None, nullable: bool = T
 
     return column
 
-
 def standard_hints() -> Dict[TColumnHint, List[TSimpleRegex]]:
     return None
 
