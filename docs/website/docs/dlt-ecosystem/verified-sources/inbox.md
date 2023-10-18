@@ -20,20 +20,20 @@ loads data using “Inbox” verified source to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
-| Name              | Description                                        |
-|-------------------|----------------------------------------------------|
-| inbox_source      | Gathers inbox emails and saves attachments locally |
-| get_messages_uids | Retrieves messages UUIDs from the mailbox          |
-| get_messages      | Retrieves emails from the mailbox using given UIDs |
-| get_attachments   | Downloads attachments from emails using given UIDs |
+| Name              | Type                 | Description                                        |
+|-------------------|----------------------|----------------------------------------------------|
+| inbox_source      | source               | Gathers inbox emails and saves attachments locally |
+| get_messages_uids | resource             | Retrieves messages UUIDs from the mailbox          |
+| get_messages      | resource-transformer | Retrieves emails from the mailbox using given UIDs |
+| get_attachments   | resource-transformer | Downloads attachments from emails using given UIDs |
 
 ## Setup Guide
 
 ### Grab credentials
 
 1. For verified source configuration, you need:
-   - "host": IMAP server hostname (e.g., Gmail: imap.gmail.com, Outlook: imap.gmail.com).
-   - "email_account": Associated email account name.
+   - "host": IMAP server hostname (e.g., Gmail: imap.gmail.com, Outlook: imap-mail.outlook.com).
+   - "email_account": Associated email account name (e.g. dlthub@dlthub.com).
    - "password": APP password (for third-party clients) from the email provider.
 
 1. Host addresses and APP password procedures vary by provider and can be found via a quick Google search. For Google Mail's app password, read [here](https://support.google.com/mail/answer/185833?hl=en#:~:text=An%20app%20password%20is%20a,2%2DStep%20Verification%20turned%20on).
@@ -116,13 +116,15 @@ For more information, read the
    pip install -r requirements.txt
    ```
 
-   Prerequisites for fetching messages differ by provider. For Gmail:
+   Prerequisites for fetching messages differ by provider.
 
-   - Python 3.x
-   - dlt library: pip install dlt
-   - PyPDF2: pip install PyPDF2
-   - Specific destinations, e.g., duckdb: pip install duckdb
-   - (Note: Confirm based on your service provider.)
+   For Gmail:
+    - `pip install google-api-python-client>=2.86.0`
+    - `pip install google-auth-oauthlib>=1.0.0`
+    - `pip install google-auth-httplib2>=0.1.0`
+
+   For pdf parsing:
+    - PyPDF2: `pip install PyPDF2`
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
@@ -166,27 +168,27 @@ def inbox_source(
 
 `folder`: Mailbox folder for collecting emails. Default: 'INBOX'.
 
-`gmail_group`: Google Group email for filtering. Default: settings 'GMAIL_GROUP'.
+`gmail_group`: Google Group email for filtering. Default: `/inbox/settings.py` 'GMAIL_GROUP'.
 
 `start_date`: Start date to collect emails. Default: `/inbox/settings.py` 'DEFAULT_START_DATE'.
 
-`filter_emails`:Email addresses for 'FROM' filtering. Default: settings 'FILTER_EMAILS'.
+`filter_emails`:Email addresses for 'FROM' filtering. Default: `/inbox/settings.py` 'FILTER_EMAILS'.
 
-`filter_by_mime_type`: MIME types for attachment filtering. Default: [].
+`filter_by_mime_type`: MIME types for attachment filtering. Default: None.
 
-`chunksize`: UIDs collected per batch. Default: settings 'DEFAULT_CHUNK_SIZE'.
+`chunksize`: UIDs collected per batch. Default: `/inbox/settings.py` 'DEFAULT_CHUNK_SIZE'.
 
 ### Resource `get_messages_uids`
 
 This resource collects email message UIDs (Unique IDs) from the mailbox.
 
 ```python
-    @dlt.resource(name="uids")
-    def get_messages_uids(
-        initial_message_num: Optional[
-            dlt.sources.incremental[int]
-        ] = dlt.sources.incremental("message_uid", initial_value=1),
-    ) -> TDataItem:
+@dlt.resource(name="uids")
+def get_messages_uids(
+    initial_message_num: Optional[
+        dlt.sources.incremental[int]
+    ] = dlt.sources.incremental("message_uid", initial_value=1),
+) -> TDataItem:
 ```
 
 `initial_message_num`: provides incremental loading on UID.
@@ -203,11 +205,27 @@ def get_messages(
 ) -> TDataItem:
 ```
 
-`items` (TDataItems): An iterable of dictionaries with 'message_uid' for email UIDs.
+`items` (TDataItems): An iterable containing dictionaries with 'message_uid' representing the email message UIDs.
 
-`include_body` (bool, optional): Includes email body if True. Default: True.
+`include_body` (bool): Includes email body if True. Default: True.
 
-Similar to the previous resources, resource `get_attachments` extracts email attachments by UID from the IMAP server. It yields file items with attachments in the file_content field and the original email in the message field.
+### Resource `get_attachments_by_uid`
+
+Similar to the previous resources, resource `get_attachments` extracts email attachments by UID from the IMAP server.
+It yields file items with attachments in the file_content field and the original email in the message field.
+
+```python
+@dlt.transformer(
+    name="attachments",
+    primary_key="file_hash",
+)
+def get_attachments(
+    items: TDataItems,
+) -> Iterable[List[FileItem]]:
+```
+`items` (TDataItems): An iterable containing dictionaries with 'message_uid' representing the email message UIDs.
+
+We use the document hash as a primary key to avoid duplicating them in tables.
 
 ## Customization
 
@@ -223,7 +241,6 @@ verified source.
        pipeline_name="standard_inbox",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
        dataset_name="standard_inbox_data"  # Use a custom name if desired
-       full_refresh=True,
    )
    ```
    To read more about pipeline configuration, please refer to our
@@ -231,7 +248,7 @@ verified source.
 
 1. To load messages from "mycreditcard@bank.com" starting "2023-10-1":
 
-    - Set DEFAULT_START_DATE = pendulum.datetime(2023, 10, 1) in "./inbox/settings.py".
+    - Set `DEFAULT_START_DATE = pendulum.datetime(2023, 10, 1)` in `./inbox/settings.py`.
     - Use the following code:
       ```python
       # Retrieve messages from the specified email address.
@@ -242,38 +259,18 @@ verified source.
       load_info = pipeline.run(messages)
       # Print the loading details.
       print(load_info)
-      # Return the configured pipeline.
-      return pipeline
       ```
       > Please refer to inbox_source() docstring for email filtering options by sender, date, or mime type.
 1. To load messages from multiple emails, including "community@dlthub.com":
 
    ```python
-   messages = inbox_source(filter_emails=("mycreditcard@bank.com", "community@dlthub.com.")).messages
-
-   --- rest of the code
+   messages = inbox_source(
+        filter_emails=("mycreditcard@bank.com", "community@dlthub.com.")
+   ).messages
    ```
 
-1. In "inbox_pipeline.py", the "pdf_to_text" transformer extracts text from PDFs, treating each page as a separate data item.
-   Here is the code for the "pdf_to_text" transformer function:
-   ```python
-   @dlt.transformer(primary_key="file_hash", write_disposition="merge")
-   def pdf_to_text(file_items: Sequence[FileItemDict]) -> Iterator[Dict[str, Any]]:
-      # extract data from PDF page by page
-       for file_item in file_items:
-           with file_item.open() as file:
-               reader = PdfReader(file)
-               for page_no in range(len(reader.pages)):
-                   # add page content to file item
-                   page_item = {}
-                   page_item["file_hash"] = file_item["file_hash"]
-                     page_item["text"] = reader.pages[page_no].extract_text()
-                   page_item["subject"] = file_item["message"]["Subject"]
-                   page_item["page_id"] = file_item["file_name"] + "_" + str(page_no)
-                   # TODO: copy more info from file_item
-                 yield page_item
-     ```
-1. Using the "pdf_to_text" function to load parsed pdfs from mail to the database:
+1. In `inbox_pipeline.py`, the `pdf_to_text` transformer extracts text from PDFs, treating each page as a separate data item.
+   Using the `pdf_to_text` function to load parsed pdfs from mail to the database:
 
    ```python
    filter_emails = ["mycreditcard@bank.com", "community@dlthub.com."] # Email senders
