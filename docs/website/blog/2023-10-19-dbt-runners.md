@@ -159,7 +159,7 @@ additional_data = {
     # ... other parameters
 }
 status = run_dbt_cloud_job(job_id=1234, data=additional_data, wait_for_outcome=True)
-print(f"Job run status: {status["status_humanized"]}")
+print(f"Job run status: {status['status_humanized']}")
 ```
 
 Read more about the additional data dbt accepts [in their docs.](https://docs.getdbt.com/dbt-cloud/api-v2#/operations/Trigger%20Job%20Run)
@@ -219,7 +219,7 @@ for m in models:
 
 In this example, we start from the Pokemon API, load some data with dlt, and then kick off the dbt run in our dbt Cloud account.
 
-Github repo: [dbt Cloud runner example.](https://github.com/dlt-hub/dlt_dbt_cloud)
+GitHub repo: [dbt Cloud runner example.](https://github.com/dlt-hub/dlt_dbt_cloud)
 
 
 ### dbt Core runner
@@ -233,7 +233,7 @@ Accompanying GitHub repo: [dbt Core runner example.](https://github.com/dlt-hub/
 
 ## In conclusion
 
-Running dbt from python is an obvious necessity for a data team that also uses Python for ingestion, orchestration, or analysis.
+Running dbt from Python is an obvious necessity for a data team that also uses Python for ingestion, orchestration, or analysis.
 Having the 2 options to run Cloud or Core versions of dbt enables better integration between the Transform component and the rest of the data stack.
 
 Want more?
