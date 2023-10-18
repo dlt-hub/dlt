@@ -83,6 +83,10 @@ class ResourceNameMissing(DltResourceException):
         Please note that for resources created from functions or generators, the name is the function name by default.""")
 
 
+class DynamicNameNotStandaloneResource(DltResourceException):
+    def __init__(self, resource_name: str) -> None:
+        super().__init__(resource_name, "You must set the resource as standalone to be able to dynamically set its name based on call arguments")
+
 # class DependentResourceIsNotCallable(DltResourceException):
 #     def __init__(self, resource_name: str) -> None:
 #         super().__init__(resource_name, f"Attempted to call the dependent resource {resource_name}. Do not call the dependent resources. They will be called only when iterated.")

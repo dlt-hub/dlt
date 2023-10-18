@@ -444,7 +444,7 @@ Each event type is sent to a different table in `duckdb`.
 import dlt
 from dlt.sources.helpers import requests
 
-@dlt.resource(primary_key="id", table_name=lambda i: i["type"], write_disposition="append")  # type: ignore
+@dlt.resource(primary_key="id", table_name=lambda i: i["type"], write_disposition="append")
 def repo_events(
     last_created_at = dlt.sources.incremental("created_at")
 ):

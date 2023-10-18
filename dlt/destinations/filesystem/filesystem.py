@@ -1,14 +1,15 @@
 import posixpath
 import os
 from types import TracebackType
-from typing import ClassVar, List, Type, Iterable, Set
+from typing import ClassVar, List, Type, Iterable, Set, Iterator
 from fsspec import AbstractFileSystem
+from contextlib import contextmanager
 
 from dlt.common import logger
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
 from dlt.common.storages import FileStorage, LoadStorage, fsspec_from_config
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob
+from dlt.common.destination.reference import NewLoadJob, TLoadJobState, LoadJob, JobClientBase, FollowupJob, WithStagingDataset
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.filesystem import capabilities
@@ -68,7 +69,7 @@ class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
         return jobs
 
 
-class FilesystemClient(JobClientBase):
+class FilesystemClient(JobClientBase, WithStagingDataset):
     """filesystem client storing jobs in memory"""
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -82,15 +83,26 @@ class FilesystemClient(JobClientBase):
         # verify files layout. we need {table_name} and only allow {schema_name} before it, otherwise tables
         # cannot be replaced and we cannot initialize folders consistently
         self.table_prefix_layout = path_utils.get_table_prefix_layout(config.layout)
-
-    @property
-    def dataset_path(self) -> str:
-        ds_path = posixpath.join(self.fs_path, self.config.normalize_dataset_name(self.schema))
-        return ds_path
+        self._dataset_path = self.config.normalize_dataset_name(self.schema)
 
     def drop_storage(self) -> None:
         if self.is_storage_initialized():
             self.fs_client.rm(self.dataset_path, recursive=True)
+
+    @property
+    def dataset_path(self) -> str:
+        return posixpath.join(self.fs_path, self._dataset_path)
+
+
+    @contextmanager
+    def with_staging_dataset(self) -> Iterator["FilesystemClient"]:
+        current_dataset_path = self._dataset_path
+        try:
+            self._dataset_path = self.schema.naming.normalize_table_identifier(current_dataset_path + "_staging")
+            yield self
+        finally:
+            # restore previous dataset name
+            self._dataset_path = current_dataset_path
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # clean up existing files for tables selected for truncating
@@ -169,3 +181,6 @@ class FilesystemClient(JobClientBase):
 
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
         pass
+
+    def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
+        return False

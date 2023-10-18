@@ -45,14 +45,19 @@ class FileStorage:
             raise
 
     @staticmethod
-    def copy_atomic(source_file_path: str, dest_folder_path: str) -> str:
+    def move_atomic_to_folder(source_file_path: str, dest_folder_path: str) -> str:
         file_name = os.path.basename(source_file_path)
         dest_file_path = os.path.join(dest_folder_path, file_name)
+        return FileStorage.move_atomic_to_file(source_file_path, dest_file_path)
+
+    @staticmethod
+    def move_atomic_to_file(source_file_path: str, dest_file_path: str) -> str:
         try:
             os.rename(source_file_path, dest_file_path)
         except OSError:
             # copy to local temp file
-            dest_temp_file = os.path.join(dest_folder_path, uniq_id())
+            folder_name = os.path.dirname(dest_file_path)
+            dest_temp_file = os.path.join(folder_name, uniq_id())
             try:
                 shutil.copyfile(source_file_path, dest_temp_file)
                 os.rename(dest_temp_file, dest_file_path)
@@ -61,6 +66,19 @@ class FileStorage:
                 if os.path.isfile(dest_temp_file):
                     os.remove(dest_temp_file)
                 raise
+        return dest_file_path
+
+    @staticmethod
+    def copy_atomic_to_file(source_file_path: str, dest_file_path: str) -> str:
+        folder_name = os.path.dirname(dest_file_path)
+        dest_temp_file = os.path.join(folder_name, uniq_id())
+        try:
+            shutil.copyfile(source_file_path, dest_temp_file)
+            os.rename(dest_temp_file, dest_file_path)
+        except Exception:
+            if os.path.isfile(dest_temp_file):
+                os.remove(dest_temp_file)
+            raise
         return dest_file_path
 
     def load(self, relative_path: str) -> Any:
@@ -144,6 +162,19 @@ class FileStorage:
             self.make_full_path(to_relative_path)
         )
 
+    @staticmethod
+    def link_hard_with_fallback(external_file_path: str, to_file_path: str) -> None:
+        """Try to create a hardlink and fallback to copying when filesystem doesn't support links
+        """
+        try:
+            os.link(external_file_path, to_file_path)
+        except OSError as ex:
+            # Fallback to copy when fs doesn't support links or attempting to make a cross-device link
+            if ex.errno in (errno.EPERM, errno.EXDEV, errno.EMLINK):
+                FileStorage.copy_atomic_to_file(external_file_path, to_file_path)
+            else:
+                raise
+
     def atomic_rename(self, from_relative_path: str, to_relative_path: str) -> None:
         """Renames a path using os.rename which is atomic on POSIX, Windows and NFS v4.
 
@@ -195,11 +226,20 @@ class FileStorage:
             if not os.listdir(root):
                 os.rmdir(root)
 
-    def atomic_import(self, external_file_path: str, to_folder: str) -> str:
-        """Moves a file at `external_file_path` into the `to_folder` effectively importing file into storage"""
-        return self.to_relative_path(FileStorage.copy_atomic(external_file_path, self.make_full_path(to_folder)))
-        # file_name = FileStorage.get_file_name_from_file_path(external_path)
-        # os.rename(external_path, os.path.join(self.make_full_path(to_folder), file_name))
+    def atomic_import(self, external_file_path: str, to_folder: str, new_file_name: Optional[str] = None) -> str:
+        """Moves a file at `external_file_path` into the `to_folder` effectively importing file into storage
+
+        Args:
+            external_file_path: Path to file to be imported
+            to_folder: Path to folder where file should be imported
+            new_file_name: Optional new file name for the imported file, otherwise the original file name is used
+
+        Returns:
+            Path to imported file relative to storage root
+        """
+        new_file_name = new_file_name or os.path.basename(external_file_path)
+        dest_file_path = os.path.join(self.make_full_path(to_folder), new_file_name)
+        return self.to_relative_path(FileStorage.move_atomic_to_file(external_file_path, dest_file_path))
 
     def in_storage(self, path: str) -> bool:
         assert path is not None

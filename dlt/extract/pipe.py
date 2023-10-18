@@ -22,7 +22,7 @@ from dlt.extract.exceptions import (CreatePipeException, DltSourceException, Ext
                                     InvalidResourceDataTypeFunctionNotAGenerator, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound,
                                     PipeException, PipeGenInvalid, PipeItemProcessingError, PipeNotBoundToData, ResourceExtractionError)
 from dlt.extract.typing import DataItemWithMeta, ItemTransform, SupportsPipe, TPipedDataItems
-from dlt.extract.utils import simulate_func_call, wrap_compat_transformer, wrap_resource_gen
+from dlt.extract.utils import check_compat_transformer, simulate_func_call, wrap_compat_transformer, wrap_resource_gen
 
 if TYPE_CHECKING:
     TItemFuture = Future[Union[TDataItems, DataItemWithMeta]]
@@ -296,7 +296,7 @@ class Pipe(SupportsPipe):
         # skip the data item argument for transformers
         args_to_skip = 1 if self.has_parent else 0
         # simulate function call
-        sig = simulate_func_call(head, args_to_skip, *args, **kwargs)
+        sig, _, _ = simulate_func_call(head, args_to_skip, *args, **kwargs)
         assert callable(head)
 
         # create wrappers with partial
@@ -324,28 +324,34 @@ class Pipe(SupportsPipe):
         else:
             # check the signature
             sig = inspect.signature(step)
-            sig_arg_count = len(sig.parameters)
-            callable_name = get_callable_name(step)
-            if sig_arg_count == 0:
-                raise InvalidStepFunctionArguments(self.name, callable_name, sig, "Function takes no arguments")
-            # see if meta is present in kwargs
-            meta_arg = next((p for p in sig.parameters.values() if p.name == "meta"), None)
-            if meta_arg is not None:
-                if meta_arg.kind not in (meta_arg.KEYWORD_ONLY, meta_arg.POSITIONAL_OR_KEYWORD):
-                    raise InvalidStepFunctionArguments(self.name, callable_name, sig, "'meta' cannot be pos only argument '")
-            elif meta_arg is None:
+            meta_arg = check_compat_transformer(self.name, step, sig)
+            # sig_arg_count = len(sig.parameters)
+            # callable_name = get_callable_name(step)
+            # if sig_arg_count == 0:
+            #     raise InvalidStepFunctionArguments(self.name, callable_name, sig, "Function takes no arguments")
+            # # see if meta is present in kwargs
+            # meta_arg = next((p for p in sig.parameters.values() if p.name == "meta"), None)
+            # if meta_arg is not None:
+            #     if meta_arg.kind not in (meta_arg.KEYWORD_ONLY, meta_arg.POSITIONAL_OR_KEYWORD):
+            #         raise InvalidStepFunctionArguments(self.name, callable_name, sig, "'meta' cannot be pos only argument '")
+            if meta_arg is None:
                 # add meta parameter when not present
                 orig_step = step
 
                 def _partial(*args: Any, **kwargs: Any) -> Any:
                     # orig step does not have meta
-                    del kwargs["meta"]
+                    kwargs.pop("meta", None)
+                    # del kwargs["meta"]
                     return orig_step(*args, **kwargs)
 
-                step = makefun.wraps(
-                        step,
-                        append_args=inspect.Parameter("meta", inspect._ParameterKind.KEYWORD_ONLY, default=None)
-                    )(_partial)
+                meta_arg = inspect.Parameter("meta", inspect._ParameterKind.KEYWORD_ONLY, default=None)
+                kwargs_arg = next((p for p in sig.parameters.values() if p.kind == inspect.Parameter.VAR_KEYWORD), None)
+                if kwargs_arg:
+                    # pass meta in variadic
+                    new_sig = sig
+                else:
+                    new_sig = makefun.add_signature_parameters(sig, last=(meta_arg,))
+                step = makefun.wraps(step, new_sig=new_sig)(_partial)
 
             # verify the step callable, gen may be parametrized and will be evaluated at run time
             if not self.is_empty:

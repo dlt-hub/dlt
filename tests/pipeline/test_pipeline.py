@@ -15,6 +15,7 @@ from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.capabilities import TLoaderFileFormat
 from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, PipelineStateNotAvailable, UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, LogCollector, TqdmCollector
@@ -1130,3 +1131,14 @@ def test_resource_rename_same_table():
     assert generic(0).with_name("state1").state["start"] == 5
     # resource got swapped to the most recent one
     assert pipeline.default_schema.get_table("single_table")["resource"] == "state1"
+
+
+@pytest.mark.parametrize("file_format", ("parquet", "insert_values", "jsonl"))
+def test_columns_hint_with_file_formats(file_format: TLoaderFileFormat) -> None:
+
+    @dlt.resource(write_disposition="replace", columns=[{"name": "text", "data_type": "text"}])
+    def generic(start=8):
+        yield [{"id": idx, "text": "A"*idx} for idx in range(start, start + 10)]
+
+    pipeline = dlt.pipeline(destination='duckdb')
+    pipeline.run(generic(), loader_file_format=file_format)

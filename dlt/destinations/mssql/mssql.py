@@ -5,10 +5,10 @@ from dlt.common.destination.reference import NewLoadJob
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TTableSchema, TColumnType
+from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.utils import uniq_id
 
-from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob
+from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob, SqlJobParams
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
@@ -62,7 +62,7 @@ class MsSqlTypeMapper(TypeMapper):
         "int": "bigint",
     }
 
-    def to_db_integer_type(self, precision: Optional[int]) -> str:
+    def to_db_integer_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
         if precision is None:
             return "bigint"
         if precision <= 8:
@@ -83,7 +83,7 @@ class MsSqlTypeMapper(TypeMapper):
 class MsSqlStagingCopyJob(SqlStagingCopyJob):
 
     @classmethod
-    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
+    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any], params: Optional[SqlJobParams] = None) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
             with sql_client.with_staging_dataset(staging=True):
@@ -133,14 +133,14 @@ class MsSqlClient(InsertValuesJobClient):
         self.active_hints = HINT_TO_MSSQL_ATTR if self.config.create_indexes else {}
         self.type_mapper = MsSqlTypeMapper(self.capabilities)
 
-    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return MsSqlMergeJob.from_table_chain(table_chain, self.sql_client)
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        return [MsSqlMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
+    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None) -> List[str]:
         # Override because mssql requires multiple columns in a single ADD COLUMN clause
-        return ["ADD \n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
+        return ["ADD \n" + ",\n".join(self._get_column_def_sql(c, table_format) for c in new_columns)]
 
-    def _get_column_def_sql(self, c: TColumnSchema) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         sc_type = c["data_type"]
         if sc_type == "text" and c.get("unique"):
             # MSSQL does not allow index on large TEXT columns
@@ -152,8 +152,10 @@ class MsSqlClient(InsertValuesJobClient):
         column_name = self.capabilities.escape_identifier(c["name"])
         return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c['nullable'])}"
 
-    def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return MsSqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)
+    def _create_replace_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        if self.config.replace_strategy == "staging-optimized":
+            return [MsSqlStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
+        return super()._create_replace_followup_jobs(table_chain)
 
     def _from_db_type(self, pq_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
         return self.type_mapper.from_db_type(pq_t, precision, scale)

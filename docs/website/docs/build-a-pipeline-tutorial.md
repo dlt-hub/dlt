@@ -253,7 +253,7 @@ record.
 
 For transformations after loading the data, you have several options available:
 
-#### [Using dbt](dlt-ecosystem/transformations/dbt.md)
+#### [Using dbt](dlt-ecosystem/transformations/dbt/dbt.md)
 
 dbt is a powerful framework for transforming data. It enables you to structure your transformations
 into DAGs, providing cross-database compatibility and various features such as templating,

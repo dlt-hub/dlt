@@ -1,6 +1,6 @@
 import inspect
 import makefun
-from typing import Optional, Union, List, Any, Sequence, cast
+from typing import Optional, Tuple, Union, List, Any, Sequence, cast
 from collections.abc import Mapping as C_Mapping
 
 from dlt.common.exceptions import MissingDependencyException
@@ -8,7 +8,7 @@ from dlt.common.pipeline import reset_resource_state
 from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
 from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name
-from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator
+from dlt.extract.exceptions import InvalidResourceDataTypeFunctionNotAGenerator, InvalidStepFunctionArguments
 
 from dlt.extract.typing import TTableHintTemplate, TDataItem, TFunHintTemplate, SupportsPipe
 
@@ -70,8 +70,11 @@ def reset_pipe_state(pipe: SupportsPipe, source_state_: Optional[DictStrAny] = N
     reset_resource_state(pipe.name, source_state_)
 
 
-def simulate_func_call(f: Union[Any, AnyFun], args_to_skip: int, *args: Any, **kwargs: Any) -> inspect.Signature:
-    """Simulates a call to a resource or transformer function before it will be wrapped for later execution in the pipe"""
+def simulate_func_call(f: Union[Any, AnyFun], args_to_skip: int, *args: Any, **kwargs: Any) -> Tuple[inspect.Signature, inspect.Signature, inspect.BoundArguments]:
+    """Simulates a call to a resource or transformer function before it will be wrapped for later execution in the pipe
+
+       Returns a tuple with a `f` signature, modified signature in case of transformers and bound arguments
+    """
     if not callable(f):
         # just provoke a call to raise default exception
         f()
@@ -79,17 +82,31 @@ def simulate_func_call(f: Union[Any, AnyFun], args_to_skip: int, *args: Any, **k
 
     sig = inspect.signature(f)
     # simulate the call to the underlying callable
-    if args or kwargs:
-        no_item_sig = sig.replace(parameters=list(sig.parameters.values())[args_to_skip:])
-        try:
-            no_item_sig.bind(*args, **kwargs)
-        except TypeError as v_ex:
-            raise TypeError(f"{get_callable_name(f)}(): " + str(v_ex))
-    return sig
+    no_item_sig = sig.replace(parameters=list(sig.parameters.values())[args_to_skip:])
+    try:
+        bound_args = no_item_sig.bind(*args, **kwargs)
+    except TypeError as v_ex:
+        raise TypeError(f"{get_callable_name(f)}(): " + str(v_ex))
+    return sig, no_item_sig, bound_args
+
+
+def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> inspect.Parameter:
+    sig_arg_count = len(sig.parameters)
+    callable_name = get_callable_name(f)
+    if sig_arg_count == 0:
+        raise InvalidStepFunctionArguments(name, callable_name, sig, "Function takes no arguments")
+
+    # see if meta is present in kwargs
+    meta_arg = next((p for p in sig.parameters.values() if p.name == "meta"), None)
+    if meta_arg is not None:
+        if meta_arg.kind not in (meta_arg.KEYWORD_ONLY, meta_arg.POSITIONAL_OR_KEYWORD):
+            raise InvalidStepFunctionArguments(name, callable_name, sig, "'meta' cannot be pos only argument '")
+    return meta_arg
 
 
 def wrap_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature, *args: Any, **kwargs: Any) -> AnyFun:
     """Creates a compatible wrapper over transformer function. A pure transformer function expects data item in first argument and one keyword argument called `meta`"""
+    check_compat_transformer(name, f, sig)
     if len(sig.parameters) == 2 and "meta" in sig.parameters:
         return f
 

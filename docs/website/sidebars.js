@@ -37,6 +37,7 @@ const sidebars = {
           },
           items: [
             'dlt-ecosystem/verified-sources/airtable',
+            'dlt-ecosystem/verified-sources/arrow-pandas',
             'dlt-ecosystem/verified-sources/asana',
             'dlt-ecosystem/verified-sources/chess',
             'dlt-ecosystem/verified-sources/facebook_ads',
@@ -151,7 +152,14 @@ const sidebars = {
             keywords: ['transformations'],
           },
           items: [
-            'dlt-ecosystem/transformations/dbt',
+            {
+              type: 'category',
+              label: 'Transforming data with dbt',
+              items: [
+                'dlt-ecosystem/transformations/dbt/dbt',
+                'dlt-ecosystem/transformations/dbt/dbt_cloud',
+              ]
+            },
             'dlt-ecosystem/transformations/sql',
             'dlt-ecosystem/transformations/pandas',
           ]

@@ -363,7 +363,7 @@ EXPECTED_USER_TABLES = ["event", "event__parse_data__intent_ranking", "event__pa
 def extract_items(normalize_storage: NormalizeStorage, items: Sequence[StrAny], schema_name: str, table_name: str) -> None:
     extractor = ExtractorStorage(normalize_storage.config)
     extract_id = extractor.create_extract_id()
-    extractor.write_data_item(extract_id, schema_name, table_name, items, None)
+    extractor.write_data_item("puae-jsonl", extract_id, schema_name, table_name, items, None)
     extractor.close_writers(extract_id)
     extractor.commit_extract_files(extract_id)
 
@@ -392,7 +392,7 @@ def normalize_pending(normalize: Normalize, schema_name: str = "event") -> str:
 
 def extract_cases(normalize_storage: NormalizeStorage, cases: Sequence[str]) -> None:
     for case in cases:
-        schema_name, table_name, _ = NormalizeStorage.parse_normalize_file_name(case + ".jsonl")
+        schema_name, table_name, _, _ = NormalizeStorage.parse_normalize_file_name(case + ".jsonl")
         with open(json_case_path(case), "rb") as f:
             items = json.load(f)
         extract_items(normalize_storage, items, schema_name, table_name)

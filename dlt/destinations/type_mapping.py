@@ -1,6 +1,6 @@
 from typing import Tuple, ClassVar, Dict, Optional
 
-from dlt.common.schema.typing import TColumnSchema, TDataType, TColumnType
+from dlt.common.schema.typing import TColumnSchema, TDataType, TColumnType, TTableFormat
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.utils import without_none
 
@@ -20,15 +20,32 @@ class TypeMapper:
     def __init__(self, capabilities: DestinationCapabilitiesContext) -> None:
         self.capabilities = capabilities
 
-    def to_db_integer_type(self, precision: Optional[int]) -> str:
+    def to_db_integer_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
         # Override in subclass if db supports other integer types (e.g. smallint, integer, tinyint, etc.)
         return self.sct_to_unbound_dbt["bigint"]
 
-    def to_db_type(self, column: TColumnSchema) -> str:
+    def to_db_datetime_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
+        # Override in subclass if db supports other timestamp types (e.g. with different time resolutions)
+        return None
+
+    def to_db_time_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
+        # Override in subclass if db supports other time types (e.g. with different time resolutions)
+        return None
+
+    def to_db_type(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
         precision, scale = column.get("precision"), column.get("scale")
         sc_t = column["data_type"]
         if sc_t == "bigint":
-            return self.to_db_integer_type(precision)
+            db_t = self.to_db_integer_type(precision, table_format)
+        elif sc_t == "timestamp":
+            db_t = self.to_db_datetime_type(precision, table_format)
+        elif sc_t == "time":
+            db_t = self.to_db_time_type(precision, table_format)
+        else:
+            db_t = None
+        if db_t:
+            return db_t
+        # try templates with precision
         bounded_template = self.sct_to_dbt.get(sc_t)
         if not bounded_template:
             return self.sct_to_unbound_dbt[sc_t]

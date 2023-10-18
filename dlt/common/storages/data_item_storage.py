@@ -18,7 +18,7 @@ class DataItemStorage(ABC):
         writer_id = f"{load_id}.{schema_name}.{table_name}"
         writer = self.buffered_writers.get(writer_id, None)
         if not writer:
-            # assign a jsonl writer for each table
+            # assign a writer for each table
             path = self._get_data_item_path_template(load_id, schema_name, table_name)
             writer = BufferedDataWriter(self.loader_file_format, path)
             self.buffered_writers[writer_id] = writer

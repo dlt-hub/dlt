@@ -69,3 +69,8 @@ class SchemaEngineNoUpgradePathException(SchemaException):
         self.from_engine = from_engine
         self.to_engine = to_engine
         super().__init__(f"No engine upgrade path in schema {schema_name} from {init_engine} to {to_engine}, stopped at {from_engine}")
+
+class UnknownTableException(SchemaException):
+    def __init__(self, table_name: str) -> None:
+        self.table_name = table_name
+        super().__init__(f"Trying to access unknown table {table_name}.")
