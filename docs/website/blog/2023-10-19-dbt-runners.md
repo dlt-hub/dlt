@@ -14,7 +14,7 @@ tags: [dbt runner, dbt cloud runner, dbt core runner]
 >
 
 
-## Outline:
+# Outline:
 
 1. **What is dbt, and what’s the use case for core and cloud?**
    - **The Problem dbt Solves**
@@ -38,23 +38,23 @@ tags: [dbt runner, dbt cloud runner, dbt core runner]
 
 ---
 
-# 1. **What is dbt, and what’s the use case for core and cloud?**
+### 1. **What is dbt, and what’s the use case for core and cloud?**
 
 **Dbt (data build tool)** is an open-source software that plays a crucial role in the data transformation process. It empowers data analysts and engineers to create, manage, and document data transformation workflows using SQL (Structured Query Language). Dbt primarily focuses on solving the transformation aspect in ELT (Extract, Load, Transform) data processing.
 
-## **The Problem dbt Solves**
+### **The Problem dbt Solves**
 
 Dbt addresses the challenge of efficient data transformation, streamlining the 'Transform' stage in ELT workflows. Traditionally, transforming raw data into a structured, analyzable format has been complex and laborious. Dbt simplifies and automates this process, allowing users to define data transformations through SQL queries.
 
-## **What is dbt Core?**
+### **What is dbt Core?**
 
 Dbt Core is the fundamental open-source version of dbt. It provides the essential features and functionalities for developing and running data transformation workflows using SQL scripts. Dbt Core offers local execution capabilities, making it suitable for small to medium-scale projects run within a user's environment.
 
-## **What is dbt Cloud?**
+### **What is dbt Cloud?**
 
 Dbt Cloud is a cloud-based platform provided by Fishtown Analytics, the company behind dbt. Dbt Cloud offers a managed environment for running dbt, providing additional features and capabilities beyond what dbt Core offers. It is hosted on the cloud, providing a centralized, collaborative, and scalable solution for data transformation needs.
 
-## **When to Use One or the Other?**
+### **When to Use One or the Other?**
 
 The choice between dbt Core and dbt Cloud depends on various factors, including the scale of your data transformation needs, collaboration requirements, and resource constraints.
 
@@ -69,7 +69,7 @@ The choice between dbt Core and dbt Cloud depends on various factors, including 
 
 But, dbt core is free and open source, where dbt cloud is paid. So let’s look into why we would use the paid service:
 
-## **Use Cases of dbt Cloud Over Core**
+### **Use Cases of dbt Cloud Over Core**
 
 We could summarize this as: Cloud is the best solution if your Analytics engineer team wants analytics engineer specific tooling and does not want to concern itself with data-engineer specific tooling.
 
@@ -80,7 +80,7 @@ We could summarize this as: Cloud is the best solution if your Analytics enginee
 
 So dbt cloud is kind of like a standalone orchestrator, IDE and more.
 
-# 2. What are the use cases for running dbt core or cloud from python?
+## 2. What are the use cases for running dbt core or cloud from python?
 
 ### Case 1: You have an Analytics engineering team and a data engineering team that work with different tools.
 
@@ -114,7 +114,7 @@ In such cases, you would want to create a venv or run the job off the orchestrat
 
 Such, both the **cloud** runner, and the **core** runner with virtual env would fit well here.
 
-# 3. Introducing the dbt runners we have created in open source
+## 3. Introducing the dbt runners we have created in open source
 
 Here at dlt we solve the EL in the ELT - so naturally we want to kick off dbt to solve the T.
 
@@ -201,9 +201,9 @@ for m in models:
         f"and message {m.message}"
 ```
 
-# 4. A short demo on how to do that with dlt’s dbt runner.
+## 4. A short demo on how to do that with dlt’s dbt runner.
 
-## Dbt cloud runner
+### Dbt cloud runner
 
 In this example we start from the Pokemon API, load some data with dlt, and then kick off the dbt run in our dbt cloud account.
 
@@ -218,7 +218,7 @@ Article: [BQ-dlt-dbt_core-motherduck](https://dlthub.com/docs/blog/dlt-motherduc
 Accompanying Github repo: [dbt core runner example](https://github.com/dlt-hub/bigquery-motherduck)
 
 
-# In conclusion
+## In conclusion
 
 Running dbt from python is an obvious need to a data team that also uses python for ingestion, orchestration, or analysis. Having the 2 options, to run Cloud or Core versions of dbt enables better integration between the Transform component and the rest of the data stack.
 
