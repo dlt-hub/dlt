@@ -370,6 +370,21 @@ def test_retry_exceptions() -> None:
         assert py_ex.value.max_retry_count * 2 == py_ex.value.retry_count == 10
 
 
+def test_load_single_thread() -> None:
+    os.environ["LOAD__WORKERS"] = "1"
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    assert load.config.pool_type == "none"
+    load_id, _ = prepare_load_package(
+        load.load_storage,
+        NORMALIZED_FILES
+    )
+    # we do not need pool to complete
+    metrics = load.run(None)
+    while metrics.pending_items > 0:
+        metrics = load.run(None)
+    assert not load.load_storage.storage.has_folder(load.load_storage.get_package_path(load_id))
+
+
 def test_wrong_writer_type() -> None:
     load = setup_loader()
     load_id, _ = prepare_load_package(
