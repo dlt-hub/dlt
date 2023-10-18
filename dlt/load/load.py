@@ -137,7 +137,11 @@ class Load(Runnable[ThreadPool]):
         param_chunk = [(id(self), file, load_id, schema) for file in load_files]
         # exceptions should not be raised, None as job is a temporary failure
         # other jobs should not be affected
-        jobs: List[LoadJob] = self.pool.starmap(Load.w_spool_job, param_chunk)
+        if self.pool:
+            jobs: List[LoadJob] = self.pool.starmap(Load.w_spool_job, param_chunk)
+        else:
+            # single-threaded loading
+            jobs = [Load.w_spool_job(self, file, load_id, schema) for file in load_files]
         # remove None jobs and check the rest
         return file_count, [job for job in jobs if job is not None]
 
