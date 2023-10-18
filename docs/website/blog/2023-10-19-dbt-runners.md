@@ -126,7 +126,7 @@ So let’s look at the 2 runners we offer:
 
 ### The cloud runner
 
-Docs link:
+Docs link: [dbt cloud runner docs](https://dlthub.com/docs/dlt-ecosystem/transformations/dbt/dbt_cloud)
 
 The cloud runner we support can do the following:
 
@@ -134,10 +134,27 @@ The cloud runner we support can do the following:
 - Check the status of a dbt job in your account
 
 Code example:
+```python
+
+from dlt.helpers.dbt_cloud import run_dbt_cloud_job
+
+# Trigger a job run with default configuration
+status = run_dbt_cloud_job()
+
+# Trigger a job run with additional data
+additional_data = {
+    "git_sha": "abcd1234",
+    "schema_override": "custom_schema",
+    # ... other parameters
+}
+status = run_dbt_cloud_job(job_id=1234, data=additional_data, wait_for_outcome=True)
+```
+
+Read more about the additional data dbt accepts [in their docs](https://docs.getdbt.com/dbt-cloud/api-v2#/operations/Trigger%20Job%20Run).
 
 ### The core runner
 
-Docs link:
+Docs link: [dbt core runner docs](https://dlthub.com/docs/dlt-ecosystem/transformations/dbt)
 
 The core runner does the following:
 
@@ -150,6 +167,39 @@ The core runner does the following:
     - Execute the package and report outcome
 
 Code example:
+```python
+# Create a transformation on a new dataset called 'pipedrive_dbt'
+# we created a local dbt package
+# and added pipedrive_raw to its sources.yml
+# the destination for the transformation is passed in the pipeline
+pipeline = dlt.pipeline(
+    pipeline_name='pipedrive',
+    destination='bigquery',
+    dataset_name='pipedrive_dbt'
+)
+
+# make or restore venv for dbt, using latest dbt version
+venv = dlt.dbt.get_venv(pipeline)
+
+# get runner, optionally pass the venv
+dbt = dlt.dbt.package(
+    pipeline,
+    "pipedrive/dbt_pipedrive/pipedrive",
+    venv=venv
+)
+
+# run the models and collect any info
+# If running fails, the error will be raised with full stack trace
+models = dbt.run_all()
+
+# on success print outcome
+for m in models:
+    print(
+        f"Model {m.model_name} materialized" +
+        f"in {m.time}" +
+        f"with status {m.status}" +
+        f"and message {m.message}"
+```
 
 # 4. A short demo on how to do that with dlt’s dbt runner.
 
@@ -157,28 +207,23 @@ Code example:
 
 In this example we start from the Pokemon API, load some data with dlt, and then kick off the dbt run in our dbt cloud account.
 
-Github repo:
+Github repo: [dbt cloud runner example](https://github.com/dlt-hub/dlt_dbt_cloud)
 
-https://github.com/dlt-hub/dlt_dbt_cloud
 
 ### DBT core runner
 
 In this example we copy GA4 events data from Bigquery into Duckdb, and run a dbt package to calculate metrics.
 
-Article: https://dlthub.com/docs/blog/dlt-motherduck-demo
+Article: [BQ-dlt-dbt_core-motherduck](https://dlthub.com/docs/blog/dlt-motherduck-demo)
+Accompanying Github repo: [dbt core runner example](https://github.com/dlt-hub/bigquery-motherduck)
 
-Gthub repo: https://github.com/dlt-hub/github-motherduck
 
 # In conclusion
 
 Running dbt from python is an obvious need to a data team that also uses python for ingestion, orchestration, or analysis. Having the 2 options, to run Cloud or Core versions of dbt enables better integration between the Transform component and the rest of the data stack.
 
-More?
+Want more?
 
-- Join our slack community
-- Read our docs
-- Star us on github
-Want to discuss dlt and data lakes or warehouses?
-
-- Dive into our [Getting Started.](https://dlthub.com/docs/getting-started)
 - [Join the ⭐Slack Community⭐ for discussion and help!](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+- Dive into our [Getting Started.](https://dlthub.com/docs/getting-started)
+- Star us on [Github](https://github.com/dlt-hub/dlt)!
