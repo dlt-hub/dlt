@@ -23,10 +23,10 @@ The library will create/update tables, infer data types and handle nested data a
 
 <Tabs
   groupId="source-type"
-  defaultValue="json"
+  defaultValue="api"
   values={[
     {"label": "Data from an API", "value": "api"},
-    {"label": "Data from a JSON", "value": "json"},
+    {"label": "Data from a dlt Source", "value": "source"},
     {"label": "Data from CSV/XLS/Pandas", "value": "csv"},
     {"label": "Data from a Database", "value":"database"}
 ]}>
@@ -66,32 +66,32 @@ loads it into a [destination](general-usage/glossary.md#destination) (here: **du
 
   </TabItem>
 
-  <TabItem value="json">
+  <TabItem value="source">
 
-<!--@@@DLT_SNIPPET_START json-->
+```sh
+dlt init slack duckdb
+```
+
 ```py
 import dlt
 
-from dlt.common import json
-
-with open("./assets/json_file.json", 'rb') as file:
-    data = json.load(file)
+from slack import slack_source
 
 pipeline = dlt.pipeline(
-    pipeline_name='from_json',
-    destination='duckdb',
-    dataset_name='mydata',
+    pipeline_name="slack",
+    destination="duckdb",
+    dataset_name="slack_data"
 )
 
-# NOTE: test data that we load is just a dictionary so we enclose it in a list
-# if your JSON contains a list of objects you do not need to do that
-load_info = pipeline.run([data], table_name="json_data")
+source = slack_source(
+    start_date=datetime(2023, 9, 1),
+    end_date=datetime(2023, 9, 8),
+    page_size=100,
+)
 
+load_info = pipeline.run(source)
 print(load_info)
 ```
-<!--@@@DLT_SNIPPET_END json-->
-
-Here, we import **json** from `dlt` namespace. It defaults to `orjson`(otherwise `simplejson`). It can also encode date times, dates, dataclasses and few more data types.
 
   </TabItem>
   <TabItem value="csv">
@@ -113,7 +113,6 @@ pipeline = dlt.pipeline(
     dataset_name='mydata',
 )
 load_info = pipeline.run(data, table_name="natural_disasters")
-
 print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END csv-->
@@ -174,7 +173,7 @@ external APIs, backends or containers, scales on micro and large infra alike.
 while empowering senior professionals.
 
 ## Getting started with `dlt`
-1. Dive into our [Getting Started tutorial](getting-started.md) for a quick intro to the essentials of `dlt`.
+1. Dive into our [Getting started guide](getting-started.md) for a quick intro to the essentials of `dlt`.
 2. Play with the
 [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
 This is the simplest way to see `dlt` in action.

@@ -218,13 +218,11 @@ Note that we now track the `updated_at` field - so we filter in all issues **upd
 Pay attention how we use **since** parameter from [GitHub API](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues)
 and `updated_at.last_value` to tell GitHub to return issues updated only **after** the date we pass. `updated_at.last_value` holds the last `updated_at` value from the previous run.
 
-Learn more:
-
-- [You can do way more with merge](general-usage/incremental-loading#merge-incremental_loading)
+[Learn more about merge write disposition](../general-usage/incremental-loading#merge-incremental_loading).
 
 ## Next steps
 
-Continue your journey with the [Advanced Tutorial](load-data-from-an-api).
+Continue your journey with the [Resource groupping and secrets](grouping-resources) tutorial.
 
 If you want to take full advantage of the `dlt` library, then we strongly suggest that you build your sources out of existing **building blocks:**
 

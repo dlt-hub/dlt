@@ -1,11 +1,11 @@
 ---
-title: Getting Started
+title: Getting started
 description: quick start with dlt
 keywords: [getting started, quick start, basic examples]
 ---
 import snippets from '!!raw-loader!./getting-started-snippets.py';
 
-# Getting Started
+# Getting started
 
 ## Overview
 
