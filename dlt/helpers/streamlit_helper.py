@@ -7,6 +7,7 @@ from dlt.common.typing import AnyFun
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.reference import WithStateSync
+from dlt.common.utils import flatten_list_or_items
 
 from dlt.helpers.pandas_helper import pd
 from dlt.pipeline import Pipeline
@@ -257,6 +258,17 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
             table_hints.append("resource: **%s**" % table["resource"])
         if "write_disposition" in table:
             table_hints.append("write disposition: **%s**" % table["write_disposition"])
+        columns = table["columns"]
+        primary_keys = flatten_list_or_items([
+            col_name for col_name in columns.keys()
+                if not col_name.startswith("_") and not columns[col_name].get("primary_key") is None
+        ])
+        table_hints.append("primary key(s): **%s**" % ", ".join(primary_keys))
+        merge_keys = flatten_list_or_items([
+            col_name for col_name in columns.keys()
+                if not col_name.startswith("_") and not columns[col_name].get("merge_key") is None
+        ])
+        table_hints.append("merge key(s): **%s**" % ", ".join(merge_keys))
 
         st.markdown(" | ".join(table_hints))
 
