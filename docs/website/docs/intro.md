@@ -8,18 +8,29 @@ import snippets from '!!raw-loader!./intro-snippets.py';
 
 # Introduction
 
-
 ![dlt pacman](/img/dlt-pacman.gif)
 
 ## What is `dlt`?
+
 `dlt` is an open-source library that you can add to your Python scripts to load data
-from various and often messy data sources into well-structured, live datasets. Install it with:
+from various and often messy data sources into well-structured, live datasets. To get started, install it with:
 ```sh
 pip install dlt
 ```
-There's no need to start any backends or containers. Simply import `dlt` in a Python file or Jupyter Notebook cell, and write a simple pipeline like this:
+Unlike other solutions, with dlt, there's no need to use any backends or containers. Simply import `dlt` in a Python file or a Jupyter Notebook cell, and create a pipeline to load data into any of the [supported destinations](dlt-ecosystem/destinations/). You can load data from any source that produces Python data structures, including APIs, files, databases, and more.
 
-<!--AUTO-GENERATED-CONTENT:END-->
+The library will create/update tables, infer data types and handle nested data automatically. Here's a few examples:
+
+<Tabs
+  groupId="source-type"
+  defaultValue="json"
+  values={[
+    {"label": "Data from an API", "value": "api"},
+    {"label": "Data from a JSON", "value": "json"},
+    {"label": "Data from CSV/XLS/Pandas", "value": "csv"},
+    {"label": "Data from a Database", "value":"database"}
+]}>
+  <TabItem value="api">
 
 <!--@@@DLT_SNIPPET_START index-->
 ```py
@@ -42,22 +53,116 @@ load_info = pipeline.run(data, table_name="player")
 ```
 <!--@@@DLT_SNIPPET_END index-->
 
-If you don't have `duckdb`, you can install it as an extra:
+Copy this example to a file or a Jupyter Notebook and run it. To make it work with the DuckDB destination, you'll need to install **duckdb** dependency (default `dlt` installation is really minimal):
 ```sh
 pip install "dlt[duckdb]"
 ```
 Now **run** your Python file or Notebook cell.
 
-What that code does:
+How it works? The library extracts data from a [source](general-usage/glossary.md#source) (here: **chess.com REST API**), inspects its structure to create a
+[schema](general-usage/glossary.md#schema), structures, normalizes and verifies the data, and then
+loads it into a [destination](general-usage/glossary.md#destination) (here: **duckdb**, into a database schema **player_data** and table name **player**).
 
-1. Extracts data from a
-[source](general-usage/glossary.md#source) (here: **chess.com REST API**).
-2. `dlt` inspects the data's structure to create a
-[schema](general-usage/glossary.md#schema).
-3. `dlt` structures, normalizes and verifies the data.
-4. `dlt` loads data into a [destination](general-usage/glossary.md#destination) (here: a **duckdb** database schema **player_data** and table name **player**).
 
-See below for other easy ways to try `dlt`.
+  </TabItem>
+
+  <TabItem value="json">
+
+<!--@@@DLT_SNIPPET_START json-->
+```py
+import dlt
+
+from dlt.common import json
+
+with open("./assets/json_file.json", 'rb') as file:
+    data = json.load(file)
+
+pipeline = dlt.pipeline(
+    pipeline_name='from_json',
+    destination='duckdb',
+    dataset_name='mydata',
+)
+
+# NOTE: test data that we load is just a dictionary so we enclose it in a list
+# if your JSON contains a list of objects you do not need to do that
+load_info = pipeline.run([data], table_name="json_data")
+
+print(load_info)
+```
+<!--@@@DLT_SNIPPET_END json-->
+
+Here, we import **json** from `dlt` namespace. It defaults to `orjson`(otherwise `simplejson`). It can also encode date times, dates, dataclasses and few more data types.
+
+  </TabItem>
+  <TabItem value="csv">
+
+  Pass anything that you can load with Pandas to `dlt`
+
+<!--@@@DLT_SNIPPET_START csv-->
+```py
+import dlt
+import pandas as pd
+
+owid_disasters_csv = "https://raw.githubusercontent.com/owid/owid-datasets/master/datasets/Natural%20disasters%20from%201900%20to%202019%20-%20EMDAT%20(2020)/Natural%20disasters%20from%201900%20to%202019%20-%20EMDAT%20(2020).csv"
+df = pd.read_csv(owid_disasters_csv)
+data = df.to_dict(orient='records')
+
+pipeline = dlt.pipeline(
+    pipeline_name='from_csv',
+    destination='duckdb',
+    dataset_name='mydata',
+)
+load_info = pipeline.run(data, table_name="natural_disasters")
+
+print(load_info)
+```
+<!--@@@DLT_SNIPPET_END csv-->
+
+  </TabItem>
+  <TabItem value="database">
+
+:::tip
+Use our verified [sql database source](dlt-ecosystem/verified-sources/sql_database)
+to sync your databases with warehouses, data lakes, or vector stores.
+:::
+
+<!--@@@DLT_SNIPPET_START db-->
+```py
+import dlt
+from sqlalchemy import create_engine
+
+# use any sql database supported by SQLAlchemy, below we use a public mysql instance to get data
+# NOTE: you'll need to install pymysql with "pip install pymysql"
+# NOTE: loading data from public mysql instance may take several seconds
+engine = create_engine("mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam")
+with engine.connect() as conn:
+    # select genome table, stream data in batches of 100 elements
+    rows = conn.execution_options(yield_per=100).exec_driver_sql("SELECT * FROM genome LIMIT 1000")
+
+    pipeline = dlt.pipeline(
+        pipeline_name='from_database',
+        destination='duckdb',
+        dataset_name='genome_data',
+    )
+
+    # here we convert the rows into dictionaries on the fly with a map function
+    load_info = pipeline.run(
+        map(lambda row: dict(row._mapping), rows),
+        table_name="genome"
+    )
+
+print(load_info)
+```
+<!--@@@DLT_SNIPPET_END db-->
+
+Install **pymysql** driver:
+```sh
+pip install pymysql
+```
+
+  </TabItem>
+</Tabs>
+
 
 ## Why use `dlt`?
 
@@ -69,11 +174,10 @@ external APIs, backends or containers, scales on micro and large infra alike.
 while empowering senior professionals.
 
 ## Getting started with `dlt`
-
-1. Play with the
+1. Dive into our [Getting Started tutorial](getting-started.md) for a quick intro to the essentials of `dlt`.
+2. Play with the
 [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
 This is the simplest way to see `dlt` in action.
-2. Run [Getting Started snippets](getting-started.md) and load data from python objects, files, data frames, databases, APIs or PDFs into any [destination](dlt-ecosystem/destinations/).
 3. Read [Pipeline Tutorial](build-a-pipeline-tutorial.md) to start building E(t)LT pipelines from ready components.
 4. We have many interesting [walkthroughs](walkthroughs/) where you create, run, customize and deploy pipelines.
 5. Ask us on

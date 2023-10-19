@@ -561,23 +561,23 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(2)>a.men
   background-image: url(../../static/img/GettingStarted-Active-1.svg);
 }
 
-/* Pipeline Tutorial */
+/* Tutorial */
 
-.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>a::before {
+.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>a::before {
   background-image: url(../../static/img/Pipelines-Inactive.svg);
 }
 
-.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>a::before,
-.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>a.menu__link--active::before {
+.theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>div>a::before,
+.theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Pipelines-Active.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>a::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>a::before {
   background-image: url(../../static/img/Pipelines-Inactive-1.svg);
 }
 
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>a::before,
-html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>a.menu__link--active::before {
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(3)>div>a::before,
+html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(3)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Pipelines-Active-1.svg);
 }
 
