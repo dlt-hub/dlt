@@ -36,14 +36,14 @@ def source2(nr):
             yield {"id": i, "column_3": f"pqr_{i}", "column_4": f"pqrr_{i}"}
 
     yield dlt.resource(
-        get_resource2(nr), 
+        get_resource2(nr),
         name="Two",
         write_disposition="merge",
         primary_key="column_2",
         merge_key=["column_2"],
     )
     yield dlt.resource(
-        get_resource3(nr), 
+        get_resource3(nr),
         name="Three",
         write_disposition="merge",
         primary_key=["column_3", "column_4"],
@@ -59,8 +59,8 @@ def test_multiple_resources_pipeline():
 
     assert load_info.pipeline.schema_names == ["source2", "source1"]
     assert load_info.pipeline.schemas.get("source1").data_tables()[0]["name"] == "one"
-    assert load_info.pipeline.schemas.get("source1").data_tables()[0]["columns"]["column_1"].get("primary_key") == True
-    assert load_info.pipeline.schemas.get("source1").data_tables()[0]["columns"]["column_1"].get("merge_key") == True
+    assert load_info.pipeline.schemas.get("source1").data_tables()[0]["columns"]["column_1"].get("primary_key") is True
+    assert load_info.pipeline.schemas.get("source1").data_tables()[0]["columns"]["column_1"].get("merge_key") is True
     assert load_info.pipeline.schemas.get("source1").data_tables()[0]["write_disposition"] == "merge"
 
     # The rest should be inspected using the streamlit tool.
