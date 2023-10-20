@@ -103,7 +103,6 @@ const sidebars = {
         'general-usage/state',
         'general-usage/incremental-loading',
         'general-usage/full-loading',
-        'general-usage/credentials',
         'general-usage/schema',
         {
           type: 'category',
@@ -114,10 +113,10 @@ const sidebars = {
             slug: 'dlt-ecosystem/configuration',
           },
           items: [
-            'dlt-ecosystem/configuration/configuration',
-            'dlt-ecosystem/configuration/credentials',
-            'dlt-ecosystem/configuration/config_providers',
-            'dlt-ecosystem/configuration/config_specs',
+            'general-usage/configuration/configuration',
+            'general-usage/configuration/credentials',
+            'general-usage/configuration/config_providers',
+            'general-usage/configuration/config_specs',
           ]
         },
         'reference/performance',
