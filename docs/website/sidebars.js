@@ -111,7 +111,6 @@ const sidebars = {
           link: {
             type: 'generated-index',
             title: 'Configuration',
-            description: '',
             slug: 'dlt-ecosystem/configuration',
           },
           items: [
