@@ -54,7 +54,7 @@ If your source/resource allows for many authentication methods you can support t
 
 Example:
 
-> read the whole [test](/tests/common/configuration/test_spec_union.py), it shows how to create unions of credentials that derive from the common class so you can handle it seamlessly in your code.
+> read the whole test: /tests/common/configuration/test_spec_union.py, it shows how to create unions of credentials that derive from the common class so you can handle it seamlessly in your code.
 
 ```python
 @dlt.source
@@ -100,8 +100,8 @@ class GoogleSheetsConfiguration:
   only_strings: Optional[bool] = False
 ```
 
-> all specs derive from [BaseConfiguration](/dlt/common/configuration/specs//base_configuration.py)
+> all specs derive from BaseConfiguration: /dlt/common/configuration/specs//base_configuration.py
 
-> all credentials derive from [CredentialsConfiguration](/dlt/common/configuration/specs//base_configuration.py)
+> all credentials derive from CredentialsConfiguration: /dlt/common/configuration/specs//base_configuration.py
 
 > Read the docstrings in the code above

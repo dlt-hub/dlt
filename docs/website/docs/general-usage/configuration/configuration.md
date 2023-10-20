@@ -69,7 +69,7 @@ additionally `dlt.secrets.value` tells `dlt` that supplied value is a secret and
 google_sheets(dlt.config["sheet_id"], dlt.config["tabs"], dlt.secrets["my_section.gcp_credentials"]).run(destination="bigquery")
 ```
 
-[See example](/docs/examples/credentials/explicit.py)
+See example: /docs/examples/credentials/explicit.py
 
 ### Typing the source and resource signatures
 
@@ -245,7 +245,7 @@ Config and secrets for decorated sources and resources are kept in `sources.<sou
 
 Step 2 in search path allows all the sources/resources in a module to share the same set of credentials.
 
-Also look at the following [test](/tests/extract/test_decorators.py) : `test_source_sections`
+Also look at the following test: /tests/extract/test_decorators.py : `test_source_sections`
 
 
 ## Understanding the exceptions
