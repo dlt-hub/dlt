@@ -1,11 +1,11 @@
 ---
-title: Config Providers
+title: Configuration Providers
 description: Configuration dlt Providers
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment
       variables, provider]
 ---
 
-# Config Providers
+# Configuration Providers
 ## The provider hierarchy
 
 If function signature has arguments that may be injected, `dlt` looks for the argument values in

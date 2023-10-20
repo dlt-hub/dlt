@@ -1,14 +1,35 @@
 ---
-title: Configuration specs
-description: Configuration specs
-keywords: [credentials, secrets.toml, environment variables]
+title: Configuration Specs
+description: Overview configuration specs and how to create custom specs
+keywords: [credentials, secrets.toml, secrets, config, configuration, environment
+      variables, specs]
 ---
+
+# Configuration Specs
 
 ## Working with credentials (and other complex configuration values)
 
-`GcpClientCredentialsWithDefault` is an example of a **spec**: a Python `dataclass` that describes the configuration fields, their types and default values. It also allows to parse various native representations of the configuration. Credentials marked with `WithDefaults` mixin are also to instantiate itself from the machine/user default environment ie. googles `default()` or AWS `.aws/credentials`.
+Example:
 
-As an example, let's use `ConnectionStringCredentials` which represents a database connection string.
+```python
+@dlt.source
+def google_sheets(
+    spreadsheet_id: str,
+    tab_names: List[str] = dlt.config.value,
+    credentials: GcpClientCredentialsWithDefault = dlt.secrets.value,
+    only_strings: bool = False
+):
+  ...
+```
+
+Here, `GcpClientCredentialsWithDefault` is an example of a **spec**: a Python `dataclass` that describes
+the configuration fields, their types and default values. It also allows parsing various native
+representations of the configuration. Credentials marked with `WithDefaults` mixin are also to
+instantiate itself from the machine/user default environment i.e. Googles `default()` or AWS
+`.aws/credentials`.
+
+As an example, let's use `ConnectionStringCredentials` which represents a database connection
+string.
 
 ```python
 @dlt.source
@@ -16,10 +37,12 @@ def query(sql: str, dsn: ConnectionStringCredentials = dlt.secrets.value):
   ...
 ```
 
-The source above executes the `sql` against database defined in `dsn`. `ConnectionStringCredentials` makes sure you get the correct values with correct types and understands the relevant native form of the credentials.
+The source above executes the `sql` against database defined in `dsn`. `ConnectionStringCredentials`
+makes sure you get the correct values with correct types and understands the relevant native form of
+the credentials.
 
+Example 1. Use the **dictionary** form.
 
-Example 1: use the dictionary form
 ```toml
 [dsn]
 database="dlt_data"
@@ -28,33 +51,41 @@ username="loader"
 host="localhost"
 ```
 
-Example:2: use the native form
+Example 2. Use the **native** form.
+
 ```toml
 dsn="postgres://loader:loader@localhost:5432/dlt_data"
 ```
 
-Example 3: use mixed form: the password is missing in explicit dsn and will be taken from the `secrets.toml`
+Example 3. Use the **mixed** form: the password is missing in explicit dsn and will be taken from the
+`secrets.toml`.
+
 ```toml
 dsn.password="loader
 ```
+
+You can explicitly provide credentials in various forms:
+
 ```python
 query("SELECT * FROM customers", "postgres://loader@localhost:5432/dlt_data")
 # or
 query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"...})
 ```
 
-☮️ We will implement more credentials and let people reuse them when writing pipelines:
--  to represent oauth credentials
-- api key + api secret
-- AWS credentials
+We will implement more credentials and let people reuse them when writing pipelines:
 
+- To represent oauth credentials.
+- API key + API secret.
+- AWS credentials.
 
-### Working with alternatives of credentials (Union types)
-If your source/resource allows for many authentication methods you can support those seamlessly for your user. The user just passes the right credentials and `dlt` will inject the right type into your decorated function.
+## Working with alternatives of credentials (Union types)
+
+If your source/resource allows for many authentication methods, you can support those seamlessly for
+your user. The user just passes the right credentials and `dlt` will inject the right type into your
+decorated function.
 
 Example:
 
-> read the whole test: /tests/common/configuration/test_spec_union.py, it shows how to create unions of credentials that derive from the common class so you can handle it seamlessly in your code.
 
 ```python
 @dlt.source
@@ -75,33 +106,41 @@ assert list(zen_source("secret:🔑:secret"))[0].api_secret == "secret"
 assert list(zen_source(credentials={"email": "emx", "password": "pass"}))[0].email == "emx"
 
 ```
-> This applies not only to credentials but to all specs (see next chapter)
 
-## Writing own specs
+> This applies not only to credentials but to all specs (see next chapter).
+
+Read the [whole test](https://github.com/dlt-hub/dlt/blob/devel/tests/common/configuration/test_spec_union.py), it shows how to create unions
+of credentials that derive from the common class, so you can handle it seamlessly in your code.
+
+## Writing custom specs
 
 **specs** let you take full control over the function arguments:
-- which values should be injected, the types, default values.
-- you can specify optional and final fields
-- form hierarchical configurations (specs in specs).
-- provide own handlers for `on_error` or `on_resolved`
-- provide own native value parsers
-- provide own default credentials logic
-- adds all Python dataclass goodies to it
-- adds all Python `dict` goodies to it (`specs` instances can be created from dicts and serialized from dicts)
+
+- Which values should be injected, the types, default values.
+- You can specify optional and final fields.
+- Form hierarchical configurations (specs in specs).
+- Provide own handlers for `on_error` or `on_resolved`.
+- Provide own native value parsers.
+- Provide own default credentials logic.
+- Adds all Python dataclass goodies to it.
+- Adds all Python `dict` goodies to it (`specs` instances can be created from dicts and serialized
+  from dicts).
 
 This is used a lot in the `dlt` core and may become useful for complicated sources.
 
-In fact for each decorated function a spec is synthesized. In case of `google_sheets` following class is created.
+In fact, for each decorated function a spec is synthesized. In case of `google_sheets` following
+class is created:
+
 ```python
 @configspec
-class GoogleSheetsConfiguration:
+class GoogleSheetsConfiguration(BaseConfiguration):
   tab_names: List[str] = None  # manadatory
   credentials: GcpClientCredentialsWithDefault = None # mandatory secret
   only_strings: Optional[bool] = False
 ```
 
-> all specs derive from BaseConfiguration: /dlt/common/configuration/specs//base_configuration.py
+- All specs derive from [BaseConfiguration.](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L170)
 
-> all credentials derive from CredentialsConfiguration: /dlt/common/configuration/specs//base_configuration.py
+- All credentials derive from [CredentialsConfiguration.](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L307)
 
-> Read the docstrings in the code above
+> Read the docstrings in the code above.

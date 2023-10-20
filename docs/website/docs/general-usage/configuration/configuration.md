@@ -1,11 +1,11 @@
 ---
-title: Secrets and Config
+title: Secrets and Configs
 description: Overview secrets and configs
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment
       variables]
 ---
 
-# Secrets and Config
+# Secrets and Configs
 
 ## General Usage and an Example
 
