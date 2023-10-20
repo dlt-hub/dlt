@@ -1,6 +1,6 @@
 ---
 title: Secrets and Config Providers
-description:
+description: Secrets and Config Providers
 keywords: [credentials, secrets.toml, environment variables]
 ---
 

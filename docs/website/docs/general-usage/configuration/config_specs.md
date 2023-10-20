@@ -1,6 +1,6 @@
 ---
 title: Configuration specs
-description:
+description: Configuration specs
 keywords: [credentials, secrets.toml, environment variables]
 ---
 

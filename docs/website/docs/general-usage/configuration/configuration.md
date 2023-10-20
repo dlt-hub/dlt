@@ -1,6 +1,6 @@
 ---
 title: Secrets and Config
-description:
+description: Overview secrets and configs
 keywords: [credentials, secrets.toml, environment variables]
 ---
 
