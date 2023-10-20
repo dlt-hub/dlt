@@ -110,7 +110,7 @@ For more information, read the
 
 1. Enter credentials for your chosen destination as per the [docs](../destinations/).
 
-For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+For more information, read the [General Usage: Credentials.](../../general-usage/configuration/credentials.md)
 
 ## Run the pipeline
 

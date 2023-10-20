@@ -637,7 +637,7 @@ If you want to take full advantage of the `dlt` library, then we strongly sugges
 - [Transform your data before loading](general-usage/resource#customize-resources) and see some [examples of customizations like column renames and anonymization](general-usage/customising-pipelines/renaming_columns).
 - [Set up "last value" incremental loading](general-usage/incremental-loading#incremental_loading-with-last-value).
 - [Set primary and merge keys, define the columns nullability and data types](general-usage/resource#define-schema).
-- [Pass config and credentials into your sources and resources](general-usage/credentials).
+- [Pass config and credentials into your sources and resources](general-usage/configuration/credentials.md).
 - [Use built-in requests client](reference/performance#using-the-built-in-requests-client).
 - [Run in production: inspecting, tracing, retry policies and cleaning up](running-in-production/running).
 - [Run resources in parallel, optimize buffers and local storage](reference/performance.md)

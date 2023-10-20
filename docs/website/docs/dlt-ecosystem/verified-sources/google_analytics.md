@@ -209,7 +209,7 @@ For more information, read the
 1. To use queries from `.dlt/config.toml`, run the `simple_load_config()` function in
    [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics_pipeline.py).
 
-For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+For more information, read the [General Usage: Credentials.](../../general-usage/configuration/credentials.md)
 
 ## Run the pipeline
 

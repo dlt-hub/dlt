@@ -98,7 +98,7 @@ For more information, read the
 
 1. To monitor live events on a website, enter the `live_event_site_id` (usually it is same as `site_id`).
 
-For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+For more information, read the [General Usage: Credentials.](../../general-usage/configuration/credentials.md)
 
 ## Run the pipeline
 

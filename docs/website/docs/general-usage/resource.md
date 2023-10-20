@@ -70,7 +70,7 @@ accepts following arguments:
 > hint value. This let's you create table and column schemas depending on the data. See example in
 > next section.
 
-> 💡 You can mark some resource arguments as configuration and [credentials](credentials.md)
+> 💡 You can mark some resource arguments as configuration and [credentials](configuration/credentials.md)
 > values so `dlt` can pass them automatically to your functions.
 
 ### Define a schema with Pydantic
@@ -174,7 +174,7 @@ for row in generate_rows(20):
     print(row)
 ```
 
-You can mark some resource arguments as configuration and [credentials](credentials.md) values
+You can mark some resource arguments as configuration and [credentials](configuration/credentials.md) values
 so `dlt` can pass them automatically to your functions.
 
 ### Process resources with `dlt.transformer`

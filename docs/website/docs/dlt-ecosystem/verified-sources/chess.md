@@ -60,7 +60,7 @@ To add credentials to your destination, follow the instructions in the
 [destination](../../dlt-ecosystem/destinations) documentation. This will ensure that your data is
 properly routed to its final destination.
 
-For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+For more information, read the [General Usage: Credentials.](../../general-usage/configuration/credentials.md)
 
 ## Run the pipeline
 

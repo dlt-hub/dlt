@@ -104,7 +104,7 @@ For more information, read the
    > Optionally, you can also input "base_id" and "table_names" in the script, as in the pipeline
    > example.
 
-For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+For more information, read the [General Usage: Credentials.](../../general-usage/configuration/credentials.md)
 
 ## Run the pipeline
 

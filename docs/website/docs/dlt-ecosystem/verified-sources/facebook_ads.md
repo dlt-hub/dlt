@@ -154,7 +154,7 @@ For more information, read the
 
 1. Replace the value of the "account id" with the one [copied above](#grab-account-id).
 
-For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+For more information, read the [General Usage: Credentials.](../../general-usage/configuration/credentials.md)
 
 ## Run the pipeline
 

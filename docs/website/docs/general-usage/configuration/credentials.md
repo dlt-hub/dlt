@@ -1,10 +1,10 @@
 ---
-title: Credentials
+title: Adding credentials
 description: How to use dlt credentials
 keywords: [credentials, secrets.toml, environment variables]
 ---
 
-# Credentials
+# Adding credentials
 
 ## Adding credentials locally
 
@@ -27,10 +27,10 @@ client_email = "client_email" # please set me up!
 ```
 > Note that for toml names are case-sensitive and sections are separated with ".".
 
-For destination credentials, read the [documentation pages for each destination](../dlt-ecosystem/destinations) to create and configure
+For destination credentials, read the [documentation pages for each destination](../../dlt-ecosystem/destinations) to create and configure
 credentials.
 
-For Verified Source credentials, read the [Setup Guides](../dlt-ecosystem/verified-sources) for each source to find how to get credentials.
+For Verified Source credentials, read the [Setup Guides](../../dlt-ecosystem/verified-sources) for each source to find how to get credentials.
 
 Once you have credentials for the source and destination, add them to the file above and save them.
 
@@ -98,7 +98,7 @@ If dlt tries to read this from environment variables, it will use a different na
 
 For environment variables all names are capitalized and sections are separated with double underscore "\_\_".
 
-For example for the above secrets, we would need to put into environment:
+For example, for the above secrets, we would need to put into environment:
 
 ```shell
 SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
