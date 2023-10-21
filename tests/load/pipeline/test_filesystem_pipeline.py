@@ -23,7 +23,7 @@ def assert_file_matches(layout: str, job: LoadJobInfo, load_id: str, client: Fil
     assert local_path.read_bytes() == client.fs_client.read_bytes(destination_path)
 
 
-def test_pipeline_merge_write_disposition(all_buckets_env: str) -> None:
+def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
     """Run pipeline twice with merge write disposition
     Resource with primary key falls back to append. Resource without keys falls back to replace.
     """

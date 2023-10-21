@@ -53,7 +53,7 @@ def test_filesystem_instance(all_buckets_env: str) -> None:
 
 
 @pytest.mark.parametrize("load_content", (True, False))
-def test_filesystem_dict(all_buckets_env: str, load_content: bool) -> None:
+def test_filesystem_dict(default_buckets_env: str, load_content: bool) -> None:
     bucket_url = os.environ['DESTINATION__FILESYSTEM__BUCKET_URL']
     config = get_config()
     if config.protocol in ["memory", "file"]:
