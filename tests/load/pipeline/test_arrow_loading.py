@@ -13,7 +13,7 @@ from tests.utils import preserve_environ
 from tests.cases import arrow_table_all_data_types
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(file_format="parquet", default_sql_configs=True, default_staging_configs=True, all_buckets_filesystem_configs=True, all_staging_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_staging_configs=True, all_staging_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
 def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destination_config: DestinationTestConfiguration) -> None:
     include_time = destination_config.destination not in ("athena", "redshift")  # athena/redshift can't load TIME columns from parquet
@@ -39,6 +39,13 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
         assert some_table_columns["time"]["data_type"] == "time"
 
     rows = [list(row) for row in select_data(pipeline, "SELECT * FROM some_data ORDER BY 1")]
+
+    for row in rows:
+        for i in range(len(row)):
+            # Postgres returns memoryview for binary columns
+            if isinstance(row[i], memoryview):
+                row[i] = row[i].tobytes()
+
 
     if destination_config.destination == "redshift":
         # Binary columns are hex formatted in results

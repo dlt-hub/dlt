@@ -30,7 +30,7 @@ def escape_redshift_literal(v: Any) -> Any:
         return _escape_extended(v, prefix="'")
     if isinstance(v, bytes):
         return f"from_hex('{v.hex()}')"
-    if isinstance(v, (datetime, date)):
+    if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
         return "json_parse(%s)" % _escape_extended(json.dumps(v), prefix='\'')
@@ -42,7 +42,7 @@ def escape_postgres_literal(v: Any) -> Any:
     if isinstance(v, str):
         # we escape extended string which behave like the redshift string
         return _escape_extended(v)
-    if isinstance(v, (datetime, date)):
+    if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
         return _escape_extended(json.dumps(v))
@@ -56,7 +56,7 @@ def escape_duckdb_literal(v: Any) -> Any:
     if isinstance(v, str):
         # we escape extended string which behave like the redshift string
         return _escape_extended(v)
-    if isinstance(v, (datetime, date)):
+    if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
         return _escape_extended(json.dumps(v))

@@ -112,6 +112,27 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
 
 class ParquetItemsNormalizer(ItemsNormalizer):
+    def _normalize_lines(
+            self,
+            extracted_items_file: str,
+            load_storage: LoadStorage,
+            normalize_storage: NormalizeStorage,
+            schema: Schema,
+            load_id: str,
+            root_table_name: str,
+    ) -> int:
+        from dlt.common.libs.pyarrow import pyarrow
+        schema_name = schema.name
+        columns = schema.get_table_columns(root_table_name)
+        with normalize_storage.storage.open_file(extracted_items_file, "rb") as f:
+            table = pyarrow.parquet.read_table(f)
+            items_count: int = table.num_rows
+            for batch in table.to_batches(100):
+                load_storage.write_data_item(
+                    load_id, schema_name, root_table_name, batch.to_pylist(), columns
+                )
+        return items_count
+
     def __call__(
         self,
         extracted_items_file: str,
@@ -121,9 +142,21 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         load_id: str,
         root_table_name: str,
     ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
-        from dlt.common.libs import pyarrow
+
+        if load_storage.loader_file_format != "parquet":
+            items_count = self._normalize_lines(
+                extracted_items_file,
+                load_storage,
+                normalize_storage,
+                schema,
+                load_id,
+                root_table_name,
+            )
+            return [], items_count, {root_table_name: items_count}
+
+        from dlt.common.libs.pyarrow import get_row_count
         with normalize_storage.storage.open_file(extracted_items_file, "rb") as f:
-            items_count = pyarrow.get_row_count(f)
+            items_count = get_row_count(f)
         target_folder = load_storage.storage.make_full_path(os.path.join(load_id, LoadStorage.NEW_JOBS_FOLDER))
         parts = NormalizeStorage.parse_normalize_file_name(extracted_items_file)
         new_file_name = load_storage.build_job_file_name(parts.table_name, parts.file_id, with_extension=True)
