@@ -15,6 +15,7 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
     aws_session_token: Optional[TSecretStrValue] = None
     profile_name: Optional[str] = None
     region_name: Optional[str] = None
+    endpoint_url: Optional[str] = None
 
     def to_s3fs_credentials(self) -> Dict[str, Optional[str]]:
         """Dict of keyword arguments that can be passed to s3fs"""
@@ -22,7 +23,8 @@ class AwsCredentialsWithoutDefaults(CredentialsConfiguration):
             key=self.aws_access_key_id,
             secret=self.aws_secret_access_key,
             token=self.aws_session_token,
-            profile=self.profile_name
+            profile=self.profile_name,
+            endpoint_url=self.endpoint_url,
         )
 
     def to_native_representation(self) -> Dict[str, Optional[str]]:

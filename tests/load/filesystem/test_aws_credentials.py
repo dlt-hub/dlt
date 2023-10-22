@@ -37,7 +37,6 @@ def test_aws_credentials_resolved_from_default(environment: Dict[str, str]) -> N
     # assert config.profile_name == "default"
 
 
-@pytest.mark.skipif('s3' not in ALL_FILESYSTEM_DRIVERS, reason='s3 filesystem driver not configured')
 def test_aws_credentials_from_botocore(environment: Dict[str, str]) -> None:
     set_aws_credentials_env(environment)
 
@@ -63,7 +62,6 @@ def test_aws_credentials_from_botocore(environment: Dict[str, str]) -> None:
         c.parse_native_representation("boto3")
 
 
-@pytest.mark.skipif('s3' not in ALL_FILESYSTEM_DRIVERS, reason='s3 filesystem driver not configured')
 def test_aws_credentials_from_boto3(environment: Dict[str, str]) -> None:
     try:
         import boto3
@@ -89,7 +87,6 @@ def test_aws_credentials_from_boto3(environment: Dict[str, str]) -> None:
     assert c.aws_access_key_id == "fake_access_key"
 
 
-@pytest.mark.skipif('s3' not in ALL_FILESYSTEM_DRIVERS, reason='s3 filesystem driver not configured')
 def test_aws_credentials_for_profile(environment: Dict[str, str]) -> None:
     import botocore.exceptions
 
@@ -105,6 +102,23 @@ def test_aws_credentials_for_profile(environment: Dict[str, str]) -> None:
         assert digest128(c.aws_access_key_id) == 'S3r3CtEf074HjqVeHKj/'
     except botocore.exceptions.ProfileNotFound:
         pytest.skip("This test requires dlt-ci-user aws profile to be present")
+
+
+def test_aws_credentials_with_endpoint_url(environment: Dict[str, str]) -> None:
+    set_aws_credentials_env(environment)
+    environment['CREDENTIALS__ENDPOINT_URL'] = 'https://123.r2.cloudflarestorage.com'
+
+    config = resolve_configuration(AwsCredentials())
+
+    assert config.endpoint_url == 'https://123.r2.cloudflarestorage.com'
+
+    assert config.to_s3fs_credentials() == {
+        "key": "fake_access_key",
+        "secret": "fake_secret_key",
+        "token": "fake_session_token",
+        "profile": None,
+        "endpoint_url": "https://123.r2.cloudflarestorage.com",
+    }
 
 
 def set_aws_credentials_env(environment: Dict[str, str]) -> None:
