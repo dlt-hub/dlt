@@ -1,5 +1,5 @@
 from datetime import datetime, date  # noqa: I251
-from typing import Optional, Tuple, Protocol, Mapping, Union, List
+from typing import Optional, Tuple, List
 
 try:
     import pandas as pd

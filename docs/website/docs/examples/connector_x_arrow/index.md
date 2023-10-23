@@ -1,5 +1,5 @@
 ---
-title: Load SQL query with ConnectorX & Arrow
+title: Load mysql table with ConnectorX & Arrow
 description: Load data from sql queries fast with connector x and arrow tables
 keywords: [connector x, pyarrow, zero copy]
 ---
@@ -14,7 +14,7 @@ import Header from '../_examples-header.md';
     slug="connector_x_arrow"
     run_file="" />
 
-## Incremental loading with the Zendesk API
+## Load mysql table with ConnectorX and Arrow
 
 Example script below takes genome data from public **mysql** instance and then loads it into **duckdb**. Mind that your destination
 must support loading of parquet files as this is the format that `dlt` uses to save arrow tables. [Connector X](https://github.com/sfu-db/connector-x) allows to

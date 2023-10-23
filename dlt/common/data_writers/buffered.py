@@ -83,7 +83,7 @@ class BufferedDataWriter(Generic[TWriter]):
             self._buffered_items.extend(item)
             # update row count, if item supports "num_rows" it will be used to count items
             if len(item) > 0 and hasattr(item[0], "num_rows"):
-                self._buffered_items_count += reduce(lambda prev, tbl: prev + tbl.num_rows, item, 0)
+                self._buffered_items_count += sum(tbl.num_rows for tbl in item)
             else:
                 self._buffered_items_count += len(item)
         else:
