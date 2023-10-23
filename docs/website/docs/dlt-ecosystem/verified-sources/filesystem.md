@@ -15,8 +15,9 @@ source. Currently the following reader sources are supported:
 
 - read_csv (with Pandas)
 - read_jsonl
-- read_parquet (with pyarrow)<br> Additionally, it can read Excel files with a standalone
-  transformer and copy files locally.
+- read_parquet (with pyarrow)
+
+Additionally, it can read Excel files with a standalone transformer and copy files locally.
 
 Sources and resources that can be loaded using this verified source are:
 
@@ -210,9 +211,9 @@ For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/
 This source provides resources that are chunked file readers. You can customize these readers
 optionally, resources provided are:
 
-- read_csv(chunksize, \*\*pandas_kwargs)
-- read_jsonl(chunksize)
-- read_parquet(chunksize)
+- read_csv
+- read_jsonl
+- read_parquet
 
 ```python
 @dlt.source(_impl_cls=ReadersSource, spec=FilesystemConfigurationResource)
@@ -223,9 +224,14 @@ def readers(
 ) -> Tuple[DltResource, ...]:
 ```
 
-`bucket_url`: The url to the bucket.<br> `credentials`: The credentials to the filesystem of fsspec
-`AbstractFilesystem` instance.<br> `file_glob`: Glob filter for files; defaults to non-recursive
-listing in the bucket.<br>
+`bucket_url`: The url to the bucket.
+
+`credentials`: The credentials to the filesystem of fsspec
+
+`AbstractFilesystem` instance.
+
+`file_glob`: Glob filter for files; defaults to non-recursive
+listing in the bucket.
 
 ### Resource `filesystem`
 
@@ -245,11 +251,17 @@ def filesystem(
 ) -> Iterator[List[FileItem]]:
 ```
 
-`bucket_url`: URL of the bucket.<br> `credentials`: Filesystem credentials of `AbstractFilesystem`
-instance.<br> `file_glob`: File filter in glob format. Defaults to listing all non-recursive files
-in bucket_url.<br> `files_per_page`: Number of files processed at once (default: 100).<br>
+`bucket_url`: URL of the bucket.
+
+`credentials`: Filesystem credentials of `AbstractFilesystem` instance.
+
+`file_glob`: File filter in glob format. Defaults to listing all non-recursive files
+in bucket_url.
+
+`files_per_page`: Number of files processed at once (default: 100).
+
 `extract_content`: If true, the content of the file will be read and returned in the resource.
-(default: False).<br>
+(default: False).
 
 ## Filesystem Integration and Data Extraction Guide
 
@@ -286,11 +298,17 @@ pipeline.run(met_files.with_name("met_csv"))
 
 #### FileItem Fields:
 
-`file_url` - Complete URL of the file; also the primary key (e.g., file://).<br> `file_name` - Name
-or relative path of the file from the bucket_url.<br> `mime_type` - File's mime type; sourced from
-the bucket provider or inferred from its extension.<br> `modification_date` - File's last
-modification time (format: pendulum.DateTime).<br> `size_in_bytes` - File size.<br> `file_content` -
-Content, provided upon request.<br>
+`file_url` - Complete URL of the file; also the primary key (e.g., file://).
+
+`file_name` - Name or relative path of the file from the bucket_url.
+
+`mime_type` - File's mime type; sourced from the bucket provider or inferred from its extension.
+
+`modification_date` - File's last modification time (format: pendulum.DateTime).
+
+`size_in_bytes` - File size.
+
+`file_content` - Content, provided upon request.
 
 > 📌 Note: When using a nested or recursive glob pattern, file_name will include the file's path. For
 > instance, using the resource:
@@ -339,9 +357,10 @@ verified source.
     print(pipeline.last_trace.last_normalize_info)
    ```
 
-   > The `file_glob` parameter targets all CSVs in the "met_csv/A801" directory..<br> The
-   > `print(pipeline.last_trace.last_normalize_info)` line displays the data normalization details
-   > from the pipeline's last trace.<br> 📌 Note: If you have a default bucket URL set in
+   > The `file_glob` parameter targets all CSVs in the "met_csv/A801" directory.<br>
+   > The`print(pipeline.last_trace.last_normalize_info)` line displays the data normalization details
+   > from the pipeline's last trace.<br>
+   >📌 Note: If you have a default bucket URL set in
    > "/.dlt/config.toml", you can omit the bucket_url parameter.
 
    When rerun the next day, this pipeline updates both new and the previous day's records.
