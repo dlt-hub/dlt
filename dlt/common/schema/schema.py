@@ -393,6 +393,18 @@ class Schema:
         normalizers["json"] = normalizers["json"] or self._normalizers_config["json"]
         self._configure_normalizers(normalizers)
 
+    def add_type_detection(self, detection: TTypeDetections) -> None:
+        """Add type auto detection to the schema."""
+        if detection not in self.settings["detections"]:
+            self.settings["detections"].append(detection)
+            self._compile_settings()
+
+    def remove_type_detection(self, detection: TTypeDetections) -> None:
+        """Adds type auto detection to the schema."""
+        if detection in self.settings["detections"]:
+            self.settings["detections"].remove(detection)
+            self._compile_settings()
+
     def _infer_column(self, k: str, v: Any, data_type: TDataType = None, is_variant: bool = False) -> TColumnSchema:
         column_schema =  TColumnSchema(
             name=k,
