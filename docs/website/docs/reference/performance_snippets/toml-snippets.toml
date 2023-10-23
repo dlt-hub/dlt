@@ -21,22 +21,22 @@ buffer_max_items=100
 # extract and normalize stages
 [data_writer]
 file_max_items=100000
-max_file_size=1000000
+file_max_bytes=1000000
 
 # only for the extract stage - for all sources
 [sources.data_writer]
 file_max_items=100000
-max_file_size=1000000
+file_max_bytes=1000000
 
 # only for the extract stage of a source with name zendesk_support
 [sources.zendesk_support.data_writer]
 file_max_items=100000
-max_file_size=1000000
+file_max_bytes=1000000
 
 # only for the normalize stage
 [normalize.data_writer]
 file_max_items=100000
-max_file_size=1000000 
+file_max_bytes=1000000
 # @@@DLT_SNIPPET_END file_size_toml
 
 
@@ -73,7 +73,7 @@ max_parallel_items=10
 # @@@DLT_SNIPPET_START normalize_workers_toml
  [extract.data_writer]
 # force extract file rotation if size exceeds 1MiB
-max_file_size=1000000
+file_max_bytes=1000000
 
 [normalize]
 # use 3 worker processes to process 3 files in parallel
@@ -84,7 +84,7 @@ workers=3
 # @@@DLT_SNIPPET_START normalize_workers_2_toml
 [normalize.data_writer]
 # force normalize file rotation if it exceeds 1MiB
-max_file_size=1000000
+file_max_bytes=1000000
 
 [load]
 # have 50 concurrent load jobs
@@ -106,7 +106,7 @@ request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
 next_item_mode="round_robin"
 
 [sources.my_pipeline.extract] # setting for the "my_pipeline" pipeline
-next_item_mode="fifo"                     
+next_item_mode="fifo"
 # @@@DLT_SNIPPET_END item_mode_toml
 
 
