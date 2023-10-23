@@ -182,7 +182,7 @@ while empowering senior professionals.
 2. Play with the
 [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
 This is the simplest way to see `dlt` in action.
-3. Read the [Tutorial](tutorial) to learn how to build a pipeline that loads data from an API.
+3. Read the [Tutorial](tutorial/intro) to learn how to build a pipeline that loads data from an API.
 4. Check out the [How-to guides](walkthroughs/) for recepies on common use cases for creating, running and deploying pipelines.
 5. Ask us on
 [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
