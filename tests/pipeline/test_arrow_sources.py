@@ -1,17 +1,13 @@
+import os
 import pytest
 
 import pandas as pd
-from typing import Any, Union
 import pyarrow as pa
 
 import dlt
-from dlt.common import Decimal
 from dlt.common.utils import uniq_id
-from dlt.common.exceptions import TerminalValueError
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.cases import arrow_table_all_data_types, TArrowFormat
-from dlt.common.storages import LoadStorage
-
 
 
 @pytest.mark.parametrize(
@@ -111,3 +107,35 @@ def test_add_map(item_type: TArrowFormat):
 
     assert len(result) == 1
     assert result[0]['int'][0].as_py() == 1
+
+
+@pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
+def test_extract_normalize_file_rotation(item_type: TArrowFormat) -> None:
+    # do not extract state
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    # use parquet for dummy
+    os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
+
+    pipeline_name = "arrow_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    item, rows = arrow_table_all_data_types(item_type)
+
+    @dlt.resource
+    def data_frames():
+        for _ in range(10):
+            yield item
+
+    # get buffer written and file rotated with each yielded frame
+    os.environ[f"SOURCES__{pipeline_name.upper()}__DATA_WRITER__BUFFER_MAX_ITEMS"] = str(len(rows))
+    os.environ[f"SOURCES__{pipeline_name.upper()}__DATA_WRITER__FILE_MAX_ITEMS"] = str(len(rows))
+
+    pipeline.extract(data_frames())
+    # ten parquet files
+    assert len(pipeline.list_extracted_resources()) == 10
+    info = pipeline.normalize(workers=3)
+    # with 10 * num rows
+    assert info.row_counts["data_frames"] == 10 * len(rows)
+    load_id = pipeline.list_normalized_load_packages()[0]
+    # 10 jobs on parquet files
+    assert len(pipeline.get_load_package_info(load_id).jobs["new_jobs"]) == 10
