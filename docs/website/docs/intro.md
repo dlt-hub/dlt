@@ -19,7 +19,7 @@ pip install dlt
 ```
 Unlike other solutions, with dlt, there's no need to use any backends or containers. Simply import `dlt` in a Python file or a Jupyter Notebook cell, and create a pipeline to load data into any of the [supported destinations](dlt-ecosystem/destinations/). You can load data from any source that produces Python data structures, including APIs, files, databases, and more.
 
-The library will create/update tables, infer data types and handle nested data automatically. Here's a few examples:
+The library will create or update tables, infer data types and handle nested data automatically. Here's a few examples:
 
 <Tabs
   groupId="source-type"
@@ -49,11 +49,11 @@ for player in ["magnuscarlsen", "rpragchess"]:
     response.raise_for_status()
     data.append(response.json())
 # Extract, normalize, and load the data
-load_info = pipeline.run(data, table_name="player")
+load_info = pipeline.run(data, table_name='player')
 ```
 <!--@@@DLT_SNIPPET_END index-->
 
-Copy this example to a file or a Jupyter Notebook and run it. To make it work with the DuckDB destination, you'll need to install **duckdb** dependency (default `dlt` installation is really minimal):
+Copy this example to a file or a Jupyter Notebook and run it. To make it work with the DuckDB destination, you'll need to install the **duckdb** dependency (the default `dlt` installation is really minimal):
 ```sh
 pip install "dlt[duckdb]"
 ```
@@ -68,9 +68,13 @@ loads it into a [destination](general-usage/glossary.md#destination) (here: **du
 
   <TabItem value="source">
 
+Initialize the [Slack source](dlt-ecosystem/verified-sources/slack) with `dlt init` command:
+
 ```sh
 dlt init slack duckdb
 ```
+
+Create and run a pipeline:
 
 ```py
 import dlt
@@ -113,6 +117,7 @@ pipeline = dlt.pipeline(
     dataset_name='mydata',
 )
 load_info = pipeline.run(data, table_name="natural_disasters")
+
 print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END csv-->
@@ -177,8 +182,8 @@ while empowering senior professionals.
 2. Play with the
 [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
 This is the simplest way to see `dlt` in action.
-3. Read [Pipeline Tutorial](build-a-pipeline-tutorial.md) to start building E(t)LT pipelines from ready components.
-4. We have many interesting [walkthroughs](walkthroughs/) where you create, run, customize and deploy pipelines.
+3. Read the [Tutorial](tutorial) to learn how to build a pipeline that loads data from an API.
+4. Check out the [How-to guides](walkthroughs/) for recepies on common use cases for creating, running and deploying pipelines.
 5. Ask us on
 [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
 if you have any questions about use cases or the library.

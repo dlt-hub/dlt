@@ -253,7 +253,7 @@ load_info = pipeline.run(github_source())
 
 ## What’s next
 
-Congratulations on completing the Advanced Tutorial! You've come a long way since the Getting Started guide. By now, you've mastered loading data from various GitHub API endpoints, organizing resources into sources, managing secrets securely, and deploying pipelines to GitHub Actions. You can use these skills to build your own pipelines and load data from any source.
+Congratulations on completing the tutorial! You've come a long way since the Getting started guide. By now, you've mastered loading data from various GitHub API endpoints, organizing resources into sources, managing secrets securely, and deploying pipelines to GitHub Actions. You can use these skills to build your own pipelines and load data from any source.
 
 Interested in learning more? Here are some suggestions:
 1. Dive deeper into how dlts works by reading the [Using dlt](general-usage) section. Some highlights:

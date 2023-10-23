@@ -4,32 +4,46 @@ description: quick start with dlt
 keywords: [getting started, quick start, basic examples]
 ---
 
-In this section, we will retrieve and load data from the GitHub API into DuckDB. Specifically, we will load issues from our [dlt-hub/dlt](https://github.com/dlt-hub/dlt) repository.
+In this section, we will retrieve and load data from the GitHub API into [DuckDB](https://duckdb.org). Specifically, we will load issues from our [dlt-hub/dlt](https://github.com/dlt-hub/dlt) repository. We picked DuckDB as our destination because it is a lightweight, in-process database that is easy to set up and use.
+
+Before we start, make sure you have installed `dlt` with the DuckDB dependency:
+
+```bash
+pip install "dlt[duckdb]"
+```
+
+:::tip
+Need help with this tutorial? Join our [Slack community](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) for quick support.
+:::
+
+## Create a pipeline
+
+First, we need to create a pipeline. Pipelines are the main building blocks of `dlt` and are used to load data from sources to destinations. Open your favorite text editor and create a file called `github_issues.py`. Add the following code to it:
 
 <!--@@@DLT_SNIPPET_START api-->
 ```py
 import dlt
 from dlt.sources.helpers import requests
 
-# url to request dlt-hub/dlt issues
+# Specify the URL of the API endpoint
 url = "https://api.github.com/repos/dlt-hub/dlt/issues"
-# make the request and check if succeeded
+# Make a request and check if it was successful
 response = requests.get(url)
 response.raise_for_status()
 
 pipeline = dlt.pipeline(
-    pipeline_name='from_api',
+    pipeline_name='github_issues',
     destination='duckdb',
     dataset_name='github_data',
 )
-# the response contains a list of issues
+# The response contains a list of issues
 load_info = pipeline.run(response.json(), table_name="issues")
 
 print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END api-->
 
-Save this Python script with the name `github_issues.py` and run the following command:
+Save `github_issues.py` and run the following command:
 
 ```bash
 python github_issues.py
@@ -43,11 +57,10 @@ dlt pipeline github_issues show
 
 ### Append or replace your data
 
-When you run the script above twice, you will notice that the **issues** table contains two copies of the same data.
-This happens because the default load mode is `append`. It is very useful when you have a new folder created daily with `json` file logs, and you want to ingest them.
+Try running the pipeline again with `python github_issues.py`. You will notice that the **issues** table contains two copies of the same data. This happens because the default load mode is `append`. It is very useful when you have a new folder created daily with `json` file logs, and you want to ingest them.
 
-To get the latest data, we'd need to run the script again. But how do that without duplicating the data?
-One option is to tell `dlt` to replace the data in existing tables by using `replace` write disposition:
+To get the latest data, we'd need to run the script again. But how to do that without duplicating the data?
+One option is to tell `dlt` to replace the data in existing tables in the destination by using `replace` write disposition. Change the `github_issues.py` script to the following:
 
 ```py
 import dlt
@@ -65,7 +78,11 @@ pipeline = dlt.pipeline(
     dataset_name='github_data',
 )
 # The response contains a list of issues
-load_info = pipeline.run(response.json(), table_name="issues", write_disposition="replace")
+load_info = pipeline.run(
+    response.json(),
+    table_name="issues",
+    write_disposition="replace"  # <-- Add this line
+)
 
 print(load_info)
 ```
@@ -75,7 +92,7 @@ Run this script twice to see that **issues** table still contains only one copy 
 :::tip
 What if the API has changed and new fields get added to the response?
 `dlt` will migrate your tables!
-See the `replace` mode and table schema migration in action in our [Colab Demo](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM).
+See the `replace` mode and table schema migration in action in our [Schema evolution colab demo](https://colab.research.google.com/drive/1H6HKFi-U1V4p0afVucw_Jzv1oiFbH2bu#scrollTo=e4y4sQ78P_OM).
 :::
 
 Learn more:

@@ -11,8 +11,8 @@ import snippets from '!!raw-loader!./getting-started-snippets.py';
 
 `dlt` is an open-source library that you can add to your Python scripts to load data
 from various and often messy data sources into well-structured, live datasets.
-Below we give you a preview how you can get data from APIs, files, Python objects or
-pandas dataframes and move it into a local or remote database, data lake or a vector data store.
+This guide will show you how to start using `dlt` with a simple example: loading data
+from a list of Python dictionaries into DuckDB.
 
 Let's get started!
 
@@ -38,7 +38,7 @@ Make sure that your `dlt` version is **0.3.15** or above. Check it in the termin
 
 ## Quick start
 
-For starters, let's load a list of Python dictionaries into DuckDB and inspect the created dataset.
+For starters, let's load a list of Python dictionaries into DuckDB and inspect the created dataset. Here is the code:
 
 <!--@@@DLT_SNIPPET_START ./getting-started-snippets.py::start-->
 ```py
@@ -103,14 +103,17 @@ Streamlit Explore data. Schema and data for a test pipeline “quick_start”.
 Looking for source code of all the snippets? You can find and run them [from this repository](https://github.com/dlt-hub/dlt/blob/devel/docs/website/docs/getting-started-snippets.py).
 :::
 
-Learn more:
-- What is a data pipeline?
-  [General usage: Pipeline.](general-usage/pipeline)
-- [Walkthrough: Create a pipeline](walkthroughs/create-a-pipeline).
-- [Walkthrough: Run a pipeline.](walkthroughs/run-a-pipeline)
-- How to configure DuckDB?
-  [Destinations: DuckDB.](dlt-ecosystem/destinations/duckdb)
-- [The full list of available destinations.](dlt-ecosystem/destinations/)
+## What's next?
+
+Now that you have a basic understanding of how to get started with dlt, you might be eager to dive deeper. A great next step is to walk through our detailed tutorial, where we provide a step-by-step guide to building a pipeline that loads data from the GitHub API into DuckDB and teaches you how to use some of the most important features of dlt.
+
+[Follow the tutorial →](tutorial/intro)
+
+More resources:
+- [What is a data pipeline in dlt?](general-usage/pipeline)
+- [How to create a pipeline](walkthroughs/create-a-pipeline)
+- [How to run a pipeline.](walkthroughs/run-a-pipeline)
+- [How to configure DuckDB](dlt-ecosystem/destinations/duckdb)
+- [The full list of available destinations](dlt-ecosystem/destinations/)
 - [Exploring the data](dlt-ecosystem/visualizations/exploring-the-data).
-- What happens after loading?
-  [Destination tables](general-usage/destination-tables).
+- [Destination tables: what happens after loading?](general-usage/destination-tables)
