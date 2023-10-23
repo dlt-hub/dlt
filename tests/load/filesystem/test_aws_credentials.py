@@ -52,6 +52,17 @@ def test_aws_credentials_from_botocore(environment: Dict[str, str]) -> None:
     assert c.is_resolved()
     assert not c.is_partial()
 
+    s3_cred = c.to_s3fs_credentials()
+    assert s3_cred == {
+        "key": "fake_access_key",
+        "secret": "fake_secret_key",
+        "token": "fake_session_token",
+        "profile": None,
+        "client_kwargs": {
+            "region_name": session.get_config_variable('region')
+        }
+    }
+
     c = AwsCredentials()
     c.parse_native_representation(botocore.session.get_session())
     assert c.is_resolved()
@@ -125,3 +136,4 @@ def set_aws_credentials_env(environment: Dict[str, str]) -> None:
     environment['AWS_ACCESS_KEY_ID'] = 'fake_access_key'
     environment['AWS_SECRET_ACCESS_KEY'] = 'fake_secret_key'
     environment['AWS_SESSION_TOKEN'] = 'fake_session_token'
+    environment['REGION_NAME'] = 'eu-central-1'
