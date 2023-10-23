@@ -16,7 +16,7 @@ from dlt.common.utils import uniq_id_base64
 
 try:
     from dlt.common.libs import pyarrow
-except ImportError:
+except MissingDependencyException:
     pyarrow = None
 
 
