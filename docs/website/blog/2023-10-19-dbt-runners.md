@@ -42,24 +42,24 @@ tags: [dbt runner, dbt cloud runner, dbt core runner]
 
 **dbt (data build tool)** is an open-source software that plays a crucial role in the data transformation process.
 It empowers data analysts and engineers to create, manage, and document data transformation workflows using SQL (Structured Query Language).
-Dbt primarily focuses on solving the transformation aspect in ELT (Extract, Load, Transform) data processing.
+dbt primarily focuses on solving the transformation aspect in ELT (Extract, Load, Transform) data processing.
 
 ### **The Problem dbt Solves**
 
-Dbt addresses the challenge of efficient data transformation, streamlining the 'Transform' stage in ELT workflows.
+dbt addresses the challenge of efficient data transformation, streamlining the 'Transform' stage in ELT workflows.
 Traditionally, transforming raw data into a structured, analyzable format has been complex and laborious.
-Dbt simplifies and automates this process, allowing users to define data transformations through SQL queries.
+dbt simplifies and automates this process, allowing users to define data transformations through SQL queries.
 
 ### **What is dbt Core?**
 
-Dbt Core is the fundamental open-source version of dbt. It provides the essential features and functionalities
+dbt Core is the fundamental open-source version of dbt. It provides the essential features and functionalities
 for developing and running data transformation workflows using SQL scripts.
-Dbt Core offers local execution capabilities, making it suitable for small to medium-scale projects run within a user's environment.
+dbt Core offers local execution capabilities, making it suitable for small to medium-scale projects run within a user's environment.
 
 ### **What is dbt Cloud?**
 
-Dbt Cloud is a cloud-based platform provided by Fishtown Analytics, the company behind dbt.
-Dbt Cloud offers a managed environment for running dbt, providing additional features and capabilities beyond what dbt Core offers.
+dbt Cloud is a cloud-based platform provided by Fishtown Analytics, the company behind dbt.
+dbt Cloud offers a managed environment for running dbt, providing additional features and capabilities beyond what dbt Core offers.
 It is hosted on the cloud, providing a centralized, collaborative, and scalable solution for data transformation needs.
 
 ### **When to Use One or the Other?**
@@ -82,10 +82,10 @@ But, dbt Core is free and open source, where dbt Cloud is paid. So let’s look 
 We could summarize this as: Cloud is the best solution if your Analytics engineer team wants analytics engineer specific
 tooling and does not want to concern itself with data-engineer specific tooling.
 
-1. **Scalability and Performance:** Dbt Cloud provides seamless scalability to handle large-scale data transformation workloads efficiently.
-2. **Collaboration and Team Management:** Dbt Cloud offers centralized project management and collaboration features, enhancing team productivity and coordination.
-3. **Automated Task Scheduling:** Dbt Cloud allows for automated scheduling of dbt jobs, streamlining data transformation processes.
-4. **Easy Integration with Cloud Data Warehouses:** Dbt Cloud integrates seamlessly with various cloud data warehouses, facilitating simplified setup and configuration.
+1. **Scalability and Performance:** dbt Cloud provides seamless scalability to handle large-scale data transformation workloads efficiently.
+2. **Collaboration and Team Management:** dbt Cloud offers centralized project management and collaboration features, enhancing team productivity and coordination.
+3. **Automated Task Scheduling:** dbt Cloud allows for automated scheduling of dbt jobs, streamlining data transformation processes.
+4. **Easy Integration with Cloud Data Warehouses:** dbt Cloud integrates seamlessly with various cloud data warehouses, facilitating simplified setup and configuration.
 
 So dbt Cloud is kind of like a standalone orchestrator, IDE and more.
 
