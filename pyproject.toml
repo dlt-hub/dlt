@@ -114,7 +114,7 @@ enlighten = "^1.11.2"
 alive-progress = "^3.1.1"
 pytest-console-scripts = "^1.4.1"
 pytest = "^6.2.4"
-mypy = "^1.6.0"
+mypy = "^1.6.1"
 flake8 = "^5.0.0"
 bandit = "^1.7.0"
 flake8-bugbear = "^22.0.0"
@@ -159,6 +159,7 @@ optional = true
 pymysql = "^1.1.0"
 pypdf2 = "^3.0.1"
 pydoc-markdown = "^4.8.2"
+connectorx="0.3.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]
