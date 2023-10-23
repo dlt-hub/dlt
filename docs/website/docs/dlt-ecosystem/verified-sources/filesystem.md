@@ -357,13 +357,11 @@ verified source.
     print(pipeline.last_trace.last_normalize_info)
    ```
 
-   > The `file_glob` parameter targets all CSVs in the "met_csv/A801" directory.<br>
-   > The`print(pipeline.last_trace.last_normalize_info)` line displays the data normalization details
-   > from the pipeline's last trace.<br>
-   >📌 Note: If you have a default bucket URL set in
-   > "/.dlt/config.toml", you can omit the bucket_url parameter.
-
-   When rerun the next day, this pipeline updates both new and the previous day's records.
+   > The `file_glob` parameter targets all CSVs in the "met_csv/A801" directory.
+   >
+   > The `print(pipeline.last_trace.last_normalize_info)` line displays the data normalization details from the pipeline's last trace.
+   >
+   > 📌 **Note:** If you have a default bucket URL set in "/.dlt/config.toml", you can omit the `bucket_url` parameter.
 
 1. To load only new CSV files:
 
@@ -378,29 +376,28 @@ verified source.
    ```
 
 1. To read and load Parquet and JSONL from a bucket:
-
    ```python
    BUCKET_URL = "Please set me up!"  #path of the bucket url or local destination
    jsonl_reader = readers(BUCKET_URL, file_glob="**/*.jsonl").read_jsonl(
         chunksize=10000
     )
-    # PARQUET reading
-    parquet_reader = readers(BUCKET_URL, file_glob="**/*.parquet").read_parquet()
-    # load both folders together to specified tables
-    load_info = pipeline.run(
+   # PARQUET reading
+   parquet_reader = readers(BUCKET_URL, file_glob="**/*.parquet").read_parquet()
+   # load both folders together to specified tables
+   load_info = pipeline.run(
         [
             jsonl_reader.with_name("jsonl_team_data"),
             parquet_reader.with_name("parquet_team_data"),
-        ]
-    )
-    print(load_info)
-    print(pipeline.last_trace.last_normalize_info)
+       ]
+   )
+   print(load_info)
+   print(pipeline.last_trace.last_normalize_info)
    ```
-
-   > `file_glob`: Specifies file pattern; reads all JSONL and Parquet files across directories.<br>
-   > `chunksize`: Set to 10,000; data read in chunks of 10,000 records each.<br>
-   > `print(pipeline.last_trace.last_normalize_info)` displays the data normalization details from
-   > the pipeline's last trace.<br>
+   > The `file_glob`: Specifies file pattern; reads all JSONL and Parquet files across directories.
+   >
+   > The `chunksize`: Set to 10,000; data read in chunks of 10,000 records each.
+   >
+   >`print(pipeline.last_trace.last_normalize_info)`: Displays the data normalization details from the pipeline's last trace.
 
 1. To set up a pipeline that reads from an Excel file using a standalone transformer:
 
