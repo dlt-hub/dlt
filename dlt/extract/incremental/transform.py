@@ -1,4 +1,4 @@
-from datetime import datetime  # noqa: I251
+from datetime import datetime, date  # noqa: I251
 from typing import Optional, Tuple, Protocol, Mapping, Union, List
 
 try:
@@ -137,8 +137,9 @@ class JsonIncremental(IncrementalTransformer):
         return row, start_out_of_range, end_out_of_range
 
 
-
 class ArrowIncremental(IncrementalTransformer):
+    _dlt_index = "_dlt_index"
+
     def unique_values(
         self,
         item: "TAnyArrowItem",
@@ -148,28 +149,34 @@ class ArrowIncremental(IncrementalTransformer):
         if not unique_columns:
             return []
         item = item
-        indices = item["_dlt_index"].to_pylist()
+        indices = item[self._dlt_index].to_pylist()
         rows = item.select(unique_columns).to_pylist()
         return [
             (index, digest128(json.dumps(row, sort_keys=True))) for index, row in zip(indices, rows)
         ]
 
-    def _deduplicate(self, tbl: "pa.Table",  unique_columns: Optional[List[str]], aggregate: str, cursor_path: str) -> "pa.Table":
-        if unique_columns is None:
-            return tbl
-        group_cols = unique_columns + [cursor_path]
-        tbl = tbl.append_column("_dlt_index", pa.array(np.arange(tbl.num_rows)))
-        try:
-            tbl = tbl.filter(
-                pa.compute.is_in(
-                    tbl['_dlt_index'],
-                    tbl.group_by(group_cols).aggregate(
-                        [("_dlt_index", "one"), (cursor_path, aggregate)]
-                    )['_dlt_index_one']
-                )
-            )
-        except KeyError as e:
-            raise IncrementalPrimaryKeyMissing(self.resource_name, unique_columns[0], tbl) from e
+    def _deduplicate(self, tbl: "pa.Table", unique_columns: Optional[List[str]], aggregate: str, cursor_path: str) -> "pa.Table":
+        """Creates unique index if necessary."""
+        # create unique index if necessary
+        if self._dlt_index not in tbl.schema.names:
+            tbl = tbl.append_column(self._dlt_index, pa.array(np.arange(tbl.num_rows)))
+        # code below deduplicates groups that include the cursor column in the group id. that was just artifact of
+        # json incremental and there's no need to duplicate it here
+
+        # if unique_columns is None:
+        #     return tbl
+        # group_cols = unique_columns + [cursor_path]
+        # try:
+        #     tbl = tbl.filter(
+        #         pa.compute.is_in(
+        #             tbl[self._dlt_index],
+        #             tbl.group_by(group_cols).aggregate(
+        #                 [(self._dlt_index, "one"), (cursor_path, aggregate)]
+        #             )[f'{self._dlt_index}_one']
+        #         )
+        #     )
+        # except KeyError as e:
+            # raise IncrementalPrimaryKeyMissing(self.resource_name, unique_columns[0], tbl) from e
         return tbl
 
     def __call__(
@@ -179,6 +186,25 @@ class ArrowIncremental(IncrementalTransformer):
         is_pandas = pd is not None and isinstance(tbl, pd.DataFrame)
         if is_pandas:
             tbl = pa.Table.from_pandas(tbl)
+
+        primary_key = self.primary_key(tbl) if callable(self.primary_key) else self.primary_key
+        if primary_key:
+            # create a list of unique columns
+            if isinstance(primary_key, str):
+                unique_columns = [primary_key]
+            else:
+                unique_columns = list(primary_key)
+            # check if primary key components are in the table
+            for pk in unique_columns:
+                if pk not in tbl.schema.names:
+                    raise IncrementalPrimaryKeyMissing(self.resource_name, pk, tbl)
+            # use primary key as unique index
+            if isinstance(primary_key, str):
+                self._dlt_index = primary_key
+        elif primary_key is None:
+            unique_columns = tbl.column_names
+        else:  # deduplicating is disabled
+            unique_columns = None
 
         start_out_of_range = end_out_of_range = False
         if not tbl:  # row is None or empty arrow table
@@ -206,23 +232,18 @@ class ArrowIncremental(IncrementalTransformer):
         cursor_path = str(self.cursor_path)
         # The new max/min value
         try:
-            row_value = compute(tbl[cursor_path]).as_py()
+            orig_row_value = compute(tbl[cursor_path])
+            row_value = orig_row_value.as_py()
+            # dates are not represented as datetimes but I see connector-x represents
+            # datetimes as dates and keeping the exact time inside. probably a bug
+            # but can be corrected this way
+            if isinstance(row_value, date) and not isinstance(row_value, datetime):
+                row_value = pendulum.from_timestamp(orig_row_value.cast(pa.int64()).as_py() / 1000)
         except KeyError as e:
             raise IncrementalCursorPathMissing(
                 self.resource_name, cursor_path, tbl,
                 f"Column name {str(cursor_path)} was not found in the arrow table. Note nested JSON paths are not supported for arrow tables and dataframes, the incremental cursor_path must be a column name."
             ) from e
-
-        primary_key = self.primary_key(tbl) if callable(self.primary_key) else self.primary_key
-        if primary_key:
-            if  isinstance(primary_key, str):
-                unique_columns = [primary_key]
-            else:
-                unique_columns = list(primary_key)
-        elif primary_key is None:
-            unique_columns = tbl.column_names
-        else:  # deduplicating is disabled
-            unique_columns = None
 
         # If end_value is provided, filter to include table rows that are "less" than end_value
         if self.end_value is not None:
@@ -247,7 +268,7 @@ class ArrowIncremental(IncrementalTransformer):
             unique_values = [(i, uq_val) for i, uq_val in unique_values if uq_val in self.incremental_state['unique_hashes']]
             remove_idx = pa.array(i for i, _ in unique_values)
             # Filter the table
-            tbl = tbl.filter(pa.compute.invert(pa.compute.is_in(tbl["_dlt_index"], remove_idx)))
+            tbl = tbl.filter(pa.compute.invert(pa.compute.is_in(tbl[self._dlt_index], remove_idx)))
 
             if new_value_compare(row_value, last_value).as_py() and row_value != last_value:  # Last value has changed
                 self.incremental_state['last_value'] = row_value
