@@ -372,7 +372,8 @@ def test_corece_null_value_over_not_null(schema: Schema) -> None:
 
 
 def test_infer_with_autodetection(schema: Schema) -> None:
-    c = schema._infer_column("ts", pendulum.now().timestamp())
+    # iso timestamp detection
+    c = schema._infer_column("ts", pendulum.now().isoformat())
     assert c["data_type"] == "timestamp"
     schema._type_detections = []
     c = schema._infer_column("ts", pendulum.now().timestamp())

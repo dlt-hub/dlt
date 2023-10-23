@@ -58,6 +58,7 @@ def test_aws_credentials_from_botocore(environment: Dict[str, str]) -> None:
         "secret": "fake_secret_key",
         "token": "fake_session_token",
         "profile": None,
+        "endpoint_url": None,
         "client_kwargs": {
             "region_name": session.get_config_variable('region')
         }
