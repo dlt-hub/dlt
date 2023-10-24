@@ -52,7 +52,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/mux',
             'dlt-ecosystem/verified-sources/notion',
             'dlt-ecosystem/verified-sources/pipedrive',
-            'dlt-ecosystem/verified-sources/readers_source_&_filesystem',
+            'dlt-ecosystem/verified-sources/readers_source_and_filesystem',
             'dlt-ecosystem/verified-sources/salesforce',
             'dlt-ecosystem/verified-sources/shopify',
             'dlt-ecosystem/verified-sources/sql_database',
