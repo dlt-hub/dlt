@@ -85,6 +85,10 @@ pipeline.run(orders)
 pipeline.run(orders)
 ```
 
+:::tip
+Look at the [Connector X + Arrow Example](../../examples/connector_x_arrow/) to see how to load data from production databases fast.
+:::
+
 ## Supported Arrow data types
 
 The Arrow data types are translated to dlt data types as follows:

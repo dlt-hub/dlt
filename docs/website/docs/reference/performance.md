@@ -92,22 +92,22 @@ Below we set files to rotated after 100.000 items written or when the filesize e
 # extract and normalize stages
 [data_writer]
 file_max_items=100000
-max_file_size=1000000
+file_max_bytes=1000000
 
 # only for the extract stage - for all sources
 [sources.data_writer]
 file_max_items=100000
-max_file_size=1000000
+file_max_bytes=1000000
 
 # only for the extract stage of a source with name zendesk_support
 [sources.zendesk_support.data_writer]
 file_max_items=100000
-max_file_size=1000000
+file_max_bytes=1000000
 
 # only for the normalize stage
 [normalize.data_writer]
 file_max_items=100000
-max_file_size=1000000
+file_max_bytes=1000000
 ```
 <!--@@@DLT_SNIPPET_END ./performance_snippets/toml-snippets.toml::file_size_toml-->
 
@@ -235,7 +235,7 @@ The **normalize** stage uses a process pool to create load package concurrently.
 ```toml
 [extract.data_writer]
 # force extract file rotation if size exceeds 1MiB
-max_file_size=1000000
+file_max_bytes=1000000
 
 [normalize]
 # use 3 worker processes to process 3 files in parallel
@@ -260,7 +260,7 @@ As before, **if you have just a single table with millions of records you should
 ```toml
 [normalize.data_writer]
 # force normalize file rotation if it exceeds 1MiB
-max_file_size=1000000
+file_max_bytes=1000000
 
 [load]
 # have 50 concurrent load jobs

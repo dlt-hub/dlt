@@ -1,12 +1,11 @@
-from typing import Any, Optional, List, Union, Literal, get_args
+from typing import Any, Optional, List, Literal, get_args
 import pytest
-from itertools import zip_longest, chain
+from itertools import zip_longest
 
-from dlt.common.typing import TDataItem, TDataItems, TAny
+from dlt.common.typing import TDataItem, TDataItems
 
 from dlt.extract.extract import ExtractorStorage
-from dlt.extract.typing import ItemTransform, ItemTransformFunc
-from tests.cases import TArrowFormat
+from dlt.extract.typing import ItemTransform
 
 import pandas as pd
 from dlt.common.libs.pyarrow import pyarrow as pa

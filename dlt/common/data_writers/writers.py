@@ -274,6 +274,8 @@ class ArrowWriter(ParquetDataWriter):
                 self.writer.write_batch(row)
             else:
                 raise ValueError(f"Unsupported type {type(row)}")
+            # count rows that got written
+            self.items_count += row.num_rows
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:
