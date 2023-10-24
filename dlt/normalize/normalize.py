@@ -76,7 +76,6 @@ class Normalize(Runnable[ProcessPool]):
         load_id: str,
         extracted_items_files: Sequence[str],
     ) -> TWorkerRV:
-
         destination_caps = config.destination_capabilities
         schema_updates: List[TSchemaUpdate] = []
         total_items = 0

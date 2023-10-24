@@ -181,8 +181,8 @@ def test_extract_normalize_file_rotation(item_type: TArrowFormat) -> None:
 @pytest.mark.parametrize("item_type", ["table", "pandas", "record_batch"])
 def test_normalize_with_dlt_columns(item_type: TArrowFormat):
     item, records = arrow_table_all_data_types(item_type, num_rows=5432)
-    os.environ['NORMALIZE__PARQUET_ADD_DLT_LOAD_ID'] = "True"
-    os.environ['NORMALIZE__PARQUET_ADD_DLT_ID'] = "True"
+    os.environ['NORMALIZE__PARQUET_NORMALIZER_CONFIG__ADD_DLT_LOAD_ID'] = "True"
+    os.environ['NORMALIZE__PARQUET_NORMALIZER_CONFIG__ADD_DLT_ID'] = "True"
     # Test with buffer smaller than the number of batches to be written
     os.environ['DATA_WRITER__BUFFER_MAX_ITEMS'] = "4"
 

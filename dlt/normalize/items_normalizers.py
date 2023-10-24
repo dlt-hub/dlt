@@ -173,7 +173,10 @@ class ParquetItemsNormalizer(ItemsNormalizer):
     ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
         import pyarrow as pa
 
-        if config.parquet_add_dlt_id or config.parquet_add_dlt_load_id or load_storage.loader_file_format != "arrow":
+        add_dlt_id = config.parquet_normalizer_config.add_dlt_id
+        add_dlt_load_id = config.parquet_normalizer_config.add_dlt_load_id
+
+        if add_dlt_id or add_dlt_load_id or load_storage.loader_file_format != "arrow":
             items_count = self._write_with_dlt_columns(
                 extracted_items_file,
                 normalize_storage,
@@ -181,8 +184,8 @@ class ParquetItemsNormalizer(ItemsNormalizer):
                 load_id,
                 schema,
                 root_table_name,
-                config.parquet_add_dlt_load_id,
-                config.parquet_add_dlt_id
+                add_dlt_load_id,
+                add_dlt_id
             )
             return [], items_count, {root_table_name: items_count}
 
