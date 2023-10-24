@@ -224,7 +224,6 @@ const sidebars = {
       items: [
         'examples/transformers/index',
         'examples/incremental_loading/index',
-        'examples/chess_production/index',
         'examples/connector_x_arrow/index',
         'examples/chess_production/index',
       ],
