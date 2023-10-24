@@ -2,100 +2,28 @@ import os
 from tests.pipeline.utils import assert_load_info
 
 
-def start_snippet() -> None:
+def basic_api_snippet() -> None:
 
-    # @@@DLT_SNIPPET_START start
-    import dlt
-
-    data = [
-        {'id': 1, 'name': 'Alice'},
-        {'id': 2, 'name': 'Bob'}
-    ]
-
-    pipeline = dlt.pipeline(
-        pipeline_name='quick_start',
-        destination='duckdb',
-        dataset_name='mydata'
-    )
-    load_info = pipeline.run(data, table_name="users")
-
-    print(load_info)
-    # @@@DLT_SNIPPET_END start
-
-    assert_load_info(load_info)
-
-
-def json_snippet() -> None:
-
-    # @@@DLT_SNIPPET_START json
-    import dlt
-
-    from dlt.common import json
-
-    with open("./assets/json_file.json", 'rb') as file:
-        data = json.load(file)
-
-    pipeline = dlt.pipeline(
-        pipeline_name='from_json',
-        destination='duckdb',
-        dataset_name='mydata',
-    )
-
-    # NOTE: test data that we load is just a dictionary so we enclose it in a list
-    # if your JSON contains a list of objects you do not need to do that
-    load_info = pipeline.run([data], table_name="json_data")
-
-    print(load_info)
-    # @@@DLT_SNIPPET_END json
-
-    assert_load_info(load_info)
-
-
-def csv_snippet() -> None:
-
-    # @@@DLT_SNIPPET_START csv
-    import dlt
-    import pandas as pd
-
-    owid_disasters_csv = "https://raw.githubusercontent.com/owid/owid-datasets/master/datasets/Natural%20disasters%20from%201900%20to%202019%20-%20EMDAT%20(2020)/Natural%20disasters%20from%201900%20to%202019%20-%20EMDAT%20(2020).csv"
-    df = pd.read_csv(owid_disasters_csv)
-    data = df.to_dict(orient='records')
-
-    pipeline = dlt.pipeline(
-        pipeline_name='from_csv',
-        destination='duckdb',
-        dataset_name='mydata',
-    )
-    load_info = pipeline.run(data, table_name="natural_disasters")
-
-    print(load_info)
-    # @@@DLT_SNIPPET_END csv
-
-    assert_load_info(load_info)
-
-
-def api_snippet() -> None:
-
-    # @@@DLT_SNIPPET_START api
+    # @@@DLT_SNIPPET_START basic_api
     import dlt
     from dlt.sources.helpers import requests
 
-    # url to request dlt-hub/dlt issues
+    # Specify the URL of the API endpoint
     url = "https://api.github.com/repos/dlt-hub/dlt/issues"
-    # make the request and check if succeeded
+    # Make a request and check if it was successful
     response = requests.get(url)
     response.raise_for_status()
 
     pipeline = dlt.pipeline(
-        pipeline_name='from_api',
+        pipeline_name='github_issues',
         destination='duckdb',
         dataset_name='github_data',
     )
-    # the response contains a list of issues
+    # The response contains a list of issues
     load_info = pipeline.run(response.json(), table_name="issues")
 
     print(load_info)
-    # @@@DLT_SNIPPET_END api
+    # @@@DLT_SNIPPET_END basic_api
 
     assert_load_info(load_info)
 
