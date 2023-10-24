@@ -2,7 +2,6 @@ import os
 from typing import Iterator
 
 import pytest
-from dlt.common.arithmetics import Decimal
 
 from dlt.common.data_writers.buffered import BufferedDataWriter, DataWriter
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
@@ -16,7 +15,10 @@ from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
 import datetime  # noqa: 251
 
 
-def get_insert_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10, disable_compression: bool = False) -> BufferedDataWriter[DataWriter]:
+ALL_WRITERS: Set[Literal[TLoaderFileFormat]] = {"insert_values", "jsonl", "parquet", "arrow", "puae-jsonl"}
+
+
+def get_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10, disable_compression: bool = False) -> BufferedDataWriter[DataWriter]:
     caps = DestinationCapabilitiesContext.generic_capabilities()
     caps.preferred_loader_file_format = _format
     file_template = os.path.join(TEST_STORAGE_ROOT, f"{_format}.%s")
@@ -24,7 +26,7 @@ def get_insert_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_i
 
 
 def test_write_no_item() -> None:
-    with get_insert_writer() as writer:
+    with get_writer() as writer:
         pass
     assert writer.closed
     with pytest.raises(BufferedDataWriterClosed):
