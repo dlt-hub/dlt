@@ -29,7 +29,7 @@ def file_storage() -> FileStorage:
 def client(request) -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage(request.param.destination)
 
-@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True, exclude=["mssql"]), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True, exclude=["mssql", "synapse"]), indirect=True, ids=lambda x: x.name)
 def test_sql_client_default_dataset_unqualified(client: SqlJobClientBase) -> None:
     client.update_stored_schema()
     load_id = "182879721.182912"
@@ -181,6 +181,9 @@ def test_execute_df(client: SqlJobClientBase) -> None:
         chunk_size = 50
         total_records = 80
     elif client.config.destination_name == "mssql":
+        chunk_size = 700
+        total_records = 1000
+    elif client.config.destination_name == "synapse":
         chunk_size = 700
         total_records = 1000
     else:

@@ -98,6 +98,7 @@ athena = ["pyathena", "pyarrow", "s3fs", "botocore"]
 weaviate = ["weaviate-client"]
 pydantic = ["pydantic"]
 mssql = ["pyodbc"]
+synapse = ["pyodbc"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
