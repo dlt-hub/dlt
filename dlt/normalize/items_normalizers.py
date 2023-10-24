@@ -145,7 +145,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
                 lambda batch: (uniq_id_base64(10) for _ in range(batch.num_rows))
             ))
         items_count = 0
-        as_py = load_storage.loader_file_format != "parquet"
+        as_py = load_storage.loader_file_format != "arrow"
         with normalize_storage.storage.open_file(extracted_items_file, "rb") as f:
             for batch in pyarrow.pq_stream_with_new_columns(f, new_columns, batch_size=self.RECORD_BATCH_SIZE):
                 items_count += batch.num_rows
@@ -173,7 +173,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
     ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
         import pyarrow as pa
 
-        if config.parquet_add_dlt_id or config.parquet_add_dlt_load_id or load_storage.loader_file_format != "parquet":
+        if config.parquet_add_dlt_id or config.parquet_add_dlt_load_id or load_storage.loader_file_format != "arrow":
             items_count = self._write_with_dlt_columns(
                 extracted_items_file,
                 normalize_storage,

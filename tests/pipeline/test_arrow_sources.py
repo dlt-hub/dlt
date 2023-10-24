@@ -11,6 +11,7 @@ from dlt.common.utils import uniq_id
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.cases import arrow_table_all_data_types, TArrowFormat
 from tests.utils import preserve_environ
+from dlt.common import json
 
 
 @pytest.mark.parametrize(
@@ -45,7 +46,8 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
     load_id = pipeline.list_normalized_load_packages()[0]
     storage = pipeline._get_load_storage()
     jobs = storage.list_new_jobs(load_id)
-    with storage.storage.open_file(jobs[0], 'rb') as f:
+    job = [j for j in jobs if "some_data" in j][0]
+    with storage.storage.open_file(job, 'rb') as f:
         normalized_bytes = f.read()
 
         # Normalized is linked/copied exactly and should be the same as the extracted file
@@ -82,21 +84,44 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
     assert schema_columns['json']['data_type'] == 'complex'
 
 
-# @pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
-# def test_normalize_unsupported_loader_format(item_type: TArrowFormat):
-#     item, _ = arrow_table_all_data_types(item_type)
 
-#     pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="dummy")
+@pytest.mark.parametrize(
+    ("item_type", "is_list"), [("pandas", False), ("table", False), ("record_batch", False), ("pandas", True), ("table", True), ("record_batch", True)]
+)
+def test_normalize_jsonl(item_type: TArrowFormat, is_list: bool):
+    os.environ['DUMMY__LOADER_FILE_FORMAT'] = "jsonl"
 
-#     @dlt.resource
-#     def some_data():
-#         yield item
+    item, records = arrow_table_all_data_types(item_type)
 
-#     pipeline.extract(some_data())
-#     with pytest.raises(PipelineStepFailed) as py_ex:
-#         pipeline.normalize()
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="dummy")
 
-#     assert "The destination doesn't support direct loading of arrow tables" in str(py_ex.value)
+    @dlt.resource
+    def some_data():
+        if is_list:
+            yield [item]
+        else:
+            yield item
+
+
+    pipeline.extract(some_data())
+    pipeline.normalize()
+
+    load_id = pipeline.list_normalized_load_packages()[0]
+    storage = pipeline._get_load_storage()
+    jobs = storage.list_new_jobs(load_id)
+    job = [j for j in jobs if "some_data" in j][0]
+    with storage.storage.open_file(job, 'r') as f:
+        result = [json.loads(line) for line in f]
+        for row in result:
+            row['decimal'] = Decimal(row['decimal'])
+
+    for record in records:
+        record['datetime'] = record['datetime'].replace(tzinfo=None)
+
+    expected = json.loads(json.dumps(records))
+    for record in expected:
+        record['decimal'] = Decimal(record['decimal'])
+    assert result == expected
 
 
 @pytest.mark.parametrize("item_type", ["table", "record_batch"])
@@ -153,13 +178,13 @@ def test_extract_normalize_file_rotation(item_type: TArrowFormat) -> None:
     assert len(pipeline.get_load_package_info(load_id).jobs["new_jobs"]) == 10
 
 
-@pytest.mark.parametrize("item_type", ["table"])
+@pytest.mark.parametrize("item_type", ["table", "pandas", "record_batch"])
 def test_normalize_with_dlt_columns(item_type: TArrowFormat):
-    item, _ = arrow_table_all_data_types(item_type, num_rows=1234)
+    item, records = arrow_table_all_data_types(item_type, num_rows=5432)
     os.environ['NORMALIZE__PARQUET_ADD_DLT_LOAD_ID'] = "True"
     os.environ['NORMALIZE__PARQUET_ADD_DLT_ID'] = "True"
-    # Make sure everything works table is larger than buffer size
-    os.environ['DATA_WRITER__BUFFER_MAX_ITEMS'] = "50"
+    # Test with buffer smaller than the number of batches to be written
+    os.environ['DATA_WRITER__BUFFER_MAX_ITEMS'] = "4"
 
     @dlt.resource
     def some_data():
@@ -173,8 +198,24 @@ def test_normalize_with_dlt_columns(item_type: TArrowFormat):
     load_id = pipeline.list_normalized_load_packages()[0]
     storage = pipeline._get_load_storage()
     jobs = storage.list_new_jobs(load_id)
-    with storage.storage.open_file(jobs[0], 'rb') as f:
-        normalized_bytes = f.read()
+    job = [j for j in jobs if "some_data" in j][0]
+    with storage.storage.open_file(job, 'rb') as f:
+        tbl = pa.parquet.read_table(f)
 
-        pq = pa.parquet.ParquetFile(f)
-        tbl = pq.read()
+        assert len(tbl) == 5432
+
+        # Test one column matches source data
+        assert tbl['string'].to_pylist() == [r['string'] for r in records]
+
+        assert pa.compute.all(pa.compute.equal(tbl['_dlt_load_id'], load_id)).as_py()
+
+        all_ids = tbl['_dlt_id'].to_pylist()
+        assert len(all_ids[0]) >= 14
+
+        # All ids are unique
+        assert len(all_ids) == len(set(all_ids))
+
+    # _dlt_id and _dlt_load_id are added to pipeline schema
+    schema = pipeline.default_schema
+    assert schema.tables['some_data']['columns']['_dlt_id']['data_type'] == 'text'
+    assert schema.tables['some_data']['columns']['_dlt_load_id']['data_type'] == 'text'

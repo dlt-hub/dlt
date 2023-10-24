@@ -354,7 +354,7 @@ def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool =
     }
 
     if include_json:
-        data["json"] = [{random.choice(ascii_lowercase): random.randrange(0, 100)} for _ in range(num_rows)]
+        data["json"] = [{"a": random.randrange(0, 100)} for _ in range(num_rows)]
 
     if include_time:
         data["time"] = pd.date_range("2021-01-01", periods=num_rows, tz="UTC").time

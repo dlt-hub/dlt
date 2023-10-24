@@ -84,15 +84,19 @@ class Normalize(Runnable[ProcessPool]):
         load_storages: Dict[TLoaderFileFormat, LoadStorage] = {}
 
         def _get_load_storage(file_format: TLoaderFileFormat) -> LoadStorage:
-            if file_format != "parquet":
+            # TODO: capabilities.supported_*_formats can be None, it should have defaults
+            supported_formats = list(set(destination_caps.supported_loader_file_formats or []) | set(destination_caps.supported_staging_file_formats or []))
+            if file_format == "parquet":
+                if file_format in supported_formats:
+                    supported_formats.append("arrow")  # TODO: Hack to make load storage use the correct writer
+                    file_format = "arrow"
+                else:
+                    # Use default storage if parquet is not supported to make normalizer fallback to read rows from the file
+                    file_format = destination_caps.preferred_loader_file_format or destination_caps.preferred_staging_file_format
+            else:
                 file_format = destination_caps.preferred_loader_file_format or destination_caps.preferred_staging_file_format
             if storage := load_storages.get(file_format):
                 return storage
-            # TODO: capabilities.supported_*_formats can be None, it should have defaults
-            supported_formats = list(set(destination_caps.supported_loader_file_formats or []) | set(destination_caps.supported_staging_file_formats or []))
-            if file_format == "parquet" and file_format not in supported_formats:
-                # Use default storage if parquet is not supported to make normalizer fallback to read rows from the file
-                file_format = destination_caps.preferred_loader_file_format or destination_caps.preferred_staging_file_format
             storage = load_storages[file_format] = LoadStorage(False, file_format, supported_formats, loader_storage_config)
             return storage
 
