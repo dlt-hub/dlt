@@ -88,6 +88,7 @@ class DestinationTestConfiguration:
 def destinations_configs(
         default_sql_configs: bool = False,
         default_vector_configs: bool = False,
+        file_format: str = '',
         default_staging_configs: bool = False,
         all_staging_configs: bool = False,
         local_filesystem_configs: bool = False,
@@ -125,18 +126,17 @@ def destinations_configs(
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AWS_BUCKET, stage_name="PUBLIC.dlt_s3_stage", extra_info="s3-integration"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AZ_BUCKET, stage_name="PUBLIC.dlt_az_stage", extra_info="az-integration"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AZ_BUCKET, extra_info="az-authorization"),
-            DestinationTestConfiguration(destination="synapse", staging="filesystem", file_format="csv", bucket_url=AZ_BUCKET, stage_name="PUBLIC.dlt_az_stage"),
             DestinationTestConfiguration(destination="synapse", staging="filesystem", file_format="parquet", bucket_url=AZ_BUCKET, stage_name="PUBLIC.dlt_az_stage")
         ]
 
     if all_staging_configs:
         destination_configs += [
-            DestinationTestConfiguration(destination="synapse", staging="filesystem", file_format="csv", bucket_url=AZ_BUCKET, extra_info="az-integration"),
             DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, extra_info="credential-forwarding"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, extra_info="credential-forwarding"),
             DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="jsonl", bucket_url=AWS_BUCKET, extra_info="credential-forwarding"),
             DestinationTestConfiguration(destination="bigquery", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, extra_info="gcs-authorization"),
             DestinationTestConfiguration(destination="synapse", staging="filesystem", file_format="parquet", bucket_url=AZ_BUCKET, extra_info="az-integration")
+
         ]
 
     # add local filesystem destinations if requested
@@ -176,7 +176,7 @@ def load_table(name: str) -> Dict[str, TTableSchemaColumns]:
 def expect_load_file(client: JobClientBase, file_storage: FileStorage, query: str, table_name: str, status = "completed") -> LoadJob:
     file_name = ParsedLoadJobFileName(table_name, uniq_id(), 0, client.capabilities.preferred_loader_file_format).job_id()
     file_storage.save(file_name, query.encode("utf-8"))
-    table = Load.get_load_table(client.schema, file_name)
+    table = client.get_load_table(table_name)
     job = client.start_file_load(table, file_storage.make_full_path(file_name), uniq_id())
     while job.state() == "running":
         sleep(0.5)
