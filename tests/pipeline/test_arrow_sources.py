@@ -12,6 +12,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.cases import arrow_table_all_data_types, TArrowFormat
 from tests.utils import preserve_environ
 from dlt.common import json
+from dlt.common import Decimal
 
 
 @pytest.mark.parametrize(
