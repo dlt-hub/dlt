@@ -4,7 +4,7 @@ description: Importing Ticket Data from Zendesk API to Weaviate
 keywords: [how to, zendesk, weaviate, vector database, vector search]
 ---
 
-# Importing Ticket Data from Zendesk API to Weaviate
+# How to Import Ticket Data from Zendesk API to Weaviate
 
 Zendesk is a cloud-based customer service and support platform. Zendesk Support API, which is also known as the Ticketing API lets’s you access support tickets data. By analyzing this data, businesses can gain insights into customer needs, behavior, trends, and make data-driven decisions. The newest type of databases, vector databases, can help in advanced analysis of tickets data such as identifying common issues and sentiment analysis.
 
@@ -49,7 +49,7 @@ The last command [dlt init](../reference/command-line-interface#dlt-init) initia
 
 Before we configure the source and destination, you need to make sure you have access to API in both Zendesk and Weaviate.
 
-Head to the [Zendesk](../dlt-ecosystem/verified-sources/zendesk.md) docs to see how to fetch credentials for Zendesk API. In our walkthrough, we're using the email address and password authentication method. Once you have fetched the credentials, you can configure the source. Add the following lines to the dlt secrets file `~/.dlt/secrets.toml`:
+Head to the [Zendesk](../dlt-ecosystem/verified-sources/zendesk.md) docs to see how to fetch credentials for Zendesk API. In this guide, we're using the email address and password authentication method. Once you have fetched the credentials, you can configure the source. Add the following lines to the dlt secrets file `~/.dlt/secrets.toml`:
 
 ```toml
 [sources.zendesk.zendesk_support.credentials]

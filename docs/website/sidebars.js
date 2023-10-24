@@ -161,7 +161,7 @@ const sidebars = {
       link: {
         type: 'generated-index',
         title: 'How-to guides',
-        description: 'Overview of our how-to guides. Learn how to use and deploy dlt.',
+        description: 'In this section you will find step-by-step instructions for the common tasks.',
         slug: 'walkthroughs',
         keywords: ['how-to'],
       },
