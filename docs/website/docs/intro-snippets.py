@@ -56,7 +56,8 @@ def db_snippet() -> None:
     import dlt
     from sqlalchemy import create_engine
 
-    # Use any sql database supported by SQLAlchemy, below we use a public mysql instance to get data
+    # Use any SQL database supported by SQLAlchemy, below we use a public
+    # MySQL instance to get data.
     # NOTE: you'll need to install pymysql with `pip install pymysql`
     # NOTE: loading data from public mysql instance may take several seconds
     engine = create_engine("mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam")
