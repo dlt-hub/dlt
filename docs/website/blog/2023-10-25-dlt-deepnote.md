@@ -51,7 +51,7 @@ like, let’s list down the steps we usually undergo.
 
 ### The usual flow of data for data science projects
 
-![usual flow](/img/blog_deepnote_usual_flow.gif)
+![usual flow](/img/blog_deepnote_usual_flow.png)
 
 We sign up for our jobs because we enjoy the last two activities the most. These parts have
 all the pretty charts, the flashy animations, and, if the stars align, include watching your
