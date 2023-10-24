@@ -195,7 +195,7 @@ This is the simplest way to see `dlt` in action.
 [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
 if you have any questions about use cases or the library.
 
-## Become part of the `dlt` community
+## Join the `dlt` community
 
 1. Give the library a ⭐ and check out the code on [GitHub](https://github.com/dlt-hub/dlt).
 1. Ask questions and share how you use the library on
