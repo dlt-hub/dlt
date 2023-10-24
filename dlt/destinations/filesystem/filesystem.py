@@ -131,7 +131,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
                         for search_prefix in truncate_prefixes:
                             if item.startswith(search_prefix):
                                 # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
-                                logger.info(f"DEL {item}")
+                                # logger.info(f"DEL {item}")
                                 # print(f"DEL {item}")
                                 self.fs_client.rm(item)
                 except FileNotFoundError:

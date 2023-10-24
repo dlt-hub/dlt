@@ -164,14 +164,14 @@ class Extractor:
         table_name = self.schema.naming.normalize_table_identifier(table_name)
         self.storage.write_empty_file(self.extract_id, self.schema.name, table_name, None)
 
-    def _write_item(self, table_name: str, resource_name: str, items: TDataItems) -> None:
+    def _write_item(self, table_name: str, resource_name: str, items: TDataItems, columns: TTableSchemaColumns = None) -> None:
         # normalize table name before writing so the name match the name in schema
         # note: normalize function should be cached so there's almost no penalty on frequent calling
         # note: column schema is not required for jsonl writer used here
         table_name = self.schema.naming.normalize_identifier(table_name)
         self.collector.update(table_name)
         self.resources_with_items.add(resource_name)
-        self.storage.write_data_item(self.extract_id, self.schema.name, table_name, items, None)
+        self.storage.write_data_item(self.extract_id, self.schema.name, table_name, items, columns)
 
     def _write_dynamic_table(self, resource: DltResource, item: TDataItem) -> None:
         table_name = resource._table_name_hint_fun(item)
