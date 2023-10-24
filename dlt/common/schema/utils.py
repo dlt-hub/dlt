@@ -698,4 +698,4 @@ def standard_hints() -> Dict[TColumnHint, List[TSimpleRegex]]:
 
 
 def standard_type_detections() -> List[TTypeDetections]:
-    return ["timestamp", "iso_timestamp"]
+    return ["iso_timestamp"]
