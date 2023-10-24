@@ -12,12 +12,14 @@ from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.utils import TRowCount, merge_row_count, increase_row_count
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.utils import uniq_id_base64
+from dlt.common.normalizers.utils import generate_dlt_ids
 
 try:
     from dlt.common.libs import pyarrow
+    from dlt.common.libs.pyarrow import pyarrow as pa
 except MissingDependencyException:
     pyarrow = None
+    pa = None
 
 
 class ItemsNormalizer(Protocol):
@@ -130,19 +132,19 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         load_storage: LoadStorage, load_id: str, schema: Schema, root_table_name: str,
         add_load_id: bool, add_dlt_id: bool
     ) -> int:
-        import numpy as np
         new_columns: List[Any] = []
         if add_load_id:
-            schema.update_table({"name": root_table_name, "columns": {"_dlt_load_id": {"name": "_dlt_load_id", "data_type": "text"}}})
+            schema.update_table({"name": root_table_name, "columns": {"_dlt_load_id": {"name": "_dlt_load_id", "data_type": "text", "nullable": False}}})
+            load_id_type = pa.dictionary(pa.int8(), pa.string())
             new_columns.append((
-                pyarrow.pyarrow.field("_dlt_load_id", pyarrow.pyarrow.string(), nullable=False),
-                lambda batch: np.full(batch.num_rows, load_id)
+                pa.field("_dlt_load_id", load_id_type, nullable=False),
+                lambda batch: pa.array([load_id] * batch.num_rows, type=load_id_type)
             ))
         if add_dlt_id:
-            schema.update_table({"name": root_table_name, "columns": {"_dlt_id": {"name": "_dlt_id", "data_type": "text"}}})
+            schema.update_table({"name": root_table_name, "columns": {"_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": False}}})
             new_columns.append((
-                pyarrow.pyarrow.field("_dlt_id", pyarrow.pyarrow.string(), nullable=False),
-                lambda batch: (uniq_id_base64(10) for _ in range(batch.num_rows))
+                pa.field("_dlt_id", pyarrow.pyarrow.string(), nullable=False),
+                lambda batch: generate_dlt_ids(batch.num_rows)
             ))
         items_count = 0
         as_py = load_storage.loader_file_format != "arrow"

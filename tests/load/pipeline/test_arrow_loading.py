@@ -2,6 +2,7 @@ import pytest
 from datetime import datetime  # noqa: I251
 
 from typing import Any, Union, List, Dict, Tuple, Literal
+import os
 
 import dlt
 from dlt.common import Decimal
@@ -16,6 +17,8 @@ from tests.cases import arrow_table_all_data_types
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_staging_configs=True, all_staging_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
 def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destination_config: DestinationTestConfiguration) -> None:
+    os.environ['NORMALIZE__PARQUET_NORMALIZER_CONFIG__ADD_DLT_LOAD_ID'] = "True"
+    os.environ['NORMALIZE__PARQUET_NORMALIZER_CONFIG__ADD_DLT_ID'] = "True"
     include_time = destination_config.destination not in ("athena", "redshift")  # athena/redshift can't load TIME columns from parquet
     item, records = arrow_table_all_data_types(item_type, include_json=False, include_time=include_time)
 
@@ -25,7 +28,7 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
     def some_data():
         yield item
 
-    pipeline.run(some_data())
+    load_info = pipeline.run(some_data())
     # assert the table types
     some_table_columns = pipeline.default_schema.get_table("some_data")["columns"]
     assert some_table_columns["string"]["data_type"] == "text"
@@ -60,4 +63,11 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
 
     expected = sorted([list(r.values()) for r in records], key=lambda x: x[0])
 
-    assert rows == expected
+    load_id = load_info.loads_ids[0]
+
+    for row, expected_row in zip(rows, expected):
+        # Compare without _dlt_id/_dlt_load_id columns
+        assert row[:-2] == expected_row
+        # Load id and dlt_id are set
+        assert row[-2] == load_id
+        assert isinstance(row[-1], str)
