@@ -32,7 +32,7 @@ The library will create or update tables, infer data types and handle nested dat
 ]}>
   <TabItem value="api">
 
-<!--@@@DLT_SNIPPET_START index-->
+<!--@@@DLT_SNIPPET_START api-->
 ```py
 import dlt
 from dlt.sources.helpers import requests
@@ -51,7 +51,7 @@ for player in ["magnuscarlsen", "rpragchess"]:
 # Extract, normalize, and load the data
 load_info = pipeline.run(data, table_name='player')
 ```
-<!--@@@DLT_SNIPPET_END index-->
+<!--@@@DLT_SNIPPET_END api-->
 
 Copy this example to a file or a Jupyter Notebook and run it. To make it work with the DuckDB destination, you'll need to install the **duckdb** dependency (the default `dlt` installation is really minimal):
 ```sh
@@ -107,14 +107,18 @@ print(load_info)
 import dlt
 import pandas as pd
 
-owid_disasters_csv = "https://raw.githubusercontent.com/owid/owid-datasets/master/datasets/Natural%20disasters%20from%201900%20to%202019%20-%20EMDAT%20(2020)/Natural%20disasters%20from%201900%20to%202019%20-%20EMDAT%20(2020).csv"
+owid_disasters_csv = (
+    "https://raw.githubusercontent.com/owid/owid-datasets/master/datasets/"
+    "Natural%20disasters%20from%201900%20to%202019%20-%20EMDAT%20(2020)/"
+    "Natural%20disasters%20from%201900%20to%202019%20-%20EMDAT%20(2020).csv"
+)
 df = pd.read_csv(owid_disasters_csv)
-data = df.to_dict(orient='records')
+data = df.to_dict(orient="records")
 
 pipeline = dlt.pipeline(
-    pipeline_name='from_csv',
-    destination='duckdb',
-    dataset_name='mydata',
+    pipeline_name="from_csv",
+    destination="duckdb",
+    dataset_name="mydata",
 )
 load_info = pipeline.run(data, table_name="natural_disasters")
 
@@ -135,21 +139,23 @@ to sync your databases with warehouses, data lakes, or vector stores.
 import dlt
 from sqlalchemy import create_engine
 
-# use any sql database supported by SQLAlchemy, below we use a public mysql instance to get data
-# NOTE: you'll need to install pymysql with "pip install pymysql"
+# Use any sql database supported by SQLAlchemy, below we use a public mysql instance to get data
+# NOTE: you'll need to install pymysql with `pip install pymysql`
 # NOTE: loading data from public mysql instance may take several seconds
 engine = create_engine("mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam")
+
 with engine.connect() as conn:
-    # select genome table, stream data in batches of 100 elements
-    rows = conn.execution_options(yield_per=100).exec_driver_sql("SELECT * FROM genome LIMIT 1000")
+    # Select genome table, stream data in batches of 100 elements
+    query = "SELECT * FROM genome LIMIT 1000"
+    rows = conn.execution_options(yield_per=100).exec_driver_sql(query)
 
     pipeline = dlt.pipeline(
-        pipeline_name='from_database',
-        destination='duckdb',
-        dataset_name='genome_data',
+        pipeline_name="from_database",
+        destination="duckdb",
+        dataset_name="genome_data",
     )
 
-    # here we convert the rows into dictionaries on the fly with a map function
+    # Convert the rows into dictionaries on the fly with a map function
     load_info = pipeline.run(
         map(lambda row: dict(row._mapping), rows),
         table_name="genome"
