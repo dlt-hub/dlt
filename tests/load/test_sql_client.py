@@ -29,7 +29,7 @@ def file_storage() -> FileStorage:
 def client(request) -> Iterator[SqlJobClientBase]:
     yield from yield_client_with_storage(request.param.destination)
 
-@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True, exclude=["mssql", "synapse"]), indirect=True, ids=lambda x: x.name)
+@pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True, exclude=["mssql"]), indirect=True, ids=lambda x: x.name)
 def test_sql_client_default_dataset_unqualified(client: SqlJobClientBase) -> None:
     client.update_stored_schema()
     load_id = "182879721.182912"
@@ -193,9 +193,24 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     client.update_stored_schema()
     table_name = prepare_temp_table(client)
     f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
-    insert_query = ",".join([f"({idx})" for idx in range(0, total_records)])
 
-    client.sql_client.execute_sql(f"INSERT INTO {f_q_table_name} VALUES {insert_query};")
+    def generate_synapse_insert_query(total_records, is_synapse):
+        if is_synapse:
+            return " UNION ALL ".join([f"SELECT {idx}" for idx in range(0, total_records)])
+        else:
+            return ",".join([f"({idx})" for idx in range(0, total_records)])
+
+    is_synapse = client.config.destination_name == "synapse"
+    insert_query = generate_synapse_insert_query(total_records, is_synapse)
+
+    if is_synapse:
+        sql_statement = f"INSERT INTO {f_q_table_name} (col) {insert_query};"
+    else:
+        sql_statement = f"INSERT INTO {f_q_table_name} VALUES {insert_query};"
+
+    #print(f"Executing SQL: {sql_statement}")
+    client.sql_client.execute_sql(sql_statement)
+
     with client.sql_client.execute_query(f"SELECT * FROM {f_q_table_name} ORDER BY col ASC") as curr:
         df = curr.df()
         # Force lower case df columns, snowflake has all cols uppercase
