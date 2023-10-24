@@ -7,7 +7,7 @@ keywords: [incremental loading, example]
 import Header from '../_examples-header.md';
 
 <Header
-    intro="In this tutorial, you will learn how ."
+    intro="In this tutorial, you will learn how to investigate and track your loads."
     slug="chess_production"
     run_file="chess" />
 
@@ -17,12 +17,11 @@ In this example, you'll find a Python script that interacts with the Chess API t
 
 We'll learn how to:
 
-- inspect packages post load
-- load back load info, schema updates, and traces
-- send notifications if schema evolved
-- use context managers to retry pipeline stages separately
-- run simple tests with sql_client (table counts, warn if no data)
-- same as above but with normalize_info
+- Examining packages after they have been loaded.
+- Reloading load information, schema updates, and traces.
+- Triggering notifications in case of schema evolution.
+- Using context managers to independently retry pipeline stages.
+- Run basic tests utilizing sql_client and normalize_info.
 
 
 ## Init pipeline
@@ -33,34 +32,44 @@ import threading
 from typing import Any, Iterator
 
 import dlt
-
 from dlt.common import sleep
+from dlt.common.runtime.slack import send_slack_message
 from dlt.common.typing import StrAny, TDataItems
 from dlt.sources.helpers.requests import client
 
 @dlt.source
-def chess(chess_url: str = dlt.config.value, title: str = "GM", max_players: int = 2, year: int = 2022, month: int = 10) -> Any:
-
+def chess(
+    chess_url: str = dlt.config.value,
+    title: str = "GM",
+    max_players: int = 2,
+    year: int = 2022,
+    month: int = 10,
+) -> Any:
     def _get_data_with_retry(path: str) -> StrAny:
         r = client.get(f"{chess_url}{path}")
         return r.json()  # type: ignore
 
     @dlt.resource(write_disposition="replace")
     def players() -> Iterator[TDataItems]:
-        # return players one by one, you could also return a list that would be faster but we want to pass players item by item to the transformer
+        # return players one by one, you could also return a list
+        # that would be faster but we want to pass players item by item to the transformer
         yield from _get_data_with_retry(f"titled/{title}")["players"][:max_players]
 
     # this resource takes data from players and returns profiles
-    # it uses `defer` decorator to enable parallel run in thread pool. defer requires return at the end so we convert yield into return (we return one item anyway)
+    # it uses `defer` decorator to enable parallel run in thread pool.
+    # defer requires return at the end so we convert yield into return (we return one item anyway)
     # you can still have yielding transformers, look for the test named `test_evolve_schema`
     @dlt.transformer(data_from=players, write_disposition="replace")
     @dlt.defer
     def players_profiles(username: Any) -> TDataItems:
-        print(f"getting {username} profile via thread {threading.current_thread().name}")
+        print(
+            f"getting {username} profile via thread {threading.current_thread().name}"
+        )
         sleep(1)  # add some latency to show parallel runs
         return _get_data_with_retry(f"player/{username}")
 
-    # this resource takes data from players and returns games for the last month if not specified otherwise
+    # this resource takes data from players and returns games for the last month
+    # if not specified otherwise
     @dlt.transformer(data_from=players, write_disposition="append")
     def players_games(username: Any) -> Iterator[TDataItems]:
         # https://api.chess.com/pub/player/{username}/games/{YYYY}/{MM}
@@ -71,145 +80,169 @@ def chess(chess_url: str = dlt.config.value, title: str = "GM", max_players: int
 ```
 <!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_source-->
 
-[Chess: Setup Guide.](https://dlthub.com/docs/dlt-ecosystem/verified-sources/chess)
+Run the pipeline:
 
-## Inspecting packages post load
-
-To inspect a load process after running a pipeline, you can use the dlt command-line interface. Here are some commands you can use:
-
-To get information about the pipeline:
-
+<!--@@@DLT_SNIPPET_START ./code/chess-snippets.py::markdown_pipeline-->
+```py
+if __name__ == "__main__":
+    # create dlt pipeline
+    pipeline = dlt.pipeline(
+        pipeline_name="chess_pipeline",
+        destination="duckdb",
+        dataset_name="chess_data",
+    )
+    max_players = 5
+    load_info = pipeline.run(
+        chess(chess_url="https://api.chess.com/pub/", max_players=max_players)
+    )
+    print(load_info)
 ```
-dlt pipeline chess_pipeline info
-```
+<!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_pipeline-->
 
-To see the most recent load package info:
+## Inspecting packages
 
-```
-dlt pipeline chess_pipeline load-package
-```
+To inspect a load process after running a pipeline:
 
-To see package info with a given load id:
-
+<!--@@@DLT_SNIPPET_START ./code/chess-snippets.py::markdown_inspect-->
+```py
+# see when load was started
+print(f"Pipeline was started: {load_info.started_at}")
+# print the information on the first load package and all jobs inside
+print(f"First load package info: {load_info.load_packages[0]}")
+# print the information on the first completed job in first load package
+print(
+    f"First completed job info: {load_info.load_packages[0].jobs['completed_jobs'][0]}"
+)
 ```
-dlt pipeline chess_pipeline load-package <load_id>
-```
+<!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_inspect-->
 
-To see the schema changes introduced in the package:
-
-```
-dlt pipeline -v chess_pipeline load-package
-```
-
-To see the trace of the most recent data load:
-
-```
-dlt pipeline chess_pipeline trace
-```
-
-To check for failed jobs in a load package:
-
-```
-dlt pipeline chess_pipeline failed-jobs
-```
-
-For more details, you can refer to the [documentation.](https://dlthub.com/docs/walkthroughs/run-a-pipeline)
 
 ## Loading back load info, schema updates, and traces
 
-To load back the `load_info`, schema updates, and traces for the chess_pipeline, you can use the dlt library in your Python script. Here's how you can do it:
+To load back the `load_info`, schema updates, and traces for the pipeline:
 
-Load `load_info` into the destination:
-
-```python
+<!--@@@DLT_SNIPPET_START ./code/chess-snippets.py::markdown_load_back-->
+```py
 # we reuse the pipeline instance below and load to the same dataset as data
 pipeline.run([load_info], table_name="_load_info")
-```
-
-Save the runtime trace to the destination:
-```python
 # save trace to destination, sensitive data will be removed
 pipeline.run([pipeline.last_trace], table_name="_trace")
-```
 
-Save the new tables and column schemas to the destination:
-```python
-# save just the new tables
+# print all the new tables/columns in
+for package in load_info.load_packages:
+    for table_name, table in package.schema_update.items():
+        print(f"Table {table_name}: {table.get('description')}")
+        for column_name, column in table["columns"].items():
+            print(f"\tcolumn {column_name}: {column['data_type']}")
+
+# save the new tables and column schemas to the destination:
 table_updates = [p.asdict()["tables"] for p in load_info.load_packages]
 pipeline.run(table_updates, table_name="_new_tables")
 ```
-For more details, you can refer to the [documentation.](https://dlthub.com/docs/running-in-production/running)
+<!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_load_back-->
 
 ## Sending notifications if schema evolved
 
-To send notifications if the schema has evolved for the chess_pipeline, you can use the dlt library in your Python script. Here's how you can do it:
+To send notifications if the schema has evolved for the pipeline:
 
-- Check for schema updates:
-  ```python
-  schema_updates = [p.asdict()["schema_update"] for p in load_info.load_packages]
-  ```
-- Send notifications if there are schema updates:
-  ```python
-  if schema_updates:
-      # send notification
-      send_notification("Schema has evolved for chess_pipeline")
-  ```
-
-In the above code, send_notification is a placeholder for the function you would use to send notifications. This could be an email, a message to a Slack channel, or any other form of notification.
-
-Please note that you would need to implement the send_notification function according to your requirements.
+<!--@@@DLT_SNIPPET_START ./code/chess-snippets.py::markdown_notify-->
+```py
+# check for schema updates:
+schema_updates = [p.schema_update for p in load_info.load_packages]
+# send notifications if there are schema updates
+if schema_updates:
+    # send notification
+    send_slack_message(
+        pipeline.runtime_config.slack_incoming_hook, "Schema was updated!"
+    )
+```
+<!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_notify-->
 
 ## Using context managers to retry pipeline stages separately
 
-To use context managers to retry pipeline stages separately for the chess_pipeline, you can use the tenacity library. Here's how you can do it:
+To use context managers to retry pipeline stages separately for the pipeline:
 
-```python
-from tenacity import stop_after_attempt, retry_if_exception, Retrying, retry
+<!--@@@DLT_SNIPPET_START ./code/chess-snippets.py::markdown_retry_cm-->
+```py
+from tenacity import (
+    Retrying,
+    retry_if_exception,
+    stop_after_attempt,
+    wait_exponential,
+)
+
 from dlt.common.runtime.slack import send_slack_message
 from dlt.pipeline.helpers import retry_load
 
-if __name__ == "__main__" :
-    pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
-    # get data for a few famous players
-    data = chess(['magnuscarlsen', 'rpragchess'], start_month="2022/11", end_month="2022/12")
-    try:
-        for attempt in Retrying(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1.5, min=4, max=10), retry=retry_if_exception(retry_load(())), reraise=True):
-            with attempt:
-                load_info = pipeline.run(data)
-        send_slack_message(pipeline.runtime_config.slack_incoming_hook, "HOORAY 😄")
-    except Exception:
-        # we get here after all the retries
-        send_slack_message(pipeline.runtime_config.slack_incoming_hook, "BOOO 🤯")
-        raise
+# get data for a few famous players
+data = chess(chess_url="https://api.chess.com/pub/", max_players=max_players)
+try:
+    for attempt in Retrying(
+        stop=stop_after_attempt(5),
+        wait=wait_exponential(multiplier=1.5, min=4, max=10),
+        retry=retry_if_exception(retry_load(())),
+        reraise=True,
+    ):
+        with attempt:
+            pipeline.run(data)
+except Exception:
+    # we get here after all the retries
+    raise
 ```
-In the above code, the Retrying context manager from tenacity is used to retry the run method of the pipeline if it raises an exception. The retry_load helper function is used to specify that only the load stage should be retried. If the run method succeeds, a success message is sent to a Slack channel. If all retries fail, an error message is sent to the Slack channel and the exception is re-raised.
+<!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_retry_cm-->
+
+You can also use tenacity to decorate functions:
+
+<!--@@@DLT_SNIPPET_START ./code/chess-snippets.py::markdown_retry-->
+```py
+from tenacity import retry, retry_if_exception, stop_after_attempt, wait_exponential
+
+from dlt.pipeline.helpers import retry_load
+
+@retry(
+    stop=stop_after_attempt(5),
+    wait=wait_exponential(multiplier=1.5, min=4, max=10),
+    retry=retry_if_exception(retry_load(("extract", "load"))),
+    reraise=True,
+)
+def load_data_with_retry():
+    data = chess(chess_url="https://api.chess.com/pub/", max_players=max_players)
+    return pipeline.run(data)
+```
+<!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_retry-->
+
+<!--@@@DLT_SNIPPET_START ./code/chess-snippets.py::markdown_retry_run-->
+```py
+load_info = load_data_with_retry()
+```
+<!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_retry_run-->
 
 ## Running simple tests with sql_client (table counts, warn if no data)
-To run simple tests with sql_client, such as checking table counts and warning if there is no data, you can use the sql_client's execute_query method. Here's an example:
+To run simple tests with `sql_client`, such as checking table counts and
+warning if there is no data, you can use the `execute_query` method:
 
-```python
-pipeline = dlt.pipeline(destination="duckdb", dataset_name="chess_data")
+<!--@@@DLT_SNIPPET_START ./code/chess-snippets.py::markdown_sql_client-->
+```py
 with pipeline.sql_client() as client:
-    with client.execute_query("SELECT COUNT(*) FROM player") as cursor:
+    with client.execute_query("SELECT COUNT(*) FROM players") as cursor:
         count = cursor.fetchone()[0]
         if count == 0:
-            print("Warning: No data in player table")
+            print("Warning: No data in players table")
         else:
-            print(f"Player table contains {count} rows")
+            print(f"Players table contains {count} rows")
 ```
-In the above code, we first create a pipeline instance.
-Then, we use the sql_client context manager to execute a SQL query that counts the number of rows in the player table. If the count is zero, a warning is printed. Otherwise, the number of rows is printed.
+<!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_sql_client-->
 
-## Same as above but with normalize_info
-To run simple tests with normalize_info, such as checking table counts and warning if there is no data, you can use the normalize_info's row_counts attribute. Here's an example:
-```python
-pipeline = dlt.pipeline(destination="duckdb", dataset_name="chess_data")
-load_info = pipeline.run(data)
+To run simple tests with `normalize_info`, such as checking table counts and
+warning if there is no data, you can use the `row_counts` attribute:
+
+<!--@@@DLT_SNIPPET_START ./code/chess-snippets.py::markdown_norm_info-->
+```py
 normalize_info = pipeline.last_trace.last_normalize_info
-
-count = normalize_info.row_counts.get("player", 0)
+count = normalize_info.row_counts.get("players", 0)
 if count == 0:
-    print("Warning: No data in player table")
+    print("Warning: No data in players table")
 else:
-    print(f"Player table contains {count} rows")
+    print(f"Players table contains {count} rows")
 ```
+<!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_norm_info-->
