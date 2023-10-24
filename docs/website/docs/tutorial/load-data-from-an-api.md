@@ -20,7 +20,7 @@ Need help with this tutorial? Join our [Slack community](https://join.slack.com/
 
 First, we need to create a pipeline. Pipelines are the main building blocks of `dlt` and are used to load data from sources to destinations. Open your favorite text editor and create a file called `github_issues.py`. Add the following code to it:
 
-<!--@@@DLT_SNIPPET_START api-->
+<!--@@@DLT_SNIPPET_START basic_api-->
 ```py
 import dlt
 from dlt.sources.helpers import requests
@@ -41,7 +41,7 @@ load_info = pipeline.run(response.json(), table_name="issues")
 
 print(load_info)
 ```
-<!--@@@DLT_SNIPPET_END api-->
+<!--@@@DLT_SNIPPET_END basic_api-->
 
 Save `github_issues.py` and run the following command:
 
