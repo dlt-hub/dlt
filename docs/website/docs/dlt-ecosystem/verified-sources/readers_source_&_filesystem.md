@@ -1,7 +1,8 @@
-______________________________________________________________________
-
-## title: Readers Source & Filesystem description: dlt verified source for Readers Source & Filesystem keywords: \[readers source and filesystem, filesystem, readers source\]
-
+---
+title: Readers Source & Filesystem
+description: dlt verified source for Readers Source & Filesystem keywords:
+keywords: [readers source and filesystem, filesystem, readers source\]
+---
 # Readers Source & Filesystem
 
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
@@ -11,7 +12,7 @@ or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support
 :::
 
 This verified source easily streams files from s3, gcs, azure, or local filesystem using the reader
-source. Currently the following reader sources are supported:
+source. Currently supports the following:
 
 - read_csv (with Pandas)
 - read_jsonl
@@ -28,7 +29,7 @@ Sources and resources that can be loaded using this verified source are:
 
 We advice that you give each resource a
 [specific name](https://dlthub.com/docs/general-usage/resource#duplicate-and-rename-resources)
-before loading with pipeline.run. This will make sure that data goes to a table with the name you
+before loading with `pipeline.run`. This will make sure that data goes to a table with the name you
 want and that each pipeline uses a
 [separate state for incremental loading.](https://dlthub.com/docs/general-usage/state#read-and-write-pipeline-state-in-a-resource)
 
@@ -37,9 +38,8 @@ want and that each pipeline uses a
 Use the
 [standalone filesystem](https://dlthub.com/docs/general-usage/resource#declare-a-standalone-resource)
 resource to list files in s3, gcs, and azure buckets. This allows you to customize file readers or
-manage files using fsspec. For details, see the
-[fsspec documentation](https://filesystem-spec.readthedocs.io/en/latest/index.html). The filesystem
-ensures consistent file representation across bucket types and offers methods to access and read
+manage files using [fsspec](https://filesystem-spec.readthedocs.io/en/latest/index.html).
+The filesystem ensures consistent file representation across bucket types and offers methods to access and read
 data. You can quickly build pipelines to:
 
 - Extract text from PDFs
@@ -56,9 +56,9 @@ This source can access various bucket types, including:
 - GCS Cloud Storage
 - Azure Blob Storage
 
-To access these, you'll need secret credentials obtained as follows:
+To access these, you'll need secret credentials:
 
-#### AWS S3 credentials
+#### <u>AWS S3 credentials</u>
 
 To get AWS keys for S3 access:
 
@@ -69,7 +69,7 @@ To get AWS keys for S3 access:
 For more info, see
 [AWS official documentation.](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
 
-#### GCS Cloud Storage credentials
+#### <u>GCS Cloud Storage credentials</u>
 
 To get GCS cloud storage access:
 
@@ -84,7 +84,7 @@ To get GCS cloud storage access:
 For more info, see how to
 [create service account](https://support.google.com/a/answer/7378726?hl=en).
 
-#### Azure Blob Storage credentials
+#### <u>Azure Blob Storage credentials</u>
 
 To obtain Azure blob storage access:
 
@@ -131,14 +131,16 @@ For more information, read the
    aws_access_key_id="Please set me up!"
    aws_secret_access_key="Please set me up!"
 
-   # For Azure blob storage access:
-   azure_storage_account_name="Please set me up!"
-   azure_storage_account_key="Please set me up!"
-
    # For GCS storage bucket access:
    client_email="Please set me up!"
    private_key="Please set me up!"
    project_id="Please set me up!"
+
+   # For Azure blob storage access:
+   azure_storage_account_name="Please set me up!"
+   azure_storage_account_key="Please set me up!"
+
+
    ```
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
@@ -208,8 +210,7 @@ For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/
 
 ### Source `readers`
 
-This source provides resources that are chunked file readers. You can customize these readers
-optionally, resources provided are:
+This source offers chunked file readers as resources, which can be optionally customized. Provided resources include:
 
 - read_csv
 - read_jsonl
@@ -235,8 +236,7 @@ listing in the bucket.
 
 ### Resource `filesystem`
 
-This resource enumerates files in bucket_url using the file_glob pattern. Files are returned as
-FileItem with methods to access data. Pair with transformers for further processing.
+This resource lists files in bucket_url based on the file_glob pattern, returning them as "FileItem" with data access methods. These can be paired with transformers for enhanced processing.
 
 ```python
 @dlt.resource(
@@ -267,10 +267,9 @@ in bucket_url.
 
 ### Filesystem Usage
 
-- The filesystem tool lists files in a chosen bucket based on a glob pattern and returns file
-  details (as FileInfo) in adjustable page sizes.
-- The resource is designed to work with transform functions and transformers for custom extract
-  pipelines.
+- The filesystem tool enumerates files in a selected bucket using a glob pattern, returning details as FileInfo in customizable page sizes.
+
+- This resource integrates with transform functions and transformers for customised extraction pipelines.
 
 To load data into a specific table (instead of the default filesystem table), see the snippet below:
 
@@ -314,7 +313,7 @@ pipeline.run(met_files.with_name("met_csv"))
 > instance, using the resource:
 > `filesystem("az://dlt-ci-test-bucket/standard_source/samples", file_glob="met_csv/A801/*.csv")`
 > will produce file names relative to the /standard_source/samples path, such as
-> met_csv/A801/A881_20230920.csv.
+> "met_csv/A801/A881_20230920.csv".
 
 ### File Manipulation
 
@@ -347,12 +346,12 @@ verified source.
    ```python
    BUCKET_URL = "YOUR_BUCKET_PATH_HERE"
    met_files = readers(
-        bucket_url=BUCKET_URL, file_glob="met_csv/A801/*.csv"
+        bucket_url=BUCKET_URL, file_glob="directory/*.csv"
     ).read_csv()
     # tell dlt to merge on date
     met_files.apply_hints(write_disposition="merge", merge_key="date")
     # We load the data into the met_csv table
-    load_info = pipeline.run(met_files.with_name("met_csv"))
+    load_info = pipeline.run(met_files.with_name("table_name"))
     print(load_info)
     print(pipeline.last_trace.last_normalize_info)
    ```
@@ -363,11 +362,11 @@ verified source.
    >
    > 📌 **Note:** If you have a default bucket URL set in "/.dlt/config.toml", you can omit the `bucket_url` parameter.
 
-1. To load only new CSV files:
+1. To load only new CSV files, [incremental loading](https://dlthub.com/docs/general-usage/incremental-loading):
 
    ```python
    # This configuration will only consider new csv files
-   new_files = filesystem(bucket_url=BUCKET_URL, file_glob="met_csv/A801/*.csv")
+   new_files = filesystem(bucket_url=BUCKET_URL, file_glob="directory/*.csv")
    # add incremental on modification time
    new_files.apply_hints(incremental=dlt.sources.incremental("modification_date"))
    load_info = pipeline.run((new_files | read_csv()).with_name("csv_files"))
@@ -472,3 +471,20 @@ verified source.
         print(load_info)
         print(pipeline.last_trace.last_normalize_info)
    ```
+
+1. Cleanup after loading:
+
+   You can get fsspec client from filesystem resource after it was extracted i.e. in order to delete processed files etc. The filesystem module contains a convenient method "fsspec_from_resource" that can be used as follows:
+
+   ```python
+   from filesystem import filesystem, fsspec_from_resource
+   # get filesystem source
+   gs_resource = filesystem("gs://ci-test-bucket/")
+   # extract files
+   pipeline.run(gs_resource | read_csv)
+   # get fs client
+   fs_client = fsspec_from_resource(gs_resource)
+   # do any operation
+   fs_client.ls("ci-test-bucket/standard_source/samples")
+   ```
+
