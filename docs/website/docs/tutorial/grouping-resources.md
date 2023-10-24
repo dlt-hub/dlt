@@ -263,5 +263,5 @@ Interested in learning more? Here are some suggestions:
     - [Pass config and credentials into your sources and resources](general-usage/credentials).
     - [Run in production: inspecting, tracing, retry policies and cleaning up](running-in-production/running).
     - [Run resources in parallel, optimize buffers and local storage](reference/performance.md)
-2. Check out our [How-to guides](walkthroughs) to get answers to some common questions.
+2. Check out our [how-to guides](walkthroughs) to get answers to some common questions.
 3. Explore [Examples](examples) section to see how dlt can be used in real-world scenarios.

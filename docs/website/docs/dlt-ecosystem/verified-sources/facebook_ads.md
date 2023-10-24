@@ -174,7 +174,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    For example, the `pipeline_name` for the above pipeline example is `facebook_ads`, you may also
    use any custom name instead.
 
-For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
+For more information, read the [how to run a pipeline guide.](../../walkthroughs/run-a-pipeline)
 
 ## Sources and resources
 

@@ -161,9 +161,9 @@ const sidebars = {
       link: {
         type: 'generated-index',
         title: 'How-to guides',
-        description: 'Overview of our walkthroughs. Learn how to use and deploy dlt.',
+        description: 'Overview of our how-to guides. Learn how to use and deploy dlt.',
         slug: 'walkthroughs',
-        keywords: ['walkthrough'],
+        keywords: ['how-to'],
       },
       items: [
         'walkthroughs/create-a-pipeline',

@@ -271,7 +271,7 @@ settings:
 
 ## Export and import schema files
 
-Please follow this [walkthrough](../walkthroughs/adjust-a-schema.md) to export and import `yaml`
+Please follow the [how to adjust a schema guide](../walkthroughs/adjust-a-schema.md) to export and import `yaml`
 schema files in your pipeline.
 
 ## Attaching schemas to sources
