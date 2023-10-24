@@ -21,7 +21,7 @@ What’s in this article:
 
 1. [⌛The Problem; The bulk of time spent in a data science project is on the transformation of data itself.](#⌛The-Problem;-The-bulk-of-time-spent-in-a-data-science-project-is-on-the-transformation-of-data-itself.)
     1. [The usual flow of data for data science projects](#-The-usual-flow-of-data-for-data-science-projects)
-    2. [A peek into the datasets 👀](#A-peek-into-the-datasets-👀)
+    2. [A peak into the datasets 👀](#A-peak-into-the-datasets-👀)
 2. [⚰️The Classical Solution; using pandas to model complicated data for your analytics workflows isn’t the fastest way out.](#⚰️The-Classical-Solution;-using-pandas-to-model-complicated-data-for-your-analytics-workflows-isn’t-the-fastest-way-out.)
 3. [💫The Revised Solution; Revisualizing the flow of data with dlt & Deepnote](#💫The-Revised-Solution;-Revisualizing-the-flow-of-data-with-dlt-&-Deepnote)
     1. [Introducing dlt; the data cleaner I wish I had](#Introducing-dlt-the-data-cleaner-I-wish-I-had)
@@ -51,7 +51,7 @@ like, let’s list down the steps we usually undergo.
 
 ### The usual flow of data for data science projects
 
-![usual flow](/img/blog_deepnote_usual_flow.png)
+![usual flow](/img/blog_deepnote_usual_flow.gif)
 
 We sign up for our jobs because we enjoy the last two activities the most. These parts have
 all the pretty charts, the flashy animations, and, if the stars align, include watching your
@@ -59,19 +59,11 @@ hunches turn out to be statistically significant!
 
 However, the journey to reach these stages is stretched much longer due to the time spent on data formats and pipelines. It would be such a load off my mind if they would get sorted themselves and we could skip to the good part. Sure, ipython notebooks with `pandas` and `numpy` help us in getting along, but what if there was something even simpler? Let’s explore different solutions.
 
-### A peek into the datasets 👀
+### A peak into the datasets 👀
 
 The two datasets that we are using are nested json files, with further lists of dictionaries, and are survey results with wellness indicators for women. Here’s what the first element of one dataset looks like:
 
-<div style={{ position: 'relative', paddingBottom: '50%' }}>
-  <iframe
-    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/3a517be3788b446bb1380cd0e7df274e"
-    style={{ position: 'absolute', width: '100%', height: '100%' }}
-  ></iframe>
-</div>
-
-
-
+<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/3a517be3788b446bb1380cd0e7df274e?height=677.7999877929688" height="677.8"></iframe>
 
 Looks like it is a nested json, nested further with more lists of dictionaries.
 
@@ -79,38 +71,17 @@ Looks like it is a nested json, nested further with more lists of dictionaries.
 
 Usually, `json_normalize` can be used to unnest a json file while loading it into pandas. However, the nested lists inside dictionaries do not unravel quite well. Nonetheless, let’s see how the pandas normalizer works on our dataset.
 
-<div style={{ position: 'relative', paddingBottom: '60%' }}>
-  <iframe
-    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/c4409a7a7440435fa1bd16bcebcd8c9b"
-    style={{ position: 'absolute', width: '100%', height: '100%' }}
-  ></iframe>
-</div>
-
+https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/c4409a7a7440435fa1bd16bcebcd8c9b?height=537.3999938964844
 
 Conclusion from looking at the data: pandas successfully flattened dictionaries but did not unnest lists. Perhaps because in order to unpack these lists, one might need to create new tables, essentially create a data model entirely. But, that is something pandas does not do for us. So, to be able to use it, let’s flatten the data further into arrays and tables. Particularly, let’s pay attention to the amount of code required to achieve this task.
 
 To start off, using the `pandas` `explode` function might be a good way to flatten these lists:
 
+<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/c4409a7a7440435fa1bd16bcebcd8c9b?height=537.3999938964844" height="537.4"></iframe>
 
-<div style={{ position: 'relative', paddingBottom: '45%' }}>
-  <iframe
-    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/ad8635a80e784717844308f44a41e703"
-    style={{ position: 'absolute', width: '100%', height: '100%' }}
-  ></iframe>
-</div>
-
-
----
 And now, putting one of the nested variables into a pandas data frame:
 
-
-<div style={{ position: 'relative', paddingBottom: '100%' }}>
-  <iframe
-    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/84726ac7a1464f27b6374a8af85cfe65"
-    style={{ position: 'absolute', width: '100%', height: '100%' }}
-  ></iframe>
-</div>
-
+<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/84726ac7a1464f27b6374a8af85cfe65?height=807.3999938964844" height="807.4"></iframe>
 
 And this little exercise needs to be repeated for each of the columns that we had to “explode” in the first place.
 
@@ -128,70 +99,26 @@ We leave the loading of the raw data to dlt, while we leave the data exploration
 
 Imagine this: you initialize a data pipeline in one line of code, and pass complicated raw data in another to be modelled, unnested and formatted. Now, watch that come to reality:
 
-
-<div style={{ position: 'relative', paddingBottom: '30%' }}>
-  <iframe
-    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/4afdf1ecf4164b219614bd87c7b21df0"
-    style={{ position: 'absolute', width: '100%', height: '100%' }}
-  ></iframe>
-</div>
-
-<div style={{ position: 'relative', paddingBottom: '25%' }}>
-  <iframe
-    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/0f80dc1a5917406abe87ce59b46cc2e7"
-    style={{ position: 'absolute', width: '100%', height: '100%' }}
-  ></iframe>
-</div>
+<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/4afdf1ecf4164b219614bd87c7b21df0?height=191" height="191"></iframe>
 
 
-
-
-
+<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/0f80dc1a5917406abe87ce59b46cc2e7?height=169.98749923706055" height="169.99"></iframe>
 
 And that’s pretty much it. Notice the difference in the effort you had to put in?
 
-The data has been loaded into a pipeline with `duckdb` as its destination.
-`duckdb` was chosen as it is an OLAP database, perfect for usage in our analytics workflow.
-The data has been unnested and formatted. To explore what exactly was stored in that destination,
-a `duckdb` connector (`conn`) is set up, and the `SHOW ALL TABLES` command is executed.
+The data has been loaded into a pipeline with `duckdb` as its destination. `duckdb` was chosen as it is an OLAP database, perfect for usage in our analytics workflow. The data has been unnested and formatted. To explore what exactly was stored in that destination, a `duckdb` connector (`conn`) is set up, and the `SHOW ALL TABLES` command is executed.
 
-
-<div style={{ position: 'relative', paddingBottom: '50%' }}>
-  <iframe
-    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/5400d02a3ccd4973ae25e3d3b76a5ead"
-    style={{ position: 'absolute', width: '100%', height: '100%' }}
-  ></iframe>
-</div>
-
-
-
-
+<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/5400d02a3ccd4973ae25e3d3b76a5ead?height=574.3875122070312" height="574.39"></iframe>
 
 In a first look, we understand that both the datasets `violence` and `wellness` have their own base tables. One of the child tables is shown below:
 
-
-<div style={{ position: 'relative', paddingBottom: '50%' }}>
-  <iframe
-    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/a4a1702a0582492f8f78a3fa753c4d57"
-    style={{ position: 'absolute', width: '100%', height: '100%' }}
-  ></iframe>
-</div>
-
-
+<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/a4a1702a0582492f8f78a3fa753c4d57?height=502.6000061035156" height="502.6"></iframe>
 
 ### Know your data model; connect the unnested tables using dlt’s pre-assigned primary and foreign keys:
 
 The child tables, like `violence__value` or `wellness__age_related` are the unnested lists of dictionaries from the original json files. The `_dlt_id` column as shown in the table above serves as a **primary key**. This will help us in connecting the children tables with ease. The `parent_id` column in the children tables serve as **foreign keys** to the base tables. If more then one child table needs to be joined together, we make use of the `_dlt_list_idx` column;
 
-
-<div style={{ position: 'relative', paddingBottom: '60%' }}>
-  <iframe
-    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/e46c971e6265418382aa690dae0abc23"
-    style={{ position: 'absolute', width: '100%', height: '100%' }}
-  ></iframe>
-</div>
-
-
+<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/e46c971e6265418382aa690dae0abc23?height=610.6000061035156" height="610.6"></iframe>
 
 ## Deepnote - the iPython Notebook turned Dashboarding tool
 
@@ -205,29 +132,19 @@ At this point, we would probably move towards a `plt.plot` or `plt.bar` function
 
 And a stacked bar chart came into existence! A little note about the query results; the **value** column corresponds to how much (in %) a person justifies violence against women. An interesting yet disturbing insight from the above plot: in many countries, women condone violence against women as often if not more often than men do!
 
-The next figure slices the data further by gender and demographic. The normalized bar chart is sliced by 2 parameters, gender and demographic. The two colors represent genders. While different widths of the rectangles represent the different demographics, and the different heights represent that demographic’s justification of violence in %. The taller the rectangle, the greater the % average. It tells us that most women think that violence on them is justified for the reasons mentioned, as shown by the fact that the blue rectangles make up more than 50% of respondents who say ‘yes’ to each reason shown on the x-axis. If you hover over the blocks, you will see the gender and demographic represented in each differently sized rectangle, alongside that subset’s percentage of justification of violence.
+The next figure slices the data further by gender and demographic. The normalized bar chart is sliced by 2 parameters, gender and demographic. The two colors represent genders. While different widths of the rectangles represent the different demographics, and the different heights represent that demographic’s justification of violence in %. The taller the rectangle, the greater the % average. It tells us that most women think that violence on them is justified for the reasons mentioned, as shown by the fact that the blue rectangles make up more than 50% of respondents who say ‘yes’ to each reason shown on the x-axis. If you hover over the blocks, you will see the gender and demographic represented in each differently sized rectangle, alongside that subset’s percentage of justification of violence. ~~The plot shows you that women who are uneducated or have lower levels of education & employment have higher levels (averages) of justifications of violence.~~
 
-Let’s examine the differences in women’s responses for two demographic types: employment vs education levels. We can see that the blue rectangles for “employed for cash” vs “employed for kind” don’t really vary in size. However, when we select “higher” vs “no education”, we see that the former is merely a speck when compared to the rectangles for the latter. This comparison between employment and education differences demonstrates that education plays a much larger role in likelihood to influence women’s levels of violence justification.
+Let’s examine the differences in women’s responses for two demographic types: employment vs education levels.
 
-<div style={{ position: 'relative', paddingBottom: '80%' }}>
-  <iframe
-    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/71a6385d51284d85a0c62474d5e430dc"
-    style={{ position: 'absolute', width: '100%', height: '100%' }}
-  ></iframe>
-</div>
+~~To understand, hover over the blocks from the top of the graph, and see the difference in averages between women who are employed for cash vs employed for kind. Furthermore, look at the difference between women who have received at least a secondary or higher education and compare that to those who have received no education.~~
 
+We can see that the blue rectangles for “employed for cash” vs “employed for kind” don’t really vary in size. However, when we select “higher” vs “no education”, we see that the former is merely a speck when compared to the rectangles for the latter. This comparison between employment and education differences demonstrates that education plays a much larger role in likelihood to influence women’s levels of violence justification.
 
-
+<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/71a6385d51284d85a0c62474d5e430dc?height=547" height="547"></iframe>
 
 Let’s look at one last plot created by Deepnote for the other dataset with wellness indicators. The upward moving trend shows us that women are much less likely to have a final say on their health if they are less educated.
 
-<div style={{ position: 'relative', paddingBottom: '80%' }}>
-  <iframe
-    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/ca6e638b94e448a1ade186a558984b78"
-    style={{ position: 'absolute', width: '100%', height: '100%' }}
-  ></iframe>
-</div>
-
+<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/ca6e638b94e448a1ade186a558984b78?height=591" height="591"></iframe>
 
 # 🌍 Clustering countries based on their wellness indicators
 
@@ -247,15 +164,7 @@ The color bar shows us which color is associated to which cluster. Namely; 1: pu
 
 To understand briefly what each cluster represents, let’s look at the averages for each indicator across all clusters;
 
-<div style={{ position: 'relative', paddingBottom: '30%' }}>
-  <iframe
-    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/8e1b72a8f89c432994068666792e1a18"
-    style={{ position: 'absolute', width: '100%', height: '100%' }}
-  ></iframe>
-</div>
-
-
-
+<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/8e1b72a8f89c432994068666792e1a18?height=366.4" height="366.4"></iframe>
 
 This tells us that according to these datasets, cluster 2 (highlighted blue) is the cluster that is performing the best in terms of wellness of women. It has the lowest levels of justifications of violence, highest average years of education, and almost the highest percentage of women who have control over their health and finances. This is followed by clusters 3, 1, and 4 respectively; countries like the Philippines, Peru, Mozambique, Indonesia and Bolivia are comparatively better than countries like South Africa, Egypt, Zambia, Guatemala & all South Asian countries, in regards to how they treat women.
 
