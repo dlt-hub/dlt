@@ -1,0 +1,342 @@
+import platform
+import struct
+from datetime import datetime, timedelta, timezone  # noqa: I251
+
+from dlt.common.destination import DestinationCapabilitiesContext
+
+import re
+
+import pyodbc
+
+from contextlib import contextmanager
+from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
+
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
+from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction
+from dlt.destinations.sql_client import DBApiCursorImpl, SqlClientBase, raise_database_error, raise_open_connection_error
+
+from dlt.destinations.synapse.configuration import SynapseCredentials
+from dlt.destinations.synapse import capabilities
+
+import logging  # Import the logging module if it's not already imported
+
+from typing import List, Tuple, Union, Any #Import List for INSERT query generation
+
+logger = logging.getLogger(__name__)
+logging.basicConfig(level=logging.DEBUG)
+
+import json
+def is_valid_json(s: str) -> bool:
+    """Check if a string is valid JSON."""
+    if not (s.startswith('{') and s.endswith('}')) and not (s.startswith('[') and s.endswith(']')):
+        return False
+    try:
+        json.loads(s)
+        return True
+    except json.JSONDecodeError:
+        return False
+
+
+def handle_datetimeoffset(dto_value: bytes) -> datetime:
+    # ref: https://github.com/mkleehammer/pyodbc/issues/134#issuecomment-281739794
+    tup = struct.unpack("<6hI2h", dto_value)  # e.g., (2017, 3, 16, 10, 35, 18, 500000000, -6, 0)
+    return datetime(
+        tup[0], tup[1], tup[2], tup[3], tup[4], tup[5], tup[6] // 1000, timezone(timedelta(hours=tup[7], minutes=tup[8]))
+    )
+
+class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
+
+    dbapi: ClassVar[DBApi] = pyodbc
+    capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
+
+    def __init__(self, dataset_name: str, credentials: SynapseCredentials) -> None:
+        super().__init__(credentials.database, dataset_name)
+        self._conn: pyodbc.Connection = None
+        self._transaction_in_progress = False  # Transaction state flag
+        self.credentials = credentials
+
+    def generate_insert_query(self, sql: str) -> tuple:
+        #logging.info(f'We are in SQL generation: {sql}')
+        # Extracting table name and column names
+        table_name = sql.split(" INTO ")[1].split("(")[0].strip()
+        column_names_str = sql.split("(")[1].split(")")[0].strip()
+
+        # Extracting row data
+        row_data_str = sql.split("VALUES")[1].strip()
+        # Using regex to split rows accurately
+        rows = [tuple(re.split(r"\s*,\s*(?![^()]*\))", row)) for row in re.findall(r"\((.*?)\)", row_data_str)]
+
+        # Ensure each item in rows is properly formatted
+        formatted_rows = []
+        for row in rows:
+            formatted_row = []
+            for item in row:
+                # Remove extra single quotes if item is not a JSON string
+                if item.startswith("'") and item.endswith("'") and not item.lstrip("'").startswith("{"):
+                    formatted_row.append(item.strip("'"))
+                else:
+                    formatted_row.append(item)
+            formatted_rows.append(tuple(formatted_row))
+
+        # Building SELECT statements with parameter markers
+        select_statements = [f"SELECT {', '.join(['?' for _ in row])}" for row in formatted_rows]
+
+        # Combining SELECT statements with UNION ALL
+        all_select_statements = " UNION ALL ".join(select_statements)
+
+        # Building the final SQL query
+        new_sql = f'INSERT INTO {table_name}({column_names_str}) {all_select_statements}'
+
+        # Extracting parameter values
+        param_values = [item for row in formatted_rows for item in row]
+
+        #logging.info(f'Generated SQL: {new_sql}')
+        #logging.info(f'Param values: {param_values}')
+
+        return new_sql, param_values
+
+    def open_connection(self) -> pyodbc.Connection:
+        try:
+            # Establish a connection
+            conn_str = (
+                f"DRIVER={{{self.credentials.odbc_driver}}};"
+                f"SERVER={self.credentials.host};"
+                f"DATABASE={self.credentials.database};"
+                f"UID={self.credentials.user};"
+                f"PWD={self.credentials.password};"
+            )
+            self._conn = pyodbc.connect(conn_str)
+
+            # Add the converter for datetimeoffset
+            self._conn.add_output_converter(-155, handle_datetimeoffset)
+
+            # Noting that autocommit is being set to True
+            self._conn.autocommit = True
+
+            return self._conn
+
+        except pyodbc.Error as e:
+            raise  # re-raise the error without logging it
+
+
+    @raise_open_connection_error
+    def close_connection(self) -> None:
+        try:
+            if self._conn:
+                if self._transaction_in_progress:
+                    self._conn.commit()
+                self._conn.close()
+        except pyodbc.Error as e:
+            # Log detailed error information here
+            logger.error(f"Failed to close connection due to pyodbc.Error: {str(e)}")
+
+
+    @contextmanager
+    def begin_transaction(self) -> Iterator[DBTransaction]:
+        try:
+            if self._transaction_in_progress:
+                logger.info("Transaction already in progress, ignoring nested transaction request.")
+                yield
+            else:
+                logger.info("Beginning a database transaction...")
+                self._conn.autocommit = False
+                self._transaction_in_progress = True
+
+                yield self
+
+                self.commit_transaction()
+                #logger.info("Database transaction successfully committed.")
+        except Exception as e:
+            logger.error(f"Error during database transaction: {str(e)}")
+            self.rollback_transaction()
+            logger.error("Database transaction rolled back due to an error.")
+            raise
+        finally:
+            if self._transaction_in_progress:
+                self._transaction_in_progress = False
+
+    @raise_database_error
+    def commit_transaction(self) -> None:
+        try:
+            #logger.info("Committing the database transaction...")
+            self._conn.commit()
+            self._conn.autocommit = True
+            self._transaction_in_progress = False
+            #logger.info("Database transaction successfully committed.")
+
+        except Exception:
+            logger.error("Failed to commit the database transaction.")
+            raise
+
+    @raise_database_error
+    def rollback_transaction(self) -> None:
+        try:
+            logger.warning("Rolling back the database transaction...")
+            self._conn.rollback()
+            self._conn.autocommit = True
+            self._transaction_in_progress = False
+
+            logger.warning("Database transaction successfully rolled back.")
+        except Exception:
+            logger.error("Failed to roll back the database transaction.")
+            raise
+
+    @property
+    def native_connection(self) -> pyodbc.Connection:
+        return self._conn
+
+    def drop_dataset(self) -> None:
+        rows = self.execute_sql(
+            "SELECT table_name FROM information_schema.views WHERE table_schema = %s;", self.dataset_name
+        )
+        view_names = [row[0] for row in rows]
+        self._drop_views(*view_names)
+        rows = self.execute_sql(
+            "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;", self.dataset_name
+        )
+        table_names = [row[0] for row in rows]
+        self.drop_tables(*table_names)
+
+        self.execute_sql("DROP SCHEMA %s;" % self.fully_qualified_dataset_name())
+
+    def table_exists(self, table_name: str) -> bool:
+        query = """
+        SELECT COUNT(*)
+        FROM INFORMATION_SCHEMA.TABLES
+        WHERE TABLE_SCHEMA = ? AND TABLE_NAME = ?
+        """
+        result = self.execute_sql(query, self.dataset_name, table_name)
+        return result[0][0] > 0
+
+    def drop_tables(self, *tables: str) -> None:
+        if not tables:
+            return
+        for table in tables:
+            if self.table_exists(table):
+                self.execute_sql(f"DROP TABLE {self.make_qualified_table_name(table)};")
+
+    def _drop_views(self, *tables: str) -> None:
+        if not tables:
+            return
+        statements = [f"DROP VIEW {self.make_qualified_table_name(table)};" for table in tables]
+        self.execute_fragments(statements)
+
+    import pyodbc
+
+    def set_input_sizes(self, *args):
+        if len(args) == 1 and isinstance(args[0], tuple):
+            args = args[0]
+
+        args = list(args)  # Convert tuple to list for modification
+        input_sizes = []
+        for index, arg in enumerate(args):
+            if isinstance(arg, str):
+                # Check if the string is a valid JSON
+                if is_valid_json(arg):
+                    input_sizes.append((pyodbc.SQL_WVARCHAR, 0, 0))  # Set input size for JSON columns
+                else:
+                    # Assuming ntext is represented as a regular string
+                    # You may want to have a more robust check for ntext data here
+                    input_sizes.append((pyodbc.SQL_WVARCHAR, 0, 0))  # Set input size for ntext columns
+            else:
+                input_sizes.append(None)  # Default handling for non-string types
+
+        logger.debug(f"Input sizes: {input_sizes}")
+        return input_sizes, tuple(args)
+
+    def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+        #logging.info(f"Executing SQL: {sql} with arguments: {args} and keyword arguments: {kwargs}")
+        # Convert any JSON arguments to strings
+        args = tuple(json.dumps(arg) if isinstance(arg, dict) else arg for arg in args)
+
+        param_values = args  # This line remains unchanged as you're capturing all additional arguments into param_values
+        original_sql = sql
+
+        # Check if it's a multi-row insert
+        is_multi_row_insert = (
+            original_sql.strip().upper().startswith("INSERT INTO")
+            and "VALUES" in original_sql.upper()
+            and original_sql.count("(") > 2  # At least one pair of parentheses for column names and two for the values
+        )
+
+        if is_multi_row_insert:
+            sql, param_values = self.generate_insert_query(original_sql)
+
+        # logger.info(f"Executing SQL: {sql}, Parameters: {args}")
+        # Execute the query
+        with self.execute_query(sql, param_values) as curr:
+            # Check the type of SQL statement
+            if original_sql.strip().upper().startswith(("SELECT", "SHOW")):
+                # Handle SELECT queries
+                if curr.description is None:
+                    logging.info(f"Query did not return a description")
+                else:
+                    return curr.fetchall()
+            elif original_sql.strip().upper().startswith(("INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "TRUNCATE", "ALTER")):
+                # No logging needed for success in these cases
+                pass
+            else:
+                logging.warning(f"Unhandled SQL")
+
+    @contextmanager
+    @raise_database_error
+    def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+        # logger.info(f"Entered execute_query method with query: {query}")
+        assert isinstance(query, str)
+        curr: DBApiCursor = None
+
+        if kwargs:
+            raise NotImplementedError("pyodbc does not support named parameters in queries")
+
+        #logger.info("TRYING TO SET INPUT SIZE")
+        curr = self._conn.cursor()
+
+        # Set the converter for datetimeoffset
+        self._conn.add_output_converter(-155, handle_datetimeoffset)
+
+        # Set input sizes for Synapse to handle varchar(max) instead of ntext
+        input_sizes, args = self.set_input_sizes(*args)
+        curr.setinputsizes(input_sizes)
+
+        # Validate and truncate string data in args if they exceed MAX_LENGTH
+        #args = tuple(validate_and_truncate(arg, MAX_LENGTH) for arg in args)
+
+        try:
+            query = query.replace('%s', '?')  # Updated line
+            #logger.debug(f"Executing SQL w/ format: {query}")
+            curr.execute(query, *args)  # No flattening, just unpack args directly
+            #logger.info(f"Query executed successfully")
+            yield DBApiCursorImpl(curr)  # type: ignore[abstract]
+
+        except pyodbc.Error as outer:
+            #logger.error(f"SQL Error during query execution. Query: {query}, Parameters: {args}, Types: {[type(arg) for arg in args]}, Error: {str(outer)}", exc_info=True)
+            #logger.error(f"SQL Error during query execution. Query: {query}, Error: {str(outer)}", exc_info=True)
+            raise outer
+
+        finally:
+            curr.close()
+
+    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
+        return self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
+
+    @classmethod
+    def _make_database_exception(cls, ex: Exception) -> Exception:
+        if isinstance(ex, pyodbc.ProgrammingError):
+            if ex.args[0] == "42S02":
+                return DatabaseUndefinedRelation(ex)
+            if ex.args[1] == "HY000":
+                return DatabaseTransientException(ex)
+            elif ex.args[0] == "42000":
+                if "(15151)" in ex.args[1]:
+                    return DatabaseUndefinedRelation(ex)
+                return DatabaseTransientException(ex)
+        elif isinstance(ex, pyodbc.OperationalError):
+            return DatabaseTransientException(ex)
+        elif isinstance(ex, pyodbc.Error):
+            if ex.args[0] == "07002":  # incorrect number of arguments supplied
+                return DatabaseTransientException(ex)
+        return DatabaseTerminalException(ex)
+
+    @staticmethod
+    def is_dbapi_exception(ex: Exception) -> bool:
+        return isinstance(ex, pyodbc.Error)
