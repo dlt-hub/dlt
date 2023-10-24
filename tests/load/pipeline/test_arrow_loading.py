@@ -58,6 +58,6 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
             if isinstance(row[i], datetime):
                 row[i] = pendulum.instance(row[i])
 
-    expected = [list(r.values()) for r in records]
+    expected = sorted([list(r.values()) for r in records], key=lambda x: x[0])
 
     assert rows == expected

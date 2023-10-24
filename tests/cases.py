@@ -2,6 +2,8 @@ from typing import Dict, List, Any, Sequence, Tuple, Literal
 import base64
 from hexbytes import HexBytes
 from copy import deepcopy
+from string import ascii_lowercase
+import random
 
 from dlt.common import Decimal, pendulum, json
 from dlt.common.data_types import TDataType
@@ -331,7 +333,7 @@ def assert_all_data_types_row(
     assert db_mapping == expected_rows
 
 
-def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool = True, include_time: bool = True) -> Tuple[Any, List[Dict[str, Any]]]:
+def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool = True, include_time: bool = True, num_rows: int = 3) -> Tuple[Any, List[Dict[str, Any]]]:
     """Create an arrow object or pandas dataframe with all supported data types.
 
     Returns the table and its records in python format
@@ -340,24 +342,26 @@ def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool =
     from dlt.common.libs.pyarrow import pyarrow as pa
 
     data = {
-        "string": ["a", "b", "c"],
-        "float": [1.0, 2.0, 3.0],
-        "int": [1, 2, 3],
-        "datetime": pd.date_range("2021-01-01", periods=3, tz="UTC"),
-        "date": pd.date_range("2021-01-01", periods=3, tz="UTC").date,
-        "binary": [b"a", b"b", b"c"],
-        "decimal": [Decimal("1.0"), Decimal("2.0"), Decimal("3.0")],
-        "bool": [True, True, False]
+        "Pre Normalized Column": [random.choice(ascii_lowercase) for _ in range(num_rows)],
+        "string": [random.choice(ascii_lowercase) for _ in range(num_rows)],
+        "float": [round(random.uniform(0, 100), 4) for _ in range(num_rows)],
+        "int": [random.randrange(0, 100) for _ in range(num_rows)],
+        "datetime": pd.date_range("2021-01-01T01:02:03.1234", periods=num_rows, tz="UTC"),
+        "date": pd.date_range("2021-01-01", periods=num_rows, tz="UTC").date,
+        "binary": [random.choice(ascii_lowercase).encode() for _ in range(num_rows)],
+        "decimal": [Decimal(str(round(random.uniform(0, 100), 4))) for _ in range(num_rows)],
+        "bool": [random.choice([True, False]) for _ in range(num_rows)],
     }
 
     if include_json:
-        data["json"] = [{"a": 1}, {"b": 2}, {"c": 3}]
+        data["json"] = [{random.choice(ascii_lowercase): random.randrange(0, 100)} for _ in range(num_rows)]
 
     if include_time:
-        data["time"] = pd.date_range("2021-01-01", periods=3, tz="UTC").time
+        data["time"] = pd.date_range("2021-01-01", periods=num_rows, tz="UTC").time
 
     df = pd.DataFrame(data)
-    rows = df.to_dict("records")
+    # records have normalized identifiers for comparing
+    rows = df.rename(columns={"Pre Normalized Column": "pre_normalized_column"}).to_dict("records")
     if object_format == "pandas":
         return df, rows
     elif object_format == "table":

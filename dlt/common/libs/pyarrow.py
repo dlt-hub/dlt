@@ -1,10 +1,10 @@
-from typing import Any, Tuple, Optional, Union
+from typing import Any, Tuple, Optional, Union, Callable, Iterable, Iterator, Sequence, Tuple
 from dlt import version
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.typing import TTableSchemaColumns
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.schema.typing import TColumnType
+from dlt.common.schema.typing import TColumnType, TColumnSchemaBase
 from dlt.common.data_types import TDataType
 from dlt.common.typing import TFileOrPath
 
@@ -173,3 +173,29 @@ def get_row_count(parquet_file: TFileOrPath) -> int:
 
 def is_arrow_item(item: Any) -> bool:
     return isinstance(item, (pyarrow.Table, pyarrow.RecordBatch))
+
+
+TNewColumns = Sequence[Tuple[pyarrow.Field, Callable[[pyarrow.RecordBatch], Iterable[Any]]]]
+
+def pq_stream_with_new_columns(
+    parquet_file: TFileOrPath, columns: TNewColumns, batch_size: int = 100
+) -> Iterator[pyarrow.RecordBatch]:
+    """Add a column to the parquet file.
+
+    Args:
+        parquet_file: path or file object to parquet file
+        columns: list of columns to add in the form of (`pyarrow.Field`, column_value_callback)
+            The callback should accept a `pyarrow.RecordBatch` and return an iterable of values for the column.
+        batch_size: batch size to use when reading the parquet file. Defaults to 100.
+
+    Yields:
+        `pyarrow.RecordBatch` objects with the new columns added.
+    """
+    with pyarrow.parquet.ParquetFile(parquet_file) as reader:
+        schema: pyarrow.Schema
+        schema = reader.schema_arrow
+        for col in columns:
+            schema = schema.append(col[0])
+        # append the column to the schema
+        for batch in reader.iter_batches(batch_size=batch_size):
+            yield pyarrow.record_batch(batch.columns + [col[1](batch) for col in columns], schema=schema)

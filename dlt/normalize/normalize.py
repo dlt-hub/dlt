@@ -69,14 +69,15 @@ class Normalize(Runnable[ProcessPool]):
 
     @staticmethod
     def w_normalize_files(
+        config: NormalizeConfiguration,
         normalize_storage_config: NormalizeStorageConfiguration,
         loader_storage_config: LoadStorageConfiguration,
-        destination_caps: DestinationCapabilitiesContext,
         stored_schema: TStoredSchema,
         load_id: str,
         extracted_items_files: Sequence[str],
     ) -> TWorkerRV:
 
+        destination_caps = config.destination_capabilities
         schema_updates: List[TSchemaUpdate] = []
         total_items = 0
         row_counts: TRowCount = {}
@@ -118,7 +119,9 @@ class Normalize(Runnable[ProcessPool]):
                         normalizer = ParquetItemsNormalizer()
                     else:
                         normalizer = JsonLItemsNormalizer()
-                    partial_updates, items_count, r_counts = normalizer(extracted_items_file, load_storage, normalize_storage, schema, load_id, root_table_name)
+                    partial_updates, items_count, r_counts = normalizer(
+                        extracted_items_file, load_storage, normalize_storage, schema, load_id, root_table_name, config
+                    )
                     schema_updates.extend(partial_updates)
                     total_items += items_count
                     merge_row_count(row_counts, r_counts)
@@ -173,7 +176,7 @@ class Normalize(Runnable[ProcessPool]):
         workers = self.pool._processes  # type: ignore
         chunk_files = self.group_worker_files(files, workers)
         schema_dict: TStoredSchema = schema.to_dict()
-        config_tuple = (self.normalize_storage.config, self.load_storage.config, self.config.destination_capabilities, schema_dict)
+        config_tuple = (self.config, self.normalize_storage.config, self.load_storage.config, schema_dict)
         param_chunk = [[*config_tuple, load_id, files] for files in chunk_files]
         tasks: List[Tuple[AsyncResult[TWorkerRV], List[Any]]] = []
         row_counts: TRowCount = {}
@@ -226,9 +229,9 @@ class Normalize(Runnable[ProcessPool]):
 
     def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
         result = Normalize.w_normalize_files(
+            self.config,
             self.normalize_storage.config,
             self.load_storage.config,
-            self.config.destination_capabilities,
             schema.to_dict(),
             load_id,
             files,

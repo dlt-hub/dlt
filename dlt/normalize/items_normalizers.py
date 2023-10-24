@@ -1,5 +1,5 @@
 import os
-from typing import List, Dict, Tuple, Protocol
+from typing import List, Dict, Tuple, Protocol, Any
 from pathlib import Path
 
 from dlt.common import json, logger
@@ -10,6 +10,14 @@ from dlt.common.storages import NormalizeStorage, LoadStorage, NormalizeStorageC
 from dlt.common.typing import TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.utils import TRowCount, merge_row_count, increase_row_count
+from dlt.normalize.configuration import NormalizeConfiguration
+from dlt.common.exceptions import MissingDependencyException
+from dlt.common.utils import uniq_id_base64
+
+try:
+    from dlt.common.libs import pyarrow
+except ImportError:
+    pyarrow = None
 
 
 class ItemsNormalizer(Protocol):
@@ -21,6 +29,7 @@ class ItemsNormalizer(Protocol):
         schema: Schema,
         load_id: str,
         root_table_name: str,
+        config: NormalizeConfiguration
     ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
         ...
 
@@ -91,6 +100,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         schema: Schema,
         load_id: str,
         root_table_name: str,
+        config: NormalizeConfiguration
     ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
         schema_updates: List[TSchemaUpdate] = []
         row_counts: TRowCount = {}
@@ -112,25 +122,43 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
 
 class ParquetItemsNormalizer(ItemsNormalizer):
-    def _normalize_lines(
-            self,
-            extracted_items_file: str,
-            load_storage: LoadStorage,
-            normalize_storage: NormalizeStorage,
-            schema: Schema,
-            load_id: str,
-            root_table_name: str,
+    RECORD_BATCH_SIZE = 1000
+
+    def _write_with_dlt_columns(
+        self, extracted_items_file: str,
+        normalize_storage: NormalizeStorage,
+        load_storage: LoadStorage, load_id: str, schema: Schema, root_table_name: str,
+        add_load_id: bool, add_dlt_id: bool
     ) -> int:
-        from dlt.common.libs.pyarrow import pyarrow
-        schema_name = schema.name
-        columns = schema.get_table_columns(root_table_name)
+        import numpy as np
+        new_columns: List[Any] = []
+        if add_load_id:
+            schema.update_table({"name": root_table_name, "columns": {"_dlt_load_id": {"name": "_dlt_load_id", "data_type": "text"}}})
+            new_columns.append((
+                pyarrow.pyarrow.field("_dlt_load_id", pyarrow.pyarrow.string(), nullable=False),
+                lambda batch: np.full(batch.num_rows, load_id)
+            ))
+        if add_dlt_id:
+            schema.update_table({"name": root_table_name, "columns": {"_dlt_id": {"name": "_dlt_id", "data_type": "text"}}})
+            new_columns.append((
+                pyarrow.pyarrow.field("_dlt_id", pyarrow.pyarrow.string(), nullable=False),
+                lambda batch: (uniq_id_base64(10) for _ in range(batch.num_rows))
+            ))
+        items_count = 0
+        as_py = load_storage.loader_file_format != "parquet"
         with normalize_storage.storage.open_file(extracted_items_file, "rb") as f:
-            table = pyarrow.parquet.read_table(f)
-            items_count: int = table.num_rows
-            for batch in table.to_batches(100):
-                load_storage.write_data_item(
-                    load_id, schema_name, root_table_name, batch.to_pylist(), columns
-                )
+            for batch in pyarrow.pq_stream_with_new_columns(f, new_columns, batch_size=self.RECORD_BATCH_SIZE):
+                items_count += batch.num_rows
+                if as_py:
+                    # Write python rows to jsonl, insert-values, etc... storage
+                    load_storage.write_data_item(
+                        load_id, schema.name, root_table_name, batch.to_pylist(), schema.get_table_columns(root_table_name)
+                    )
+                else:
+                    load_storage.write_data_item(
+                        load_id, schema.name, root_table_name, batch, schema.get_table_columns(root_table_name)
+                    )
+        # TODO: Return schema update
         return items_count
 
     def __call__(
@@ -141,16 +169,20 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         schema: Schema,
         load_id: str,
         root_table_name: str,
+        config: NormalizeConfiguration
     ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
+        import pyarrow as pa
 
-        if load_storage.loader_file_format != "parquet":
-            items_count = self._normalize_lines(
+        if config.parquet_add_dlt_id or config.parquet_add_dlt_load_id or load_storage.loader_file_format != "parquet":
+            items_count = self._write_with_dlt_columns(
                 extracted_items_file,
-                load_storage,
                 normalize_storage,
-                schema,
+                load_storage,
                 load_id,
+                schema,
                 root_table_name,
+                config.parquet_add_dlt_load_id,
+                config.parquet_add_dlt_id
             )
             return [], items_count, {root_table_name: items_count}
 
