@@ -99,11 +99,26 @@ class Normalize(Runnable[ProcessPool]):
             storage = load_storages[file_format] = LoadStorage(False, file_format, supported_formats, loader_storage_config)
             return storage
 
+
+
+
         # process all files with data items and write to buffered item storage
         with Container().injectable_context(destination_caps):
             schema = Schema.from_stored_schema(stored_schema)
             load_storage = _get_load_storage(destination_caps.preferred_loader_file_format)  # Default load storage, used for empty tables when no data
             normalize_storage = NormalizeStorage(False, normalize_storage_config)
+
+            item_normalizers: Dict[TLoaderFileFormat, ItemsNormalizer] = {}
+
+            def _get_items_normalizer(file_format: TLoaderFileFormat) -> Tuple[ItemsNormalizer, LoadStorage]:
+                load_storage = _get_load_storage(file_format)
+                if file_format in item_normalizers:
+                    return item_normalizers[file_format], load_storage
+                klass = ParquetItemsNormalizer if file_format == "parquet" else JsonLItemsNormalizer
+                norm = item_normalizers[file_format] = klass(
+                    load_storage, normalize_storage, schema, load_id, config
+                )
+                return norm, load_storage
 
             try:
                 root_tables: Set[str] = set()
@@ -116,15 +131,8 @@ class Normalize(Runnable[ProcessPool]):
                     logger.debug(f"Processing extracted items in {extracted_items_file} in load_id {load_id} with table name {root_table_name} and schema {schema.name}")
 
                     file_format = parsed_file_name.file_format
-                    load_storage = _get_load_storage(file_format)
-                    normalizer: ItemsNormalizer
-                    if file_format == "parquet":
-                        normalizer = ParquetItemsNormalizer()
-                    else:
-                        normalizer = JsonLItemsNormalizer()
-                    partial_updates, items_count, r_counts = normalizer(
-                        extracted_items_file, load_storage, normalize_storage, schema, load_id, root_table_name, config
-                    )
+                    normalizer, load_storage = _get_items_normalizer(file_format)
+                    partial_updates, items_count, r_counts = normalizer(extracted_items_file, root_table_name)
                     schema_updates.extend(partial_updates)
                     total_items += items_count
                     merge_row_count(row_counts, r_counts)
