@@ -210,7 +210,9 @@ class ArrowExtractor(Extractor):
         """Rename arrow columns to normalized schema column names"""
         if not items:
             return items
-        # TODO: Could check whether columns need renaming before doing this
+        if items[0].schema.names == new_column_names:
+            # No need to rename
+            return items
         if isinstance(items[0], pyarrow.pyarrow.Table):
             return [item.rename_columns(new_column_names) for item in items]
         elif isinstance(items[0], pyarrow.pyarrow.RecordBatch):
