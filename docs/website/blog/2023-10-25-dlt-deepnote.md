@@ -135,7 +135,7 @@ And that’s pretty much it. Notice the difference in the effort you had to put 
 
 The data has been loaded into a pipeline with `duckdb` as its destination. `duckdb` was chosen as it is an OLAP database, perfect for usage in our analytics workflow. The data has been unnested and formatted. To explore what exactly was stored in that destination, a `duckdb` connector (`conn`) is set up, and the `SHOW ALL TABLES` command is executed.
 
-<div style={{ position: 'relative', paddingBottom: '80%' }}>
+<div style={{ position: 'relative', paddingBottom: '50%' }}>
   <iframe
     src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/5400d02a3ccd4973ae25e3d3b76a5ead"
     style={{ position: 'absolute', width: '100%', height: '100%', paddingBottom: '2%' }}
