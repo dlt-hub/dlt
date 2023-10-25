@@ -212,6 +212,9 @@ class ArrowExtractor(Extractor):
         ]
         super().write_table(resource, items, meta)
 
+    def _write_item(self, table_name: str, resource_name: str, items: TDataItems, columns: TTableSchemaColumns = None) -> None:
+        super()._write_item(table_name, resource_name, items, self.dynamic_tables[table_name][0]["columns"])
+
     def _write_static_table(self, resource: DltResource, table_name: str, items: TDataItems) -> None:
         existing_table = self.dynamic_tables.get(table_name)
         if existing_table is not None:
