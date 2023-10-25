@@ -70,12 +70,12 @@ This is the simplest way to see `dlt` in action.
 3. Read [Pipeline Tutorial](build-a-pipeline-tutorial.md) to start building E(t)LT pipelines from ready components.
 4. We have many interesting [walkthroughs](walkthroughs/) where you create, run, customize and deploy pipelines.
 5. Ask us on
-[Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+[Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
 if you have any questions about use cases or the library.
 
 ## Become part of the `dlt` community
 
 1. Give the library a ⭐ and check out the code on [GitHub](https://github.com/dlt-hub/dlt).
 1. Ask questions and share how you use the library on
-[Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g).
+[Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA).
 1. Report problems and make feature requests [here](https://github.com/dlt-hub/dlt/issues/new/choose).
