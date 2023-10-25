@@ -174,7 +174,7 @@ for row in generate_rows(20):
     print(row)
 ```
 
-You can mark some resource arguments as configuration and [credentials](credentials/add_credentials.md) values
+You can mark some resource arguments as [configuration and credentials](credentials) values
 so `dlt` can pass them automatically to your functions.
 
 ### Process resources with `dlt.transformer`
