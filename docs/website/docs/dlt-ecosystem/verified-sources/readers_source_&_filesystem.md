@@ -1,9 +1,9 @@
 ---
-title: Readers Source & Filesystem
-description: dlt verified source for Readers Source & Filesystem keywords:
-keywords: [readers source and filesystem, filesystem, readers source\]
+title: Readers Source andFilesystem
+description: dlt verified source for Readers Source and Filesystem keywords:
+keywords: [readers source and filesystem, filesystem, readers source]
 ---
-# Readers Source & Filesystem
+# Readers Source and Filesystem
 
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
@@ -108,7 +108,7 @@ To get started with your data pipeline, follow these steps:
 
    [This command](../../reference/command-line-interface) will initialize
    [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/filesystem_pipeline.py)
-   with Readers source & filesystem as the [source](../../general-usage/source) and
+   with Readers source and filesystem as the [source](../../general-usage/source) and
    [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
 
 1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
