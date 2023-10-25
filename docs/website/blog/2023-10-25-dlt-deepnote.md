@@ -63,7 +63,8 @@ However, the journey to reach these stages is stretched much longer due to the t
 
 The two datasets that we are using are nested json files, with further lists of dictionaries, and are survey results with wellness indicators for women. Here’s what the first element of one dataset looks like:
 
-<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/3a517be3788b446bb1380cd0e7df274e"></iframe>
+<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/3a517be3788b446bb1380cd0e7df274e"; display: block; margin: 0 auto; width: 100%;></iframe>
+
 
 Looks like it is a nested json, nested further with more lists of dictionaries.
 
