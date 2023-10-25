@@ -4,6 +4,15 @@ description: How to use dlt credentials
 keywords: [credentials, secrets.toml, environment variables]
 ---
 
+
+@Alena - or you convert this page to how-to or you delete it or you add a reference to other pages. all the thing below are duplicates of things
+that already exist, besides this one which we can use as an example of passing confgs ecxplicitly
+
+```python
+api_key = BaseHook.get_connection('pipedrive_api_key').extra # get it from airflow or other credential store
+load_info = pipeline.run(pipedrive_source(pipedrive_api_key=api_key))
+```
+
 # Adding credentials
 
 ## Adding credentials locally

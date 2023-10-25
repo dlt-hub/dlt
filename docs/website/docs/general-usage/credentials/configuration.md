@@ -9,15 +9,15 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 ## General Usage and an Example
 
-The way config values and secrets are handled should promote correct behavior:
+This is what we had in mind, when designing
 
-1. Secret values should never be present in the pipeline code.
-1. The pipeline may be reconfigured for production after it is deployed. Deployed and local code should
+1. Adding configuration and secrets to sources and resources should be no-effort.
+2. You can reconfigure the pipeline for production after it is deployed. Deployed and local code should
    be identical.
-1. It must still be easy and intuitive.
+3. You can always pass configuration values explicitly and override any default behavior (ie. naming of the configuration keys)
 
-For the source extractor function below (it reads selected tab from Google Sheets) we can pass config
-values in the following ways:
+
+Source below reads selected tabs from Google Sheets and demonstrates a few options you have to pass config and secret values:
 
 ```python
 import dlt
@@ -37,7 +37,7 @@ def google_sheets(
         tabs.append(dlt.resource(data, name=tab_name))
     return tabs
 
-# WRONG:
+# WRONG!:
 # provide all values directly - wrong but possible.
 # secret values should never be present in the code!
 data_source = google_sheets(
@@ -53,63 +53,28 @@ data_source = google_sheets(
 # `only_strings` will be injected by the source decorator or will get the default value False
 data_source = google_sheets("23029402349032049", ["tab1", "tab2"])
 
-```
-
-### Passing config values and credentials explicitly
-
-One of the principles is that configuration, credentials and secret values may be passed
-explicitly as arguments to the functions.
-This makes the injection behavior optional.
-
-```python
 # OPTION B:
-# use `dlt.secrets` and `dlt.config` to explicitly take
-# those values from providers from the explicit keys
-data_source = google_sheets(
-    dlt.config["sheet_id"],
-    dlt.config["my_section.tabs"],
-    dlt.secrets["my_section.gcp_credentials"]
-)
-
-data_source.run(destination="bigquery")
+# pass everything via configuration
+data_source = google_sheets()
 ```
 
-See [example](https://github.com/dlt-hub/dlt/blob/devel/docs/examples/archive/credentials/explicit.py).
+(@Alena we need to explain each of the arguments here - what is dlt.secret.value? why we use that?)
 
-## Injection mechanism
+Here are corresponding toml files (@Alena please add examples and link to layout section)
 
-Config and secret values are injected to the function arguments if the function is decorated with
-`@dlt.source` or `@dlt.resource` (also `@with_config` which you can apply to any function - used
-heavily in the dlt core).
-
-The signature of the function `google_sheets` is **explicitly accepting all the necessary
-configuration and secrets in its arguments**. During runtime, `dlt` tries to supply (`inject`) the
-required values via various config providers.
-
-The injection rules are:
-
-1. If you call the decorated function, the arguments that are passed explicitly are **never
-   injected** this makes the injection mechanism optional.
-
-1. Required arguments (i.e. `spreadsheet_id`, `tab_names`) are not injected.
-
-1. Arguments with default values are injected if present in config providers.
-
-1. Arguments with the special default value `dlt.secrets.value` and `dlt.config.value` **must be
-   injected** (or explicitly passed). If they are not found by the config providers, the code raises
-   exception. The code in the functions always receives those arguments.
-
-Additionally `dlt.secrets.value` tells `dlt` that supplied value is a secret, and it will be injected
-only from secure config providers.
+:::Caution
+@Alena please write about how dlt looks for secrets toml and that you should run from the same folder as pipeline script
+also link [here](config_providers.md#toml-provider)
+:::
 
 
-## Typing the source and resource signatures
+### Add typing to your sources and resources
 
 You should type your function signatures!
 The effort is very low, and it gives `dlt` much more
 information on what source/resource expects.
 
-1. You'll never receive invalid type signatures.
+1. You'll never receive invalid data types in your code.
 1. We can generate nice sample config and secret files for your source.
 1. You can request dictionaries or special values (i.e. connection strings, service json) to be
    passed.
@@ -120,7 +85,7 @@ information on what source/resource expects.
 def google_sheets(
     spreadsheet_id: str,
     tab_names: List[str] = dlt.config.value,
-    credentials: GcpClientCredentialsWithDefault = dlt.secrets.value,
+    credentials: GcpServiceAccountCredentials = dlt.secrets.value,
     only_strings: bool = False
 ):
   ...
@@ -132,16 +97,71 @@ Now:
 1. You will get actual Google credentials (see `CredentialsConfiguration` later) and your users can
    pass them in many different forms.
 
-In case of `GcpClientCredentialsWithDefault`:
+In case of `GcpServiceAccountCredentials`:
 
 - You may just pass the `service_json` as string or dictionary (in code and via config providers).
 - You may pass a connection string (used in SQL Alchemy) (in code and via config providers).
 - Or default credentials will be used.
 
-## Secret and config values layout
+### Pass config values and credentials explicitly
+We suggest a [default layout](#default-layout-and-default-key-lookup-during-injection) of secret and config values but you can fully ignore it and use your own:
+
+```python
+# OPTION C:
+# use `dlt.secrets` and `dlt.config` to explicitly take
+# those values from providers from the explicit keys
+data_source = google_sheets(
+    dlt.config["sheet_id"],
+    dlt.config["my_section.tabs"],
+    dlt.secrets["my_section.gcp_credentials"]
+)
+
+data_source.run(destination="bigquery")
+```
+`dlt.config` and `dlt.secrets` behave like dictionaries from which you can request a value with any key name. `dlt` will look in all [config providers](#injection-mechanism) - toml files, env variables etc. just like it does with the standard key name layout. You can also use `dlt.config.get()` / `dlt.secrets.get()` to
+request value cast to desired type. For example:
+```python
+credentials = dlt.secrets.get("my_section.gcp_credentials", GcpServiceAccountCredentials)
+```
+Creates `GcpServiceAccountCredentials` instance out of values (typically a dictionary) under **my_section.gcp_credentials** key.
+
+See [example](https://github.com/dlt-hub/dlt/blob/devel/docs/examples/archive/credentials/explicit.py).
+
+### Pass explicit destination credentials
+You can pass destination credentials and ignore the default lookup:
+```python
+pipeline = dlt.pipeline(destination="postgres", credentials=dlt.secrets["postgres_dsn"])
+```
+
+## Injection mechanism
+
+Config and secret values are injected to the function arguments if the function is decorated with
+`@dlt.source` or `@dlt.resource` (also `@with_config` which you can apply to any function - used
+heavily in the dlt core).
+
+The signature of the function `google_sheets` is **explicitly accepting all the necessary configuration and secrets in its arguments**.
+During runtime, `dlt` tries to supply (`inject`) the required values via various config providers.
+
+The injection rules are:
+
+1. If you call the decorated function, the arguments that are passed explicitly are **never injected**,
+   this makes the injection mechanism optional.
+
+1. Required arguments (i.e. `spreadsheet_id` - without default values) are not injected and must be present.
+
+1. Arguments with default values are injected if present in config providers, otherwise default is used.
+
+1. Arguments with the special default value `dlt.secrets.value` and `dlt.config.value` **must be injected**
+   (or explicitly passed). If they are not found by the config providers, the code raises
+   exception. The code in the functions always receives those arguments.
+
+Additionally `dlt.secrets.value` tells `dlt` that supplied value is a secret, and it will be injected
+only from secure config providers.
+
+## Secret and config values layout and name lookup
 
 `dlt` uses a layout of hierarchical sections to organize the config and secret values. This makes
-configurations and secrets easy to manage, and disambiguates values with the same keys by placing
+configurations and secrets easy to manage, and disambiguate values with the same keys by placing
 them in the different sections.
 
 > If you know how `toml` files are organized -> this is the same concept!
@@ -150,8 +170,7 @@ them in the different sections.
 > values corresponding to one component to be close together.
 
 > You can have a separate credentials for your destinations and each of the sources your pipeline uses,
-> if you have many pipelines in a single project, you can have a separate sections corresponding to
-> them.
+> if you have many pipelines in a single project, you can group them in separate sections
 
 Here is the simplest default layout for our `google_sheets` example.
 
@@ -202,7 +221,7 @@ tabs=["tab1", "tab2"]
 
 ### Default layout and default key lookup during injection
 
-`dlt` arranges the sections into **default layout** that is used by injection mechanism. This layout
+`dlt` arranges the sections into **default layout** that is expected by injection mechanism. This layout
 makes it easy to configure simple cases but also provides a room for more explicit sections and
 complex cases i.e. having several sources with different credentials or even hosting several pipelines
 in the same project sharing the same config and credentials.
@@ -312,7 +331,7 @@ project_id = <project_id from services json>
 ### The `sources` section
 
 Config and secrets for decorated sources and resources are kept in
-`sources.<source module name>.<function_name>` section. **All sections are options**. For example,
+`sources.<source module name>.<function_name>` section. **All sections are optional during lookup**. For example,
 if source module is named `pipedrive` and the function decorated with `@dlt.source` is
 `deals(api_key: str=...)` then `dlt` will look for API key in:
 

@@ -77,14 +77,14 @@ You should type your function signatures! The effort is very low and it gives `d
 
 ```python
 @dlt.source
-def google_sheets(spreadsheet_id: str, tab_names: List[str] = dlt.config.value, credentials: GcpClientCredentialsWithDefault = dlt.secrets.value, only_strings: bool = False):
+def google_sheets(spreadsheet_id: str, tab_names: List[str] = dlt.config.value, credentials: GcpServiceAccountCredentials = dlt.secrets.value, only_strings: bool = False):
   ...
 ```
 Now:
 1. you are sure that you get a list of strings as `tab_names`
 2. you will get actual google credentials (see `CredentialsConfiguration` later) and your users can pass them in many different forms.
 
-In case of `GcpClientCredentialsWithDefault`
+In case of `GcpServiceAccountCredentials`
 * you may just pass the `service_json` as string or dictionary (in code and via config providers)
 * you may pass a connection string (used in sql alchemy) (in code and via config providers)
 * or default credentials will be used
@@ -331,7 +331,7 @@ It tells you exactly which paths `dlt` looked at, via which config providers and
 
 ## Working with credentials (and other complex configuration values)
 
-`GcpClientCredentialsWithDefault` is an example of a **spec**: a Python `dataclass` that describes the configuration fields, their types and default values. It also allows to parse various native representations of the configuration. Credentials marked with `WithDefaults` mixin are also to instantiate itself from the machine/user default environment ie. googles `default()` or AWS `.aws/credentials`.
+`GcpServiceAccountCredentials` is an example of a **spec**: a Python `dataclass` that describes the configuration fields, their types and default values. It also allows to parse various native representations of the configuration. Credentials marked with `WithDefaults` mixin are also to instantiate itself from the machine/user default environment ie. googles `default()` or AWS `.aws/credentials`.
 
 As an example, let's use `ConnectionStringCredentials` which represents a database connection string.
 
@@ -421,7 +421,7 @@ In fact for each decorated function a spec is synthesized. In case of `google_sh
 @configspec
 class GoogleSheetsConfiguration:
   tab_names: List[str] = None  # manadatory
-  credentials: GcpClientCredentialsWithDefault = None # mandatory secret
+  credentials: GcpServiceAccountCredentials = None # mandatory secret
   only_strings: Optional[bool] = False
 ```
 

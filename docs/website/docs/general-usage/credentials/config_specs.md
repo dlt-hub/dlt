@@ -12,17 +12,20 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 Example:
 
 ```python
+import dlt
+from dlt.sources.credentials import GcpServiceAccountCredentials
+
 @dlt.source
 def google_sheets(
     spreadsheet_id: str,
     tab_names: List[str] = dlt.config.value,
-    credentials: GcpClientCredentialsWithDefault = dlt.secrets.value,
+    credentials: GcpServiceAccountCredentials = dlt.secrets.value,
     only_strings: bool = False
 ):
   ...
 ```
 
-Here, `GcpClientCredentialsWithDefault` is an example of a **spec**: a Python `dataclass` that describes
+Here, `GcpServiceAccountCredentials` is an example of a **spec**: a Python `dataclass` that describes
 the configuration fields, their types and default values. It also allows parsing various native
 representations of the configuration. Credentials marked with `WithDefaults` mixin are also to
 instantiate itself from the machine/user default environment i.e. Googles `default()` or AWS
@@ -32,6 +35,8 @@ As an example, let's use `ConnectionStringCredentials` which represents a databa
 string.
 
 ```python
+from dlt.sources.credentials import ConnectionStringCredentials
+
 @dlt.source
 def query(sql: str, dsn: ConnectionStringCredentials = dlt.secrets.value):
   ...
@@ -72,6 +77,12 @@ query("SELECT * FROM customers", "postgres://loader@localhost:5432/dlt_data")
 query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"...})
 ```
 
+### Built in credentials
+
+@Alena could you update this section? what is in `from dlt.sources.credentials`? just list it below
+```
+from dlt.sources.credentials import ConnectionStringCredentials
+```
 We will implement more credentials and let people reuse them when writing pipelines:
 
 - To represent oauth credentials.
@@ -119,7 +130,7 @@ of credentials that derive from the common class, so you can handle it seamlessl
 - Which values should be injected, the types, default values.
 - You can specify optional and final fields.
 - Form hierarchical configurations (specs in specs).
-- Provide own handlers for `on_error` or `on_resolved`.
+- Provide own handlers for `on_partial` (called before failing on missing config key) or `on_resolved`.
 - Provide own native value parsers.
 - Provide own default credentials logic.
 - Adds all Python dataclass goodies to it.
@@ -132,10 +143,12 @@ In fact, for each decorated function a spec is synthesized. In case of `google_s
 class is created:
 
 ```python
+from dlt.sources.config import configspec, with_config
+
 @configspec
 class GoogleSheetsConfiguration(BaseConfiguration):
   tab_names: List[str] = None  # manadatory
-  credentials: GcpClientCredentialsWithDefault = None # mandatory secret
+  credentials: GcpServiceAccountCredentials = None # mandatory secret
   only_strings: Optional[bool] = False
 ```
 

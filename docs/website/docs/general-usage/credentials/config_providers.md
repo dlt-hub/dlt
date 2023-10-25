@@ -38,10 +38,11 @@ for: `tab_names`, `credentials` and `only_strings`.
 Each provider has its own key naming convention, and dlt is able to translate between them.
 
 Providers form a hierarchy. At the top are environment variables, then `secrets.toml` and
-`config.toml` files. Providers like Google/AWS/Azure Vaults can be inserted after the environment
-provider.
+`config.toml` files. Providers like Airflow/Google/AWS/Azure Vaults will be inserted **after** the environment
+provider but **before** `toml` providers.
 
-For example, if `spreadsheet_id` is in environment, dlt does not look into other providers.
+For example, if `spreadsheet_id` is found in environment variable `SPREADSHEET_ID`, `dlt` will not look in `toml` files
+and below.
 
 The values passed in the code **explicitly** are the **highest** in provider hierarchy. The **default values**
 of the arguments have the **lowest** priority in the provider hierarchy.
