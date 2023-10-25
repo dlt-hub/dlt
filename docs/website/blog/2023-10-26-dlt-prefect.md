@@ -3,10 +3,10 @@ slug: dlt-prefect
 title: "Building resilient pipelines in minutes with dlt + Prefect"
 image: /img/purple-python-spoderweb.png
 authors:
-  name: Chris Reuter
-  title: Open source data engineer
-  url: https://github.com/adrianbr
-  image_url: https://avatars.githubusercontent.com/u/5762770?v=4
+  name: Dylan Hughes & Chris Reuter
+  title: Engineering & Community at [Prefect.io](https://www.prefect.io/)
+  url: https://github.com/dylanbhughes
+  image_url: https://avatars.githubusercontent.com/u/2325367?v=4
 tags: [dbt runner, dbt cloud runner, dbt core runner]
 ---
 
