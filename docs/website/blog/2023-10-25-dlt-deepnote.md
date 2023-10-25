@@ -63,7 +63,14 @@ However, the journey to reach these stages is stretched much longer due to the t
 
 The two datasets that we are using are nested json files, with further lists of dictionaries, and are survey results with wellness indicators for women. Here’s what the first element of one dataset looks like:
 
-<iframe src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/3a517be3788b446bb1380cd0e7df274e"; display: block; margin: 0 auto; width: 100%;></iframe>
+<div style={{ position: 'relative', paddingBottom: '80%' }}>
+  <iframe
+    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/3a517be3788b446bb1380cd0e7df274e"
+    style={{ position: 'absolute', width: '100%', height: '100%' }}
+  ></iframe>
+</div>
+
+
 
 
 Looks like it is a nested json, nested further with more lists of dictionaries.
@@ -72,7 +79,13 @@ Looks like it is a nested json, nested further with more lists of dictionaries.
 
 Usually, `json_normalize` can be used to unnest a json file while loading it into pandas. However, the nested lists inside dictionaries do not unravel quite well. Nonetheless, let’s see how the pandas normalizer works on our dataset.
 
-https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/c4409a7a7440435fa1bd16bcebcd8c9b?height=537.3999938964844
+<div style={{ position: 'relative', paddingBottom: '80%' }}>
+  <iframe
+    src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/c4409a7a7440435fa1bd16bcebcd8c9b"
+    style={{ position: 'absolute', width: '100%', height: '100%' }}
+  ></iframe>
+</div>
+
 
 Conclusion from looking at the data: pandas successfully flattened dictionaries but did not unnest lists. Perhaps because in order to unpack these lists, one might need to create new tables, essentially create a data model entirely. But, that is something pandas does not do for us. So, to be able to use it, let’s flatten the data further into arrays and tables. Particularly, let’s pay attention to the amount of code required to achieve this task.
 
