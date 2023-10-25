@@ -9,7 +9,7 @@ from pydantic import BaseModel
 import pytest
 
 import dlt
-from dlt.common import json, sleep
+from dlt.common import json, sleep, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.configuration.specs.exceptions import NativeValueError
@@ -19,7 +19,7 @@ from dlt.common.destination.capabilities import TLoaderFileFormat
 from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, PipelineStateNotAvailable, UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, LogCollector, TqdmCollector
-from dlt.common.schema.utils import new_column
+from dlt.common.schema.utils import new_column, new_table
 from dlt.common.utils import uniq_id
 
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted

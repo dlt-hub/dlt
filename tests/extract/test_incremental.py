@@ -520,9 +520,6 @@ def test_missing_cursor_field(item_type: TItemFormat) -> None:
     assert py_ex.value.json_path == "item.timestamp"
 
 
-
-
-
 @pytest.mark.parametrize("item_type", ALL_ITEM_FORMATS)
 def test_filter_processed_items(item_type: TItemFormat) -> None:
     """Checks if already processed items are filtered out"""

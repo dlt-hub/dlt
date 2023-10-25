@@ -26,7 +26,7 @@ from dlt.load import Load
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, SQL_DESTINATIONS
+from tests.utils import ACTIVE_DESTINATIONS, IMPLEMENTED_DESTINATIONS, SQL_DESTINATIONS, EXCLUDED_DESTINATION_CONFIGURATIONS
 from tests.cases import TABLE_UPDATE_COLUMNS_SCHEMA, TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES, assert_all_data_types_row
 
 # bucket urls
@@ -34,13 +34,32 @@ AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
 GCS_BUCKET = dlt.config.get("tests.bucket_url_gs", str)
 AZ_BUCKET = dlt.config.get("tests.bucket_url_az", str)
 FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
+R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
 
-ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or ["s3", "gs", "az", "file", "memory"]
+ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or ["s3", "gs", "az", "file", "memory", "r2"]
 
 # Filter out buckets not in all filesystem drivers
-ALL_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET]
-ALL_BUCKETS = [bucket for bucket in ALL_BUCKETS if bucket.split(':')[0] in ALL_FILESYSTEM_DRIVERS]
+DEFAULT_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET]
+DEFAULT_BUCKETS = [bucket for bucket in DEFAULT_BUCKETS if bucket.split(':')[0] in ALL_FILESYSTEM_DRIVERS]
+
+# Add r2 in extra buckets so it's not run for all tests
+R2_BUCKET_CONFIG = dict(
+    bucket_url=R2_BUCKET,
+    # Credentials included so we can override aws credentials in env later
+    credentials=dict(
+        aws_access_key_id=dlt.config.get("tests.r2_aws_access_key_id", str),
+        aws_secret_access_key=dlt.config.get("tests.r2_aws_secret_access_key", str),
+        endpoint_url=dlt.config.get("tests.r2_endpoint_url", str),
+    )
+)
+
+EXTRA_BUCKETS: List[Dict[str, Any]] = []
+if "r2" in ALL_FILESYSTEM_DRIVERS:
+    EXTRA_BUCKETS.append(R2_BUCKET_CONFIG)
+
+ALL_BUCKETS = DEFAULT_BUCKETS + EXTRA_BUCKETS
+
 
 @dataclass
 class DestinationTestConfiguration:
@@ -53,6 +72,8 @@ class DestinationTestConfiguration:
     staging_iam_role: Optional[str] = None
     extra_info: Optional[str] = None
     supports_merge: bool = True  # TODO: take it from client base class
+    force_iceberg: bool = False
+    supports_dbt: bool = True
 
     @property
     def name(self) -> str:
@@ -72,6 +93,7 @@ class DestinationTestConfiguration:
         os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = self.bucket_url or ""
         os.environ['DESTINATION__STAGE_NAME'] = self.stage_name or ""
         os.environ['DESTINATION__STAGING_IAM_ROLE'] = self.staging_iam_role or ""
+        os.environ['DESTINATION__FORCE_ICEBERG'] = str(self.force_iceberg) or ""
 
         """For the filesystem destinations we disable compression to make analyzing the result easier"""
         if self.destination == "filesystem":
@@ -88,13 +110,13 @@ class DestinationTestConfiguration:
 def destinations_configs(
         default_sql_configs: bool = False,
         default_vector_configs: bool = False,
-        file_format: str = '',
         default_staging_configs: bool = False,
         all_staging_configs: bool = False,
         local_filesystem_configs: bool = False,
         all_buckets_filesystem_configs: bool = False,
         subset: Sequence[str] = (),
         exclude: Sequence[str] = (),
+        file_format: Optional[TLoaderFileFormat] = None,
 ) -> List[DestinationTestConfiguration]:
 
     # sanity check
@@ -107,18 +129,17 @@ def destinations_configs(
     # default non staging sql based configs, one per destination
     if default_sql_configs:
         destination_configs += [DestinationTestConfiguration(destination=destination) for destination in SQL_DESTINATIONS if destination != "athena"]
+        destination_configs += [DestinationTestConfiguration(destination="duckdb", file_format="parquet")]
         # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
-        destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
+        destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", supports_merge=False, bucket_url=AWS_BUCKET)]
+        destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, force_iceberg=True, supports_merge=False, supports_dbt=False, extra_info="iceberg")]
 
     if default_vector_configs:
         # for now only weaviate
         destination_configs += [DestinationTestConfiguration(destination="weaviate")]
 
-
     if default_staging_configs or all_staging_configs:
         destination_configs += [
-
-            DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, supports_merge=False),
             DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, staging_iam_role="arn:aws:iam::267388281016:role/redshift_s3_read", extra_info="s3-role"),
             DestinationTestConfiguration(destination="bigquery", staging="filesystem", file_format="parquet", bucket_url=GCS_BUCKET, extra_info="gcs-authorization"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, stage_name="PUBLIC.dlt_gcs_stage", extra_info="gcs-integration"),
@@ -146,7 +167,7 @@ def destinations_configs(
         destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="jsonl")]
 
     if all_buckets_filesystem_configs:
-        for bucket in ALL_BUCKETS:
+        for bucket in DEFAULT_BUCKETS:
             destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=bucket, extra_info=bucket)]
 
     # filter out non active destinations
@@ -157,6 +178,11 @@ def destinations_configs(
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
     if exclude:
         destination_configs = [conf for conf in destination_configs if conf.destination not in exclude]
+    if file_format:
+        destination_configs = [conf for conf in destination_configs if conf.file_format == file_format]
+
+    # filter out excluded configs
+    destination_configs = [conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS]
 
     return destination_configs
 
@@ -193,7 +219,7 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
         user_table_name = table_name + uniq_id()
     else:
         user_table_name = table_name
-    client.schema.update_schema(new_table(user_table_name, columns=list(user_table.values())))
+    client.schema.update_table(new_table(user_table_name, columns=list(user_table.values())))
     client.schema.bump_version()
     client.update_stored_schema()
     return user_table_name
