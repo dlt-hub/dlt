@@ -954,7 +954,7 @@ class Pipeline(SupportsPipeline):
                 )
         return self.destination.capabilities()
 
-    def _get_staging_capabilities(self) -> DestinationCapabilitiesContext:
+    def _get_staging_capabilities(self) -> Optional[DestinationCapabilitiesContext]:
         return self.staging.capabilities() if self.staging is not None else None
 
     def _validate_pipeline_name(self) -> None:
@@ -1016,6 +1016,9 @@ class Pipeline(SupportsPipeline):
                     DestinationReference.to_name(self.destination),
                     DestinationReference.to_name(self.staging) if self.staging else None,
                     destination_caps, stage_caps, loader_file_format)
+                caps.supported_loader_file_formats = (
+                    destination_caps.supported_staging_file_formats if stage_caps else None
+                ) or destination_caps.supported_loader_file_formats
             yield caps
         finally:
             if injected_caps:

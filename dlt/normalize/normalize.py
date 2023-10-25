@@ -84,7 +84,7 @@ class Normalize(Runnable[ProcessPool]):
 
         def _get_load_storage(file_format: TLoaderFileFormat) -> LoadStorage:
             # TODO: capabilities.supported_*_formats can be None, it should have defaults
-            supported_formats = list(set(destination_caps.supported_loader_file_formats or []) | set(destination_caps.supported_staging_file_formats or []))
+            supported_formats = destination_caps.supported_loader_file_formats or []
             if file_format == "parquet":
                 if file_format in supported_formats:
                     supported_formats.append("arrow")  # TODO: Hack to make load storage use the correct writer
