@@ -88,7 +88,7 @@ For more information, read the
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
-For more information, read the [General Usage: Credentials.](../../general-usage/configuration/credentials.md)
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
@@ -266,7 +266,7 @@ verified source.
 
    ```python
    load_data = pipedrive_source() # calls the source function
-   load_info = pipeline.run(load_info) #runs the pipeline with selected source configuration
+   load_info = pipeline.run(load_info) #runs the pipeline with selected source credentials
    print(load_info)
    ```
 

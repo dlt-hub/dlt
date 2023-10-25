@@ -292,7 +292,7 @@ For more information, read the
 > Note: You have an option to pass "range_names" and "spreadsheet_identifier" directly to the
 > google_spreadsheet function or in ".dlt/config.toml"
 
-For more information, read the [General Usage: Credentials.](../../general-usage/configuration/credentials.md)
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 

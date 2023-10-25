@@ -110,13 +110,13 @@ const sidebars = {
           link: {
             type: 'generated-index',
             title: 'Configuration',
-            slug: 'dlt-ecosystem/configuration',
+            slug: 'general-usage/credentials',
           },
           items: [
-            'general-usage/configuration/configuration',
-            'general-usage/configuration/credentials',
-            'general-usage/configuration/config_providers',
-            'general-usage/configuration/config_specs',
+            'general-usage/credentials/configuration',
+            'general-usage/credentials/add_credentials',
+            'general-usage/credentials/config_providers',
+            'general-usage/credentials/config_specs',
           ]
         },
         'reference/performance',

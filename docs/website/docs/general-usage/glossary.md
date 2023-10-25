@@ -53,11 +53,11 @@ Describes the structure of normalized data (e.g. unpacked tables, column types, 
 instructions on how the data should be processed and loaded (i.e. it tells `dlt` about the content
 of the data and how to load it into the destination).
 
-## [Config](configuration/configuration.md)
+## [Config](credentials/configuration.md)
 
 A set of values that are passed to the pipeline at run time (e.g. to change its behavior locally vs.
 in production).
 
-## [Credentials](configuration/credentials.md)
+## [Credentials](credentials/add_credentials.md)
 
 A subset of configuration whose elements are kept secret and never shared in plain text.

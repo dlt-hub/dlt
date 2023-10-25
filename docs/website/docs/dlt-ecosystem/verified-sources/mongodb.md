@@ -169,7 +169,7 @@ For more information, read the
 1. Replace the value of the "database" and "collections_names" with the ones
    [copied above](#grab-database-and-collections).
 
-For more information, read the [General Usage: Credentials.](../../general-usage/configuration/credentials.md)
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 

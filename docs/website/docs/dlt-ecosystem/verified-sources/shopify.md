@@ -98,7 +98,7 @@ For more information, read the
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
-For more information, read the [General Usage: Credentials.](../../general-usage/configuration/credentials.md)
+For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
