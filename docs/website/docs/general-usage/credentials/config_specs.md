@@ -77,17 +77,185 @@ query("SELECT * FROM customers", "postgres://loader@localhost:5432/dlt_data")
 query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"...})
 ```
 
-### Built in credentials
+## Built in credentials
 
-@Alena could you update this section? what is in `from dlt.sources.credentials`? just list it below
+We have some ready-made credentials you can reuse:
+
 ```
 from dlt.sources.credentials import ConnectionStringCredentials
+from dlt.sources.credentials import OAuth2Credentials
+from dlt.sources.credentials import GcpServiceAccountCredentials, GcpOAuthCredentials
+from dlt.common.configuration.specs import AwsCredentials
+from dlt.common.configuration.specs import AzureCredentials
 ```
-We will implement more credentials and let people reuse them when writing pipelines:
 
-- To represent oauth credentials.
-- API key + API secret.
-- AWS credentials.
+### ConnectionStringCredentials
+
+The ConnectionStringCredentials class handles connection string
+credentials for SQL database connections.
+It includes attributes for the driver name, database name, username, password, host, port,
+and additional query parameters.
+This class provides methods for parsing and generating connection strings.
+
+```python
+# Example for ConnectionStringCredentials
+credentials = ConnectionStringCredentials()
+
+# Set the necessary attributes
+credentials.drivername = "postgresql"
+credentials.database = "my_database"
+credentials.username = "my_user"
+credentials.password = "my_password"
+credentials.host = "localhost"
+credentials.port = 5432
+
+# Convert credentials to connection string
+connection_string = credentials.to_native_representation()
+
+# Parse a connection string and update credentials
+native_value = "postgresql://my_user:my_password@localhost:5432/my_database"
+credentials.parse_native_representation(native_value)
+
+# Get a URL representation of the connection
+url_representation = credentials.to_url()
+```
+
+### OAuth2Credentials
+
+The OAuth2Credentials class handles OAuth 2.0 credentials, including client ID,
+client secret, refresh token, and access token.
+It also allows for the addition of scopes and provides methods for client authentication.
+
+```python
+# Example for OAuth2Credentials
+credentials = OAuth2Credentials(
+    client_id="CLIENT_ID",
+    client_secret="CLIENT_SECRET",
+    refresh_token="REFRESH_TOKEN",
+    scopes=["scope1", "scope2"]
+)
+
+# Authorize the client
+credentials.auth()
+
+# Add additional scopes
+credentials.add_scopes(["scope3", "scope4"])
+```
+
+### GCP Credentials
+
+#### GcpServiceAccountCredentials
+
+The GcpServiceAccountCredentials class manages GCP Service Account credentials.
+It can parse native values either as ServiceAccountCredentials or as serialized `services.json`.
+This class provides methods to retrieve native credentials for Google clients.
+
+```python
+# Example for GcpServiceAccountCredentials
+credentials = GcpServiceAccountCredentials()
+
+# Parse a native value (ServiceAccountCredentials)
+# Accepts a native value, which can be either an instance of ServiceAccountCredentials
+# or a serialized services.json.
+# Parses the native value and updates the credentials.
+native_value = ...
+credentials.parse_native_representation(native_value)
+
+# Retrieve native credentials for Google clients
+# For example, build the service object for Google Analytics PI.
+client = BetaAnalyticsDataClient(credentials=credentials.to_native_credentials())
+
+# Get a string representation of the credentials
+# Returns a string representation of the credentials in the format client_email@project_id.
+credentials_str = str(credentials)
+```
+
+#### GcpOAuthCredentials
+
+The GcpOAuthCredentials class is responsible for handling OAuth2 credentials for
+desktop applications in Google Cloud Platform (GCP).
+It can parse native values either as GoogleOAuth2Credentials or as
+serialized OAuth client secrets JSON.
+This class provides methods for authentication and obtaining access tokens.
+
+```python
+# Example for GcpOAuthCredentials
+oauth_credentials = GcpOAuthCredentials()
+
+# Accepts a native value, which can be either an instance of GoogleOAuth2Credentials
+# or serialized OAuth client secrets JSON.
+# Parses the native value and updates the credentials.
+native_value_oauth = ...
+oauth_credentials.parse_native_representation(native_value_oauth)
+
+# Authenticate and get access token
+oauth_credentials.auth(scopes=["scope1", "scope2"])
+
+# Retrieve native credentials for Google clients
+# For example, build the service object for Google Analytics PI.
+client = BetaAnalyticsDataClient(credentials=oauth_credentials.to_native_credentials())
+
+# Get a string representation of the credentials
+# Returns a string representation of the credentials in the format client_id@project_id.
+credentials_str = str(oauth_credentials)
+```
+
+[The example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/setup_script_gcp_oauth.py): how you can get the refresh token using `dlt.secrets.value`.
+
+### AwsCredentials
+
+The AwsCredentials class is responsible for handling AWS credentials,
+including access keys, session tokens, profile names, region names, and endpoint URLs.
+It inherits the ability to manage default credentials and extends it with methods
+for handling partial credentials and converting credentials to a botocore session.
+
+```python
+# Example for AwsCredentials
+credentials = AwsCredentials()
+
+# Set the necessary attributes
+credentials.aws_access_key_id = "ACCESS_KEY_ID"
+credentials.aws_secret_access_key = "SECRET_ACCESS_KEY"
+credentials.region_name = "us-east-1"
+
+# Convert credentials to s3fs format
+s3fs_credentials = credentials.to_s3fs_credentials()
+print(s3fs_credentials["key"])
+
+# Imports an external boto3 session and sets the credentials properties accordingly.
+session_native_value = ...
+credentials.parse_native_representation(session_native_value)
+print(credentials.aws_access_key_id)
+
+# Get AWS credentials from botocore session
+aws_credentials = credentials.to_native_credentials()
+print(aws_credentials.access_key)
+```
+
+### AzureCredentials
+
+The AzureCredentials class is responsible for handling Azure Blob Storage credentials,
+including account name, account key, Shared Access Signature (SAS) token, and SAS token permissions.
+It inherits the ability to manage default credentials and extends it with methods for
+handling partial credentials and converting credentials to a format suitable
+for interacting with Azure Blob Storage using the adlfs library.
+
+```python
+# Example for AzureCredentials
+credentials = AzureCredentials()
+
+# Set the necessary attributes
+credentials.azure_storage_account_name = "ACCOUNT_NAME"
+credentials.azure_storage_account_key = "ACCOUNT_KEY"
+
+# Generate a SAS token
+credentials.create_sas_token()
+print(credentials.azure_storage_sas_token)
+
+# Convert credentials to adlfs format
+adlfs_credentials = credentials.to_adlfs_credentials()
+print(adlfs_credentials["account_name"])
+```
 
 ## Working with alternatives of credentials (Union types)
 
