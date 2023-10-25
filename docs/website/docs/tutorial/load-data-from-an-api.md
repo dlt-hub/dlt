@@ -57,7 +57,7 @@ dlt pipeline github_issues show
 
 ### Append or replace your data
 
-Try running the pipeline again with `python github_issues.py`. You will notice that the **issues** table contains two copies of the same data. This happens because the default load mode is `append`. It is very useful when you have a new folder created daily with `json` file logs, and you want to ingest them.
+Try running the pipeline again with `python github_issues.py`. You will notice that the **issues** table contains two copies of the same data. This happens because the default load mode is `append`. It is very useful, for example, when you have a new folder created daily with `json` file logs, and you want to ingest them.
 
 To get the latest data, we'd need to run the script again. But how to do that without duplicating the data?
 One option is to tell `dlt` to replace the data in existing tables in the destination by using `replace` write disposition. Change the `github_issues.py` script to the following:
@@ -97,19 +97,19 @@ See the `replace` mode and table schema migration in action in our [Schema evolu
 
 Learn more:
 
-- [Full load - how to replace your data](general-usage/full-loading).
-- [Append, replace and merge your tables](general-usage/incremental-loading).
-
+- [Full load - how to replace your data](../general-usage/full-loading).
+- [Append, replace and merge your tables](../general-usage/incremental-loading).
 
 ## Declare loading behavior
 
-You can define the loading process by decorating Python functions with `@dlt.resource`.
+So far we have been passing the data to the `run` method directly. This is a quick way to get started. However, frequenly, you receive data in chunks, and you want to load it as it arrives. For example, you might want to load data from an API endpoint with pagination or a large file that does not fit in memory. In such cases, you can use Python generators as a data source.
+
+You can pass a generator to the `run` method directly or use the `@dlt.resource` decorator to turn the generator into a [dlt resource](../general-usage/resource). The decorator allows you to specify the loading behavior and relevant resource parameters.
 
 ### Load only new data (incremental loading)
 
-We can improve the GitHub API example above and get only issues that were created since last load.
-Instead of using `replace` write_disposition and downloading all issues each time the pipeline is run, we do the following:
-
+Let's improve our GitHub API example and get only issues that were created since last load.
+Instead of using `replace` write disposition and downloading all issues each time the pipeline is run, we do the following:
 
 <!--@@@DLT_SNIPPET_START incremental-->
 ```py
@@ -120,16 +120,22 @@ from dlt.sources.helpers import requests
 def get_issues(
     created_at=dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z")
 ):
-    # NOTE: we read only open issues to minimize number of calls to the API. There's a limit of ~50 calls for not authenticated Github users
-    url = "https://api.github.com/repos/dlt-hub/dlt/issues?per_page=100&sort=created&directions=desc&state=open"
+    # NOTE: we read only open issues to minimize number of calls to the API.
+    # There's a limit of ~50 calls for not authenticated Github users.
+    url = (
+        "https://api.github.com/repos/dlt-hub/dlt/issues"
+        "?per_page=100&sort=created&directions=desc&state=open"
+    )
 
     while True:
         response = requests.get(url)
         response.raise_for_status()
         yield response.json()
 
-        # stop requesting pages if the last element was already older than initial value
-        # note: incremental will skip those items anyway, we just do not want to use the api limits
+        # Stop requesting pages if the last element was already
+        # older than initial value
+        # Note: incremental will skip those items anyway, we just
+        # do not want to use the api limits
         if created_at.start_out_of_range:
             break
 
@@ -138,12 +144,12 @@ def get_issues(
             break
         url = response.links["next"]["url"]
 
-
 pipeline = dlt.pipeline(
     pipeline_name='github_issues_incremental',
     destination='duckdb',
     dataset_name='github_data_append',
 )
+
 load_info = pipeline.run(get_issues)
 row_counts = pipeline.last_trace.last_normalize_info
 
@@ -201,15 +207,21 @@ from dlt.sources.helpers import requests
 def get_issues(
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
-    # NOTE: we read only open issues to minimize number of calls to the API. There's a limit of ~50 calls for not authenticated Github users
-    url = f"https://api.github.com/repos/dlt-hub/dlt/issues?since={updated_at.last_value}&per_page=100&sort=updated&directions=desc&state=open"
+    # NOTE: we read only open issues to minimize number of calls to
+    # the API. There's a limit of ~50 calls for not authenticated
+    # Github users
+    url = (
+        f"https://api.github.com/repos/dlt-hub/dlt/issues"
+        f"?since={updated_at.last_value}&per_page=100&sort=updated"
+        f"&directions=desc&state=open"
+    )
 
     while True:
         response = requests.get(url)
         response.raise_for_status()
         yield response.json()
 
-        # get next page
+        # Get next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]

@@ -61,16 +61,22 @@ def incremental_snippet() -> None:
     def get_issues(
         created_at=dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z")
     ):
-        # NOTE: we read only open issues to minimize number of calls to the API. There's a limit of ~50 calls for not authenticated Github users
-        url = "https://api.github.com/repos/dlt-hub/dlt/issues?per_page=100&sort=created&directions=desc&state=open"
+        # NOTE: we read only open issues to minimize number of calls to the API.
+        # There's a limit of ~50 calls for not authenticated Github users.
+        url = (
+            "https://api.github.com/repos/dlt-hub/dlt/issues"
+            "?per_page=100&sort=created&directions=desc&state=open"
+        )
 
         while True:
             response = requests.get(url)
             response.raise_for_status()
             yield response.json()
 
-            # stop requesting pages if the last element was already older than initial value
-            # note: incremental will skip those items anyway, we just do not want to use the api limits
+            # Stop requesting pages if the last element was already
+            # older than initial value
+            # Note: incremental will skip those items anyway, we just
+            # do not want to use the api limits
             if created_at.start_out_of_range:
                 break
 
@@ -79,12 +85,12 @@ def incremental_snippet() -> None:
                 break
             url = response.links["next"]["url"]
 
-
     pipeline = dlt.pipeline(
         pipeline_name='github_issues_incremental',
         destination='duckdb',
         dataset_name='github_data_append',
     )
+
     load_info = pipeline.run(get_issues)
     row_counts = pipeline.last_trace.last_normalize_info
 
@@ -110,15 +116,21 @@ def incremental_merge_snippet() -> None:
     def get_issues(
         updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
     ):
-        # NOTE: we read only open issues to minimize number of calls to the API. There's a limit of ~50 calls for not authenticated Github users
-        url = f"https://api.github.com/repos/dlt-hub/dlt/issues?since={updated_at.last_value}&per_page=100&sort=updated&directions=desc&state=open"
+        # NOTE: we read only open issues to minimize number of calls to
+        # the API. There's a limit of ~50 calls for not authenticated
+        # Github users
+        url = (
+            f"https://api.github.com/repos/dlt-hub/dlt/issues"
+            f"?since={updated_at.last_value}&per_page=100&sort=updated"
+            f"&directions=desc&state=open"
+        )
 
         while True:
             response = requests.get(url)
             response.raise_for_status()
             yield response.json()
 
-            # get next page
+            # Get next page
             if "next" not in response.links:
                 break
             url = response.links["next"]["url"]

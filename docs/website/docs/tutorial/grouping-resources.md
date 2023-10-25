@@ -7,11 +7,11 @@ keywords: [api, source, decorator, dynamic resource, github, tutorial]
 This tutorial continues the [previous](load-data-from-an-api) part. We'll use the same GitHub API example to show you how to:
 1. Load from other GitHub API endpoints.
 1. Group your resources into sources for easier management.
-2. Handle secrets.
+2. Handle secrets and configuration.
 
 ## Use source decorator
 
-In the previous tutorial, we loaded issues from the GitHub API. Now we'll prepare to load comments from the API as well. Here's a resource that does that:
+In the previous tutorial, we loaded issues from the GitHub API. Now we'll prepare to load comments from the API as well. Here's a sample [dlt resource](../general-usage/resource) that does that:
 
 ```py
 @dlt.resource(
@@ -35,7 +35,7 @@ def get_comments(
         url = response.links["next"]["url"]
 ```
 
-We can load this resource separately, but we want to load both issues and comments in one go. To do that, we'll use the `@dlt.source` decorator on a function that returns a list of resources:
+We can load this resource separately from the issues resource, however loading both issues and comments in one go is more efficient. To do that, we'll use the `@dlt.source` decorator on a function that returns a list of resources:
 
 ```py
 @dlt.source
@@ -43,7 +43,7 @@ def github_source():
     return [get_issues, get_comments]
 ```
 
-`github_source()` groups resources into a source that can be run as a single pipeline. Here's our new script:
+`github_source()` groups resources into a [source](../general-usage/source). A dlt source is a logical gropping of resources. You use it to group resources that belong together, for example, to load data from the same API. Loading data from a source can be run in a single pipeline. Here's how our updated script looks like:
 
 ```py
 import dlt
@@ -57,14 +57,18 @@ from dlt.sources.helpers import requests
 def get_issues(
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
-    url = f"https://api.github.com/repos/dlt-hub/dlt/issues?since={updated_at.last_value}&per_page=100&sort=updated&directions=desc&state=open"
+    url = (
+        f"https://api.github.com/repos/dlt-hub/dlt/issues"
+        f"?since={updated_at.last_value}&per_page=100"
+        f"&sort=updated&directions=desc&state=open"
+    )
 
     while True:
         response = requests.get(url)
         response.raise_for_status()
         yield response.json()
 
-        # get next page
+        # Get next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -78,14 +82,17 @@ def get_issues(
 def get_comments(
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
-    url = f"https://api.github.com/repos/dlt-hub/dlt/comments?per_page=100"
+    url = (
+        f"https://api.github.com/repos/dlt-hub/dlt/comments"
+        f"?per_page=100"
+    )
 
     while True:
         response = requests.get(url)
         response.raise_for_status()
         yield response.json()
 
-        # get next page
+        # Get next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -125,7 +132,7 @@ def fetch_github_data(endpoint, params={}):
         response.raise_for_status()
         yield response.json()
 
-        # get next page
+        # Get next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -168,7 +175,7 @@ def fetch_github_data(endpoint, params={}, api_token=None):
         response.raise_for_status()
         yield response.json()
 
-        # get next page
+        # Get next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -180,7 +187,7 @@ Here, we added `api_token` parameter and used it to pass the authentication toke
 load_info = pipeline.run(github_source(access_token="ghp_A...M"))
 ```
 
-Good. But we'd want to follow the best practices and not hardcode the token in the script. One option is to set the token as an environment variable, load it with `os.getenv()` and pass it around as a parameter. dlt offers a more convenient way to handle secrets and credentials: it let you inject the arguments using a special `dlt.secrets.value` argument value.
+Good. But we'd want to follow the best practices and not hardcode the token in the script. One option is to set the token as an environment variable, load it with `os.getenv()` and pass it around as a parameter. dlt offers a more convenient way to handle secrets and credentials: it lets you inject the arguments using a special `dlt.secrets.value` argument value.
 
 To use it, change the `github_source()` function to:
 
@@ -192,9 +199,12 @@ def github_source(
     ...
 ```
 
-When you add `dlt.secrets.value` as a default value for a parameter, `dlt` will try to load the value from the configuration (TODO: elaborate):
-1. Special environment variable
-2. secrets.toml file
+When you add `dlt.secrets.value` as a default value for an argument, `dlt` will try to load this value from different configuration sources in the following order:
+
+1. Special environment variables.
+2. `secrets.toml` file.
+
+The `secret.toml` file is located in the `~/.dlt` folder (for global configuration) or in the project folder (for project-specific configuration).
 
 Let's add the token to the `~/.dlt/secrets.toml` file:
 
@@ -251,17 +261,78 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(github_source())
 ```
 
+## Configurable sources
+
+The next step is to make our dlt GitHub source reusable so it is able to load data from any GitHub repo. We'll do that by changing both `github_source()` and `fetch_github_data()` functions to accept the repo name as a parameter:
+
+```python
+import dlt
+from dlt.sources.helpers import requests
+
+BASE_GITHUB_URL = "https://api.github.com/repos/{repo_name}"
+
+
+def fetch_github_data(repo_name, endpoint, params={}, api_token=None):
+    """Fetch data from GitHub API based on repo_name, endpoint, and params."""
+    headers = {"Authorization": f"Bearer {api_token}"} if api_token else {}
+
+    url = BASE_GITHUB_URL.format(repo_name=repo_name) + f"/{endpoint}"
+
+    while True:
+        response = requests.get(url, params=params, headers=headers)
+        response.raise_for_status()
+        yield response.json()
+
+        # Get next page
+        if "next" not in response.links:
+            break
+        url = response.links["next"]["url"]
+
+
+@dlt.source
+def github_source(
+    repo_name: str = dlt.config.value,
+    access_token: str = dlt.secrets.value,
+):
+    for endpoint in ["issues", "comments", "traffic/clones"]:
+        params = {"per_page": 100}
+        yield dlt.resource(
+            fetch_github_data(repo_name, endpoint, params, access_token),
+            name=endpoint,
+            write_disposition="merge",
+            primary_key="id",
+        )
+
+
+pipeline = dlt.pipeline(
+    pipeline_name="github_with_source_secrets",
+    destination="duckdb",
+    dataset_name="github_data",
+)
+load_info = pipeline.run(github_source())
+```
+
+Next, create a `config.toml` file in the project folder and add the `repo_name` parameter to it:
+
+```toml
+[github_with_source_secrets]
+repo_name = "dlt-hub/dlt"
+```
+
+That's it! Now you have a reusable source that can load data from any GitHub repo.
+
 ## What’s next
 
-Congratulations on completing the tutorial! You've come a long way since the Getting started guide. By now, you've mastered loading data from various GitHub API endpoints, organizing resources into sources, managing secrets securely, and deploying pipelines to GitHub Actions. You can use these skills to build your own pipelines and load data from any source.
+Congratulations on completing the tutorial! You've come a long way since the Getting started guide. By now, you've mastered loading data from various GitHub API endpoints, organizing resources into sources, managing secrets securely, and creatig reusable sources. You can use these skills to build your own pipelines and load data from any source.
 
 Interested in learning more? Here are some suggestions:
-1. Dive deeper into how dlts works by reading the [Using dlt](general-usage) section. Some highlights:
+1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy-a-pipeline/).
+2. Dive deeper into how dlts works by reading the [Using dlt](general-usage) section. Some highlights:
     - [Connect the transformers to the resources](general-usage/resource#feeding-data-from-one-resource-into-another) to load additional data or enrich it.
     - [Create your resources dynamically from data](general-usage/source#create-resources-dynamically).
     - [Transform your data before loading](general-usage/resource#customize-resources) and see some [examples of customizations like column renames and anonymization](general-usage/customising-pipelines/renaming_columns).
     - [Pass config and credentials into your sources and resources](general-usage/credentials).
     - [Run in production: inspecting, tracing, retry policies and cleaning up](running-in-production/running).
     - [Run resources in parallel, optimize buffers and local storage](reference/performance.md)
-2. Check out our [how-to guides](walkthroughs) to get answers to some common questions.
-3. Explore [Examples](examples) section to see how dlt can be used in real-world scenarios.
+3. Check out our [how-to guides](walkthroughs) to get answers to some common questions.
+4. Explore [Examples](examples) section to see how dlt can be used in real-world scenarios.
