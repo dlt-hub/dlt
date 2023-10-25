@@ -92,7 +92,7 @@ Conclusion from looking at the data: pandas successfully flattened dictionaries 
 To start off, using the `pandas` `explode` function might be a good way to flatten these lists:
 
 
-<div style={{ position: 'relative', paddingBottom: '60%' }}>
+<div style={{ position: 'relative', paddingBottom: '45%' }}>
   <iframe
     src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/ad8635a80e784717844308f44a41e703"
     style={{ position: 'absolute', width: '100%', height: '100%' }}
@@ -104,7 +104,7 @@ To start off, using the `pandas` `explode` function might be a good way to flatt
 And now, putting one of the nested variables into a pandas data frame:
 
 
-<div style={{ position: 'relative', paddingBottom: '120%' }}>
+<div style={{ position: 'relative', paddingBottom: '100%' }}>
   <iframe
     src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/84726ac7a1464f27b6374a8af85cfe65"
     style={{ position: 'absolute', width: '100%', height: '100%' }}
@@ -136,7 +136,7 @@ Imagine this: you initialize a data pipeline in one line of code, and pass compl
   ></iframe>
 </div>
 
-<div style={{ position: 'relative', paddingBottom: '30%' }}>
+<div style={{ position: 'relative', paddingBottom: '25%' }}>
   <iframe
     src="https://embed.deepnote.com/5fc0e511-cc64-4c44-a71c-a36c8c18ef62/48645544ae4740ce8e49fb6e0c1db925/0f80dc1a5917406abe87ce59b46cc2e7"
     style={{ position: 'absolute', width: '100%', height: '100%' }}
