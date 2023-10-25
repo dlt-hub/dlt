@@ -81,7 +81,7 @@ query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"..
 
 We have some ready-made credentials you can reuse:
 
-```
+```python
 from dlt.sources.credentials import ConnectionStringCredentials
 from dlt.sources.credentials import OAuth2Credentials
 from dlt.sources.credentials import GcpServiceAccountCredentials, GcpOAuthCredentials
@@ -97,8 +97,8 @@ It includes attributes for the driver name, database name, username, password, h
 and additional query parameters.
 This class provides methods for parsing and generating connection strings.
 
+Usage:
 ```python
-# Example for ConnectionStringCredentials
 credentials = ConnectionStringCredentials()
 
 # Set the necessary attributes
@@ -126,8 +126,8 @@ The OAuth2Credentials class handles OAuth 2.0 credentials, including client ID,
 client secret, refresh token, and access token.
 It also allows for the addition of scopes and provides methods for client authentication.
 
+Usage:
 ```python
-# Example for OAuth2Credentials
 credentials = OAuth2Credentials(
     client_id="CLIENT_ID",
     client_secret="CLIENT_SECRET",
@@ -150,8 +150,8 @@ The GcpServiceAccountCredentials class manages GCP Service Account credentials.
 It can parse native values either as ServiceAccountCredentials or as serialized `services.json`.
 This class provides methods to retrieve native credentials for Google clients.
 
+Usage:
 ```python
-# Example for GcpServiceAccountCredentials
 credentials = GcpServiceAccountCredentials()
 
 # Parse a native value (ServiceAccountCredentials)
@@ -178,8 +178,8 @@ It can parse native values either as GoogleOAuth2Credentials or as
 serialized OAuth client secrets JSON.
 This class provides methods for authentication and obtaining access tokens.
 
+Usage:
 ```python
-# Example for GcpOAuthCredentials
 oauth_credentials = GcpOAuthCredentials()
 
 # Accepts a native value, which can be either an instance of GoogleOAuth2Credentials
@@ -209,8 +209,8 @@ including access keys, session tokens, profile names, region names, and endpoint
 It inherits the ability to manage default credentials and extends it with methods
 for handling partial credentials and converting credentials to a botocore session.
 
+Usage:
 ```python
-# Example for AwsCredentials
 credentials = AwsCredentials()
 
 # Set the necessary attributes
@@ -223,8 +223,9 @@ s3fs_credentials = credentials.to_s3fs_credentials()
 print(s3fs_credentials["key"])
 
 # Imports an external boto3 session and sets the credentials properties accordingly.
-session_native_value = ...
-credentials.parse_native_representation(session_native_value)
+import botocore.session
+session = botocore.session.get_session()
+credentials.parse_native_representation(session)
 print(credentials.aws_access_key_id)
 
 # Get AWS credentials from botocore session
@@ -240,8 +241,8 @@ It inherits the ability to manage default credentials and extends it with method
 handling partial credentials and converting credentials to a format suitable
 for interacting with Azure Blob Storage using the adlfs library.
 
+Usage:
 ```python
-# Example for AzureCredentials
 credentials = AzureCredentials()
 
 # Set the necessary attributes
@@ -264,7 +265,6 @@ your user. The user just passes the right credentials and `dlt` will inject the 
 decorated function.
 
 Example:
-
 
 ```python
 @dlt.source
