@@ -10,15 +10,16 @@ authors:
 tags: [dbt runner, dbt cloud runner, dbt core runner]
 ---
 
-
-
 >The hardest part about writing a blog is getting started - writing the outline and filling out the first few key points. The same can be said for writing data pipelines: you need to inspect docs, determine data structures, write tests, etc.
 >
 >What if you could build a resilient, production-ready data pipeline that is scheduled and running in just a few minutes? We’ll show you how to do just that with dlt and Prefect.
 
 ## dlt
 
-dlt is an open-source library that you can add to your Python scripts to load data from various and often messy data sources into well-structured, live datasets. It abstracts away the need to hunt through docs, interpret APIs, and reinvent the wheel every time. Instead of writing a custom pipeline, you can use dlt to build a framework for your pipelines for any combination of tools.
+dlt is an open-source library that you can add to your Python scripts to load data from various and
+often messy data sources into well-structured, live datasets. It abstracts away the need to hunt
+through docs, interpret APIs, and reinvent the wheel every time. Instead of writing a custom pipeline,
+you can use dlt to build a framework for your pipelines for any combination of tools.
 
 ### Moving Slack data into BigQuery
 
