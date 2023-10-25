@@ -1,6 +1,6 @@
 ---
 title: Readers Source andFilesystem
-description: dlt verified source for Readers Source and Filesystem keywords:
+description: dlt verified source for Readers Source and Filesystem keywords
 keywords: [readers source and filesystem, filesystem, readers source]
 ---
 # Readers Source and Filesystem
