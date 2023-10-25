@@ -21,7 +21,7 @@ What’s in this article:
 
 1. [⌛The Problem; The bulk of time spent in a data science project is on the transformation of data itself.](#⌛The-Problem;-The-bulk-of-time-spent-in-a-data-science-project-is-on-the-transformation-of-data-itself.)
     1. [The usual flow of data for data science projects](#-The-usual-flow-of-data-for-data-science-projects)
-    2. [A peak into the datasets 👀](#A-peak-into-the-datasets-👀)
+    2. [A peek into the datasets 👀](#A-peek-into-the-datasets-👀)
 2. [⚰️The Classical Solution; using pandas to model complicated data for your analytics workflows isn’t the fastest way out.](#⚰️The-Classical-Solution;-using-pandas-to-model-complicated-data-for-your-analytics-workflows-isn’t-the-fastest-way-out.)
 3. [💫The Revised Solution; Revisualizing the flow of data with dlt & Deepnote](#💫The-Revised-Solution;-Revisualizing-the-flow-of-data-with-dlt-&-Deepnote)
     1. [Introducing dlt; the data cleaner I wish I had](#Introducing-dlt-the-data-cleaner-I-wish-I-had)
@@ -59,7 +59,7 @@ hunches turn out to be statistically significant!
 
 However, the journey to reach these stages is stretched much longer due to the time spent on data formats and pipelines. It would be such a load off my mind if they would get sorted themselves and we could skip to the good part. Sure, ipython notebooks with `pandas` and `numpy` help us in getting along, but what if there was something even simpler? Let’s explore different solutions.
 
-### A peak into the datasets 👀
+### A peek into the datasets 👀
 
 The two datasets that we are using are nested json files, with further lists of dictionaries, and are survey results with wellness indicators for women. Here’s what the first element of one dataset looks like:
 
