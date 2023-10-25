@@ -56,7 +56,6 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         self.credentials = credentials
 
     def generate_insert_query(self, sql: str) -> tuple:
-        #logging.info(f'We are in SQL generation: {sql}')
         # Extracting table name and column names
         table_name = sql.split(" INTO ")[1].split("(")[0].strip()
         column_names_str = sql.split("(")[1].split(")")[0].strip()
@@ -90,8 +89,6 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         # Extracting parameter values
         param_values = [item for row in formatted_rows for item in row]
 
-        #logging.info(f'Generated SQL: {new_sql}')
-        #logging.info(f'Param values: {param_values}')
 
         return new_sql, param_values
 
@@ -130,56 +127,25 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             # Log detailed error information here
             logger.error(f"Failed to close connection due to pyodbc.Error: {str(e)}")
 
-
     @contextmanager
     def begin_transaction(self) -> Iterator[DBTransaction]:
         try:
-            if self._transaction_in_progress:
-                logger.info("Transaction already in progress, ignoring nested transaction request.")
-                yield
-            else:
-                logger.info("Beginning a database transaction...")
-                self._conn.autocommit = False
-                self._transaction_in_progress = True
-
-                yield self
-
-                self.commit_transaction()
-                #logger.info("Database transaction successfully committed.")
-        except Exception as e:
-            logger.error(f"Error during database transaction: {str(e)}")
+            self._conn.autocommit = False
+            yield self
+            self.commit_transaction()
+        except Exception:
             self.rollback_transaction()
-            logger.error("Database transaction rolled back due to an error.")
             raise
-        finally:
-            if self._transaction_in_progress:
-                self._transaction_in_progress = False
 
     @raise_database_error
     def commit_transaction(self) -> None:
-        try:
-            #logger.info("Committing the database transaction...")
-            self._conn.commit()
-            self._conn.autocommit = True
-            self._transaction_in_progress = False
-            #logger.info("Database transaction successfully committed.")
-
-        except Exception:
-            logger.error("Failed to commit the database transaction.")
-            raise
+        self._conn.commit()
+        self._conn.autocommit = True
 
     @raise_database_error
     def rollback_transaction(self) -> None:
-        try:
-            logger.warning("Rolling back the database transaction...")
-            self._conn.rollback()
-            self._conn.autocommit = True
-            self._transaction_in_progress = False
-
-            logger.warning("Database transaction successfully rolled back.")
-        except Exception:
-            logger.error("Failed to roll back the database transaction.")
-            raise
+        self._conn.rollback()
+        self._conn.autocommit = True
 
     @property
     def native_connection(self) -> pyodbc.Connection:
@@ -244,39 +210,48 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         logger.debug(f"Input sizes: {input_sizes}")
         return input_sizes, tuple(args)
 
+
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
-        #logging.info(f"Executing SQL: {sql} with arguments: {args} and keyword arguments: {kwargs}")
-        # Convert any JSON arguments to strings
-        args = tuple(json.dumps(arg) if isinstance(arg, dict) else arg for arg in args)
-
-        param_values = args  # This line remains unchanged as you're capturing all additional arguments into param_values
-        original_sql = sql
-
-        # Check if it's a multi-row insert
-        is_multi_row_insert = (
-            original_sql.strip().upper().startswith("INSERT INTO")
-            and "VALUES" in original_sql.upper()
-            and original_sql.count("(") > 2  # At least one pair of parentheses for column names and two for the values
-        )
-
-        if is_multi_row_insert:
-            sql, param_values = self.generate_insert_query(original_sql)
-
-        # logger.info(f"Executing SQL: {sql}, Parameters: {args}")
-        # Execute the query
-        with self.execute_query(sql, param_values) as curr:
-            # Check the type of SQL statement
-            if original_sql.strip().upper().startswith(("SELECT", "SHOW")):
-                # Handle SELECT queries
-                if curr.description is None:
-                    logging.info(f"Query did not return a description")
-                else:
-                    return curr.fetchall()
-            elif original_sql.strip().upper().startswith(("INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "TRUNCATE", "ALTER")):
-                # No logging needed for success in these cases
-                pass
+        with self.execute_query(sql, *args, **kwargs) as curr:
+            if curr.description is None:
+                return None
             else:
-                logging.warning(f"Unhandled SQL")
+                f = curr.fetchall()
+                return f
+
+    # TODO shift logic into subclass in Synapse.py
+    # def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+    #     # Convert any JSON arguments to strings
+    #     args = tuple(json.dumps(arg) if isinstance(arg, dict) else arg for arg in args)
+    #
+    #     param_values = args  # This line remains unchanged as you're capturing all additional arguments into param_values
+    #     original_sql = sql
+    #
+    #     # Check if it's a multi-row insert
+    #     is_multi_row_insert = (
+    #         original_sql.strip().upper().startswith("INSERT INTO")
+    #         and "VALUES" in original_sql.upper()
+    #         and original_sql.count("(") > 2  # At least one pair of parentheses for column names and two for the values
+    #     )
+    #
+    #     if is_multi_row_insert:
+    #         sql, param_values = self.generate_insert_query(original_sql)
+    #
+    #     # logger.info(f"Executing SQL: {sql}, Parameters: {args}")
+    #     # Execute the query
+    #     with self.execute_query(sql, param_values) as curr:
+    #         # Check the type of SQL statement
+    #         if original_sql.strip().upper().startswith(("SELECT", "SHOW")):
+    #             # Handle SELECT queries
+    #             if curr.description is None:
+    #                 logging.warning(f"Query did not return a description")
+    #             else:
+    #                 return curr.fetchall()
+    #         elif original_sql.strip().upper().startswith(("INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "TRUNCATE", "ALTER")):
+    #             # No logging needed for success in these cases
+    #             pass
+    #         else:
+    #             logging.warning(f"Unhandled SQL")
 
     @contextmanager
     @raise_database_error
@@ -303,7 +278,7 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
 
         try:
             query = query.replace('%s', '?')  # Updated line
-            #logger.debug(f"Executing SQL w/ format: {query}")
+            logger.debug(f"Executing SQL w/ format: {query}")
             curr.execute(query, *args)  # No flattening, just unpack args directly
             #logger.info(f"Query executed successfully")
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
