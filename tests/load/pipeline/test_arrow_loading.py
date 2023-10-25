@@ -41,7 +41,8 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
     if include_time:
         assert some_table_columns["time"]["data_type"] == "time"
 
-    rows = [list(row) for row in select_data(pipeline, "SELECT * FROM some_data ORDER BY 1")]
+    qual_name = pipeline.sql_client().make_qualified_table_name("some_data")
+    rows = [list(row) for row in select_data(pipeline, f"SELECT * FROM {qual_name} ORDER BY 1")]
 
     for row in rows:
         for i in range(len(row)):

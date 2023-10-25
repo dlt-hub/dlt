@@ -161,9 +161,29 @@ class ParquetItemsNormalizer(ItemsNormalizer):
                     )
         return [schema_update], items_count
 
+    def _fix_schema_precisions(self, root_table_name: str) -> List[TSchemaUpdate]:
+        """Reduce precision of timestamp columns if needed, according to destination caps"""
+        schema = self.schema
+        table = schema.tables[root_table_name]
+        max_precision = self.config.destination_capabilities.timestamp_precision
+
+        new_cols: TTableSchemaColumns = {}
+        for key, column in table["columns"].items():
+            if column["data_type"] in ("timestamp", "time"):
+                if (prec := column.get("precision")) and prec > max_precision:
+                    new_cols[key] = dict(column, precision=max_precision)  # type: ignore[assignment]
+
+        if not new_cols:
+            return []
+        return [{root_table_name:  [schema.update_table({
+            "name": root_table_name,
+            "columns": new_cols
+        })]}]
+
     def __call__(
-            self, extracted_items_file: str, root_table_name: str
+        self, extracted_items_file: str, root_table_name: str
     ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
+        base_schema_update = self._fix_schema_precisions(root_table_name)
         import pyarrow as pa
 
         add_dlt_id = self.config.parquet_normalizer_config.add_dlt_id
@@ -176,7 +196,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
                 add_dlt_load_id,
                 add_dlt_id
             )
-            return schema_update, items_count, {root_table_name: items_count}
+            return base_schema_update + schema_update, items_count, {root_table_name: items_count}
 
         from dlt.common.libs.pyarrow import get_row_count
         with self.normalize_storage.storage.open_file(extracted_items_file, "rb") as f:
@@ -188,4 +208,4 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             self.normalize_storage.storage.make_full_path(extracted_items_file),
             os.path.join(target_folder, new_file_name)
         )
-        return [], items_count, {root_table_name: items_count}
+        return base_schema_update, items_count, {root_table_name: items_count}
