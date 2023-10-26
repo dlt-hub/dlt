@@ -69,8 +69,7 @@ def incremental_snippet() -> None:
         retry=retry_if_exception(retry_load(("extract", "load"))),
         reraise=True,
     )
-    def load_data_with_retry():
-        data = chess(chess_url="https://api.chess.com/pub/", max_players=max_players)
+    def load_data_with_retry(data):
         return pipeline.run(data)
 
     # @@@DLT_SNIPPET_END markdown_retry
@@ -83,11 +82,12 @@ def incremental_snippet() -> None:
             pipeline_name="chess_pipeline",
             destination="duckdb",
             dataset_name="chess_data",
+            full_refresh=True,
         )
         max_players = 5
-        load_info = pipeline.run(
-            chess(chess_url="https://api.chess.com/pub/", max_players=max_players)
-        )
+        # get data for a few famous players
+        data = chess(chess_url="https://api.chess.com/pub/", max_players=max_players)
+        load_info = pipeline.run(data)
         print(load_info)
     # @@@DLT_SNIPPET_END markdown_pipeline
 
@@ -143,8 +143,6 @@ def incremental_snippet() -> None:
         from dlt.common.runtime.slack import send_slack_message
         from dlt.pipeline.helpers import retry_load
 
-        # get data for a few famous players
-        data = chess(chess_url="https://api.chess.com/pub/", max_players=max_players)
         try:
             for attempt in Retrying(
                 stop=stop_after_attempt(5),
@@ -160,17 +158,17 @@ def incremental_snippet() -> None:
     # @@@DLT_SNIPPET_END markdown_retry_cm
 
     # @@@DLT_SNIPPET_START markdown_retry_run
-        load_info_retry = load_data_with_retry()
+        load_info_retry = load_data_with_retry(data)
     # @@@DLT_SNIPPET_END markdown_retry_run
 
     # @@@DLT_SNIPPET_START markdown_sql_client
         with pipeline.sql_client() as client:
             with client.execute_query("SELECT COUNT(*) FROM players") as cursor:
-                count = cursor.fetchone()[0]
-                if count == 0:
+                count_client = cursor.fetchone()[0]
+                if count_client == 0:
                     print("Warning: No data in players table")
                 else:
-                    print(f"Players table contains {count} rows")
+                    print(f"Players table contains {count_client} rows")
     # @@@DLT_SNIPPET_END markdown_sql_client
 
     # @@@DLT_SNIPPET_START markdown_norm_info
@@ -182,7 +180,6 @@ def incremental_snippet() -> None:
             print(f"Players table contains {count} rows")
     # @@@DLT_SNIPPET_END markdown_norm_info
 
-
     # check that stuff was loaded
     row_counts = pipeline.last_trace.last_normalize_info.row_counts
     assert row_counts["players"] == max_players
@@ -192,3 +189,11 @@ def incremental_snippet() -> None:
 
     jobs_num = len(load_info.load_packages[0].jobs["completed_jobs"])
     assert jobs_num == 4
+
+    packages_num = len(load_info_retry.load_packages)
+    assert packages_num == 1
+
+    jobs_num = len(load_info_retry.load_packages[0].jobs["completed_jobs"])
+    assert jobs_num == 3
+
+    assert count_client == max_players

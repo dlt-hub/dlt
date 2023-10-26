@@ -7,7 +7,7 @@ keywords: [incremental loading, example]
 import Header from '../_examples-header.md';
 
 <Header
-    intro="In this tutorial, you will learn how to investigate and track your loads."
+    intro="In this tutorial, you will learn how to investigate, track, retry and test your loads."
     slug="chess_production"
     run_file="chess" />
 
@@ -17,12 +17,11 @@ In this example, you'll find a Python script that interacts with the Chess API t
 
 We'll learn how to:
 
-- Examining packages after they have been loaded.
-- Reloading load information, schema updates, and traces.
+- Inspecting packages after they have been loaded.
+- Loading back load information, schema updates, and traces.
 - Triggering notifications in case of schema evolution.
 - Using context managers to independently retry pipeline stages.
 - Run basic tests utilizing sql_client and normalize_info.
-
 
 ## Init pipeline
 
@@ -90,11 +89,12 @@ if __name__ == "__main__":
         pipeline_name="chess_pipeline",
         destination="duckdb",
         dataset_name="chess_data",
+        full_refresh=True,
     )
     max_players = 5
-    load_info = pipeline.run(
-        chess(chess_url="https://api.chess.com/pub/", max_players=max_players)
-    )
+    # get data for a few famous players
+    data = chess(chess_url="https://api.chess.com/pub/", max_players=max_players)
+    load_info = pipeline.run(data)
     print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_pipeline-->
@@ -158,6 +158,20 @@ if schema_updates:
 ```
 <!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_notify-->
 
+You can configure Slack incoming hook via
+`secrets.toml` or environment variables.
+
+In `secrets.toml`:
+```toml
+[runtime]
+slack_incoming_hook="https://hooks.slack.com/services/T04DHMAF13Q/B04E7B1MQ1H/TDHEI123WUEE"
+```
+ENV:
+
+```python
+RUNTIME__SLACK_INCOMING_HOOK="https://hooks.slack.com/services/T04DHMAF13Q/B04E7B1MQ1H/TDHEI123WUEE"
+```
+
 ## Using context managers to retry pipeline stages separately
 
 To use context managers to retry pipeline stages separately for the pipeline:
@@ -174,8 +188,6 @@ from tenacity import (
 from dlt.common.runtime.slack import send_slack_message
 from dlt.pipeline.helpers import retry_load
 
-# get data for a few famous players
-data = chess(chess_url="https://api.chess.com/pub/", max_players=max_players)
 try:
     for attempt in Retrying(
         stop=stop_after_attempt(5),
@@ -205,15 +217,14 @@ from dlt.pipeline.helpers import retry_load
     retry=retry_if_exception(retry_load(("extract", "load"))),
     reraise=True,
 )
-def load_data_with_retry():
-    data = chess(chess_url="https://api.chess.com/pub/", max_players=max_players)
+def load_data_with_retry(data):
     return pipeline.run(data)
 ```
 <!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_retry-->
 
 <!--@@@DLT_SNIPPET_START ./code/chess-snippets.py::markdown_retry_run-->
 ```py
-load_info = load_data_with_retry()
+load_info_retry = load_data_with_retry(data)
 ```
 <!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_retry_run-->
 
@@ -225,11 +236,11 @@ warning if there is no data, you can use the `execute_query` method:
 ```py
 with pipeline.sql_client() as client:
     with client.execute_query("SELECT COUNT(*) FROM players") as cursor:
-        count = cursor.fetchone()[0]
-        if count == 0:
+        count_client = cursor.fetchone()[0]
+        if count_client == 0:
             print("Warning: No data in players table")
         else:
-            print(f"Players table contains {count} rows")
+            print(f"Players table contains {count_client} rows")
 ```
 <!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_sql_client-->
 
