@@ -327,12 +327,12 @@ Congratulations on completing the tutorial! You've come a long way since the Get
 
 Interested in learning more? Here are some suggestions:
 1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy-a-pipeline/).
-2. Dive deeper into how dlts works by reading the [Using dlt](general-usage) section. Some highlights:
-    - [Connect the transformers to the resources](general-usage/resource#feeding-data-from-one-resource-into-another) to load additional data or enrich it.
-    - [Create your resources dynamically from data](general-usage/source#create-resources-dynamically).
-    - [Transform your data before loading](general-usage/resource#customize-resources) and see some [examples of customizations like column renames and anonymization](general-usage/customising-pipelines/renaming_columns).
-    - [Pass config and credentials into your sources and resources](general-usage/credentials).
-    - [Run in production: inspecting, tracing, retry policies and cleaning up](running-in-production/running).
-    - [Run resources in parallel, optimize buffers and local storage](reference/performance.md)
-3. Check out our [how-to guides](walkthroughs) to get answers to some common questions.
-4. Explore [Examples](examples) section to see how dlt can be used in real-world scenarios.
+2. Dive deeper into how dlts works by reading the [Using dlt](../general-usage) section. Some highlights:
+    - [Connect the transformers to the resources](../general-usage/resource#feeding-data-from-one-resource-into-another) to load additional data or enrich it.
+    - [Create your resources dynamically from data](../general-usage/source#create-resources-dynamically).
+    - [Transform your data before loading](../general-usage/resource#customize-resources) and see some [examples of customizations like column renames and anonymization](../general-usage/customising-pipelines/renaming_columns).
+    - [Pass config and credentials into your sources and resources](../general-usage/credentials).
+    - [Run in production: inspecting, tracing, retry policies and cleaning up](../running-in-production/running).
+    - [Run resources in parallel, optimize buffers and local storage](../reference/performance.md)
+3. Check out our [how-to guides](../walkthroughs) to get answers to some common questions.
+4. Explore [Examples](../examples) section to see how dlt can be used in real-world scenarios.

@@ -182,10 +182,10 @@ dlt pipeline -v github_issues_incremental info
 
 Learn more:
 
-- Declare your [resources](general-usage/resource) and group them in [sources](general-usage/source) using Python decorators.
-- [Set up "last value" incremental loading.](general-usage/incremental-loading#incremental_loading-with-last-value)
-- [Inspect pipeline after loading.](walkthroughs/run-a-pipeline#4-inspect-a-load-process)
-- [`dlt` command line interface.](reference/command-line-interface)
+- Declare your [resources](../general-usage/resource) and group them in [sources](../general-usage/source) using Python decorators.
+- [Set up "last value" incremental loading.](../general-usage/incremental-loading#incremental_loading-with-last-value)
+- [Inspect pipeline after loading.](../walkthroughs/run-a-pipeline#4-inspect-a-load-process)
+- [`dlt` command line interface.](../reference/command-line-interface)
 
 ### Update and deduplicate your data
 
@@ -255,10 +255,10 @@ Continue your journey with the [Resource groupping and secrets](grouping-resourc
 
 If you want to take full advantage of the `dlt` library, then we strongly suggest that you build your sources out of existing **building blocks:**
 
-- Pick your [destinations](dlt-ecosystem/destinations/).
-- Check [verified sources](dlt-ecosystem/verified-sources/) provided by us and community.
-- Access your data with [SQL](dlt-ecosystem/transformations/sql) or [Pandas](dlt-ecosystem/transformations/sql).
-- [Append, replace and merge your tables](general-usage/incremental-loading).
-- [Set up "last value" incremental loading](general-usage/incremental-loading#incremental_loading-with-last-value).
-- [Set primary and merge keys, define the columns nullability and data types](general-usage/resource#define-schema).
-- [Use built-in requests client](reference/performance#using-the-built-in-requests-client).
+- Pick your [destinations](../dlt-ecosystem/destinations/).
+- Check [verified sources](../dlt-ecosystem/verified-sources/) provided by us and community.
+- Access your data with [SQL](../dlt-ecosystem/transformations/sql) or [Pandas](../dlt-ecosystem/transformations/sql).
+- [Append, replace and merge your tables](../general-usage/incremental-loading).
+- [Set up "last value" incremental loading](../general-usage/incremental-loading#incremental_loading-with-last-value).
+- [Set primary and merge keys, define the columns nullability and data types](../general-usage/resource#define-schema).
+- [Use built-in requests client](../reference/performance#using-the-built-in-requests-client).
