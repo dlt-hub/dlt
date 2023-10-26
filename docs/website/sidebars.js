@@ -175,10 +175,10 @@ const sidebars = {
         'dlt-ecosystem/visualizations/exploring-the-data',
         {
           type: 'category',
-          label: 'Transformations',
+          label: 'Transform the data'
           link: {
             type: 'generated-index',
-            title: 'Transformations',
+            title: 'Transform the data',
             description: 'If you want to transform the data after loading, you can use one of the following methods: dbt, SQL, Pandas.',
             slug: 'dlt-ecosystem/transformations',
             keywords: ['transformations'],

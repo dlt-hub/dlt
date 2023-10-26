@@ -130,7 +130,7 @@ print(load_info)
   <TabItem value="database">
 
 :::tip
-Use our verified [sql database source](dlt-ecosystem/verified-sources/sql_database)
+Use our verified [SQL database source](dlt-ecosystem/verified-sources/sql_database)
 to sync your databases with warehouses, data lakes, or vector stores.
 :::
 
