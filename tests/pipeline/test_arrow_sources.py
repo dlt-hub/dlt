@@ -2,9 +2,11 @@ import os
 import pytest
 
 import pandas as pd
+import numpy as np
 import os
 import io
 import pyarrow as pa
+from typing import List
 
 import dlt
 from dlt.common.utils import uniq_id
@@ -68,7 +70,7 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
         df_tbl = tbl_expected.to_pandas(ignore_metadata=True)
         # Data is identical to the original dataframe
         df_result = tbl.to_pandas(ignore_metadata=True)
-        assert (df_result == df_tbl).all().all()
+        assert df_result.equals(df_tbl)
 
     schema = pipeline.default_schema
 
@@ -182,10 +184,11 @@ def test_extract_normalize_file_rotation(item_type: TArrowFormat) -> None:
 @pytest.mark.parametrize("item_type", ["table", "pandas", "record_batch"])
 def test_normalize_with_dlt_columns(item_type: TArrowFormat):
     item, records = arrow_table_all_data_types(item_type, num_rows=5432)
-    os.environ['NORMALIZE__PARQUET_NORMALIZER_CONFIG__ADD_DLT_LOAD_ID'] = "True"
-    os.environ['NORMALIZE__PARQUET_NORMALIZER_CONFIG__ADD_DLT_ID'] = "True"
+    os.environ['NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID'] = "True"
+    os.environ['NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID'] = "True"
     # Test with buffer smaller than the number of batches to be written
-    os.environ['DATA_WRITER__BUFFER_MAX_ITEMS'] = "4"
+    os.environ['DATA_WRITER__BUFFER_MAX_ITEMS'] = "100"
+    os.environ['DATA_WRITER__ROW_GROUP_SIZE'] = "100"
 
     @dlt.resource
     def some_data():

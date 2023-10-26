@@ -118,7 +118,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
 
 class ParquetItemsNormalizer(ItemsNormalizer):
-    RECORD_BATCH_SIZE = 100000
+    REWRITE_ROW_GROUPS = 1
 
     def _write_with_dlt_columns(
         self, extracted_items_file: str, root_table_name: str, add_load_id: bool, add_dlt_id: bool
@@ -144,13 +144,13 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             table_updates.append(table_update)
             new_columns.append((
                 pa.field("_dlt_id", pyarrow.pyarrow.string(), nullable=False),
-                lambda batch: generate_dlt_ids(batch.num_rows)
+                lambda batch: pa.array(generate_dlt_ids(batch.num_rows))
             ))
 
         items_count = 0
         as_py = self.load_storage.loader_file_format != "arrow"
         with self.normalize_storage.storage.open_file(extracted_items_file, "rb") as f:
-            for batch in pyarrow.pq_stream_with_new_columns(f, new_columns, batch_size=self.RECORD_BATCH_SIZE):
+            for batch in pyarrow.pq_stream_with_new_columns(f, new_columns, row_groups_per_read=self.REWRITE_ROW_GROUPS):
                 items_count += batch.num_rows
                 if as_py:
                     # Write python rows to jsonl, insert-values, etc... storage

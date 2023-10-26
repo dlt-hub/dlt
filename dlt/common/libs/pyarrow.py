@@ -175,27 +175,30 @@ def is_arrow_item(item: Any) -> bool:
     return isinstance(item, (pyarrow.Table, pyarrow.RecordBatch))
 
 
-TNewColumns = Sequence[Tuple[pyarrow.Field, Callable[[pyarrow.RecordBatch], Iterable[Any]]]]
+TNewColumns = Sequence[Tuple[pyarrow.Field, Callable[[pyarrow.Table], Iterable[Any]]]]
+
 
 def pq_stream_with_new_columns(
-    parquet_file: TFileOrPath, columns: TNewColumns, batch_size: int = 100
-) -> Iterator[pyarrow.RecordBatch]:
-    """Add a column to the parquet file.
+    parquet_file: TFileOrPath, columns: TNewColumns, row_groups_per_read: int = 1
+) -> Iterator[pyarrow.Table]:
+    """Add column(s) to the table in batches.
+
+    The table is read from parquet `row_groups_per_read` row groups at a time
 
     Args:
         parquet_file: path or file object to parquet file
         columns: list of columns to add in the form of (`pyarrow.Field`, column_value_callback)
-            The callback should accept a `pyarrow.RecordBatch` and return an iterable of values for the column.
-        batch_size: batch size to use when reading the parquet file. Defaults to 100.
+            The callback should accept a `pyarrow.Table` and return an array of values for the column.
+        row_groups_per_read: number of row groups to read at a time. Defaults to 1.
 
     Yields:
-        `pyarrow.RecordBatch` objects with the new columns added.
+        `pyarrow.Table` objects with the new columns added.
     """
     with pyarrow.parquet.ParquetFile(parquet_file) as reader:
-        schema: pyarrow.Schema
-        schema = reader.schema_arrow
-        for col in columns:
-            schema = schema.append(col[0])
-        # append the column to the schema
-        for batch in reader.iter_batches(batch_size=batch_size):
-            yield pyarrow.record_batch(batch.columns + [col[1](batch) for col in columns], schema=schema)
+        n_groups = reader.num_row_groups
+        # Iterate through n row groups at a time
+        for i in range(0, n_groups, row_groups_per_read):
+            tbl: pyarrow.Table = reader.read_row_groups(range(i, min(i + row_groups_per_read, n_groups)))
+            for col in columns:
+                tbl = tbl.append_column(col[0], col[1](tbl))
+            yield tbl
