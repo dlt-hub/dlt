@@ -26,9 +26,9 @@ class NormalizeConfiguration(PoolRunnerConfiguration):
     _normalize_storage_config: NormalizeStorageConfiguration
     _load_storage_config: LoadStorageConfiguration
 
-    json_normalizer_config: ItemsNormalizerConfiguration = ItemsNormalizerConfiguration(add_dlt_id=True, add_dlt_load_id=True)
+    json_normalizer: ItemsNormalizerConfiguration = ItemsNormalizerConfiguration(add_dlt_id=True, add_dlt_load_id=True)
 
-    parquet_normalizer_config: ItemsNormalizerConfiguration = ItemsNormalizerConfiguration(add_dlt_id=False, add_dlt_load_id=False)
+    parquet_normalizer: ItemsNormalizerConfiguration = ItemsNormalizerConfiguration(add_dlt_id=False, add_dlt_load_id=False)
 
     def on_resolved(self) -> None:
         self.pool_type = "none" if self.workers == 1 else "process"

@@ -99,9 +99,6 @@ class Normalize(Runnable[ProcessPool]):
             storage = load_storages[file_format] = LoadStorage(False, file_format, supported_formats, loader_storage_config)
             return storage
 
-
-
-
         # process all files with data items and write to buffered item storage
         with Container().injectable_context(destination_caps):
             schema = Schema.from_stored_schema(stored_schema)
@@ -126,7 +123,9 @@ class Normalize(Runnable[ProcessPool]):
                 for extracted_items_file in extracted_items_files:
                     line_no: int = 0
                     parsed_file_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file)
-                    root_table_name = parsed_file_name.table_name
+                    # normalize table name in case the normalization changed
+                    # NOTE: this is the best we can do, until a full lineage information is in the schema
+                    root_table_name = schema.naming.normalize_table_identifier(parsed_file_name.table_name)
                     root_tables.add(root_table_name)
                     logger.debug(f"Processing extracted items in {extracted_items_file} in load_id {load_id} with table name {root_table_name} and schema {schema.name}")
 

@@ -118,7 +118,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
 
 class ParquetItemsNormalizer(ItemsNormalizer):
-    RECORD_BATCH_SIZE = 1000
+    RECORD_BATCH_SIZE = 100000
 
     def _write_with_dlt_columns(
         self, extracted_items_file: str, root_table_name: str, add_load_id: bool, add_dlt_id: bool
@@ -127,6 +127,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         schema = self.schema
         load_id = self.load_id
         schema_update: TSchemaUpdate = {}
+
         if add_load_id:
             table_update = schema.update_table({"name": root_table_name, "columns": {"_dlt_load_id": {"name": "_dlt_load_id", "data_type": "text", "nullable": False}}})
             table_updates = schema_update.setdefault(root_table_name, [])
@@ -145,6 +146,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
                 pa.field("_dlt_id", pyarrow.pyarrow.string(), nullable=False),
                 lambda batch: generate_dlt_ids(batch.num_rows)
             ))
+
         items_count = 0
         as_py = self.load_storage.loader_file_format != "arrow"
         with self.normalize_storage.storage.open_file(extracted_items_file, "rb") as f:
@@ -186,8 +188,8 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         base_schema_update = self._fix_schema_precisions(root_table_name)
         import pyarrow as pa
 
-        add_dlt_id = self.config.parquet_normalizer_config.add_dlt_id
-        add_dlt_load_id = self.config.parquet_normalizer_config.add_dlt_load_id
+        add_dlt_id = self.config.parquet_normalizer.add_dlt_id
+        add_dlt_load_id = self.config.parquet_normalizer.add_dlt_load_id
 
         if add_dlt_id or add_dlt_load_id or self.load_storage.loader_file_format != "arrow":
             schema_update, items_count = self._write_with_dlt_columns(
