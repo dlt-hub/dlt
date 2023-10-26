@@ -48,8 +48,7 @@ data_source = google_sheets(
     credentials={"private_key": ""}
 )
 ```
-### Right approach:
-OPTION A
+### Right approach
 ```python
 # provide config values directly and secrets via automatic injection mechanism (see later)
 # `credentials` value will be injected by the `source` decorator
@@ -57,13 +56,13 @@ OPTION A
 # `only_strings` will be injected by the source decorator or will get the default value False
 data_source = google_sheets("23029402349032049", ["tab1", "tab2"])
 ```
-OPTION B
+or
 ```python
 # pass everything via configuration
 data_source = google_sheets()
 ```
 
-In the `google_sheets` source we can see that some arguments have default values as  `dlt.secrets.value` and `dlt.config.value`.
+In the `google_sheets()` source we can see that some arguments have default values as  `dlt.secrets.value` and `dlt.config.value`.
 
 `dlt.secrets.value` and `dlt.config.value` are instances of classes that provide
 dictionary-like access to configuration values and secrets, respectively.
@@ -74,7 +73,7 @@ values and secrets used by the application.
 like passwords, API keys, and other confidential data.
 
 We use these values to set secrets and configurations via:
-- [toml file](config_providers#toml-provider):
+- [toml files](config_providers#toml-provider) (secrets.toml & config.toml):
   ```toml
   # google sheet credentials
   [sources.google_sheets.credentials]
@@ -83,17 +82,16 @@ We use these values to set secrets and configurations via:
   project_id = <project_id from services json>
   ```
   Read more about [toml layouts](#secret-and-config-values-layout-and-name-lookup).
-- [environment variables](config_providers#environment-provider):
+- [Environment Variables](config_providers#environment-provider):
   ```python
   SOURCES__GOOGLE_SHEETS__CREDENTIALS__CLIENT_EMAIL
   SOURCES__GOOGLE_SHEETS__CREDENTIALS__PRIVATE_KEY
   SOURCES__GOOGLE_SHEETS__CREDENTIALS__PROJECT_ID
   ```
-- [hooks](#pass-credentials-as-code)
 
 :::caution
-**Toml provider always loads those files from `.dlt` folder** which is looked relative to the
-**current Working Directory**. Read more [here.](config_providers.md#toml-provider)
+**[Toml provider](config_providers#toml-provider) always loads those files from `.dlt` folder** which is looked relative to the
+**current Working Directory**.
 :::
 
 
@@ -123,12 +121,12 @@ def google_sheets(
 Now:
 
 1. You are sure that you get a list of strings as `tab_names`.
-1. You will get actual Google credentials (see `CredentialsConfiguration` later) and your users can
+1. You will get actual Google credentials (see [Credentials Configuration](config_specs)), and your users can
    pass them in many different forms.
 
 In case of `GcpServiceAccountCredentials`:
 
-- You may just pass the `service_json` as string or dictionary (in code and via config providers).
+- You may just pass the `service.json` as string or dictionary (in code and via config providers).
 - You may pass a connection string (used in SQL Alchemy) (in code and via config providers).
 - Or default credentials will be used.
 
