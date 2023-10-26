@@ -49,7 +49,7 @@ of the arguments have the **lowest** priority in the provider hierarchy.
 
 > **Summary of the hierarchy:**
 >
-> explicit args > env variables > ...vaults, airflow etc. > secrets.toml > config.toml > default arg values
+> Explicit Args **>** ENV Variables **>** ...Vaults, Airflow etc. **>** `secrets.toml` **>** `config.toml` **>** Default Arg Values
 
 Secrets are handled only by the providers supporting them. Some providers support only
 secrets (to reduce the number of requests done by `dlt` when searching sections).
@@ -59,7 +59,7 @@ secrets (to reduce the number of requests done by `dlt` when searching sections)
 1. Various vaults providers hold only secrets, `dlt` skips them when looking for values that are not
    secrets.
 
-⛔ Context-aware providers will activate in right environments i.e. on Airflow or AWS/GCP VMachines.
+> Context-aware providers will activate in right environments i.e. on Airflow or AWS/GCP VMachines.
 
 ## Provider key formats
 
@@ -70,7 +70,7 @@ sections and key names are separated by "." into the provider-specific formats.
 
 1. For `toml`, names are case-sensitive and sections are separated with ".".
 1. For Environment Variables, all names are capitalized and sections are separated with double
-   underscore "\_\_".
+   underscore "__".
 
 Example: When `dlt` evaluates the request `dlt.secrets["my_section.gcp_credentials"]` it must find
 the `private_key` for Google credentials. It will look

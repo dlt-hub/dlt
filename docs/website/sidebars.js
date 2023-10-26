@@ -114,7 +114,6 @@ const sidebars = {
           },
           items: [
             'general-usage/credentials/configuration',
-            'general-usage/credentials/add_credentials',
             'general-usage/credentials/config_providers',
             'general-usage/credentials/config_specs',
           ]
@@ -155,6 +154,7 @@ const sidebars = {
         'walkthroughs/adjust-a-schema',
         'walkthroughs/share-a-dataset',
         'dlt-ecosystem/visualizations/exploring-the-data',
+        'walkthroughs/add_credentials',
         {
           type: 'category',
           label: 'Transformations',

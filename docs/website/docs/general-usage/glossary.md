@@ -6,7 +6,7 @@ keywords: [glossary, resource, source, pipeline]
 
 # Glossary
 
-## [Source](source.md)
+## [Source](source)
 
 Location that holds data with certain structure. Organized into one or more resources.
 
@@ -17,7 +17,7 @@ Location that holds data with certain structure. Organized into one or more reso
 Within this documentation, **source** refers also to the software component (i.e. Python function)
 that **extracts** data from the source location using one or more resource components.
 
-## [Resource](resource.md)
+## [Resource](resource)
 
 A logical grouping of data within a data source, typically holding data of similar structure and
 origin.
@@ -33,12 +33,12 @@ that **extracts** the data from source location.
 
 The data store where data from the source is loaded (e.g. Google BigQuery).
 
-## [Pipeline](pipeline.md)
+## [Pipeline](pipeline)
 
 Moves the data from the source to the destination, according to instructions provided in the schema
 (i.e. extracting, normalizing, and loading the data).
 
-## [Verified Source](../walkthroughs/add-a-verified-source.md)
+## [Verified Source](../walkthroughs/add-a-verified-source)
 
 A Python module distributed with `dlt init` that allows creating pipelines that extract data from a
 particular **Source**. Such module is intended to be published in order for others to use it to
@@ -47,17 +47,17 @@ build pipelines.
 A source must be published to become "verified": which means that it has tests, test data,
 demonstration scripts, documentation and the dataset produces was reviewed by a data engineer.
 
-## [Schema](schema.md)
+## [Schema](schema)
 
 Describes the structure of normalized data (e.g. unpacked tables, column types, etc.) and provides
 instructions on how the data should be processed and loaded (i.e. it tells `dlt` about the content
 of the data and how to load it into the destination).
 
-## [Config](credentials/configuration.md)
+## [Config](credentials/configuration)
 
 A set of values that are passed to the pipeline at run time (e.g. to change its behavior locally vs.
 in production).
 
-## [Credentials](credentials/add_credentials.md)
+## [Credentials](credentials/config_specs)
 
 A subset of configuration whose elements are kept secret and never shared in plain text.
