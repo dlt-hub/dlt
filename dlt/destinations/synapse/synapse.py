@@ -20,6 +20,9 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.schema.typing import COLUMN_HINTS
 from dlt.destinations.type_mapping import TypeMapper
 
+from dlt.common.data_writers.escape import escape_synapse_identifier, escape_synapse_literal
+
+
 import re
 
 import logging  # Import the logging module if it's not already imported
@@ -121,58 +124,65 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
 
         # Now, adapt each SQL fragment for Synapse using the generate_insert_query method
         for original_sql in original_sql_fragments:
-            adapted_sql, param_values = self.generate_insert_query(''.join(original_sql))
-            yield adapted_sql, param_values
+            # Parse the original SQL to extract table name, columns, and rows
+            # This is a simplified example, you'll need a more robust way to parse the SQL
+            original_sql_joined = ''.join(original_sql)
+            table_name_match = re.search(r'INSERT INTO (.*?)\(', original_sql_joined)
+            columns_match = re.search(r'\((.*?)\)', original_sql_joined)
+            values_match = re.search(r'VALUES(.*?);', original_sql_joined, re.DOTALL)
 
-    def generate_insert_query(self, sql: str) -> Tuple[str, List[Any]]:
+            if table_name_match and columns_match and values_match:
+                table_name = table_name_match.group(1)
+                columns_str = columns_match.group(1)
+                values_str = values_match.group(1)
 
+                # Split columns and values strings into lists
+                columns = [col.strip() for col in columns_str.split(',')]
+                values = [[val.strip() for val in value_group.split(',')] for value_group in values_str.split('),(')]
+
+                # Call generate_insert_query with the extracted values
+                adapted_sql, param_values = self.generate_insert_query(table_name, columns, values)
+                yield adapted_sql, param_values
+            else:
+                logger.error(f"Failed to parse original SQL: {original_sql_joined}")
+                raise ValueError("Failed to parse original SQL")
+
+    def generate_insert_query(self, table_name: str, columns: List[str], rows: List[List[Any]]) -> Tuple[str, List[Any]]:
+        print("HERE are INCOMING ROWS for INSERT SQL: " + str(rows))  # This will print the generated SQL
+        print("HERE is table_name for INSERT SQL: " + str(table_name))  # This will print the generated SQL
+        print("HERE are columns for INSERT SQL: " + str(columns))  # This will print the generated SQL
         try:
-            # Extracting table name and column names
-            table_name = sql.split(" INTO ")[1].split("(")[0].strip()
-            column_names_str = sql.split("(")[1].split(")")[0].strip()
+            # Escaping table name and column names
+            # escaped_table_name = escape_synapse_identifier(table_name)
+            # escaped_column_names = ', '.join(escape_synapse_identifier(col) for col in columns)
 
-            # Extracting row data
-            row_data_str = sql.split("VALUES")[1].strip()
-            # Using regex to split rows accurately
-
-            rows = [tuple(re.split(r"\s*,\s*(?![^()]*\))", row)) for row in re.findall(r"\((.*?)\)", row_data_str)]
-
-            # Ensure each item in rows is properly formatted
-            formatted_rows = []
-            for row in rows:
-                formatted_row = []
-                for item in row:
-                    # Remove extra single quotes if item is not a JSON string
-                    if item.startswith("'") and item.endswith("'") and not item.lstrip("'").startswith("{"):
-                        # Strip the double quotes if present
-                        if item[1] == '"' and item[-2] == '"':
-                            item = item[2:-2]
-                        else:
-                            item = item[1:-1]
-                    formatted_row.append(item)
-                formatted_rows.append(tuple(formatted_row))
+            print(F"\n\nHERE are ESCAPED table_name for INSERT SQL: " + str(table_name))  # This will print the generated SQL
+            print("HERE are ESCAPED columns for INSERT SQL: " + str(columns))  # This will print the generated SQL
 
             # Building SELECT statements with parameter markers
-            select_statements = [f"SELECT {', '.join(['?' for _ in row])}" for row in formatted_rows]
+            select_statements = [f"SELECT {', '.join(['?' for _ in row])}" for row in rows]
+            print("HERE Generated SELECT statements for INSERT SQL: " + str(select_statements))  # This will print the generated SQL
 
             # Combining SELECT statements with UNION ALL
             all_select_statements = " UNION ALL ".join(select_statements)
 
             # Building the final SQL query
-            new_sql = f'INSERT INTO {table_name}({column_names_str}) {all_select_statements}'
+            new_sql = f'INSERT INTO {table_name}({columns}) {all_select_statements}'
 
             # Extracting parameter values
-            param_values = [item for row in formatted_rows for item in row]
+            param_values = [item for row in rows for item in row]
+            #
+            # # Ensure each item in param_values is properly formatted
+            # formatted_param_values = [escape_synapse_literal(item) for item in param_values]
 
-            #print("New Generated INSERT SQL: " + new_sql)  # This will print the generated SQL
-            #print("Param values: " + str(param_values))  # This will print the parameters
+            print("New Generated INSERT SQL: " + new_sql)  # This will print the generated SQL
+            print("Param values: " + str(param_values))  # This will print the parameters
 
             return new_sql, param_values
 
         except Exception as e:
             logger.error(f"Failed to generate insert query: {e}")
             raise
-
 
 class SynapseClient(InsertValuesJobClient):
     #Synapse does not support multi-row inserts using a single INSERT INTO statement
