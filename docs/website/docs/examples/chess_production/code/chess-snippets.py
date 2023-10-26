@@ -5,6 +5,7 @@ __source_name__ = "chess_production"
 
 @skipifgithubfork
 def incremental_snippet() -> None:
+    # @@@DLT_SNIPPET_START example
     # @@@DLT_SNIPPET_START markdown_source
     import threading
     from typing import Any, Iterator
@@ -179,6 +180,7 @@ def incremental_snippet() -> None:
         else:
             print(f"Players table contains {count} rows")
     # @@@DLT_SNIPPET_END markdown_norm_info
+    # @@@DLT_SNIPPET_END example
 
     # check that stuff was loaded
     row_counts = pipeline.last_trace.last_normalize_info.row_counts
