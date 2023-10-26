@@ -122,8 +122,6 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
         # Now, adapt each SQL fragment for Synapse using the generate_insert_query method
         for original_sql in original_sql_fragments:
             adapted_sql, param_values = self.generate_insert_query(''.join(original_sql))
-            print("HERE IS THE ADAPTED SQL: " + str(adapted_sql))
-            print("HERE IS THE PARAM VALUES OF ADAPTED SQL SQL: " + str(param_values))
             yield adapted_sql, param_values
 
     def generate_insert_query(self, sql: str) -> Tuple[str, List[Any]]:
@@ -166,8 +164,8 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
             # Extracting parameter values
             param_values = [item for row in formatted_rows for item in row]
 
-            print("New Generated INSERT SQL: " + new_sql)  # This will print the generated SQL
-            print("Param values: " + str(param_values))  # This will print the parameters
+            #print("New Generated INSERT SQL: " + new_sql)  # This will print the generated SQL
+            #print("Param values: " + str(param_values))  # This will print the parameters
 
             return new_sql, param_values
 
