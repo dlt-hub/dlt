@@ -37,7 +37,7 @@ def google_sheets(
         tabs.append(dlt.resource(data, name=tab_name))
     return tabs
 ```
-### ⛔ Wrong approach
+### Wrong approach
 ```python
 # WRONG!:
 # provide all values directly - wrong but possible.
@@ -48,6 +48,10 @@ data_source = google_sheets(
     credentials={"private_key": ""}
 )
 ```
+:::caution
+Be careful not to put your credentials directly in the code.
+:::
+
 ### Right approach
 ```python
 # provide config values directly and secrets via automatic injection mechanism (see later)
