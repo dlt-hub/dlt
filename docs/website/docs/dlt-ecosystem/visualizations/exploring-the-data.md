@@ -1,5 +1,5 @@
 ---
-title: Exploring the data
+title: Explore the data
 description: How to explore the data that has been loaded
 keywords: [exploring, loaded data, data quality]
 ---
