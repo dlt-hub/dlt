@@ -53,16 +53,15 @@ Be careful not to put your credentials directly in the code.
 :::
 
 ### Right approach
+Provide config values directly and secrets via automatic [injection mechanism](#injection-mechanism).
+`credentials` value will be injected by the `@source` decorator,
+`spreadsheet_id` and `tab_names` take values from the arguments below.
 ```python
-# provide config values directly and secrets via automatic injection mechanism (see later)
-# `credentials` value will be injected by the `source` decorator
-# `spreadsheet_id` and `tab_names` take values from the arguments below
 # `only_strings` will be injected by the source decorator or will get the default value False
 data_source = google_sheets("23029402349032049", ["tab1", "tab2"])
 ```
-or
+or pass everything via configuration:
 ```python
-# pass everything via configuration
 data_source = google_sheets()
 ```
 
