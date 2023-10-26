@@ -45,6 +45,11 @@ def handle_datetimeoffset(dto_value: bytes) -> datetime:
     )
 
 class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
+    def execute_fragments(self, fragments):
+        # TODO clean up this methodology, tried mirroring original code
+        # Unpack the outer tuple
+        sql, params = fragments
+        self.execute_query(sql, params)
 
     dbapi: ClassVar[DBApi] = pyodbc
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -88,7 +93,6 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
 
         # Extracting parameter values
         param_values = [item for row in formatted_rows for item in row]
-
 
         return new_sql, param_values
 
@@ -187,8 +191,6 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         statements = [f"DROP VIEW {self.make_qualified_table_name(table)};" for table in tables]
         self.execute_fragments(statements)
 
-    import pyodbc
-
     def set_input_sizes(self, *args):
         if len(args) == 1 and isinstance(args[0], tuple):
             args = args[0]
@@ -213,45 +215,12 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
 
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as curr:
+            logger.info(f"Trying to execute SQL: {sql}, Parameters: {args}")
             if curr.description is None:
                 return None
             else:
                 f = curr.fetchall()
                 return f
-
-    # TODO shift logic into subclass in Synapse.py
-    # def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
-    #     # Convert any JSON arguments to strings
-    #     args = tuple(json.dumps(arg) if isinstance(arg, dict) else arg for arg in args)
-    #
-    #     param_values = args  # This line remains unchanged as you're capturing all additional arguments into param_values
-    #     original_sql = sql
-    #
-    #     # Check if it's a multi-row insert
-    #     is_multi_row_insert = (
-    #         original_sql.strip().upper().startswith("INSERT INTO")
-    #         and "VALUES" in original_sql.upper()
-    #         and original_sql.count("(") > 2  # At least one pair of parentheses for column names and two for the values
-    #     )
-    #
-    #     if is_multi_row_insert:
-    #         sql, param_values = self.generate_insert_query(original_sql)
-    #
-    #     # logger.info(f"Executing SQL: {sql}, Parameters: {args}")
-    #     # Execute the query
-    #     with self.execute_query(sql, param_values) as curr:
-    #         # Check the type of SQL statement
-    #         if original_sql.strip().upper().startswith(("SELECT", "SHOW")):
-    #             # Handle SELECT queries
-    #             if curr.description is None:
-    #                 logging.warning(f"Query did not return a description")
-    #             else:
-    #                 return curr.fetchall()
-    #         elif original_sql.strip().upper().startswith(("INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "TRUNCATE", "ALTER")):
-    #             # No logging needed for success in these cases
-    #             pass
-    #         else:
-    #             logging.warning(f"Unhandled SQL")
 
     @contextmanager
     @raise_database_error
@@ -263,7 +232,6 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         if kwargs:
             raise NotImplementedError("pyodbc does not support named parameters in queries")
 
-        #logger.info("TRYING TO SET INPUT SIZE")
         curr = self._conn.cursor()
 
         # Set the converter for datetimeoffset
@@ -273,18 +241,15 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         input_sizes, args = self.set_input_sizes(*args)
         curr.setinputsizes(input_sizes)
 
-        # Validate and truncate string data in args if they exceed MAX_LENGTH
-        #args = tuple(validate_and_truncate(arg, MAX_LENGTH) for arg in args)
-
         try:
             query = query.replace('%s', '?')  # Updated line
-            logger.debug(f"Executing SQL w/ format: {query}")
             curr.execute(query, *args)  # No flattening, just unpack args directly
+            print("QUERY FINISHED: " + str(query) + "\n\n")
             #logger.info(f"Query executed successfully")
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
 
         except pyodbc.Error as outer:
-            #logger.error(f"SQL Error during query execution. Query: {query}, Parameters: {args}, Types: {[type(arg) for arg in args]}, Error: {str(outer)}", exc_info=True)
+            logger.error(f"SQL Error during query execution. Query: {query}, Parameters: {args}, Types: {[type(arg) for arg in args]}, Error: {str(outer)}", exc_info=True)
             #logger.error(f"SQL Error during query execution. Query: {query}, Error: {str(outer)}", exc_info=True)
             raise outer
 

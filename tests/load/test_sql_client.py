@@ -194,6 +194,7 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     table_name = prepare_temp_table(client)
     f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
 
+    # TODO remove synapse handling
     def generate_synapse_insert_query(total_records, is_synapse):
         if is_synapse:
             return " UNION ALL ".join([f"SELECT {idx}" for idx in range(0, total_records)])

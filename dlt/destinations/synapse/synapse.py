@@ -1,4 +1,4 @@
-from typing import ClassVar, Dict, Optional, Sequence, List, Any, Tuple
+from typing import ClassVar, Dict, Optional, Sequence, List, Any, Tuple, Iterator
 
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 from dlt.common.destination.reference import NewLoadJob
@@ -6,11 +6,12 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
+from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob
 
-from dlt.destinations.insert_job_client import InsertValuesJobClient
+from dlt.destinations.insert_job_client import InsertValuesJobClient, InsertValuesLoadJob
 
 from dlt.destinations.synapse import capabilities
 from dlt.destinations.synapse.sql_client import PyOdbcSynapseClient
@@ -18,6 +19,8 @@ from dlt.destinations.synapse.configuration import SynapseClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.schema.typing import COLUMN_HINTS
 from dlt.destinations.type_mapping import TypeMapper
+
+import re
 
 import logging  # Import the logging module if it's not already imported
 
@@ -100,6 +103,78 @@ class SynapseMergeJob(SqlMergeJob):
     def _new_temp_table_name(cls, name_prefix: str) -> str:
         name = SqlMergeJob._new_temp_table_name(name_prefix)
         return '#' + name
+
+
+class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
+
+    def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
+        # First, set any attributes specific to this subclass
+        self._sql_client = sql_client
+        self._file_name = FileStorage.get_file_name_from_file_path(file_path)
+
+        # Then, call the parent class's __init__ method with the required arguments
+        super().__init__(table_name, file_path, sql_client)
+
+    def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
+        # First, get the original SQL fragments
+        original_sql_fragments = super()._insert(qualified_table_name, file_path)
+
+        # Now, adapt each SQL fragment for Synapse using the generate_insert_query method
+        for original_sql in original_sql_fragments:
+            adapted_sql, param_values = self.generate_insert_query(''.join(original_sql))
+            print("HERE IS THE ADAPTED SQL: " + str(adapted_sql))
+            print("HERE IS THE PARAM VALUES OF ADAPTED SQL SQL: " + str(param_values))
+            yield adapted_sql, param_values
+
+    def generate_insert_query(self, sql: str) -> Tuple[str, List[Any]]:
+
+        try:
+            # Extracting table name and column names
+            table_name = sql.split(" INTO ")[1].split("(")[0].strip()
+            column_names_str = sql.split("(")[1].split(")")[0].strip()
+
+            # Extracting row data
+            row_data_str = sql.split("VALUES")[1].strip()
+            # Using regex to split rows accurately
+
+            rows = [tuple(re.split(r"\s*,\s*(?![^()]*\))", row)) for row in re.findall(r"\((.*?)\)", row_data_str)]
+
+            # Ensure each item in rows is properly formatted
+            formatted_rows = []
+            for row in rows:
+                formatted_row = []
+                for item in row:
+                    # Remove extra single quotes if item is not a JSON string
+                    if item.startswith("'") and item.endswith("'") and not item.lstrip("'").startswith("{"):
+                        # Strip the double quotes if present
+                        if item[1] == '"' and item[-2] == '"':
+                            item = item[2:-2]
+                        else:
+                            item = item[1:-1]
+                    formatted_row.append(item)
+                formatted_rows.append(tuple(formatted_row))
+
+            # Building SELECT statements with parameter markers
+            select_statements = [f"SELECT {', '.join(['?' for _ in row])}" for row in formatted_rows]
+
+            # Combining SELECT statements with UNION ALL
+            all_select_statements = " UNION ALL ".join(select_statements)
+
+            # Building the final SQL query
+            new_sql = f'INSERT INTO {table_name}({column_names_str}) {all_select_statements}'
+
+            # Extracting parameter values
+            param_values = [item for row in formatted_rows for item in row]
+
+            print("New Generated INSERT SQL: " + new_sql)  # This will print the generated SQL
+            print("Param values: " + str(param_values))  # This will print the parameters
+
+            return new_sql, param_values
+
+        except Exception as e:
+            logger.error(f"Failed to generate insert query: {e}")
+            raise
+
 
 class SynapseClient(InsertValuesJobClient):
     #Synapse does not support multi-row inserts using a single INSERT INTO statement
