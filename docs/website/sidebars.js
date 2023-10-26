@@ -150,11 +150,11 @@ const sidebars = {
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/add-a-verified-source',
+        'walkthroughs/add_credentials',
         'walkthroughs/run-a-pipeline',
         'walkthroughs/adjust-a-schema',
         'walkthroughs/share-a-dataset',
         'dlt-ecosystem/visualizations/exploring-the-data',
-        'walkthroughs/add_credentials',
         {
           type: 'category',
           label: 'Transformations',

@@ -1,5 +1,5 @@
 ---
-title: Adding credentials
+title: Add credentials
 description: How to use dlt credentials
 keywords: [credentials, secrets.toml, environment variables]
 ---
