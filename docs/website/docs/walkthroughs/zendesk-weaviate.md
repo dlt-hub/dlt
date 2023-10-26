@@ -1,6 +1,6 @@
 ---
-title: 'Importing Ticket Data from Zendesk API to Weaviate'
-description: Importing Ticket Data from Zendesk API to Weaviate
+title: 'Import Ticket Data from Zendesk API to Weaviate'
+description: How to Import Ticket Data from Zendesk API to Weaviate
 keywords: [how to, zendesk, weaviate, vector database, vector search]
 ---
 
