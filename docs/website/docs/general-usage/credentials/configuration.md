@@ -20,9 +20,6 @@ This is what we had in mind, when designing:
 The source below reads selected tabs from Google Sheets and demonstrates a few options you have to pass config and secret values:
 
 ```python
-import dlt
-
-
 @dlt.source
 def google_sheets(
     spreadsheet_id,
