@@ -1,10 +1,10 @@
 ---
-title: Explore the data
+title: Explore the loaded data
 description: How to explore the data that has been loaded
 keywords: [exploring, loaded data, data quality]
 ---
 
-# Explore the data
+# Explore the loaded data
 
 Once you have run a pipeline locally, you can launch a web app that displays the loaded data.
 
