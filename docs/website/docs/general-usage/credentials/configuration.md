@@ -90,7 +90,7 @@ We use these values to set secrets and configurations via:
   ```
 
 :::caution
-**[Toml provider](config_providers#toml-provider) always loads those files from `.dlt` folder** which is looked relative to the
+**[TOML provider](config_providers#toml-provider) always loads those files from `.dlt` folder** which is looked relative to the
 **current Working Directory**.
 :::
 
