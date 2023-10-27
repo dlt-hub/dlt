@@ -203,7 +203,7 @@ only from secure config providers.
 configurations and secrets easy to manage, and disambiguate values with the same keys by placing
 them in the different sections.
 
-> If you know how `toml` files are organized -> this is the same concept!
+> If you know how TOML files are organized -> this is the same concept!
 
 > A lot of config values are dictionaries themselves (i.e. most of the credentials) and you want the
 > values corresponding to one component to be close together.
