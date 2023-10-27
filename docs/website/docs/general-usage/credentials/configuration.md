@@ -105,7 +105,7 @@ information on what source/resource expects.
 1. We can generate nice sample config and secret files for your source.
 1. You can request dictionaries or special values (i.e. connection strings, service json) to be
    passed.
-1. You can specify a set of possible types via `Union` i.e. OAUTH or API Key authorization.
+1. You can specify a set of possible types via `Union` i.e. OAuth or API Key authorization.
 
 ```python
 @dlt.source
