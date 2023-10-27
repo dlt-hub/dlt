@@ -7,22 +7,36 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 # Secrets and Configs
 
-## General Usage and an Example
+Secrets and configs are two types of sensitive and non-sensitive information used in a data pipeline:
 
-This is what we had in mind, when designing:
+1. Configs:
+  - Configs refer to non-sensitive configuration data. These are settings, parameters, or options that define the behavior of a data pipeline.
+  - They can include things like file paths, database connection strings, API endpoints, or any other settings that affect the pipeline's behavior.
+2. Secrets:
+  - Secrets are sensitive information that should be kept confidential, such as passwords, API keys, private keys, and other confidential data.
+  - It's crucial to never hard-code secrets directly into the code, as it can pose a security risk. Instead, they should be stored securely and accessed via a secure mechanism.
+
+
+Design Principles:
 
 1. Adding configuration and secrets to sources and resources should be no-effort.
 2. You can reconfigure the pipeline for production after it is deployed. Deployed and local code should
    be identical.
-3. You can always pass configuration values explicitly and override any default behavior (ie. naming of the configuration keys).
+3. You can always pass configuration values explicitly and override any default behavior (i.e. naming of the configuration keys).
 
+We invite you to learn how `dlt` helps you adhere to
+these principles and easily operate secrets and
+configurations using `dlt.secrets.value` and `dlt.config.value` instances.
 
-The source below reads selected tabs from Google Sheets and demonstrates a few options you have to pass config and secret values:
+## General Usage and an Example
+
+In the example below, the `google_sheets` source function is used to read selected tabs from Google Sheets.
+It takes several arguments, including `spreadsheet_id`, `tab_names`, and `credentials`.
 
 ```python
 @dlt.source
 def google_sheets(
-    spreadsheet_id,
+    spreadsheet_id=dlt.config.value,
     tab_names=dlt.config.value,
     credentials=dlt.secrets.value,
     only_strings=False
@@ -34,7 +48,27 @@ def google_sheets(
         tabs.append(dlt.resource(data, name=tab_name))
     return tabs
 ```
+
+`spreadsheet_id`: The unique identifier of the Google Sheets document.
+
+`tab_names`: A list of tab names to read from the spreadsheet.
+
+`credentials`: Google Sheets credentials as a dictionary ({"private_key": ...}).
+
+`spreadsheet_id` and `tab_names` are configuration values that can be provided directly
+when calling the function. `credentials` is a sensitive piece of information.
+
+`dlt.secrets.value` and `dlt.config.value` are instances of classes that provide
+dictionary-like access to configuration values and secrets, respectively.
+These objects allow for convenient retrieval and modification of configuration
+values and secrets used by the application.
+
+Below, we will demonstrate the correct and wrong approaches to providing these values.
+
 ### Wrong approach
+The wrong approach includes providing secret values directly in the code,
+which is not recommended for security reasons.
+
 ```python
 # WRONG!:
 # provide all values directly - wrong but possible.
@@ -49,31 +83,29 @@ data_source = google_sheets(
 Be careful not to put your credentials directly in the code.
 :::
 
-### Right approach
-Provide config values directly and secrets via automatic [injection mechanism](#injection-mechanism).
-`credentials` value will be injected by the `@source` decorator,
-`spreadsheet_id` and `tab_names` take values from the arguments below.
-```python
-# `only_strings` will be injected by the source decorator or will get the default value False
-data_source = google_sheets("23029402349032049", ["tab1", "tab2"])
-```
-or pass everything via configuration:
-```python
-data_source = google_sheets()
-```
+### Correct approach
 
-In the `google_sheets()` source we can see that some arguments have default values as  `dlt.secrets.value` and `dlt.config.value`.
+The correct approach involves providing config values directly and secrets via
+automatic [injection mechanism](#injection-mechanism)
+or pass everything via configuration.
 
-`dlt.secrets.value` and `dlt.config.value` are instances of classes that provide
-dictionary-like access to configuration values and secrets, respectively.
-These objects allow for convenient retrieval and modification of configuration
-values and secrets used by the application.
+1. Option A
+    ```python
+    # `only_strings` will get the default value False
+    data_source = google_sheets("23029402349032049", ["tab1", "tab2"])
+    ```
+    `credentials` value will be injected by the `@source` decorator (e.g. from `secrets.toml`),
+    `spreadsheet_id` and `tab_names` take values from the provided arguments.
 
-`config` deals with non-sensitive configuration data, while `secrets` handles sensitive information
-like passwords, API keys, and other confidential data.
+2. Option B
+    ```python
+    data_source = google_sheets()
+    ```
+   In this case `credentials` value will be injected by the `@source` decorator (e.g. from `secrets.toml`),
+    `spreadsheet_id` and `tab_names` will be injected by the `@source` decorator (e.g. from `config.toml`) as well.
 
-We use these values to set secrets and configurations via:
-- [TOML files](config_providers#toml-provider) (secrets.toml & config.toml):
+We use `dlt.secrets.value` and `dlt.config.value` to set secrets and configurations via:
+- [toml files](config_providers#toml-provider) (secrets.toml & config.toml):
   ```toml
   # google sheet credentials
   [sources.google_sheets.credentials]
