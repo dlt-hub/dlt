@@ -41,7 +41,7 @@ Providers form a hierarchy. At the top are environment variables, then `secrets.
 `config.toml` files. Providers like Airflow/Google/AWS/Azure Vaults will be inserted **after** the environment
 provider but **before** `toml` providers.
 
-For example, if `spreadsheet_id` is found in environment variable `SPREADSHEET_ID`, `dlt` will not look in `toml` files
+For example, if `spreadsheet_id` is found in environment variable `SPREADSHEET_ID`, `dlt` will not look in TOML files
 and below.
 
 The values passed in the code **explicitly** are the **highest** in provider hierarchy. The **default values**
