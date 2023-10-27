@@ -144,7 +144,7 @@ data_source = google_sheets(
 
 data_source.run(destination="bigquery")
 ```
-`dlt.config` and `dlt.secrets` behave like dictionaries from which you can request a value with any key name. `dlt` will look in all [config providers](#injection-mechanism) - toml files, env variables etc. just like it does with the standard key name layout. You can also use `dlt.config.get()` / `dlt.secrets.get()` to
+`dlt.config` and `dlt.secrets` behave like dictionaries from which you can request a value with any key name. `dlt` will look in all [config providers](#injection-mechanism) - TOML files, env variables etc. just like it does with the standard key name layout. You can also use `dlt.config.get()` / `dlt.secrets.get()` to
 request value cast to a desired type. For example:
 ```python
 credentials = dlt.secrets.get("my_section.gcp_credentials", GcpServiceAccountCredentials)
