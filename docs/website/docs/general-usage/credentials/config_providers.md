@@ -6,20 +6,44 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 ---
 
 # Configuration Providers
+
+
+**Configuration Providers** in the context of the `dlt` library
+refer to different sources from which configuration values
+and secrets can be retrieved for a data pipeline.
+These providers form a hierarchy, with each having its own
+priority in determining the values for function arguments.
+
 ## The provider hierarchy
 
 If function signature has arguments that may be injected, `dlt` looks for the argument values in
-providers. **The argument name is a key in the lookup**.
+providers.
 
-Example:
+### Configuration Providers
+
+1. **Environment Variables**: At the top of the hierarchy are environment variables.
+   If a value for a specific argument is found in an environment variable,
+   dlt will use it and will not proceed to search in lower-priority providers.
+
+2. **Vaults (Airflow/Google/AWS/Azure)**: These are specialized providers that come
+   after environment variables. They can provide configuration values and secrets.
+   However, they typically focus on handling sensitive information.
+
+3. **`secrets.toml` and `config.toml` Files**: These files are used for storing both
+   configuration values and secrets. `secrets.toml` is dedicated to sensitive information,
+   while `config.toml` contains non-sensitive configuration data.
+
+4. **Default Argument Values**: These are the values specified in the function's signature.
+   They have the lowest priority in the provider hierarchy.
+
+**The argument name is a key in the lookup**.
+
+### Example
 
 ```python
-import dlt
-
-
 @dlt.source
 def google_sheets(
-    spreadsheet_id,
+    spreadsheet_id=dlt.config.value,
     tab_names=dlt.config.value,
     credentials=dlt.secrets.value,
     only_strings=False
@@ -33,13 +57,13 @@ def google_sheets(
 ```
 
 In case of `google_sheets()` it will look
-for: `tab_names`, `credentials` and `only_strings`.
+for: `spreadsheet_id`, `tab_names` and `credentials`.
 
 Each provider has its own key naming convention, and dlt is able to translate between them.
 
-Providers form a hierarchy. At the top are environment variables, then `secrets.toml` and
-`config.toml` files. Providers like Airflow/Google/AWS/Azure Vaults will be inserted **after** the environment
-provider but **before** `toml` providers.
+At the top of the hierarchy are Environment Variables, then `secrets.toml` and
+`config.toml` files. Providers like Airflow/Google/AWS/Azure Vaults will be inserted **after** the Environment
+provider but **before** TOML providers.
 
 For example, if `spreadsheet_id` is found in environment variable `SPREADSHEET_ID`, `dlt` will not look in TOML files
 and below.
@@ -47,9 +71,11 @@ and below.
 The values passed in the code **explicitly** are the **highest** in provider hierarchy. The **default values**
 of the arguments have the **lowest** priority in the provider hierarchy.
 
-> **Summary of the hierarchy:**
->
-> Explicit Args **>** ENV Variables **>** ...Vaults, Airflow etc. **>** `secrets.toml` **>** `config.toml` **>** Default Arg Values
+:::info
+Summary of the hierarchy:
+
+Explicit Args **>** ENV Variables **>** Vaults: Airflow etc. **>** `secrets.toml` **>** `config.toml` **>** Default Arg Values
+:::
 
 Secrets are handled only by the providers supporting them. Some providers support only
 secrets (to reduce the number of requests done by `dlt` when searching sections).
@@ -59,7 +85,7 @@ secrets (to reduce the number of requests done by `dlt` when searching sections)
 1. Various vaults providers hold only secrets, `dlt` skips them when looking for values that are not
    secrets.
 
-> Context-aware providers will activate in right environments i.e. on Airflow or AWS/GCP VMachines.
+> Context-aware providers will activate in the right environments i.e. on Airflow or AWS/GCP VMachines.
 
 ## Provider key formats
 

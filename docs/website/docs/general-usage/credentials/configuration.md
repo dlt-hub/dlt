@@ -129,9 +129,11 @@ We use `dlt.secrets.value` and `dlt.config.value` to set secrets and configurati
 
 ### Add typing to your sources and resources
 
-You should type your function signatures!
+We highly recommend adding types to your function signatures.
 The effort is very low, and it gives `dlt` much more
 information on what source/resource expects.
+
+Doing so provides several benefits:
 
 1. You'll never receive invalid data types in your code.
 1. We can generate nice sample config and secret files for your source.
@@ -196,7 +198,9 @@ from airflow.hooks.base_hook import BaseHook
 credentials = BaseHook.get_connection('gcp_credentials').extra
 data_source = google_sheets(credentials=credentials)
 ```
-> ❗ Note: be careful not to put your credentials directly in code - use your own credential vault instead.
+:::caution
+Be careful not to put your credentials directly in code - use your own credential vault instead.
+:::
 
 ### Pass explicit destination credentials
 You can pass destination credentials and ignore the default lookup:
