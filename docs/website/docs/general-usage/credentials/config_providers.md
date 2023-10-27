@@ -82,7 +82,7 @@ the `private_key` for Google credentials. It will look
 
 Looks for the values in the environment variables.
 
-### Toml provider
+### TOML provider
 
 TOML provider uses two TOML files: `secrets.toml` to store secrets and `config.toml` to store
 configuration values. The default `.gitignore` file prevents secrets from being added to source
