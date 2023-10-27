@@ -25,8 +25,8 @@ from dlt.common.data_writers.escape import escape_synapse_identifier, escape_syn
 
 import re
 
+# TODO remove logging
 import logging  # Import the logging module if it's not already imported
-
 logger = logging.getLogger(__name__)
 
 
@@ -121,9 +121,12 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
     def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
         # First, get the original SQL fragments
         original_sql_fragments = super()._insert(qualified_table_name, file_path)
+        print(f'Original SQL fragments: {original_sql_fragments}')  # Debug print
 
         # Now, adapt each SQL fragment for Synapse using the generate_insert_query method
         for original_sql in original_sql_fragments:
+            print(f'Processing original SQL fragment: {original_sql}')  # Debug print
+
             # Parse the original SQL to extract table name, columns, and rows
             # This is a simplified example, you'll need a more robust way to parse the SQL
             original_sql_joined = ''.join(original_sql)
@@ -142,40 +145,38 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
 
                 # Call generate_insert_query with the extracted values
                 adapted_sql, param_values = self.generate_insert_query(table_name, columns, values)
-                yield adapted_sql, param_values
+
+                # TODO: Consider moving execution
+                # Execute the adapted SQL directly
+                self._sql_client.execute_sql(adapted_sql, *param_values)  # Updated line
+
             else:
-                logger.error(f"Failed to parse original SQL: {original_sql_joined}")
+                #logger.error(f"Failed to parse original SQL: {original_sql_joined}")
                 raise ValueError("Failed to parse original SQL")
 
+    # In Azure Synapse, must break out SELECT statements for multi-row INSERT
+    # https://stackoverflow.com/questions/36141006/how-to-insert-multiple-rows-into-sql-server-parallel-data-warehouse-table
     def generate_insert_query(self, table_name: str, columns: List[str], rows: List[List[Any]]) -> Tuple[str, List[Any]]:
-        print("HERE are INCOMING ROWS for INSERT SQL: " + str(rows))  # This will print the generated SQL
-        print("HERE is table_name for INSERT SQL: " + str(table_name))  # This will print the generated SQL
-        print("HERE are columns for INSERT SQL: " + str(columns))  # This will print the generated SQL
+        # Access the inner list of tuples
+        inner_rows = rows[0]
+
         try:
-            # Escaping table name and column names
-            # escaped_table_name = escape_synapse_identifier(table_name)
-            # escaped_column_names = ', '.join(escape_synapse_identifier(col) for col in columns)
+            escaped_column_names = ', '.join(columns)  # This line is changed
 
-            print(F"\n\nHERE are ESCAPED table_name for INSERT SQL: " + str(table_name))  # This will print the generated SQL
-            print("HERE are ESCAPED columns for INSERT SQL: " + str(columns))  # This will print the generated SQL
-
-            # Building SELECT statements with parameter markers
-            select_statements = [f"SELECT {', '.join(['?' for _ in row])}" for row in rows]
-            print("HERE Generated SELECT statements for INSERT SQL: " + str(select_statements))  # This will print the generated SQL
+            # Building SELECT statements with parameter markers for each tuple
+            num_columns = len(columns)
+            select_statements = [f"SELECT {', '.join(['?' for _ in range(num_columns)])}" for _ in range(len(inner_rows) // num_columns)]
 
             # Combining SELECT statements with UNION ALL
             all_select_statements = " UNION ALL ".join(select_statements)
+            print("Combined SELECT statements: " + all_select_statements)  # This will print the combined SELECT statements
 
             # Building the final SQL query
-            new_sql = f'INSERT INTO {table_name}({columns}) {all_select_statements}'
+            new_sql = f'INSERT INTO {table_name}({escaped_column_names}) {all_select_statements}'
+            print("NEW SQL STRUCTURE: " + str(new_sql))  # This will print the parameters
 
             # Extracting parameter values
-            param_values = [item for row in rows for item in row]
-            #
-            # # Ensure each item in param_values is properly formatted
-            # formatted_param_values = [escape_synapse_literal(item) for item in param_values]
-
-            print("New Generated INSERT SQL: " + new_sql)  # This will print the generated SQL
+            param_values = [item for tuple in inner_rows for item in (tuple,)]
             print("Param values: " + str(param_values))  # This will print the parameters
 
             return new_sql, param_values
@@ -183,6 +184,7 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
         except Exception as e:
             logger.error(f"Failed to generate insert query: {e}")
             raise
+
 
 class SynapseClient(InsertValuesJobClient):
     #Synapse does not support multi-row inserts using a single INSERT INTO statement

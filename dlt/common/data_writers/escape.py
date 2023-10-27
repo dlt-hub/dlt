@@ -88,6 +88,34 @@ def escape_mssql_literal(v: Any) -> Any:
         return str(int(v))
     return str(v)
 
+# TODO review escape logic -- this should resolve SQL injection / assertion errors
+def escape_synapse_literal(v: Any) -> Any:
+    if isinstance(v, str):
+        return v.replace("'", "''")
+    if isinstance(v, (datetime, date, time)):
+        return v.isoformat()
+    if isinstance(v, (list, dict)):
+        return _escape_extended(json.dumps(v), escape_dict=SYNAPSE_ESCAPE_DICT, escape_re=SYNAPSE_SQL_ESCAPE_RE)
+    if isinstance(v, bytes):
+        base_64_string = base64.b64encode(v).decode('ascii')
+        return f"""CAST('' AS XML).value('xs:base64Binary("{base_64_string}")', 'VARBINARY(MAX)')"""
+    if isinstance(v, bool):
+        return str(int(v))
+    return str(v)
+
+
+# TODO add references
+SYNAPSE_ESCAPE_DICT = {
+    "'": "''",
+    '\n': "' + CHAR(10) + N'",
+    '\r': "' + CHAR(13) + N'",
+    '\t': "' + CHAR(9) + N'",
+}
+
+SYNAPSE_SQL_ESCAPE_RE = _make_sql_escape_re(SYNAPSE_ESCAPE_DICT)
+
+def escape_synapse_identifier(v: str) -> str:
+    return '"' + v.replace('"', '""') + '"'
 
 def escape_redshift_identifier(v: str) -> str:
     return '"' + v.replace('"', '""').replace("\\", "\\\\") + '"'
