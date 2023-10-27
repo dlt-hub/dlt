@@ -18,26 +18,6 @@ service account credentials, while `ConnectionStringCredentials` handles databas
 
 ### Example
 
-```python
-import dlt
-from dlt.sources.credentials import GcpServiceAccountCredentials
-
-@dlt.source
-def google_sheets(
-    spreadsheet_id: str,
-    tab_names: List[str] = dlt.config.value,
-    credentials: GcpServiceAccountCredentials = dlt.secrets.value,
-    only_strings: bool = False
-):
-  ...
-```
-
-Here, `GcpServiceAccountCredentials` is an example of a **spec**: a Python `dataclass` that describes
-the configuration fields, their types and default values. It also allows parsing various native
-representations of the configuration. Credentials marked with `WithDefaults` mixin are also to
-instantiate itself from the machine/user default environment i.e. Googles `default()` or AWS
-`.aws/credentials`.
-
 As an example, let's use `ConnectionStringCredentials` which represents a database connection
 string.
 
@@ -52,6 +32,8 @@ def query(sql: str, dsn: ConnectionStringCredentials = dlt.secrets.value):
 The source above executes the `sql` against database defined in `dsn`. `ConnectionStringCredentials`
 makes sure you get the correct values with correct types and understands the relevant native form of
 the credentials.
+
+Below are examples of how you can set credentials in `secrets.toml` and `config.toml` files.
 
 Example 1. Use the **dictionary** form.
 
@@ -126,6 +108,7 @@ credentials.parse_native_representation(native_value)
 # Get a URL representation of the connection
 url_representation = credentials.to_url()
 ```
+Above, you can find an example of how to use this spec with sources and TOML files.
 
 ### OAuth2Credentials
 
@@ -151,30 +134,59 @@ credentials.add_scopes(["scope3", "scope4"])
 
 ### GCP Credentials
 
+[The Google Analytics verified source](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/__init__.py):
+the example how to use GCP Credentials.
+
 #### GcpServiceAccountCredentials
 
 The GcpServiceAccountCredentials class manages GCP Service Account credentials.
-It can parse native values either as ServiceAccountCredentials or as serialized `services.json`.
 This class provides methods to retrieve native credentials for Google clients.
 
-Usage:
+##### Usage
+
+- You may just pass the `service.json` as string or dictionary (in code and via config providers).
+- Or default credentials will be used.
+
 ```python
 credentials = GcpServiceAccountCredentials()
-
 # Parse a native value (ServiceAccountCredentials)
 # Accepts a native value, which can be either an instance of ServiceAccountCredentials
 # or a serialized services.json.
 # Parses the native value and updates the credentials.
-native_value = ...
+native_value = {"private_key": ".."} # or "path/to/services.json"
 credentials.parse_native_representation(native_value)
+```
+or more preferred use:
+```python
+import dlt
+from dlt.sources.credentials import GcpServiceAccountCredentials
 
-# Retrieve native credentials for Google clients
-# For example, build the service object for Google Analytics PI.
-client = BetaAnalyticsDataClient(credentials=credentials.to_native_credentials())
+@dlt.source
+def google_analytics(
+    property_id: str = dlt.config.value,
+    credentials: GcpServiceAccountCredentials = dlt.secrets.value,
+):
+    # Retrieve native credentials for Google clients
+    # For example, build the service object for Google Analytics PI.
+    client = BetaAnalyticsDataClient(credentials=credentials.to_native_credentials())
 
-# Get a string representation of the credentials
-# Returns a string representation of the credentials in the format client_email@project_id.
-credentials_str = str(credentials)
+    # Get a string representation of the credentials
+    # Returns a string representation of the credentials in the format client_email@project_id.
+    credentials_str = str(credentials)
+    ...
+```
+while `secrets.toml` looks as following:
+```toml
+[sources.google_analytics.credentials]
+client_id = "client_id" # please set me up!
+client_secret = "client_secret" # please set me up!
+refresh_token = "refresh_token" # please set me up!
+project_id = "project_id" # please set me up!
+```
+and `config.toml`:
+```toml
+[sources.google_analytics]
+property_id = "213025502"
 ```
 
 #### GcpOAuthCredentials
@@ -185,29 +197,71 @@ It can parse native values either as GoogleOAuth2Credentials or as
 serialized OAuth client secrets JSON.
 This class provides methods for authentication and obtaining access tokens.
 
-Usage:
+##### Usage
 ```python
 oauth_credentials = GcpOAuthCredentials()
 
 # Accepts a native value, which can be either an instance of GoogleOAuth2Credentials
 # or serialized OAuth client secrets JSON.
 # Parses the native value and updates the credentials.
-native_value_oauth = ...
+native_value_oauth = {"client_secret": ...}
 oauth_credentials.parse_native_representation(native_value_oauth)
+```
+or more preferred use:
+```python
+import dlt
+from dlt.sources.credentials import GcpOAuthCredentials
 
-# Authenticate and get access token
-oauth_credentials.auth(scopes=["scope1", "scope2"])
+@dlt.source
+def google_analytics(
+    property_id: str = dlt.config.value,
+    credentials: GcpOAuthCredentials = dlt.secrets.value,
+):
+    # Authenticate and get access token
+    credentials.auth(scopes=["scope1", "scope2"])
 
-# Retrieve native credentials for Google clients
-# For example, build the service object for Google Analytics PI.
-client = BetaAnalyticsDataClient(credentials=oauth_credentials.to_native_credentials())
+    # Retrieve native credentials for Google clients
+    # For example, build the service object for Google Analytics PI.
+    client = BetaAnalyticsDataClient(credentials=credentials.to_native_credentials())
 
-# Get a string representation of the credentials
-# Returns a string representation of the credentials in the format client_id@project_id.
-credentials_str = str(oauth_credentials)
+    # Get a string representation of the credentials
+    # Returns a string representation of the credentials in the format client_id@project_id.
+    credentials_str = str(credentials)
+    ...
+```
+while `secrets.toml` looks as following:
+```toml
+[sources.google_analytics.credentials]
+client_id = "client_id" # please set me up!
+client_secret = "client_secret" # please set me up!
+refresh_token = "refresh_token" # please set me up!
+project_id = "project_id" # please set me up!
+```
+and `config.toml`:
+```toml
+[sources.google_analytics]
+property_id = "213025502"
 ```
 
-[The example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/setup_script_gcp_oauth.py): how you can get the refresh token using `dlt.secrets.value`.
+In order for `auth()` method to succeed:
+
+- You must provide valid `client_id` and `client_secret`,
+  `refresh_token` and `project_id` in order to get a current
+  **access token** and authenticate with OAuth.
+  Mind that the `refresh_token` must contain all the scopes that you require for your access.
+- If `refresh_token` is not provided, and you run the pipeline from a console or a notebook,
+  `dlt` will use InstalledAppFlow to run the desktop authentication flow.
+
+[The Google Analytics example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/setup_script_gcp_oauth.py): how you can get the refresh token using `dlt.secrets.value`.
+
+#### Defaults
+
+If configuration values are missing, `dlt` will use the default Google credentials (from `default()`) if available.
+Read more about [Google defaults.](https://googleapis.dev/python/google-auth/latest/user-guide.html#application-default-credentials)
+
+- `dlt` will try to fetch the `project_id` from default credentials.
+  If the project id is missing, it will look for `project_id` in the secrets.
+  So it is normal practice to pass partial credentials (just `project_id`) and take the rest from defaults.
 
 ### AwsCredentials
 
@@ -216,29 +270,60 @@ including access keys, session tokens, profile names, region names, and endpoint
 It inherits the ability to manage default credentials and extends it with methods
 for handling partial credentials and converting credentials to a botocore session.
 
-Usage:
+#### Usage
 ```python
 credentials = AwsCredentials()
-
 # Set the necessary attributes
 credentials.aws_access_key_id = "ACCESS_KEY_ID"
 credentials.aws_secret_access_key = "SECRET_ACCESS_KEY"
 credentials.region_name = "us-east-1"
-
-# Convert credentials to s3fs format
-s3fs_credentials = credentials.to_s3fs_credentials()
-print(s3fs_credentials["key"])
-
+```
+or
+```python
 # Imports an external boto3 session and sets the credentials properties accordingly.
 import botocore.session
+
+credentials = AwsCredentials()
 session = botocore.session.get_session()
 credentials.parse_native_representation(session)
 print(credentials.aws_access_key_id)
-
-# Get AWS credentials from botocore session
-aws_credentials = credentials.to_native_credentials()
-print(aws_credentials.access_key)
 ```
+or more preferred use:
+```python
+@dlt.source
+def aws_readers(
+    bucket_url: str = dlt.config.value,
+    credentials: AwsCredentials = dlt.secrets.value,
+):
+    ...
+    # Convert credentials to s3fs format
+    s3fs_credentials = credentials.to_s3fs_credentials()
+    print(s3fs_credentials["key"])
+
+    # Get AWS credentials from botocore session
+    aws_credentials = credentials.to_native_credentials()
+    print(aws_credentials.access_key)
+    ...
+```
+while `secrets.toml` looks as following:
+```toml
+[sources.aws_readers.credentials]
+aws_access_key_id = "key_id"
+aws_secret_access_key = "access_key"
+region_name = "region"
+```
+and `config.toml`:
+```toml
+[sources.aws_readers]
+bucket_url = "bucket_url"
+```
+
+#### Defaults
+
+If configuration is not provided, `dlt` uses the default AWS credentials (from `.aws/credentials`) as present on the machine:
+- It works by creating an instance of botocore Session.
+- If `profileName` is specified, the credentials for that profile are used.
+  If not - the default profile is used.
 
 ### AzureCredentials
 
@@ -248,22 +333,46 @@ It inherits the ability to manage default credentials and extends it with method
 handling partial credentials and converting credentials to a format suitable
 for interacting with Azure Blob Storage using the adlfs library.
 
-Usage:
+#### Usage
 ```python
 credentials = AzureCredentials()
-
 # Set the necessary attributes
 credentials.azure_storage_account_name = "ACCOUNT_NAME"
 credentials.azure_storage_account_key = "ACCOUNT_KEY"
-
-# Generate a SAS token
-credentials.create_sas_token()
-print(credentials.azure_storage_sas_token)
-
-# Convert credentials to adlfs format
-adlfs_credentials = credentials.to_adlfs_credentials()
-print(adlfs_credentials["account_name"])
 ```
+or more preferred use:
+```python
+@dlt.source
+def azure_readers(
+    bucket_url: str = dlt.config.value,
+    credentials: AzureCredentials = dlt.secrets.value,
+):
+    ...
+    # Generate a SAS token
+    credentials.create_sas_token()
+    print(credentials.azure_storage_sas_token)
+
+    # Convert credentials to adlfs format
+    adlfs_credentials = credentials.to_adlfs_credentials()
+    print(adlfs_credentials["account_name"])
+
+    # to_native_credentials() is not yet implemented
+    ...
+```
+while `secrets.toml` looks as following:
+```toml
+[sources.azure_readers.credentials]
+azure_storage_account_name = "account_name"
+azure_storage_account_key = "account_key"
+```
+and `config.toml`:
+```toml
+[sources.azure_readers]
+bucket_url = "bucket_url"
+```
+#### Defaults
+
+If configuration is not provided, `dlt` uses the default credentials using `DefaultAzureCredential`.
 
 ## Working with alternatives of credentials (Union types)
 
