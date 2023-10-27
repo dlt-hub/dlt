@@ -63,7 +63,7 @@ secrets (to reduce the number of requests done by `dlt` when searching sections)
 
 ## Provider key formats
 
-### `toml` vs. Environment Variables
+### TOML vs. Environment Variables
 
 Providers may use different formats for the keys. `dlt` will translate the standard format where
 sections and key names are separated by "." into the provider-specific formats.
