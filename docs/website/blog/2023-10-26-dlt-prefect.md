@@ -1,7 +1,10 @@
 ---
 slug: dlt-prefect
 title: "Building resilient pipelines in minutes with dlt + Prefect"
-image: /img/purple-python-spoderweb.png
+meta:
+  - name: canonical
+    content: https://www.prefect.io/blog/building-resilient-data-pipelines-in-minutes-with-dlt-prefect
+image: /img/prefect-dlt.png
 authors:
   name: Dylan Hughes & Chris Reuter
   title: Engineering & Community at [Prefect.io](https://www.prefect.io/)
@@ -9,6 +12,8 @@ authors:
   image_url: https://avatars.githubusercontent.com/u/2325367?v=4
 tags: [dbt runner, dbt cloud runner, dbt core runner]
 ---
+
+This article is reposted from Prefect.io blog, and you can read the original [there](https://www.prefect.io/blog/building-resilient-data-pipelines-in-minutes-with-dlt-prefect).
 
 >The hardest part about writing a blog is getting started - writing the outline and filling out the first few key points. The same can be said for writing data pipelines: you need to inspect docs, determine data structures, write tests, etc.
 >
@@ -23,9 +28,15 @@ you can use dlt to build a framework for your pipelines for any combination of t
 
 ### Moving Slack data into BigQuery
 
-We use BigQuery as our data warehouse, and try to centralize as much information there as possible. Given our Slack community is over 25,000 people, it makes sense to use that information to better our community. We can identify the types of questions our users struggle with the most, and take action to improve Prefect by using Slack data.
+We use BigQuery as our data warehouse, and try to centralize as much information there as possible.
+Given our Slack community is over 25,000 people, it makes sense to use that information to better our
+community. We can identify the types of questions our users struggle with the most, and take action to
+improve Prefect by using Slack data.
 
-If you Google “load Slack into BigQuery,” you’ll see a bunch of listings for no-code tools like Zapier that can help you move data… for a fee, of course. What if you want to do this yourself? Slack has an API, but [check it out](https://api.slack.com/methods/users.list). It would take some effort to interpret even a simple response like this one for users:
+If you Google “load Slack into BigQuery,” you’ll see a bunch of listings for no-code tools like
+Zapier that can help you move data… for a fee, of course. What if you want to do this yourself?
+Slack has an API, but [check it out](https://api.slack.com/methods/users.list).
+It would take some effort to interpret even a simple response like this one for users:
 
 ```json
 {
@@ -73,6 +84,8 @@ If you Google “load Slack into BigQuery,” you’ll see a bunch of listings f
 }
 ```
 ### With dlt
+You can use dlt to build a Slack to BigQuery pipeline in just a few seconds with a single command.
+Seriously, it is that simple.
 In preparation, let’s make sure to install what we need:
 
 ```bash
@@ -80,8 +93,7 @@ pip install dlt
 pip install prefect
 ````
 
-You can use dlt to build a Slack to BigQuery pipeline in just a few seconds with a single command.
-Seriously, it is that simple. After installing dlt, simply run the following command:
+Then just run a simple init command:
 
 ```bash
 
@@ -105,6 +117,10 @@ client_email = "*****"
 With a single command + adding some credentials,
 we now have the framework of a pipeline! [Look at what has been generated](https://github.com/dylanbhughes/dlt_slack_pipeline/blob/main/slack_pipeline.py),
 with a couple of small customizations:
+
+Note that we are redacting some of the code in the preview for brevity,
+to follow along completely navigate to the repo.
+
 
 ```python
 # Pipeline to load Slack into BigQuery
@@ -157,19 +173,25 @@ What if BigQuery is down (😅)? What about a networking issue?
 What if the execution environment where this script lives isn’t working?
 
 These questions are the difference between a pipeline and a resilient pipeline.
-They’re the difference between you getting sleep at night and you looking like a hero (or a dummy) to your stakeholders.
+They’re the difference between you getting sleep at night and you looking like a hero (or a dummy)
+to your stakeholders.
 
 
 ## Adding Prefect
 
-Prefect is a workflow orchestration tool for turning your pipelines into scheduled, repeatable, and resilient workflows. With Prefect you get scheduling, observability, and automations that can make sure your pipelines aren’t causing you stress in the middle of the night.
+Prefect is a workflow orchestration tool for turning your pipelines into scheduled, repeatable,
+and resilient workflows. With Prefect you get scheduling, observability, and automations
+that can make sure your pipelines aren’t causing you stress in the middle of the night.
 
-Make sure you’re logged in to Prefect Cloud by [signing up](https://app.prefect.cloud/?utm_source=dltblog) and using the following command:
+Make sure you’re logged in to Prefect Cloud by [signing up](https://app.prefect.cloud/?utm_source=dltblog)
+and using the following command:
 
 ```bash
 prefect cloud login
 ```
-Luckily, Prefect is also incredibly Pythonic. Turning any pipeline into an observable, scheduled Prefect flow is as simple as adding decorators to your functions and serving it up. Here’s our dlt generated pipeline, scheduled daily:
+Luckily, Prefect is also incredibly Pythonic. Turning any pipeline into an observable, scheduled
+Prefect flow is as simple as adding decorators to your functions and `serving` it up.
+Here’s our `dlt` generated pipeline, scheduled daily:
 
 ```python
 from typing import List
@@ -243,7 +265,9 @@ If your workflows never run, break and fail, [or break and never end](https://do
 notifying you and taking the appropriate action in case of failure.
 
 ### Building resilient pipelines faster with dlt + Prefect
-Getting into production is hard. First you need to build your pipeline, and then you need to make it resilient. With this tutorial, we’ve shown you how to quickly build pipelines with dlt and then turn that pipeline into a resilient, repeatable workflow with Prefect.
+Getting into production is hard. First you need to build your pipeline, and then you need to make it
+resilient. With this tutorial, we’ve shown you how to quickly build pipelines with dlt and then turn
+that pipeline into a resilient, repeatable workflow with Prefect.
 
 Prefect makes complex workflows simpler, not harder.
 Try [Prefect Cloud](https://app.prefect.cloud/) for free for yourself,
