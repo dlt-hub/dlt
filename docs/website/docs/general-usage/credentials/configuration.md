@@ -73,7 +73,7 @@ values and secrets used by the application.
 like passwords, API keys, and other confidential data.
 
 We use these values to set secrets and configurations via:
-- [toml files](config_providers#toml-provider) (secrets.toml & config.toml):
+- [TOML files](config_providers#toml-provider) (secrets.toml & config.toml):
   ```toml
   # google sheet credentials
   [sources.google_sheets.credentials]
