@@ -29,6 +29,7 @@ from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry, LoadCli
 
 
 class Load(Runnable[Executor]):
+    pool: Executor
 
     @with_config(spec=LoaderConfiguration, sections=(known_sections.LOAD,))
     def __init__(
@@ -48,7 +49,7 @@ class Load(Runnable[Executor]):
         self.destination = destination
         self.capabilities = destination.capabilities()
         self.staging_destination = staging_destination
-        self.pool: Executor = NullExecutor()
+        self.pool = NullExecutor()
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._processed_load_ids: Dict[str, str] = {}
         """Load ids to dataset name"""
@@ -380,9 +381,9 @@ class Load(Runnable[Executor]):
                 self.complete_package(load_id, schema, True)
                 raise
 
-    def run(self, pool: Executor) -> TRunMetrics:
+    def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # store pool
-        self.pool = pool
+        self.pool = pool or NullExecutor()
 
         logger.info("Running file loading")
         # get list of loads and order by name ASC to execute schema updates

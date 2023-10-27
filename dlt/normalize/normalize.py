@@ -1,5 +1,5 @@
 import os
-from typing import Any, Callable, List, Dict, Sequence, Tuple, Set
+from typing import Any, Callable, List, Dict, Sequence, Tuple, Set, Optional
 from concurrent.futures import Future, ProcessPoolExecutor, Executor
 # from multiprocessing.pool import AsyncResult, Pool as ProcessPool
 
@@ -35,12 +35,13 @@ TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str], TRowCount]
 
 
 class Normalize(Runnable[Executor]):
+    pool: Executor
     @with_config(spec=NormalizeConfiguration, sections=(known_sections.NORMALIZE,))
     def __init__(self, collector: Collector = NULL_COLLECTOR, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = config.value) -> None:
         self.config = config
         self.collector = collector
         self.normalize_storage: NormalizeStorage = None
-        self.pool: Executor = NullExecutor()
+        self.pool = NullExecutor()
         self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
         self._row_counts: TRowCount = {}
@@ -279,9 +280,9 @@ class Normalize(Runnable[Executor]):
 
         return load_id
 
-    def run(self, pool: Executor) -> TRunMetrics:
+    def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # keep the pool in class instance
-        self.pool = pool
+        self.pool = pool or NullExecutor()
         self._row_counts = {}
         logger.info("Running file normalizing")
         # list files and group by schema name, list must be sorted for group by to actually work
