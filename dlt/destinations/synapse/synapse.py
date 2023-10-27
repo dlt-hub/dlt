@@ -155,7 +155,7 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
                 raise ValueError("Failed to parse original SQL")
 
     # In Azure Synapse, must break out SELECT statements for multi-row INSERT
-    # https://stackoverflow.com/questions/36141006/how-to-insert-multiple-rows-into-sql-server-parallel-data-warehouse-table
+    # https://stackoverflow.com/questions/36141006/how-to-insert-multiple-rows-into-sql-server-parallel-data-warehoue-table
     def generate_insert_query(self, table_name: str, columns: List[str], rows: List[List[Any]]) -> Tuple[str, List[Any]]:
         # Access the inner list of tuples
         inner_rows = rows[0]

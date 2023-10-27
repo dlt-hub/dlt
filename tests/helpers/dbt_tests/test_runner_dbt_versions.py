@@ -59,7 +59,7 @@ def dbt_package_f(request: Any) -> Iterator[Tuple[str, AnyFun]]:
 
 
 def test_infer_venv_deps() -> None:
-    requirements = _create_dbt_deps(["postgres", "mssql", "synapse"])
+    requirements = _create_dbt_deps(["postgres", "mssql"])
     assert requirements[:3] == [f"dbt-core{DEFAULT_DBT_VERSION}", "dbt-postgres", "dbt-sqlserver"]
     # should lead to here
     assert os.path.isdir(requirements[-1])

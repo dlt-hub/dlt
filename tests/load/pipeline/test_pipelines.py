@@ -29,7 +29,6 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize('use_single_dataset', [True, False])
 def test_default_pipeline_names(use_single_dataset: bool, destination_config: DestinationTestConfiguration) -> None:
-    print(f"\n\nTesting with use_single_dataset: {use_single_dataset}, destination_config: {destination_config}")
     destination_config.setup()
     p = dlt.pipeline()
     p.config.use_single_dataset = use_single_dataset
@@ -42,8 +41,6 @@ def test_default_pipeline_names(use_single_dataset: bool, destination_config: De
     assert p.destination is None
     assert p.default_schema_name is None
 
-    print(f"\nAfter setup, pipeline_name: {p.pipeline_name}, dataset_name: {p.dataset_name}, default_schema_name: {p.default_schema_name}")
-
     data = ["a", "b", "c"]
     with pytest.raises(PipelineStepFailed) as step_ex:
         p.extract(data)
@@ -53,20 +50,13 @@ def test_default_pipeline_names(use_single_dataset: bool, destination_config: De
     def data_fun() -> Iterator[Any]:
         yield data
 
-    print(f"\nData function defined: {data_fun}")
-
-
     # this will create default schema
     p.extract(data_fun)
-    print(f"\nAfter first extract, default_schema_name: {p.default_schema_name}, schemas: {p.schemas}")
-
     # _pipeline suffix removed when creating default schema name
     assert p.default_schema_name in ["dlt_pytest", "dlt"]
 
     # this will create additional schema
     p.extract(data_fun(), schema=dlt.Schema("names"))
-    print(f"\nAfter second extract, default_schema_name: {p.default_schema_name}, schemas: {p.schemas}")
-
     assert p.default_schema_name in ["dlt_pytest", "dlt"]
     assert "names" in p.schemas.keys()
 
@@ -88,24 +78,18 @@ def test_default_pipeline_names(use_single_dataset: bool, destination_config: De
         assert p.dataset_name in possible_dataset_names
     p.normalize()
     info = p.load(dataset_name="d" + uniq_id())
-    print(f"\nAfter load, dataset_name: {p.dataset_name}, info: {info}")
-
     print(p.dataset_name)
     assert info.pipeline is p
     # two packages in two different schemas were loaded
     assert len(info.loads_ids) == 2
 
-    print(f"Before assert_table, use_single_dataset: {use_single_dataset}")
     # if loaded to single data, double the data was loaded to a single table because the schemas overlapped
     if use_single_dataset:
         assert_table(p, "data_fun", sorted(data * 2), info=info)
     else:
-        print(f"\nNot single data set...here's the data: {data}")
-        print(f"here's the info: {info}")
         # loaded to separate data sets
         assert_table(p, "data_fun", data, info=info)
         assert_table(p, "data_fun", data, schema_name="names", info=info)
-    print(f"\nEnd of test\n\n")
 
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True), ids=lambda x: x.name)
