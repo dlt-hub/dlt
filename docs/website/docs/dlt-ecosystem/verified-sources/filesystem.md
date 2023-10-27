@@ -1,6 +1,6 @@
 ---
-title: Readers Source and Filesystem
-description: dlt verified source for Readers Source and Filesystem keywords
+title: Filesystem
+description: dlt verified source for Readers Source and Filesystem
 keywords: [readers source and filesystem, filesystem, readers source]
 ---
 # Readers Source and Filesystem
@@ -11,27 +11,31 @@ keywords: [readers source and filesystem, filesystem, readers source]
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
-This verified source easily streams files from s3, gcs, azure, or local filesystem using the reader
-source. Currently supports the following:
+This verified source easily streams files from AWS s3, GCS, Azure, or local filesystem using the reader
+source. Currently, supports the following:
 
-- read_csv (with Pandas)
-- read_jsonl
-- read_parquet (with pyarrow)
+- `read_csv`
+- `read_jsonl`
+- `read_parquet` (with pyarrow)
 
 Additionally, it can read Excel files with a standalone transformer and copy files locally.
 
 Sources and resources that can be loaded using this verified source are:
 
-| Name       | Description                                          |
-|------------|------------------------------------------------------|
-| readers    | Provides chunked file reader resources               |
-| filesystem | Lists files in `bucket_url` using`file_glob` pattern |
+| Name       | Type                 | Description                                                  |
+|------------|----------------------|--------------------------------------------------------------|
+| filesystem | Source               | Lists files in `bucket_url` using`file_glob` pattern         |
+| read_csv    | Resource-transformer | Reads csv file with Pandas chunk by chunk                    |
+| read_jsonl    | Resource-transformer | Reads jsonl file content and extract the data                |
+| read_parquet    | Resource-transformer | Reads parquet file content and extract the data with Pyarrow |
 
+:::tip
 We advice that you give each resource a
 [specific name](https://dlthub.com/docs/general-usage/resource#duplicate-and-rename-resources)
 before loading with `pipeline.run`. This will make sure that data goes to a table with the name you
 want and that each pipeline uses a
 [separate state for incremental loading.](https://dlthub.com/docs/general-usage/state#read-and-write-pipeline-state-in-a-resource)
+:::
 
 ### Standalone filesystem
 
