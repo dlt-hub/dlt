@@ -65,7 +65,7 @@ If dlt tries to read this from environment variables, it will use a different na
 
 For environment variables all names are capitalized and sections are separated with a double underscore "__".
 
-For example, for the above secrets, we would need to put into environment:
+For example, for the secrets mentioned above, we would need to set them in the environment:
 
 ```shell
 SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
