@@ -508,7 +508,7 @@ def test_missing_primary_key(item_type: TItemFormat) -> None:
 
 @pytest.mark.parametrize("item_type", ALL_ITEM_FORMATS)
 def test_missing_cursor_field(item_type: TItemFormat) -> None:
-
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     @dlt.resource
     def some_data(last_timestamp=dlt.sources.incremental("item.timestamp")):
         data = [{"delta": i, "ts": pendulum.now().add(days=i).timestamp()} for i in range(-10, 10)]
@@ -516,8 +516,51 @@ def test_missing_cursor_field(item_type: TItemFormat) -> None:
         yield from source_items
 
     with pytest.raises(IncrementalCursorPathMissing) as py_ex:
-        list(some_data)
+        list(some_data())
     assert py_ex.value.json_path == "item.timestamp"
+
+    # same thing when run in pipeline
+    dlt.run(some_data(), destination="dummy")
+
+
+def test_json_path_cursor() -> None:
+
+    @dlt.resource
+    def some_data(last_timestamp=dlt.sources.incremental("item.timestamp|modifiedAt")):
+        yield [{
+            "delta": i,
+            "item": {
+                "timestamp": pendulum.now().add(days=i).timestamp()
+            }
+        } for i in range(-10, 10)]
+
+        yield [{
+            "delta": i,
+            "item": {
+                "modifiedAt": pendulum.now().add(days=i).timestamp()
+            }
+        } for i in range(-10, 10)]
+
+    # path should match both timestamp and modifiedAt in item
+    list(some_data)
+
+
+def test_remove_incremental_with_explicit_none() -> None:
+
+    @dlt.resource
+    def some_data_optional(last_timestamp: Optional[dlt.sources.incremental[float]] = dlt.sources.incremental("item.timestamp")):
+        assert last_timestamp is None
+        yield 1
+    # we disable incremental by typing the argument as optional
+    assert list(some_data_optional(last_timestamp=None)) == [1]
+
+    @dlt.resource(standalone=True)
+    def some_data(last_timestamp: dlt.sources.incremental[float] = dlt.sources.incremental("item.timestamp")):
+        assert last_timestamp is None
+        yield 1
+    # we'll get the value error
+    with pytest.raises(ValueError):
+        assert list(some_data(last_timestamp=None)) == [1]
 
 
 @pytest.mark.parametrize("item_type", ALL_ITEM_FORMATS)

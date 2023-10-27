@@ -109,7 +109,7 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
             return cls(pipe, table_schema_template, selected, incremental=incremental, section=section, args_bound=not callable(data))
         else:
             # some other data type that is not supported
-            raise InvalidResourceDataType(name, data, type(data), f"The data type is {type(data).__name__}")
+            raise InvalidResourceDataType(name, data, type(data), f"The data type of supplied type is {type(data).__name__}")
 
     @property
     def name(self) -> str:
