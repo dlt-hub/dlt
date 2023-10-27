@@ -55,7 +55,7 @@ Example 3. Use the **mixed** form: the password is missing in explicit dsn and w
 `secrets.toml`.
 
 ```toml
-dsn.password="loader
+dsn.password="loader"
 ```
 
 You can explicitly provide credentials in various forms:
@@ -80,13 +80,13 @@ from dlt.sources.credentials import AzureCredentials
 
 ### ConnectionStringCredentials
 
-The ConnectionStringCredentials class handles connection string
+The `ConnectionStringCredentials` class handles connection string
 credentials for SQL database connections.
 It includes attributes for the driver name, database name, username, password, host, port,
 and additional query parameters.
 This class provides methods for parsing and generating connection strings.
 
-Usage:
+#### Usage
 ```python
 credentials = ConnectionStringCredentials()
 
@@ -112,7 +112,7 @@ Above, you can find an example of how to use this spec with sources and TOML fil
 
 ### OAuth2Credentials
 
-The OAuth2Credentials class handles OAuth 2.0 credentials, including client ID,
+The `OAuth2Credentials` class handles OAuth 2.0 credentials, including client ID,
 client secret, refresh token, and access token.
 It also allows for the addition of scopes and provides methods for client authentication.
 
@@ -132,6 +132,9 @@ credentials.auth()
 credentials.add_scopes(["scope3", "scope4"])
 ```
 
+`OAuth2Credentials` is a base class to implement actual OAuth, for example,
+it is a base class for [GcpOAuthCredentials](#gcpoauthcredentials).
+
 ### GCP Credentials
 
 [The Google Analytics verified source](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/__init__.py):
@@ -139,7 +142,7 @@ the example how to use GCP Credentials.
 
 #### GcpServiceAccountCredentials
 
-The GcpServiceAccountCredentials class manages GCP Service Account credentials.
+The `GcpServiceAccountCredentials` class manages GCP Service Account credentials.
 This class provides methods to retrieve native credentials for Google clients.
 
 ##### Usage
@@ -191,9 +194,9 @@ property_id = "213025502"
 
 #### GcpOAuthCredentials
 
-The GcpOAuthCredentials class is responsible for handling OAuth2 credentials for
+The `GcpOAuthCredentials` class is responsible for handling OAuth2 credentials for
 desktop applications in Google Cloud Platform (GCP).
-It can parse native values either as GoogleOAuth2Credentials or as
+It can parse native values either as `GoogleOAuth2Credentials` or as
 serialized OAuth client secrets JSON.
 This class provides methods for authentication and obtaining access tokens.
 
@@ -265,7 +268,7 @@ Read more about [Google defaults.](https://googleapis.dev/python/google-auth/lat
 
 ### AwsCredentials
 
-The AwsCredentials class is responsible for handling AWS credentials,
+The `AwsCredentials` class is responsible for handling AWS credentials,
 including access keys, session tokens, profile names, region names, and endpoint URLs.
 It inherits the ability to manage default credentials and extends it with methods
 for handling partial credentials and converting credentials to a botocore session.
@@ -327,7 +330,7 @@ If configuration is not provided, `dlt` uses the default AWS credentials (from `
 
 ### AzureCredentials
 
-The AzureCredentials class is responsible for handling Azure Blob Storage credentials,
+The `AzureCredentials` class is responsible for handling Azure Blob Storage credentials,
 including account name, account key, Shared Access Signature (SAS) token, and SAS token permissions.
 It inherits the ability to manage default credentials and extends it with methods for
 handling partial credentials and converting credentials to a format suitable

@@ -49,10 +49,10 @@ def google_sheets(
     return tabs
 ```
 
-`spreadsheet_id`: The unique identifier of the Google Sheets document.\
-`tab_names`: A list of tab names to read from the spreadsheet.\
-`credentials`: Google Sheets credentials as a dictionary ({"private_key": ...}).\
-`only_strings`: Flag to specify if only string data should be retrieved.
+- `spreadsheet_id`: The unique identifier of the Google Sheets document.
+- `tab_names`: A list of tab names to read from the spreadsheet.
+- `credentials`: Google Sheets credentials as a dictionary ({"private_key": ...}).
+- `only_strings`: Flag to specify if only string data should be retrieved.
 
 `spreadsheet_id` and `tab_names` are configuration values that can be provided directly
 when calling the function. `credentials` is a sensitive piece of information.
