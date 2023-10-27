@@ -63,7 +63,7 @@ client_email = "client_email" # please set me up!
 
 If dlt tries to read this from environment variables, it will use a different naming convention.
 
-For environment variables all names are capitalized and sections are separated with double underscore "__".
+For environment variables all names are capitalized and sections are separated with a double underscore "__".
 
 For example, for the above secrets, we would need to put into environment:
 
