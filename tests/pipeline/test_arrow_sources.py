@@ -139,3 +139,21 @@ def test_extract_normalize_file_rotation(item_type: TArrowFormat) -> None:
     load_id = pipeline.list_normalized_load_packages()[0]
     # 10 jobs on parquet files
     assert len(pipeline.get_load_package_info(load_id).jobs["new_jobs"]) == 10
+
+
+@pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
+def test_arrow_as_data_loading(item_type: TArrowFormat) -> None:
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
+
+    item, rows = arrow_table_all_data_types(item_type)
+
+    item_resource = dlt.resource(item, name="item")
+    assert id(item) == id(list(item_resource)[0])
+
+    pipeline_name = "arrow_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    pipeline.extract(item, table_name="items")
+    assert len(pipeline.list_extracted_resources()) == 1
+    info = pipeline.normalize()
+    assert info.row_counts["items"] == len(rows)
