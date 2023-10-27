@@ -92,8 +92,8 @@ We have some ready-made credentials you can reuse:
 from dlt.sources.credentials import ConnectionStringCredentials
 from dlt.sources.credentials import OAuth2Credentials
 from dlt.sources.credentials import GcpServiceAccountCredentials, GcpOAuthCredentials
-from dlt.common.configuration.specs import AwsCredentials
-from dlt.common.configuration.specs import AzureCredentials
+from dlt.sources.credentials import AwsCredentials
+from dlt.sources.credentials import AzureCredentials
 ```
 
 ### ConnectionStringCredentials

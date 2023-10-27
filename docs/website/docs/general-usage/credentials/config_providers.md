@@ -8,7 +8,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 # Configuration Providers
 
 
-**Configuration Providers** in the context of the `dlt` library
+Configuration Providers in the context of the `dlt` library
 refer to different sources from which configuration values
 and secrets can be retrieved for a data pipeline.
 These providers form a hierarchy, with each having its own
@@ -19,7 +19,7 @@ priority in determining the values for function arguments.
 If function signature has arguments that may be injected, `dlt` looks for the argument values in
 providers.
 
-### Configuration Providers
+### Providers
 
 1. **Environment Variables**: At the top of the hierarchy are environment variables.
    If a value for a specific argument is found in an environment variable,
@@ -35,8 +35,6 @@ providers.
 
 4. **Default Argument Values**: These are the values specified in the function's signature.
    They have the lowest priority in the provider hierarchy.
-
-**The argument name is a key in the lookup**.
 
 ### Example
 
@@ -61,6 +59,8 @@ for: `spreadsheet_id`, `tab_names` and `credentials`.
 
 Each provider has its own key naming convention, and dlt is able to translate between them.
 
+**The argument name is a key in the lookup**.
+
 At the top of the hierarchy are Environment Variables, then `secrets.toml` and
 `config.toml` files. Providers like Airflow/Google/AWS/Azure Vaults will be inserted **after** the Environment
 provider but **before** TOML providers.
@@ -72,8 +72,6 @@ The values passed in the code **explicitly** are the **highest** in provider hie
 of the arguments have the **lowest** priority in the provider hierarchy.
 
 :::info
-Summary of the hierarchy:
-
 Explicit Args **>** ENV Variables **>** Vaults: Airflow etc. **>** `secrets.toml` **>** `config.toml` **>** Default Arg Values
 :::
 

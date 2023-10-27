@@ -9,15 +9,15 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 Secrets and configs are two types of sensitive and non-sensitive information used in a data pipeline:
 
-1. Configs:
+1. **Configs**:
   - Configs refer to non-sensitive configuration data. These are settings, parameters, or options that define the behavior of a data pipeline.
   - They can include things like file paths, database connection strings, API endpoints, or any other settings that affect the pipeline's behavior.
-2. Secrets:
+2. **Secrets**:
   - Secrets are sensitive information that should be kept confidential, such as passwords, API keys, private keys, and other confidential data.
   - It's crucial to never hard-code secrets directly into the code, as it can pose a security risk. Instead, they should be stored securely and accessed via a secure mechanism.
 
 
-Design Principles:
+**Design Principles**:
 
 1. Adding configuration and secrets to sources and resources should be no-effort.
 2. You can reconfigure the pipeline for production after it is deployed. Deployed and local code should
@@ -49,11 +49,10 @@ def google_sheets(
     return tabs
 ```
 
-`spreadsheet_id`: The unique identifier of the Google Sheets document.
-
-`tab_names`: A list of tab names to read from the spreadsheet.
-
-`credentials`: Google Sheets credentials as a dictionary ({"private_key": ...}).
+`spreadsheet_id`: The unique identifier of the Google Sheets document.\
+`tab_names`: A list of tab names to read from the spreadsheet.\
+`credentials`: Google Sheets credentials as a dictionary ({"private_key": ...}).\
+`only_strings`: Flag to specify if only string data should be retrieved.
 
 `spreadsheet_id` and `tab_names` are configuration values that can be provided directly
 when calling the function. `credentials` is a sensitive piece of information.
@@ -99,21 +98,21 @@ or pass everything via configuration.
 
 2. Option B
     ```python
+   # `only_strings` will get the default value False
     data_source = google_sheets()
     ```
-   In this case `credentials` value will be injected by the `@source` decorator (e.g. from `secrets.toml`),
+   In this case `credentials` value will be also injected by the `@source` decorator (e.g. from `secrets.toml`),
     `spreadsheet_id` and `tab_names` will be injected by the `@source` decorator (e.g. from `config.toml`) as well.
 
 We use `dlt.secrets.value` and `dlt.config.value` to set secrets and configurations via:
-- [toml files](config_providers#toml-provider) (secrets.toml & config.toml):
+- [TOML files](config_providers#toml-provider) (`secrets.toml` & `config.toml`):
   ```toml
-  # google sheet credentials
   [sources.google_sheets.credentials]
   client_email = <client_email from services.json>
   private_key = <private_key from services.json>
   project_id = <project_id from services json>
   ```
-  Read more about [toml layouts](#secret-and-config-values-layout-and-name-lookup).
+  Read more about [TOML layouts](#secret-and-config-values-layout-and-name-lookup).
 - [Environment Variables](config_providers#environment-provider):
   ```python
   SOURCES__GOOGLE_SHEETS__CREDENTIALS__CLIENT_EMAIL
@@ -144,7 +143,7 @@ Doing so provides several benefits:
 ```python
 @dlt.source
 def google_sheets(
-    spreadsheet_id: str,
+    spreadsheet_id: str = dlt.config.value,
     tab_names: List[str] = dlt.config.value,
     credentials: GcpServiceAccountCredentials = dlt.secrets.value,
     only_strings: bool = False
@@ -155,7 +154,7 @@ def google_sheets(
 Now:
 
 1. You are sure that you get a list of strings as `tab_names`.
-1. You will get actual Google credentials (see [Credentials Configuration](config_specs)), and your users can
+1. You will get actual Google credentials (see [GCP Credential Configuration](config_specs#gcp-credentials)), and your users can
    pass them in many different forms.
 
 In case of `GcpServiceAccountCredentials`:
@@ -455,4 +454,4 @@ In the example above:
 1. First it looks into `environ` then in `secrets.toml`. It displays the exact keys tried.
 1. Note that `config.toml` was skipped! It may not contain any secrets.
 
-Read more about [Providers](./config_providers).
+Read more about [Provider Hierarchy](./config_providers).
