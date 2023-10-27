@@ -10,6 +10,7 @@ import pandas as pd
 import dlt
 from dlt.common import Decimal
 from dlt.common import pendulum
+from dlt.common.time import reduce_pendulum_datetime_precision
 from dlt.common.utils import uniq_id
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.load.pipeline.utils import assert_table, assert_query_data, select_data
@@ -67,6 +68,11 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
 
     expected = sorted([list(r.values()) for r in records], key=lambda x: x[0])
 
+    for row in expected:
+        for i in range(len(row)):
+            if isinstance(row[i], datetime):
+                row[i] = reduce_pendulum_datetime_precision(row[i], pipeline.destination.capabilities().timestamp_precision)
+
     load_id = load_info.loads_ids[0]
 
     for row, expected_row in zip(rows, expected):
@@ -77,6 +83,7 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
         assert isinstance(row[-1], str)
 
 
+@pytest.mark.no_load  # Skips drop_pipeline fixture since we don't do any loading
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_staging_configs=True, all_staging_configs=True, default_vector_configs=True), ids=lambda x: x.name)
 @pytest.mark.parametrize("item_type", ["table", "pandas", "record_batch"])
 def test_parquet_column_names_are_normalized(item_type: TArrowFormat, destination_config: DestinationTestConfiguration) -> None:
