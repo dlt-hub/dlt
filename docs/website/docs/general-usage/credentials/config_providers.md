@@ -84,7 +84,7 @@ Looks for the values in the environment variables.
 
 ### Toml provider
 
-Tomls provider uses two `toml` files: `secrets.toml` to store secrets and `config.toml` to store
+TOML provider uses two TOML files: `secrets.toml` to store secrets and `config.toml` to store
 configuration values. The default `.gitignore` file prevents secrets from being added to source
 control and pushed. The `config.toml` may be freely added.
 
