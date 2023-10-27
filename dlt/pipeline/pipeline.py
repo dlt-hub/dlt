@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
 from typing import Any, Callable, ClassVar, List, Iterator, Optional, Sequence, Tuple, cast, get_type_hints, ContextManager
+from concurrent.futures import Executor
 
 from dlt import version
 from dlt.common import json, logger, pendulum

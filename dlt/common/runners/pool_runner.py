@@ -1,30 +1,56 @@
 import multiprocessing
-from typing import Callable, Union, cast
+from typing import Callable, Union, cast, Any, TypeVar
 from multiprocessing.pool import ThreadPool, Pool
+from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor, Future
+from typing_extensions import ParamSpec
 
 from dlt.common import logger, sleep
 from dlt.common.runtime import init
-from dlt.common.runners.runnable import Runnable, TPool
+from dlt.common.runners.runnable import Runnable, TExecutor
 from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.runners.typing import TRunMetrics
 from dlt.common.runtime import signals
 from dlt.common.exceptions import SignalReceivedException
 
 
-def create_pool(config: PoolRunnerConfiguration) -> Pool:
+T = TypeVar("T")
+P = ParamSpec("P")
+
+
+class NullExecutor(Executor):
+    """Dummy executor that runs jobs single-threaded.
+
+    Provides a uniform interface for `None` pool type
+    """
+
+    def submit(self, fn: Callable[P, T], *args: P.args, **kwargs: P.kwargs) -> Future[T]:
+        """Run the job and return a Future"""
+        fut: Future[T] = Future()
+        try:
+            result = fn(*args, **kwargs)
+        except BaseException as exc:
+            fut.set_exception(exc)
+        else:
+            fut.set_result(result)
+        return fut
+
+
+def create_pool(config: PoolRunnerConfiguration) -> Executor:
     if config.pool_type == "process":
         # if not fork method, provide initializer for logs and configuration
         if multiprocessing.get_start_method() != "fork" and init._INITIALIZED:
-            return Pool(processes=config.workers, initializer=init.initialize_runtime, initargs=(init._RUN_CONFIGURATION, ))
+            return ProcessPoolExecutor(max_workers=config.workers, initializer=init.initialize_runtime, initargs=(init._RUN_CONFIGURATION,))
+            # return Pool(processes=config.workers, initializer=init.initialize_runtime, initargs=(init._RUN_CONFIGURATION, ))
         else:
-            return Pool(processes=config.workers)
+            return ProcessPoolExecutor(max_workers=config.workers)
+            # return Pool(processes=config.workers)
     elif config.pool_type == "thread":
-        return ThreadPool(processes=config.workers)
+        return ThreadPoolExecutor(max_workers=config.workers)
     # no pool - single threaded
-    return None
+    return NullExecutor()
 
 
-def run_pool(config: PoolRunnerConfiguration, run_f: Union[Runnable[TPool], Callable[[TPool], TRunMetrics]]) -> int:
+def run_pool(config: PoolRunnerConfiguration, run_f: Union[Runnable[TExecutor], Callable[[TExecutor], TRunMetrics]]) -> int:
     # validate the run function
     if not isinstance(run_f, Runnable) and not callable(run_f):
         raise ValueError(run_f, "Pool runner entry point must be a function f(pool: TPool) or Runnable")
@@ -36,9 +62,9 @@ def run_pool(config: PoolRunnerConfiguration, run_f: Union[Runnable[TPool], Call
 
     def _run_func() -> bool:
         if callable(run_f):
-            run_metrics = run_f(cast(TPool, pool))
+            run_metrics = run_f(cast(TExecutor, pool))
         elif isinstance(run_f, Runnable):
-            run_metrics = run_f.run(cast(TPool, pool))
+            run_metrics = run_f.run(cast(TExecutor, pool))
         else:
             raise SignalReceivedException(-1)
         return run_metrics.pending_items > 0
@@ -59,7 +85,7 @@ def run_pool(config: PoolRunnerConfiguration, run_f: Union[Runnable[TPool], Call
         if pool:
             logger.info("Closing processing pool")
             # terminate pool and do not join
-            pool.terminate()
+            pool.shutdown(wait=True)
             # in very rare cases process hangs here, even with starmap terminating earlier
             # pool.close()
             # pool.join()
