@@ -7,7 +7,7 @@ meta:
 image: /img/prefect-dlt.png
 authors:
   name: Dylan Hughes & Chris Reuter
-  title: Engineering & Community at [Prefect.io](https://www.prefect.io/)
+  title: Engineering & Community at Prefect.io
   url: https://github.com/dylanbhughes
   image_url: https://avatars.githubusercontent.com/u/2325367?v=4
 tags: [dbt runner, dbt cloud runner, dbt core runner]
