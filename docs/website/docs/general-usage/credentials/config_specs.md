@@ -7,9 +7,16 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 # Configuration Specs
 
+Configuration Specs in `dlt` are Python `dataclasses` that define how complex configuration values,
+particularly credentials, should be handled.
+They specify the types, defaults, and parsing methods for these values.
+
 ## Working with credentials (and other complex configuration values)
 
-Example:
+For example, a spec like `GcpServiceAccountCredentials` manages Google Cloud Platform
+service account credentials, while `ConnectionStringCredentials` handles database connection strings.
+
+### Example
 
 ```python
 import dlt
