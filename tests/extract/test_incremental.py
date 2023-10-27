@@ -205,7 +205,7 @@ def test_nested_cursor_path_arrow_fails(item_type: TItemFormat) -> None:
 
     ex: PipelineStepFailed = py_ex.value
     assert isinstance(ex.exception, IncrementalCursorPathMissing)
-    assert "Column name data.items.[0].created_at was not found in the arrow table" in str(ex)
+    assert ex.exception.json_path == "data.items[0].created_at"
 
 
 @pytest.mark.parametrize("item_type", ALL_ITEM_FORMATS)
@@ -520,7 +520,10 @@ def test_missing_cursor_field(item_type: TItemFormat) -> None:
     assert py_ex.value.json_path == "item.timestamp"
 
     # same thing when run in pipeline
-    dlt.run(some_data(), destination="dummy")
+    with pytest.raises(PipelineStepFailed) as pip_ex:
+        dlt.run(some_data(), destination="dummy")
+    assert isinstance(pip_ex.value.__context__, IncrementalCursorPathMissing)
+    assert pip_ex.value.__context__.json_path == "item.timestamp"
 
 
 def test_json_path_cursor() -> None:

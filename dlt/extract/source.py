@@ -26,6 +26,7 @@ from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataType, InvalidResourceDataTypeIsNone, InvalidTransformerGeneratorFunction,
     DataItemRequiredForDynamicTableHints, InvalidResourceDataTypeAsync, InvalidResourceDataTypeBasic,
     InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, ResourceNameMissing, ResourceNotATransformer, ResourcesNotFoundError, DeletingResourcesNotSupported)
+from dlt.extract.wrappers import wrap_additional_type
 
 
 def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
@@ -90,6 +91,9 @@ class DltResource(Iterable[TDataItem], DltResourceSchema):
         # name is mandatory
         if not name:
             raise ResourceNameMissing()
+
+        # wrap additional types
+        data = wrap_additional_type(data)
 
         # several iterable types are not allowed and must be excluded right away
         if isinstance(data, (AsyncIterator, AsyncIterable)):
