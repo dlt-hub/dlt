@@ -139,6 +139,25 @@ def _get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
         raise ValueError(dtype)
 
 
+def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
+    """Remove all columns of datatype pyarrow.null() from the table or record batch
+    """
+    if isinstance(item, pyarrow.Table):
+        return item.drop([field.name for field in item.schema if pyarrow.types.is_null(field.type)])
+    elif isinstance(item, pyarrow.RecordBatch):
+        null_idx = [i for i, col in enumerate(item.columns) if pyarrow.types.is_null(col.type)]
+        new_schema = item.schema
+        for i in reversed(null_idx):
+            new_schema = new_schema.remove(i)
+        return pyarrow.RecordBatch.from_arrays(
+            [col for i, col in enumerate(item.columns) if i not in null_idx],
+            schema=new_schema
+        )
+    else:
+        raise ValueError(item)
+
+
+
 def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColumns:
     """Convert a PyArrow schema to a table schema columns dict.
 

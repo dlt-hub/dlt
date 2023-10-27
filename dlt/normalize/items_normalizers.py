@@ -171,7 +171,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
 
         new_cols: TTableSchemaColumns = {}
         for key, column in table["columns"].items():
-            if column["data_type"] in ("timestamp", "time"):
+            if column.get("data_type") in ("timestamp", "time"):
                 if (prec := column.get("precision")) and prec > max_precision:
                     new_cols[key] = dict(column, precision=max_precision)  # type: ignore[assignment]
 

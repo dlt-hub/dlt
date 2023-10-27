@@ -223,8 +223,12 @@ class ArrowExtractor(Extractor):
 
     def write_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         items = [
-            pyarrow.pyarrow.Table.from_pandas(item) if (pd and isinstance(item, pd.DataFrame)) else item
-            for item in (items if isinstance(items, list) else [items])
+            # 2. Remove null-type columns from the table(s) as they can't be loaded
+            pyarrow.remove_null_columns(tbl) for tbl in (
+                # 1. Convert pandas frame(s) to arrow Table
+                pyarrow.pyarrow.Table.from_pandas(item) if (pd and isinstance(item, pd.DataFrame)) else item
+                for item in (items if isinstance(items, list) else [items])
+            )
         ]
         super().write_table(resource, items, meta)
 

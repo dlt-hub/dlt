@@ -352,6 +352,7 @@ def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool =
         "decimal": [Decimal(str(round(random.uniform(0, 100), 4))) for _ in range(num_rows)],
         "bool": [random.choice([True, False]) for _ in range(num_rows)],
         "string_null": [random.choice(ascii_lowercase) for _ in range(num_rows - 1)] + [None],
+        "null": pd.Series( [None for _ in range(num_rows)])
     }
 
     if include_json:
@@ -364,7 +365,7 @@ def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool =
     # records have normalized identifiers for comparing
     rows = df.rename(columns={
         "Pre Normalized Column": "pre_normalized_column",
-    }).to_dict("records")
+    }).drop(columns=['null']).to_dict("records")
     if object_format == "pandas":
         return df, rows
     elif object_format == "table":
