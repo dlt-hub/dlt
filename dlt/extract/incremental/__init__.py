@@ -203,9 +203,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
     def get_state(self) -> IncrementalColumnState:
         """Returns an Incremental state for a particular cursor column"""
-        if not self.resource_name:
-            raise IncrementalUnboundError(self.cursor_path)
-
         if self.end_value is not None:
             # End value uses mock state. We don't want to write it.
             return {
@@ -213,6 +210,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 'last_value': self.initial_value,
                 'unique_hashes': []
             }
+
+        if not self.resource_name:
+            raise IncrementalUnboundError(self.cursor_path)
 
         self._cached_state = Incremental._get_state(self.resource_name, self.cursor_path)
         if len(self._cached_state) == 0:
