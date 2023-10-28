@@ -1,12 +1,14 @@
 from typing import Any
 
+from dlt.common.exceptions import MissingDependencyException
+
 
 try:
     from dlt.common.libs.pandas import pandas
     from dlt.common.libs.pyarrow import pyarrow
 
     PandaFrame, ArrowTable, ArrowRecords = pandas.DataFrame, pyarrow.Table, pyarrow.RecordBatch
-except ImportError:
+except MissingDependencyException:
     PandaFrame, ArrowTable, ArrowRecords = None, None, None
 
 
