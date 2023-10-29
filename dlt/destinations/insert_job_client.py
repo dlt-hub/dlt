@@ -113,11 +113,8 @@ class InsertValuesJobClient(SqlJobClientWithStaging):
         if not job:
             # this is using sql_client internally and will raise a right exception
             if file_path.endswith("insert_values"):
-                from dlt.destinations.synapse.synapse import SynapseInsertValuesLoadJob
+                job = InsertValuesLoadJob(table["name"], file_path, self.sql_client)
 
-                job = SynapseInsertValuesLoadJob(table["name"], file_path, self.sql_client)
-                # TODO update synapse handling
-                # job = InsertValuesLoadJob(table["name"], file_path, self.sql_client)
         return job
 
     # # TODO: implement indexes and primary keys for postgres
