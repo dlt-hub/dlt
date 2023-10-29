@@ -129,7 +129,8 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
 
             # Parse the original SQL to extract table name, columns, and rows
             # This is a simplified example, you'll need a more robust way to parse the SQL
-            original_sql_joined = ''.join(original_sql)
+            # TODO pyodbc adding \n, cleaning up string for processing
+            original_sql_joined = ''.join(original_sql).replace('\n', '')
             table_name_match = re.search(r'INSERT INTO (.*?)\(', original_sql_joined)
             columns_match = re.search(r'\((.*?)\)', original_sql_joined)
             values_match = re.search(r'VALUES(.*?);', original_sql_joined, re.DOTALL)
@@ -149,6 +150,7 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
                 # TODO: Consider moving execution
                 # Execute the adapted SQL directly
                 self._sql_client.execute_sql(adapted_sql, *param_values)  # Updated line
+            
 
             else:
                 #logger.error(f"Failed to parse original SQL: {original_sql_joined}")
@@ -161,7 +163,7 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
         inner_rows = rows[0]
 
         try:
-            escaped_column_names = ', '.join(columns)  # This line is changed
+            escaped_column_names = ', '.join(columns)  # This line is unchanged
 
             # Building SELECT statements with parameter markers for each tuple
             num_columns = len(columns)
@@ -176,7 +178,14 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
             print("NEW SQL STRUCTURE: " + str(new_sql))  # This will print the parameters
 
             # Extracting parameter values
-            param_values = [item for tuple in inner_rows for item in (tuple,)]
+            param_values = []
+            for row_str in inner_rows:
+                # Remove leading and trailing parenthesis
+                row_str = row_str.strip('()')
+                # Split by comma to get individual values
+                values = row_str.split(',')
+                param_values.extend(values)
+
             print("Param values: " + str(param_values))  # This will print the parameters
 
             return new_sql, param_values
