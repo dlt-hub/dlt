@@ -24,8 +24,7 @@ def qdrant_adapter(
         DltResource: A resource with applied qdrant-specific hints.
 
     Raises:
-        ValueError: If input for `embed` invalid
-            or neither is specified.
+        ValueError: If input for `embed` invalid or empty.
 
     Examples:
         >>> data = [{"name": "Anush", "description": "Integrations Hacker"}]

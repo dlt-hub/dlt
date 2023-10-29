@@ -15,8 +15,7 @@ class QdrantCredentials(CredentialsConfiguration):
     api_key: Optional[str]
 
     def __str__(self) -> str:
-        """Used to display user friendly data location"""
-        return self.location or "localhost"
+        return self.location
 
 
 @configspec
@@ -52,11 +51,16 @@ class QdrantClientConfiguration(DestinationClientDwhConfiguration):
     # make it optional do empty dataset is allowed
     dataset_name: Optional[str] = None  # type: ignore
 
+    # Batch size for generating embeddings
     embedding_batch_size: int = 32
+    # Number of parallel processes for generating embeddings
     embedding_parallelism: int = 0
 
+    # Batch size for uploading embeddings
     upload_batch_size: int = 64
+    # Number of parallel processes for uploading embeddings
     upload_parallelism: int = 1
+    # Number of retries for uploading embeddings
     upload_max_retries: int = 3
 
     # Qdrant client options
@@ -65,11 +69,11 @@ class QdrantClientConfiguration(DestinationClientDwhConfiguration):
     # Qdrant connection credentials
     credentials: QdrantCredentials
 
-    # FlagEmbedding to use
+    # FlagEmbedding model to use
     # Find the list here. https://qdrant.github.io/fastembed/examples/Supported_Models/.
     model: str = "BAAI/bge-small-en"
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
+        """Returns a fingerprint of a connection string"""
 
         return self.credentials.location

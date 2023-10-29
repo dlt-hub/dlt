@@ -57,10 +57,26 @@ class LoadQdrantJob(LoadJob):
             self._upload_data(vectors=embeddings, ids=ids, payloads=payloads)
 
     def _get_embedding_doc(self, data: Dict[str, Any]) -> str:
+        """Returns document to generate embeddings for.
+
+        Args:
+            data (Dict[str, Any]): A dictionary of data to be loaded.
+
+        Returns:
+            str: Concatenated string of all embedding fields.
+        """
         doc = "\n".join(str(data[key]) for key in self.embedding_fields)
         return doc
 
     def _list_unique_identifiers(self, table_schema: TTableSchema) -> Sequence[str]:
+        """Returns a list of unique identifiers for a table.
+
+        Args:
+            table_schema (TTableSchema): DLT table schema.
+
+        Returns:
+            Sequence[str]: A list of unique column identifiers.
+        """
         if table_schema.get("write_disposition") == "merge":
             primary_keys = get_columns_names_with_prop(
                 table_schema, "primary_key")
@@ -69,12 +85,29 @@ class LoadQdrantJob(LoadJob):
         return get_columns_names_with_prop(table_schema, "unique")
 
     def _upload_data(self, ids: Iterable[Any], vectors: Iterable[Any], payloads: Iterable[Any]) -> None:
+        """Uploads data to a Qdrant instance in a batch. Supports retries and parallelism.
+
+        Args:
+            ids (Iterable[Any]): Point IDs to be uploaded to the collection
+            vectors (Iterable[Any]): Embeddings to be uploaded to the collection
+            payloads (Iterable[Any]): Payloads to be uploaded to the collection
+        """
         self.db_client.upload_collection(
             self.collection_name, ids=ids, payload=payloads, vectors=vectors, parallel=self.config.upload_parallelism, batch_size=self.config.upload_batch_size, max_retries=self.config.upload_max_retries)
 
     def _generate_uuid(
         self, data: Dict[str, Any], unique_identifiers: Sequence[str], collection_name: str
     ) -> str:
+        """Generates deterministic UUID. Used for deduplication.
+
+        Args:
+            data (Dict[str, Any]): Arbitrary data to generate UUID for.
+            unique_identifiers (Sequence[str]): A list of unique identifiers.
+            collection_name (str): Qdrant collection name.
+
+        Returns:
+            str: _description_
+        """
         data_id = "_".join(str(data[key]) for key in unique_identifiers)
         return str(uuid.uuid5(uuid.NAMESPACE_DNS, collection_name + data_id))
 
@@ -85,6 +118,8 @@ class LoadQdrantJob(LoadJob):
         raise NotImplementedError()
 
 class QdrantClient(JobClientBase, WithStateSync):
+    """Qdrant Destination Handler
+    """
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
     state_properties: ClassVar[List[str]] = [
         "version", "engine_version", "pipeline_name", "state", "created_at", "_dlt_load_id"]
@@ -105,6 +140,14 @@ class QdrantClient(JobClientBase, WithStateSync):
 
     @staticmethod
     def _create_db_client(config: QdrantClientConfiguration) -> QC:
+        """Generates a Qdrant client from the 'qdrant_client' package.
+
+        Args:
+            config (QdrantClientConfiguration): Credentials and options for the Qdrant client.
+
+        Returns:
+            QdrantClient: A Qdrant client instance.
+        """
         credentials = dict(config.credentials)
         options = dict(config.options)
         client = QC(**credentials, **options)
@@ -112,15 +155,30 @@ class QdrantClient(JobClientBase, WithStateSync):
         return client
 
     def _make_qualified_collection_name(self, table_name: str) -> str:
+        """Generates a qualified collection name.
+
+        Args:
+            table_name (str): Name of the table.
+
+        Returns:
+            str: The dataset name and table name concatenated with a separator if dataset name is present.
+        """
         dataset_separator = self.config.dataset_separator
         return f"{self.dataset_name}{dataset_separator}{table_name}" if self.dataset_name else table_name
 
     def _create_collection(
-        self, full_collection_name: Optional[str] = None
+        self, full_collection_name: str
     ) -> None:
+        """Creates a collection in Qdrant.
+
+        Args:
+            full_collection_name (str): The name of the collection to be created.
+        """
+
+        # A straight-forward method named get_fastembed_vector_params() exists in the qdrant_client package.
+        # But, it generates a named vector with the model name as the vector name. But, we need an unnamed vector.
         embeddings_size, distance = self.db_client._get_model_params(
             model_name=self.db_client.embedding_model_name)
-
         vectors_config = models.VectorParams(
             size=embeddings_size, distance=distance)
 
@@ -128,6 +186,12 @@ class QdrantClient(JobClientBase, WithStateSync):
             collection_name=full_collection_name, vectors_config=vectors_config)
 
     def _create_point(self, obj: Dict[str, Any], collection_name: str) -> None:
+        """Inserts a point into a Qdrant collection without a vector.
+
+        Args:
+            obj (Dict[str, Any]): The arbitrary data to be inserted as payload.
+            collection_name (str): The name of the collection to insert the point into.
+        """
         self.db_client.upsert(collection_name, points=[
             models.PointStruct(
                 id=str(uuid.uuid4()),
@@ -136,6 +200,13 @@ class QdrantClient(JobClientBase, WithStateSync):
             )])
 
     def drop_storage(self) -> None:
+        """Drop the dataset from the Qdrant instance.
+
+        Deletes all collections in the dataset and all data associated.
+        Deletes the sentinel collection.
+
+        If dataset name was not provided, it deletes all the tables in the current schema
+        """
         collections = self.db_client.get_collections().collections
         collection_name_list = [collection.name
                            for collection in collections]
@@ -154,6 +225,11 @@ class QdrantClient(JobClientBase, WithStateSync):
         self._delete_sentinel_collection()
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        """_summary_
+
+        Args:
+            truncate_tables (Iterable[str], optional): _description_. Defaults to None.
+        """
         if not self.is_storage_initialized():
             self._create_sentinel_collection()
         elif truncate_tables:
@@ -174,9 +250,11 @@ class QdrantClient(JobClientBase, WithStateSync):
         return True
 
     def _create_sentinel_collection(self) -> None:
+        """Create an empty collection to indicate that the storage is initialized."""
         self._create_collection(full_collection_name=self.sentinel_collection)
 
     def _delete_sentinel_collection(self) -> None:
+        """Delete the sentinel collection."""
         self.db_client.delete_collection(self.sentinel_collection)
 
     def update_stored_schema(
@@ -203,6 +281,9 @@ class QdrantClient(JobClientBase, WithStateSync):
         return applied_update
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
+        """Loads compressed state from destination storage
+           By finding a load id that was completed
+        """
         limit = 10
         offset = None
         while True:
@@ -232,6 +313,7 @@ class QdrantClient(JobClientBase, WithStateSync):
                 return None
 
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
+        """Retrieves newest schema from destination storage"""
         try:
             scroll_table_name = self._make_qualified_collection_name(
                 self.schema.version_table_name)
