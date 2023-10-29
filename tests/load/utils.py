@@ -34,13 +34,32 @@ AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
 GCS_BUCKET = dlt.config.get("tests.bucket_url_gs", str)
 AZ_BUCKET = dlt.config.get("tests.bucket_url_az", str)
 FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
+R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
 
-ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or ["s3", "gs", "az", "file", "memory"]
+ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or ["s3", "gs", "az", "file", "memory", "r2"]
 
 # Filter out buckets not in all filesystem drivers
-ALL_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET]
-ALL_BUCKETS = [bucket for bucket in ALL_BUCKETS if bucket.split(':')[0] in ALL_FILESYSTEM_DRIVERS]
+DEFAULT_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET]
+DEFAULT_BUCKETS = [bucket for bucket in DEFAULT_BUCKETS if bucket.split(':')[0] in ALL_FILESYSTEM_DRIVERS]
+
+# Add r2 in extra buckets so it's not run for all tests
+R2_BUCKET_CONFIG = dict(
+    bucket_url=R2_BUCKET,
+    # Credentials included so we can override aws credentials in env later
+    credentials=dict(
+        aws_access_key_id=dlt.config.get("tests.r2_aws_access_key_id", str),
+        aws_secret_access_key=dlt.config.get("tests.r2_aws_secret_access_key", str),
+        endpoint_url=dlt.config.get("tests.r2_endpoint_url", str),
+    )
+)
+
+EXTRA_BUCKETS: List[Dict[str, Any]] = []
+if "r2" in ALL_FILESYSTEM_DRIVERS:
+    EXTRA_BUCKETS.append(R2_BUCKET_CONFIG)
+
+ALL_BUCKETS = DEFAULT_BUCKETS + EXTRA_BUCKETS
+
 
 @dataclass
 class DestinationTestConfiguration:
@@ -112,7 +131,7 @@ def destinations_configs(
         destination_configs += [DestinationTestConfiguration(destination=destination) for destination in SQL_DESTINATIONS if destination != "athena"]
         destination_configs += [DestinationTestConfiguration(destination="duckdb", file_format="parquet")]
         # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
-        destination_configs += [DestinationTestConfiguration(destination="athena", supports_merge=False, bucket_url=AWS_BUCKET)]
+        destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", supports_merge=False, bucket_url=AWS_BUCKET)]
         destination_configs += [DestinationTestConfiguration(destination="athena", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, force_iceberg=True, supports_merge=False, supports_dbt=False, extra_info="iceberg")]
 
     if default_vector_configs:
@@ -145,7 +164,7 @@ def destinations_configs(
         destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=FILE_BUCKET, file_format="jsonl")]
 
     if all_buckets_filesystem_configs:
-        for bucket in ALL_BUCKETS:
+        for bucket in DEFAULT_BUCKETS:
             destination_configs += [DestinationTestConfiguration(destination="filesystem", bucket_url=bucket, extra_info=bucket)]
 
     # filter out non active destinations

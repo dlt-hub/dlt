@@ -351,7 +351,7 @@ def test_composite_primary_key(item_type: TItemFormat) -> None:
         {'created_at': 2, 'isrc': 'AAA', 'market': 'DE'},
         {'created_at': 2, 'isrc': 'CCC', 'market': 'DE'},
         {'created_at': 2, 'isrc': 'DDD', 'market': 'DE'},
-        {'created_at': 2, 'isrc': 'CCC', 'market': 'DE'},
+        {'created_at': 1, 'isrc': 'CCC', 'market': 'DE'},
     ]
     source_items = data_to_item_format(item_type, data)
 
@@ -366,8 +366,8 @@ def test_composite_primary_key(item_type: TItemFormat) -> None:
         with c.execute_query("SELECT created_at, isrc, market FROM some_data order by created_at, isrc, market") as cur:
             rows = cur.fetchall()
 
-    expected = [(1, 'AAA', 'DE'), (2, 'AAA', 'DE'), (2, 'BBB', 'DE'), (2, 'CCC', 'DE'), (2, 'CCC', 'US'), (2, 'DDD', 'DE')]
-    assert rows == expected
+    expected = {(1, 'AAA', 'DE'), (2, 'AAA', 'DE'), (2, 'BBB', 'DE'), (2, 'CCC', 'DE'), (2, 'CCC', 'US'), (2, 'DDD', 'DE'), (1, 'CCC', 'DE')}
+    assert set(rows) == expected
 
 
 @pytest.mark.parametrize("item_type", ALL_ITEM_FORMATS)
@@ -518,9 +518,6 @@ def test_missing_cursor_field(item_type: TItemFormat) -> None:
     with pytest.raises(IncrementalCursorPathMissing) as py_ex:
         list(some_data)
     assert py_ex.value.json_path == "item.timestamp"
-
-
-
 
 
 @pytest.mark.parametrize("item_type", ALL_ITEM_FORMATS)

@@ -39,7 +39,7 @@ def test_create_table(client: DuckDbClient) -> None:
     assert '"col10" DATE  NOT NULL' in sql
     assert '"col11" TIME  NOT NULL' in sql
     assert '"col1_precision" SMALLINT  NOT NULL' in sql
-    assert '"col4_precision" TIMESTAMP WITH TIME ZONE  NOT NULL' in sql
+    assert '"col4_precision" TIMESTAMP_MS  NOT NULL' in sql
     assert '"col5_precision" VARCHAR' in sql
     assert '"col6_precision" DECIMAL(6,2)  NOT NULL' in sql
     assert '"col7_precision" BLOB  NOT NULL' in sql
@@ -68,7 +68,7 @@ def test_alter_table(client: DuckDbClient) -> None:
     assert '"col10" DATE  NOT NULL' in sql
     assert '"col11" TIME  NOT NULL' in sql
     assert '"col1_precision" SMALLINT  NOT NULL' in sql
-    assert '"col4_precision" TIMESTAMP WITH TIME ZONE  NOT NULL' in sql
+    assert '"col4_precision" TIMESTAMP_MS  NOT NULL' in sql
     assert '"col5_precision" VARCHAR' in sql
     assert '"col6_precision" DECIMAL(6,2)  NOT NULL' in sql
     assert '"col7_precision" BLOB  NOT NULL' in sql

@@ -16,6 +16,9 @@ class LoaderConfiguration(PoolRunnerConfiguration):
     """When gt 0 will raise when job reaches raise_on_max_retries"""
     _load_storage_config: LoadStorageConfiguration = None
 
+    def on_resolved(self) -> None:
+        self.pool_type = "none" if self.workers == 1 else "thread"
+
     if TYPE_CHECKING:
         def __init__(
             self,

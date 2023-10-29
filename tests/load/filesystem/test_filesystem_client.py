@@ -42,7 +42,7 @@ def test_filesystem_destination_configuration() -> None:
 
 @pytest.mark.parametrize('write_disposition', ('replace', 'append', 'merge'))
 @pytest.mark.parametrize('layout', ALL_LAYOUTS)
-def test_successful_load(write_disposition: str, layout: str, all_buckets_env: str) -> None:
+def test_successful_load(write_disposition: str, layout: str, default_buckets_env: str) -> None:
     """Test load is successful with an empty destination dataset"""
     if layout:
         os.environ['DESTINATION__FILESYSTEM__LAYOUT'] = layout
@@ -74,7 +74,7 @@ def test_successful_load(write_disposition: str, layout: str, all_buckets_env: s
 
 
 @pytest.mark.parametrize('layout', ALL_LAYOUTS)
-def test_replace_write_disposition(layout: str, all_buckets_env: str) -> None:
+def test_replace_write_disposition(layout: str, default_buckets_env: str) -> None:
     if layout:
         os.environ['DESTINATION__FILESYSTEM__LAYOUT'] = layout
     else:
@@ -111,7 +111,7 @@ def test_replace_write_disposition(layout: str, all_buckets_env: str) -> None:
 
 
 @pytest.mark.parametrize('layout', ALL_LAYOUTS)
-def test_append_write_disposition(layout: str, all_buckets_env: str) -> None:
+def test_append_write_disposition(layout: str, default_buckets_env: str) -> None:
     """Run load twice with append write_disposition and assert that there are two copies of each file in destination"""
     if layout:
         os.environ['DESTINATION__FILESYSTEM__LAYOUT'] = layout

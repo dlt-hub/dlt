@@ -1,8 +1,7 @@
 import os
-from typing import Iterator
+from typing import Iterator, Set, Literal
 
 import pytest
-from dlt.common.arithmetics import Decimal
 
 from dlt.common.data_writers.buffered import BufferedDataWriter, DataWriter
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
@@ -16,7 +15,10 @@ from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
 import datetime  # noqa: 251
 
 
-def get_insert_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10, disable_compression: bool = False) -> BufferedDataWriter[DataWriter]:
+ALL_WRITERS: Set[Literal[TLoaderFileFormat]] = {"insert_values", "jsonl", "parquet", "arrow", "puae-jsonl"}
+
+
+def get_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10, disable_compression: bool = False) -> BufferedDataWriter[DataWriter]:
     caps = DestinationCapabilitiesContext.generic_capabilities()
     caps.preferred_loader_file_format = _format
     file_template = os.path.join(TEST_STORAGE_ROOT, f"{_format}.%s")
@@ -24,7 +26,7 @@ def get_insert_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_i
 
 
 def test_write_no_item() -> None:
-    with get_insert_writer() as writer:
+    with get_writer() as writer:
         pass
     assert writer.closed
     with pytest.raises(BufferedDataWriterClosed):
@@ -54,7 +56,7 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
         return map(lambda x: {"col3": "col3_value"}, range(0, count))
 
     # change schema before file first flush
-    with get_insert_writer(disable_compression=disable_compression) as writer:
+    with get_writer(disable_compression=disable_compression) as writer:
         writer.write_data_item(list(c1_doc(8)), t1)
         assert writer._current_columns == t1
         # but different instance
@@ -75,7 +77,7 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
     assert "1,0" in content[-1]
 
     # data would flush and schema change
-    with get_insert_writer() as writer:
+    with get_writer() as writer:
         writer.write_data_item(list(c1_doc(9)), t1)
         old_file = writer._file_name
         writer.write_data_item(list(c2_doc(1)), t2)  # rotates here
@@ -88,7 +90,7 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
         assert writer._buffered_items == []
 
     # file would rotate and schema change
-    with get_insert_writer() as writer:
+    with get_writer() as writer:
         writer.file_max_items = 10
         writer.write_data_item(list(c1_doc(9)), t1)
         old_file = writer._file_name
@@ -102,7 +104,7 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
         assert writer._buffered_items == []
 
     # schema change after flush rotates file
-    with get_insert_writer() as writer:
+    with get_writer() as writer:
         writer.write_data_item(list(c1_doc(11)), t1)
         writer.write_data_item(list(c2_doc(1)), t2)
         assert len(writer.closed_files) == 1
@@ -139,7 +141,7 @@ def test_NO_rotation_on_schema_change(disable_compression: bool) -> None:
         return map(lambda x: {"col1": x, "col2": x*2+1}, range(0, count))
 
     # change schema before file first flush
-    with get_insert_writer(_format="jsonl", disable_compression=disable_compression) as writer:
+    with get_writer(_format="jsonl", disable_compression=disable_compression) as writer:
         writer.write_data_item(list(c1_doc(15)), t1)
         # flushed
         assert writer._file is not None
@@ -158,19 +160,62 @@ def test_NO_rotation_on_schema_change(disable_compression: bool) -> None:
 def test_writer_requiring_schema(disable_compression: bool) -> None:
     # assertion on flushing
     with pytest.raises(AssertionError):
-        with get_insert_writer(disable_compression=disable_compression) as writer:
+        with get_writer(disable_compression=disable_compression) as writer:
             writer.write_data_item([{"col1": 1}], None)
     # just single schema is enough
     c1 = new_column("col1", "bigint")
     t1 = {"col1": c1}
-    with get_insert_writer(disable_compression=disable_compression) as writer:
+    with get_writer(disable_compression=disable_compression) as writer:
         writer.write_data_item([{"col1": 1}], None)
         writer.write_data_item([{"col1": 1}], t1)
 
 
 @pytest.mark.parametrize("disable_compression", [True, False], ids=["no_compression", "compression"])
 def test_writer_optional_schema(disable_compression: bool) -> None:
-    with get_insert_writer(_format="jsonl", disable_compression=disable_compression) as writer:
+    with get_writer(_format="jsonl", disable_compression=disable_compression) as writer:
             writer.write_data_item([{"col1": 1}], None)
             writer.write_data_item([{"col1": 1}], None)
 
+
+@pytest.mark.parametrize("writer_format", ALL_WRITERS - {"arrow"})
+def test_writer_items_count(writer_format: TLoaderFileFormat) -> None:
+    c1 = {"col1": new_column("col1", "bigint")}
+    with get_writer(_format=writer_format) as writer:
+        assert writer._buffered_items_count == 0
+        # single item
+        writer.write_data_item({"col1": 1}, columns=c1)
+        assert writer._buffered_items_count == 1
+        # list
+        writer.write_data_item([{"col1": 1}, {"col1": 2}], columns=c1)
+        assert writer._buffered_items_count == 3
+        writer._flush_items()
+        assert writer._buffered_items_count == 0
+        assert writer._writer.items_count == 3
+
+
+def test_writer_items_count_arrow() -> None:
+    import pyarrow as pa
+    c1 = {"col1": new_column("col1", "bigint")}
+    with get_writer(_format="arrow") as writer:
+        assert writer._buffered_items_count == 0
+        # single item
+        writer.write_data_item(pa.Table.from_pylist([{"col1": 1}]), columns=c1)
+        assert writer._buffered_items_count == 1
+        # single item with many rows
+        writer.write_data_item(pa.Table.from_pylist([{"col1": 1}, {"col1": 2}]), columns=c1)
+        assert writer._buffered_items_count == 3
+        # empty list
+        writer.write_data_item([], columns=c1)
+        assert writer._buffered_items_count == 3
+        # list with one item
+        writer.write_data_item([pa.Table.from_pylist([{"col1": 1}])], columns=c1)
+        assert writer._buffered_items_count == 4
+        # list with many items
+        writer.write_data_item(
+            [pa.Table.from_pylist([{"col1": 1}]), pa.Table.from_pylist([{"col1": 1}, {"col1": 2}])],
+            columns=c1
+        )
+        assert writer._buffered_items_count == 7
+        writer._flush_items()
+        assert writer._buffered_items_count == 0
+        assert writer._writer.items_count == 7

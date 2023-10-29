@@ -253,7 +253,7 @@ record.
 
 For transformations after loading the data, you have several options available:
 
-#### [Using dbt](dlt-ecosystem/transformations/dbt.md)
+#### [Using dbt](dlt-ecosystem/transformations/dbt/dbt.md)
 
 dbt is a powerful framework for transforming data. It enables you to structure your transformations
 into DAGs, providing cross-database compatibility and various features such as templating,
@@ -426,5 +426,5 @@ Read more about [performance.](reference/performance.md)
 ### Other advanced topics
 
 `dlt` is a constantly growing library that supports many features and use cases needed by the
-community. [Join our Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+community. [Join our Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
 to find recent releases or discuss what you can build with `dlt`.

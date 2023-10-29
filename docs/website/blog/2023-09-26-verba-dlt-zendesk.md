@@ -293,4 +293,4 @@ In this blog post, we've built a RAG application for Zendesk Support using Verba
 
 ## Let's stay in touch
 
-If you have any questions or feedback, please reach out to us on the [dltHub Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g).
+If you have any questions or feedback, please reach out to us on the [dltHub Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA).

@@ -233,7 +233,7 @@ keep_staged_files=true
 ```
 
 ### dbt support
-This destination [integrates with dbt](../transformations/dbt.md) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair authentication is supported and shared with dbt runners.
+This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair authentication is supported and shared with dbt runners.
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)

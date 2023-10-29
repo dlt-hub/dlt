@@ -1,4 +1,5 @@
 import gzip
+from functools import reduce
 from typing import List, IO, Any, Optional, Type, TypeVar, Generic
 
 from dlt.common.utils import uniq_id
@@ -58,6 +59,7 @@ class BufferedDataWriter(Generic[TWriter]):
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None
         self._buffered_items: List[TDataItem] = []
+        self._buffered_items_count: int = 0
         self._writer: TWriter = None
         self._file: IO[Any] = None
         self._closed = False
@@ -79,10 +81,20 @@ class BufferedDataWriter(Generic[TWriter]):
         if isinstance(item, List):
             # items coming in single list will be written together, not matter how many are there
             self._buffered_items.extend(item)
+            # update row count, if item supports "num_rows" it will be used to count items
+            if len(item) > 0 and hasattr(item[0], "num_rows"):
+                self._buffered_items_count += sum(tbl.num_rows for tbl in item)
+            else:
+                self._buffered_items_count += len(item)
         else:
             self._buffered_items.append(item)
+            # update row count, if item supports "num_rows" it will be used to count items
+            if hasattr(item, "num_rows"):
+                self._buffered_items_count += item.num_rows
+            else:
+                self._buffered_items_count += 1
         # flush if max buffer exceeded
-        if len(self._buffered_items) >= self.buffer_max_items:
+        if self._buffered_items_count >= self.buffer_max_items:
             self._flush_items()
         # rotate the file if max_bytes exceeded
         if self._file:
@@ -118,7 +130,7 @@ class BufferedDataWriter(Generic[TWriter]):
         self._file_name = self.file_name_template % uniq_id(5) + "." + self._file_format_spec.file_extension
 
     def _flush_items(self, allow_empty_file: bool = False) -> None:
-        if len(self._buffered_items) > 0 or allow_empty_file:
+        if self._buffered_items_count > 0 or allow_empty_file:
             # we only open a writer when there are any items in the buffer and first flush is requested
             if not self._writer:
                 # create new writer and write header
@@ -131,7 +143,9 @@ class BufferedDataWriter(Generic[TWriter]):
             # write buffer
             if self._buffered_items:
                 self._writer.write_data(self._buffered_items)
+            # reset buffer and counter
             self._buffered_items.clear()
+            self._buffered_items_count = 0
 
     def _flush_and_close_file(self) -> None:
         # if any buffered items exist, flush them

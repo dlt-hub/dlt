@@ -90,6 +90,20 @@ You need to create a S3 bucket and a user who can access that bucket. `dlt` is n
 5. To grab the access and secret key for the user. Go to IAM > Users and in the “Security Credentials”, click on “Create Access Key”, and preferably select “Command Line Interface” and create the access key.
 6. Grab the “Access Key” and “Secret Access Key” created that are to be used in "secrets.toml".
 
+##### Using S3 compatible storage
+
+To use an S3 compatible storage other than AWS S3 like [MinIO](https://min.io/) or [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/) you may supply an `endpoint_url` in the config. This should be set along with aws credentials:
+
+```toml
+[destination.filesystem]
+bucket_url = "s3://[your_bucket_name]" # replace with your bucket name,
+
+[destination.filesystem.credentials]
+aws_access_key_id = "please set me up!" # copy the access key here
+aws_secret_access_key = "please set me up!" # copy the secret access key here
+endpoint_url = "https://<account_id>.r2.cloudflarestorage.com" # copy your endpoint URL here
+```
+
 #### Google Storage
 Run `pip install dlt[gs]` which will install `gcfs` package.
 

@@ -37,5 +37,5 @@ Once your data is in a Pandas dataframe, you can transform it as needed.
 If you want to transform the data before loading, you can use Python. If you want to transform the
 data after loading, you can use Pandas or one of the following:
 
-1. [dbt.](dbt.md) (recommended)
+1. [dbt.](dbt/dbt.md) (recommended)
 1. [`dlt` SQL client.](sql.md)

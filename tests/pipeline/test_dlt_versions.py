@@ -1,7 +1,6 @@
-import os
 import tempfile
-import pytest
 import shutil
+from importlib.metadata import version as pkg_version
 
 import dlt
 from dlt.common import json
@@ -32,6 +31,8 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
             with custom_environ({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}):
                 # create virtual env with (0.3.0) before the current schema upgrade
                 with Venv.create(tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0"]) as venv:
+                    # NOTE: we force a newer duckdb into the 0.3.0 dlt version to get compatible duckdb storage
+                    venv._install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
                     # load 20 issues
                     print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_pipeline.py", "20"))
                     # load schema and check _dlt_loads definition
@@ -96,6 +97,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
             with custom_environ({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}):
                 # create virtual env with (0.3.0) before the current schema upgrade
                 with Venv.create(tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0"]) as venv:
+                    venv._install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
                     # extract and normalize on old version but DO NOT LOAD
                     print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_extract.py", "70"))
                 # switch to current version and make sure the load package loads and schema migrates

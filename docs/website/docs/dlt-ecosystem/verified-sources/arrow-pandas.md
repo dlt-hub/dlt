@@ -9,12 +9,12 @@ keywords: [arrow, pandas, parquet, source]
 You can load data directly from an Arrow table or Pandas dataframe.
 This is supported by all destinations that support the parquet file format (e.g. [Snowflake](../destinations/snowflake.md) and [Filesystem](../destinations/filesystem.md)).
 
-This is a more performance way to load structured data since dlt bypasses many processing steps normally involved in passing JSON objects through the pipeline.
-Dlt automatically translates the Arrow table's schema to the destination table's schema and writes the table to a parquet file which gets uploaded to the destination without any further processing.
+This is a more performant way to load structured data since `dlt`` bypasses many processing steps normally involved in passing JSON objects through the pipeline.
+`dlt` automatically translates the Arrow table's schema to the destination table's schema and writes the table to a parquet file which gets uploaded to the destination without any further processing.
 
 ## Usage
 
-To write an Arrow source, pass any `pyarrow.Table` or `pandas.DataFrame` object to the pipeline's `run` or `extract` method, or yield table(s)/dataframe(s) from a `@dlt.resource` decorated function.
+To write an Arrow source, pass any `pyarrow.Table`, `pyarrow.RecordBatch` or `pandas.DataFrame` object (or list of thereof) to the pipeline's `run` or `extract` method, or yield table(s)/dataframe(s) from a `@dlt.resource` decorated function.
 
 This example loads a Pandas dataframe to a Snowflake table:
 
@@ -50,6 +50,14 @@ pipeline.run([table], table_name="orders")
 
 Note: The data in the table must be compatible with the destination database as no data conversion is performed. Refer to the documentation of the destination for information about supported data types.
 
+## Destinations that support parquet for direct loading
+* duckdb & motherduck
+* redshift
+* bigquery
+* snowflake
+* filesystem
+* athena
+
 ## Incremental loading with Arrow tables
 
 You can use incremental loading with Arrow tables as well.
@@ -77,6 +85,10 @@ pipeline.run(orders)
 pipeline.run(orders)
 ```
 
+:::tip
+Look at the [Connector X + Arrow Example](../../examples/connector_x_arrow/) to see how to load data from production databases fast.
+:::
+
 ## Supported Arrow data types
 
 The Arrow data types are translated to dlt data types as follows:
@@ -94,14 +106,3 @@ The Arrow data types are translated to dlt data types as follows:
 | `decimal`         | `decimal`   | Precision and scale are determined by the type properties. |
 | `struct`          | `complex`   |                                                            |
 |                   |             |                                                            |
-
-    
-    
-
-
-
-
-    
-    
-
-

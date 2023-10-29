@@ -396,7 +396,7 @@ def resource(
             spec=spec, sections=resource_sections, sections_merge_style=ConfigSectionContext.resource_merge_style, include_defaults=spec is not None
         )
         is_inner_resource = is_inner_callable(f)
-        if conf_f != incr_f and is_inner_resource:
+        if conf_f != incr_f and is_inner_resource and not standalone:
             raise ResourceInnerCallableConfigWrapDisallowed(resource_name, source_section)
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
@@ -506,7 +506,7 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     standalone: Literal[True] = True
-) -> Callable[..., DltResource]:  # TODO: change back to Callable[TResourceFunParams, DltResource] when mypy 1.6 is fixed
+) -> Callable[TResourceFunParams, DltResource]:  # TODO: change back to Callable[TResourceFunParams, DltResource] when mypy 1.6 is fixed
     ...
 
 def transformer(

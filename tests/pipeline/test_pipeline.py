@@ -9,7 +9,7 @@ from pydantic import BaseModel
 import pytest
 
 import dlt
-from dlt.common import json, sleep
+from dlt.common import json, sleep, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.configuration.specs.exceptions import NativeValueError
@@ -19,7 +19,7 @@ from dlt.common.destination.capabilities import TLoaderFileFormat
 from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, PipelineStateNotAvailable, UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, LogCollector, TqdmCollector
-from dlt.common.schema.utils import new_column
+from dlt.common.schema.utils import new_column, new_table
 from dlt.common.utils import uniq_id
 
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
@@ -1142,3 +1142,63 @@ def test_columns_hint_with_file_formats(file_format: TLoaderFileFormat) -> None:
 
     pipeline = dlt.pipeline(destination='duckdb')
     pipeline.run(generic(), loader_file_format=file_format)
+
+
+def test_remove_autodetect() -> None:
+    now = pendulum.now()
+
+    @dlt.source
+    def autodetect():
+        # add unix ts autodetection to current source schema
+        dlt.current.source_schema().add_type_detection("timestamp")
+        return dlt.resource([int(now.timestamp()), int(now.timestamp() + 1), int(now.timestamp() + 2)], name="numbers")
+
+    pipeline = dlt.pipeline(destination='duckdb')
+    pipeline.run(autodetect())
+
+    # unix ts recognized
+    assert pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "timestamp"
+
+    pipeline = pipeline.drop()
+
+    source = autodetect()
+    source.schema.remove_type_detection("timestamp")
+
+    pipeline = dlt.pipeline(destination='duckdb')
+    pipeline.run(source)
+
+    assert pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "bigint"
+
+
+def test_flattened_column_hint() -> None:
+    now = pendulum.now()
+
+    # @dlt.resource(columns=[{"name": "value__timestamp", "data_type": "timestamp"}])
+    @dlt.resource()
+    def flattened_dict():
+        # dlt.current.source_schema().add_type_detection("timestamp")
+
+        for delta in range(4):
+            yield {"delta": delta, "values": [{"Value": {"timestampValue": now.timestamp() + delta}}]}
+
+    @dlt.source
+    def nested_resource():
+        # we need to create a whole structure
+        dict_resource = flattened_dict()
+        # add table from resource
+        dlt.current.source_schema().update_table(dict_resource.compute_table_schema())
+        values_table = new_table(
+            dict_resource.name + "__values",
+            parent_table_name=dict_resource.name,
+            columns=[{"name": "value__timestamp_value", "data_type": "timestamp"}]
+        )
+        # and child table
+        dlt.current.source_schema().update_table(values_table)
+        return dict_resource
+
+    pipeline = dlt.pipeline(destination='duckdb')
+    pipeline.run(nested_resource())
+    # print(pipeline.default_schema.to_pretty_yaml())
+    assert pipeline.default_schema.get_table("flattened_dict__values")["columns"]["value__timestamp_value"]["data_type"] == "timestamp"
+    # make sure data is there
+    assert pipeline.last_trace.last_normalize_info.row_counts["flattened_dict__values"] == 4

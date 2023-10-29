@@ -243,12 +243,12 @@ data itself.
 The `dlt.source` decorator accepts a schema instance that you can create yourself and modify in
 whatever way you wish. The decorator also support a few typical use cases:
 
-### 1. Schema created implicitly by decorator
+### Schema created implicitly by decorator
 
 If no schema instance is passed, the decorator creates a schema with the name set to source name and
 all the settings to default.
 
-### 2. Automatically load schema file stored with source python module
+### Automatically load schema file stored with source python module
 
 If no schema instance is passed, and a file with a name `{source name}_schema.yml` exists in the
 same folder as the module with the decorated function, it will be automatically loaded and used as
@@ -256,7 +256,7 @@ the schema.
 
 This should make easier to bundle a fully specified (or pre-configured) schema with a source.
 
-### 3. Schema is modified in the source function body
+### Schema is modified in the source function body
 
 What if you can configure your schema or add some tables only inside your schema function, when i.e.
 you have the source credentials and user settings available? You could for example add detailed
@@ -264,7 +264,7 @@ schemas of all the database tables when someone requests a table data to be load
 is available only at the moment source function is called.
 
 Similarly to the `source_state()` and `resource_state()` , source and resource function has current
-schema available via `dlt.current.source_schema`.
+schema available via `dlt.current.source_schema()`.
 
 Example:
 
@@ -273,9 +273,10 @@ Example:
 def textual(nesting_level: int):
     # get the source schema from the `current` context
     schema = dlt.current.source_schema()
-    # remove date detector and add type detector that forces all fields to strings
-    schema._settings["detections"].remove("iso_timestamp")
-    schema._settings["detections"].insert(0, "all_text")
+    # remove date detector
+    schema.remove_type_detection("iso_timestamp")
+    # convert UNIX timestamp (float, withing a year from NOW) into timestamp
+    schema.add_type_detection("timestamp")
     schema.compile_settings()
 
     return dlt.resource(...)

@@ -107,7 +107,7 @@ We follow our snake_case name convention. Mind the following:
 
 Using a staging destination is mandatory when using the athena destination. If you do not set staging to `filesystem`, dlt will automatically do this for you.
 
-If you decide to change the [filename layout](./filesystem#data-loading) from the default value, keep the following in mind so that athena can reliable build your tables:
+If you decide to change the [filename layout](./filesystem#data-loading) from the default value, keep the following in mind so that Athena can reliably build your tables:
  - You need to provide the `{table_name}` placeholder and this placeholder needs to be followed by a forward slash
  - You need to provide the `{file_id}` placeholder and it needs to be somewhere after the `{table_name}` placeholder.
  - {table_name} must be the first placeholder in the layout.
