@@ -1,7 +1,7 @@
 from typing import Optional, Final
 
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 
 
@@ -20,7 +20,7 @@ class QdrantCredentials(CredentialsConfiguration):
 
 
 @configspec
-class QdrantClientOptions():
+class QdrantClientOptions(BaseConfiguration):
     # Port of the REST API interface. Default: 6333
     port: int = 6333
     # Port of the gRPC interface. Default: 6334

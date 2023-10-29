@@ -8,6 +8,8 @@ from os import environ
 from typing import Iterator, List
 from unittest.mock import patch
 
+from requests import Response
+
 import dlt
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import DictionaryProvider
@@ -63,7 +65,7 @@ def TEST_DICT_CONFIG_PROVIDER():
         providers_context.add_provider(provider)
         return provider
 
-class MockHttpResponse():
+class MockHttpResponse(Response):
     def __init__(self, status_code: int) -> None:
         self.status_code = status_code
 

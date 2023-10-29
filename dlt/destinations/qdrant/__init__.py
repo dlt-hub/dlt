@@ -44,7 +44,7 @@ def capabilities() -> DestinationCapabilitiesContext:
 def client(
     schema: Schema, initial_config: DestinationClientConfiguration = config.value
 ) -> JobClientBase:
-    from .qdrant import QdrantClient
+    from dlt.destinations.qdrant.qdrant_client import QdrantClient
     return QdrantClient(schema, _configure(initial_config))  # type: ignore
 
 

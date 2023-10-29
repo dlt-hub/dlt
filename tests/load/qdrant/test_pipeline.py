@@ -6,9 +6,9 @@ from dlt.common import json
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.qdrant.qdrant_adapter import qdrant_adapter, VECTORIZE_HINT
-from dlt.destinations.qdrant.qdrant import QdrantClient
+from dlt.destinations.qdrant.qdrant_client import QdrantClient
 from tests.pipeline.utils import assert_load_info
-from tests.load.qdrant.utils import drop_active_pipeline_data, assert_class
+from tests.load.qdrant.utils import drop_active_pipeline_data, assert_collection
 
 @pytest.fixture(autouse=True)
 def drop_qdrant_data() -> Iterator[None]:
@@ -95,7 +95,7 @@ def test_pipeline_append() -> None:
     assert_load_info(info)
 
     data = next(generator_instance2)
-    assert_class(pipeline, "some_data", items=data)
+    assert_collection(pipeline, "some_data", items=data)
 
     info = pipeline.run(
         some_data(),
@@ -103,7 +103,7 @@ def test_pipeline_append() -> None:
     assert_load_info(info)
 
     data.extend(next(generator_instance2))
-    assert_class(pipeline, "some_data", items=data)
+    assert_collection(pipeline, "some_data", items=data)
 
 
 def test_explicit_append() -> None:
@@ -132,7 +132,7 @@ def test_explicit_append() -> None:
         some_data(),
     )
 
-    assert_class(pipeline, "some_data", items=data)
+    assert_collection(pipeline, "some_data", items=data)
 
     info = pipeline.run(
         some_data(),
@@ -141,7 +141,7 @@ def test_explicit_append() -> None:
     assert_load_info(info)
 
     data.extend(data)
-    assert_class(pipeline, "some_data", items=data)
+    assert_collection(pipeline, "some_data", items=data)
 
 
 def test_pipeline_replace() -> None:
@@ -174,7 +174,7 @@ def test_pipeline_replace() -> None:
     assert info.dataset_name == "test_pipeline_replace_dataset" + uid  # Qdrant doesn't mandate any name normalization
 
     data = next(generator_instance2)
-    assert_class(pipeline, "some_data", items=data)
+    assert_collection(pipeline, "some_data", items=data)
 
     info = pipeline.run(
         some_data(),
@@ -183,7 +183,7 @@ def test_pipeline_replace() -> None:
     assert_load_info(info)
 
     data = next(generator_instance2)
-    assert_class(pipeline, "some_data", items=data)
+    assert_collection(pipeline, "some_data", items=data)
 
 
 def test_pipeline_merge() -> None:
@@ -234,7 +234,7 @@ def test_pipeline_merge() -> None:
         dataset_name="MoviesDataset" + uniq_id()
     )
     assert_load_info(info)
-    assert_class(pipeline, "movies_data", items=data)
+    assert_collection(pipeline, "movies_data", items=data)
 
     # Change some data
     data[0]["title"] = "The Shawshank Redemption 2"
@@ -244,7 +244,7 @@ def test_pipeline_merge() -> None:
         write_disposition="merge",
     )
     assert_load_info(info)
-    assert_class(pipeline, "movies_data", items=data)
+    assert_collection(pipeline, "movies_data", items=data)
 
 
 def test_pipeline_with_schema_evolution():
@@ -274,7 +274,7 @@ def test_pipeline_with_schema_evolution():
         some_data(),
     )
 
-    assert_class(pipeline, "some_data", items=data)
+    assert_collection(pipeline, "some_data", items=data)
 
     aggregated_data = data.copy()
 
@@ -300,7 +300,7 @@ def test_pipeline_with_schema_evolution():
 
     aggregated_data.extend(data)
 
-    assert_class(pipeline, "some_data", items=aggregated_data)
+    assert_collection(pipeline, "some_data", items=aggregated_data)
 
 
 def test_merge_github_nested() -> None:
@@ -328,7 +328,7 @@ def test_merge_github_nested() -> None:
     assert issues["columns"]["title"][VECTORIZE_HINT]  # type: ignore[literal-required]
     assert issues["columns"]["body"][VECTORIZE_HINT]  # type: ignore[literal-required]
     assert VECTORIZE_HINT not in issues["columns"]["url"]
-    assert_class(p, "issues", expected_items_count=17)
+    assert_collection(p, "issues", expected_items_count=17)
 
 
 def test_empty_dataset_allowed() -> None:
@@ -342,6 +342,6 @@ def test_empty_dataset_allowed() -> None:
     assert info.dataset_name is None
     client = p.destination_client()  # type: ignore[assignment]
     assert client.dataset_name is None
-    assert client.sentinel_class == "DltSentinelCollection"
-    assert_class(p, "content", expected_items_count=3)
+    assert client.sentinel_collection == "DltSentinelCollection"
+    assert_collection(p, "content", expected_items_count=3)
 
