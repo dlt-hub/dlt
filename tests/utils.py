@@ -27,8 +27,8 @@ TEST_STORAGE_ROOT = "_storage"
 
 
 # destination constants
-IMPLEMENTED_DESTINATIONS = {"athena", "duckdb", "bigquery", "redshift", "postgres", "snowflake", "filesystem", "weaviate", "dummy", "motherduck", "mssql"}
-NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck"}
+IMPLEMENTED_DESTINATIONS = {"athena", "duckdb", "bigquery", "redshift", "postgres", "snowflake", "filesystem", "weaviate", "dummy", "motherduck", "mssql", "qdrant"}
+NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant"}
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
 
 # exclude destination configs (for now used for athena and athena iceberg separation)
