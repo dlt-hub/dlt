@@ -1,0 +1,223 @@
+---
+title: Qdrant
+description: Qdrant is a high-performance vector search engine/database that can be used as a destination in DLT.
+keywords: [qdrant, vector database, destination, dlt]
+---
+
+# Qdrant
+
+[Qdrant](https://qdrant/) is an open-source, high-performance vector search engine/database. It deploys as an API service, providing a search for the nearest high-dimensional vectors.
+This destination helps you load data into Qdrant from [DLT resources](../../general-usage/resource.md).
+
+## Setup Guide
+
+1. To use Qdrant as a destination, make sure `dlt` is installed with the `qdrant` extra:
+
+```bash
+pip install dlt[qdrant]
+```
+
+2. Next, configure the destination in the DLT secrets file. The file is located at `~/.dlt/secrets.toml` by default. Add the following section to the secrets file:
+
+```toml
+[destination.qdrant.credentials]
+location = "https://your-qdrant-url"
+api_key = "your-qdrant-api-key"
+```
+
+In this setup guide, we are using the [Qdrant Cloud](https://cloud.qdrant.io/) to get a hosted Qdrant instance and the [FastEmbed](https://github.com/qdrant/fastembed) package that is built into the [Qdrant client library](https://github.com/qdrant/qdrant-client) for generating embeddings.
+
+The `location` will default to **http://localhost:6333** and `api_key` is not defined - which are the defaults for a [local Qdrant instance](https://qdrant.tech/documentation/quick-start/#download-and-run).
+
+
+3. Define the source of the data. For starters, let's load some data from a simple data structure:
+
+```python
+import dlt
+from dlt.destinations.qdrant import qdrant_adapter
+
+movies = [
+    {
+        "title": "Blade Runner",
+        "year": 1982,
+    },
+    {
+        "title": "Ghost in the Shell",
+        "year": 1995,
+    },
+    {
+        "title": "The Matrix",
+        "year": 1999,
+    }
+]
+```
+
+4. Define the pipeline:
+
+```python
+pipeline = dlt.pipeline(
+    pipeline_name="movies",
+    destination="qdrant",
+    dataset_name="MoviesDataset",
+)
+```
+
+5. Run the pipeline:
+
+```python
+info = pipeline.run(
+    qdrant_adapter(
+        movies,
+        embed="title",
+    )
+)
+```
+
+6. Check the results:
+
+```python
+print(info)
+```
+
+The data is now loaded into Qdrant.
+
+To use vector search after the data has been loaded, you must specify which fields Qdrant needs to generate embeddings for. You do that by wrapping the data (or DLT resource) with the `qdrant_adapter` function.
+
+## qdrant_adapter
+
+The `qdrant_adapter` is a helper function that configures the resource for the Qdrant destination:
+
+```python
+qdrant_adapter(data, embed)
+```
+
+It accepts the following arguments:
+- `data`: a DLT resource object or a Python data structure (e.g. a list of dictionaries).
+- `embed`: a name of the field or a list of names to generate embeddings for.
+
+Returns: [DLT resource](../../general-usage/resource.md) object that you can pass to the `pipeline.run()`.
+
+Example:
+
+```python
+qdrant_adapter(
+    resource,
+    embed=["title", "description"],
+)
+```
+
+:::tip
+
+A more comprehensive pipeline would load data from some API or use one of DLT's [verified sources](../verified-sources/).
+
+:::
+
+## Write disposition
+
+A [write disposition](../../general-usage/incremental-loading.md#choosing-a-write-disposition) defines how the data should be written to the destination. All write dispositions are supported by the Qdrant destination.
+
+### Replace
+
+The [replace](../../general-usage/full-loading.md) disposition replaces the data in the destination with the data from the resource. It deletes all the classes and objects and recreates the schema before loading the data.
+
+In the movie example from the [setup guide](#setup-guide), we can use the `replace` disposition to reload the data every time we run the pipeline:
+
+```python
+info = pipeline.run(
+    qdrant_adapter(
+        movies,
+        embed="title",
+    ),
+    write_disposition="replace",
+)
+```
+
+### Merge
+
+The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data at the destination.
+For `merge` disposition, you would need to specify a `primary_key` for the resource:
+
+```python
+info = pipeline.run(
+    qdrant_adapter(
+        movies,
+        embed="title",
+    ),
+    primary_key="document_id",
+    write_disposition="merge"
+)
+```
+
+Internally, DLT will use `primary_key` (`document_id` in the example above) to generate a unique identifier (UUID) for each point in Qdrant. If the object with the same UUID already exists in Qdrant, it will be updated with the new data. Otherwise, a new point will be created.
+
+
+:::caution
+
+If you are using the merge write disposition, you must set it from the first run of your pipeline; otherwise, the data will be duplicated in the database on subsequent loads.
+
+:::
+
+### Append
+
+This is the default disposition. It will append the data to the existing data in the destination, ignoring the `primary_key` field.
+
+## Dataset name
+
+Qdrant uses collections to categorize and identify data. To avoid potential naming conflicts, especially when dealing with multiple datasets that might have overlapping table names, DLT includes the dataset name in the Qdrant collection name. This ensures a unique identifier for every collection.
+
+For example, if you have a dataset named `movies_dataset` and a table named `actors`, the Qdrant collection name would be `movies_dataset_actors` (the default separator is an underscore).
+
+However, if you prefer to have class names without the dataset prefix, skip `dataset_name` argument.
+
+For example:
+
+```python
+pipeline = dlt.pipeline(
+    pipeline_name="movies",
+    destination="qdrant",
+)
+```
+
+## Additional destination options
+
+- `embedding_batch_size`: (int) The batch size for embedding operations. The default value is 32.
+
+- `embedding_parallelism`: (int) The number of concurrent threads to run embedding operations. Defaults to the number of CPU cores.
+
+- `upload_batch_size`: (int) The batch size for data uploads. The default value is 64.
+
+- `upload_parallelism`: (int) The maximal number of concurrent threads to run data uploads. The default value is 1.
+
+- `upload_max_retries`: (int) The number of retries to upload data in case of failure. The default value is 3.
+
+- `options`: ([QdrantClientOptions](#qdrant-client-options)) An instance of the `QdrantClientOptions` class that holds various Qdrant client options.
+
+- `model`: (str) The name of the FlagEmbedding model to use. See the list of supported models at [Supported Models](https://qdrant.github.io/fastembed/examples/Supported_Models/). The default value is "BAAI/bge-small-en".
+
+### [Qdrant Client Options](#qdrant-client-options)
+
+The `QdrantClientOptions` class provides options for configuring the Qdrant client.
+
+- `port`: (int) The port of the REST API interface. The default value is 6333.
+
+- `grpc_port`: (int) The port of the gRPC interface. The default value is 6334.
+
+- `prefer_grpc`: (bool) If `true`, the client will prefer to use the gRPC interface whenever possible in custom methods. The default value is `false`.
+
+- `https`: (bool) If `true`, the client will use the HTTPS (SSL) protocol. The default value is `true` if an API Key is provided, else `false`.
+
+- `prefix`: (str) If set, it adds the specified `prefix` to the REST URL path. For example, setting it to "service/v1" will result in the REST API URL as `http://localhost:6333/service/v1/{qdrant-endpoint}`. Not set by default.
+
+- `timeout`: (int) The timeout for REST and gRPC API requests. The default value is 5.0 seconds for REST and unlimited for gRPC.
+
+- `host`: (str) The host name of the Qdrant service. If both the URL and host are `None`, it is set to `localhost`.
+
+- `path`: (str) The persistence path for a local Qdrant instance. Not set by default.
+
+### Run Qdrant locally
+
+You can find the setup instructions to run Qdrant [here](https://qdrant.tech/documentation/quick-start/#download-and-run)
+
+### Syncing of `dlt` state
+
+Qdrant destination supports syncing of the `dlt` state.

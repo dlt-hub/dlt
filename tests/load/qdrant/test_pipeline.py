@@ -15,7 +15,6 @@ def drop_qdrant_data() -> Iterator[None]:
     yield
     drop_active_pipeline_data()
 
-
 def sequence_generator():
     count = 1
     while True:
@@ -34,10 +33,10 @@ def test_adapter_and_hints() -> None:
 
     qdrant_adapter(
         some_data,
-        vectorize=["content"],
+        embed=["content"],
     )
 
-    assert some_data.columns["content"] == {"name": "content", "data_type": "text", "x-qdrant-vectorize": True}  # type: ignore[index]
+    assert some_data.columns["content"] == {"name": "content", "data_type": "text", "x-embedding-field": True}  # type: ignore[index]
 
 
 def test_basic_state_and_schema() -> None:
@@ -49,7 +48,7 @@ def test_basic_state_and_schema() -> None:
 
     qdrant_adapter(
         some_data,
-        vectorize=["content"],
+        embed=["content"],
     )
 
     pipeline = dlt.pipeline(
@@ -81,7 +80,7 @@ def test_pipeline_append() -> None:
 
     qdrant_adapter(
         some_data,
-        vectorize=["content"],
+        embed=["content"],
     )
 
     pipeline = dlt.pipeline(
@@ -120,7 +119,7 @@ def test_explicit_append() -> None:
 
     qdrant_adapter(
         some_data,
-        vectorize=["content"],
+        embed=["content"],
     )
 
     pipeline = dlt.pipeline(
@@ -155,7 +154,7 @@ def test_pipeline_replace() -> None:
 
     qdrant_adapter(
         some_data,
-        vectorize=["content"],
+        embed=["content"],
     )
 
     uid = uniq_id()
@@ -220,7 +219,7 @@ def test_pipeline_merge() -> None:
 
     qdrant_adapter(
         movies_data,
-        vectorize=["description"],
+        embed=["description"],
     )
 
     pipeline = dlt.pipeline(
@@ -263,7 +262,7 @@ def test_pipeline_with_schema_evolution():
     def some_data():
         yield data
 
-    qdrant_adapter(some_data, vectorize=["content"])
+    qdrant_adapter(some_data, embed=["content"])
 
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_append",
@@ -311,7 +310,7 @@ def test_merge_github_nested() -> None:
         data = json.load(f)
 
     info = p.run(
-        qdrant_adapter(data[:17], vectorize=["title", "body"]),
+        qdrant_adapter(data[:17], embed=["title", "body"]),
         table_name="issues",
         write_disposition="merge",
         primary_key="id"
@@ -337,7 +336,7 @@ def test_empty_dataset_allowed() -> None:
     client: QdrantClient = p.destination_client()  # type: ignore[assignment]
 
     assert p.dataset_name is None
-    info = p.run(qdrant_adapter(["context", "created", "not a stop word"], vectorize=["value"]))
+    info = p.run(qdrant_adapter(["context", "created", "not a stop word"], embed=["value"]))
     # dataset in load info is empty
     assert info.dataset_name is None
     client = p.destination_client()  # type: ignore[assignment]

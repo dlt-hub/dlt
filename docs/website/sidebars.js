@@ -80,6 +80,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/athena',
             'dlt-ecosystem/destinations/motherduck',
             'dlt-ecosystem/destinations/weaviate',
+            'dlt-ecosystem/destinations/qdrant',
           ]
         },
       ],

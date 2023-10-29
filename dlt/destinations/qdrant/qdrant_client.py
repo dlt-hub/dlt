@@ -34,6 +34,7 @@ class LoadQdrantJob(LoadJob):
         self.embedding_fields = get_columns_names_with_prop(
             table_schema, VECTORIZE_HINT)
         self.unique_identifiers = self._list_unique_identifiers(table_schema)
+        self.config = client_config
 
         with FileStorage.open_zipsafe_ro(local_path) as f:
             docs, payloads, ids = [], [], []
@@ -50,7 +51,7 @@ class LoadQdrantJob(LoadJob):
             embedding_model = db_client._get_or_init_model(
                 db_client.embedding_model_name)
             embeddings = list(embedding_model.embed(
-                docs, batch_size=32, parallel=0))
+                docs, batch_size=self.config.embedding_batch_size, parallel=self.config.embedding_parallelism))
             assert len(embeddings) == len(payloads) == len(ids)
 
             self._upload_data(vectors=embeddings, ids=ids, payloads=payloads)
@@ -69,7 +70,7 @@ class LoadQdrantJob(LoadJob):
 
     def _upload_data(self, ids: Iterable[Any], vectors: Iterable[Any], payloads: Iterable[Any]) -> None:
         self.db_client.upload_collection(
-            self.collection_name, ids=ids, payload=payloads, vectors=vectors)
+            self.collection_name, ids=ids, payload=payloads, vectors=vectors, parallel=self.config.upload_parallelism, batch_size=self.config.upload_batch_size, max_retries=self.config.upload_max_retries)
 
     def _generate_uuid(
         self, data: Dict[str, Any], unique_identifiers: Sequence[str], collection_name: str
@@ -227,7 +228,7 @@ class QdrantClient(JobClientBase, WithStateSync):
                     if load_records.count > 0:
                         state["dlt_load_id"] = state.pop("_dlt_load_id")
                         return StateInfo(**state)
-            except Exception as e:
+            except Exception:
                 return None
 
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
