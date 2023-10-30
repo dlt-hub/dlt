@@ -93,7 +93,8 @@ or pass everything via configuration.
     # `only_strings` will get the default value False
     data_source = google_sheets("23029402349032049", ["tab1", "tab2"])
     ```
-    `credentials` value will be injected by the `@source` decorator (e.g. from `secrets.toml`),
+    `credentials` value will be injected by the `@source` decorator (e.g. from `secrets.toml`).
+
     `spreadsheet_id` and `tab_names` take values from the provided arguments.
 
 2. Option B
@@ -101,8 +102,9 @@ or pass everything via configuration.
    # `only_strings` will get the default value False
     data_source = google_sheets()
     ```
-   In this case `credentials` value will be also injected by the `@source` decorator (e.g. from `secrets.toml`),
-    `spreadsheet_id` and `tab_names` will be injected by the `@source` decorator (e.g. from `config.toml`) as well.
+    `credentials` value will be injected by the `@source` decorator (e.g. from `secrets.toml`).
+
+    `spreadsheet_id` and `tab_names` will be also injected by the `@source` decorator (e.g. from `config.toml`).
 
 We use `dlt.secrets.value` and `dlt.config.value` to set secrets and configurations via:
 - [TOML files](config_providers#toml-provider) (`secrets.toml` & `config.toml`):
