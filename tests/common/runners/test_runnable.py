@@ -46,12 +46,11 @@ def test_runnable_direct_worker_call() -> None:
     assert rv[0] == 199
 
 
-def test_fail_on_process_worker_started_early() -> None:
-    # process pool cannot be started before class instance is created: mapping not exist in worker
+def test_process_worker_started_early() -> None:
+    # ProcessPoolExecutor starts lazily so it can be created before tasks
     with ProcessPoolExecutor(4) as p:
         r = _TestRunnableWorkerMethod(4)
-        with pytest.raises(KeyError):
-            r._run(p)
+        r._run(p)
         p.shutdown(wait=True)
 
 
