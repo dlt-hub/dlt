@@ -137,7 +137,10 @@ it is a base class for [GcpOAuthCredentials](#gcpoauthcredentials).
 
 ### GCP Credentials
 
-[The Google Analytics verified source](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/__init__.py):
+- [GcpServiceAccountCredentials](#gcpserviceaccountcredentials).
+- [GcpOAuthCredentials](#gcpoauthcredentials).
+
+[Google Analytics verified source](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/__init__.py):
 the example how to use GCP Credentials.
 
 #### GcpServiceAccountCredentials
