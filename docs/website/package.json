@@ -3,10 +3,11 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
+
     "docusaurus": "docusaurus",
-    "start": "PYTHONPATH=. poetry run pydoc-markdown && node tools/update_snippets.js && docusaurus start",
+    "start": "poetry run pydoc-markdown && node tools/update_snippets.js && docusaurus start",
     "watch-snippets": "node tools/update_snippets.js --watch",
-    "build": "PYTHONPATH=. poetry run pydoc-markdown && node tools/update_snippets.js && docusaurus build",
+    "build": "set PYTHONPATH='C:\\Python312\\'. poetry run pydoc-markdown && node tools/update_snippets.js && docusaurus build",
     "build:netlify": "PYTHONPATH=. pydoc-markdown && node tools/update_snippets.js && docusaurus build --out-dir build/docs",
     "swizzle": "docusaurus swizzle",
     "clear": "docusaurus clear",
