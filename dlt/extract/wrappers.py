@@ -1,5 +1,6 @@
 from typing import Any
 
+from dlt.common.typing import NoneType
 from dlt.common.exceptions import MissingDependencyException
 
 
@@ -9,7 +10,7 @@ try:
 
     PandaFrame, ArrowTable, ArrowRecords = pandas.DataFrame, pyarrow.Table, pyarrow.RecordBatch
 except MissingDependencyException:
-    PandaFrame, ArrowTable, ArrowRecords = None, None, None
+    PandaFrame, ArrowTable, ArrowRecords = NoneType, NoneType, NoneType
 
 
 def wrap_additional_type(data: Any) -> Any:
