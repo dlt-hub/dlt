@@ -3,7 +3,7 @@ import pytest
 import multiprocessing
 from time import sleep
 from typing import Iterator, Tuple, Optional, Any, List
-from multiprocessing.pool import Pool
+from concurrent.futures import Executor
 
 from dlt.common import logger
 from dlt.common.runners import TRunMetrics, Runnable, workermethod
@@ -20,7 +20,7 @@ def mp_method_auto() -> Iterator[None]:
     multiprocessing.set_start_method(method, force=True)
 
 
-class _TestRunnableWorkerMethod(Runnable[Pool]):
+class _TestRunnableWorkerMethod(Runnable[Executor]):
     rv: List[Tuple[int, str, int]]
 
     def __init__(self, tasks: int) -> None:
@@ -35,19 +35,19 @@ class _TestRunnableWorkerMethod(Runnable[Pool]):
         sleep(0.3)
         return (v, self.uniq, os.getpid())
 
-    def _run(self, pool: Pool) -> List[Tuple[int, str, int]]:
+    def _run(self, pool: Executor) -> List[Tuple[int, str, int]]:
         rid = id(self)
         assert rid in _TestRunnableWorkerMethod.RUNNING
-        self.rv = rv = pool.starmap(_TestRunnableWorkerMethod.worker, [(rid, i) for i in range(self.tasks)])
+        self.rv = rv = list(pool.map(_TestRunnableWorkerMethod.worker, *zip(*[(rid, i) for i in range(self.tasks)])))
         assert rid in _TestRunnableWorkerMethod.RUNNING
         return rv
 
-    def run(self, pool: Pool) -> TRunMetrics:
+    def run(self, pool: Executor) -> TRunMetrics:
         self._run(pool)
         return TRunMetrics(False, 0)
 
 
-class _TestRunnableWorker(Runnable[Pool]):
+class _TestRunnableWorker(Runnable[Executor]):
     rv: List[Tuple[int, int]]
 
     def __init__(self, tasks: int) -> None:
@@ -61,10 +61,10 @@ class _TestRunnableWorker(Runnable[Pool]):
         sleep(0.3)
         return (v, os.getpid())
 
-    def _run(self, pool: Pool) -> List[Tuple[int, int]]:
-        self.rv = rv = pool.starmap(_TestRunnableWorker.worker, [(i, ) for i in range(self.tasks)])
+    def _run(self, pool: Executor) -> List[Tuple[int, int]]:
+        self.rv = rv = list(pool.map(_TestRunnableWorker.worker, *zip(*[(i, ) for i in range(self.tasks)])))
         return rv
 
-    def run(self, pool: Pool) -> TRunMetrics:
+    def run(self, pool: Executor) -> TRunMetrics:
         self._run(pool)
         return TRunMetrics(False, 0)
