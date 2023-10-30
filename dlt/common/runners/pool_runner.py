@@ -84,10 +84,6 @@ def run_pool(config: PoolRunnerConfiguration, run_f: Union[Runnable[TExecutor], 
     finally:
         if pool:
             logger.info("Closing processing pool")
-            # terminate pool and do not join
             pool.shutdown(wait=True)
-            # in very rare cases process hangs here, even with starmap terminating earlier
-            # pool.close()
-            # pool.join()
             pool = None
             logger.info("Processing pool closed")
