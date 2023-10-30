@@ -1,8 +1,9 @@
 import pytest
 from fnmatch import fnmatch
 from typing import Dict, Iterator, List, Sequence, Tuple
-from multiprocessing import get_start_method, Pool
-from multiprocessing.dummy import Pool as ThreadPool
+# from multiprocessing import get_start_method, Pool
+# from multiprocessing.dummy import Pool as ThreadPool
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 from dlt.common import json
 from dlt.common.schema.schema import Schema
@@ -208,7 +209,7 @@ def test_multiprocess_row_counting(caps: DestinationCapabilitiesContext, raw_nor
         ["github.events.load_page_1_duck"]
     )
     # use real process pool in tests
-    with Pool(processes=4) as p:
+    with ProcessPoolExecutor(max_workers=4) as p:
         raw_normalize.run(p)
 
     assert raw_normalize._row_counts["events"] == 100
@@ -222,7 +223,7 @@ def test_normalize_many_schemas(caps: DestinationCapabilitiesContext, rasa_norma
         ["event.event.many_load_2", "event.event.user_load_1", "ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2"]
     )
     # use real process pool in tests
-    with Pool(processes=4) as p:
+    with ProcessPoolExecutor(max_workers=4) as p:
         rasa_normalize.run(p)
     # must have two loading groups with model and event schemas
     loads = rasa_normalize.load_storage.list_packages()
@@ -244,7 +245,7 @@ def test_normalize_many_schemas(caps: DestinationCapabilitiesContext, rasa_norma
 @pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
 def test_normalize_typed_json(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
     extract_items(raw_normalize.normalize_storage, [JSON_TYPED_DICT], "special", "special")
-    with ThreadPool(processes=1) as pool:
+    with ThreadPoolExecutor(max_workers=1) as pool:
         raw_normalize.run(pool)
     loads = raw_normalize.load_storage.list_packages()
     assert len(loads) == 1

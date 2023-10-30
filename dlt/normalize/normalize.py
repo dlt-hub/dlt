@@ -1,24 +1,22 @@
 import os
-from typing import Any, Callable, List, Dict, Sequence, Tuple, Set
-from multiprocessing.pool import AsyncResult, Pool as ProcessPool
+from typing import Callable, List, Dict, Sequence, Tuple, Set, Optional
+from concurrent.futures import Future, Executor
 
 from dlt.common import pendulum, json, logger, sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.configuration.container import Container
-from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFormat
-from dlt.common.json import custom_pua_decode
-from dlt.common.runners import TRunMetrics, Runnable
+from dlt.common.destination import TLoaderFileFormat
+from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
+from dlt.common.schema.typing import TStoredSchema
 from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage, LoadStorageConfiguration, NormalizeStorageConfiguration
 from dlt.common.typing import TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
-from dlt.common.exceptions import TerminalValueError
 from dlt.common.pipeline import NormalizeInfo
 from dlt.common.utils import chunks, TRowCount, merge_row_count, increase_row_count
 
@@ -33,14 +31,14 @@ TMapFuncType = Callable[[Schema, str, Sequence[str]], TMapFuncRV]  # input param
 TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str], TRowCount]
 
 
-class Normalize(Runnable[ProcessPool]):
-
+class Normalize(Runnable[Executor]):
+    pool: Executor
     @with_config(spec=NormalizeConfiguration, sections=(known_sections.NORMALIZE,))
     def __init__(self, collector: Collector = NULL_COLLECTOR, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = config.value) -> None:
         self.config = config
         self.collector = collector
-        self.pool: ProcessPool = None
         self.normalize_storage: NormalizeStorage = None
+        self.pool = NullExecutor()
         self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
         self._row_counts: TRowCount = {}
@@ -183,57 +181,52 @@ class Normalize(Runnable[ProcessPool]):
         return chunk_files
 
     def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
-        workers = self.pool._processes  # type: ignore
+        workers: int = getattr(self.pool, '_max_workers', 1)
         chunk_files = self.group_worker_files(files, workers)
         schema_dict: TStoredSchema = schema.to_dict()
-        config_tuple = (self.config, self.normalize_storage.config, self.load_storage.config, schema_dict)
-        param_chunk = [[*config_tuple, load_id, files] for files in chunk_files]
-        tasks: List[Tuple[AsyncResult[TWorkerRV], List[Any]]] = []
+        param_chunk = [(
+            self.config, self.normalize_storage.config, self.load_storage.config, schema_dict, load_id, files
+        ) for files in chunk_files]
         row_counts: TRowCount = {}
 
         # return stats
         schema_updates: List[TSchemaUpdate] = []
 
         # push all tasks to queue
-        for params in param_chunk:
-            pending: AsyncResult[TWorkerRV] = self.pool.apply_async(Normalize.w_normalize_files, params)
-            tasks.append((pending, params))
+        tasks = [
+            (self.pool.submit(Normalize.w_normalize_files, *params), params) for params in param_chunk
+        ]
 
         while len(tasks) > 0:
             sleep(0.3)
             # operate on copy of the list
             for task in list(tasks):
                 pending, params = task
-                if pending.ready():
-                    if pending.successful():
-                        result: TWorkerRV = pending.get()
-                        try:
-                            # gather schema from all manifests, validate consistency and combine
-                            self.update_table(schema, result[0])
-                            schema_updates.extend(result[0])
-                            # update metrics
-                            self.collector.update("Files", len(result[2]))
-                            self.collector.update("Items", result[1])
-                            # merge row counts
-                            merge_row_count(row_counts, result[3])
-                        except CannotCoerceColumnException as exc:
-                            # schema conflicts resulting from parallel executing
-                            logger.warning(f"Parallel schema update conflict, retrying task ({str(exc)}")
-                            # delete all files produced by the task
-                            for file in result[2]:
-                                os.remove(file)
-                            # schedule the task again
-                            schema_dict = schema.to_dict()
-                            # TODO: it's time for a named tuple
-                            params[3] = schema_dict
-                            retry_pending: AsyncResult[TWorkerRV] = self.pool.apply_async(Normalize.w_normalize_files, params)
-                            tasks.append((retry_pending, params))
-                        # remove finished tasks
-                        tasks.remove(task)
-                    else:
-                        # raise the exception
-                        pending.get()
-                        raise AssertionError("unreachable code: pending.get must raise")
+                if pending.done():
+                    result: TWorkerRV = pending.result()  # Exception in task (if any) is raised here
+                    try:
+                        # gather schema from all manifests, validate consistency and combine
+                        self.update_table(schema, result[0])
+                        schema_updates.extend(result[0])
+                        # update metrics
+                        self.collector.update("Files", len(result[2]))
+                        self.collector.update("Items", result[1])
+                        # merge row counts
+                        merge_row_count(row_counts, result[3])
+                    except CannotCoerceColumnException as exc:
+                        # schema conflicts resulting from parallel executing
+                        logger.warning(f"Parallel schema update conflict, retrying task ({str(exc)}")
+                        # delete all files produced by the task
+                        for file in result[2]:
+                            os.remove(file)
+                        # schedule the task again
+                        schema_dict = schema.to_dict()
+                        # TODO: it's time for a named tuple
+                        params = params[:3] + (schema_dict,) + params[4:]
+                        retry_pending: Future[TWorkerRV] = self.pool.submit(Normalize.w_normalize_files, *params)
+                        tasks.append((retry_pending, params))
+                    # remove finished tasks
+                    tasks.remove(task)
 
         return schema_updates, row_counts
 
@@ -281,12 +274,9 @@ class Normalize(Runnable[ProcessPool]):
 
         self.load_storage.create_temp_load_package(load_id)
         logger.info(f"Created temp load folder {load_id} on loading volume")
-
-        # if pool is not present use map_single method to run normalization in single process
-        map_parallel_f = self.map_parallel if self.pool else self.map_single
         try:
             # process parallel
-            self.spool_files(schema_name, load_id, map_parallel_f, files)
+            self.spool_files(schema_name, load_id, self.map_parallel, files)
         except CannotCoerceColumnException as exc:
             # schema conflicts resulting from parallel executing
             logger.warning(f"Parallel schema update conflict, switching to single thread ({str(exc)}")
@@ -296,9 +286,9 @@ class Normalize(Runnable[ProcessPool]):
 
         return load_id
 
-    def run(self, pool: ProcessPool) -> TRunMetrics:
+    def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # keep the pool in class instance
-        self.pool = pool
+        self.pool = pool or NullExecutor()
         self._row_counts = {}
         logger.info("Running file normalizing")
         # list files and group by schema name, list must be sorted for group by to actually work

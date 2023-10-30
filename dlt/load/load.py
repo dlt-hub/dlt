@@ -3,7 +3,7 @@ from copy import copy
 from functools import reduce
 import datetime  # noqa: 251
 from typing import Dict, List, Optional, Tuple, Set, Iterator, Iterable, Callable
-from multiprocessing.pool import ThreadPool
+from concurrent.futures import Executor
 import os
 
 from dlt.common import sleep, logger
@@ -13,7 +13,7 @@ from dlt.common.pipeline import LoadInfo, SupportsPipeline
 from dlt.common.schema.utils import get_child_tables, get_top_level_table
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
 from dlt.common.typing import StrAny
-from dlt.common.runners import TRunMetrics, Runnable, workermethod
+from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.runtime.logger import pretty_format_exception
 from dlt.common.exceptions import TerminalValueError, DestinationTerminalException, DestinationTransientException
@@ -28,7 +28,8 @@ from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry, LoadClientUnsupportedWriteDisposition, LoadClientUnsupportedFileFormats
 
 
-class Load(Runnable[ThreadPool]):
+class Load(Runnable[Executor]):
+    pool: Executor
 
     @with_config(spec=LoaderConfiguration, sections=(known_sections.LOAD,))
     def __init__(
@@ -48,7 +49,7 @@ class Load(Runnable[ThreadPool]):
         self.destination = destination
         self.capabilities = destination.capabilities()
         self.staging_destination = staging_destination
-        self.pool: ThreadPool = None
+        self.pool = NullExecutor()
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._processed_load_ids: Dict[str, str] = {}
         """Load ids to dataset name"""
@@ -137,11 +138,7 @@ class Load(Runnable[ThreadPool]):
         param_chunk = [(id(self), file, load_id, schema) for file in load_files]
         # exceptions should not be raised, None as job is a temporary failure
         # other jobs should not be affected
-        if self.pool:
-            jobs: List[LoadJob] = self.pool.starmap(Load.w_spool_job, param_chunk)
-        else:
-            # single-threaded loading
-            jobs = [Load.w_spool_job(self, file, load_id, schema) for file in load_files]
+        jobs = self.pool.map(Load.w_spool_job, *zip(*param_chunk))
         # remove None jobs and check the rest
         return file_count, [job for job in jobs if job is not None]
 
@@ -384,9 +381,9 @@ class Load(Runnable[ThreadPool]):
                 self.complete_package(load_id, schema, True)
                 raise
 
-    def run(self, pool: ThreadPool) -> TRunMetrics:
+    def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # store pool
-        self.pool = pool
+        self.pool = pool or NullExecutor()
 
         logger.info("Running file loading")
         # get list of loads and order by name ASC to execute schema updates
