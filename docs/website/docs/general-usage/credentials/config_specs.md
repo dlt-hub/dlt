@@ -328,7 +328,7 @@ bucket_url = "bucket_url"
 
 If configuration is not provided, `dlt` uses the default AWS credentials (from `.aws/credentials`) as present on the machine:
 - It works by creating an instance of botocore Session.
-- If `profileName` is specified, the credentials for that profile are used.
+- If `profile_name` is specified, the credentials for that profile are used.
   If not - the default profile is used.
 
 ### AzureCredentials
