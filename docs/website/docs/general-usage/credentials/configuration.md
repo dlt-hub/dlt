@@ -124,7 +124,10 @@ We use `dlt.secrets.value` and `dlt.config.value` to set secrets and configurati
 
 :::caution
 **[TOML provider](config_providers#toml-provider) always loads `secrets.toml` and `config.toml` files from `.dlt` folder** which is looked relative to the
-**current Working Directory**.
+**current Working Directory**. Don't confuse `.dlt` folder in your
+[Working Directory](https://en.wikipedia.org/wiki/Working_directory)
+with a `~/.dlt` folder in your
+[Home Directory!](https://en.wikipedia.org/wiki/Home_directory)
 :::
 
 
