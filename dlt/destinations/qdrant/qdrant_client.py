@@ -225,11 +225,6 @@ class QdrantClient(JobClientBase, WithStateSync):
         self._delete_sentinel_collection()
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
-        """_summary_
-
-        Args:
-            truncate_tables (Iterable[str], optional): _description_. Defaults to None.
-        """
         if not self.is_storage_initialized():
             self._create_sentinel_collection()
         elif truncate_tables:
