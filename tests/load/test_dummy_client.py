@@ -1,6 +1,6 @@
 import shutil
 import os
-from multiprocessing.pool import ThreadPool
+from concurrent.futures import ThreadPoolExecutor
 from time import sleep
 from typing import List, Sequence, Tuple
 import pytest
@@ -85,7 +85,7 @@ def test_unsupported_write_disposition() -> None:
     schema.get_table("event_user")["write_disposition"] = "skip"
     # write back schema
     load.load_storage._save_schema(schema, load_id)
-    with ThreadPool() as pool:
+    with ThreadPoolExecutor() as pool:
         load.run(pool)
     # job with unsupported write disp. is failed
     exception = [f for f in load.load_storage.list_failed_jobs(load_id) if f.endswith(".exception")][0]
@@ -221,7 +221,7 @@ def test_spool_job_retry_spool_new() -> None:
         NORMALIZED_FILES
     )
     # call higher level function that returns jobs and counts
-    with ThreadPool() as pool:
+    with ThreadPoolExecutor() as pool:
         load.pool = pool
         jobs_count, jobs = load.spool_new_jobs(load_id, schema)
         assert jobs_count == 2
@@ -286,7 +286,7 @@ def test_try_retrieve_job() -> None:
         load.load_storage,
         NORMALIZED_FILES
     )
-    load.pool = ThreadPool()
+    load.pool = ThreadPoolExecutor()
     jobs_count, jobs = load.spool_new_jobs(load_id, schema)
     assert jobs_count == 2
     # now jobs are known
@@ -323,7 +323,7 @@ def test_retry_on_new_loop() -> None:
         load.load_storage,
         NORMALIZED_FILES
     )
-    with ThreadPool() as pool:
+    with ThreadPoolExecutor() as pool:
         # 1st retry
         load.run(pool)
         files = load.load_storage.list_new_jobs(load_id)
@@ -354,7 +354,7 @@ def test_retry_exceptions() -> None:
         load.load_storage,
         NORMALIZED_FILES
     )
-    with ThreadPool() as pool:
+    with ThreadPoolExecutor() as pool:
         # 1st retry
         with pytest.raises(LoadClientJobRetry) as py_ex:
             while True:
@@ -392,7 +392,7 @@ def test_wrong_writer_type() -> None:
         ["event_bot.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values",
         "event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
     )
-    with ThreadPool() as pool:
+    with ThreadPoolExecutor() as pool:
         with pytest.raises(JobWithUnsupportedWriterException) as exv:
             load.run(pool)
     assert exv.value.load_id == load_id
@@ -414,7 +414,7 @@ def assert_complete_job(load: Load, storage: FileStorage, should_delete_complete
     )
     # will complete all jobs
     with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
-        with ThreadPool() as pool:
+        with ThreadPoolExecutor() as pool:
             load.run(pool)
             # did process schema update
             assert storage.has_file(os.path.join(load.load_storage.get_package_path(load_id), LoadStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME))
@@ -434,7 +434,7 @@ def assert_complete_job(load: Load, storage: FileStorage, should_delete_complete
 
 
 def run_all(load: Load) -> None:
-    pool = ThreadPool()
+    pool = ThreadPoolExecutor()
     while True:
         metrics = load.run(pool)
         if metrics.pending_items == 0:

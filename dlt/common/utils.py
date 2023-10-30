@@ -40,6 +40,15 @@ def uniq_id_base64(len_: int = 16) -> str:
     return base64.b64encode(secrets.token_bytes(len_)).decode('ascii').rstrip("=")
 
 
+def many_uniq_ids_base64(n_ids: int, len_: int = 16) -> List[str]:
+    """Generate `n_ids` base64 encoded crypto-grade strings of random bytes with desired len_.
+    This is more performant than calling `uniq_id_base64` multiple times.
+    """
+    random_bytes = secrets.token_bytes(n_ids * len_)
+    encode = base64.b64encode
+    return [encode(random_bytes[i:i+len_]).decode('ascii').rstrip("=") for i in range(0, n_ids * len_, len_)]
+
+
 def digest128(v: str, len_: int = 15) -> str:
     """Returns a base64 encoded shake128 hash of str `v` with digest of length `len_` (default: 15 bytes = 20 characters length)"""
     return base64.b64encode(hashlib.shake_128(v.encode("utf-8")).digest(len_)).decode('ascii').rstrip("=")

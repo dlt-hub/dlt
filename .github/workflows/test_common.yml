@@ -61,7 +61,7 @@ jobs:
         with:
           # path: ${{ steps.pip-cache.outputs.dir }}
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
+          key: venv-${{ matrix.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
       - name: Install dependencies + sentry
         run: poetry install --no-interaction  -E parquet -E pydantic && pip install sentry-sdk
