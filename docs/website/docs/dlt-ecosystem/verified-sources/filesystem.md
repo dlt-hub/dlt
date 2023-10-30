@@ -48,7 +48,7 @@ To get AWS keys for S3 access:
 For more info, see
 [AWS official documentation.](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
 
-#### GCS Cloud Storage credentials
+#### Google Cloud Storage credentials
 
 To get GCS cloud storage access:
 
@@ -58,7 +58,7 @@ To get GCS cloud storage access:
    [Google's guide](https://support.google.com/googleapi/answer/6158841?hl=en).
 1. In IAM & Admin > Service Accounts, find your account, click the three-dot menu > "Manage Keys" >
    "ADD KEY" > "CREATE" to get a JSON credential file.
-   > Grant the service account appropriate permissions for cloud storage access.
+1. Grant the service account appropriate permissions for cloud storage access.
 
 For more info, see how to
 [create service account](https://support.google.com/a/answer/7378726?hl=en).
@@ -106,7 +106,7 @@ For more information, read the
    account authentication:
 
    ```toml
-   [sources.filesystem]
+   [sources.filesystem.credentials]
    # For AWS S3 access:
    aws_access_key_id="Please set me up!"
    aws_secret_access_key="Please set me up!"
@@ -139,7 +139,7 @@ For more information, read the
    [sources.filesystem]
    bucket_url="s3://my-bucket/csv_files/"
    ```
-   :::note
+   :::caution
    For Azure, use adlfs>=2023.9.0. Older versions mishandle globs.
    :::
 ## Run the pipeline
@@ -211,7 +211,7 @@ def readers(
 listing in the bucket.
 
 :::tip
-We advice that you give each resource a
+We advise that you give each resource a
 [specific name](../../general-usage/resource#duplicate-and-rename-resources)
 before loading with `pipeline.run`. This will make sure that data goes to a table with the name you
 want and that each pipeline uses a
@@ -221,7 +221,9 @@ want and that each pipeline uses a
 
 ### Resource `filesystem`
 
-This resource lists files in bucket_url based on the file_glob pattern, returning them as "FileItem" with data access methods. These can be paired with transformers for enhanced processing.
+This resource lists files in `bucket_url` based on the `file_glob` pattern, returning them as
+[FileItem](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/storages/fsspec_filesystem.py#L22)
+with data access methods. These can be paired with transformers for enhanced processing.
 
 ```python
 @dlt.resource(
@@ -241,12 +243,11 @@ def filesystem(
 `credentials`: Filesystem credentials of `AbstractFilesystem` instance.
 
 `file_glob`: File filter in glob format. Defaults to listing all non-recursive files
-in bucket_url.
+in bucket URL.
 
-`files_per_page`: Number of files processed at once (default: 100).
+`files_per_page`: Number of files processed at once. Default: 100.
 
-`extract_content`: If true, the content of the file will be read and returned in the resource.
-(default: False).
+`extract_content`: If true, the content of the file will be read and returned in the resource. Default: False.
 
 
 ## Filesystem Integration and Data Extraction Guide
@@ -255,7 +256,7 @@ in bucket_url.
 
 - The filesystem tool enumerates files in a selected bucket using a glob pattern, returning details as FileInfo in customizable page sizes.
 
-- This resource integrates with transform functions and transformers for customised extraction pipelines.
+- This resource integrates with transform functions and transformers for customized extraction pipelines.
 
 To load data into a specific table (instead of the default filesystem table), see the snippet below:
 
@@ -298,29 +299,29 @@ data. You can quickly build pipelines to:
 
 #### `FileItem` Fields:
 
-`file_url` - Complete URL of the file; also the primary key (e.g. `file://`).
+- `file_url` - Complete URL of the file; also the primary key (e.g. `file://`).
 
-`file_name` - Name or relative path of the file from the bucket_url.
+- `file_name` - Name or relative path of the file from the bucket URL.
 
-`mime_type` - File's mime type; sourced from the bucket provider or inferred from its extension.
+- `mime_type` - File's mime type; sourced from the bucket provider or inferred from its extension.
 
-`modification_date` - File's last modification time (format: pendulum.DateTime).
+- `modification_date` - File's last modification time (format: `pendulum.DateTime`).
 
-`size_in_bytes` - File size.
+- `size_in_bytes` - File size.
 
-`file_content` - Content, provided upon request.
+- `file_content` - Content, provided upon request.
 
-:::note
+:::info
 When using a nested or recursive glob pattern, `file_name` will include the file's path. For
 instance, using the resource:
 `filesystem("az://dlt-ci-test-bucket/standard_source/samples", file_glob="met_csv/A801/*.csv")`
-will produce file names relative to the /standard_source/samples path, such as
-"met_csv/A801/A881_20230920.csv".
+will produce file names relative to the `/standard_source/samples` path, such as
+`met_csv/A801/A881_20230920.csv`.
 :::
 
 ### File Manipulation
 
-`FileItem`, backed by a dictionary implementation, offers these helper methods:
+[FileItem](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/storages/fsspec_filesystem.py#L22), backed by a dictionary implementation, offers these helper methods:
 
 - `read_bytes()`: Returns the file content as bytes.
 - `open()`: Provides a file object when opened.
@@ -337,14 +338,13 @@ verified source.
 
    ```python
    pipeline = dlt.pipeline(
-        pipeline_name="standard_filesystem_csv",  # Use a custom name if desired
+        pipeline_name="standard_filesystem",  # Use a custom name if desired
         destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-        dataset_name="filesystem_data"  # Use a custom name if desired
+        dataset_name="filesystem_data_csv"  # Use a custom name if desired
    )
    ```
 
-1. To read and load CSV files: Replace the placeholder for BUCKET_URL with the appropriate path to
-   your bucket or local destination.
+1. To read and load CSV files:
 
    ```python
    BUCKET_URL = "YOUR_BUCKET_PATH_HERE"   # path of the bucket url or local destination
@@ -362,10 +362,10 @@ verified source.
     - The `file_glob` parameter targets all CSVs in the "met_csv/A801" directory.
     - The `print(pipeline.last_trace.last_normalize_info)` line displays the data normalization details from the pipeline's last trace.
 
-    :::note
+    :::info
     If you have a default bucket URL set in `.dlt/config.toml`, you can omit the `bucket_url` parameter.
     :::
-1. To load only new CSV files, [incremental loading](../../general-usage/incremental-loading):
+1. To load only new CSV files with [incremental loading](../../general-usage/incremental-loading):
 
    ```python
    # This configuration will only consider new csv files
