@@ -7,9 +7,10 @@ keywords: [arrow, pandas, parquet, source]
 # Arrow Table / Pandas
 
 You can load data directly from an Arrow table or Pandas dataframe.
-This is supported by all destinations that support the parquet file format (e.g. [Snowflake](../destinations/snowflake.md) and [Filesystem](../destinations/filesystem.md)).
+This is supported by all destinations, but recommended especially when using destinations that support the `parquet` foramt natively (e.g. [Snowflake](../destinations/snowflake.md) and [Filesystem](../destinations/filesystem.md)).
+See the [destination support](#destination-support-and-fallback) section for more information.
 
-This is a more performant way to load structured data since `dlt`` bypasses many processing steps normally involved in passing JSON objects through the pipeline.
+When used with a `parquet` supported destination this is a more performant way to load structured data since `dlt` bypasses many processing steps normally involved in passing JSON objects through the pipeline.
 `dlt` automatically translates the Arrow table's schema to the destination table's schema and writes the table to a parquet file which gets uploaded to the destination without any further processing.
 
 ## Usage
@@ -50,13 +51,37 @@ pipeline.run([table], table_name="orders")
 
 Note: The data in the table must be compatible with the destination database as no data conversion is performed. Refer to the documentation of the destination for information about supported data types.
 
-## Destinations that support parquet for direct loading
+## Destination support
+
+Destinations that support the `parquet` format natively will have the data files uploaded directly as possible. Rewriting files can be avoided completely in many cases.
+
+When the destination does not support `parquet`, the rows are extracted from the table and written in the destination's native format (usually `insert_values`) and this is generally much slower
+as it requires processing the table row by row and rewriting data to disk.
+
+The output file format is chosen automatically based on the destination's capabilities, so you can load arrow or pandas frames to any destination but performance will vary.
+
+### Destinations that support parquet natively for direct loading
 * duckdb & motherduck
 * redshift
 * bigquery
 * snowflake
 * filesystem
 * athena
+
+
+## Normalize configuration
+
+`dlt` does not add any data lineage columns by default when loading Arrow tables. This is to give the best performance and avoid unnecessary data copying.
+
+But if you need them, the `_dlt_load_id` (ID of the load operation when the row was added) and `_dlt_id` (unique ID for the row) columns can be added respectively with the following configuration options:
+
+```toml
+[normalize.parquet_normalizer]
+add_dlt_load_id = true
+add_dlt_id = true
+```
+
+Keep in mind that enabling these incurs some performance overhead because the `parquet` file needs to be read back from disk in chunks, processed and rewritten with new columns.
 
 ## Incremental loading with Arrow tables
 
