@@ -151,4 +151,6 @@ def to_seconds(td: Optional[TimedeltaSeconds]) -> Optional[float]:
 T = TypeVar("T", bound=Union[pendulum.DateTime, pendulum.Time])
 
 def reduce_pendulum_datetime_precision(value: T, microsecond_precision: int) -> T:
+    if microsecond_precision >= 6:
+        return value
     return value.replace(microsecond=value.microsecond // 10**(6 - microsecond_precision) * 10**(6 - microsecond_precision))  # type: ignore
