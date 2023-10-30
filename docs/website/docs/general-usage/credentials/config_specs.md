@@ -258,7 +258,7 @@ In order for `auth()` method to succeed:
 - If `refresh_token` is not provided, and you run the pipeline from a console or a notebook,
   `dlt` will use InstalledAppFlow to run the desktop authentication flow.
 
-[The Google Analytics example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/setup_script_gcp_oauth.py): how you can get the refresh token using `dlt.secrets.value`.
+[Google Analytics example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/setup_script_gcp_oauth.py): how you can get the refresh token using `dlt.secrets.value`.
 
 #### Defaults
 
