@@ -64,7 +64,7 @@ The default naming convention:
 
 > 💡 Use simple, short small caps identifiers for everything!
 
-The naming convention is [configurable](credentials) and users can easily create their own
+The naming convention is configurable and users can easily create their own
 conventions that i.e. pass all the identifiers unchanged if the destination accepts that (i.e.
 DuckDB).
 
