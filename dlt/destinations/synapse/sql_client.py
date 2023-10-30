@@ -39,13 +39,21 @@ def handle_datetimeoffset(dto_value: bytes) -> datetime:
         tup[0], tup[1], tup[2], tup[3], tup[4], tup[5], tup[6] // 1000, timezone(timedelta(hours=tup[7], minutes=tup[8]))
     )
 
+def is_valid_xml(s: str) -> bool:
+    # simple check for XML data
+    return s.strip().startswith('<') and s.strip().endswith('>')
 
 class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
-    def execute_fragments(self, fragments):
-        # TODO clean up this methodology, tried mirroring original code
-        # Unpack the outer tuple
-        sql, params = fragments
-        self.execute_query(sql, params)
+    def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+        # Check if fragments has one element and that element is a list/tuple with two elements
+        if len(fragments) == 1 and isinstance(fragments[0], (list, tuple)) and len(fragments[0]) == 2:
+            # Unpack the inner list/tuple into sql and params
+            sql, params = fragments[0]
+            # Execute the SQL query with the provided parameters
+            return self.execute_sql(sql, *params, **kwargs)
+        else:
+            # If fragments doesn't match the expected structure, fall back to the default behavior
+            return self.execute_sql("".join(fragments), *args, **kwargs)  # type: ignore
 
     dbapi: ClassVar[DBApi] = pyodbc
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
@@ -151,33 +159,33 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         self.execute_fragments(statements)
 
     def set_input_sizes(self, *args):
+        if len(args) == 1 and isinstance(args[0], tuple):
+            args = args[0]
 
-        # Flattening the args if they are packed in tuples
-        flat_args = []
-        for arg in args:
-            if isinstance(arg, tuple):
-                flat_args.extend(arg)
-            else:
-                flat_args.append(arg)
-
+        args = list(args)  # Convert tuple to list for modification
         input_sizes = []
-        for index, arg in enumerate(flat_args):
+        for index, arg in enumerate(args):
+            #print(f"Processing arg {index}: {arg}")  # Print the argument being processed
 
             if isinstance(arg, str):
-
-                # Check if the string is a valid JSON
-                if is_valid_json(arg):
+                if arg.isdigit():  # Check if the string is a valid integer
+                    input_sizes.append((pyodbc.SQL_BIGINT, 0, 0))  # Set input size for bigint columns
+                    #print(f"Identified bigint arg at index {index}")  # Print when a bigint argument is identified
+                elif is_valid_json(arg):
                     input_sizes.append((pyodbc.SQL_WVARCHAR, 0, 0))  # Set input size for JSON columns
                 else:
-                    # Assuming ntext is represented as a regular string
-                    # You may want to have a more robust check for ntext data here
-                    input_sizes.append((pyodbc.SQL_WVARCHAR, 0, 0))  # Set input size for ntext columns
+                    input_sizes.append((pyodbc.SQL_WVARCHAR, 0, 0))  # Set input size for string columns
+            elif isinstance(arg, (bytes, bytearray)):
+                input_sizes.append((pyodbc.SQL_VARBINARY, 0, 0))  # Set input size for binary columns
             else:
-                input_sizes.append(None)  # Keep non-string args unmodified
+                input_sizes.append(None)  # Default handling for other data types
 
-        return input_sizes, tuple(flat_args)
+        return input_sizes, tuple(args)
+
 
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+        print("SQL:", sql)
+        print("Arguments:", args)
         with self.execute_query(sql, *args, **kwargs) as curr:
             if curr.description is None:
                 return None
@@ -188,8 +196,10 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+        print("Query:", query)
+        print("Args for query:", args)
+
         assert isinstance(query, str)
-        curr: DBApiCursor = None
 
         if kwargs:
             raise NotImplementedError("pyodbc does not support named parameters in queries")
@@ -199,11 +209,14 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         # Set the converter for datetimeoffset
         self._conn.add_output_converter(-155, handle_datetimeoffset)
 
+        # #TODO confirm this implementation ok ... MSSQL subclass?
         # Set input sizes for Synapse to handle varchar(max) instead of ntext
         input_sizes, args = self.set_input_sizes(*args)
+        curr.setinputsizes(input_sizes)
 
         try:
             query = query.replace('%s', '?')  # Updated line
+
             curr.execute(query, *args)  # No flattening, just unpack args directly
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
 

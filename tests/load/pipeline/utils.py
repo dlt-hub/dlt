@@ -69,6 +69,9 @@ def _is_filesystem(p: dlt.Pipeline) -> bool:
 
 
 def assert_table(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
+    print("WITHIN ASSERT_TABLE, here are params going to assert_table_sql table data: " + str(table_data))
+    print("WITHIN ASSERT_TABLE, pipeline: " + str(p))
+    print("WITHIN ASSERT_TABLE, table_name: " + str(table_name))
     func = _assert_table_fs if _is_filesystem(p) else _assert_table_sql
     func(p, table_name, table_data, schema_name, info)
 
@@ -76,8 +79,14 @@ def assert_table(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema
 def _assert_table_sql(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
     with p.sql_client(schema_name=schema_name) as c:
         table_name = c.make_qualified_table_name(table_name)
+        print(f"Qualified table name: {table_name}")  # Print the qualified table name
+    query = f"SELECT * FROM {table_name} ORDER BY 1"  # Constructing the query
+    print(f"Executing query: {query}")  # Print the query being executed
+    print(f"Expected table data: {table_data}")  # Print the expected table data
+    print(f"Schema name: {schema_name}")  # Print the schema name
     # Implement NULLS FIRST sort in python
-    assert_query_data(p, f"SELECT * FROM {table_name} ORDER BY 1", table_data, schema_name, info, sort_key=lambda row: row[0] is not None)
+    assert_query_data(p, query, table_data, schema_name, info, sort_key=lambda row: row[0] is not None)
+
 
 
 def _assert_table_fs(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:
@@ -108,6 +117,14 @@ def assert_query_data(p: dlt.Pipeline, sql: str, table_data: List[Any], schema_n
 
     """
     rows = select_data(p, sql, schema_name)
+    print("HERE IS WHERE ROWS GETS CALCED")
+    print("P: " + str(p))
+    print("sql: " + str(sql))
+    print("schema_name: " + str(schema_name))
+
+    print("HERE ARE THE ROWS FOR ASSERTION: " + str(rows))
+    print("HERE IS THE TABLE DATA FOR ASSERTION: " + str(table_data))
+
     assert len(rows) == len(table_data)
     if sort_key is not None:
         rows = sorted(rows, key=sort_key)
