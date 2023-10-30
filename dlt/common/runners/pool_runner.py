@@ -1,6 +1,6 @@
+from __future__ import annotations
 import multiprocessing
-from typing import Callable, Union, cast, Any, TypeVar
-from multiprocessing.pool import ThreadPool, Pool
+from typing import Callable, Union, cast, TypeVar
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor, Future
 from typing_extensions import ParamSpec
 
@@ -39,9 +39,17 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
     if config.pool_type == "process":
         # if not fork method, provide initializer for logs and configuration
         if multiprocessing.get_start_method() != "fork" and init._INITIALIZED:
-            return ProcessPoolExecutor(max_workers=config.workers, initializer=init.initialize_runtime, initargs=(init._RUN_CONFIGURATION,))
+            return ProcessPoolExecutor(
+                max_workers=config.workers,
+                initializer=init.initialize_runtime,
+                initargs=(init._RUN_CONFIGURATION,),
+                mp_context=multiprocessing.get_context()
+                )
         else:
-            return ProcessPoolExecutor(max_workers=config.workers)
+            return ProcessPoolExecutor(
+                max_workers=config.workers,
+                mp_context=multiprocessing.get_context()
+            )
     elif config.pool_type == "thread":
         return ThreadPoolExecutor(max_workers=config.workers)
     # no pool - single threaded
