@@ -146,9 +146,11 @@ def incremental_snippet() -> None:
             # we reuse the pipeline instance below and load to the same dataset as data
             logger.info("Saving the load info in the destination")
             pipeline.run([load_info], table_name="_load_info")
+            assert "_load_info" in pipeline.last_trace.last_normalize_info.row_counts  # @@@DLT_REMOVE
             # save trace to destination, sensitive data will be removed
             logger.info("Saving the trace in the destination")
             pipeline.run([pipeline.last_trace], table_name="_trace")
+            assert "_trace" in pipeline.last_trace.last_normalize_info.row_counts  # @@@DLT_REMOVE
 
             # print all the new tables/columns in
             for package in load_info.load_packages:
@@ -160,6 +162,7 @@ def incremental_snippet() -> None:
             # save the new tables and column schemas to the destination:
             table_updates = [p.asdict()["tables"] for p in load_info.load_packages]
             pipeline.run(table_updates, table_name="_new_tables")
+            assert "_new_tables" in pipeline.last_trace.last_normalize_info.row_counts  # @@@DLT_REMOVE
 
             return load_info
 

@@ -21,9 +21,9 @@ We'll learn how to:
 - Loading back load information, schema updates, and traces.
 - Triggering notifications in case of schema evolution.
 - Using context managers to independently retry pipeline stages.
-- Run basic tests utilizing sql_client and normalize_info.
+- Run basic tests utilizing `sql_client` and `normalize_info`.
 
-### Init pipeline
+### Init chess source
 
 <!--@@@DLT_SNIPPET_START ./code/chess-snippets.py::markdown_source-->
 ```py
