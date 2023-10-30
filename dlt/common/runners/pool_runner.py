@@ -40,10 +40,8 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
         # if not fork method, provide initializer for logs and configuration
         if multiprocessing.get_start_method() != "fork" and init._INITIALIZED:
             return ProcessPoolExecutor(max_workers=config.workers, initializer=init.initialize_runtime, initargs=(init._RUN_CONFIGURATION,))
-            # return Pool(processes=config.workers, initializer=init.initialize_runtime, initargs=(init._RUN_CONFIGURATION, ))
         else:
             return ProcessPoolExecutor(max_workers=config.workers)
-            # return Pool(processes=config.workers)
     elif config.pool_type == "thread":
         return ThreadPoolExecutor(max_workers=config.workers)
     # no pool - single threaded

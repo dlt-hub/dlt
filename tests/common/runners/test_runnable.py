@@ -14,11 +14,10 @@ from tests.common.runners.utils import _TestRunnableWorkerMethod, _TestRunnableW
 
 @pytest.mark.parametrize('method', ALL_METHODS)
 def test_runnable_process_pool(method: str) -> None:
-    multiprocessing.set_start_method(method, force=True)
     # 4 tasks
     r = _TestRunnableWorker(4)
     # create 4 workers
-    with ProcessPoolExecutor(4) as p:
+    with ProcessPoolExecutor(4, mp_context=multiprocessing.get_context(method)) as p:
         rv = r._run(p)
         p.shutdown()
     assert len(rv) == 4
@@ -46,11 +45,16 @@ def test_runnable_direct_worker_call() -> None:
     assert rv[0] == 199
 
 
-def test_process_worker_started_early() -> None:
-    # ProcessPoolExecutor starts lazily so it can be created before tasks
-    with ProcessPoolExecutor(4) as p:
+@pytest.mark.parametrize('method', ALL_METHODS)
+def test_process_worker_started_early(method: str) -> None:
+    with ProcessPoolExecutor(4, mp_context=multiprocessing.get_context(method)) as p:
         r = _TestRunnableWorkerMethod(4)
-        r._run(p)
+        if method == "spawn":
+            # spawn processes are started upfront, so process pool cannot be started before class instance is created: mapping not exist in worker
+            with pytest.raises(KeyError):
+                r._run(p)
+        else:  # With fork method processes are spawned lazily so this order is fine
+            r._run(p)
         p.shutdown(wait=True)
 
 
@@ -67,14 +71,15 @@ def test_weak_pool_ref() -> None:
         r = wref[rid]
 
 
-def test_configuredworker() -> None:
+@pytest.mark.parametrize('method', ALL_METHODS)
+def test_configuredworker(method: str) -> None:
     # call worker method with CONFIG values that should be restored into CONFIG type
     config = SchemaStorageConfiguration()
     config["import_schema_path"] = "test_schema_path"
     _worker_1(config, "PX1", par2="PX2")
 
     # must also work across process boundary
-    with ProcessPoolExecutor(1) as p:
+    with ProcessPoolExecutor(1, mp_context=multiprocessing.get_context(method)) as p:
         p.map(_worker_1, *zip(*[(config, "PX1", "PX2")]))
 
 
