@@ -130,6 +130,9 @@ def test_aws_credentials_with_endpoint_url(environment: Dict[str, str]) -> None:
         "token": "fake_session_token",
         "profile": None,
         "endpoint_url": "https://123.r2.cloudflarestorage.com",
+        "client_kwargs": {
+            "region_name": environment['AWS_DEFAULT_REGION']
+        }
     }
 
 
@@ -137,4 +140,4 @@ def set_aws_credentials_env(environment: Dict[str, str]) -> None:
     environment['AWS_ACCESS_KEY_ID'] = 'fake_access_key'
     environment['AWS_SECRET_ACCESS_KEY'] = 'fake_secret_key'
     environment['AWS_SESSION_TOKEN'] = 'fake_session_token'
-    environment['REGION_NAME'] = 'eu-central-1'
+    environment['AWS_DEFAULT_REGION'] = 'eu-central-1'

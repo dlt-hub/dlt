@@ -2,17 +2,17 @@ from typing import Dict, List, Mapping, Optional, Sequence, Tuple, cast, TypedDi
 from dlt.common.data_types.typing import TDataType
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.typing import TJSONNormalizer
+from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
 
 from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
 from dlt.common.schema.utils import column_name_validator
-from dlt.common.utils import digest128, uniq_id_base64, update_dict_nested
+from dlt.common.utils import digest128, update_dict_nested
 from dlt.common.normalizers.json import TNormalizedRowIterator, wrap_in_dict, DataItemNormalizer as DataItemNormalizerBase
 from dlt.common.validation import validate_dict
 
 EMPTY_KEY_IDENTIFIER = "_empty"  # replace empty keys with this
-DLT_ID_LENGTH_BYTES = 10
 
 class TDataItemRow(TypedDict, total=False):
     _dlt_id: str  # unique id of current row
@@ -144,7 +144,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     def _add_row_id(self, table: str, row: TDataItemRow, parent_row_id: str, pos: int, _r_lvl: int) -> str:
         # row_id is always random, no matter if primary_key is present or not
-        row_id = uniq_id_base64(DLT_ID_LENGTH_BYTES)
+        row_id = generate_dlt_id()
         if _r_lvl > 0:
             primary_key = self.schema.filter_row_with_hint(table, "primary_key", row)
             if not primary_key:

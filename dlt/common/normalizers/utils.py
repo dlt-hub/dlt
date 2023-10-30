@@ -1,5 +1,5 @@
 from importlib import import_module
-from typing import Any, Type, Tuple, cast
+from typing import Any, Type, Tuple, cast, List
 
 import dlt
 from dlt.common.configuration.inject import with_config
@@ -9,9 +9,10 @@ from dlt.common.normalizers.json import SupportsDataItemNormalizer, DataItemNorm
 from dlt.common.normalizers.naming import NamingConvention, SupportsNamingConvention
 from dlt.common.normalizers.naming.exceptions import UnknownNamingModule, InvalidNamingModule
 from dlt.common.normalizers.typing import TJSONNormalizer, TNormalizersConfig
+from dlt.common.utils import uniq_id_base64, many_uniq_ids_base64
 
 DEFAULT_NAMING_MODULE = "dlt.common.normalizers.naming.snake_case"
-
+DLT_ID_LENGTH_BYTES = 10
 
 @with_config(spec=NormalizersConfiguration)
 def explicit_normalizers(
@@ -56,3 +57,11 @@ def import_normalizers(
     json_module = cast(SupportsDataItemNormalizer, import_module(item_normalizer["module"]))
 
     return normalizers_config, naming_module.NamingConvention(max_length), json_module.DataItemNormalizer
+
+
+def generate_dlt_ids(n_ids: int) -> List[str]:
+    return many_uniq_ids_base64(n_ids, DLT_ID_LENGTH_BYTES)
+
+
+def generate_dlt_id() -> str:
+    return uniq_id_base64(DLT_ID_LENGTH_BYTES)

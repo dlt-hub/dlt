@@ -1,10 +1,10 @@
-from typing import Any, Tuple, Optional, Union
+from typing import Any, Tuple, Optional, Union, Callable, Iterable, Iterator, Sequence, Tuple
 from dlt import version
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.typing import TTableSchemaColumns
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.schema.typing import TColumnType
+from dlt.common.schema.typing import TColumnType, TColumnSchemaBase
 from dlt.common.data_types import TDataType
 from dlt.common.typing import TFileOrPath
 
@@ -139,6 +139,25 @@ def _get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
         raise ValueError(dtype)
 
 
+def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
+    """Remove all columns of datatype pyarrow.null() from the table or record batch
+    """
+    if isinstance(item, pyarrow.Table):
+        return item.drop([field.name for field in item.schema if pyarrow.types.is_null(field.type)])
+    elif isinstance(item, pyarrow.RecordBatch):
+        null_idx = [i for i, col in enumerate(item.columns) if pyarrow.types.is_null(col.type)]
+        new_schema = item.schema
+        for i in reversed(null_idx):
+            new_schema = new_schema.remove(i)
+        return pyarrow.RecordBatch.from_arrays(
+            [col for i, col in enumerate(item.columns) if i not in null_idx],
+            schema=new_schema
+        )
+    else:
+        raise ValueError(item)
+
+
+
 def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColumns:
     """Convert a PyArrow schema to a table schema columns dict.
 
@@ -173,3 +192,32 @@ def get_row_count(parquet_file: TFileOrPath) -> int:
 
 def is_arrow_item(item: Any) -> bool:
     return isinstance(item, (pyarrow.Table, pyarrow.RecordBatch))
+
+
+TNewColumns = Sequence[Tuple[pyarrow.Field, Callable[[pyarrow.Table], Iterable[Any]]]]
+
+
+def pq_stream_with_new_columns(
+    parquet_file: TFileOrPath, columns: TNewColumns, row_groups_per_read: int = 1
+) -> Iterator[pyarrow.Table]:
+    """Add column(s) to the table in batches.
+
+    The table is read from parquet `row_groups_per_read` row groups at a time
+
+    Args:
+        parquet_file: path or file object to parquet file
+        columns: list of columns to add in the form of (`pyarrow.Field`, column_value_callback)
+            The callback should accept a `pyarrow.Table` and return an array of values for the column.
+        row_groups_per_read: number of row groups to read at a time. Defaults to 1.
+
+    Yields:
+        `pyarrow.Table` objects with the new columns added.
+    """
+    with pyarrow.parquet.ParquetFile(parquet_file) as reader:
+        n_groups = reader.num_row_groups
+        # Iterate through n row groups at a time
+        for i in range(0, n_groups, row_groups_per_read):
+            tbl: pyarrow.Table = reader.read_row_groups(range(i, min(i + row_groups_per_read, n_groups)))
+            for col in columns:
+                tbl = tbl.append_column(col[0], col[1](tbl))
+            yield tbl

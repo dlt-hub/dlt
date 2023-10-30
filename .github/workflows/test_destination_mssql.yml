@@ -65,7 +65,7 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E mssql -E s3 -E gs -E az
+        run: poetry install --no-interaction -E mssql -E s3 -E gs -E az -E parquet
 
       - run: |
           poetry run pytest tests/load --ignore tests/load/pipeline/test_dbt_helper.py
