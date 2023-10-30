@@ -12,43 +12,17 @@ or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support
 :::
 
 This verified source easily streams files from AWS s3, GCS, Azure, or local filesystem using the reader
-source. Currently, supports the following:
+source.
 
-- `read_csv`
-- `read_jsonl`
-- `read_parquet` (with pyarrow)
+Sources and resources that can be used with this verified source are:
 
-Additionally, it can read Excel files with a standalone transformer and copy files locally.
-
-Sources and resources that can be loaded using this verified source are:
-
-| Name       | Type                 | Description                                                  |
-|------------|----------------------|--------------------------------------------------------------|
-| filesystem | Source               | Lists files in `bucket_url` using`file_glob` pattern         |
-| read_csv    | Resource-transformer | Reads csv file with Pandas chunk by chunk                    |
-| read_jsonl    | Resource-transformer | Reads jsonl file content and extract the data                |
-| read_parquet    | Resource-transformer | Reads parquet file content and extract the data with Pyarrow |
-
-:::tip
-We advice that you give each resource a
-[specific name](https://dlthub.com/docs/general-usage/resource#duplicate-and-rename-resources)
-before loading with `pipeline.run`. This will make sure that data goes to a table with the name you
-want and that each pipeline uses a
-[separate state for incremental loading.](https://dlthub.com/docs/general-usage/state#read-and-write-pipeline-state-in-a-resource)
-:::
-
-### Standalone filesystem
-
-Use the
-[standalone filesystem](https://dlthub.com/docs/general-usage/resource#declare-a-standalone-resource)
-resource to list files in s3, gcs, and azure buckets. This allows you to customize file readers or
-manage files using [fsspec](https://filesystem-spec.readthedocs.io/en/latest/index.html).
-The filesystem ensures consistent file representation across bucket types and offers methods to access and read
-data. You can quickly build pipelines to:
-
-- Extract text from PDFs
-- Stream large file content directly from buckets
-- Copy files locally.
+| Name         | Type                 | Description                                                               |
+|--------------|----------------------|---------------------------------------------------------------------------|
+| readers      | Source               | Lists and reads files with resource `filesystem` and readers transformers |
+| filesystem   | Resource             | Lists files in `bucket_url` using `file_glob` pattern                     |
+| read_csv     | Resource-transformer | Reads csv file with **Pandas** chunk by chunk                             |
+| read_jsonl   | Resource-transformer | Reads jsonl file content and extract the data                             |
+| read_parquet | Resource-transformer | Reads parquet file content and extract the data with **Pyarrow**          |
 
 ## Setup Guide
 
@@ -56,13 +30,14 @@ data. You can quickly build pipelines to:
 
 This source can access various bucket types, including:
 
-- AWS S3
-- GCS Cloud Storage
-- Azure Blob Storage
+- AWS S3.
+- Google Cloud Storage.
+- Azure Blob Storage.
+- Local Storage
 
 To access these, you'll need secret credentials:
 
-#### <u>AWS S3 credentials</u>
+#### AWS S3 credentials
 
 To get AWS keys for S3 access:
 
@@ -73,7 +48,7 @@ To get AWS keys for S3 access:
 For more info, see
 [AWS official documentation.](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
 
-#### <u>GCS Cloud Storage credentials</u>
+#### GCS Cloud Storage credentials
 
 To get GCS cloud storage access:
 
@@ -88,7 +63,7 @@ To get GCS cloud storage access:
 For more info, see how to
 [create service account](https://support.google.com/a/answer/7378726?hl=en).
 
-#### <u>Azure Blob Storage credentials</u>
+#### Azure Blob Storage credentials
 
 To obtain Azure blob storage access:
 
@@ -112,7 +87,7 @@ To get started with your data pipeline, follow these steps:
 
    [This command](../../reference/command-line-interface) will initialize
    [the pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/filesystem_pipeline.py)
-   with Readers source and filesystem as the [source](../../general-usage/source) and
+   with filesystem as the [source](../../general-usage/source) and
    [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
 
 1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
@@ -131,6 +106,7 @@ For more information, read the
    account authentication:
 
    ```toml
+   [sources.filesystem]
    # For AWS S3 access:
    aws_access_key_id="Please set me up!"
    aws_secret_access_key="Please set me up!"
@@ -143,14 +119,12 @@ For more information, read the
    # For Azure blob storage access:
    azure_storage_account_name="Please set me up!"
    azure_storage_account_key="Please set me up!"
-
-
    ```
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 
-1. You can pass the bucket URL and glob pattern or use "config.toml". For local filesystems, use
-   file:// or skip the schema.
+1. You can pass the bucket URL and glob pattern or use `config.toml`. For local filesystems, use
+   `file://` or skip the schema.
 
    ```toml
    [sources.filesystem]
@@ -165,9 +139,9 @@ For more information, read the
    [sources.filesystem]
    bucket_url="s3://my-bucket/csv_files/"
    ```
-
-   > Note: For Azure, use adlfs>=2023.9.0. Older versions mishandle globs.
-
+   :::note
+   For Azure, use adlfs>=2023.9.0. Older versions mishandle globs.
+   :::
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
@@ -185,14 +159,14 @@ For more information, read the
      ```
    - For Azure blob:
      ```bash
-     pip install adlfs
+     pip install adlfs>=2023.9.0
      ```
    - GCS storage: No separate module needed.
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
    ```bash
-   python3 filesystem_pipeline.py
+   python filesystem_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
@@ -216,9 +190,9 @@ For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/
 
 This source offers chunked file readers as resources, which can be optionally customized. Provided resources include:
 
-- read_csv
-- read_jsonl
-- read_parquet
+- `read_csv()`
+- `read_jsonl()`
+- `read_parquet()`
 
 ```python
 @dlt.source(_impl_cls=ReadersSource, spec=FilesystemConfigurationResource)
@@ -231,12 +205,19 @@ def readers(
 
 `bucket_url`: The url to the bucket.
 
-`credentials`: The credentials to the filesystem of fsspec
+`credentials`: The credentials to the filesystem of fsspec `AbstractFilesystem` instance.
 
-`AbstractFilesystem` instance.
-
-`file_glob`: Glob filter for files; defaults to non-recursive
+`file_glob`: Glob filter for files. Defaults to non-recursive
 listing in the bucket.
+
+:::tip
+We advice that you give each resource a
+[specific name](../../general-usage/resource#duplicate-and-rename-resources)
+before loading with `pipeline.run`. This will make sure that data goes to a table with the name you
+want and that each pipeline uses a
+[separate state for incremental loading.](../../general-usage/state#read-and-write-pipeline-state-in-a-resource)
+:::
+
 
 ### Resource `filesystem`
 
@@ -267,6 +248,7 @@ in bucket_url.
 `extract_content`: If true, the content of the file will be read and returned in the resource.
 (default: False).
 
+
 ## Filesystem Integration and Data Extraction Guide
 
 ### Filesystem Usage
@@ -285,23 +267,38 @@ def read_csv(items, chunksize: int = 15) ->:
 
 # list only the *.csv in specific folder and pass the file items to read_csv()
 met_files = (
-    filesystem(bucket_url="s3://my_bucket/data, file_glob="met_csv/A801/*.csv")
+    filesystem(bucket_url="s3://my_bucket/data", file_glob="csv_folder/*.csv")
     | read_csv()
-    )
+)
 # load to met_csv table using with_name()
-pipeline.run(met_files.with_name("met_csv"))
+pipeline.run(met_files.with_name("csv_data"))
 ```
 
-### FileItem Representation
+Use the
+[standalone filesystem](../../general-usage/resource#declare-a-standalone-resource)
+resource to list files in s3, GCS, and Azure buckets. This allows you to customize file readers or
+manage files using [fsspec](https://filesystem-spec.readthedocs.io/en/latest/index.html).
+```python
+files = filesystem(bucket_url="s3://my_bucket/data", file_glob="csv_folder/*.csv")
+pipeline.run(files)
+```
+The filesystem ensures consistent file representation across bucket types and offers methods to access and read
+data. You can quickly build pipelines to:
 
-- All dlt sources/resources that yield files follow the FileItem contract.
+- Extract text from PDFs.
+- Stream large file content directly from buckets.
+- Copy files locally.
+
+### `FileItem` Representation
+
+- All dlt sources/resources that yield files follow the [FileItem](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/storages/fsspec_filesystem.py#L22) contract.
 - File content is typically not loaded; instead, full file info and methods to access content are
   available.
-- Users can request an authenticated filespec AbstractFilesystem instance.
+- Users can request an authenticated [fsspec AbstractFileSystem](https://filesystem-spec.readthedocs.io/en/latest/_modules/fsspec/spec.html#AbstractFileSystem) instance.
 
-#### FileItem Fields:
+#### `FileItem` Fields:
 
-`file_url` - Complete URL of the file; also the primary key (e.g., file://).
+`file_url` - Complete URL of the file; also the primary key (e.g. `file://`).
 
 `file_name` - Name or relative path of the file from the bucket_url.
 
@@ -313,19 +310,21 @@ pipeline.run(met_files.with_name("met_csv"))
 
 `file_content` - Content, provided upon request.
 
-> 📌 Note: When using a nested or recursive glob pattern, file_name will include the file's path. For
-> instance, using the resource:
-> `filesystem("az://dlt-ci-test-bucket/standard_source/samples", file_glob="met_csv/A801/*.csv")`
-> will produce file names relative to the /standard_source/samples path, such as
-> "met_csv/A801/A881_20230920.csv".
+:::note
+When using a nested or recursive glob pattern, `file_name` will include the file's path. For
+instance, using the resource:
+`filesystem("az://dlt-ci-test-bucket/standard_source/samples", file_glob="met_csv/A801/*.csv")`
+will produce file names relative to the /standard_source/samples path, such as
+"met_csv/A801/A881_20230920.csv".
+:::
 
 ### File Manipulation
 
-FileItem, backed by a dictionary implementation, offers these helper methods:
+`FileItem`, backed by a dictionary implementation, offers these helper methods:
 
-- read_bytes(): Returns the file content as bytes.
-- open(): Provides a file object when opened.
-- filesystem: Gives access to an authorized AbstractFilesystem with standard fsspec methods.
+- `read_bytes()`: Returns the file content as bytes.
+- `open()`: Provides a file object when opened.
+- `filesystem`: Gives access to an authorized `AbstractFilesystem` with standard fsspec methods.
 
 ## Customization
 
@@ -348,7 +347,7 @@ verified source.
    your bucket or local destination.
 
    ```python
-   BUCKET_URL = "YOUR_BUCKET_PATH_HERE"
+   BUCKET_URL = "YOUR_BUCKET_PATH_HERE"   # path of the bucket url or local destination
    met_files = readers(
         bucket_url=BUCKET_URL, file_glob="directory/*.csv"
     ).read_csv()
@@ -360,13 +359,13 @@ verified source.
     print(pipeline.last_trace.last_normalize_info)
    ```
 
-   > The `file_glob` parameter targets all CSVs in the "met_csv/A801" directory.
-   >
-   > The `print(pipeline.last_trace.last_normalize_info)` line displays the data normalization details from the pipeline's last trace.
-   >
-   > 📌 **Note:** If you have a default bucket URL set in "/.dlt/config.toml", you can omit the `bucket_url` parameter.
+    - The `file_glob` parameter targets all CSVs in the "met_csv/A801" directory.
+    - The `print(pipeline.last_trace.last_normalize_info)` line displays the data normalization details from the pipeline's last trace.
 
-1. To load only new CSV files, [incremental loading](https://dlthub.com/docs/general-usage/incremental-loading):
+    :::note
+    If you have a default bucket URL set in `.dlt/config.toml`, you can omit the `bucket_url` parameter.
+    :::
+1. To load only new CSV files, [incremental loading](../../general-usage/incremental-loading):
 
    ```python
    # This configuration will only consider new csv files
@@ -380,7 +379,6 @@ verified source.
 
 1. To read and load Parquet and JSONL from a bucket:
    ```python
-   BUCKET_URL = "Please set me up!"  #path of the bucket url or local destination
    jsonl_reader = readers(BUCKET_URL, file_glob="**/*.jsonl").read_jsonl(
         chunksize=10000
     )
@@ -389,18 +387,16 @@ verified source.
    # load both folders together to specified tables
    load_info = pipeline.run(
         [
-            jsonl_reader.with_name("jsonl_team_data"),
-            parquet_reader.with_name("parquet_team_data"),
+            jsonl_reader.with_name("jsonl_data"),
+            parquet_reader.with_name("parquet_data"),
        ]
    )
    print(load_info)
    print(pipeline.last_trace.last_normalize_info)
    ```
-   > The `file_glob`: Specifies file pattern; reads all JSONL and Parquet files across directories.
-   >
-   > The `chunksize`: Set to 10,000; data read in chunks of 10,000 records each.
-   >
-   >`print(pipeline.last_trace.last_normalize_info)`: Displays the data normalization details from the pipeline's last trace.
+    - The `file_glob`: Specifies file pattern; reads all JSONL and Parquet files across directories.
+    - The `chunksize`: Set to 10,000; data read in chunks of 10,000 records each.
+    - `print(pipeline.last_trace.last_normalize_info)`: Displays the data normalization details from the pipeline's last trace.
 
 1. To set up a pipeline that reads from an Excel file using a standalone transformer:
 
@@ -422,32 +418,31 @@ verified source.
 
    # Set up the pipeline to fetch a specific Excel file from a filesystem (bucket).
    example_xls = filesystem(
-       bucket_url=TESTS_BUCKET_URL, file_glob="../directory/example.xlsx"
-   ) | read_excel("example_table")   # Pass the data through the transformer to read the "freshman_table" sheet.
+       bucket_url=BUCKET_URL, file_glob="../directory/example.xlsx"
+   ) | read_excel("example_table")   # Pass the data through the transformer to read the "example_table" sheet.
 
    # Execute the pipeline and load the extracted data into the "duckdb" destination.
    load_info = dlt.run(
-       freshman_xls.with_name("example"),
+       example_xls.with_name("example_xls_data"),
        destination="duckdb",
-       dataset_name="example_data",
+       dataset_name="example_xls_data",
    )
 
    # Print the loading information.
    print(load_info)
    ```
 
-   > The code loads data from "example.xlsx" into the destination.
+    The code loads data from `example.xlsx` into the `duckdb` destination.
 
-1. To copy files locally adding a step in the filesystem resource and then load the listing to the
-   DB:
+1. To copy files locally, add a step in the filesystem resource and then load the listing to the database:
 
    ```python
    def copy_files_resource(local_folder: str) -> None:
    """Demonstrates how to copy files locally by adding a step to filesystem resource and the to load the download listing to db"""
-   pipeline = dlt.pipeline(
-        pipeline_name="standard_filesystem_copy",
-        destination="duckdb",
-        dataset_name="standard_filesystem_data",
+        pipeline = dlt.pipeline(
+            pipeline_name="standard_filesystem_copy",
+            destination="duckdb",
+            dataset_name="standard_filesystem_data",
         )
         def _copy(item: FileItemDict) -> FileItemDict:
              # instantiate fsspec and copy file
@@ -460,14 +455,13 @@ verified source.
              return item
 
          # use recursive glob pattern and add file copy step
-        downloader = filesystem(TESTS_BUCKET_URL, file_glob="**").add_map(_copy)
+        downloader = filesystem(BUCKET_URL, file_glob="**").add_map(_copy)
 
         # NOTE: you do not need to load any data to execute extract, below we obtain
         # a list of files in a bucket and also copy them locally
         listing = list(downloader)
         print(listing)
         # download to table "listing"
-        # downloader = filesystem(TESTS_BUCKET_URL, file_glob="**").add_map(_copy)
         load_info = pipeline.run(
             downloader.with_name("listing"), write_disposition="replace"
         )
@@ -478,17 +472,18 @@ verified source.
 
 1. Cleanup after loading:
 
-   You can get fsspec client from filesystem resource after it was extracted i.e. in order to delete processed files etc. The filesystem module contains a convenient method "fsspec_from_resource" that can be used as follows:
+   You can get a fsspec client from filesystem resource after it was extracted i.e. in order to delete processed files etc.
+   The filesystem module contains a convenient method `fsspec_from_resource` that can be used as follows:
 
-   ```python
-   from filesystem import filesystem, fsspec_from_resource
-   # get filesystem source
-   gs_resource = filesystem("gs://ci-test-bucket/")
-   # extract files
-   pipeline.run(gs_resource | read_csv)
-   # get fs client
-   fs_client = fsspec_from_resource(gs_resource)
-   # do any operation
-   fs_client.ls("ci-test-bucket/standard_source/samples")
-   ```
+      ```python
+      from filesystem import filesystem, fsspec_from_resource
+      # get filesystem source
+      gs_resource = filesystem("gs://ci-test-bucket/")
+      # extract files
+      pipeline.run(gs_resource | read_csv)
+      # get fs client
+      fs_client = fsspec_from_resource(gs_resource)
+      # do any operation
+      fs_client.ls("ci-test-bucket/standard_source/samples")
+      ```
 
