@@ -122,6 +122,10 @@ class PipelineTrace:
             if step.step == step_name:
                 return step
         return None
+    
+    def asdict(self) -> DictStrAny:
+        """A dictionary representation of PipelineTrace that can be loaded with `dlt`"""
+        return dataclasses.asdict(self)
 
     @property
     def last_extract_info(self) -> ExtractInfo:
@@ -162,22 +166,23 @@ class SupportsTracking(Protocol):
         ...
 
 
-# plug in your own tracking module here
-# TODO: that probably should be a list of modules / classes with all of them called
-TRACKING_MODULE: SupportsTracking = None
+# plug in your own tracking modules here
+TRACKING_MODULES: SupportsTracking = None
 
 
 def start_trace(step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineTrace:
     trace = PipelineTrace(uniq_id(), pendulum.now(), steps=[])
-    with suppress_and_warn():
-        TRACKING_MODULE.on_start_trace(trace, step, pipeline)
+    for module in TRACKING_MODULES:
+        with suppress_and_warn():
+            module.on_start_trace(trace, step, pipeline)
     return trace
 
 
 def start_trace_step(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineStepTrace:
     trace_step = PipelineStepTrace(uniq_id(), step, pendulum.now())
-    with suppress_and_warn():
-        TRACKING_MODULE.on_start_trace_step(trace, step, pipeline)
+    for module in TRACKING_MODULES:
+        with suppress_and_warn():
+            module.on_start_trace_step(trace, step, pipeline)
     return trace_step
 
 
@@ -211,16 +216,18 @@ def end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: Supp
 
     trace.resolved_config_values = list(resolved_values)
     trace.steps.append(step)
-    with suppress_and_warn():
-        TRACKING_MODULE.on_end_trace_step(trace, step, pipeline, step_info)
+    for module in TRACKING_MODULES:
+        with suppress_and_warn():
+            module.on_end_trace_step(trace, step, pipeline, step_info)
 
 
 def end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, trace_path: str) -> None:
     trace.finished_at = pendulum.now()
     if trace_path:
         save_trace(trace_path, trace)
-    with suppress_and_warn():
-        TRACKING_MODULE.on_end_trace(trace, pipeline)
+    for module in TRACKING_MODULES:
+        with suppress_and_warn():
+            module.on_end_trace(trace, pipeline)
 
 
 def merge_traces(last_trace: PipelineTrace, new_trace: PipelineTrace) -> PipelineTrace:
