@@ -180,6 +180,7 @@ def start_trace(step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineTrac
 
 def start_trace_step(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineStepTrace:
     trace_step = PipelineStepTrace(uniq_id(), step, pendulum.now())
+    trace.steps.append(trace_step)
     for module in TRACKING_MODULES:
         with suppress_and_warn():
             module.on_start_trace_step(trace, step, pipeline)
@@ -215,7 +216,6 @@ def end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: Supp
         ) , _RESOLVED_TRACES.values())
 
     trace.resolved_config_values = list(resolved_values)
-    trace.steps.append(step)
     for module in TRACKING_MODULES:
         with suppress_and_warn():
             module.on_end_trace_step(trace, step, pipeline, step_info)

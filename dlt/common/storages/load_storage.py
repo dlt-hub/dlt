@@ -87,6 +87,7 @@ class LoadPackageInfo(NamedTuple):
     package_path: str
     state: TLoadPackageState
     schema_name: str
+    schema: Schema
     schema_update: TSchemaTables
     completed_at: datetime.datetime
     jobs: Dict[TJobState, List[LoadJobInfo]]
@@ -110,6 +111,7 @@ class LoadPackageInfo(NamedTuple):
             table["columns"] = columns
         d.pop("schema_update")
         d["tables"] = tables
+        d["schema"] = self.schema.to_dict()
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
@@ -290,7 +292,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
                         jobs.append(self._read_job_file_info(state, file, package_created_at))
             all_jobs[state] = jobs
 
-        return LoadPackageInfo(load_id, self.storage.make_full_path(package_path), package_state, schema.name, applied_update, package_created_at, all_jobs)
+        return LoadPackageInfo(load_id, self.storage.make_full_path(package_path), package_state, schema.name, schema, applied_update, package_created_at, all_jobs)
 
     def begin_schema_update(self, load_id: str) -> Optional[TSchemaTables]:
         package_path = self.get_normalized_package_path(load_id)
