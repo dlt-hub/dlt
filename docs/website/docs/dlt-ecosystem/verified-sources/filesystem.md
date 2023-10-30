@@ -50,7 +50,7 @@ For more info, see
 
 #### Google Cloud Storage credentials
 
-To get GCS cloud storage access:
+To get GCS access:
 
 1. Log in to [console.cloud.google.com](http://console.cloud.google.com/).
 1. Create a [service account](https://cloud.google.com/iam/docs/service-accounts-create#creating).
@@ -106,7 +106,7 @@ For more information, read the
    account authentication:
 
    ```toml
-   [sources.filesystem.credentials]
+   [sources.filesystem.credentials] # use [sources.readers.credentials] for the "readers" source
    # For AWS S3 access:
    aws_access_key_id="Please set me up!"
    aws_secret_access_key="Please set me up!"
@@ -127,7 +127,7 @@ For more information, read the
    `file://` or skip the schema.
 
    ```toml
-   [sources.filesystem]
+   [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
    bucket_url="~/Documents/csv_files/"
    file_glob="*"
    ```
@@ -136,7 +136,7 @@ For more information, read the
    used, for example:
 
    ```toml
-   [sources.filesystem]
+   [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
    bucket_url="s3://my-bucket/csv_files/"
    ```
    :::caution
