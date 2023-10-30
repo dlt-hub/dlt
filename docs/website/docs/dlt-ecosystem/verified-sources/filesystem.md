@@ -203,12 +203,9 @@ def readers(
 ) -> Tuple[DltResource, ...]:
 ```
 
-`bucket_url`: The url to the bucket.
-
-`credentials`: The credentials to the filesystem of fsspec `AbstractFilesystem` instance.
-
-`file_glob`: Glob filter for files. Defaults to non-recursive
-listing in the bucket.
+- `bucket_url`: The url to the bucket.
+- `credentials`: The credentials to the filesystem of fsspec `AbstractFilesystem` instance.
+- `file_glob`: Glob filter for files. Defaults to non-recursive listing in the bucket.
 
 :::tip
 We advise that you give each resource a
@@ -238,16 +235,12 @@ def filesystem(
 ) -> Iterator[List[FileItem]]:
 ```
 
-`bucket_url`: URL of the bucket.
-
-`credentials`: Filesystem credentials of `AbstractFilesystem` instance.
-
-`file_glob`: File filter in glob format. Defaults to listing all non-recursive files
+- `bucket_url`: URL of the bucket.
+- `credentials`: Filesystem credentials of `AbstractFilesystem` instance.
+- `file_glob`: File filter in glob format. Defaults to listing all non-recursive files
 in bucket URL.
-
-`files_per_page`: Number of files processed at once. Default: 100.
-
-`extract_content`: If true, the content of the file will be read and returned in the resource. Default: False.
+- `files_per_page`: Number of files processed at once. Default: 100.
+- `extract_content`: If true, the content of the file will be read and returned in the resource. Default: False.
 
 
 ## Filesystem Integration and Data Extraction Guide
@@ -300,15 +293,10 @@ data. You can quickly build pipelines to:
 #### `FileItem` Fields:
 
 - `file_url` - Complete URL of the file; also the primary key (e.g. `file://`).
-
 - `file_name` - Name or relative path of the file from the bucket URL.
-
 - `mime_type` - File's mime type; sourced from the bucket provider or inferred from its extension.
-
 - `modification_date` - File's last modification time (format: `pendulum.DateTime`).
-
 - `size_in_bytes` - File size.
-
 - `file_content` - Content, provided upon request.
 
 :::info
@@ -437,37 +425,30 @@ verified source.
 1. To copy files locally, add a step in the filesystem resource and then load the listing to the database:
 
    ```python
-   def copy_files_resource(local_folder: str) -> None:
-   """Demonstrates how to copy files locally by adding a step to filesystem resource and the to load the download listing to db"""
-        pipeline = dlt.pipeline(
-            pipeline_name="standard_filesystem_copy",
-            destination="duckdb",
-            dataset_name="standard_filesystem_data",
-        )
-        def _copy(item: FileItemDict) -> FileItemDict:
-             # instantiate fsspec and copy file
-             dest_file = os.path.join(local_folder, item["file_name"])
-             # create dest folder
-             os.makedirs(os.path.dirname(dest_file), exist_ok=True)
-             # download file
-             item.fsspec.download(item["file_url"], dest_file)
-             # return file item unchanged
-             return item
+    def _copy(item: FileItemDict) -> FileItemDict:
+         # instantiate fsspec and copy file
+         dest_file = os.path.join(local_folder, item["file_name"])
+         # create dest folder
+         os.makedirs(os.path.dirname(dest_file), exist_ok=True)
+         # download file
+         item.fsspec.download(item["file_url"], dest_file)
+         # return file item unchanged
+         return item
 
-         # use recursive glob pattern and add file copy step
-        downloader = filesystem(BUCKET_URL, file_glob="**").add_map(_copy)
+     # use recursive glob pattern and add file copy step
+    downloader = filesystem(BUCKET_URL, file_glob="**").add_map(_copy)
 
-        # NOTE: you do not need to load any data to execute extract, below we obtain
-        # a list of files in a bucket and also copy them locally
-        listing = list(downloader)
-        print(listing)
-        # download to table "listing"
-        load_info = pipeline.run(
-            downloader.with_name("listing"), write_disposition="replace"
-        )
-        # pretty print the information on data that was loaded
-        print(load_info)
-        print(pipeline.last_trace.last_normalize_info)
+    # NOTE: you do not need to load any data to execute extract, below we obtain
+    # a list of files in a bucket and also copy them locally
+    listing = list(downloader)
+    print(listing)
+    # download to table "listing"
+    load_info = pipeline.run(
+        downloader.with_name("listing"), write_disposition="replace"
+    )
+    # pretty print the information on data that was loaded
+    print(load_info)
+    print(listing)(pipeline.last_trace.last_normalize_info)
    ```
 
 1. Cleanup after loading:
