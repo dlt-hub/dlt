@@ -18,7 +18,7 @@ Need help with this tutorial? Join our [Slack community](https://join.slack.com/
 
 ## Create a pipeline
 
-First, we need to create a pipeline. Pipelines are the main building blocks of `dlt` and are used to load data from sources to destinations. Open your favorite text editor and create a file called `github_issues.py`. Add the following code to it:
+First, we need to create a [pipeline](../general-usage/pipeline). Pipelines are the main building blocks of `dlt` and are used to load data from sources to destinations. Open your favorite text editor and create a file called `github_issues.py`. Add the following code to it:
 
 <!--@@@DLT_SNIPPET_START basic_api-->
 ```py
@@ -43,6 +43,13 @@ print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END basic_api-->
 
+Here's what the code above does:
+1. It makes a request to the GitHub API endpoint and checks if the response is successful.
+2. Then it creates a dlt pipeline with the name `github_issues` and specifies that the data should be loaded to the `duckdb` destination and the `github_data` dataset. Nothing gets loaded yet.
+3. Finally, it runs the pipeline with the data from the API response (`response.json()`) and specifies that the data should be loaded to the `issues` table. The `run` method returns a `LoadInfo` object that contains information about the loaded data.
+
+## Run the pipeline
+
 Save `github_issues.py` and run the following command:
 
 ```bash
@@ -55,7 +62,7 @@ Once the data has been loaded, you can inspect the created dataset using the Str
 dlt pipeline github_issues show
 ```
 
-### Append or replace your data
+## Append or replace your data
 
 Try running the pipeline again with `python github_issues.py`. You will notice that the **issues** table contains two copies of the same data. This happens because the default load mode is `append`. It is very useful, for example, when you have a new folder created daily with `json` file logs, and you want to ingest them.
 
@@ -161,9 +168,9 @@ print(load_info)
 
 Let's take a closer look at the code above.
 
-We request issues for dlt-hub/dlt repository ordered by **created_at** field (descending) and yield them page by page in `get_issues` generator function.
+We use the `@dlt.resource` decorator to declare the table name into which data will be loaded and specify the `append` write disposition.
 
-We use the `@dlt.resource` decorator to declare table name to which data will be loaded and write disposition, which is `append`.
+We request issues for dlt-hub/dlt repository ordered by **created_at** field (descending) and yield them page by page in `get_issues` generator function.
 
 We also use `dlt.sources.incremental` to track `created_at` field present in each issue to filter in the newly created.
 
@@ -240,9 +247,9 @@ print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END incremental_merge-->
 
-Above we add `primary_key` hint that tells `dlt` how to identify the issues in the database to find duplicates which content it will merge.
+Above we add `primary_key` argument to the `dlt.resource()` that tells `dlt` how to identify the issues in the database to find duplicates which content it will merge.
 
-Note that we now track the `updated_at` field - so we filter in all issues **updated** since the last pipeline run (which also includes those newly created).
+Note that we now track the `updated_at` field — so we filter in all issues **updated** since the last pipeline run (which also includes those newly created).
 
 Pay attention how we use **since** parameter from [GitHub API](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues)
 and `updated_at.last_value` to tell GitHub to return issues updated only **after** the date we pass. `updated_at.last_value` holds the last `updated_at` value from the previous run.

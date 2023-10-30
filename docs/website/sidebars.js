@@ -175,7 +175,7 @@ const sidebars = {
         'dlt-ecosystem/visualizations/exploring-the-data',
         {
           type: 'category',
-          label: 'Transform the data'
+          label: 'Transform the data',
           link: {
             type: 'generated-index',
             title: 'Transform the data',

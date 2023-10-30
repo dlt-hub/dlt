@@ -5,7 +5,7 @@ keywords: [api, source, decorator, dynamic resource, github, tutorial]
 ---
 
 This tutorial continues the [previous](load-data-from-an-api) part. We'll use the same GitHub API example to show you how to:
-1. Load from other GitHub API endpoints.
+1. Load data from other GitHub API endpoints.
 1. Group your resources into sources for easier management.
 2. Handle secrets and configuration.
 
@@ -113,7 +113,7 @@ load_info = pipeline.run(github_source())
 print(load_info)
 ```
 
-### Dynamic resource
+### Dynamic resources
 
 You've noticed that there's a lot of code duplication in the `get_issues` and `get_comments` functions. We can reduce that by extracting the common fetching code into a separate function and use it in both resources. Even better, we can use `dlt.resource` as a function and pass it the `fetch_github_data()` generator function directly. Here's refactored code:
 
@@ -159,14 +159,14 @@ row_counts = pipeline.last_trace.last_normalize_info
 
 ## Handle secrets
 
-For the next step we'd want to get the [number of repository clones](https://docs.github.com/en/rest/metrics/traffic?apiVersion=2022-11-28#get-repository-clones) for our dlt repo from the GitHub API. However, the `traffic/clones` endpoint that returns the data requires authentication.
+For the next step we'd want to get the [number of repository clones](https://docs.github.com/en/rest/metrics/traffic?apiVersion=2022-11-28#get-repository-clones) for our dlt repo from the GitHub API. However, the `traffic/clones` endpoint that returns the data requires [authentication](https://docs.github.com/en/rest/overview/authenticating-to-the-rest-api?apiVersion=2022-11-28).
 
 Let's handle this by changing our `fetch_github_data()` first:
 
 ```python
-def fetch_github_data(endpoint, params={}, api_token=None):
+def fetch_github_data(endpoint, params={}, access_token=None):
     """Fetch data from GitHub API based on endpoint and params."""
-    headers = {"Authorization": f"Bearer {api_token}"} if api_token else {}
+    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
 
     url = f"{BASE_GITHUB_URL}/{endpoint}"
 
@@ -179,15 +179,28 @@ def fetch_github_data(endpoint, params={}, api_token=None):
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
+
+@dlt.source
+def github_source(access_token):
+    for endpoint in ["issues", "comments", "traffic/clones"]:
+        params = {"per_page": 100}
+        yield dlt.resource(
+            fetch_github_data(endpoint, params, access_token),
+            name=endpoint,
+            write_disposition="merge",
+            primary_key="id",
+        )
+
+...
 ```
 
-Here, we added `api_token` parameter and used it to pass the authentication token to the request:
+Here, we added `access_token` parameter and now we can used it to pass the access token token to the request:
 
 ```python
-load_info = pipeline.run(github_source(access_token="ghp_A...M"))
+load_info = pipeline.run(github_source(access_token="ghp_XXXXX"))
 ```
 
-Good. But we'd want to follow the best practices and not hardcode the token in the script. One option is to set the token as an environment variable, load it with `os.getenv()` and pass it around as a parameter. dlt offers a more convenient way to handle secrets and credentials: it lets you inject the arguments using a special `dlt.secrets.value` argument value.
+It's a good start. But we'd want to follow the best practices and not hardcode the token in the script. One option is to set the token as an environment variable, load it with `os.getenv()` and pass it around as a parameter. dlt offers a more convenient way to handle secrets and credentials: it lets you inject the arguments using a special `dlt.secrets.value` argument value.
 
 To use it, change the `github_source()` function to:
 
@@ -199,12 +212,12 @@ def github_source(
     ...
 ```
 
-When you add `dlt.secrets.value` as a default value for an argument, `dlt` will try to load this value from different configuration sources in the following order:
+When you add `dlt.secrets.value` as a default value for an argument, `dlt` will try to load and inject this value from a different configuration sources in the following order:
 
 1. Special environment variables.
 2. `secrets.toml` file.
 
-The `secret.toml` file is located in the `~/.dlt` folder (for global configuration) or in the project folder (for project-specific configuration).
+The `secret.toml` file is located in the `~/.dlt` folder (for global configuration) or in the `.dlt` folder in the project folder (for project-specific configuration).
 
 Let's add the token to the `~/.dlt/secrets.toml` file:
 
@@ -222,9 +235,9 @@ from dlt.sources.helpers import requests
 BASE_GITHUB_URL = "https://api.github.com/repos/dlt-hub/dlt"
 
 
-def fetch_github_data(endpoint, params={}, api_token=None):
+def fetch_github_data(endpoint, params={}, access_token=None):
     """Fetch data from GitHub API based on endpoint and params."""
-    headers = {"Authorization": f"Bearer {api_token}"} if api_token else {}
+    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
 
     url = f"{BASE_GITHUB_URL}/{endpoint}"
 
@@ -272,9 +285,9 @@ from dlt.sources.helpers import requests
 BASE_GITHUB_URL = "https://api.github.com/repos/{repo_name}"
 
 
-def fetch_github_data(repo_name, endpoint, params={}, api_token=None):
+def fetch_github_data(repo_name, endpoint, params={}, access_token=None):
     """Fetch data from GitHub API based on repo_name, endpoint, and params."""
-    headers = {"Authorization": f"Bearer {api_token}"} if api_token else {}
+    headers = {"Authorization": f"Bearer {access_token}"} if access_token else {}
 
     url = BASE_GITHUB_URL.format(repo_name=repo_name) + f"/{endpoint}"
 
@@ -312,7 +325,7 @@ pipeline = dlt.pipeline(
 load_info = pipeline.run(github_source())
 ```
 
-Next, create a `config.toml` file in the project folder and add the `repo_name` parameter to it:
+Next, create a `.dlt/config.toml` file in the project folder and add the `repo_name` parameter to it:
 
 ```toml
 [github_with_source_secrets]
@@ -323,7 +336,7 @@ That's it! Now you have a reusable source that can load data from any GitHub rep
 
 ## What’s next
 
-Congratulations on completing the tutorial! You've come a long way since the Getting started guide. By now, you've mastered loading data from various GitHub API endpoints, organizing resources into sources, managing secrets securely, and creatig reusable sources. You can use these skills to build your own pipelines and load data from any source.
+Congratulations on completing the tutorial! You've come a long way since the [getting started](../getting-started) guide. By now, you've mastered loading data from various GitHub API endpoints, organizing resources into sources, managing secrets securely, and creatig reusable sources. You can use these skills to build your own pipelines and load data from any source.
 
 Interested in learning more? Here are some suggestions:
 1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy-a-pipeline/).
@@ -335,4 +348,4 @@ Interested in learning more? Here are some suggestions:
     - [Run in production: inspecting, tracing, retry policies and cleaning up](../running-in-production/running).
     - [Run resources in parallel, optimize buffers and local storage](../reference/performance.md)
 3. Check out our [how-to guides](../walkthroughs) to get answers to some common questions.
-4. Explore [Examples](../examples) section to see how dlt can be used in real-world scenarios.
+4. Explore [Examples](../examples) section to see how dlt can be used in real-world scenarios
