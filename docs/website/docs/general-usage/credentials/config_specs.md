@@ -442,8 +442,22 @@ class GoogleSheetsConfiguration(BaseConfiguration):
   only_strings: Optional[bool] = False
 ```
 
-- All specs derive from [BaseConfiguration.](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L170)
+### All specs derive from [BaseConfiguration](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L170)
+This class serves as a foundation for creating configuration objects with specific characteristics:
+
+- It provides methods to parse and represent the configuration
+  in native form (parse_native_representation and to_native_representation).
+
+It defines methods for accessing and manipulating configuration fields,
+including methods for checking if a configuration is resolved,
+if it's partial, and for resolving it.
+
+It implements a dictionary-compatible interface on top of the dataclass.
+This allows instances of this class to be treated like dictionaries.
+
+It defines helper functions for checking if a certain attribute is present,
+if a field is valid, and for calling methods in the method resolution order (MRO).
 
 - All credentials derive from [CredentialsConfiguration.](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L307)
 
-> Read the docstrings in the code above.
+Read the docstrings in the code above.
