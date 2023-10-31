@@ -327,6 +327,9 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
             continue
         if client.config.destination_name == "mssql" and c["data_type"] in ("wei", "complex"):
             continue
+        # TODO combine w/ mssql handling
+        if client.config.destination_name == "synapse" and c["data_type"] in ("wei", "complex"):
+            continue
         assert c["data_type"] == expected_c["data_type"]
 
 

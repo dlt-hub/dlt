@@ -183,6 +183,9 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     elif client.config.destination_name == "mssql":
         chunk_size = 700
         total_records = 1000
+    elif client.config.destination_name == "synapse":
+        chunk_size = 700
+        total_records = 1000
     else:
         chunk_size = 2048
         total_records = 3000

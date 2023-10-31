@@ -147,6 +147,7 @@ def destinations_configs(
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AWS_BUCKET, stage_name="PUBLIC.dlt_s3_stage", extra_info="s3-integration"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AZ_BUCKET, stage_name="PUBLIC.dlt_az_stage", extra_info="az-integration"),
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="jsonl", bucket_url=AZ_BUCKET, extra_info="az-authorization"),
+            DestinationTestConfiguration(destination="synapse", staging="filesystem", file_format="parquet", bucket_url=AZ_BUCKET, stage_name="PUBLIC.dlt_az_stage")
         ]
 
     if all_staging_configs:
@@ -155,6 +156,7 @@ def destinations_configs(
             DestinationTestConfiguration(destination="snowflake", staging="filesystem", file_format="parquet", bucket_url=AWS_BUCKET, extra_info="credential-forwarding"),
             DestinationTestConfiguration(destination="redshift", staging="filesystem", file_format="jsonl", bucket_url=AWS_BUCKET, extra_info="credential-forwarding"),
             DestinationTestConfiguration(destination="bigquery", staging="filesystem", file_format="jsonl", bucket_url=GCS_BUCKET, extra_info="gcs-authorization"),
+            DestinationTestConfiguration(destination="synapse", staging="filesystem", file_format="parquet", bucket_url=AZ_BUCKET, extra_info="az-integration")
         ]
 
     # add local filesystem destinations if requested
