@@ -446,18 +446,23 @@ class GoogleSheetsConfiguration(BaseConfiguration):
 This class serves as a foundation for creating configuration objects with specific characteristics:
 
 - It provides methods to parse and represent the configuration
-  in native form (parse_native_representation and to_native_representation).
+  in native form (`parse_native_representation` and `to_native_representation`).
 
-It defines methods for accessing and manipulating configuration fields,
-including methods for checking if a configuration is resolved,
-if it's partial, and for resolving it.
+- It defines methods for accessing and manipulating configuration fields.
 
-It implements a dictionary-compatible interface on top of the dataclass.
+- It implements a dictionary-compatible interface on top of the dataclass.
 This allows instances of this class to be treated like dictionaries.
 
-It defines helper functions for checking if a certain attribute is present,
+- It defines helper functions for checking if a certain attribute is present,
 if a field is valid, and for calling methods in the method resolution order (MRO).
 
-- All credentials derive from [CredentialsConfiguration.](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L307)
+More information about this class can be found in the class docstrings.
 
-Read the docstrings in the code above.
+### All credentials derive from [CredentialsConfiguration](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L307)
+
+This class is a subclass of `BaseConfiguration`
+and is meant to serve as a base class for handling various types of credentials.
+It defines methods for initializing credentials, converting them to native representations,
+and generating string representations while ensuring sensitive information is appropriately handled.
+
+More information about this class can be found in the class docstrings.
