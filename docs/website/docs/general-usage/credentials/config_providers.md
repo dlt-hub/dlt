@@ -110,12 +110,18 @@ Looks for the values in the environment variables.
 
 ### TOML provider
 
-TOML provider uses two TOML files: `secrets.toml` to store secrets and `config.toml` to store
-configuration values. The default `.gitignore` file prevents secrets from being added to source
-control and pushed. The `config.toml` may be freely added.
+The TOML provider in dlt utilizes two TOML files:
 
-> **Toml provider always loads those files from `.dlt` folder** which is looked **relative to the
-> current Working Directory**.
+- `secrets.toml `- This file is intended for storing sensitive information, often referred to as "secrets".
+- `config.toml `- This file is used for storing configuration values.
+-
+By default, the `.gitignore` file in the project prevents `secrets.toml` from being added to
+version control and pushed. However, `config.toml` can be freely added to version control.
+
+:::info
+**Toml provider always loads those files from `.dlt` folder** which is looked **relative to the
+current Working Directory**.
+:::
 
 Example: If your working directory is `my_dlt_project` and your project has the following structure:
 
@@ -133,3 +139,8 @@ and you run `python pipelines/google_sheets.py` then `dlt` will look for `secret
 
 If you change your working directory to `pipelines` and run `python google_sheets.py` it will look for
 `my_dlt_project/pipelines/.dlt/secrets.toml` as (probably) expected.
+
+:::caution
+It's worth mentioning that the TOML provider also has the capability to read files from `~/.dlt/`
+(located in the user's home directory) in addition to the local project-specific `.dlt` folder.
+:::

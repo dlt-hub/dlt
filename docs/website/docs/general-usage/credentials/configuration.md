@@ -124,10 +124,8 @@ We use `dlt.secrets.value` and `dlt.config.value` to set secrets and configurati
 
 :::caution
 **[TOML provider](config_providers#toml-provider) always loads `secrets.toml` and `config.toml` files from `.dlt` folder** which is looked relative to the
-**current Working Directory**. Don't confuse `.dlt` folder in your
-[Working Directory](https://en.wikipedia.org/wiki/Working_directory)
-with a `~/.dlt` folder in your
-[Home Directory!](https://en.wikipedia.org/wiki/Home_directory)
+**current [Working Directory](https://en.wikipedia.org/wiki/Working_directory)**. TOML provider also has the capability to read files from `~/.dlt/`
+(located in the user's [Home Directory]((https://en.wikipedia.org/wiki/Home_directory))).
 :::
 
 
@@ -243,13 +241,15 @@ only from secure config providers.
 configurations and secrets easy to manage, and disambiguate values with the same keys by placing
 them in the different sections.
 
-> If you know how TOML files are organized -> this is the same concept!
+:::note
+If you know how TOML files are organized -> this is the same concept!
+:::
 
-> A lot of config values are dictionaries themselves (i.e. most of the credentials) and you want the
-> values corresponding to one component to be close together.
+A lot of config values are dictionaries themselves (i.e. most of the credentials) and you want the
+values corresponding to one component to be close together.
 
-> You can have a separate credentials for your destinations and each of the sources your pipeline uses,
-> if you have many pipelines in a single project, you can group them in separate sections
+You can have a separate credentials for your destinations and each of the sources your pipeline uses,
+if you have many pipelines in a single project, you can group them in separate sections.
 
 Here is the simplest default layout for our `google_sheets` example.
 
