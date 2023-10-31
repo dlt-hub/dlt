@@ -201,6 +201,6 @@ if __name__ == "__main__":
     )
     # get data for a few famous players
     data = chess(chess_url="https://api.chess.com/pub/", max_players=MAX_PLAYERS)
-    load_info = load_data_with_retry(pipeline, data)
+    load_data_with_retry(pipeline, data)
 ```
 <!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_pipeline-->
