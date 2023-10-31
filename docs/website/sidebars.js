@@ -104,9 +104,21 @@ const sidebars = {
         'general-usage/state',
         'general-usage/incremental-loading',
         'general-usage/full-loading',
-        'general-usage/credentials',
         'general-usage/schema',
-        'general-usage/configuration',
+        {
+          type: 'category',
+          label: 'Configuration',
+          link: {
+            type: 'generated-index',
+            title: 'Configuration',
+            slug: 'general-usage/credentials',
+          },
+          items: [
+            'general-usage/credentials/configuration',
+            'general-usage/credentials/config_providers',
+            'general-usage/credentials/config_specs',
+          ]
+        },
         'reference/performance',
         {
           type: 'category',
@@ -139,6 +151,7 @@ const sidebars = {
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/add-a-verified-source',
+        'walkthroughs/add_credentials',
         'walkthroughs/run-a-pipeline',
         'walkthroughs/adjust-a-schema',
         'walkthroughs/share-a-dataset',
