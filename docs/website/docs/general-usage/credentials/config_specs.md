@@ -7,7 +7,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 # Configuration Specs
 
-Configuration Specs in `dlt` are Python `dataclasses` that define how complex configuration values,
+Configuration Specs in `dlt` are Python dataclasses that define how complex configuration values,
 particularly credentials, should be handled.
 They specify the types, defaults, and parsing methods for these values.
 
