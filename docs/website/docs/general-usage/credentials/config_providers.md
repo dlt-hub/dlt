@@ -114,12 +114,12 @@ The TOML provider in dlt utilizes two TOML files:
 
 - `secrets.toml `- This file is intended for storing sensitive information, often referred to as "secrets".
 - `config.toml `- This file is used for storing configuration values.
--
+
 By default, the `.gitignore` file in the project prevents `secrets.toml` from being added to
 version control and pushed. However, `config.toml` can be freely added to version control.
 
 :::info
-**Toml provider always loads those files from `.dlt` folder** which is looked **relative to the
+**TOML provider always loads those files from `.dlt` folder** which is looked **relative to the
 current Working Directory**.
 :::
 
