@@ -19,7 +19,7 @@ Secrets and configs are two types of sensitive and non-sensitive information use
 
 **Design Principles**:
 
-1. Adding configuration and secrets to sources and resources should be no-effort.
+1. Adding configuration and secrets to [sources](../source) and [resources](../resource) should be no-effort.
 2. You can reconfigure the pipeline for production after it is deployed. Deployed and local code should
    be identical.
 3. You can always pass configuration values explicitly and override any default behavior (i.e. naming of the configuration keys).
