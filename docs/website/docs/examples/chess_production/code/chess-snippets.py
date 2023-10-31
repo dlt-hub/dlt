@@ -1,7 +1,5 @@
 from tests.utils import skipifgithubfork
 
-__source_name__ = "chess_production"
-
 
 @skipifgithubfork
 def incremental_snippet() -> None:
