@@ -123,15 +123,12 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
         original_sql_fragments = super()._insert(qualified_table_name, file_path)
         if original_sql_fragments is None:
             raise ValueError("Superclass _insert method returned None instead of an iterable")
-        print(f'Original SQL fragments: {original_sql_fragments}')  # Debug print
-        print(f'Type of Original SQL fragments: {type(original_sql_fragments)}')  # Additional debug print
 
         # Initialize insert_sql as an empty list
         insert_sql = []
 
         # Now, adapt each SQL fragment for Synapse using the generate_insert_query method
         for original_sql in original_sql_fragments:
-            print(f'Processing original SQL fragment: {original_sql}')  # Debug print
 
             # Parse the original SQL to extract table name, columns, and rows
             # This is a simplified example, you'll need a more robust way to parse the SQL
@@ -160,7 +157,6 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
     # In Azure Synapse, must break out SELECT statements for multi-row INSERT
     # https://stackoverflow.com/questions/36141006/how-to-insert-multiple-rows-into-sql-server-parallel-data-warehoue-table
     def generate_insert_query(self, table_name: str, columns: List[str], rows: List[List[Any]]) -> Tuple[str, List[Any]]:
-        print("THESE ARE THE ROWS FOR GENERATING INSERT QUERY: " + str(rows))
 
         try:
             escaped_column_names = ', '.join(columns)  # This line is unchanged
@@ -183,13 +179,10 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
 
             # Combine the individual SQL fragments
             all_select_statements = " UNION ALL ".join(sql_fragments)
-            print("Combined SELECT statements: " + all_select_statements)  # This will print the combined SELECT statements
 
             # Building the final SQL query
             new_sql = f'INSERT INTO {table_name}({escaped_column_names}) {all_select_statements}'
-            print("NEW SQL STRUCTURE: " + str(new_sql))  # This will print the new SQL structure
 
-            print("Param values: " + str(param_values))  # This will print the parameters as a flat list
 
             return new_sql, param_values  # This will return the parameters as a flat list
 

@@ -165,12 +165,10 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         args = list(args)  # Convert tuple to list for modification
         input_sizes = []
         for index, arg in enumerate(args):
-            #print(f"Processing arg {index}: {arg}")  # Print the argument being processed
 
             if isinstance(arg, str):
                 if arg.isdigit():  # Check if the string is a valid integer
                     input_sizes.append((pyodbc.SQL_BIGINT, 0, 0))  # Set input size for bigint columns
-                    #print(f"Identified bigint arg at index {index}")  # Print when a bigint argument is identified
                 elif is_valid_json(arg):
                     input_sizes.append((pyodbc.SQL_WVARCHAR, 0, 0))  # Set input size for JSON columns
                 else:
@@ -184,8 +182,6 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
 
 
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
-        print("SQL:", sql)
-        print("Arguments:", args)
         with self.execute_query(sql, *args, **kwargs) as curr:
             if curr.description is None:
                 return None
@@ -196,8 +192,6 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        print("Query:", query)
-        print("Args for query:", args)
 
         assert isinstance(query, str)
 
