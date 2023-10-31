@@ -124,14 +124,10 @@ def wrap_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature, *args:
 def wrap_resource_gen(name: str, f: AnyFun, sig: inspect.Signature, *args: Any, **kwargs: Any) -> AnyFun:
     """Wraps a generator or generator function so it is evaluated on extraction"""
     if inspect.isgeneratorfunction(inspect.unwrap(f)) or inspect.isgenerator(f):
-        # if no arguments then no wrap
-        # if len(sig.parameters) == 0:
-        #     return f
-
         # always wrap generators and generator functions. evaluate only at runtime!
 
         def _partial() -> Any:
-            # print(f"_PARTIAL: {args} {kwargs} vs {args_}{kwargs_}")
+            # print(f"_PARTIAL: {args} {kwargs}")
             return f(*args, **kwargs)
 
         # this partial preserves the original signature and just defers the call to pipe

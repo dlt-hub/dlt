@@ -34,7 +34,7 @@ df = pd.DataFrame({
 
 pipeline = dlt.pipeline("orders_pipeline", destination="snowflake")
 
-pipeline.run([df], table_name="orders")
+pipeline.run(df, table_name="orders")
 ```
 
 A `pyarrow` table can be loaded in the same way:
@@ -46,7 +46,7 @@ import pyarrow as pa
 ...
 
 table = pa.Table.from_pandas(df)
-pipeline.run([table], table_name="orders")
+pipeline.run(table, table_name="orders")
 ```
 
 Note: The data in the table must be compatible with the destination database as no data conversion is performed. Refer to the documentation of the destination for information about supported data types.
@@ -131,3 +131,18 @@ The Arrow data types are translated to dlt data types as follows:
 | `decimal`         | `decimal`   | Precision and scale are determined by the type properties. |
 | `struct`          | `complex`   |                                                            |
 |                   |             |                                                            |
+
+
+## Loading nested types
+All struct types are represented as `complex` and will be loaded as JSON (if destination permits) or a string. Currently we do not support **struct** types,
+even if they are present in the destination.
+
+If you want to represent nested data as separated tables, you must yield panda frames and arrow tables as records. In the examples above:
+```python
+# yield panda frame as records
+pipeline.run(df.to_dict(orient='records'), table_name="orders")
+
+# yield arrow table
+pipeline.run(table.to_pylist(), table_name="orders")
+```
+Both Pandas and Arrow allow to stream records in batches.

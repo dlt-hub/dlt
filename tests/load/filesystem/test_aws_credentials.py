@@ -43,11 +43,12 @@ def test_aws_credentials_from_botocore(environment: Dict[str, str]) -> None:
     import botocore.session
 
     session = botocore.session.get_session()
+    region_name = 'eu-central-1'  # session.get_config_variable('region')
 
     c = AwsCredentials(session)
     assert c.profile_name is None
     assert c.aws_access_key_id == "fake_access_key"
-    assert c.region_name == session.get_config_variable('region')
+    assert c.region_name == region_name
     assert c.profile_name is None
     assert c.is_resolved()
     assert not c.is_partial()
@@ -60,7 +61,7 @@ def test_aws_credentials_from_botocore(environment: Dict[str, str]) -> None:
         "profile": None,
         "endpoint_url": None,
         "client_kwargs": {
-            "region_name": session.get_config_variable('region')
+            "region_name": region_name
         }
     }
 
@@ -131,7 +132,7 @@ def test_aws_credentials_with_endpoint_url(environment: Dict[str, str]) -> None:
         "profile": None,
         "endpoint_url": "https://123.r2.cloudflarestorage.com",
         "client_kwargs": {
-            "region_name": environment['AWS_DEFAULT_REGION']
+            "region_name": 'eu-central-1'
         }
     }
 
@@ -140,4 +141,4 @@ def set_aws_credentials_env(environment: Dict[str, str]) -> None:
     environment['AWS_ACCESS_KEY_ID'] = 'fake_access_key'
     environment['AWS_SECRET_ACCESS_KEY'] = 'fake_secret_key'
     environment['AWS_SESSION_TOKEN'] = 'fake_session_token'
-    environment['AWS_DEFAULT_REGION'] = 'eu-central-1'
+    environment["AWS_DEFAULT_REGION"] = environment['REGION_NAME'] = 'eu-central-1'

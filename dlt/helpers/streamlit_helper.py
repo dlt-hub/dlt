@@ -9,7 +9,7 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.reference import WithStateSync
 
-from dlt.helpers.pandas_helper import pd
+from dlt.common.libs.pandas import pandas as pd
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.state_sync import load_state_from_destination
