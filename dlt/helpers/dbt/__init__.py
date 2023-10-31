@@ -18,6 +18,7 @@ DBT_DESTINATION_MAP = {
     "athena": "athena-community",
     "motherduck": "duckdb",
     "mssql": "sqlserver",
+    "synapse": "sqlserver",
 }
 
 
