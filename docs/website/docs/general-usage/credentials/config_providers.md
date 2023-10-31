@@ -83,7 +83,9 @@ secrets (to reduce the number of requests done by `dlt` when searching sections)
 1. Various vaults providers hold only secrets, `dlt` skips them when looking for values that are not
    secrets.
 
-> Context-aware providers will activate in the right environments i.e. on Airflow or AWS/GCP VMachines.
+:::info
+Context-aware providers will activate in the right environments i.e. on Airflow or AWS/GCP VMachines.
+:::
 
 ## Provider key formats
 
