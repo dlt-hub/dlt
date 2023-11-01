@@ -5,9 +5,9 @@ on:
     branches:
       - master
       - devel
-      
+
   workflow_dispatch:
-  
+
 env:
   DESTINATION__SYNAPSE__CREDENTIALS: ${{ secrets.SYNAPSE_CREDENTIALS }}
   DESTINATION__SYNAPSE__CREDENTIALS__PASSWORD: ${{ secrets.SYNAPSE_PASSWORD }}
@@ -29,6 +29,9 @@ jobs:
         if [[ "${{ github.head_ref }}" != "synapse" ]]; then
           exit 1
         fi
+    - name: Install ODBC driver for SQL Server
+        run:|
+          sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18
 
   run_loader:
     name: Tests Synapse loader
@@ -42,7 +45,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      
+
       - name: Check out
         uses: actions/checkout@master
 
