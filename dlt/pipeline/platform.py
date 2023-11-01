@@ -1,7 +1,7 @@
 """Implements SupportsTracking"""
 from typing import Any
+import requests
 
-from dlt.sources.helpers import requests
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, TPipelineStep, SupportsPipeline
 from dlt.common import json
 
