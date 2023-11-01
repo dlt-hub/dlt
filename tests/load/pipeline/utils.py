@@ -19,8 +19,10 @@ if TYPE_CHECKING:
     from dlt.destinations.filesystem.filesystem import FilesystemClient
 
 @pytest.fixture(autouse=True)
-def drop_pipeline() -> Iterator[None]:
+def drop_pipeline(request) -> Iterator[None]:
     yield
+    if "no_load" in request.keywords:
+        return
     drop_active_pipeline_data()
 
 

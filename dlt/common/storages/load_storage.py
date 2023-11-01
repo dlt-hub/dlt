@@ -426,7 +426,8 @@ class LoadStorage(DataItemStorage, VersionedStorage):
             # FileStorage.validate_file_name_component(file_id)
         fn = f"{table_name}.{file_id}.{int(retry_count)}"
         if with_extension:
-            return fn + f".{self.loader_file_format}"
+            format_spec = DataWriter.data_format_from_file_format(self.loader_file_format)
+            return fn + f".{format_spec.file_extension}"
         return fn
 
     @staticmethod

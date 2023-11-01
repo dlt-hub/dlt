@@ -5,6 +5,7 @@ from contextlib import contextmanager
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
 from typing import Any, Callable, ClassVar, List, Iterator, Optional, Sequence, Tuple, cast, get_type_hints, ContextManager
+from concurrent.futures import Executor
 
 from dlt import version
 from dlt.common import json, logger, pendulum
@@ -965,7 +966,7 @@ class Pipeline(SupportsPipeline):
                 )
         return self.destination.capabilities()
 
-    def _get_staging_capabilities(self) -> DestinationCapabilitiesContext:
+    def _get_staging_capabilities(self) -> Optional[DestinationCapabilitiesContext]:
         return self.staging.capabilities() if self.staging is not None else None
 
     def _validate_pipeline_name(self) -> None:
@@ -1027,6 +1028,9 @@ class Pipeline(SupportsPipeline):
                     DestinationReference.to_name(self.destination),
                     DestinationReference.to_name(self.staging) if self.staging else None,
                     destination_caps, stage_caps, loader_file_format)
+                caps.supported_loader_file_formats = (
+                    destination_caps.supported_staging_file_formats if stage_caps else None
+                ) or destination_caps.supported_loader_file_formats
             yield caps
         finally:
             if injected_caps:

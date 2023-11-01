@@ -20,7 +20,8 @@ env:
 
   # zendesk vars for example
   SOURCES__ZENDESK__CREDENTIALS: ${{ secrets.ZENDESK__CREDENTIALS }}
-
+  # Slack hook for chess in production example
+  RUNTIME__SLACK_INCOMING_HOOK: ${{ secrets.RUNTIME__SLACK_INCOMING_HOOK }}
 jobs:
 
   run_lint:

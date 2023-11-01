@@ -28,6 +28,7 @@ from dlt.extract.source import DltResource, DltSource
 from dlt.extract.typing import TableNameMeta
 try:
     from dlt.common.libs import pyarrow
+    from dlt.common.libs.pyarrow import pyarrow as pa
 except MissingDependencyException:
     pyarrow = None
 try:
@@ -246,15 +247,36 @@ class JsonLExtractor(Extractor):
 class ArrowExtractor(Extractor):
     file_format = "arrow"
 
+    def _rename_columns(self, items: List[TDataItem], new_column_names: List[str]) -> List[TDataItem]:
+        """Rename arrow columns to normalized schema column names"""
+        if not items:
+            return items
+        if items[0].schema.names == new_column_names:
+            # No need to rename
+            return items
+        if isinstance(items[0], pyarrow.pyarrow.Table):
+            return [item.rename_columns(new_column_names) for item in items]
+        elif isinstance(items[0], pyarrow.pyarrow.RecordBatch):
+            # Convert the batches to table -> rename -> then back to batches
+            return pa.Table.from_batches(items).rename_columns(new_column_names).to_batches()  # type: ignore[no-any-return]
+        else:
+            raise TypeError(f"Unsupported data item type {type(items[0])}")
+
     def write_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         items = [
-            pyarrow.pyarrow.Table.from_pandas(item) if (pd and isinstance(item, pd.DataFrame)) else item
-            for item in (items if isinstance(items, list) else [items])
+            # 2. Remove null-type columns from the table(s) as they can't be loaded
+            pyarrow.remove_null_columns(tbl) for tbl in (
+                # 1. Convert pandas frame(s) to arrow Table
+                pyarrow.pyarrow.Table.from_pandas(item) if (pd and isinstance(item, pd.DataFrame)) else item
+                for item in (items if isinstance(items, list) else [items])
+            )
         ]
         super().write_table(resource, items, meta)
 
     def _write_item(self, table_name: str, resource_name: str, items: TDataItems, columns: TTableSchemaColumns = None) -> None:
-        super()._write_item(table_name, resource_name, items, self.dynamic_tables[table_name][0]["columns"])
+        # Note: `items` is always a list here due to the conversion in `write_table`
+        new_columns = list(self.dynamic_tables[table_name][0]["columns"].keys())
+        super()._write_item(table_name, resource_name, self._rename_columns(items, new_columns), self.dynamic_tables[table_name][0]["columns"])
 
     def _write_static_table(self, resource: DltResource, table_name: str, items: TDataItems) -> None:
         existing_table = self.dynamic_tables.get(table_name)
@@ -271,7 +293,7 @@ class ArrowExtractor(Extractor):
             arrow_columns[key] = utils.merge_columns(value, arrow_columns.get(key, {}))
         static_table["columns"] = arrow_columns
         static_table["name"] = table_name
-        self.dynamic_tables[table_name] = [static_table]
+        self.dynamic_tables[table_name] = [self.schema.normalize_table_identifiers(static_table)]
         self._write_item(table_name, resource.name, items)
 
 

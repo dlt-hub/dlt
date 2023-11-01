@@ -506,7 +506,7 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     standalone: Literal[True] = True
-) -> Callable[TResourceFunParams, DltResource]:  # TODO: change back to Callable[TResourceFunParams, DltResource] when mypy 1.6 is fixed
+) -> Callable[TResourceFunParams, DltResource]:
     ...
 
 def transformer(

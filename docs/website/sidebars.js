@@ -41,6 +41,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/asana',
             'dlt-ecosystem/verified-sources/chess',
             'dlt-ecosystem/verified-sources/facebook_ads',
+            'dlt-ecosystem/verified-sources/filesystem',
             'dlt-ecosystem/verified-sources/github',
             'dlt-ecosystem/verified-sources/google_analytics',
             'dlt-ecosystem/verified-sources/google_sheets',
@@ -226,6 +227,7 @@ const sidebars = {
         'examples/transformers/index',
         'examples/incremental_loading/index',
         'examples/connector_x_arrow/index',
+        'examples/chess_production/index',
       ],
     },
     {
