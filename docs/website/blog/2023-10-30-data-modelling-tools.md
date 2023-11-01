@@ -1,7 +1,7 @@
 ---
 slug: semantic-modeling-tools-comparison
 title: "Semantic Modeling Capabilities of Power BI, GoodData & Metabase: A Comparison"
-image: /img/blog_deepnote_improved_flow.png
+image: /img/people-stuck-with-tables-2.jpg
 authors:
   name: Hiba Jamal
   title: Data Science intern at dlthub
