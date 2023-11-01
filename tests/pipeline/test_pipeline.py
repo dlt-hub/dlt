@@ -297,7 +297,8 @@ def test_extract_multiple_sources() -> None:
     s4 = DltSource("default_4", "module", dlt.Schema("default_4"), [dlt.resource([6, 7, 8], name="resource_3"), i_fail])
 
     with pytest.raises(PipelineStepFailed):
-       p.extract([s3, s4])
+       # NOTE: if you swap s3 and s4 the test on list_schemas will fail: s3 will extract normally and update live schemas, s4 will break exec later
+       p.extract([s4, s3])
 
     # nothing to normalize
     assert len(storage.list_files_to_normalize_sorted()) == 0
@@ -670,6 +671,8 @@ def test_changed_write_disposition() -> None:
     assert p.default_schema.get_table("resource_1")["write_disposition"] == "append"
 
     p.run(resource_1, write_disposition="replace")
+    print(list(p._schema_storage.live_schemas.values())[0].to_pretty_yaml())
+    assert p.schemas[p.default_schema_name].get_table("resource_1")["write_disposition"] == "replace"
     assert p.default_schema.get_table("resource_1")["write_disposition"] == "replace"
 
 

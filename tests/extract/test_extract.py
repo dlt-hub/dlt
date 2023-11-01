@@ -18,7 +18,7 @@ def test_extract_select_tables() -> None:
 
         storage = ExtractorStorage(NormalizeStorageConfiguration())
         extract_id = storage.create_extract_id()
-        schema_update = extract(extract_id, source, storage, pipeline_schema=Schema("some_schema"))
+        schema_update = extract(extract_id, source, storage)
         # odd and even tables
         assert len(schema_update) == 2
         assert "odd_table" in schema_update
@@ -42,7 +42,7 @@ def test_extract_select_tables() -> None:
         source = source.with_resources(resource.name)
         source.selected_resources[resource.name].bind(10).select_tables("odd_table")
         extract_id = storage.create_extract_id()
-        schema_update = extract(extract_id, source, storage, pipeline_schema=Schema("some_schema"))
+        schema_update = extract(extract_id, source, storage)
         assert len(schema_update) == 1
         assert "odd_table" in schema_update
         for partials in schema_update.values():

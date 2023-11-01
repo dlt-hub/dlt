@@ -117,8 +117,7 @@ class Extractor:
             schema: Schema,
             resources_with_items: Set[str],
             dynamic_tables: TSchemaUpdate,
-            collector: Collector = NULL_COLLECTOR,
-            pipeline_schema: Schema = None
+            collector: Collector = NULL_COLLECTOR
     ) -> None:
         self._storage = storage
         self.schema = schema
@@ -127,8 +126,6 @@ class Extractor:
         self.resources_with_items = resources_with_items
         self.extract_id = extract_id
         self.disallowed_tables: Set[str] = set()
-        self.pipeline_schema = pipeline_schema
-        self.normalized_table_names: Dict[str, str] = {}
 
     @property
     def storage(self) -> ExtractorItemStorage:
@@ -149,14 +146,6 @@ class Extractor:
             return "puae-jsonl"
         return None # Empty list is unknown format
 
-    def normalize_table_name(self, table_name: str) -> str:
-        """Cache normalized table names"""
-        if normalized_name := self.normalized_table_names.get(table_name):
-            return normalized_name
-        normalized_name = self.schema.naming.normalize_table_identifier(table_name)
-        self.normalized_table_names[table_name] = normalized_name
-        return normalized_name
-
     def write_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         if isinstance(meta, TableNameMeta):
             table_name = meta.table_name
@@ -174,13 +163,13 @@ class Extractor:
                 self._write_static_table(resource, table_name, items)
 
     def write_empty_file(self, table_name: str) -> None:
-        table_name = self.normalize_table_name(table_name)
+        table_name = self.schema.naming.normalize_table_identifier(table_name)
         self.storage.write_empty_file(self.extract_id, self.schema.name, table_name, None)
 
     def _write_item(self, table_name: str, resource_name: str, items: TDataItems, columns: TTableSchemaColumns = None) -> None:
         # normalize table name before writing so the name match the name in schema
-        # note: column schema is not required for jsonl writer used here
-        table_name = self.normalize_table_name(table_name)
+        # note: normalize_table_identifier is caching the normalization results
+        table_name = self.schema.naming.normalize_table_identifier(table_name)
         self.collector.update(table_name)
         self.resources_with_items.add(resource_name)
         self.storage.write_data_item(self.extract_id, self.schema.name, table_name, items, columns)
@@ -206,11 +195,11 @@ class Extractor:
     def _write_static_table(self, resource: DltResource, table_name: str, items: TDataItems) -> None:
         existing_table = self.dynamic_tables.get(table_name)
         if existing_table is None:
-            if not self._add_dynamic_table(resource, table_name=table_name):
+            if not self._add_dynamic_table(resource, items, table_name=table_name):
                 return
         self._write_item(table_name, resource.name, items)
 
-    def _add_dynamic_table(self, resource: DltResource, data_item: TDataItem = None, table_name: Optional[str] = None) -> bool:
+    def _add_dynamic_table(self, resource: DltResource, data_item: TDataItems = None, table_name: Optional[str] = None) -> bool:
         """
         Computes new table and does contract checks, if false is returned, the table may not be created and not items should be written
         """
@@ -223,14 +212,14 @@ class Extractor:
             return False
 
         # this is a new table so allow evolve once
-        is_new_table = (self.pipeline_schema is None) or self.pipeline_schema.is_new_table(table["name"])
+        is_new_table = self.schema.is_new_table(table["name"])
         if is_new_table:
             table["x-normalizer"] = {"evolve_once": True}  # type: ignore[typeddict-unknown-key]
 
         # apply schema contract and apply on pipeline schema
         # here we only check that table may be created
-        schema_contract = resolve_contract_settings_for_table(None, table["name"], self.pipeline_schema, self.schema, table)
-        _, checked_table = Schema.apply_schema_contract(self.pipeline_schema, schema_contract, None, table)
+        schema_contract = resolve_contract_settings_for_table(None, table["name"], self.schema)
+        _, checked_table = Schema.apply_schema_contract(self.schema, schema_contract, None, table)
 
         if not checked_table:
             self.disallowed_tables.add(table["name"])
@@ -280,20 +269,19 @@ class ArrowExtractor(Extractor):
 
     def _write_static_table(self, resource: DltResource, table_name: str, items: TDataItems) -> None:
         existing_table = self.dynamic_tables.get(table_name)
-        if existing_table is not None:
-            return
-        static_table = resource.compute_table_schema()
-        if isinstance(items, list):
-            item = items[0]
-        else:
-            item = items
-        # Merge the columns to include primary_key and other hints that may be set on the resource
-        arrow_columns = pyarrow.py_arrow_to_table_schema_columns(item.schema)
-        for key, value in static_table["columns"].items():
-            arrow_columns[key] = utils.merge_columns(value, arrow_columns.get(key, {}))
-        static_table["columns"] = arrow_columns
-        static_table["name"] = table_name
-        self.dynamic_tables[table_name] = [self.schema.normalize_table_identifiers(static_table)]
+        if existing_table is None:
+            static_table = resource.compute_table_schema()
+            if isinstance(items, list):
+                item = items[0]
+            else:
+                item = items
+            # Merge the columns to include primary_key and other hints that may be set on the resource
+            arrow_columns = pyarrow.py_arrow_to_table_schema_columns(item.schema)
+            for key, value in static_table["columns"].items():
+                arrow_columns[key] = utils.merge_columns(value, arrow_columns.get(key, {}))
+            static_table["columns"] = arrow_columns
+            static_table["name"] = table_name
+            self.dynamic_tables[table_name] = [self.schema.normalize_table_identifiers(static_table)]
         self._write_item(table_name, resource.name, items)
 
 
@@ -303,7 +291,6 @@ def extract(
     storage: ExtractorStorage,
     collector: Collector = NULL_COLLECTOR,
     *,
-    pipeline_schema: Schema = None,
     max_parallel_items: int = None,
     workers: int = None,
     futures_poll_interval: float = None
@@ -313,10 +300,10 @@ def extract(
     resources_with_items: Set[str] = set()
     extractors: Dict[TLoaderFileFormat, Extractor] = {
         "puae-jsonl": JsonLExtractor(
-            extract_id, storage, schema, resources_with_items, dynamic_tables, collector=collector, pipeline_schema=pipeline_schema
+            extract_id, storage, schema, resources_with_items, dynamic_tables, collector=collector
         ),
         "arrow": ArrowExtractor(
-            extract_id, storage, schema, resources_with_items, dynamic_tables, collector=collector, pipeline_schema=pipeline_schema
+            extract_id, storage, schema, resources_with_items, dynamic_tables, collector=collector
         )
     }
     last_item_format: Optional[TLoaderFileFormat] = None
@@ -353,7 +340,7 @@ def extract(
                 for table in tables_by_resources[resource.name]:
                     # we only need to write empty files for the top tables
                     if not table.get("parent", None):
-                        extractors[last_item_format or "puae-jsonl"].write_empty_file(table["name"])
+                        extractors["puae-jsonl"].write_empty_file(table["name"])
 
             if left_gens > 0:
                 # go to 100%
@@ -369,7 +356,6 @@ def extract(
 def extract_with_schema(
     storage: ExtractorStorage,
     source: DltSource,
-    pipeline_schema: Schema,
     collector: Collector,
     max_parallel_items: int,
     workers: int,
@@ -384,7 +370,7 @@ def extract_with_schema(
                 with contextlib.suppress(DataItemRequiredForDynamicTableHints):
                     if resource.write_disposition == "replace":
                         reset_resource_state(resource.name)
-            extractor = extract(extract_id, source, storage, collector, max_parallel_items=max_parallel_items, workers=workers, pipeline_schema=pipeline_schema)
+            extractor = extract(extract_id, source, storage, collector, max_parallel_items=max_parallel_items, workers=workers)
             # iterate over all items in the pipeline and update the schema if dynamic table hints were present
             for _, partials in extractor.items():
                 for partial in partials:

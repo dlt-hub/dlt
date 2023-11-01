@@ -12,11 +12,9 @@ from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TStoredSchema
 from dlt.common.schema.utils import merge_schema_updates
-from dlt.common.schema.schema import resolve_contract_settings_for_table
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage, LoadStorageConfiguration, NormalizeStorageConfiguration
-from dlt.common.typing import TDataItem
-from dlt.common.schema import TSchemaUpdate, Schema, utils
+from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.pipeline import NormalizeInfo
 from dlt.common.utils import chunks, TRowCount, merge_row_count, increase_row_count

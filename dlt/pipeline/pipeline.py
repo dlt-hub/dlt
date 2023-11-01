@@ -83,6 +83,9 @@ def with_schemas_sync(f: TFun) -> TFun:
             # refresh live schemas in storage or import schema path
             self._schema_storage.commit_live_schema(name)
         rv = f(self, *args, **kwargs)
+        # save modified live schemas
+        for name in self._schema_storage.live_schemas:
+            self._schema_storage.commit_live_schema(name)
         # refresh list of schemas if any new schemas are added
         self.schema_names = self._schema_storage.list_schemas()
         return rv
@@ -279,12 +282,12 @@ class Pipeline(SupportsPipeline):
         try:
             with self._maybe_destination_capabilities():
                 # extract all sources
-                for source in self._data_to_sources(data, schema, table_name, parent_table_name, write_disposition, columns, primary_key):
+                for source in self._data_to_sources(data, schema, table_name, parent_table_name, write_disposition, columns, primary_key, schema_contract):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
                     # TODO: merge infos for all the sources
                     extract_ids.append(
-                        self._extract_source(storage, source, max_parallel_items, workers, schema_contract)
+                        self._extract_source(storage, source, max_parallel_items, workers)
                     )
                 # commit extract ids
                 # TODO: if we fail here we should probably wipe out the whole extract folder
@@ -534,6 +537,7 @@ class Pipeline(SupportsPipeline):
                     # on merge schemas are replaced so we delete all old versions
                     self._schema_storage.clear_storage()
                 for schema in restored_schemas:
+                    print("RESTORE SCHEMA?")
                     self._schema_storage.save_schema(schema)
                 # if the remote state is present then unset first run
                 if remote_state is not None:
@@ -795,7 +799,8 @@ class Pipeline(SupportsPipeline):
         parent_table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: TAnySchemaColumns = None,
-        primary_key: TColumnNames = None
+        primary_key: TColumnNames = None,
+        schema_contract: TSchemaContract = None
     ) -> List[DltSource]:
 
         def apply_hint_args(resource: DltResource) -> None:
@@ -806,10 +811,15 @@ class Pipeline(SupportsPipeline):
         def choose_schema() -> Schema:
             """Except of explicitly passed schema, use a clone that will get discarded if extraction fails"""
             if schema:
-                return schema
-            if self.default_schema_name:
-                return self.default_schema.clone()
-            return self._make_schema_with_default_name()
+                schema_ =  schema
+            elif self.default_schema_name:
+                schema_ = self.default_schema.clone()
+            else:
+                schema_ = self._make_schema_with_default_name()
+            # apply schema contract settings
+            if schema_contract:
+                schema_.set_schema_contract(schema_contract, update_table_settings=True)
+            return schema_
 
         effective_schema = choose_schema()
 
@@ -859,34 +869,30 @@ class Pipeline(SupportsPipeline):
 
         return sources
 
-    def _extract_source(self, storage: ExtractorStorage, source: DltSource, max_parallel_items: int, workers: int, global_contract: TSchemaContract) -> str:
-        # discover the schema from source
-        source_schema = source.schema
-        source_schema.update_normalizers()
-
+    def _extract_source(self, storage: ExtractorStorage, source: DltSource, max_parallel_items: int, workers: int) -> str:
         # discover the existing pipeline schema
-        pipeline_schema = self._schema_storage[source_schema.name] if source_schema.name in self._schema_storage else None
+        if source.schema.name in self.schemas:
+            # use clone until extraction complete
+            pipeline_schema = self.schemas[source.schema.name].clone()
+            # apply all changes in the source schema to pipeline schema
+            # NOTE: we do not apply contracts to changes done programmatically
+            pipeline_schema.update_schema(source.schema)
+            # replace schema in the source
+            source.schema = pipeline_schema
 
         # extract into pipeline schema
-        source.schema.set_schema_contract(global_contract, True)
-        extract_id = extract_with_schema(storage, source, pipeline_schema, self.collector, max_parallel_items, workers)
+        extract_id = extract_with_schema(storage, source, self.collector, max_parallel_items, workers)
 
         # save import with fully discovered schema
-        self._schema_storage.save_import_schema_if_not_exists(source_schema)
+        self._schema_storage.save_import_schema_if_not_exists(source.schema)
 
-        # save schema if not present in store
-        if not pipeline_schema:
-            self._schema_storage.save_schema(source_schema)
-            pipeline_schema = source_schema
-
-        # update pipeline schema
-        pipeline_schema.update_schema(source_schema)
-        pipeline_schema.set_schema_contract(global_contract, True)
+        # update live schema but not update the store yet
+        self._schema_storage.update_live_schema(source.schema)
 
         # set as default if this is first schema in pipeline
         if not self.default_schema_name:
             # this performs additional validations as schema contains the naming module
-            self._set_default_schema_name(pipeline_schema)
+            self._set_default_schema_name(source.schema)
 
         return extract_id
 
@@ -1200,11 +1206,12 @@ class Pipeline(SupportsPipeline):
             # restore original pipeline props
             self._state_to_props(backup_state)
             # synchronize schema storage with initial list of schemas, note that we'll not be able to synchronize the schema content
-            if self._schema_storage:
-                # TODO: we should restore schemas backup here
-                for existing_schema_name in self._schema_storage.list_schemas():
-                    if existing_schema_name not in self.schema_names:
-                        self._schema_storage.remove_schema(existing_schema_name)
+            # NOTE: not needed - schemas are not saved and are kept as live until with_schema_sync ends
+            # if self._schema_storage:
+            #     # TODO: we should restore schemas backup here
+            #     for existing_schema_name in self._schema_storage.list_schemas():
+            #         if existing_schema_name not in self.schema_names:
+            #             self._schema_storage.remove_schema(existing_schema_name)
             # raise original exception
             raise
         else:
@@ -1265,7 +1272,7 @@ class Pipeline(SupportsPipeline):
         # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
         state_source = DltSource(self.default_schema.name, self.pipeline_name, self.default_schema, [state_resource(state)])
         storage = ExtractorStorage(self._normalize_storage_config)
-        extract_id = extract_with_schema(storage, state_source, self.default_schema, _NULL_COLLECTOR, 1, 1)
+        extract_id = extract_with_schema(storage, state_source, _NULL_COLLECTOR, 1, 1)
         storage.commit_extract_files(extract_id)
         return state
 
