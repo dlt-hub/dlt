@@ -67,7 +67,7 @@ class Schema:
         self._reset_schema(name, normalizers)
 
     @classmethod
-    def from_dict(cls, d: DictStrAny) -> "Schema":
+    def from_dict(cls, d: DictStrAny, bump_version: bool = True) -> "Schema":
 
         # upgrade engine if needed
         stored_schema = utils.migrate_schema(d, d["engine_version"], cls.ENGINE_VERSION)
@@ -77,7 +77,8 @@ class Schema:
         stored_schema = utils.apply_defaults(stored_schema)
 
         # bump version if modified
-        utils.bump_version_if_modified(stored_schema)
+        if bump_version:
+            utils.bump_version_if_modified(stored_schema)
         return cls.from_stored_schema(stored_schema)
 
     @classmethod
@@ -89,9 +90,10 @@ class Schema:
 
     def replace_schema_content(self, schema: "Schema") -> None:
         self._reset_schema(schema.name, schema._normalizers_config)
-        self._from_stored_schema(schema.to_dict())
+        # do not bump version so hash from `schema` is preserved
+        self._from_stored_schema(schema.to_dict(bump_version=False))
 
-    def to_dict(self, remove_defaults: bool = False) -> TStoredSchema:
+    def to_dict(self, remove_defaults: bool = False, bump_version: bool = True) -> TStoredSchema:
         stored_schema: TStoredSchema = {
             "version": self._stored_version,
             "version_hash": self._stored_version_hash,
@@ -107,7 +109,8 @@ class Schema:
             stored_schema["description"] = self._schema_description
 
         # bump version if modified
-        utils.bump_version_if_modified(stored_schema)
+        if bump_version:
+            utils.bump_version_if_modified(stored_schema)
         # remove defaults after bumping version
         if remove_defaults:
             utils.remove_defaults(stored_schema)
@@ -304,9 +307,8 @@ class Schema:
         Returns:
             Tuple[int, str]: Current (``stored_version``, ``stored_version_hash``) tuple
         """
-        version = utils.bump_version_if_modified(self.to_dict())
-        self._stored_version, self._stored_version_hash = version
-        return version
+        self._stored_version, self._stored_version_hash, _ = utils.bump_version_if_modified(self.to_dict(bump_version=False))
+        return self._stored_version, self._stored_version_hash
 
     def filter_row_with_hint(self, table_name: str, hint_type: TColumnHint, row: StrAny) -> StrAny:
         rv_row: DictStrAny = {}
@@ -400,7 +402,7 @@ class Schema:
         return next((m[1] for m in self._compiled_preferred_types if m[0].search(col_name)), None)
 
     def is_new_table(self, table_name: str) -> bool:
-        """Returns true if this table is incomplete (has only incomplete columns) and therefore new"""
+        """Returns true if this table does not exist OR is incomplete (has only incomplete columns) and therefore new"""
         return (table_name not in self.tables) or (not [c for c in self.tables[table_name]["columns"].values() if utils.is_complete_column(c)])
 
     @property

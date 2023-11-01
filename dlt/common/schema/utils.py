@@ -134,8 +134,8 @@ def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
 #     return copy(column)  # type: ignore
 
 
-def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str]:
-    # if any change to schema document is detected then bump version and write new hash
+def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, str]:
+    """Bumps the `stored_schema` version and version hash if content modified, returns (new version, new hash, old hash) tuple"""
     hash_ = generate_version_hash(stored_schema)
     previous_hash = stored_schema.get("version_hash")
     if not previous_hash:
@@ -144,7 +144,7 @@ def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str]:
     elif hash_ != previous_hash:
         stored_schema["version"] += 1
     stored_schema["version_hash"] = hash_
-    return stored_schema["version"], hash_
+    return stored_schema["version"], hash_, previous_hash
 
 
 def generate_version_hash(stored_schema: TStoredSchema) -> str:
