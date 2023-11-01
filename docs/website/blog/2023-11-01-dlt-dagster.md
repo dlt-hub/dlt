@@ -19,7 +19,7 @@ It does so in a scalable way, enabling you to run it on both micro workers or in
 
 To start with `dlt`, you can install it using pip: `pip install dlt`. Afterward, import `dlt` in your Python script and start building your data pipeline. There's no need to start any backends or containers. 
 
-## Project Overview:
+## **Project Overview:**
 
 In this example, we will ingest GitHub issue data from a repository and store the data in BigQuery. We will use `dlt` to create a data pipeline and orchestrate it using dagster. 
 
@@ -284,7 +284,7 @@ After running the command your directory structure should be as follows:
 ├── setup.py
 ```
 
-### Step 2: ****Configuring MongoDB Atlas and Credentials****
+### Step 2: Configuring MongoDB Atlas and Credentials
 
 For this example, we are using MongoDB Atlas. Set up the account for MongoDB Atlas and use the test [Movie Flix Dataset](https://www.mongodb.com/docs/atlas/sample-data/sample-mflix/). You can find detailed information on setting up the credentials in the MongoDB verified sources [documentation](https://dlthub.com/docs/dlt-ecosystem/verified-sources/mongodb).
 
@@ -352,7 +352,7 @@ def dlt_asset_factory(collection_list):
 dlt_assets, dlt_jobs = dlt_asset_factory(database_collection)
 ```
 
-### Step 4: ****Running the Dagster Web Server****
+### Step 4: Running the Dagster Web Server
 
 We can run the `dagster dev` command to start the web server. We can see that each collection is converted into a separate asset by Dagster. We can materialize our assets to ingest the data into BigQuery.
 
@@ -362,7 +362,7 @@ The resulting data in BigQuery:
 
 ![Data Ingestion in BigQuery from MongoDB](https://d1ice69yfovmhk.cloudfront.net/images/dlt-dagster_mongo_bigquery.png)
 
-## Conclusion:
+## **Conclusion:**
 
 In this demo, we looked at how to orchestrate dlt pipelines using dagster. We started off by creating a simple dlt pipeline and then converted the pipeline into an asset and resource before orchestrating. 
 
