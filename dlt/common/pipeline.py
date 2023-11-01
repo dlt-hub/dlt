@@ -54,7 +54,7 @@ class NormalizeInfo(NamedTuple):
         """A dictionary representation of NormalizeInfo that can be loaded with `dlt`"""
         d = self._asdict()
         # list representation creates a nice table
-        d["row_counts"] = [(k, v) for k, v in self.row_counts.items()]
+        d["row_counts"] = [{"table_name": k, "count": v} for k, v in self.row_counts.items()]
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
