@@ -72,7 +72,7 @@ class LoadQdrantJob(LoadJob):
         """Returns a list of unique identifiers for a table.
 
         Args:
-            table_schema (TTableSchema): DLT table schema.
+            table_schema (TTableSchema): a dlt table schema.
 
         Returns:
             Sequence[str]: A list of unique column identifiers.
