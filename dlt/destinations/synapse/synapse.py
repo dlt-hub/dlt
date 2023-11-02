@@ -1,5 +1,6 @@
 from typing import ClassVar, Dict, Optional, Sequence, List, Any, Tuple, Iterator
 
+
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 from dlt.common.destination.reference import NewLoadJob
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -8,6 +9,9 @@ from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.storages import FileStorage
 from dlt.common.utils import uniq_id
+
+from dlt.common.destination.reference import LoadJob, FollowupJob, TLoadJobState
+
 
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob
 
@@ -21,6 +25,7 @@ from dlt.common.schema.typing import COLUMN_HINTS
 from dlt.destinations.type_mapping import TypeMapper
 
 from dlt.common.data_writers.escape import escape_synapse_identifier, escape_synapse_literal
+from dlt.destinations.job_impl import EmptyLoadJob
 
 
 import re
@@ -74,6 +79,7 @@ HINT_TO_SYNAPSE_ATTR: Dict[TColumnHint, str] = {
     "unique": "UNIQUE"
 }
 
+
 class SynapseStagingCopyJob(SqlStagingCopyJob):
 
     @classmethod
@@ -120,23 +126,33 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
         super().__init__(table_name, file_path, sql_client)
 
     def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
-        # Get the rows of data directly
-        rows = self.get_values_rows(file_path)  # This will need to be implemented
+        with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
+            header = f.readline().strip()  # Read the header which contains the INSERT INTO statement template
+            #print("Here are the columns: " + str(header))
+            f.readline()  # Skip the "VALUES" marker line
 
-        # Begin constructing the insert SQL with UNION ALL syntax for Azure Synapse
-        insert_sql = []
-        for row in rows:
-            # Construct the SELECT part of the UNION ALL statement for each row
-            select_statement = 'SELECT ' + ', '.join(f"'{value}'" for value in row)
-            insert_sql.append(select_statement)
+            # Now read the file line by line and construct the SQL INSERT statements
+            insert_sql_parts = []
+            for line in f:
+                #print("current line: " + str(line))
+                line = line.strip()
 
-        # Combine all SELECT statements with UNION ALL
-        final_insert_sql = ' UNION ALL '.join(insert_sql)
-        # The full INSERT statement includes the insert into the table part
-        full_insert_sql = f'INSERT INTO {qualified_table_name} ({self.get_column_names()}) ' + final_insert_sql
+                # Remove outer parentheses and trailing comma or semicolon using a regular expression
+                line = re.sub(r'^\(|\)[,;]?$', '', line)
 
-        # Yield the final insert SQL statement
-        yield [full_insert_sql]
+                #print("post-cleanup line: " + str(line))
+                if not line:
+                    continue  # Skip empty lines
+
+                # Construct the SELECT part of the SQL statement for each row of values
+                values_str = ', '.join(value for value in line.split(','))
+                # Ensure no comma is added at the end of the SELECT statement
+                insert_sql_parts.append(f"SELECT {values_str}")
+
+            if insert_sql_parts:
+                # Combine the SELECT statements with UNION ALL and format the final INSERT INTO statement
+                insert_sql = header.format(qualified_table_name) + "\n" + "\nUNION ALL\n".join(insert_sql_parts) + ";"
+                yield [insert_sql]
 
 
 class SynapseClient(InsertValuesJobClient):
@@ -156,6 +172,27 @@ class SynapseClient(InsertValuesJobClient):
         self.sql_client = sql_client
         self.active_hints = HINT_TO_SYNAPSE_ATTR if self.config.create_indexes else {}
         self.type_mapper = SynapseTypeMapper(self.capabilities)
+
+    def restore_file_load(self, file_path: str) -> LoadJob:
+        """Returns a completed SqlLoadJob or InsertValuesJob
+
+        Returns completed jobs as SqlLoadJob and InsertValuesJob executed atomically in start_file_load so any jobs that should be recreated are already completed.
+        Obviously the case of asking for jobs that were never created will not be handled. With correctly implemented loader that cannot happen.
+
+        Args:
+            file_path (str): a path to a job file
+
+        Returns:
+            LoadJob: Always a restored job completed
+        """
+        job = super().restore_file_load(file_path)
+        if not job:
+            job = EmptyLoadJob.from_file_path(file_path, "completed")
+        return job
+
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        job = SynapseInsertValuesLoadJob(table["name"], file_path, self.sql_client)
+        return job
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return [SynapseMergeJob.from_table_chain(table_chain, self.sql_client)]
