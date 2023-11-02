@@ -92,7 +92,7 @@ qdrant_adapter(data, embed)
 ```
 
 It accepts the following arguments:
-- `data`: a DLT resource object or a Python data structure (e.g. a list of dictionaries).
+- `data`: a dlt resource object or a Python data structure (e.g. a list of dictionaries).
 - `embed`: a name of the field or a list of names to generate embeddings for.
 
 Returns: [DLT resource](../../general-usage/resource.md) object that you can pass to the `pipeline.run()`.
