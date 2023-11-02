@@ -63,7 +63,7 @@ class LoadQdrantJob(LoadJob):
             data (Dict[str, Any]): A dictionary of data to be loaded.
 
         Returns:
-            str: Concatenated string of all embedding fields.
+            str: A concatenated string of all the fields intended for embedding.
         """
         doc = "\n".join(str(data[key]) for key in self.embedding_fields)
         return doc
