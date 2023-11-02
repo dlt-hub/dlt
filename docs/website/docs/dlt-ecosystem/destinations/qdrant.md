@@ -27,8 +27,7 @@ api_key = "your-qdrant-api-key"
 
 In this setup guide, we are using the [Qdrant Cloud](https://cloud.qdrant.io/) to get a hosted Qdrant instance and the [FastEmbed](https://github.com/qdrant/fastembed) package that is built into the [Qdrant client library](https://github.com/qdrant/qdrant-client) for generating embeddings.
 
-The `location` will default to **http://localhost:6333** and `api_key` is not defined - which are the defaults for a [local Qdrant instance](https://qdrant.tech/documentation/quick-start/#download-and-run).
-
+If no configuration options are provided, the default fallback will be `http://localhost:6333` with no API key.
 
 3. Define the source of the data. For starters, let's load some data from a simple data structure:
 
@@ -92,6 +91,7 @@ qdrant_adapter(data, embed)
 ```
 
 It accepts the following arguments:
+
 - `data`: a dlt resource object or a Python data structure (e.g. a list of dictionaries).
 - `embed`: a name of the field or a list of names to generate embeddings for.
 
@@ -149,7 +149,6 @@ info = pipeline.run(
 ```
 
 Internally, dlt will use `primary_key` (`document_id` in the example above) to generate a unique identifier (UUID) for each point in Qdrant. If the object with the same UUID already exists in Qdrant, it will be updated with the new data. Otherwise, a new point will be created.
-
 
 :::caution
 

@@ -4,7 +4,7 @@ from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns
 from dlt.extract.decorators import resource as make_resource
 from dlt.extract.source import DltResource
 
-VECTORIZE_HINT = "x-embedding-field"
+VECTORIZE_HINT = "x-qdrant-embed"
 
 def qdrant_adapter(
     data: Any,

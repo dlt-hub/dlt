@@ -17,6 +17,7 @@ from dlt.destinations.qdrant.qdrant_adapter import VECTORIZE_HINT
 
 from qdrant_client import QdrantClient as QC, models
 from qdrant_client.qdrant_fastembed import uuid
+from qdrant_client.http.exceptions import UnexpectedResponse
 
 class LoadQdrantJob(LoadJob):
     def __init__(
@@ -106,7 +107,7 @@ class LoadQdrantJob(LoadJob):
             collection_name (str): Qdrant collection name.
 
         Returns:
-            str: _description_
+            str: A string representation of the genrated UUID
         """
         data_id = "_".join(str(data[key]) for key in unique_identifiers)
         return str(uuid.uuid5(uuid.NAMESPACE_DNS, collection_name + data_id))
@@ -238,11 +239,7 @@ class QdrantClient(JobClientBase, WithStateSync):
                 self._create_collection(full_collection_name=qualified_table_name)
 
     def is_storage_initialized(self) -> bool:
-        try:
-            self.db_client.get_collection(self.sentinel_collection)
-        except Exception:
-            return False
-        return True
+        self._collection_exists(self.sentinel_collection)
 
     def _create_sentinel_collection(self) -> None:
         """Create an empty collection to indicate that the storage is initialized."""
@@ -256,11 +253,8 @@ class QdrantClient(JobClientBase, WithStateSync):
         self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
     ) -> Optional[TSchemaTables]:
         applied_update: TSchemaTables = {}
-        try:
-            schema_info = self.get_stored_schema_by_hash(
+        schema_info = self.get_stored_schema_by_hash(
                 self.schema.stored_version_hash)
-        except Exception:
-            schema_info = None
         if schema_info is None:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} "
@@ -404,5 +398,7 @@ class QdrantClient(JobClientBase, WithStateSync):
             self.db_client.get_collection(
                 self._make_qualified_collection_name(table_name))
             return True
-        except Exception:
-            return False
+        except UnexpectedResponse as e:
+            if e.status_code == 404:
+                return False
+            raise e
