@@ -70,6 +70,7 @@ def test_basic_state_and_schema() -> None:
         state = client.get_stored_state("test_pipeline_append")
         assert state
 
+
 def test_pipeline_append() -> None:
     generator_instance1 = sequence_generator()
     generator_instance2 = sequence_generator()
