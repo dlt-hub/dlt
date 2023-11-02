@@ -57,7 +57,7 @@ class LoadQdrantJob(LoadJob):
             self._upload_data(vectors=embeddings, ids=ids, payloads=payloads)
 
     def _get_embedding_doc(self, data: Dict[str, Any]) -> str:
-        """Returns document to generate embeddings for.
+        """Returns a document to generate embeddings for.
 
         Args:
             data (Dict[str, Any]): A dictionary of data to be loaded.
