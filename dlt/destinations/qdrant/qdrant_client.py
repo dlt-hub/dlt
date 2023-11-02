@@ -239,7 +239,7 @@ class QdrantClient(JobClientBase, WithStateSync):
                 self._create_collection(full_collection_name=qualified_table_name)
 
     def is_storage_initialized(self) -> bool:
-        self._collection_exists(self.sentinel_collection)
+        return self._collection_exists(self.sentinel_collection)
 
     def _create_sentinel_collection(self) -> None:
         """Create an empty collection to indicate that the storage is initialized."""
