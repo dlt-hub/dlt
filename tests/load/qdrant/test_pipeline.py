@@ -87,7 +87,7 @@ def test_pipeline_append() -> None:
         pipeline_name="test_pipeline_append",
         destination="qdrant",
         dataset_name="TestPipelineAppendDataset" + uniq_id(),
-     )
+    )
     info = pipeline.run(
         some_data(),
     )
