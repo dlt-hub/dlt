@@ -15,6 +15,7 @@ def drop_qdrant_data() -> Iterator[None]:
     yield
     drop_active_pipeline_data()
 
+
 def sequence_generator():
     count = 1
     while True:
