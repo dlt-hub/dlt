@@ -39,30 +39,38 @@ def handle_datetimeoffset(dto_value: bytes) -> datetime:
         tup[0], tup[1], tup[2], tup[3], tup[4], tup[5], tup[6] // 1000, timezone(timedelta(hours=tup[7], minutes=tup[8]))
     )
 
+
 def is_valid_xml(s: str) -> bool:
     # simple check for XML data
     return s.strip().startswith('<') and s.strip().endswith('>')
 
+
 class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
-    def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
-        # Check if fragments has one element and that element is a list/tuple with two elements
-        if len(fragments) == 1 and isinstance(fragments[0], (list, tuple)) and len(fragments[0]) == 2:
-            # Unpack the inner list/tuple into sql and params
-            sql, params = fragments[0]
-            # Execute the SQL query with the provided parameters
-            return self.execute_sql(sql, *params, **kwargs)
-        else:
-            # If fragments doesn't match the expected structure, fall back to the default behavior
-            return self.execute_sql("".join(fragments), *args, **kwargs)  # type: ignore
+    def __init__(self, dataset_name: str, credentials: SynapseCredentials) -> None:
+        if not hasattr(credentials, 'database'):
+            raise AttributeError("The provided SynapseCredentials object does not have a 'database' attribute. Ensure it's fully resolved before instantiation.")
+        super().__init__(credentials.database, dataset_name)
+        self._conn: pyodbc.Connection = None
+        self._transaction_in_progress = False  # Transaction state flag
+        if not isinstance(credentials, SynapseCredentials):
+            raise TypeError(f"Expected credentials of type SynapseCredentials but received {type(credentials)}")
+        self.credentials = credentials
+
+    # def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+    #     # Check if fragments has one element and that element is a list/tuple with two elements
+    #     if len(fragments) == 1 and isinstance(fragments[0], (list, tuple)) and len(fragments[0]) == 2:
+    #         # Unpack the inner list/tuple into sql and params
+    #         sql, params = fragments[0]
+    #         # Execute the SQL query with the provided parameters
+    #         return self.execute_sql(sql, *params, **kwargs)
+    #     else:
+    #         # If fragments doesn't match the expected structure, fall back to the default behavior
+    #         return self.execute_sql("".join(fragments), *args, **kwargs)  # type: ignore
 
     dbapi: ClassVar[DBApi] = pyodbc
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
-    def __init__(self, dataset_name: str, credentials: SynapseCredentials) -> None:
-        super().__init__(credentials.database, dataset_name)
-        self._conn: pyodbc.Connection = None
-        self._transaction_in_progress = False  # Transaction state flag
-        self.credentials = credentials
+
 
 
     def open_connection(self) -> pyodbc.Connection:
@@ -165,21 +173,28 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         args = list(args)  # Convert tuple to list for modification
         input_sizes = []
         for index, arg in enumerate(args):
+            # TODO temp solution for columnstore failing when set to nvarcharmax since data type not allowed in columnstore index
+            # https://stackoverflow.com/questions/75517148/replacing-nvarcharmax-in-azure-synapse-table
+
+            # Trim string arguments to 3950 characters
+            if isinstance(arg, str) and len(arg) > 3950:
+                args[index] = arg[:3950]
 
             if isinstance(arg, str):
                 if arg.isdigit():  # Check if the string is a valid integer
                     input_sizes.append((pyodbc.SQL_BIGINT, 0, 0))  # Set input size for bigint columns
+
                 elif is_valid_json(arg):
                     input_sizes.append((pyodbc.SQL_WVARCHAR, 0, 0))  # Set input size for JSON columns
                 else:
-                    input_sizes.append((pyodbc.SQL_WVARCHAR, 0, 0))  # Set input size for string columns
+                    input_sizes.append((pyodbc.SQL_WVARCHAR, 0, 0))  # Set input size for non-JSON columns
+
             elif isinstance(arg, (bytes, bytearray)):
-                input_sizes.append((pyodbc.SQL_VARBINARY, 0, 0))  # Set input size for binary columns
+                input_sizes.append((pyodbc.SQL_VARBINARY, len(arg), 0))  # Set input size for binary columns
             else:
                 input_sizes.append(None)  # Default handling for other data types
 
         return input_sizes, tuple(args)
-
 
     def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as curr:
@@ -192,6 +207,7 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
+        #print("Query:", query)
 
         assert isinstance(query, str)
 
@@ -210,7 +226,8 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
 
         try:
             query = query.replace('%s', '?')  # Updated line
-
+            #print("Executing query: " +str(query))
+            #print("Using args: " + str(args))
             curr.execute(query, *args)  # No flattening, just unpack args directly
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
 
