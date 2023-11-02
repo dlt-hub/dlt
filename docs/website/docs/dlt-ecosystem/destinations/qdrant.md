@@ -81,7 +81,7 @@ print(info)
 
 The data is now loaded into Qdrant.
 
-To use vector search after the data has been loaded, you must specify which fields Qdrant needs to generate embeddings for. You do that by wrapping the data (or DLT resource) with the `qdrant_adapter` function.
+To use vector search after the data has been loaded, you must specify which fields Qdrant needs to generate embeddings for. You do that by wrapping the data (or dlt resource) with the `qdrant_adapter` function.
 
 ## qdrant_adapter
 
