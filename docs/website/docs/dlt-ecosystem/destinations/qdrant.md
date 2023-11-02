@@ -108,7 +108,7 @@ qdrant_adapter(
 
 :::tip
 
-A more comprehensive pipeline would load data from some API or use one of DLT's [verified sources](../verified-sources/).
+A more comprehensive pipeline would load data from some API or use one of dlt's [verified sources](../verified-sources/).
 
 :::
 
