@@ -31,13 +31,15 @@ logger = logging.getLogger(__name__)
 
 
 class SynapseTypeMapper(TypeMapper):
+    # setting to nvarchar(4000) instead of nvarchar(max); cannot use nvarchar(max) for columnstore index
+    # https://learn.microsoft.com/en-us/answers/questions/470492/capacity-limits-for-dedicated-sql-pool-in-azure-sy
     sct_to_unbound_dbt = {
-        "complex": "nvarchar(max)",
-        "text": "nvarchar(max)",
+        "complex": "nvarchar(4000)",
+        "text": "nvarchar(4000)",
         "double": "float",
         "bool": "bit",
         "bigint": "bigint",
-        "binary": "varbinary(max)",
+        "binary": "varbinary(8000)",
         "date": "date",
         "timestamp": "datetimeoffset",
         "time": "time",
@@ -107,7 +109,6 @@ class SynapseMergeJob(SqlMergeJob):
         name = SqlMergeJob._new_temp_table_name(name_prefix)
         return '#' + name
 
-
 class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
 
     def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
@@ -119,84 +120,33 @@ class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
         super().__init__(table_name, file_path, sql_client)
 
     def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
-        # First, get the original SQL fragments
-        original_sql_fragments = super()._insert(qualified_table_name, file_path)
-        if original_sql_fragments is None:
-            raise ValueError("Superclass _insert method returned None instead of an iterable")
+        # Get the rows of data directly
+        rows = self.get_values_rows(file_path)  # This will need to be implemented
 
-        # Initialize insert_sql as an empty list
+        # Begin constructing the insert SQL with UNION ALL syntax for Azure Synapse
         insert_sql = []
+        for row in rows:
+            # Construct the SELECT part of the UNION ALL statement for each row
+            select_statement = 'SELECT ' + ', '.join(f"'{value}'" for value in row)
+            insert_sql.append(select_statement)
 
-        # Now, adapt each SQL fragment for Synapse using the generate_insert_query method
-        for original_sql in original_sql_fragments:
+        # Combine all SELECT statements with UNION ALL
+        final_insert_sql = ' UNION ALL '.join(insert_sql)
+        # The full INSERT statement includes the insert into the table part
+        full_insert_sql = f'INSERT INTO {qualified_table_name} ({self.get_column_names()}) ' + final_insert_sql
 
-            # Parse the original SQL to extract table name, columns, and rows
-            # This is a simplified example, you'll need a more robust way to parse the SQL
-            # TODO pyodbc adding \n, cleaning up string for processing
-            original_sql_joined = ''.join(original_sql).replace('\n', '')
-            table_name_match = re.search(r'INSERT INTO (.*?)\(', original_sql_joined)
-            columns_match = re.search(r'\((.*?)\)', original_sql_joined)
-            values_match = re.search(r'VALUES(.*?);', original_sql_joined, re.DOTALL)
-
-            if table_name_match and columns_match and values_match:
-                table_name = table_name_match.group(1)
-                columns_str = columns_match.group(1)
-                values_str = values_match.group(1)
-
-                # Split columns and values strings into lists
-                columns = [col.strip() for col in columns_str.split(',')]
-                values = [[val.strip() for val in value_group.split(',')] for value_group in values_str.split('),(')]
-
-                # Call generate_insert_query with the extracted values
-                adapted_sql, param_values = self.generate_insert_query(table_name, columns, values)
-
-                insert_sql.append([adapted_sql, param_values])
-
-        yield insert_sql
-
-    # In Azure Synapse, must break out SELECT statements for multi-row INSERT
-    # https://stackoverflow.com/questions/36141006/how-to-insert-multiple-rows-into-sql-server-parallel-data-warehoue-table
-    def generate_insert_query(self, table_name: str, columns: List[str], rows: List[List[Any]]) -> Tuple[str, List[Any]]:
-
-        try:
-            escaped_column_names = ', '.join(columns)  # This line is unchanged
-
-            # Placeholder for each value in a row
-            placeholder = ', '.join(['?' for _ in columns])
-
-            # Process each row individually
-            sql_fragments = []
-            param_values = []
-            for row in rows:
-                # Remove leading and trailing parenthesis from each element in the row
-                clean_row = [elem.strip('()') for elem in row]
-
-                # Create the SQL fragment for this row
-                sql_fragments.append(f"SELECT {placeholder}")
-
-                # Extend param_values with the cleaned values
-                param_values.extend(clean_row)  # Changed this line
-
-            # Combine the individual SQL fragments
-            all_select_statements = " UNION ALL ".join(sql_fragments)
-
-            # Building the final SQL query
-            new_sql = f'INSERT INTO {table_name}({escaped_column_names}) {all_select_statements}'
-
-
-            return new_sql, param_values  # This will return the parameters as a flat list
-
-        except Exception as e:
-            logger.error(f"Failed to generate insert query: {e}")
-            raise
+        # Yield the final insert SQL statement
+        yield [full_insert_sql]
 
 
 class SynapseClient(InsertValuesJobClient):
-    #Synapse does not support multi-row inserts using a single INSERT INTO statement
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: SynapseClientConfiguration) -> None:
+        if hasattr(config.credentials, 'on_resolved'):
+            config.credentials.on_resolved()
+
         sql_client = PyOdbcSynapseClient(
             config.normalize_dataset_name(schema),
             config.credentials
@@ -206,47 +156,6 @@ class SynapseClient(InsertValuesJobClient):
         self.sql_client = sql_client
         self.active_hints = HINT_TO_SYNAPSE_ATTR if self.config.create_indexes else {}
         self.type_mapper = SynapseTypeMapper(self.capabilities)
-
-    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return SynapseMergeJob.from_table_chain(table_chain, self.sql_client)
-
-    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
-        # Override because mssql requires multiple columns in a single ADD COLUMN clause
-        return ["ADD \n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
-
-    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool) -> List[str]:
-        # build sql
-        canonical_name = self.sql_client.make_qualified_table_name(table_name)
-        sql_result: List[str] = []
-        if not generate_alter:
-            # build CREATE
-            sql = f"CREATE TABLE {canonical_name} (\n"
-            sql += ",\n".join([self._get_column_def_sql(c) for c in new_columns])
-            sql += ") WITH (HEAP)"
-            sql_result.append(sql)
-        else:
-            sql_base = f"ALTER TABLE {canonical_name}\n"
-            add_column_statements = self._make_add_column_sql(new_columns)
-            if self.capabilities.alter_add_multi_column:
-                column_sql = ",\n"
-                sql_result.append(sql_base + column_sql.join(add_column_statements))
-            else:
-                # build ALTER as separate statement for each column (redshift limitation)
-                sql_result.extend([sql_base + col_statement for col_statement in add_column_statements])
-
-        # scan columns to get hints
-        if generate_alter:
-            # no hints may be specified on added columns
-            for hint in COLUMN_HINTS:
-                if any(c.get(hint, False) is True for c in new_columns):
-                    hint_columns = [self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get(hint, False)]
-                    if hint == "not_null":
-                        logger.warning(f"Column(s) {hint_columns} with NOT NULL are being added to existing table {canonical_name}."
-                                       " If there's data in the table the operation will fail.")
-                    else:
-                        logger.warning(f"Column(s) {hint_columns} with hint {hint} are being added to existing table {canonical_name}."
-                                       " Several hint types may not be added to existing tables.")
-        return sql_result
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return [SynapseMergeJob.from_table_chain(table_chain, self.sql_client)]

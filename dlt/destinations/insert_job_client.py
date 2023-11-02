@@ -12,7 +12,6 @@ from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 
 
-
 class InsertValuesLoadJob(LoadJob, FollowupJob):
     def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
@@ -109,19 +108,12 @@ class InsertValuesJobClient(SqlJobClientWithStaging):
             job = EmptyLoadJob.from_file_path(file_path, "completed")
         return job
 
-
-
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
         if not job:
             # this is using sql_client internally and will raise a right exception
             if file_path.endswith("insert_values"):
-                # TODO update import, hard coding to use Synapse subclass
-                from dlt.destinations.synapse.synapse import SynapseInsertValuesLoadJob
-
-                job = SynapseInsertValuesLoadJob(table["name"], file_path, self.sql_client)
-                #TODO update synapse handling
-                #job = InsertValuesLoadJob(table["name"], file_path, self.sql_client)
+                job = InsertValuesLoadJob(table["name"], file_path, self.sql_client)
         return job
 
     # # TODO: implement indexes and primary keys for postgres
