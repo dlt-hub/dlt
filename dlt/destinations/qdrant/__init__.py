@@ -8,6 +8,7 @@ from dlt.common.destination.reference import (
     DestinationClientConfiguration,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.destinations.qdrant.qdrant_adapter import qdrant_adapter
 
 from dlt.destinations.qdrant.configuration import QdrantClientConfiguration
 
