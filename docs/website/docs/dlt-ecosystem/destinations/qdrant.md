@@ -163,7 +163,7 @@ This is the default disposition. It will append the data to the existing data in
 
 ## Dataset name
 
-Qdrant uses collections to categorize and identify data. To avoid potential naming conflicts, especially when dealing with multiple datasets that might have overlapping table names, DLT includes the dataset name in the Qdrant collection name. This ensures a unique identifier for every collection.
+Qdrant uses collections to categorize and identify data. To avoid potential naming conflicts, especially when dealing with multiple datasets that might have overlapping table names, dlt includes the dataset name in the Qdrant collection name. This ensures a unique identifier for every collection.
 
 For example, if you have a dataset named `movies_dataset` and a table named `actors`, the Qdrant collection name would be `movies_dataset_actors` (the default separator is an underscore).
 
