@@ -3,7 +3,6 @@ from typing import Any, Iterator
 
 import dlt
 from dlt.common import sleep
-from dlt.common.runtime.slack import send_slack_message
 from dlt.common.typing import StrAny, TDataItems
 from dlt.sources.helpers.requests import client
 
