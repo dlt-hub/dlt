@@ -15,7 +15,7 @@ class QdrantCredentials(CredentialsConfiguration):
     api_key: Optional[str]
 
     def __str__(self) -> str:
-        return self.location
+        return self.location or "localhost"
 
 
 @configspec
