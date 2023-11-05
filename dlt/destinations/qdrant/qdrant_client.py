@@ -53,6 +53,8 @@ class LoadQdrantJob(LoadJob):
                 db_client.embedding_model_name)
             embeddings = list(embedding_model.embed(
                 docs, batch_size=self.config.embedding_batch_size, parallel=self.config.embedding_parallelism))
+            vector_name = db_client.get_vector_field_name()
+            embeddings = [{vector_name: embedding.tolist()} for embedding in embeddings]
             assert len(embeddings) == len(payloads) == len(ids)
 
             self._upload_data(vectors=embeddings, ids=ids, payloads=payloads)
@@ -176,12 +178,14 @@ class QdrantClient(JobClientBase, WithStateSync):
             full_collection_name (str): The name of the collection to be created.
         """
 
-        # A straight-forward method named get_fastembed_vector_params() exists in the qdrant_client package.
-        # But, it generates a named vector with the model name as the vector name. But, we need an unnamed vector.
-        embeddings_size, distance = self.db_client._get_model_params(
-            model_name=self.db_client.embedding_model_name)
-        vectors_config = models.VectorParams(
-            size=embeddings_size, distance=distance)
+        # Generates config for a named vector according to the selected model.
+        # Eg: vector_config={
+        #     "fast-bge-small-en": {
+        #       "size": 364,
+        #       "distance": "Cosine"
+        #     },
+        # }
+        vectors_config = self.db_client.get_fastembed_vector_params()
 
         self.db_client.create_collection(
             collection_name=full_collection_name, vectors_config=vectors_config)
@@ -239,7 +243,7 @@ class QdrantClient(JobClientBase, WithStateSync):
                 self._create_collection(full_collection_name=qualified_table_name)
 
     def is_storage_initialized(self) -> bool:
-        return self._collection_exists(self.sentinel_collection)
+        return self._collection_exists(self.sentinel_collection, qualify_table_name=False)
 
     def _create_sentinel_collection(self) -> None:
         """Create an empty collection to indicate that the storage is initialized."""
@@ -393,10 +397,11 @@ class QdrantClient(JobClientBase, WithStateSync):
                 )
         self._update_schema_in_storage(self.schema)
 
-    def _collection_exists(self, table_name: str) -> bool:
+    def _collection_exists(self, table_name: str, qualify_table_name: bool = True) -> bool:
         try:
-            self.db_client.get_collection(
-                self._make_qualified_collection_name(table_name))
+            table_name = self._make_qualified_collection_name(
+                table_name) if qualify_table_name else table_name
+            self.db_client.get_collection(table_name)
             return True
         except UnexpectedResponse as e:
             if e.status_code == 404:
