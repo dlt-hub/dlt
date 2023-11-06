@@ -38,6 +38,7 @@ MTIME_DISPATCH = {
     "gcs": lambda f: ensure_pendulum_datetime(f["updated"]),
     "file": lambda f: ensure_pendulum_datetime(f["mtime"]),
     "memory": lambda f: ensure_pendulum_datetime(f["created"]),
+    "gdrive": lambda f: ensure_pendulum_datetime(f["modifiedTime"]),
 }
 # Support aliases
 MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]
@@ -78,7 +79,7 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
         fs_kwargs.update(cast(AwsCredentials, config.credentials).to_s3fs_credentials())
     elif proto in ["az", "abfs", "adl", "azure"]:
         fs_kwargs.update(cast(AzureCredentials, config.credentials).to_adlfs_credentials())
-    elif proto in ['gcs', 'gs']:
+    elif proto in ["gcs", "gs", "gdrive"]:
         assert isinstance(config.credentials, GcpCredentials)
         # Default credentials are handled by gcsfs
         if isinstance(config.credentials, CredentialsWithDefault) and config.credentials.has_default_credentials():
@@ -86,6 +87,9 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
         else:
             fs_kwargs['token'] = dict(config.credentials)
         fs_kwargs['project'] = config.credentials.project_id
+        if proto == "gdrive":
+            parsed_bucket_url = urlparse(config.bucket_url)
+            fs_kwargs['root_file_id'] = parsed_bucket_url.netloc
     try:
         return url_to_fs(config.bucket_url, use_listings_cache=False, **fs_kwargs)  # type: ignore[no-any-return]
     except ModuleNotFoundError as e:
@@ -152,7 +156,7 @@ class FileItemDict(DictStrAny):
             else:
                 return bytes_io
         else:
-            opened_file = self.fsspec.open(self["file_url"], mode=mode, **kwargs)
+            opened_file = self.fsspec.open(urlparse(self["file_url"]).path, mode=mode, **kwargs)
         return opened_file
 
     def read_bytes(self) -> bytes:
@@ -166,7 +170,7 @@ class FileItemDict(DictStrAny):
         if "file_content" in self and self["file_content"] is not None:
             content = self["file_content"]
         else:
-            content = self.fsspec.read_bytes(self["file_url"])
+            content = self.fsspec.read_bytes(urlparse(self["file_url"]).path)
         return content
 
 
@@ -198,7 +202,11 @@ def glob_files(
         bucket_url = pathlib.Path(bucket_url).absolute().as_uri()
         bucket_url_parsed = urlparse(bucket_url)
 
-    bucket_path = bucket_url_parsed._replace(scheme='').geturl()
+    if bucket_url_parsed.scheme == "gdrive":
+        bucket_path = "/" + bucket_url_parsed._replace(scheme='')._replace(netloc='').geturl()
+    else:
+        bucket_path = bucket_url_parsed._replace(scheme='').geturl()
+
     bucket_path = bucket_path[2:] if bucket_path.startswith("//") else bucket_path
     filter_url = posixpath.join(bucket_path, file_glob)
 
@@ -213,7 +221,7 @@ def glob_files(
         if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
             file = "/" + file
         file_name = posixpath.relpath(file, bucket_path)
-        file_url = bucket_url_parsed.scheme + "://" + file
+        file_url = bucket_url_parsed.scheme + "://" + bucket_url_parsed.netloc + "/" + file
         yield FileItem(
             file_name=file_name,
             file_url=file_url,
