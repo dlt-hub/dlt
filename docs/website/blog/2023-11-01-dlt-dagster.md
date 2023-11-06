@@ -151,9 +151,8 @@ class DltResource(ConfigurableResource):
     pipeline_name: str
     dataset_name: str
     destination: str
-    table_name: str
 
-    def create_pipeline(self, dlt_resource):
+    def create_pipeline(self, resource_data, table_name):
 
         # configure the pipeline with your destination details
         pipeline = dlt.pipeline(
@@ -161,7 +160,7 @@ class DltResource(ConfigurableResource):
         )
 
         # run the pipeline with your parameters
-        load_info = pipeline.run(dlt_resource, table_name=self.table_name)
+        load_info = pipeline.run(dlt_resource, table_name=table_name)
 
         return load_info
 ```
@@ -177,7 +176,7 @@ from ..dlt import github_issues_resource
 def issues_pipeline(pipeline: DltResource):
 
     logger = get_dagster_logger()
-    results = pipeline.create_pipeline(github_issues_resource)
+    results = pipeline.create_pipeline(github_issues_resource, table_name='github_issues')
     logger.info(results)
 ```
 
@@ -267,7 +266,7 @@ dagster project scaffold --name mongodb-dlt
 dlt init mongodb bigquery
 ```
 
-After running the command your directory structure should be as follows:
+This will create a template with all the necessary logic implemented for extracting data from MongoDB. After running the command your directory structure should be as follows:
 
 ```python
 .
@@ -383,12 +382,12 @@ def dlt_asset_factory(collection_list):
 dlt_assets = dlt_asset_factory(DATABASE_COLLECTIONS)
 ```
 
-### Step 5: Definitions and ****Run the Web Server****
+### Step 5: Definitions and Running the Web Server
 
 Add the definitions in the `__init__.py` in the root directory:
 
 ```python
-from dagster import Definitions, EnvVar
+from dagster import Definitions
 
 from .assets import dlt_assets
 from .resources import DltResource
