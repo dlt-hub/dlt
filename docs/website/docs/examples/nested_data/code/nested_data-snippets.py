@@ -1,5 +1,4 @@
 def nested_data_snippet() -> None:
-    CHUNK_SIZE = 10000
     # @@@DLT_SNIPPET_START example
     # @@@DLT_SNIPPET_START nested_data
     from itertools import islice
@@ -13,6 +12,8 @@ def nested_data_snippet() -> None:
     from dlt.common.utils import map_nested_in_place
     from pendulum import _datetime
     from pymongo import ASCENDING, DESCENDING, MongoClient
+
+    CHUNK_SIZE = 10000
 
     # You can limit how deep dlt goes when generating child tables.
     # By default, the library will descend and generate child tables
@@ -97,7 +98,26 @@ def nested_data_snippet() -> None:
 
     __name__ = "__main__"  # @@@DLT_REMOVE
     if __name__ == "__main__":
-        # build duck db pipeline
+        # When we created the source, we set max_table_nesting to 2.
+        # This ensures that the generated tables do not have more than two
+        # levels of nesting, even if the original data structure is more deeply nested.
+        pipeline = dlt.pipeline(
+            pipeline_name="mongodb_pipeline",
+            destination="duckdb",
+            dataset_name="unpacked_data",
+        )
+        source_data = mongodb_collection(collection="movies", write_disposition="replace")
+        load_info = pipeline.run(source_data)
+        print(load_info)
+        tables = pipeline.last_trace.last_normalize_info.row_counts  # @@@DLT_REMOVE
+        tables.pop("_dlt_pipeline_state")  # @@@DLT_REMOVE
+        assert len(tables) == 7, pipeline.last_trace.last_normalize_info  # @@@DLT_REMOVE
+
+        # The second method involves setting the max_table_nesting attribute directly
+        # on the source data object.
+        # This allows for dynamic control over the maximum nesting
+        # level for a specific data source.
+        # Here the nesting level is adjusted before running the pipeline.
         pipeline = dlt.pipeline(
             pipeline_name="mongodb_pipeline",
             destination="duckdb",
@@ -105,50 +125,28 @@ def nested_data_snippet() -> None:
         )
         source_data = mongodb_collection(collection="movies", write_disposition="replace")
         source_data.max_table_nesting = 0
-
         load_info = pipeline.run(source_data)
         print(load_info)
+        tables = pipeline.last_trace.last_normalize_info.row_counts  # @@@DLT_REMOVE
+        tables.pop("_dlt_pipeline_state")  # @@@DLT_REMOVE
+        assert len(tables) == 1, pipeline.last_trace.last_normalize_info  # @@@DLT_REMOVE
 
-        # test assertions
-        tables = pipeline.last_trace.last_normalize_info.row_counts
-        tables.pop("_dlt_pipeline_state")
-        assert len(tables) == 1, pipeline.last_trace.last_normalize_info
-
-        pipeline = dlt.pipeline(
-            pipeline_name="mongodb_pipeline",
-            destination="duckdb",
-            dataset_name="unpacked_data",
-        )
-        source_data = mongodb_collection(collection="movies", write_disposition="replace")
-        source_data.max_table_nesting = 2
-
-        load_info = pipeline.run(source_data)
-        print(load_info)
-
-        # test assertions
-        tables = pipeline.last_trace.last_normalize_info.row_counts
-        tables.pop("_dlt_pipeline_state")
-        assert len(tables) == 7, pipeline.last_trace.last_normalize_info
-
+        # The third method involves applying data type hints to specific columns in the data.
+        # In this case, we tell dlt that column 'cast' (containing a list of actors)
+        # in 'movies' table should have type complex which means
+        # that it will be loaded as JSON/struct and not as child table.
         pipeline = dlt.pipeline(
             pipeline_name="mongodb_pipeline",
             destination="duckdb",
             dataset_name="unpacked_data_without_cast",
         )
         source_data = mongodb_collection(collection="movies", write_disposition="replace")
-        source_data.max_table_nesting = 2
         source_data.movies.apply_hints(columns={"cast": {"data_type": "complex"}})
-
         load_info = pipeline.run(source_data)
         print(load_info)
-
-        # test assertions
-        tables = pipeline.last_trace.last_normalize_info.row_counts
-        tables.pop("_dlt_pipeline_state")
-        assert len(tables) == 6, pipeline.last_trace.last_normalize_info
-
+        tables = pipeline.last_trace.last_normalize_info.row_counts  # @@@DLT_REMOVE
+        tables.pop("_dlt_pipeline_state")  # @@@DLT_REMOVE
+        assert len(tables) == 6, pipeline.last_trace.last_normalize_info  # @@@DLT_REMOVE
 
     # @@@DLT_SNIPPET_END nested_data_run
     # @@@DLT_SNIPPET_END example
-
-
