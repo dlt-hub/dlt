@@ -144,7 +144,7 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> DictStrAn
 #     return dicts
 
 
-def flatten_list_or_items(_iter: Union[Iterator[TAny], Iterator[List[TAny]]]) -> Iterator[TAny]:
+def flatten_list_or_items(_iter: Union[Iterable[TAny], Iterable[List[TAny]]]) -> Iterator[TAny]:
     for items in _iter:
         if isinstance(items, List):
             yield from items
