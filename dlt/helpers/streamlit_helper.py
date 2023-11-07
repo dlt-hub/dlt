@@ -1,5 +1,5 @@
 import sys
-from typing import Dict, List
+from typing import Dict, List, Iterator
 import humanize
 
 from dlt.common import pendulum
@@ -253,7 +253,7 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
         if "write_disposition" in table:
             table_hints.append("write disposition: **%s**" % table["write_disposition"])
         columns = table["columns"]
-        primary_keys = flatten_list_or_items([
+        primary_keys: Iterator[str] = flatten_list_or_items([
             col_name for col_name in columns.keys()
                 if not col_name.startswith("_") and not columns[col_name].get("primary_key") is None
         ])
