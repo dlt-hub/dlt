@@ -60,7 +60,7 @@ class FilesystemConfiguration(BaseConfiguration):
     PROTOCOL_CREDENTIALS: ClassVar[Dict[str, Any]] = {
         "gs": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
         "gcs": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
-        "gdrive": GcpOAuthCredentials,
+        "gdrive": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
         "s3": AwsCredentials,
         "az": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
         "abfs": Union[AzureCredentialsWithoutDefaults, AzureCredentials],

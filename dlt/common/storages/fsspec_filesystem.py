@@ -36,6 +36,7 @@ MTIME_DISPATCH = {
     "adl": lambda f: ensure_pendulum_datetime(f["LastModified"]),
     "az": lambda f: ensure_pendulum_datetime(f["last_modified"]),
     "gcs": lambda f: ensure_pendulum_datetime(f["updated"]),
+    "gdrive": lambda f: ensure_pendulum_datetime(f["modifiedTime"]),
     "file": lambda f: ensure_pendulum_datetime(f["mtime"]),
     "memory": lambda f: ensure_pendulum_datetime(f["created"]),
 }
@@ -78,7 +79,7 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
         fs_kwargs.update(cast(AwsCredentials, config.credentials).to_s3fs_credentials())
     elif proto in ["az", "abfs", "adl", "azure"]:
         fs_kwargs.update(cast(AzureCredentials, config.credentials).to_adlfs_credentials())
-    elif proto in ['gcs', 'gs']:
+    elif proto in ['gcs', 'gs', 'gdrive']:
         assert isinstance(config.credentials, GcpCredentials)
         # Default credentials are handled by gcsfs
         if isinstance(config.credentials, CredentialsWithDefault) and config.credentials.has_default_credentials():
@@ -198,8 +199,13 @@ def glob_files(
         bucket_url = pathlib.Path(bucket_url).absolute().as_uri()
         bucket_url_parsed = urlparse(bucket_url)
 
-    bucket_path = bucket_url_parsed._replace(scheme='').geturl()
-    bucket_path = bucket_path[2:] if bucket_path.startswith("//") else bucket_path
+    # not all filesystems use the host in list functions
+    if bucket_url_parsed.scheme in ["gdrive"]:
+        bucket_path = bucket_url_parsed.path
+    else:
+        bucket_path = bucket_url_parsed._replace(scheme='').geturl()
+        bucket_path = bucket_path[2:] if bucket_path.startswith("//") else bucket_path
+    
     filter_url = posixpath.join(bucket_path, file_glob)
 
     glob_result = fs_client.glob(filter_url, detail=True)
@@ -213,7 +219,10 @@ def glob_files(
         if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
             file = "/" + file
         file_name = posixpath.relpath(file, bucket_path)
-        file_url = bucket_url_parsed.scheme + "://" + file
+        if bucket_url_parsed.scheme in ["gdrive"]:
+            file_url = bucket_url_parsed.scheme + "://" + bucket_url_parsed.netloc + "/" + file.lstrip("/")
+        else:
+            file_url = bucket_url_parsed.scheme + "://" + file
         yield FileItem(
             file_name=file_name,
             file_url=file_url,
