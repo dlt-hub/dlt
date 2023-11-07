@@ -1,5 +1,4 @@
-
-def transformers_snippet() -> None:
+def nested_data_snippet() -> None:
     CHUNK_SIZE = 10000
     # @@@DLT_SNIPPET_START example
     # @@@DLT_SNIPPET_START nested_data
@@ -27,7 +26,6 @@ def transformers_snippet() -> None:
         collection: str = dlt.config.value,
         incremental: Optional[dlt.sources.incremental] = None,  # type: ignore[type-arg]
         write_disposition: Optional[str] = dlt.config.value,
-        parallel: Optional[bool] = dlt.config.value,
     ) -> Any:
         # set up mongo client
         client = MongoClient(
@@ -52,7 +50,7 @@ def transformers_snippet() -> None:
             name=collection_obj.name,
             primary_key="_id",
             write_disposition=write_disposition,
-        )(client, collection_obj, incremental=incremental, parallel=parallel)
+        )(client, collection_obj, incremental=incremental)
 
     # @@@DLT_SNIPPET_END nested_data
 
@@ -97,19 +95,60 @@ def transformers_snippet() -> None:
 
     # @@@DLT_SNIPPET_START nested_data_run
 
-    __name__ = "__main__" # @@@DLT_REMOVE
+    __name__ = "__main__"  # @@@DLT_REMOVE
     if __name__ == "__main__":
         # build duck db pipeline
         pipeline = dlt.pipeline(
-            pipeline_name="mongodb_pipeline", destination="duckdb", dataset_name="pokemon_data"
+            pipeline_name="mongodb_pipeline",
+            destination="duckdb",
+            dataset_name="not_unpacked_data",
         )
-        source_data = mongodb_collection()
-        source_data.max_table_nesting = 1
+        source_data = mongodb_collection(collection="movies", write_disposition="replace")
+        source_data.max_table_nesting = 0
 
         load_info = pipeline.run(source_data)
         print(load_info)
+
+        # test assertions
+        tables = pipeline.last_trace.last_normalize_info.row_counts
+        tables.pop("_dlt_pipeline_state")
+        assert len(tables) == 1, pipeline.last_trace.last_normalize_info
+
+        pipeline = dlt.pipeline(
+            pipeline_name="mongodb_pipeline",
+            destination="duckdb",
+            dataset_name="unpacked_data",
+        )
+        source_data = mongodb_collection(collection="movies", write_disposition="replace")
+        source_data.max_table_nesting = 2
+
+        load_info = pipeline.run(source_data)
+        print(load_info)
+
+        # test assertions
+        tables = pipeline.last_trace.last_normalize_info.row_counts
+        tables.pop("_dlt_pipeline_state")
+        assert len(tables) == 7, pipeline.last_trace.last_normalize_info
+
+        pipeline = dlt.pipeline(
+            pipeline_name="mongodb_pipeline",
+            destination="duckdb",
+            dataset_name="unpacked_data_without_cast",
+        )
+        source_data = mongodb_collection(collection="movies", write_disposition="replace")
+        source_data.max_table_nesting = 2
+        source_data.movies.apply_hints(columns={"cast": {"data_type": "complex"}})
+
+        load_info = pipeline.run(source_data)
+        print(load_info)
+
+        # test assertions
+        tables = pipeline.last_trace.last_normalize_info.row_counts
+        tables.pop("_dlt_pipeline_state")
+        assert len(tables) == 6, pipeline.last_trace.last_normalize_info
+
+
     # @@@DLT_SNIPPET_END nested_data_run
     # @@@DLT_SNIPPET_END example
 
-    # test assertions
-    row_counts = pipeline.last_trace.last_normalize_info.row_counts
+
