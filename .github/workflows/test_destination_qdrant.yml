@@ -25,8 +25,7 @@ jobs:
   run_loader:
     name: Tests Qdrant loader
     needs: get_docs_changes
-    if: !always()
-    # if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
       matrix:
