@@ -1,38 +1,3 @@
----
-title: Control nested MongoDB data
-description: Learn how control nested data
-keywords: [incremental loading, example]
----
-
-import Header from '../_examples-header.md';
-
-<Header
-    intro="This example demonstrates how to control nested data using Python and the dlt library. It covers working with MongoDB, incremental loading, limiting nesting levels, and applying data type hints."
-    slug="nested_data"
-    run_file="nested_data" />
-
-## Control nested data
-
-In this example, you'll find a Python script that demonstrates how to control nested data using the `dlt` library.
-
-We'll learn how to:
-- [Adjust maximal nesting level in three ways:](../../general-usage/source#reduce-the-nesting-level-of-generated-tables)
-  - Limit nesting levels with dlt decorator.
-  - Dynamic nesting level adjustment.
-  - Apply data type hints.
-- Work with [MongoDB](../../dlt-ecosystem/verified-sources/mongodb) in Python and `dlt`.
-- Enable [incremental loading](../../general-usage/incremental-loading) for efficient data extraction.
-
-### Install pymongo
-
-```shell
- pip install pymongo>=4.3.3
-```
-
-### Loading code
-
-<!--@@@DLT_SNIPPET_START code/nested_data-snippets.py::nested_data-->
-```py
 from itertools import islice
 from typing import Any, Dict, Iterator, Optional
 
@@ -82,13 +47,48 @@ def mongodb_collection(
         primary_key="_id",
         write_disposition=write_disposition,
     )(client, collection_obj, incremental=incremental)
-```
-<!--@@@DLT_SNIPPET_END code/nested_data-snippets.py::nested_data-->
 
-### Run the pipeline
 
-<!--@@@DLT_SNIPPET_START code/nested_data-snippets.py::nested_data_run-->
-```py
+class CollectionLoader:
+    def __init__(
+        self,
+        client,
+        collection,
+        incremental: Optional[dlt.sources.incremental[Any]] = None,
+    ) -> None:
+        self.client = client
+        self.collection = collection
+        self.incremental = incremental
+        if incremental:
+            self.cursor_field = incremental.cursor_path
+            self.last_value = incremental.last_value
+        else:
+            self.cursor_column = None
+            self.last_value = None
+
+    @property
+    def _filter_op(self) -> Dict[str, Any]:
+        if not self.incremental or not self.last_value:
+            return {}
+        if self.incremental.last_value_func is max:
+            return {self.cursor_field: {"$gte": self.last_value}}
+        elif self.incremental.last_value_func is min:
+            return {self.cursor_field: {"$lt": self.last_value}}
+        return {}
+
+    def load_documents(self) -> Iterator[TDataItem]:
+        cursor = self.collection.find(self._filter_op)
+        while docs_slice := list(islice(cursor, CHUNK_SIZE)):
+            yield map_nested_in_place(convert_mongo_objs, docs_slice)
+
+def convert_mongo_objs(value: Any) -> Any:
+    if isinstance(value, (ObjectId, Decimal128)):
+        return str(value)
+    if isinstance(value, _datetime.datetime):
+        return ensure_pendulum_datetime(value)
+    return value
+
+
 if __name__ == "__main__":
     # When we created the source, we set max_table_nesting to 2.
     # This ensures that the generated tables do not have more than two
@@ -136,5 +136,3 @@ if __name__ == "__main__":
     source_data.movies.apply_hints(columns={"cast": {"data_type": "complex"}})
     load_info = pipeline.run(source_data)
     print(load_info)
-```
-<!--@@@DLT_SNIPPET_END code/nested_data-snippets.py::nested_data_run-->
