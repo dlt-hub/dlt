@@ -1,5 +1,5 @@
 ---
-title: Control nested data
+title: Control nested MongoDB data
 description: Learn how control nested data
 keywords: [incremental loading, example]
 ---
@@ -7,7 +7,7 @@ keywords: [incremental loading, example]
 import Header from '../_examples-header.md';
 
 <Header
-    intro="This tutorial demonstrates how to control nested data using Python and the `dlt` library. It covers working with MongoDB, incremental loading, limiting nesting levels, and applying data type hints."
+    intro="This tutorial demonstrates how to control nested data using Python and the dlt library. It covers working with MongoDB, incremental loading, limiting nesting levels, and applying data type hints."
     slug="nested_data"
     run_file="nested_data" />
 
@@ -17,7 +17,7 @@ In this example, you'll find a Python script that demonstrates how to control ne
 
 We'll learn how to:
 - [Adjust maximal nesting level in three ways:](../../general-usage/source#reduce-the-nesting-level-of-generated-tables)
-  - Limit Nesting Levels with dlt decorator.
+  - Limit nesting levels with dlt decorator.
   - Dynamic nesting level adjustment.
   - Apply data type hints.
 - Work with [MongoDB](../../dlt-ecosystem/verified-sources/mongodb) in Python and `dlt`.
