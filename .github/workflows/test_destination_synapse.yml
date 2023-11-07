@@ -5,6 +5,10 @@ on:
     branches:
       - master
       - devel
+  push:
+    branches:
+      - synapse
+      
   workflow_dispatch:
 
 env:
