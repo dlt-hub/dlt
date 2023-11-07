@@ -1,10 +1,10 @@
 ---
-title: Credentials
+title: Add credentials
 description: How to use dlt credentials
 keywords: [credentials, secrets.toml, environment variables]
 ---
 
-# Credentials
+# How to add credentials
 
 ## Adding credentials locally
 
@@ -34,48 +34,15 @@ For Verified Source credentials, read the [Setup Guides](../dlt-ecosystem/verifi
 
 Once you have credentials for the source and destination, add them to the file above and save them.
 
+Read more about [credential configuration.](../general-usage/credentials)
+
 ## Adding credentials to your deployment
 
 To add credentials to your deployment,
 
 - either use one of the `dlt deploy` commands;
-- or follow the below instructions to pass credentials via code or environment.
-
-### Passing credentials as code
-
-A usual dlt pipeline passes a dlt source to a dlt pipeline as below. It is here that we could pass
-credentials to the `pipedrive_source()`:
-
-```python
-from pipedrive import pipedrive_source
-
-pipeline = dlt.pipeline(
-    pipeline_name='pipedrive',
-    destination='bigquery',
-    dataset_name='pipedrive_data'
-)
-load_info = pipeline.run(pipedrive_source())
-print(load_info)
-```
-
-When a source is defined, you define how credentials are passed. So it is here that you could look
-to understand how to pass custom credentials.
-
-Example:
-
-```python
-@dlt.source(name='pipedrive')
-def pipedrive_source(pipedrive_api_key: str = dlt.secrets.value) -> Sequence[DltResource]:
-    #code goes here
-```
-
-You can see that the pipedrive source expects a `pipedrive_api_key`. So you could pass it as below.
-
-```python
-api_key = BaseHook.get_connection('pipedrive_api_key').extra # get it from airflow or other credential store
-load_info = pipeline.run(pipedrive_source(pipedrive_api_key=api_key))
-```
-> ❗ Note: be careful not to put your credentials directly in code - use your own credential vault instead.
+- or follow the instructions to [pass credentials via code](../general-usage/credentials/configuration#pass-credentials-as-code)
+or [environment](../general-usage/credentials/config_providers#environment-provider).
 
 ### Reading credentials from environment variables
 
@@ -96,9 +63,9 @@ client_email = "client_email" # please set me up!
 
 If dlt tries to read this from environment variables, it will use a different naming convention.
 
-For environment variables all names are capitalized and sections are separated with double underscore "\_\_".
+For environment variables all names are capitalized and sections are separated with a double underscore "__".
 
-For example for the above secrets, we would need to put into environment:
+For example, for the secrets mentioned above, we would need to set them in the environment:
 
 ```shell
 SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY

@@ -9,6 +9,9 @@ from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFo
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny
 
+if TYPE_CHECKING:
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
 
 @dataclass
 class TFileFormatSpec:
@@ -187,6 +190,7 @@ class ParquetDataWriterConfiguration(BaseConfiguration):
     data_page_size: int = 1024 * 1024
     timestamp_precision: str = "us"
     timestamp_timezone: str = "UTC"
+    row_group_size: Optional[int] = None
 
     __section__: str = known_sections.DATA_WRITER
 
@@ -200,7 +204,8 @@ class ParquetDataWriter(DataWriter):
                  flavor: str = "spark",
                  version: str = "2.4",
                  data_page_size: int = 1024 * 1024,
-                 timestamp_timezone: str = "UTC"
+                 timestamp_timezone: str = "UTC",
+                 row_group_size: Optional[int] = None
                  ) -> None:
         super().__init__(f, caps)
         from dlt.common.libs.pyarrow import pyarrow
@@ -212,6 +217,11 @@ class ParquetDataWriter(DataWriter):
         self.parquet_version = version
         self.parquet_data_page_size = data_page_size
         self.timestamp_timezone = timestamp_timezone
+        self.parquet_row_group_size = row_group_size
+
+    def _create_writer(self, schema: "pa.Schema") -> "pa.parquet.ParquetWriter":
+        from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_datatype
+        return pyarrow.parquet.ParquetWriter(self._f, schema, flavor=self.parquet_flavor, version=self.parquet_version, data_page_size=self.parquet_data_page_size)
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_datatype
@@ -226,7 +236,7 @@ class ParquetDataWriter(DataWriter):
         )
         # find row items that are of the complex type (could be abstracted out for use in other writers?)
         self.complex_indices = [i for i, field in columns_schema.items() if field["data_type"] == "complex"]
-        self.writer = pyarrow.parquet.ParquetWriter(self._f, self.schema, flavor=self.parquet_flavor, version=self.parquet_version, data_page_size=self.parquet_data_page_size)
+        self.writer = self._create_writer(self.schema)
 
 
     def write_data(self, rows: Sequence[Any]) -> None:
@@ -241,7 +251,7 @@ class ParquetDataWriter(DataWriter):
 
         table = pyarrow.Table.from_pylist(rows, schema=self.schema)
         # Write
-        self.writer.write_table(table)
+        self.writer.write_table(table, row_group_size=self.parquet_row_group_size)
 
     def write_footer(self) -> None:
         self.writer.close()
@@ -264,14 +274,12 @@ class ArrowWriter(ParquetDataWriter):
         if not rows:
             return
         first = rows[0]
-        self.writer = self.writer or pyarrow.parquet.ParquetWriter(
-            self._f, first.schema, flavor=self.parquet_flavor, version=self.parquet_version, data_page_size=self.parquet_data_page_size
-        )
+        self.writer = self.writer or self._create_writer(first.schema)
         for row in rows:
             if isinstance(row, pyarrow.Table):
-                self.writer.write_table(row)
+                self.writer.write_table(row, row_group_size=self.parquet_row_group_size)
             elif isinstance(row, pyarrow.RecordBatch):
-                self.writer.write_batch(row)
+                self.writer.write_batch(row, row_group_size=self.parquet_row_group_size)
             else:
                 raise ValueError(f"Unsupported type {type(row)}")
             # count rows that got written

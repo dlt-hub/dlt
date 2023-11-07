@@ -1,24 +1,22 @@
 import os
-from typing import Any, Callable, List, Dict, Sequence, Tuple, Set
-from multiprocessing.pool import AsyncResult, Pool as ProcessPool
+from typing import Callable, List, Dict, Sequence, Tuple, Set, Optional
+from concurrent.futures import Future, Executor
 
 from dlt.common import pendulum, json, logger, sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.configuration.container import Container
-from dlt.common.destination import DestinationCapabilitiesContext, TLoaderFileFormat
-from dlt.common.json import custom_pua_decode
-from dlt.common.runners import TRunMetrics, Runnable
+from dlt.common.destination import TLoaderFileFormat
+from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
+from dlt.common.schema.typing import TStoredSchema
 from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage, LoadStorageConfiguration, NormalizeStorageConfiguration
 from dlt.common.typing import TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
-from dlt.common.exceptions import TerminalValueError
 from dlt.common.pipeline import NormalizeInfo
 from dlt.common.utils import chunks, TRowCount, merge_row_count, increase_row_count
 
@@ -33,14 +31,14 @@ TMapFuncType = Callable[[Schema, str, Sequence[str]], TMapFuncRV]  # input param
 TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str], TRowCount]
 
 
-class Normalize(Runnable[ProcessPool]):
-
+class Normalize(Runnable[Executor]):
+    pool: Executor
     @with_config(spec=NormalizeConfiguration, sections=(known_sections.NORMALIZE,))
     def __init__(self, collector: Collector = NULL_COLLECTOR, schema_storage: SchemaStorage = None, config: NormalizeConfiguration = config.value) -> None:
         self.config = config
         self.collector = collector
-        self.pool: ProcessPool = None
         self.normalize_storage: NormalizeStorage = None
+        self.pool = NullExecutor()
         self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
         self._row_counts: TRowCount = {}
@@ -69,33 +67,33 @@ class Normalize(Runnable[ProcessPool]):
 
     @staticmethod
     def w_normalize_files(
+        config: NormalizeConfiguration,
         normalize_storage_config: NormalizeStorageConfiguration,
         loader_storage_config: LoadStorageConfiguration,
-        destination_caps: DestinationCapabilitiesContext,
         stored_schema: TStoredSchema,
         load_id: str,
         extracted_items_files: Sequence[str],
     ) -> TWorkerRV:
-
+        destination_caps = config.destination_capabilities
         schema_updates: List[TSchemaUpdate] = []
         total_items = 0
         row_counts: TRowCount = {}
         load_storages: Dict[TLoaderFileFormat, LoadStorage] = {}
 
         def _get_load_storage(file_format: TLoaderFileFormat) -> LoadStorage:
-            if file_format != "parquet":
+            # TODO: capabilities.supported_*_formats can be None, it should have defaults
+            supported_formats = destination_caps.supported_loader_file_formats or []
+            if file_format == "parquet":
+                if file_format in supported_formats:
+                    supported_formats.append("arrow")  # TODO: Hack to make load storage use the correct writer
+                    file_format = "arrow"
+                else:
+                    # Use default storage if parquet is not supported to make normalizer fallback to read rows from the file
+                    file_format = destination_caps.preferred_loader_file_format or destination_caps.preferred_staging_file_format
+            else:
                 file_format = destination_caps.preferred_loader_file_format or destination_caps.preferred_staging_file_format
             if storage := load_storages.get(file_format):
                 return storage
-            # TODO: capabilities.supporteed_*_formats can be None, it should have defaults
-            supported_formats = list(set(destination_caps.supported_loader_file_formats or []) | set(destination_caps.supported_staging_file_formats or []))
-            if file_format not in supported_formats:
-                if file_format == "parquet":  # Give users a helpful error message for parquet
-                    raise TerminalValueError((
-                        "The destination doesn't support direct loading of arrow tables. "
-                        "Either use a different destination with parquet support or yield dicts instead of pyarrow tables/pandas dataframes from your sources."
-                    ))
-            # Load storage throws a generic error for other unsupported formats, normally that shouldn't happen
             storage = load_storages[file_format] = LoadStorage(False, file_format, supported_formats, loader_storage_config)
             return storage
 
@@ -105,24 +103,33 @@ class Normalize(Runnable[ProcessPool]):
             load_storage = _get_load_storage(destination_caps.preferred_loader_file_format)  # Default load storage, used for empty tables when no data
             normalize_storage = NormalizeStorage(False, normalize_storage_config)
 
+            item_normalizers: Dict[TLoaderFileFormat, ItemsNormalizer] = {}
+
+            def _get_items_normalizer(file_format: TLoaderFileFormat) -> Tuple[ItemsNormalizer, LoadStorage]:
+                load_storage = _get_load_storage(file_format)
+                if file_format in item_normalizers:
+                    return item_normalizers[file_format], load_storage
+                klass = ParquetItemsNormalizer if file_format == "parquet" else JsonLItemsNormalizer
+                norm = item_normalizers[file_format] = klass(
+                    load_storage, normalize_storage, schema, load_id, config
+                )
+                return norm, load_storage
+
             try:
                 root_tables: Set[str] = set()
                 populated_root_tables: Set[str] = set()
                 for extracted_items_file in extracted_items_files:
                     line_no: int = 0
                     parsed_file_name = NormalizeStorage.parse_normalize_file_name(extracted_items_file)
-                    root_table_name = parsed_file_name.table_name
+                    # normalize table name in case the normalization changed
+                    # NOTE: this is the best we can do, until a full lineage information is in the schema
+                    root_table_name = schema.naming.normalize_table_identifier(parsed_file_name.table_name)
                     root_tables.add(root_table_name)
                     logger.debug(f"Processing extracted items in {extracted_items_file} in load_id {load_id} with table name {root_table_name} and schema {schema.name}")
 
                     file_format = parsed_file_name.file_format
-                    load_storage = _get_load_storage(file_format)
-                    normalizer: ItemsNormalizer
-                    if file_format == "parquet":
-                        normalizer = ParquetItemsNormalizer()
-                    else:
-                        normalizer = JsonLItemsNormalizer()
-                    partial_updates, items_count, r_counts = normalizer(extracted_items_file, load_storage, normalize_storage, schema, load_id, root_table_name)
+                    normalizer, load_storage = _get_items_normalizer(file_format)
+                    partial_updates, items_count, r_counts = normalizer(extracted_items_file, root_table_name)
                     schema_updates.extend(partial_updates)
                     total_items += items_count
                     merge_row_count(row_counts, r_counts)
@@ -174,65 +181,60 @@ class Normalize(Runnable[ProcessPool]):
         return chunk_files
 
     def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
-        workers = self.pool._processes  # type: ignore
+        workers: int = getattr(self.pool, '_max_workers', 1)
         chunk_files = self.group_worker_files(files, workers)
         schema_dict: TStoredSchema = schema.to_dict()
-        config_tuple = (self.normalize_storage.config, self.load_storage.config, self.config.destination_capabilities, schema_dict)
-        param_chunk = [[*config_tuple, load_id, files] for files in chunk_files]
-        tasks: List[Tuple[AsyncResult[TWorkerRV], List[Any]]] = []
+        param_chunk = [(
+            self.config, self.normalize_storage.config, self.load_storage.config, schema_dict, load_id, files
+        ) for files in chunk_files]
         row_counts: TRowCount = {}
 
         # return stats
         schema_updates: List[TSchemaUpdate] = []
 
         # push all tasks to queue
-        for params in param_chunk:
-            pending: AsyncResult[TWorkerRV] = self.pool.apply_async(Normalize.w_normalize_files, params)
-            tasks.append((pending, params))
+        tasks = [
+            (self.pool.submit(Normalize.w_normalize_files, *params), params) for params in param_chunk
+        ]
 
         while len(tasks) > 0:
             sleep(0.3)
             # operate on copy of the list
             for task in list(tasks):
                 pending, params = task
-                if pending.ready():
-                    if pending.successful():
-                        result: TWorkerRV = pending.get()
-                        try:
-                            # gather schema from all manifests, validate consistency and combine
-                            self.update_table(schema, result[0])
-                            schema_updates.extend(result[0])
-                            # update metrics
-                            self.collector.update("Files", len(result[2]))
-                            self.collector.update("Items", result[1])
-                            # merge row counts
-                            merge_row_count(row_counts, result[3])
-                        except CannotCoerceColumnException as exc:
-                            # schema conflicts resulting from parallel executing
-                            logger.warning(f"Parallel schema update conflict, retrying task ({str(exc)}")
-                            # delete all files produced by the task
-                            for file in result[2]:
-                                os.remove(file)
-                            # schedule the task again
-                            schema_dict = schema.to_dict()
-                            # TODO: it's time for a named tuple
-                            params[3] = schema_dict
-                            retry_pending: AsyncResult[TWorkerRV] = self.pool.apply_async(Normalize.w_normalize_files, params)
-                            tasks.append((retry_pending, params))
-                        # remove finished tasks
-                        tasks.remove(task)
-                    else:
-                        # raise the exception
-                        pending.get()
-                        raise AssertionError("unreachable code: pending.get must raise")
+                if pending.done():
+                    result: TWorkerRV = pending.result()  # Exception in task (if any) is raised here
+                    try:
+                        # gather schema from all manifests, validate consistency and combine
+                        self.update_table(schema, result[0])
+                        schema_updates.extend(result[0])
+                        # update metrics
+                        self.collector.update("Files", len(result[2]))
+                        self.collector.update("Items", result[1])
+                        # merge row counts
+                        merge_row_count(row_counts, result[3])
+                    except CannotCoerceColumnException as exc:
+                        # schema conflicts resulting from parallel executing
+                        logger.warning(f"Parallel schema update conflict, retrying task ({str(exc)}")
+                        # delete all files produced by the task
+                        for file in result[2]:
+                            os.remove(file)
+                        # schedule the task again
+                        schema_dict = schema.to_dict()
+                        # TODO: it's time for a named tuple
+                        params = params[:3] + (schema_dict,) + params[4:]
+                        retry_pending: Future[TWorkerRV] = self.pool.submit(Normalize.w_normalize_files, *params)
+                        tasks.append((retry_pending, params))
+                    # remove finished tasks
+                    tasks.remove(task)
 
         return schema_updates, row_counts
 
     def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
         result = Normalize.w_normalize_files(
+            self.config,
             self.normalize_storage.config,
             self.load_storage.config,
-            self.config.destination_capabilities,
             schema.to_dict(),
             load_id,
             files,
@@ -272,12 +274,9 @@ class Normalize(Runnable[ProcessPool]):
 
         self.load_storage.create_temp_load_package(load_id)
         logger.info(f"Created temp load folder {load_id} on loading volume")
-
-        # if pool is not present use map_single method to run normalization in single process
-        map_parallel_f = self.map_parallel if self.pool else self.map_single
         try:
             # process parallel
-            self.spool_files(schema_name, load_id, map_parallel_f, files)
+            self.spool_files(schema_name, load_id, self.map_parallel, files)
         except CannotCoerceColumnException as exc:
             # schema conflicts resulting from parallel executing
             logger.warning(f"Parallel schema update conflict, switching to single thread ({str(exc)}")
@@ -287,9 +286,9 @@ class Normalize(Runnable[ProcessPool]):
 
         return load_id
 
-    def run(self, pool: ProcessPool) -> TRunMetrics:
+    def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # keep the pool in class instance
-        self.pool = pool
+        self.pool = pool or NullExecutor()
         self._row_counts = {}
         logger.info("Running file normalizing")
         # list files and group by schema name, list must be sorted for group by to actually work

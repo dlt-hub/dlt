@@ -1,5 +1,5 @@
 from datetime import datetime, date  # noqa: I251
-from typing import Optional, Tuple, List
+from typing import Any, Optional, Tuple, List
 
 try:
     import pandas as pd
@@ -16,7 +16,7 @@ from dlt.common.utils import digest128
 from dlt.common.json import json
 from dlt.common import pendulum
 from dlt.common.typing import TDataItem, TDataItems
-from dlt.common.jsonpath import TJsonPath, find_values
+from dlt.common.jsonpath import TJsonPath, find_values, JSONPathFields, compile_path
 from dlt.extract.incremental.exceptions import IncrementalCursorPathMissing, IncrementalPrimaryKeyMissing
 from dlt.extract.incremental.typing import IncrementalColumnState, TCursorValue, LastValueFunc
 from dlt.extract.utils import resolve_column_value
@@ -28,12 +28,11 @@ except MissingDependencyException:
     pa = None
 
 
-
-class IncrementalTransformer:
+class IncrementalTransform:
     def __init__(
         self,
         resource_name: str,
-        cursor_path: TJsonPath,
+        cursor_path: str,
         start_value: Optional[TCursorValue],
         end_value: Optional[TCursorValue],
         incremental_state: IncrementalColumnState,
@@ -48,6 +47,13 @@ class IncrementalTransformer:
         self.last_value_func = last_value_func
         self.primary_key = primary_key
 
+        # compile jsonpath
+        self._compiled_cursor_path = compile_path(cursor_path)
+        # for simple column name we'll fallback to search in dict
+        if isinstance(self._compiled_cursor_path, JSONPathFields) and len(self._compiled_cursor_path.fields) == 1 and self._compiled_cursor_path.fields[0] != "*":
+            self.cursor_path = self._compiled_cursor_path.fields[0]
+            self._compiled_cursor_path = None
+
     def __call__(
         self,
         row: TDataItem,
@@ -55,7 +61,8 @@ class IncrementalTransformer:
         ...
 
 
-class JsonIncremental(IncrementalTransformer):
+class JsonIncremental(IncrementalTransform):
+
     def unique_value(
         self,
         row: TDataItem,
@@ -72,6 +79,25 @@ class JsonIncremental(IncrementalTransformer):
         except KeyError as k_err:
             raise IncrementalPrimaryKeyMissing(resource_name, k_err.args[0], row)
 
+    def find_cursor_value(self, row: TDataItem) -> Any:
+        """Finds value in row at cursor defined by self.cursor_path.
+
+           Will use compiled JSONPath if present, otherwise it reverts to column search if row is dict
+        """
+        row_value: Any = None
+        if self._compiled_cursor_path:
+            row_values = find_values(self._compiled_cursor_path, row)
+            if row_values:
+                row_value = row_values[0]
+        else:
+            try:
+                row_value = row[self.cursor_path]
+            except Exception:
+                pass
+        if row_value is None:
+            raise IncrementalCursorPathMissing(self.resource_name, self.cursor_path, row)
+        return row_value
+
     def __call__(
         self,
         row: TDataItem,
@@ -84,10 +110,7 @@ class JsonIncremental(IncrementalTransformer):
         if row is None:
             return row, start_out_of_range, end_out_of_range
 
-        row_values = find_values(self.cursor_path, row)
-        if not row_values:
-            raise IncrementalCursorPathMissing(self.resource_name, str(self.cursor_path), row)
-        row_value = row_values[0]
+        row_value = self.find_cursor_value(row)
 
         # For datetime cursor, ensure the value is a timezone aware datetime.
         # The object saved in state will always be a tz aware pendulum datetime so this ensures values are comparable
@@ -137,7 +160,7 @@ class JsonIncremental(IncrementalTransformer):
         return row, start_out_of_range, end_out_of_range
 
 
-class ArrowIncremental(IncrementalTransformer):
+class ArrowIncremental(IncrementalTransform):
     _dlt_index = "_dlt_index"
 
     def unique_values(
@@ -229,7 +252,7 @@ class ArrowIncremental(IncrementalTransformer):
 
 
         # TODO: Json path support. For now assume the cursor_path is a column name
-        cursor_path = str(self.cursor_path)
+        cursor_path = self.cursor_path
         # The new max/min value
         try:
             orig_row_value = compute(tbl[cursor_path])
@@ -242,7 +265,7 @@ class ArrowIncremental(IncrementalTransformer):
         except KeyError as e:
             raise IncrementalCursorPathMissing(
                 self.resource_name, cursor_path, tbl,
-                f"Column name {str(cursor_path)} was not found in the arrow table. Note nested JSON paths are not supported for arrow tables and dataframes, the incremental cursor_path must be a column name."
+                f"Column name {cursor_path} was not found in the arrow table. Not nested JSON paths are not supported for arrow tables and dataframes, the incremental cursor_path must be a column name."
             ) from e
 
         # If end_value is provided, filter to include table rows that are "less" than end_value

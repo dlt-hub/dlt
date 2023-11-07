@@ -102,7 +102,7 @@ class InvalidResourceDataType(DltResourceException):
     def __init__(self, resource_name: str, item: Any, _typ: Type[Any], msg: str) -> None:
         self.item = item
         self._typ = _typ
-        super().__init__(resource_name, f"Cannot create resource {resource_name} from specified data. " + msg)
+        super().__init__(resource_name, f"Cannot create resource {resource_name} from specified data. If you want to process just one data item, enclose it in a list. " + msg)
 
 
 class InvalidResourceDataTypeAsync(InvalidResourceDataType):

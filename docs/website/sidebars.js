@@ -41,6 +41,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/asana',
             'dlt-ecosystem/verified-sources/chess',
             'dlt-ecosystem/verified-sources/facebook_ads',
+            'dlt-ecosystem/verified-sources/filesystem',
             'dlt-ecosystem/verified-sources/github',
             'dlt-ecosystem/verified-sources/google_analytics',
             'dlt-ecosystem/verified-sources/google_sheets',
@@ -104,9 +105,21 @@ const sidebars = {
         'general-usage/state',
         'general-usage/incremental-loading',
         'general-usage/full-loading',
-        'general-usage/credentials',
         'general-usage/schema',
-        'general-usage/configuration',
+        {
+          type: 'category',
+          label: 'Configuration',
+          link: {
+            type: 'generated-index',
+            title: 'Configuration',
+            slug: 'general-usage/credentials',
+          },
+          items: [
+            'general-usage/credentials/configuration',
+            'general-usage/credentials/config_providers',
+            'general-usage/credentials/config_specs',
+          ]
+        },
         'reference/performance',
         {
           type: 'category',
@@ -139,6 +152,7 @@ const sidebars = {
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/add-a-verified-source',
+        'walkthroughs/add_credentials',
         'walkthroughs/run-a-pipeline',
         'walkthroughs/adjust-a-schema',
         'walkthroughs/share-a-dataset',
@@ -226,6 +240,7 @@ const sidebars = {
         'examples/transformers/index',
         'examples/incremental_loading/index',
         'examples/connector_x_arrow/index',
+        'examples/chess_production/index',
       ],
     },
     {

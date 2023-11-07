@@ -58,7 +58,7 @@ jobs:
         with:
           # path: ${{ steps.pip-cache.outputs.dir }}
           path: .venv
-          key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-dbt-cloud
+          key: venv-${{ matrix.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-dbt-cloud
 
       - name: Install dependencies
         # install dlt with postgres support

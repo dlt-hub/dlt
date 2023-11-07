@@ -1,15 +1,15 @@
 import sys
-from typing import Dict, List
+from typing import Dict, List, Iterator
 import humanize
-
 
 from dlt.common import pendulum
 from dlt.common.typing import AnyFun
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.reference import WithStateSync
+from dlt.common.utils import flatten_list_or_items
 
-from dlt.helpers.pandas_helper import pd
+from dlt.common.libs.pandas import pandas as pd
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.state_sync import load_state_from_destination
@@ -117,11 +117,13 @@ def write_load_status_page(pipeline: Pipeline) -> None:
     try:
         st.header("Pipeline info")
         credentials = pipeline.sql_client().credentials
+        schema_names = ", ".join(sorted(pipeline.schema_names))
         st.markdown(f"""
         * pipeline name: **{pipeline.pipeline_name}**
         * destination: **{str(credentials)}** in **{pipeline.destination.__name__}**
         * dataset name: **{pipeline.dataset_name}**
         * default schema name: **{pipeline.default_schema_name}**
+        * all schema names: **{schema_names}**
         """)
 
         st.header("Last load info")
@@ -225,16 +227,22 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
         except SqlClientNotAvailable:
             st.error("Cannot load data - SqlClient not available")
 
+    st.header("Schemas and their tables")
 
-    if schema_name:
-        schema = pipeline.schemas[schema_name]
-    else:
-        schema = pipeline.default_schema
-    st.title(f"Available tables in {schema.name} schema")
+    num_schemas = len(pipeline.schema_names)
+    if num_schemas == 1:
+        schema_name = pipeline.schema_names[0]
+        selected_schema = pipeline.schemas.get(schema_name)
+        st.subheader(f"Schema: {schema_name}")
+    elif num_schemas > 1:
+        st.subheader("Schema:")
+        text = "Pick a schema name to see all its tables below"
+        selected_schema_name = st.selectbox(text, sorted(pipeline.schema_names))
+        selected_schema = pipeline.schemas.get(selected_schema_name)
 
-    for table in schema.data_tables():
+    for table in sorted(selected_schema.data_tables(), key=lambda table: table["name"]):
         table_name = table["name"]
-        st.header(table_name)
+        st.subheader(f"Table: {table_name}")
         if "description" in table:
             st.text(table["description"])
         table_hints: List[str] = []
@@ -244,6 +252,17 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
             table_hints.append("resource: **%s**" % table["resource"])
         if "write_disposition" in table:
             table_hints.append("write disposition: **%s**" % table["write_disposition"])
+        columns = table["columns"]
+        primary_keys: Iterator[str] = flatten_list_or_items([
+            col_name for col_name in columns.keys()
+                if not col_name.startswith("_") and not columns[col_name].get("primary_key") is None
+        ])
+        table_hints.append("primary key(s): **%s**" % ", ".join(primary_keys))
+        merge_keys = flatten_list_or_items([
+            col_name for col_name in columns.keys()
+                if not col_name.startswith("_") and not columns[col_name].get("merge_key") is None
+        ])
+        table_hints.append("merge key(s): **%s**" % ", ".join(merge_keys))
 
         st.markdown(" | ".join(table_hints))
 
@@ -264,7 +283,7 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
                     st.text(f"Top {rows_count} row(s)")
                 st.dataframe(df)
 
-    st.title("Run your query")
+    st.header("Run your query")
     sql_query = st.text_area("Enter your SQL query", value=example_query)
     if st.button("Run Query"):
         if sql_query:

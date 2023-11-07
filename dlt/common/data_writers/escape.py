@@ -30,10 +30,12 @@ def escape_redshift_literal(v: Any) -> Any:
         return _escape_extended(v, prefix="'")
     if isinstance(v, bytes):
         return f"from_hex('{v.hex()}')"
-    if isinstance(v, (datetime, date)):
+    if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
         return "json_parse(%s)" % _escape_extended(json.dumps(v), prefix='\'')
+    if v is None:
+        return "NULL"
 
     return str(v)
 
@@ -42,12 +44,14 @@ def escape_postgres_literal(v: Any) -> Any:
     if isinstance(v, str):
         # we escape extended string which behave like the redshift string
         return _escape_extended(v)
-    if isinstance(v, (datetime, date)):
+    if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
         return _escape_extended(json.dumps(v))
     if isinstance(v, bytes):
         return f"'\\x{v.hex()}'"
+    if v is None:
+        return "NULL"
 
     return str(v)
 
@@ -56,12 +60,14 @@ def escape_duckdb_literal(v: Any) -> Any:
     if isinstance(v, str):
         # we escape extended string which behave like the redshift string
         return _escape_extended(v)
-    if isinstance(v, (datetime, date)):
+    if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
         return _escape_extended(json.dumps(v))
     if isinstance(v, bytes):
         return f"from_base64('{base64.b64encode(v).decode('ascii')}')"
+    if v is None:
+        return "NULL"
 
     return str(v)
 
@@ -86,6 +92,8 @@ def escape_mssql_literal(v: Any) -> Any:
         return f"""CAST('' AS XML).value('xs:base64Binary("{base_64_string}")', 'VARBINARY(MAX)')"""
     if isinstance(v, bool):
         return str(int(v))
+    if v is None:
+        return "NULL"
     return str(v)
 
 
