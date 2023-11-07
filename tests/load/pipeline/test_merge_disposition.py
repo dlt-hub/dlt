@@ -24,6 +24,9 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
 # NOTE: the tests are passing but we disable them due to frequent ATTACH DATABASE timeouts
 # ACTIVE_DESTINATIONS += ["motherduck"]
 
+import logging  # Import the logging module if it's not already imported
+logger = logging.getLogger(__name__)
+
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguration) -> None:
@@ -132,31 +135,44 @@ def test_merge_source_compound_keys_and_changes(destination_config: DestinationT
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_merge_no_child_tables(destination_config: DestinationTestConfiguration) -> None:
+    logging.info(f"Testing with destination config: {destination_config.name}")
     p = destination_config.setup_pipeline("github_3", full_refresh=True)
     github_data = github()
+
+    logger.info(f"Initial github_data properties: max_table_nesting={github_data.max_table_nesting}, root_key={github_data.root_key}")
     assert github_data.max_table_nesting is None
     assert github_data.root_key is True
+
     # set max nesting to 0 so no child tables are generated
     github_data.max_table_nesting = 0
     assert github_data.max_table_nesting == 0
     github_data.root_key = False
+    logger.info(f"Updated github_data properties to: max_table_nesting={github_data.max_table_nesting}, root_key={github_data.root_key}")
     assert github_data.root_key is False
 
     # take only first 15 elements
+    logger.info(f"Loading github first 15")
     github_data.load_issues.add_filter(take_first(15))
+    logger.info(f"executing: p.run(github_data)")
     info = p.run(github_data)
+
+    logger.info(f"Pipeline run info after taking first 15 elements: {info}")
     assert len(p.default_schema.data_tables()) == 1
     assert "issues" in p.default_schema.tables
     assert_load_info(info)
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    logger.info(f"Table counts after first pipeline run: {github_1_counts}")
     assert github_1_counts["issues"] == 15
 
     # load all
     github_data = github()
     github_data.max_table_nesting = 0
     info = p.run(github_data)
+
+    logger.info(f"Pipeline run info after loading all data: {info}")
     assert_load_info(info)
     github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
+    logger.info(f"Table counts after second pipeline run: {github_2_counts}")
     # 100 issues total, or 115 if merge is not supported
     assert github_2_counts["issues"] == 100 if destination_config.supports_merge else 115
 
