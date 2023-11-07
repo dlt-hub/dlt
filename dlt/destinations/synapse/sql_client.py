@@ -21,6 +21,7 @@ from dlt.destinations.synapse import capabilities
 from typing import List, Tuple, Union, Any #Import List for INSERT query generation
 
 import json
+
 def is_valid_json(s: str) -> bool:
     """Check if a string is valid JSON."""
     if not (s.startswith('{') and s.endswith('}')) and not (s.startswith('[') and s.endswith(']')):
@@ -30,7 +31,6 @@ def is_valid_json(s: str) -> bool:
         return True
     except json.JSONDecodeError:
         return False
-
 
 def handle_datetimeoffset(dto_value: bytes) -> datetime:
     # ref: https://github.com/mkleehammer/pyodbc/issues/134#issuecomment-281739794
@@ -56,22 +56,9 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             raise TypeError(f"Expected credentials of type SynapseCredentials but received {type(credentials)}")
         self.credentials = credentials
 
-    # def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
-    #     # Check if fragments has one element and that element is a list/tuple with two elements
-    #     if len(fragments) == 1 and isinstance(fragments[0], (list, tuple)) and len(fragments[0]) == 2:
-    #         # Unpack the inner list/tuple into sql and params
-    #         sql, params = fragments[0]
-    #         # Execute the SQL query with the provided parameters
-    #         return self.execute_sql(sql, *params, **kwargs)
-    #     else:
-    #         # If fragments doesn't match the expected structure, fall back to the default behavior
-    #         return self.execute_sql("".join(fragments), *args, **kwargs)  # type: ignore
 
     dbapi: ClassVar[DBApi] = pyodbc
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-
-
-
 
     def open_connection(self) -> pyodbc.Connection:
         try:

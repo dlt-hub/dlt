@@ -100,16 +100,18 @@ def escape_mssql_literal(v: Any) -> Any:
 # TODO needs improvement for SQL injection, combine with mssql handling
 def escape_synapse_literal(v: Any) -> Any:
     if isinstance(v, str):
-        # Use the _escape_extended function to escape the string
         return _escape_extended(v, prefix="N'", escape_dict=SYNAPSE_ESCAPE_DICT)
     if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
-    if isinstance(v, (list, dict)):
-        # Serialize the list or dict to JSON and then escape it
-        return _escape_extended(json.dumps(v), prefix="N'", escape_dict=SYNAPSE_ESCAPE_DICT)
     if isinstance(v, bytes):
+        # Ensure that the CONVERT function specifies VARBINARY(MAX)
+        # XML not allowed for Synapse: https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/develop-tables-data-types
+        # https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index
+        # https://azure.microsoft.com/en-us/updates/public-preview-string-and-binary-columns-with-unlimited-size-are-supported-in-clustered-column-store-indexes-azure-sql-database-premium-tiers/#:~:text=Clustered%20columnstore%20indexes%20can%20be,DateLogged%20datetime2
         hex_string = v.hex()
-        return f"0x{hex_string}"
+        return f"CONVERT(VARBINARY(8000), 0x{hex_string}, 1)"
+    if isinstance(v, (list, dict)):
+        return _escape_extended(json.dumps(v), prefix="N'", escape_dict=SYNAPSE_ESCAPE_DICT)
     if isinstance(v, bool):
         return str(int(v))
     if v is None:
@@ -119,10 +121,11 @@ def escape_synapse_literal(v: Any) -> Any:
 
 # TODO potentially combine with mssql
 SYNAPSE_ESCAPE_DICT = {
-    "'": "''",
-    '\n': "' + CHAR(10) + N'",
-    '\r': "' + CHAR(13) + N'",
-    '\t': "' + CHAR(9) + N'",
+    "\\": "\\",  # Single backslash to escape in the SQL query
+    "\t": "' + CHAR(9) + N'",
+    "\n": "' + CHAR(10) + N'",
+    "\r": "' + CHAR(13) + N'",
+    "'": "''"
 }
 
 SYNAPSE_SQL_ESCAPE_RE = _make_sql_escape_re(SYNAPSE_ESCAPE_DICT)
