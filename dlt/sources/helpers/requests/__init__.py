@@ -26,3 +26,22 @@ get, post, put, patch, delete, options, head, request = (
 def init(config: RunConfiguration) -> None:
     """Initialize the default requests client from config"""
     client.update_from_config(config)
+
+
+__all__ = [
+    "client",
+    "get",
+    "post",
+    "put",
+    "patch",
+    "delete",
+    "options",
+    "head",
+    "request",
+    "init",
+    "Session",
+    "Request", "Response", "ConnectionError", "ConnectTimeout", "FileModeWarning", "HTTPError", "ReadTimeout",
+    "RequestException", "Timeout", "TooManyRedirects", "URLRequired", "ChunkedEncodingError", "RetryError"
+    "Client",
+    "RetryError"
+]

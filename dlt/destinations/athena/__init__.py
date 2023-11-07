@@ -6,7 +6,6 @@ from dlt.common.configuration.accessors import config
 from dlt.common.schema.schema import Schema
 from dlt.common.data_writers.escape import escape_athena_identifier
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.wei import EVM_DECIMAL_PRECISION
 
 from dlt.destinations.athena.configuration import AthenaClientConfiguration
 from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
@@ -48,3 +47,5 @@ def client(schema: Schema, initial_config: DestinationClientConfiguration = conf
 
 def spec() -> Type[DestinationClientConfiguration]:
     return AthenaClientConfiguration
+
+

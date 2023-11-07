@@ -1,8 +1,7 @@
 import os
-from typing import Generic, TypeVar, Any, Optional, Callable, List, TypedDict, get_args, get_origin, Sequence, Type, Dict
+from typing import Generic, Any, Optional, get_args, get_origin, Type, Dict
 import inspect
-from functools import wraps, partial
-from datetime import datetime  # noqa: I251
+from functools import wraps
 
 try:
     import pandas as pd
@@ -12,25 +11,22 @@ except ModuleNotFoundError:
 import dlt
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common import pendulum, logger
-from dlt.common.json import json
-from dlt.common.jsonpath import compile_path, find_values, JSONPath
+from dlt.common.jsonpath import compile_path
 from dlt.common.typing import TDataItem, TDataItems, TFun, extract_inner_type, get_generic_type_argument_from_instance, is_optional_type
 from dlt.common.schema.typing import TColumnNames
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.pipeline import resource_state
-from dlt.common.utils import digest128
 from dlt.common.data_types.type_helpers import coerce_from_date_types, coerce_value, py_type_to_sc_type
 
-from dlt.extract.exceptions import IncrementalUnboundError, PipeException
+from dlt.extract.exceptions import IncrementalUnboundError
 from dlt.extract.incremental.exceptions import IncrementalCursorPathMissing, IncrementalPrimaryKeyMissing
 from dlt.extract.incremental.typing import IncrementalColumnState, TCursorValue, LastValueFunc
 from dlt.extract.pipe import Pipe
-from dlt.extract.utils import resolve_column_value
-from dlt.extract.typing import SupportsPipe, TTableHintTemplate, MapItem, YieldMapItem, FilterItem, ItemTransform
+from dlt.extract.typing import SupportsPipe, TTableHintTemplate, ItemTransform
 from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental, IncrementalTransform
 try:
-    from dlt.common.libs.pyarrow import is_arrow_item, pyarrow as pa, TAnyArrowItem
+    from dlt.common.libs.pyarrow import is_arrow_item
 except MissingDependencyException:
     is_arrow_item = lambda item: False
 
@@ -456,3 +452,15 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         if self._incremental.primary_key is None:
             self._incremental.primary_key = self.primary_key
         return self._incremental(item, meta)
+
+
+__all__ = [
+    "Incremental",
+    "IncrementalResourceWrapper",
+    "IncrementalColumnState",
+    "IncrementalCursorPathMissing",
+    "IncrementalPrimaryKeyMissing",
+    "IncrementalUnboundError",
+    "LastValueFunc",
+    "TCursorValue",
+]

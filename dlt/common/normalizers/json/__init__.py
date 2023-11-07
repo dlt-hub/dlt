@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Generic, Type, Iterator, Tuple, Callable, Protocol, TYPE_CHECKING, TypeVar
+from typing import Any, Generic, Type, Iterator, Tuple, Protocol, TYPE_CHECKING, TypeVar
 
 from dlt.common.typing import DictStrAny, TDataItem, StrAny
 if TYPE_CHECKING:
@@ -54,3 +54,12 @@ class SupportsDataItemNormalizer(Protocol):
 def wrap_in_dict(item: Any) -> DictStrAny:
     """Wraps `item` that is not a dictionary into dictionary that can be json normalized"""
     return {"value": item}
+
+
+__all__ = [
+    "TNormalizedRowIterator",
+    "TNormalizerConfig",
+    "DataItemNormalizer",
+    "SupportsDataItemNormalizer",
+    "wrap_in_dict",
+]
