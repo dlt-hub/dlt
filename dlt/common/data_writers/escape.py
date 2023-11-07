@@ -97,6 +97,42 @@ def escape_mssql_literal(v: Any) -> Any:
     return str(v)
 
 
+# TODO needs improvement for SQL injection, combine with mssql handling
+def escape_synapse_literal(v: Any) -> Any:
+    if isinstance(v, str):
+        # Use the _escape_extended function to escape the string
+        return _escape_extended(v, prefix="N'", escape_dict=SYNAPSE_ESCAPE_DICT)
+    if isinstance(v, (datetime, date, time)):
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        # Serialize the list or dict to JSON and then escape it
+        return _escape_extended(json.dumps(v), prefix="N'", escape_dict=SYNAPSE_ESCAPE_DICT)
+    if isinstance(v, bytes):
+        hex_string = v.hex()
+        return f"0x{hex_string}"
+    if isinstance(v, bool):
+        return str(int(v))
+    if v is None:
+        return "NULL"
+    return str(v)
+
+
+# TODO potentially combine with mssql
+SYNAPSE_ESCAPE_DICT = {
+    "'": "''",
+    '\n': "' + CHAR(10) + N'",
+    '\r': "' + CHAR(13) + N'",
+    '\t': "' + CHAR(9) + N'",
+    "\\": "\\",
+}
+
+SYNAPSE_SQL_ESCAPE_RE = _make_sql_escape_re(SYNAPSE_ESCAPE_DICT)
+
+
+def escape_synapse_identifier(v: str) -> str:
+    return '"' + v.replace('"', '') + '"'
+
+
 def escape_redshift_identifier(v: str) -> str:
     return '"' + v.replace('"', '""').replace("\\", "\\\\") + '"'
 
