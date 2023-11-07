@@ -8,6 +8,8 @@ from os import environ
 from typing import Iterator, List
 from unittest.mock import patch
 
+from requests import Response
+
 import dlt
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import DictionaryProvider
@@ -27,8 +29,8 @@ TEST_STORAGE_ROOT = "_storage"
 
 
 # destination constants
-IMPLEMENTED_DESTINATIONS = {"athena", "duckdb", "bigquery", "redshift", "postgres", "snowflake", "filesystem", "weaviate", "dummy", "motherduck", "mssql"}
-NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck"}
+IMPLEMENTED_DESTINATIONS = {"athena", "duckdb", "bigquery", "redshift", "postgres", "snowflake", "filesystem", "weaviate", "dummy", "motherduck", "mssql", "qdrant"}
+NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant"}
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
 
 # exclude destination configs (for now used for athena and athena iceberg separation)
@@ -63,7 +65,7 @@ def TEST_DICT_CONFIG_PROVIDER():
         providers_context.add_provider(provider)
         return provider
 
-class MockHttpResponse():
+class MockHttpResponse(Response):
     def __init__(self, status_code: int) -> None:
         self.status_code = status_code
 
