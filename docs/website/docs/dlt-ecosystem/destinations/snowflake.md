@@ -66,7 +66,7 @@ Now you can use the user named `LOADER` to access database `DLT_DATA` and log in
 You can also decrease the suspend time for your warehouse to 1 minute (**Admin**/**Warehouses** in Snowflake UI)
 
 ### Authentication types
-Snowflake destination accepts two authentication type
+Snowflake destination accepts three authentication types
 - password authentication
 - [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
 
@@ -94,6 +94,17 @@ If you pass a passphrase in the connection string, please url encode it.
 # keep it at the top of your toml file! before any section starts
 destination.snowflake.credentials="snowflake://loader:<password>@kgiotue-wn98412/dlt_data?private_key=<base64 encoded pem>&private_key_passphrase=<url encoded passphrase>"
 ```
+
+In **external authentication** you can use oauth provider like Okta or external browser to authenticate. You pass your authenticator and refresh token as below:
+```toml
+[destination.snowflake.credentials]
+database = "dlt_data"
+username = "loader"
+authenticator="..."
+token="..."
+```
+or in connection string as query parameters.
+Refer to Snowflake [OAuth](https://docs.snowflake.com/en/user-guide/oauth-intro) for more details.
 
 ## Write disposition
 All write dispositions are supported
