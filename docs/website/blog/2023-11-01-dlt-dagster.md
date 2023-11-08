@@ -251,7 +251,7 @@ The **github_issues** is the parent table that contains the data from the root l
 
 One of the main strengths of `dlt` lies in its ability to extract, normalize, and ingest unstructured and semi-structured data from various sources. One of the most commonly used verified source is MongoDB. Let’s quickly look at how we can orchestrate MongoDB source using Dagster.
 
-### Step 1: Setting up a Dagster project:
+### Step 1: Setting up a Dagster project
 
 - Start by creating a new Dagster project scaffold:
 
