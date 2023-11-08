@@ -100,6 +100,7 @@ weaviate = ["weaviate-client"]
 pydantic = ["pydantic"]
 mssql = ["pyodbc"]
 qdrant = ["qdrant-client"]
+synapse = ["pyodbc", "pyarrow"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
