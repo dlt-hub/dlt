@@ -1,0 +1,14 @@
+config:
+  # do not track usage, do not create .user.yml
+  send_anonymous_usage_stats: False
+
+duckdb_dlt_dbt_test:
+  target: analytics
+  outputs:
+    analytics:
+      type: duckdb
+      # schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      path: "duckdb_dlt_dbt_test.duckdb"
+      extensions:
+        - httpfs
+        - parquet
