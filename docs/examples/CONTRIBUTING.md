@@ -29,7 +29,7 @@ Note: All paths in this guide are relative to the `dlt` repository directory.
 
 The command `npm start`  starts a local development server and opens up a browser window.
 
-- To install npm read [README](../website/README.md)
+- To install npm read [README](../website/README.md).
 - This command will generate a clean example script in `docs/examples/<examlple-name>` folder based on `docs/website/docs/examples/<example-name>/code/<snippet-name>-snippets.py`.
 - Also, this command automatically inserts code snippets to `docs/website/docs/examples/<example-name>/index.md`.
 
@@ -46,11 +46,11 @@ If you use any secrets for the code snippets, e.g. Zendesk requires credentials.
     SOURCES__ZENDESK__CREDENTIALS: ${{ secrets.ZENDESK__CREDENTIALS }}
     ```
 
-- Ask dlt team to add them to the GitHub Secrets
+- Ask dlt team to add them to the GitHub Secrets.
 
 ## Add dependencies
 
 If your example requires any additional dependency, then you can add it
 
 - To  `pyproject.toml` in the `[tool.poetry.group.docs.dependencies]` section.
-- Do not forget to update your `poetry.lock` file with `poetry lock --no-update` command.
+- Do not forget to update your `poetry.lock` file with `poetry lock --no-update` command and commit.
