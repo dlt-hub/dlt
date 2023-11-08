@@ -1202,3 +1202,20 @@ def test_flattened_column_hint() -> None:
     assert pipeline.default_schema.get_table("flattened_dict__values")["columns"]["value__timestamp_value"]["data_type"] == "timestamp"
     # make sure data is there
     assert pipeline.last_trace.last_normalize_info.row_counts["flattened_dict__values"] == 4
+
+
+def test_empty_rows_are_included() -> None:
+    """Empty rows where all values are `None` or empty dicts
+    create rows in the dataset with `NULL` in all columns
+    """
+    pipeline = dlt.pipeline(destination='duckdb')
+
+    pipeline.run(iter([{}, {}, {}]), table_name="empty_rows")
+    pipeline.run(iter([{"a": 1}, {}, {}]), table_name="empty_rows")
+    pipeline.run(iter([{"a": None}, {}]), table_name="empty_rows")
+
+    with pipeline.sql_client() as client:
+        rows = client.execute_sql("SELECT a FROM empty_rows ORDER BY a")
+
+    values = [r[0] for r in rows]
+    assert values == [1, None, None, None, None, None, None, None]
