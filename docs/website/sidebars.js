@@ -241,6 +241,7 @@ const sidebars = {
         'examples/incremental_loading/index',
         'examples/connector_x_arrow/index',
         'examples/chess_production/index',
+        'examples/nested_data/index',
       ],
     },
     {
