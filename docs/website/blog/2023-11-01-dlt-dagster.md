@@ -23,7 +23,7 @@ To start with `dlt`, you can install it using pip: `pip install dlt`. Afterwar
 
 In this example, we will ingest GitHub issue data from a repository and store the data in BigQuery. We will use `dlt` to create a data pipeline and orchestrate it using Dagster. 
 
-Initially, we will start by creating a simple data pipeline using `dlt`.  We will then orchestrate the pipeline using Dagster. Finally, we will add more features to this pipeline by using the dlt schema evolution and dagster asset metadata to educate the users about their data pipeline.
+Initially, we will start by creating a simple data pipeline using `dlt`.  We will then orchestrate the pipeline using Dagster. Finally, we will add more features to this pipeline by using the `dlt` schema evolution and Dagster asset metadata to educate the users about their data pipeline.
 
 The project code is available on [GitHub](https://github.com/dlt-hub/dlt-dagster-demo/tree/main).
 
@@ -95,11 +95,11 @@ python github_issues.py
 
 We now have a running pipeline and are ready to orchestrate it using Dagster.
 
-## Orchestrating using dagster:
+## Orchestrating using Dagster:
 
 We will need to adjust our pipeline a bit to orchestrate it using Dagster. 
 
-### Step 1: Create a dagster project
+### Step 1: Create a Dagster project
 
 - Create a new directory for your Dagster project and scaffold the basic structure:
 
@@ -165,7 +165,7 @@ class DltResource(ConfigurableResource):
         return load_info
 ```
 
-- Define the asset, `issues_pipeline`, in `assets/__init__.py`. This asset uses the configurable resource to create a dlt pipeline and ingests data into BigQuery.
+- Define the asset, `issues_pipeline`, in `assets/__init__.py`. This asset uses the configurable resource to create a `dlt` pipeline and ingests data into BigQuery.
 
 ```python
 from dagster import asset, get_dagster_logger
@@ -180,7 +180,7 @@ def issues_pipeline(pipeline: DltResource):
     logger.info(results)
 ```
 
-The defined asset (**issues_pipeline**) takes as input the configurable resource (**DltResource**). In the asset, we use the configurable resource to create a dlt pipeline by using an instance of the configurable resource (**DltResource**) to call the `create_pipeline`  function. The `dlt.resource` (**github_issues_resource**) is passed to the `create_pipeline` function. The `create_pipeline` function normalizes the data and ingests it into BigQuery.
+The defined asset (**issues_pipeline**) takes as input the configurable resource (**DltResource**). In the asset, we use the configurable resource to create a `dlt` pipeline by using an instance of the configurable resource (**DltResource**) to call the `create_pipeline`  function. The `dlt.resource` (**github_issues_resource**) is passed to the `create_pipeline` function. The `create_pipeline` function normalizes the data and ingests it into BigQuery.
 
 ### Step 5: Handle Schema Evolution
 
@@ -249,7 +249,7 @@ The **github_issues** is the parent table that contains the data from the root l
 
 `dlt` provides a list of verified sources that can be initialized to fast-track the pipeline-building process. You can find a list of sources provided in the `dlt` [docs](https://dlthub.com/docs/dlt-ecosystem/verified-sources/).
 
-One of the main strengths of `dlt` lies in its ability to extract, normalize, and ingest unstructured and semi-structured data from various sources. One of the most commonly used verified source is MongoDB. Let’s quickly look at how we can orchestrate MongoDB source using dagster.
+One of the main strengths of `dlt` lies in its ability to extract, normalize, and ingest unstructured and semi-structured data from various sources. One of the most commonly used verified source is MongoDB. Let’s quickly look at how we can orchestrate MongoDB source using Dagster.
 
 ### Step 1: Setting up a Dagster project:
 
@@ -259,8 +259,8 @@ One of the main strengths of `dlt` lies in its ability to extract, normalize, an
 dagster project scaffold --name mongodb-dlt
 ```
 
-- Follow the steps mentioned earlier and create an **`assets`**, and **`resources`** directory under **`mongodb-dlt/mongodb_dlt`**.
-- Initialize a **`dlt`** MongoDB pipeline in the same directory:
+- Follow the steps mentioned earlier and create an `assets`, and `resources` directory under `mongodb-dlt/mongodb_dlt`.
+- Initialize a `dlt` MongoDB pipeline in the same directory:
 
 ```python
 dlt init mongodb bigquery
@@ -414,8 +414,8 @@ The resulting data in BigQuery:
 
 ## Conclusion:
 
-In this demo, we looked at how to orchestrate dlt pipelines using dagster. We started off by creating a simple dlt pipeline and then converted the pipeline into an asset and resource before orchestrating. 
+In this demo, we looked at how to orchestrate `dlt` pipelines using Dagster. We started off by creating a simple dlt pipeline and then converted the pipeline into an asset and resource before orchestrating. 
 
 We also looked at how we can orchestrate dlt MongoDB verified sources using Dagster. We utilized the Dagster `@multi_asset` feature to create a `dlt_asset_factory` which converts each collection under a database to a separate asset allowing us to create more robust data pipelines.
 
-Both `dlt` and dagster can be easily run on local machines. By combining the two we can build data pipelines at great speed and rigorously test them before shipping to production.
+Both `dlt` and Dagster can be easily run on local machines. By combining the two we can build data pipelines at great speed and rigorously test them before shipping to production.
