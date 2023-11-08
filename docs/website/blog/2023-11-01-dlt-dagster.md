@@ -15,7 +15,7 @@ TL;DR: In this blog post, we'll build data piplines using [dlt](https://dlthub.c
 
 `dlt` is an open-source Python library that allows you to declaratively load messy data sources into well-structured tables or datasets, through automatic schema inference and evolution. It simplifies building data pipelines by providing functionality to support the entire extract and load process.
 
-It does so in a scalable way, enabling you to run it on both micro workers or in highly parallelized setups. dlt also offers robustness on extraction by providing state management for incremental extraction, drop-in requests replacement with retries, and many other helpers for common and uncommon extraction cases.
+It does so in a scalable way, enabling you to run it on both micro workers or in highly parallelized setups. `dlt` also offers robustness on extraction by providing state management for incremental extraction, drop-in requests replacement with retries, and many other helpers for common and uncommon extraction cases.
 
 To start with `dlt`, you can install it using pip: `pip install dlt`. Afterward, import `dlt` in your Python script and start building your data pipeline. There's no need to start any backends or containers. 
 
@@ -23,7 +23,7 @@ To start with `dlt`, you can install it using pip: `pip install dlt`. Afterwar
 
 In this example, we will ingest GitHub issue data from a repository and store the data in BigQuery. We will use `dlt` to create a data pipeline and orchestrate it using Dagster. 
 
-Initially, we will start by creating a simple data pipeline using `dlt`.  We will then orchestrate the pipeline using Dagster. Finally, we will add more features to this pipeline by using the `dlt` schema evolution and Dagster asset metadata to educate the users about their data pipeline.
+Initially, we will start by creating a simple data pipeline using `dlt`.  We will then orchestrate the pipeline using Dagster. Finally, we will add more features to this pipeline by using the dlt schema evolution and Dagster asset metadata to educate the users about their data pipeline.
 
 The project code is available on [GitHub](https://github.com/dlt-hub/dlt-dagster-demo/tree/main).
 
@@ -165,7 +165,7 @@ class DltResource(ConfigurableResource):
         return load_info
 ```
 
-- Define the asset, `issues_pipeline`, in `assets/__init__.py`. This asset uses the configurable resource to create a `dlt` pipeline and ingests data into BigQuery.
+- Define the asset, `issues_pipeline`, in `assets/__init__.py`. This asset uses the configurable resource to create a dlt pipeline and ingests data into BigQuery.
 
 ```python
 from dagster import asset, get_dagster_logger
@@ -180,7 +180,7 @@ def issues_pipeline(pipeline: DltResource):
     logger.info(results)
 ```
 
-The defined asset (**issues_pipeline**) takes as input the configurable resource (**DltResource**). In the asset, we use the configurable resource to create a `dlt` pipeline by using an instance of the configurable resource (**DltResource**) to call the `create_pipeline`  function. The `dlt.resource` (**github_issues_resource**) is passed to the `create_pipeline` function. The `create_pipeline` function normalizes the data and ingests it into BigQuery.
+The defined asset (**issues_pipeline**) takes as input the configurable resource (**DltResource**). In the asset, we use the configurable resource to create a dlt pipeline by using an instance of the configurable resource (**DltResource**) to call the `create_pipeline`  function. The `dlt.resource` (**github_issues_resource**) is passed to the `create_pipeline` function. The `create_pipeline` function normalizes the data and ingests it into BigQuery.
 
 ### Step 5: Handle Schema Evolution
 
@@ -233,7 +233,7 @@ defs = Definitions(
 
 ### Step 8: View the populated Metadata and ingested data in BigQuery
 
-Once the asset has been successfully materialized go to the Assets tab from the top and select the **Issues_pipeline**. In the Metadata you can see the Tables, Columns, and Data Types that have been updated. In this case, the changes are related to internal `dlt` tables. 
+Once the asset has been successfully materialized go to the Assets tab from the top and select the **Issues_pipeline**. In the Metadata you can see the Tables, Columns, and Data Types that have been updated. In this case, the changes are related to internal dlt tables. 
 
 Any subsequent changes in the GitHub issues schema can be tracked from the metadata. You can set up [Slack notifications](https://dlthub.com/docs/running-in-production/running#using-slack-to-send-messages) to be alerted to schema changes.
 
@@ -414,7 +414,7 @@ The resulting data in BigQuery:
 
 ## Conclusion:
 
-In this demo, we looked at how to orchestrate `dlt` pipelines using Dagster. We started off by creating a simple dlt pipeline and then converted the pipeline into an asset and resource before orchestrating. 
+In this demo, we looked at how to orchestrate dlt pipelines using Dagster. We started off by creating a simple dlt pipeline and then converted the pipeline into an asset and resource before orchestrating. 
 
 We also looked at how we can orchestrate dlt MongoDB verified sources using Dagster. We utilized the Dagster `@multi_asset` feature to create a `dlt_asset_factory` which converts each collection under a database to a separate asset allowing us to create more robust data pipelines.
 
