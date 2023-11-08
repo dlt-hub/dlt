@@ -230,11 +230,8 @@ const sidebars = {
       type: 'category',
       label: 'Code Examples',
       link: {
-        type: 'generated-index',
-        title: 'Code Examples',
-        description: 'A list of comprehensive code examples that teach you how to solve real world problem.',
-        slug: 'examples',
-        keywords: ['examples'],
+        type: 'doc',
+        id: 'examples/index',
       },
       items: [
         'examples/transformers/index',
