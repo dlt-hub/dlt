@@ -13,6 +13,10 @@ authors:
 tags: [dbt runner, dbt cloud runner, dbt core runner]
 ---
 
+<head>
+    <link rel="canonical" href="https://www.prefect.io/blog/building-resilient-data-pipelines-in-minutes-with-dlt-prefect" />
+</head>
+
 This article is reposted from Prefect.io blog, and you can read the original [there](https://www.prefect.io/blog/building-resilient-data-pipelines-in-minutes-with-dlt-prefect).
 
 >The hardest part about writing a blog is getting started - writing the outline and filling out the first few key points. The same can be said for writing data pipelines: you need to inspect docs, determine data structures, write tests, etc.
