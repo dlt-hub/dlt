@@ -139,3 +139,6 @@ logs/
 # temp
 tmp
 **/tmp
+
+# Qdrant embedding models cache
+local_cache/

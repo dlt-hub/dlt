@@ -57,6 +57,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     database: str = None
     warehouse: Optional[str] = None
     role: Optional[str] = None
+    authenticator: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
 
@@ -96,6 +97,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             warehouse=self.warehouse,
             role=self.role,
             private_key=private_key,
+            authenticator=self.authenticator,
         )
 
 

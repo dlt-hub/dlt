@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.3.23"
+version = "0.3.24"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -23,7 +23,7 @@ packages = [
 ]
 
 [tool.poetry.dependencies]
-python = ">=3.8.1,<4.0"
+python = ">=3.8.1,<3.13"
 requests = ">=2.26.0"
 pendulum = ">=2.1.2"
 simplejson = ">=3.17.5"
@@ -76,6 +76,7 @@ weaviate-client = {version = ">=3.22", optional = true}
 pydantic = {version = ">=1.10,<2.0", optional = true}
 adlfs = {version = ">=2022.4.0", optional = true}
 pyodbc = {version = "^4.0.39", optional = true}
+qdrant-client = {version = "^1.6.4", optional = true, extras = ["fastembed"]}
 
 
 [tool.poetry.extras]
@@ -98,6 +99,7 @@ athena = ["pyathena", "pyarrow", "s3fs", "botocore"]
 weaviate = ["weaviate-client"]
 pydantic = ["pydantic"]
 mssql = ["pyodbc"]
+qdrant = ["qdrant-client"]
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
