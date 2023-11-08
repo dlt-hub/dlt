@@ -32,8 +32,8 @@ def mongodb_collection(
     collection_obj = mongo_database[collection]
 
     def collection_documents(
-        client,
-        collection,
+        client: Any,
+        collection: str,
         incremental: Optional[dlt.sources.incremental[Any]] = None,
     ) -> Iterator[TDataItem]:
         LoaderClass = CollectionLoader
@@ -52,8 +52,8 @@ def mongodb_collection(
 class CollectionLoader:
     def __init__(
         self,
-        client,
-        collection,
+        client: Any,
+        collection: str,
         incremental: Optional[dlt.sources.incremental[Any]] = None,
     ) -> None:
         self.client = client
