@@ -16,7 +16,7 @@ import Header from '../_examples-header.md';
 In this example, you'll find a Python script that demonstrates how to control nested data using the `dlt` library.
 
 We'll learn how to:
-- [Adjust maximal nesting level in three ways:](../../general-usage/source#reduce-the-nesting-level-of-generated-tables)
+- [Adjust maximum nesting level in three ways:](../../general-usage/source#reduce-the-nesting-level-of-generated-tables)
   - Limit nesting levels with dlt decorator.
   - Dynamic nesting level adjustment.
   - Apply data type hints.
