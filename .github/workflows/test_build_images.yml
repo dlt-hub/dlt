@@ -4,7 +4,7 @@ on:
   pull_request:
     branches:
       - master
-      - devel
+      #- devel
   workflow_dispatch:
 
 jobs:
