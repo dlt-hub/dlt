@@ -1,4 +1,4 @@
-# Examples Writhing Guide
+# How to contribute your example
 
 Note: All paths in this guide are relative to the `dlt` repository directory.
 
