@@ -60,8 +60,7 @@ class MsSqlCredentials(ConnectionStringCredentials):
     def to_odbc_dsn(self) -> str:
         params = {
             "DRIVER": self.odbc_driver,
-            "SERVER": self.host,
-            "PORT": self.port,
+            "SERVER": f"{self.host},{self.port}",
             "DATABASE": self.database,
             "UID": self.username,
             "PWD": self.password,
