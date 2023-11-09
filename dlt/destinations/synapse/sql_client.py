@@ -22,6 +22,11 @@ from typing import List, Tuple, Union, Any #Import List for INSERT query generat
 
 import json
 
+# TODO remove logging
+import logging
+logging.basicConfig(level=logging.DEBUG, format='%(asctime)s - %(levelname)s - %(message)s')
+
+
 def is_valid_json(s: str) -> bool:
     """Check if a string is valid JSON."""
     if not (s.startswith('{') and s.endswith('}')) and not (s.startswith('[') and s.endswith(']')):
@@ -157,29 +162,37 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         if len(args) == 1 and isinstance(args[0], tuple):
             args = args[0]
 
+        max_string_length = 3950
+        max_binary_length = 7950
+
         args = list(args)  # Convert tuple to list for modification
         input_sizes = []
         for index, arg in enumerate(args):
-            # TODO temp solution for columnstore failing when set to nvarcharmax since data type not allowed in columnstore index
-            # https://stackoverflow.com/questions/75517148/replacing-nvarcharmax-in-azure-synapse-table
-
-            # Trim string arguments to 3950 characters
-            if isinstance(arg, str) and len(arg) > 3950:
-                args[index] = arg[:3950]
+            original_length = len(arg) if isinstance(arg, (str, bytes, bytearray)) else 'N/A'
 
             if isinstance(arg, str):
-                if arg.isdigit():  # Check if the string is a valid integer
-                    input_sizes.append((pyodbc.SQL_BIGINT, 0, 0))  # Set input size for bigint columns
+                if len(arg) > max_string_length:
+                    arg = arg[:max_string_length]
+                    args[index] = arg  # Assign the truncated string back to args list
 
+                if arg.isdigit():
+                    input_sizes.append((pyodbc.SQL_BIGINT, 0, 0))
                 elif is_valid_json(arg):
-                    input_sizes.append((pyodbc.SQL_WVARCHAR, 0, 0))  # Set input size for JSON columns
+                    input_sizes.append((pyodbc.SQL_WVARCHAR, len(arg), 0))
                 else:
-                    input_sizes.append((pyodbc.SQL_WVARCHAR, 0, 0))  # Set input size for non-JSON columns
+                    input_sizes.append((pyodbc.SQL_WVARCHAR, len(arg), 0))
 
             elif isinstance(arg, (bytes, bytearray)):
-                input_sizes.append((pyodbc.SQL_VARBINARY, len(arg), 0))  # Set input size for binary columns
+                if len(arg) > max_binary_length:
+                    arg = arg[:max_binary_length]
+                    args[index] = arg  # Assign the truncated binary data back to args list
+                input_sizes.append((pyodbc.SQL_VARBINARY, len(arg), 0))
+
             else:
                 input_sizes.append(None)  # Default handling for other data types
+
+            truncated_length = len(arg) if isinstance(arg, (str, bytes, bytearray)) else 'N/A'
+            # logging.info(f"Arg {index}: Type {type(arg).__name__}, Original Length {original_length}, Truncated Length {truncated_length}")
 
         return input_sizes, tuple(args)
 
@@ -195,6 +208,7 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         #print("Query:", query)
+        logging.debug(f"Query: {query}")
 
         assert isinstance(query, str)
 
@@ -211,14 +225,23 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         input_sizes, args = self.set_input_sizes(*args)
         curr.setinputsizes(input_sizes)
 
+        # # Log the types and sizes of the arguments to help identify the problematic binary data
+        # for index, arg in enumerate(args):
+        #     if isinstance(arg, (str, bytes, bytearray)):
+        #         logging.debug(f"Arg {index}: Type {type(arg).__name__}, Length {len(arg)}")
+        #     else:
+        #         logging.debug(f"Arg {index}: Type {type(arg).__name__}, Value {arg}")
+
         try:
             query = query.replace('%s', '?')  # Updated line
+            # logging.debug("Executing query with arguments: {}".format(args))
             #print("Executing query: " +str(query))
             #print("Using args: " + str(args))
             curr.execute(query, *args)  # No flattening, just unpack args directly
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
 
         except pyodbc.Error as outer:
+            # logging.error("Database error occurred", exc_info=True)
             raise outer
 
         finally:
