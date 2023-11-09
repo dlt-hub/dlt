@@ -32,7 +32,8 @@ def with_config(
     sections: Tuple[str, ...] = (),
     sections_merge_style: ConfigSectionContext.TMergeFunc = ConfigSectionContext.prefer_incoming,
     auto_pipeline_section: bool = False,
-    include_defaults: bool = True
+    include_defaults: bool = True,
+    accept_partial: bool = False,
 ) ->  TFun:
     ...
 
@@ -45,7 +46,8 @@ def with_config(
     sections: Tuple[str, ...] = (),
     sections_merge_style: ConfigSectionContext.TMergeFunc = ConfigSectionContext.prefer_incoming,
     auto_pipeline_section: bool = False,
-    include_defaults: bool = True
+    include_defaults: bool = True,
+    accept_partial: bool = False,
 ) ->  Callable[[TFun], TFun]:
     ...
 
@@ -57,7 +59,8 @@ def with_config(
     sections: Tuple[str, ...] = (),
     sections_merge_style: ConfigSectionContext.TMergeFunc = ConfigSectionContext.prefer_incoming,
     auto_pipeline_section: bool = False,
-    include_defaults: bool = True
+    include_defaults: bool = True,
+    accept_partial: bool = False,
 ) ->  Callable[[TFun], TFun]:
     """Injects values into decorated function arguments following the specification in `spec` or by deriving one from function's signature.
 
@@ -139,7 +142,7 @@ def with_config(
                 with _RESOLVE_LOCK:
                     with inject_section(section_context):
                         # print(f"RESOLVE CONF in inject: {f.__name__}: {section_context.sections} vs {sections}")
-                        config = resolve_configuration(config or SPEC(), explicit_value=bound_args.arguments)
+                        config = resolve_configuration(config or SPEC(), explicit_value=bound_args.arguments, accept_partial=accept_partial)
             resolved_params = dict(config)
             # overwrite or add resolved params
             for p in sig.parameters.values():

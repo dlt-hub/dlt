@@ -344,7 +344,7 @@ class SupportsStagingDestination():
         # the default is to truncate the tables on the staging destination...
         return True
 
-TDestinationReferenceArg = Union["DestinationReference", ModuleType, None, str]
+TDestinationReferenceArg = Union["DestinationReference", ModuleType, None, str, "DestinationFactory"]
 
 
 class DestinationReference(Protocol):
@@ -397,6 +397,41 @@ class DestinationReference(Protocol):
 
     @staticmethod
     def to_name(destination: TDestinationReferenceArg) -> str:
+        if isinstance(destination, DestinationFactory):
+            return destination.__name__
         if isinstance(destination, ModuleType):
             return get_module_name(destination)
         return destination.split(".")[-1]  # type: ignore
+
+
+class DestinationFactory(ABC):
+    """A destination factory that can be partially pre-configured
+    with credentials and other config params.
+    """
+    credentials: Optional[CredentialsConfiguration] = None
+    config_params: Optional[Dict[str, Any]] = None
+
+    @property
+    @abstractmethod
+    def destination(self) -> DestinationReference:
+        """Returns the destination module"""
+        ...
+
+    @property
+    def __name__(self) -> str:
+        return self.destination.__name__
+
+    def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> "JobClientBase":
+        # TODO: Raise error somewhere if both DestinationFactory and credentials argument are used together in pipeline
+        cfg = initial_config.copy()
+        for key, value in self.config_params.items():
+            setattr(cfg, key, value)
+        if self.credentials:
+            cfg.credentials = self.credentials
+        return self.destination.client(schema, cfg)
+
+    def capabilities(self) -> DestinationCapabilitiesContext:
+        return self.destination.capabilities()
+
+    def spec(self) -> Type[DestinationClientConfiguration]:
+        return self.destination.spec()
