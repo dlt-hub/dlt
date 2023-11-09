@@ -117,42 +117,40 @@ class SynapseMergeJob(SqlMergeJob):
 
 class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
 
-    def __init__(self, table_name: str, file_path: str, sql_client: SqlClientBase[Any]) -> None:
-        # First, set any attributes specific to this subclass
-        self._sql_client = sql_client
-        self._file_name = FileStorage.get_file_name_from_file_path(file_path)
-
-        # Then, call the parent class's __init__ method with the required arguments
-        super().__init__(table_name, file_path, sql_client)
-
     def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
-        with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
-            header = f.readline().strip()  # Read the header which contains the INSERT INTO statement template
-            #print("Here are the columns: " + str(header))
-            f.readline()  # Skip the "VALUES" marker line
+        max_rows = self._sql_client.capabilities.max_rows_per_insert
 
-            # Now read the file line by line and construct the SQL INSERT statements
-            insert_sql_parts = []
-            for line in f:
-                #print("current line: " + str(line))
-                line = line.strip()
+        if max_rows is not None:
+            with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
+                header = f.readline().strip()  # Read the header which contains the INSERT INTO statement template
+                #print("Here are the columns: " + str(header))
+                f.readline()  # Skip the "VALUES" marker line
 
-                # Remove outer parentheses and trailing comma or semicolon using a regular expression
-                line = re.sub(r'^\(|\)[,;]?$', '', line)
+                # Now read the file line by line and construct the SQL INSERT statements
+                insert_sql_parts = []
+                for line in f:
+                    #print("current line: " + str(line))
+                    line = line.strip()
 
-                #print("post-cleanup line: " + str(line))
-                if not line:
-                    continue  # Skip empty lines
+                    # Remove outer parentheses and trailing comma or semicolon using a regular expression
+                    line = re.sub(r'^\(|\)[,;]?$', '', line)
 
-                # Construct the SELECT part of the SQL statement for each row of values
-                values_str = ', '.join(value for value in line.split(','))
-                # Ensure no comma is added at the end of the SELECT statement
-                insert_sql_parts.append(f"SELECT {values_str}")
+                    #print("post-cleanup line: " + str(line))
+                    if not line:
+                        continue  # Skip empty lines
 
-            if insert_sql_parts:
-                # Combine the SELECT statements with UNION ALL and format the final INSERT INTO statement
-                insert_sql = header.format(qualified_table_name) + "\n" + "\nUNION ALL\n".join(insert_sql_parts) + ";"
-                yield [insert_sql]
+                    # Construct the SELECT part of the SQL statement for each row of values
+                    values_str = ', '.join(value for value in line.split(','))
+                    # Ensure no comma is added at the end of the SELECT statement
+                    insert_sql_parts.append(f"SELECT {values_str}")
+
+                if insert_sql_parts:
+                    # Combine the SELECT statements with UNION ALL and format the final INSERT INTO statement
+                    insert_sql = header.format(qualified_table_name) + "\n" + "\nUNION ALL\n".join(insert_sql_parts) + ";"
+                    yield [insert_sql]
+                else:
+                    # If max_rows is None, use the superclass's implementation
+                    yield from super()._insert(qualified_table_name, file_path)
 
 
 class SynapseClient(InsertValuesJobClient):
