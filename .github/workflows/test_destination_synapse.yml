@@ -5,9 +5,11 @@ on:
     branches:
       - master
       - devel
-      
+  push:
+    branches:
+      - synapse
   workflow_dispatch:
-  
+
 env:
   DESTINATION__SYNAPSE__CREDENTIALS: ${{ secrets.SYNAPSE_CREDENTIALS }}
   DESTINATION__SYNAPSE__CREDENTIALS__PASSWORD: ${{ secrets.SYNAPSE_PASSWORD }}
@@ -42,7 +44,7 @@ jobs:
     runs-on: ${{ matrix.os }}
 
     steps:
-      
+
       - name: Check out
         uses: actions/checkout@master
 
