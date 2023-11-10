@@ -6,7 +6,9 @@ from databricks.sql.client import (
     Connection as DatabricksSQLConnection,
     Cursor as DatabricksSQLCursor,
 )
+from databricks.sql.exc import Error as DatabricksSQLError
 
+from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
 from dlt.destinations.sql_client import DBApiCursorImpl, SqlClientBase, raise_database_error, raise_open_connection_error
@@ -30,15 +32,11 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSQLConnection], DBTransaction)
 
     def __init__(self, dataset_name: str, credentials: DatabricksCredentials) -> None:
         super().__init__(credentials.database, dataset_name)
-        self._conn: databricks_lib.connect(credentials) = None
+        self._conn: DatabricksSQLConnection = None
         self.credentials = credentials
 
     def open_connection(self) -> DatabricksSQLConnection:
         conn_params = self.credentials.to_connector_params()
-        # set the timezone to UTC so when loading from file formats that do not have timezones
-        # we get dlt expected UTC
-        if "timezone" not in conn_params:
-            conn_params["timezone"] = "UTC"
         self._conn = databricks_lib.connect(
             **conn_params
         )
@@ -46,29 +44,24 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSQLConnection], DBTransaction)
 
     @raise_open_connection_error
     def close_connection(self) -> None:
-        if self._conn:
+        try:
             self._conn.close()
             self._conn = None
+        except DatabricksSQLError as exc:
+            logger.warning("Exception while closing connection: {}".format(exc))
 
     @contextmanager
     def begin_transaction(self) -> Iterator[DBTransaction]:
-        try:
-            self._conn.autocommit(False)
-            yield self
-            self.commit_transaction()
-        except Exception:
-            self.rollback_transaction()
-            raise
+        logger.warning("NotImplemented: Databricks does not support transactions. Each SQL statement is auto-committed separately.")
+        yield self
 
     @raise_database_error
     def commit_transaction(self) -> None:
-        self._conn.commit()
-        self._conn.autocommit(True)
+        pass
 
     @raise_database_error
     def rollback_transaction(self) -> None:
-        self._conn.rollback()
-        self._conn.autocommit(True)
+        logger.warning("NotImplemented: rollback")
 
     @property
     def native_connection(self) -> "DatabricksSQLConnection":
@@ -106,58 +99,23 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSQLConnection], DBTransaction)
                 raise outer
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        # Always escape for uppercase
         if escape:
             return self.capabilities.escape_identifier(self.dataset_name)
-        return self.dataset_name.upper()
+        return self.dataset_name
 
     def _reset_connection(self) -> None:
-        self._conn.rollback()
-        self._conn.autocommit(True)
+        self.close_connection()
+        self.open_connection()
 
-    @classmethod
-    def _make_database_exception(cls, ex: Exception) -> Exception:
-        if isinstance(ex, databricks_lib.ProgrammingError):
-            if ex.sqlstate == 'P0000' and ex.errno == 100132:
-                # Error in a multi statement execution. These don't show the original error codes
-                msg = str(ex)
-                if "NULL result in a non-nullable column" in msg:
-                    return DatabaseTerminalException(ex)
-                elif "does not exist or not authorized" in msg:  # E.g. schema not found
-                    return DatabaseUndefinedRelation(ex)
-                else:
-                    return DatabaseTransientException(ex)
-            if ex.sqlstate in {'42S02', '02000'}:
+    @staticmethod
+    def _make_database_exception(ex: Exception) -> Exception:
+        if isinstance(ex, databricks_lib.OperationalError):
+            if "TABLE_OR_VIEW_NOT_FOUND" in str(ex):
                 return DatabaseUndefinedRelation(ex)
-            elif ex.sqlstate == '22023':  # Adding non-nullable no-default column
-                return DatabaseTerminalException(ex)
-            elif ex.sqlstate == '42000' and ex.errno == 904:  # Invalid identifier
-                return DatabaseTerminalException(ex)
-            elif ex.sqlstate == "22000":
-                return DatabaseTerminalException(ex)
-            else:
-                return DatabaseTransientException(ex)
-
-        elif isinstance(ex, databricks_lib.IntegrityError):
-            raise DatabaseTerminalException(ex)
+            return DatabaseTerminalException(ex)
+        elif isinstance(ex, (databricks_lib.ProgrammingError, databricks_lib.IntegrityError)):
+            return DatabaseTerminalException(ex)
         elif isinstance(ex, databricks_lib.DatabaseError):
-            term = cls._maybe_make_terminal_exception_from_data_error(ex)
-            if term:
-                return term
-            else:
-                return DatabaseTransientException(ex)
-        elif isinstance(ex, TypeError):
-            # databricks raises TypeError on malformed query parameters
-            return DatabaseTransientException(databricks_lib.ProgrammingError(str(ex)))
-        elif cls.is_dbapi_exception(ex):
             return DatabaseTransientException(ex)
         else:
             return ex
-
-    @staticmethod
-    def _maybe_make_terminal_exception_from_data_error(databricks_ex: databricks_lib.DatabaseError) -> Optional[Exception]:
-        return None
-
-    @staticmethod
-    def is_dbapi_exception(ex: Exception) -> bool:
-        return isinstance(ex, databricks_lib.DatabaseError)
