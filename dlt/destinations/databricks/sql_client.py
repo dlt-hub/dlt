@@ -1,7 +1,11 @@
 from contextlib import contextmanager, suppress
 from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List
 
-import databricks.connector as databricks_lib
+from databricks import sql as databricks_lib
+from databricks.sql.client import (
+    Connection as DatabricksSQLConnection,
+    Cursor as DatabricksSQLCursor,
+)
 
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
@@ -11,32 +15,31 @@ from dlt.destinations.databricks.configuration import DatabricksCredentials
 from dlt.destinations.databricks import capabilities
 
 class DatabricksCursorImpl(DBApiCursorImpl):
-    native_cursor: databricks_lib.cursor.DatabricksCursor  # type: ignore[assignment]
+    native_cursor: DatabricksSQLCursor  # type: ignore[assignment]
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         if chunk_size is None:
-            return self.native_cursor.fetch_pandas_all(**kwargs)
+            return self.native_cursor.fetchall(**kwargs)
         return super().df(chunk_size=chunk_size, **kwargs)
 
 
-class DatabricksSqlClient(SqlClientBase[databricks_lib.DatabricksConnection], DBTransaction):
+class DatabricksSqlClient(SqlClientBase[DatabricksSQLConnection], DBTransaction):
 
     dbapi: ClassVar[DBApi] = databricks_lib
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, dataset_name: str, credentials: DatabricksCredentials) -> None:
         super().__init__(credentials.database, dataset_name)
-        self._conn: databricks_lib.DatabricksConnection = None
+        self._conn: databricks_lib.connect(credentials) = None
         self.credentials = credentials
 
-    def open_connection(self) -> databricks_lib.DatabricksConnection:
+    def open_connection(self) -> DatabricksSQLConnection:
         conn_params = self.credentials.to_connector_params()
         # set the timezone to UTC so when loading from file formats that do not have timezones
         # we get dlt expected UTC
         if "timezone" not in conn_params:
             conn_params["timezone"] = "UTC"
         self._conn = databricks_lib.connect(
-            schema=self.fully_qualified_dataset_name(),
             **conn_params
         )
         return self._conn
@@ -68,7 +71,7 @@ class DatabricksSqlClient(SqlClientBase[databricks_lib.DatabricksConnection], DB
         self._conn.autocommit(True)
 
     @property
-    def native_connection(self) -> "databricks_lib.DatabricksConnection":
+    def native_connection(self) -> "DatabricksSQLConnection":
         return self._conn
 
     def drop_tables(self, *tables: str) -> None:
@@ -114,7 +117,7 @@ class DatabricksSqlClient(SqlClientBase[databricks_lib.DatabricksConnection], DB
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
-        if isinstance(ex, databricks_lib.errors.ProgrammingError):
+        if isinstance(ex, databricks_lib.ProgrammingError):
             if ex.sqlstate == 'P0000' and ex.errno == 100132:
                 # Error in a multi statement execution. These don't show the original error codes
                 msg = str(ex)
@@ -135,9 +138,9 @@ class DatabricksSqlClient(SqlClientBase[databricks_lib.DatabricksConnection], DB
             else:
                 return DatabaseTransientException(ex)
 
-        elif isinstance(ex, databricks_lib.errors.IntegrityError):
+        elif isinstance(ex, databricks_lib.IntegrityError):
             raise DatabaseTerminalException(ex)
-        elif isinstance(ex, databricks_lib.errors.DatabaseError):
+        elif isinstance(ex, databricks_lib.DatabaseError):
             term = cls._maybe_make_terminal_exception_from_data_error(ex)
             if term:
                 return term
@@ -145,7 +148,7 @@ class DatabricksSqlClient(SqlClientBase[databricks_lib.DatabricksConnection], DB
                 return DatabaseTransientException(ex)
         elif isinstance(ex, TypeError):
             # databricks raises TypeError on malformed query parameters
-            return DatabaseTransientException(databricks_lib.errors.ProgrammingError(str(ex)))
+            return DatabaseTransientException(databricks_lib.ProgrammingError(str(ex)))
         elif cls.is_dbapi_exception(ex):
             return DatabaseTransientException(ex)
         else:
