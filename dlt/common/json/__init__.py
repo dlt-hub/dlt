@@ -193,3 +193,14 @@ else:
     except ImportError:
         from dlt.common.json import _simplejson as _json_simple
         json = _json_simple  # type: ignore[assignment]
+
+
+__all__ = [
+    "json",
+    "custom_encode",
+    "custom_pua_encode",
+    "custom_pua_decode",
+    "custom_pua_decode_nested",
+    "custom_pua_remove",
+    "SupportsJson"
+]
