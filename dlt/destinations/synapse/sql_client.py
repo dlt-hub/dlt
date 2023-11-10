@@ -208,7 +208,7 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         #print("Query:", query)
-        logging.debug(f"Query: {query}")
+        #logging.debug(f"Query: {query}")
 
         assert isinstance(query, str)
 
@@ -241,7 +241,7 @@ class PyOdbcSynapseClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
 
         except pyodbc.Error as outer:
-            # logging.error("Database error occurred", exc_info=True)
+            #logging.error("Database error occurred", exc_info=True)
             raise outer
 
         finally:
