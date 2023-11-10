@@ -1,102 +1,113 @@
-import base64
-import binascii
+from typing import ClassVar, Final, Optional, Any, Dict, List
 
-from typing import Final, Optional, Any, Dict, ClassVar, List
-
-from sqlalchemy.engine import URL
-
-from dlt import version
-from dlt.common.exceptions import MissingDependencyException
-from dlt.common.typing import TSecretStrValue
-from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.exceptions import ConfigurationValueError
-from dlt.common.configuration import configspec
+from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
-from dlt.common.utils import digest128
 
 
-def _read_private_key(private_key: str, password: Optional[str] = None) -> bytes:
-    """Load an encrypted or unencrypted private key from string.
-    """
-    try:
-        from cryptography.hazmat.backends import default_backend
-        from cryptography.hazmat.primitives.asymmetric import rsa
-        from cryptography.hazmat.primitives.asymmetric import dsa
-        from cryptography.hazmat.primitives import serialization
-        from cryptography.hazmat.primitives.asymmetric.types import PrivateKeyTypes
-    except ModuleNotFoundError as e:
-        raise MissingDependencyException("DatabricksCredentials with private key", dependencies=[f"{version.DLT_PKG_NAME}[databricks]"]) from e
-
-    try:
-        # load key from base64-encoded DER key
-        pkey = serialization.load_der_private_key(
-            base64.b64decode(private_key),
-            password=password.encode() if password is not None else None,
-            backend=default_backend(),
-        )
-    except Exception:
-        # loading base64-encoded DER key failed -> assume it's a plain-text PEM key
-        pkey = serialization.load_pem_private_key(
-            private_key.encode(encoding="ascii"),
-            password=password.encode() if password is not None else None,
-            backend=default_backend(),
-        )
-
-    return pkey.private_bytes(
-        encoding=serialization.Encoding.DER,
-        format=serialization.PrivateFormat.PKCS8,
-        encryption_algorithm=serialization.NoEncryption()
-    )
-
+CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 
 @configspec
-class DatabricksCredentials(ConnectionStringCredentials):
-    drivername: Final[str] = "databricks"  # type: ignore[misc]
-    password: Optional[TSecretStrValue] = None
-    host: str = None
-    database: str = None
-    warehouse: Optional[str] = None
-    role: Optional[str] = None
-    private_key: Optional[TSecretStrValue] = None
-    private_key_passphrase: Optional[TSecretStrValue] = None
+class DatabricksCredentials(CredentialsConfiguration):
+    database: Optional[str] = None  # type: ignore[assignment]
+    schema: Optional[str] = None  # type: ignore[assignment]
+    host: Optional[str] = None
+    http_path: Optional[str] = None
+    token: Optional[str] = None
+    client_id: Optional[str] = None
+    client_secret: Optional[str] = None
+    session_properties: Optional[Dict[str, Any]] = None
+    connection_parameters: Optional[Dict[str, Any]] = None
+    auth_type: Optional[str] = None
 
-    __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
+    connect_retries: int = 1
+    connect_timeout: Optional[int] = None
+    retry_all: bool = False
 
-    def parse_native_representation(self, native_value: Any) -> None:
-        super().parse_native_representation(native_value)
-        self.warehouse = self.query.get('warehouse')
-        self.role = self.query.get('role')
-        self.private_key = self.query.get('private_key')  # type: ignore
-        self.private_key_passphrase = self.query.get('private_key_passphrase')  # type: ignore
-        if not self.is_partial() and (self.password or self.private_key):
-            self.resolve()
+    _credentials_provider: Optional[Dict[str, Any]] = None
 
-    def on_resolved(self) -> None:
-        if not self.password and not self.private_key:
-            raise ConfigurationValueError("Please specify password or private_key. DatabricksCredentials supports password and private key authentication and one of those must be specified.")
+    __config_gen_annotations__: ClassVar[List[str]] = ["server_hostname", "http_path", "catalog", "schema"]
 
-    def to_url(self) -> URL:
-        query = dict(self.query or {})
-        if self.warehouse and 'warehouse' not in query:
-            query['warehouse'] = self.warehouse
-        if self.role and 'role' not in query:
-            query['role'] = self.role
-        return URL.create(self.drivername, self.username, self.password, self.host, self.port, self.database, query)
+    def __post_init__(self) -> None:
+        if "." in (self.schema or ""):
+            raise ConfigurationValueError(
+                f"The schema should not contain '.': {self.schema}\n"
+                "If you are trying to set a catalog, please use `catalog` instead.\n"
+            )
+
+        session_properties = self.session_properties or {}
+        if CATALOG_KEY_IN_SESSION_PROPERTIES in session_properties:
+            if self.database is None:
+                self.database = session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
+                del session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
+            else:
+                raise ConfigurationValueError(
+                    f"Got duplicate keys: (`{CATALOG_KEY_IN_SESSION_PROPERTIES}` "
+                    'in session_properties) all map to "database"'
+                )
+        self.session_properties = session_properties
+
+        if self.database is not None:
+            database = self.database.strip()
+            if not database:
+                raise ConfigurationValueError(
+                    f"Invalid catalog name : `{self.database}`."
+                )
+            self.database = database
+        else:
+            self.database = "hive_metastore"
+
+        connection_parameters = self.connection_parameters or {}
+        for key in (
+            "server_hostname",
+            "http_path",
+            "access_token",
+            "client_id",
+            "client_secret",
+            "session_configuration",
+            "catalog",
+            "schema",
+            "_user_agent_entry",
+        ):
+            if key in connection_parameters:
+                raise ConfigurationValueError(
+                    f"The connection parameter `{key}` is reserved."
+                )
+        if "http_headers" in connection_parameters:
+            http_headers = connection_parameters["http_headers"]
+            if not isinstance(http_headers, dict) or any(
+                not isinstance(key, str) or not isinstance(value, str)
+                for key, value in http_headers.items()
+            ):
+                raise ConfigurationValueError(
+                    "The connection parameter `http_headers` should be dict of strings: "
+                    f"{http_headers}."
+                )
+        if "_socket_timeout" not in connection_parameters:
+            connection_parameters["_socket_timeout"] = 180
+        self.connection_parameters = connection_parameters
+
+    def validate_creds(self) -> None:
+        for key in ["host", "http_path"]:
+            if not getattr(self, key):
+                raise ConfigurationValueError(
+                    "The config '{}' is required to connect to Databricks".format(key)
+                )
+        if not self.token and self.auth_type != "oauth":
+            raise ConfigurationValueError(
+                ("The config `auth_type: oauth` is required when not using access token")
+            )
+
+        if not self.client_id and self.client_secret:
+            raise ConfigurationValueError(
+                (
+                    "The config 'client_id' is required to connect "
+                    "to Databricks when 'client_secret' is present"
+                )
+            )
 
     def to_connector_params(self) -> Dict[str, Any]:
-        private_key: Optional[bytes] = None
-        if self.private_key:
-            private_key = _read_private_key(self.private_key, self.private_key_passphrase)
-        return dict(
-            self.query or {},
-            user=self.username,
-            password=self.password,
-            account=self.host,
-            database=self.database,
-            warehouse=self.warehouse,
-            role=self.role,
-            private_key=private_key,
-        )
+        return self.connection_parameters or {}
 
 
 @configspec
@@ -109,8 +120,9 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
     keep_staged_files: bool = True
     """Whether to keep or delete the staged files after COPY INTO succeeds"""
 
-    def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
-        if self.credentials and self.credentials.host:
-            return digest128(self.credentials.host)
-        return ""
+    def __str__(self) -> str:
+        """Return displayable destination location"""
+        if self.staging_config:
+            return str(self.staging_config.credentials)
+        else:
+            return "[no staging set]"
