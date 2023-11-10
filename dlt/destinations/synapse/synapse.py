@@ -118,39 +118,53 @@ class SynapseMergeJob(SqlMergeJob):
 class SynapseInsertValuesLoadJob(InsertValuesLoadJob):
 
     def _insert(self, qualified_table_name: str, file_path: str) -> Iterator[List[str]]:
-        max_rows = self._sql_client.capabilities.max_rows_per_insert
+        #logging.info(f"Starting the insert process for the table: {qualified_table_name}")
+
+        max_rows = self._sql_client.capabilities.max_rows_per_insert or 1
+        max_query_length = self._sql_client.capabilities.max_query_length
+        #logging.info(f"Max rows per insert: {max_rows}, Max query length: {max_query_length}")
 
         if max_rows is not None:
             with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
                 header = f.readline().strip()  # Read the header which contains the INSERT INTO statement template
-                #print("Here are the columns: " + str(header))
                 f.readline()  # Skip the "VALUES" marker line
 
                 # Now read the file line by line and construct the SQL INSERT statements
                 insert_sql_parts = []
-                for line in f:
-                    #print("current line: " + str(line))
-                    line = line.strip()
+                insert_sql_length = 0  # Keep track of the current SQL statement length
 
+                for line_number, line in enumerate(f, start=1):
+                    line = line.strip()
                     # Remove outer parentheses and trailing comma or semicolon using a regular expression
                     line = re.sub(r'^\(|\)[,;]?$', '', line)
 
-                    #print("post-cleanup line: " + str(line))
                     if not line:
                         continue  # Skip empty lines
 
                     # Construct the SELECT part of the SQL statement for each row of values
                     values_str = ', '.join(value for value in line.split(','))
-                    # Ensure no comma is added at the end of the SELECT statement
-                    insert_sql_parts.append(f"SELECT {values_str}")
+                    select_statement = f"SELECT {values_str}"
 
+                    # Calculate the length if this part is added
+                    new_insert_sql_length = insert_sql_length + len(select_statement) + len("\nUNION ALL\n")
+
+                    # If the current part would make the query too long, or we've reached max_rows, yield the SQL
+                    if insert_sql_parts and (new_insert_sql_length > max_query_length or len(insert_sql_parts) >= max_rows):
+                        insert_sql = header.format(qualified_table_name) + "\n" + "\nUNION ALL\n".join(insert_sql_parts) + ";"
+                        yield [insert_sql]
+                        insert_sql_parts = []
+                        insert_sql_length = 0
+
+                    insert_sql_parts.append(select_statement)
+                    insert_sql_length = new_insert_sql_length
+
+                # After the loop, yield any remaining SQL parts
                 if insert_sql_parts:
-                    # Combine the SELECT statements with UNION ALL and format the final INSERT INTO statement
                     insert_sql = header.format(qualified_table_name) + "\n" + "\nUNION ALL\n".join(insert_sql_parts) + ";"
                     yield [insert_sql]
-                else:
-                    # If max_rows is None, use the superclass's implementation
-                    yield from super()._insert(qualified_table_name, file_path)
+        else:
+            # If max_rows is None, use the superclass's implementation
+            yield from super()._insert(qualified_table_name, file_path)
 
 
 class SynapseClient(InsertValuesJobClient):
