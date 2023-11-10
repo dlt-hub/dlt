@@ -36,7 +36,8 @@ schemas
     |---export/
 ```
 
-Instead of modifying the code, you can put those settings in `config.toml`:
+Rather than providing the paths in the `dlt.pipeline` function, you can also set them
+in the in `config.toml` file:
 
 ```toml
 export_schema_path="schemas/export"
