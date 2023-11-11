@@ -6,8 +6,8 @@ from dlt.load import Load
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.reference import DestinationReference, LoadJob
-from dlt.destinations import filesystem
-from dlt.destinations.filesystem.filesystem import FilesystemClient
+from dlt.destinations.impl import filesystem
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.job_impl import EmptyLoadJob
 from tests.load.utils import prepare_load_package
 

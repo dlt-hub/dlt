@@ -373,7 +373,7 @@ class DestinationReference(Protocol):
                     destination_ref = cast(DestinationReference, import_module(destination))
                 else:
                     # from known location
-                    destination_ref = cast(DestinationReference, import_module(f"dlt.destinations.{destination}"))
+                    destination_ref = cast(DestinationReference, import_module(f"dlt.destinations.impl.{destination}"))
             except ImportError:
                 if "." in destination:
                     raise UnknownDestinationModule(destination)

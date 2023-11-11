@@ -229,7 +229,7 @@ def yield_client(
 ) -> Iterator[SqlJobClientBase]:
     os.environ.pop("DATASET_NAME", None)
     # import destination reference by name
-    destination = import_module(f"dlt.destinations.{destination_name}")
+    destination = import_module(f"dlt.destinations.impl.{destination_name}")
     # create initial config
     dest_config: DestinationClientDwhConfiguration = None
     dest_config = destination.spec()()

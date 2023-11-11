@@ -8,9 +8,9 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TWriteDisposition, TColumnSchema, TTableSchemaColumns
 
-from dlt.destinations import weaviate
-from dlt.destinations.weaviate.exceptions import PropertyNameConflict
-from dlt.destinations.weaviate.weaviate_client import WeaviateClient
+from dlt.destinations.impl import weaviate
+from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict
+from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
 
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema.utils import new_table

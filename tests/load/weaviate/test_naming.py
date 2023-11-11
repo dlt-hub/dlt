@@ -1,7 +1,7 @@
 import dlt, pytest
 
-from dlt.destinations.weaviate.naming import NamingConvention
-from dlt.destinations.weaviate.ci_naming import NamingConvention as CINamingConvention
+from dlt.destinations.impl.weaviate.naming import NamingConvention
+from dlt.destinations.impl.weaviate.ci_naming import NamingConvention as CINamingConvention
 
 from tests.common.utils import load_yml_case
 

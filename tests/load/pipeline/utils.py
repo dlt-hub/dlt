@@ -16,7 +16,7 @@ from dlt.common.schema.typing import LOADS_TABLE_NAME
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 
 if TYPE_CHECKING:
-    from dlt.destinations.filesystem.filesystem import FilesystemClient
+    from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 @pytest.fixture(autouse=True)
 def drop_pipeline(request) -> Iterator[None]:

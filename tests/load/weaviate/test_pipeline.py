@@ -6,10 +6,10 @@ from dlt.common import json
 from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id
 
-from dlt.destinations.weaviate import weaviate_adapter
-from dlt.destinations.weaviate.exceptions import PropertyNameConflict
-from dlt.destinations.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
-from dlt.destinations.weaviate.weaviate_client import WeaviateClient
+from dlt.destinations.impl.weaviate import weaviate_adapter
+from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict
+from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
+from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.pipeline.utils import assert_load_info

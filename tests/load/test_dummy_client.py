@@ -16,9 +16,9 @@ from dlt.common.destination.reference import DestinationReference, LoadJob
 from dlt.load import Load
 from dlt.destinations.job_impl import EmptyLoadJob
 
-from dlt.destinations import dummy
-from dlt.destinations.dummy import dummy as dummy_impl
-from dlt.destinations.dummy.configuration import DummyClientConfiguration
+from dlt.destinations.impl import dummy
+from dlt.destinations.impl.dummy import dummy as dummy_impl
+from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry
 from dlt.common.schema.utils import get_top_level_table
 

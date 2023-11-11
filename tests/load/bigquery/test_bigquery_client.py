@@ -14,7 +14,7 @@ from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredent
 from dlt.common.storages import FileStorage
 from dlt.common.utils import digest128, uniq_id, custom_environ
 
-from dlt.destinations.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration
+from dlt.destinations.impl.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration
 from dlt.destinations.exceptions import LoadJobNotExistsException, LoadJobTerminalException
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, preserve_environ

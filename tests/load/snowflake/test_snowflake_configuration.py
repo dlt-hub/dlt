@@ -9,7 +9,7 @@ from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.utils import digest128
 
-from dlt.destinations.snowflake.configuration import SnowflakeClientConfiguration, SnowflakeCredentials
+from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration, SnowflakeCredentials
 
 from tests.common.configuration.utils import environment
 
