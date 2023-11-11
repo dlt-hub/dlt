@@ -199,12 +199,10 @@ def glob_files(
         bucket_url = pathlib.Path(bucket_url).absolute().as_uri()
         bucket_url_parsed = urlparse(bucket_url)
 
-    # not all filesystems use the host in list functions
-    if bucket_url_parsed.scheme in ["gdrive"]:
-        bucket_path = bucket_url_parsed.path
-    else:
-        bucket_path = bucket_url_parsed._replace(scheme='').geturl()
-        bucket_path = bucket_path[2:] if bucket_path.startswith("//") else bucket_path
+    bucket_path = bucket_url_parsed._replace(scheme='').geturl()
+    bucket_path = bucket_path[2:] if bucket_path.startswith("//") else bucket_path
+    bucket_path = bucket_path.split("?", 1)[0]
+    query = bucket_url_parsed.query 
     
     filter_url = posixpath.join(bucket_path, file_glob)
 
@@ -219,10 +217,7 @@ def glob_files(
         if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
             file = "/" + file
         file_name = posixpath.relpath(file, bucket_path)
-        if bucket_url_parsed.scheme in ["gdrive"]:
-            file_url = bucket_url_parsed.scheme + "://" + bucket_url_parsed.netloc + "/" + file.lstrip("/")
-        else:
-            file_url = bucket_url_parsed.scheme + "://" + file
+        file_url = bucket_url_parsed.scheme + "://" + file + ("?" + query if query else "")
         yield FileItem(
             file_name=file_name,
             file_url=file_url,
