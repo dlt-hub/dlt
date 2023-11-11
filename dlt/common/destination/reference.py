@@ -448,7 +448,12 @@ class Destination(ABC):
         return ref.name
 
     @staticmethod
-    def from_reference(ref: TDestinationReferenceArg, *args, **kwargs) -> "Destination":
+    def from_reference(ref: TDestinationReferenceArg, *args, **kwargs) -> Optional["Destination"]:
+        """Instantiate destination from str reference.
+        The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`)
+        """
+        if ref is None:
+            return None
         if isinstance(ref, Destination):
             return ref
         if not isinstance(ref, str):

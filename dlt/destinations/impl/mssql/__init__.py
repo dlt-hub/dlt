@@ -1,20 +1,7 @@
-from typing import Type
-
-from dlt.common.schema.schema import Schema
-from dlt.common.configuration import with_config, known_sections
-from dlt.common.configuration.accessors import config
 from dlt.common.data_writers.escape import escape_postgres_identifier, escape_mssql_literal
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.wei import EVM_DECIMAL_PRECISION
-
-from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
-
-
-@with_config(spec=MsSqlClientConfiguration, sections=(known_sections.DESTINATION, "mssql",))
-def _configure(config: MsSqlClientConfiguration = config.value) -> MsSqlClientConfiguration:
-    return config
 
 
 def capabilities() -> DestinationCapabilitiesContext:
@@ -39,14 +26,3 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.timestamp_precision = 7
 
     return caps
-
-
-def client(schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> JobClientBase:
-    # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
-    from dlt.destinations.impl.mssql.mssql import MsSqlClient
-
-    return MsSqlClient(schema, _configure(initial_config))  # type: ignore[arg-type]
-
-
-def spec() -> Type[DestinationClientConfiguration]:
-    return MsSqlClientConfiguration

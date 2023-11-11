@@ -12,7 +12,7 @@ from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, DestinationReference, JobClientBase, LoadJob, DestinationClientStagingConfiguration, WithStagingDataset, TDestinationReferenceArg
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, JobClientBase, LoadJob, DestinationClientStagingConfiguration, WithStagingDataset, TDestinationReferenceArg
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns, Schema
