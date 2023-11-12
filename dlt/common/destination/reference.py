@@ -441,14 +441,14 @@ class Destination(ABC):
 
     @staticmethod
     def to_name(ref: TDestinationReferenceArg) -> str:
-        if not ref:
+        if ref is None:
             raise InvalidDestinationReference(ref)
         if isinstance(ref, str):
             return ref.rsplit(".", 1)[-1]
         return ref.name
 
     @staticmethod
-    def from_reference(ref: TDestinationReferenceArg, *args, **kwargs) -> Optional["Destination"]:
+    def from_reference(ref: TDestinationReferenceArg, credentials: Optional[CredentialsConfiguration] = None, **kwargs: Any) -> Optional["Destination"]:
         """Instantiate destination from str reference.
         The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`)
         """
@@ -463,24 +463,22 @@ class Destination(ABC):
                 module_path, attr_name = ref.rsplit(".", 1)
                 dest_module = import_module(module_path)
             else:
-                from dlt import destinations  as dest_module
+                from dlt import destinations as dest_module
                 attr_name = ref
-        except ImportError as e:
+        except ModuleNotFoundError as e:
             raise UnknownDestinationModule(ref) from e
 
         try:
             factory: Type[Destination] = getattr(dest_module, attr_name)
         except AttributeError as e:
-            raise UnknownDestinationModule(ref) from e
-        return factory(*args, **kwargs)
-
+            raise InvalidDestinationReference(ref) from e
+        if credentials:
+            kwargs["credentials"] = credentials
+        return factory(**kwargs)
 
     def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> "JobClientBase":
-        # TODO: Raise error somewhere if both DestinationFactory and credentials argument are used together in pipeline
-        cfg = initial_config.copy()
+        cfg = initial_config
         cfg.update(self.config_params)
-        # for key, value in self.config_params.items():
-        #     setattr(cfg, key, value)
         if self.credentials:
             cfg.credentials = self.credentials
         return self.client_class(schema, cfg)

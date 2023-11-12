@@ -15,7 +15,7 @@ class dummy(Destination):
     spec = DummyClientConfiguration
 
     @property
-    def capabilitites(self) -> DestinationCapabilitiesContext:
+    def capabilities(self) -> DestinationCapabilitiesContext:
         return capabilities()
 
     @property

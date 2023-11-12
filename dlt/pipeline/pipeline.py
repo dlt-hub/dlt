@@ -900,6 +900,9 @@ class Pipeline(SupportsPipeline):
                 client_spec.get_resolvable_fields()["credentials"],
                 credentials
             )
+
+        if credentials and not as_staging:
+            # Explicit pipeline credentials always supersede other credentials
             destination.credentials = credentials
 
         # this client support many schemas and datasets

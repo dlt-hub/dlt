@@ -25,6 +25,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
     read_only: bool = False  # open database read/write
 
     def borrow_conn(self, read_only: bool) -> Any:
+        # TODO: Can this be done in sql client instead?
         import duckdb
 
         if not hasattr(self, "_conn_lock"):
@@ -95,14 +96,10 @@ class DuckDbCredentials(DuckDbBaseCredentials):
 
     __config_gen_annotations__: ClassVar[List[str]] = []
 
-    def on_resolved(self) -> None:
-        # do not set any paths for external database
-        if self.database == ":external:":
-            return
-        # try the pipeline context
+    def _database_path(self) -> str:
         is_default_path = False
         if self.database == ":pipeline:":
-            self.database = self._path_in_pipeline(DEFAULT_DUCK_DB_NAME)
+            return self._path_in_pipeline(DEFAULT_DUCK_DB_NAME)
         else:
             # maybe get database
             maybe_database, maybe_is_default_path = self._path_from_pipeline(DEFAULT_DUCK_DB_NAME)
@@ -110,13 +107,14 @@ class DuckDbCredentials(DuckDbBaseCredentials):
             if not self.database or not maybe_is_default_path:
                 # create database locally
                 is_default_path = maybe_is_default_path
-                self.database = maybe_database
+                path = maybe_database
+            else:
+                path = self.database
 
-        # always make database an abs path
-        self.database = os.path.abspath(self.database)
-        # do not save the default path into pipeline's local state
+        path = os.path.abspath(path)
         if not is_default_path:
-            self._path_to_pipeline(self.database)
+            self._path_to_pipeline(path)
+        return path
 
     def _path_in_pipeline(self, rel_path: str) -> str:
         from dlt.common.configuration.container import Container
@@ -125,9 +123,10 @@ class DuckDbCredentials(DuckDbBaseCredentials):
         context = Container()[PipelineContext]
         if context.is_active():
             # pipeline is active, get the working directory
-            return os.path.join(context.pipeline().working_dir, rel_path)
-        return None
-
+            abs_path = os.path.abspath(os.path.join(context.pipeline().working_dir, rel_path))
+            context.pipeline().set_local_state_val(LOCAL_STATE_KEY, abs_path)
+            return abs_path
+        raise RuntimeError("Attempting to use special duckdb database :pipeline: outside of pipeline context.")
 
     def _path_to_pipeline(self, abspath: str) -> None:
         from dlt.common.configuration.container import Container
@@ -172,6 +171,9 @@ class DuckDbCredentials(DuckDbBaseCredentials):
                 pass
 
         return default_path, True
+
+    def _conn_str(self) -> str:
+        return self._database_path()
 
 
 @configspec

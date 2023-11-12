@@ -11,7 +11,7 @@ from tests.utils import ACTIVE_DESTINATIONS
 
 def test_import_unknown_destination() -> None:
     # standard destination
-    with pytest.raises(UnknownDestinationModule):
+    with pytest.raises(InvalidDestinationReference):
         Destination.from_reference("meltdb")
     # custom module
     with pytest.raises(UnknownDestinationModule):
@@ -25,9 +25,9 @@ def test_invalid_destination_reference() -> None:
 
 def test_import_all_destinations() -> None:
     # this must pass without the client dependencies being imported
-    for module in ACTIVE_DESTINATIONS:
-        dest = Destination.from_reference(module)
-        assert dest.name == "dlt.destinations." + module
+    for dest_name in ACTIVE_DESTINATIONS:
+        dest = Destination.from_reference(dest_name)
+        assert dest.name == dest_name
         dest.spec()
         assert isinstance(dest.capabilities, DestinationCapabilitiesContext)
 

@@ -13,7 +13,7 @@ from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.destination.reference import DestinationClientDwhConfiguration, JobClientBase, LoadJob, DestinationClientStagingConfiguration, WithStagingDataset, TDestinationReferenceArg
-from dlt.common.destination import TLoaderFileFormat
+from dlt.common.destination import TLoaderFileFormat, Destination
 from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TColumnSchema, TTableSchemaColumns, Schema
 from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
@@ -229,10 +229,10 @@ def yield_client(
 ) -> Iterator[SqlJobClientBase]:
     os.environ.pop("DATASET_NAME", None)
     # import destination reference by name
-    destination = import_module(f"dlt.destinations.impl.{destination_name}")
+    destination = Destination.from_reference(destination_name)
     # create initial config
     dest_config: DestinationClientDwhConfiguration = None
-    dest_config = destination.spec()()
+    dest_config = destination.spec()  # type: ignore[assignment]
     dest_config.dataset_name = dataset_name  # type: ignore[misc]  # TODO: Why is dataset_name final?
 
     if default_config_values is not None:
@@ -261,7 +261,7 @@ def yield_client(
 
     # lookup for credentials in the section that is destination name
     with Container().injectable_context(ConfigSectionContext(sections=("destination", destination_name,))):
-        with destination.client(schema, dest_config) as client:
+        with destination.client(schema, dest_config) as client:  # type: ignore[assignment]
             yield client
 
 @contextlib.contextmanager
