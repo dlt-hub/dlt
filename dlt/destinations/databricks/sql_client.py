@@ -57,6 +57,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSQLConnection], DBTransaction)
 
     @raise_database_error
     def commit_transaction(self) -> None:
+        logger.warning("NotImplemented: commit")
         pass
 
     @raise_database_error
