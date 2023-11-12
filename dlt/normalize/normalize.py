@@ -247,17 +247,12 @@ class Normalize(Runnable[Executor]):
         schema = Normalize.load_or_create_schema(self.schema_storage, schema_name)
         # process files in parallel or in single thread, depending on map_f
         schema_updates, row_counts = map_f(schema, load_id, files)
-        # set all populated tables to populated
-        needs_schema_save = len(schema_updates) > 0
         # remove normalizer specific info
         for table in schema.tables.values():
-            if table.pop("x-normalizer", None):  # type: ignore[typeddict-item]
-                needs_schema_save = True
-        # logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
-        if needs_schema_save:
-            logger.info(f"Saving schema {schema_name} with version {schema.version}, writing manifest files")
-            # schema is updated, save it to schema volume
-            self.schema_storage.save_schema(schema)
+            table.pop("x-normalizer", None)  # type: ignore[typeddict-item]
+        logger.info(f"Saving schema {schema_name} with version {schema.version}, writing manifest files")
+        # schema is updated, save it to schema volume
+        self.schema_storage.save_schema(schema)
         # save schema to temp load folder
         self.load_storage.save_temp_schema(schema, load_id)
         # save schema updates even if empty
