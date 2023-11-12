@@ -18,44 +18,72 @@ from dlt.destinations.databricks import capabilities
 from dlt.destinations.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlStagingCopyJob
-from dlt.destinations.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
 
 
 class DatabricksTypeMapper(TypeMapper):
-    BIGINT_PRECISION = 19
     sct_to_unbound_dbt = {
-        "complex": "VARIANT",
-        "text": "VARCHAR",
-        "double": "FLOAT",
+        "complex": "ARRAY",  # Databricks supports complex types like ARRAY
+        "text": "STRING",
+        "double": "DOUBLE",
         "bool": "BOOLEAN",
         "date": "DATE",
-        "timestamp": "TIMESTAMP_TZ",
-        "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Databricks has no integer types
+        "timestamp": "TIMESTAMP",  # TIMESTAMP for local timezone
+        "bigint": "BIGINT",
         "binary": "BINARY",
-        "time": "TIME",
-    }
-
-    sct_to_dbt = {
-        "text": "VARCHAR(%i)",
-        "timestamp": "TIMESTAMP_TZ(%i)",
-        "decimal": "NUMBER(%i,%i)",
-        "time": "TIME(%i)",
-        "wei": "NUMBER(%i,%i)",
+        "decimal": "DECIMAL",  # DECIMAL(p,s) format
+        "float": "FLOAT",
+        "int": "INT",
+        "smallint": "SMALLINT",
+        "tinyint": "TINYINT",
+        "void": "VOID",
+        "interval": "INTERVAL",
+        "map": "MAP",
+        "struct": "STRUCT",
     }
 
     dbt_to_sct = {
-        "VARCHAR": "text",
-        "FLOAT": "double",
+        "STRING": "text",
+        "DOUBLE": "double",
         "BOOLEAN": "bool",
         "DATE": "date",
-        "TIMESTAMP_TZ": "timestamp",
+        "TIMESTAMP": "timestamp",
+        "BIGINT": "bigint",
         "BINARY": "binary",
-        "VARIANT": "complex",
-        "TIME": "time"
+        "DECIMAL": "decimal",
+        "FLOAT": "float",
+        "INT": "int",
+        "SMALLINT": "smallint",
+        "TINYINT": "tinyint",
+        "VOID": "void",
+        "INTERVAL": "interval",
+        "MAP": "map",
+        "STRUCT": "struct",
+        "ARRAY": "complex"
     }
+
+    sct_to_dbt = {
+        "text": "STRING",
+        "double": "DOUBLE",
+        "bool": "BOOLEAN",
+        "date": "DATE",
+        "timestamp": "TIMESTAMP",
+        "bigint": "BIGINT",
+        "binary": "BINARY",
+        "decimal": "DECIMAL(%i,%i)",
+        "float": "FLOAT",
+        "int": "INT",
+        "smallint": "SMALLINT",
+        "tinyint": "TINYINT",
+        "void": "VOID",
+        "interval": "INTERVAL",
+        "map": "MAP",
+        "struct": "STRUCT",
+        "complex": "ARRAY"
+    }
+
 
     def from_db_type(self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None) -> TColumnType:
         if db_type == "NUMBER":
@@ -89,14 +117,14 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
             # referencing an external s3/azure stage does not require explicit AWS credentials
-            if bucket_scheme in ["s3", "az", "abfs"] and stage_name:
+            if bucket_scheme in ["s3", "az", "abfss"] and stage_name:
                 from_clause = f"FROM '@{stage_name}'"
-                files_clause = f"FILES = ('{bucket_url.path.lstrip('/')}')"
+                files_clause = f"LOCATION ('{bucket_url.path.lstrip('/')}')"
             # referencing an staged files via a bucket URL requires explicit AWS credentials
             elif bucket_scheme == "s3" and staging_credentials and isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
                 credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"""
                 from_clause = f"FROM '{bucket_path}'"
-            elif bucket_scheme in ["az", "abfs"] and staging_credentials and isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
+            elif bucket_scheme in ["az", "abfss"] and staging_credentials and isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
                 # Explicit azure credentials are needed to load from bucket without a named stage
                 credentials_clause = f"CREDENTIALS=(AZURE_SAS_TOKEN='?{staging_credentials.azure_storage_sas_token}')"
                 # Converts an az://<container_name>/<path> to azure://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
@@ -226,11 +254,8 @@ class DatabricksClient(SqlJobClientWithStaging):
         return f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        table_name = table_name.upper()  # All databricks tables are uppercased in information schema
         exists, table = super().get_storage_table(table_name)
         if not exists:
             return exists, table
-        # Databricks converts all unquoted columns to UPPER CASE
-        # Convert back to lower case to enable comparison with dlt schema
         table = {col_name.lower(): dict(col, name=col_name.lower()) for col_name, col in table.items()}  # type: ignore
         return exists, table
