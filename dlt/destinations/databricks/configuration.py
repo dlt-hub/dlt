@@ -1,5 +1,6 @@
 from typing import ClassVar, Final, Optional, Any, Dict, List
 
+from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
@@ -13,9 +14,9 @@ class DatabricksCredentials(CredentialsConfiguration):
     schema: Optional[str] = None  # type: ignore[assignment]
     host: str = None
     http_path: str = None
-    token: Optional[str] = None
+    token: Optional[TSecretStrValue] = None
     client_id: Optional[str] = None
-    client_secret: Optional[str] = None
+    client_secret: Optional[TSecretStrValue] = None
     session_properties: Optional[Dict[str, Any]] = None
     connection_parameters: Optional[Dict[str, Any]] = None
     auth_type: Optional[str] = None
