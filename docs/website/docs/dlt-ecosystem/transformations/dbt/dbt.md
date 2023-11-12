@@ -55,6 +55,8 @@ pipeline = dlt.pipeline(
 )
 
 # make or restore venv for dbt, using latest dbt version
+# NOTE: if you have dbt installed in your current environment, just skip this line
+#       and the `venv` argument to dlt.dbt.package()
 venv = dlt.dbt.get_venv(pipeline)
 
 # get runner, optionally pass the venv
@@ -77,6 +79,48 @@ for m in models:
         f"and message {m.message}"
     )
 ```
+
+## How to run dbt runner without pipeline
+You can use dbt runner without dlt pipeline. Example below will clone and run **jaffle shop** using a dbt profile that you supply.
+It assumes that dbt is installed in the current Python environment and the `profile.yml` is in the same folder as the Python script.
+<!--@@@DLT_SNIPPET_START ./dbt-snippets.py::run_dbt_standalone-->
+```py
+import os
+
+from dlt.helpers.dbt import create_runner
+
+runner = create_runner(
+    None,  # use current virtual env to run dlt
+    None,  # we do not need dataset name and we do not pass any credentials in environment to dlt
+    working_dir=".",  # the package below will be cloned to current dir
+    package_location="https://github.com/dbt-labs/jaffle_shop.git",
+    package_profiles_dir=os.path.abspath("."),  # profiles.yml must be placed in this dir
+    package_profile_name="duckdb_dlt_dbt_test"  # name of the profile
+)
+
+models = runner.run_all()
+```
+<!--@@@DLT_SNIPPET_END ./dbt-snippets.py::run_dbt_standalone-->
+
+Here's example **duckdb** profile
+```yaml
+config:
+  # do not track usage, do not create .user.yml
+  send_anonymous_usage_stats: False
+
+duckdb_dlt_dbt_test:
+  target: analytics
+  outputs:
+    analytics:
+      type: duckdb
+      # schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      path: "duckdb_dlt_dbt_test.duckdb"
+      extensions:
+        - httpfs
+        - parquet
+```
+You can run the example with dbt debug log: `RUNTIME__LOG_LEVEL=DEBUG python dbt_standalone.py`
+
 
 ## Other transforming tools
 

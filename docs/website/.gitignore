@@ -8,6 +8,7 @@
 .docusaurus
 .cache-loader
 docs/api_reference
+jaffle_shop
 
 # Misc
 .DS_Store

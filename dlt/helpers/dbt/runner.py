@@ -271,5 +271,31 @@ def create_runner(
     package_profile_name: str = None,
     auto_full_refresh_when_out_of_sync: bool = None,
     config: DBTRunnerConfiguration = None
-    ) -> DBTPackageRunner:
-    return DBTPackageRunner(venv, credentials, working_dir, credentials.dataset_name, config)
+) -> DBTPackageRunner:
+    """Creates a Python wrapper over `dbt` package present at specified location, that allows to control it (ie. run and test) from Python code.
+
+    The created wrapper minimizes the required effort to run `dbt` packages. It clones the package repo and keeps it up to data,
+    optionally shares the `dlt` destination credentials with `dbt` and allows the isolated execution with `venv` parameter.
+
+    Note that you can pass config and secrets in DBTRunnerConfiguration as configuration in section "dbt_package_runner"
+
+    Args:
+        venv (Venv): A virtual environment with required dbt dependencies. Pass None to use current environment.
+        credentials (DestinationClientDwhConfiguration): Any configuration deriving from DestinationClientDwhConfiguration ie. ConnectionStringCredentials
+        working_dir (str): A working dir to which the package will be cloned
+        package_location (str): A git repository url to be cloned or a local path where dbt package is present
+        package_repository_branch (str, optional): A branch name, tag name or commit-id to check out. Defaults to None.
+        package_repository_ssh_key (TSecretValue, optional): SSH key to be used to clone private repositories. Defaults to TSecretValue("").
+        package_profiles_dir (str, optional): Path to the folder where "profiles.yml" resides
+        package_profile_name (str, optional): Name of the profile in "profiles.yml"
+        auto_full_refresh_when_out_of_sync (bool, optional): If set to True (default), the wrapper will automatically fall back to full-refresh mode when schema is out of sync
+                                                             See: https://docs.getdbt.com/docs/build/incremental-models#what-if-the-columns-of-my-incremental-model-change_description_. Defaults to None.
+        config (DBTRunnerConfiguration, optional): Explicit additional configuration for the runner.
+
+    Returns:
+        DBTPackageRunner: A Python `dbt` wrapper
+    """
+    dataset_name = credentials.dataset_name if credentials else ""
+    if venv is None:
+        venv = Venv.restore_current()
+    return DBTPackageRunner(venv, credentials, working_dir, dataset_name, config)

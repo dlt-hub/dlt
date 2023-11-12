@@ -84,7 +84,7 @@ p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='ches
 
 This destination accepts database connection strings in format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
 
-You can configure a DuckDB destination with [secret / config values](../../general-usage/credentials.md) (e.g. using a `secrets.toml` file)
+You can configure a DuckDB destination with [secret / config values](../../general-usage/credentials) (e.g. using a `secrets.toml` file)
 ```toml
 destination.duckdb.credentials=duckdb:///_storage/test_quack.duckdb
 ```

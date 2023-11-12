@@ -46,7 +46,7 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
         assert some_table_columns["time"]["data_type"] == "time"
 
     qual_name = pipeline.sql_client().make_qualified_table_name("some_data")
-    rows = [list(row) for row in select_data(pipeline, f"SELECT * FROM {qual_name} ORDER BY 1")]
+    rows = [list(row) for row in select_data(pipeline, f"SELECT * FROM {qual_name}")]
 
     for row in rows:
         for i in range(len(row)):
@@ -66,7 +66,7 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
             if isinstance(row[i], datetime):
                 row[i] = pendulum.instance(row[i])
 
-    expected = sorted([list(r.values()) for r in records], key=lambda x: x[0])
+    expected = sorted([list(r.values()) for r in records])
 
     for row in expected:
         for i in range(len(row)):
@@ -74,6 +74,10 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
                 row[i] = reduce_pendulum_datetime_precision(row[i], pipeline.destination.capabilities().timestamp_precision)
 
     load_id = load_info.loads_ids[0]
+
+    # Sort rows by all columns except _dlt_id/_dlt_load_id for deterministic comparison
+    rows = sorted(rows, key=lambda row: row[:-2])
+    expected = sorted(expected)
 
     for row, expected_row in zip(rows, expected):
         # Compare without _dlt_id/_dlt_load_id columns

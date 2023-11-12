@@ -81,6 +81,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/athena',
             'dlt-ecosystem/destinations/motherduck',
             'dlt-ecosystem/destinations/weaviate',
+            'dlt-ecosystem/destinations/qdrant',
           ]
         },
       ],
@@ -104,10 +105,22 @@ const sidebars = {
         'general-usage/state',
         'general-usage/incremental-loading',
         'general-usage/full-loading',
-        'general-usage/credentials',
         'general-usage/schema',
         'general-usage/data-contracts',
-        'general-usage/configuration',
+        {
+          type: 'category',
+          label: 'Configuration',
+          link: {
+            type: 'generated-index',
+            title: 'Configuration',
+            slug: 'general-usage/credentials',
+          },
+          items: [
+            'general-usage/credentials/configuration',
+            'general-usage/credentials/config_providers',
+            'general-usage/credentials/config_specs',
+          ]
+        },
         'reference/performance',
         {
           type: 'category',
@@ -140,6 +153,7 @@ const sidebars = {
       items: [
         'walkthroughs/create-a-pipeline',
         'walkthroughs/add-a-verified-source',
+        'walkthroughs/add_credentials',
         'walkthroughs/run-a-pipeline',
         'walkthroughs/adjust-a-schema',
         'walkthroughs/share-a-dataset',
@@ -217,17 +231,15 @@ const sidebars = {
       type: 'category',
       label: 'Code Examples',
       link: {
-        type: 'generated-index',
-        title: 'Code Examples',
-        description: 'A list of comprehensive code examples that teach you how to solve real world problem.',
-        slug: 'examples',
-        keywords: ['examples'],
+        type: 'doc',
+        id: 'examples/index',
       },
       items: [
         'examples/transformers/index',
         'examples/incremental_loading/index',
         'examples/connector_x_arrow/index',
         'examples/chess_production/index',
+        'examples/nested_data/index',
       ],
     },
     {

@@ -64,7 +64,7 @@ The default naming convention:
 
 > 💡 Use simple, short small caps identifiers for everything!
 
-The naming convention is [configurable](configuration.md) and users can easily create their own
+The naming convention is configurable and users can easily create their own
 conventions that i.e. pass all the identifiers unchanged if the destination accepts that (i.e.
 DuckDB).
 
@@ -104,8 +104,8 @@ A column schema contains following basic hints:
 
 1. `nullable` tells if column is nullable or not.
 1. `primary_key` marks a column as a part of primary key.
-1. `merge_key` marks a column as a part of merge key used by.
-   [incremental load](./incremental-loading.md#merge-incremental_loading)
+1. `merge_key` marks a column as a part of merge key used by
+   [incremental load](./incremental-loading.md#merge-incremental_loading).
 1. `foreign_key` marks a column as a part of foreign key.
 1. `root_key` marks a column as a part of root key which is a type of foreign key always referring to the
    root table.

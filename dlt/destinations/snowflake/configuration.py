@@ -57,6 +57,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
     database: str = None
     warehouse: Optional[str] = None
     role: Optional[str] = None
+    authenticator: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
 
@@ -87,7 +88,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
         private_key: Optional[bytes] = None
         if self.private_key:
             private_key = _read_private_key(self.private_key, self.private_key_passphrase)
-        return dict(
+        conn_params = dict(
             self.query or {},
             user=self.username,
             password=self.password,
@@ -97,6 +98,9 @@ class SnowflakeCredentials(ConnectionStringCredentials):
             role=self.role,
             private_key=private_key,
         )
+        if self.authenticator:
+            conn_params["authenticator"] = self.authenticator
+        return conn_params
 
 
 @configspec

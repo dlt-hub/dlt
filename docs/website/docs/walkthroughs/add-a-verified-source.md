@@ -76,7 +76,7 @@ the supported locations.
 ## 2. Adding credentials
 
 For adding them locally or on your orchestrator, please see the following guide
-[credentials](../general-usage/credentials.md).
+[credentials](add_credentials).
 
 ## 3. Customize or write a pipeline script
 
