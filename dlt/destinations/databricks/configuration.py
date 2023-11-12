@@ -11,8 +11,8 @@ CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 class DatabricksCredentials(CredentialsConfiguration):
     database: Optional[str] = None  # type: ignore[assignment]
     schema: Optional[str] = None  # type: ignore[assignment]
-    host: Optional[str] = None
-    http_path: Optional[str] = None
+    host: str = None
+    http_path: str = None
     token: Optional[str] = None
     client_id: Optional[str] = None
     client_secret: Optional[str] = None
