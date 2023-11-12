@@ -140,22 +140,38 @@ def _get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
 
 
 def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
-    """Remove all columns of datatype pyarrow.null() from the table or record batch
-    """
+    """Remove all columns of datatype pyarrow.null() from the table or record batch"""
+    return remove_columns(item, [field.name for field in item.schema if pyarrow.types.is_null(field.type)])
+
+
+def remove_columns(item: TAnyArrowItem, columns: Sequence[str]) -> TAnyArrowItem:
+    """Remove `columns` from Arrow `item`"""
+    if not columns:
+        return item
+
     if isinstance(item, pyarrow.Table):
-        return item.drop([field.name for field in item.schema if pyarrow.types.is_null(field.type)])
+        return item.drop(columns)
     elif isinstance(item, pyarrow.RecordBatch):
-        null_idx = [i for i, col in enumerate(item.columns) if pyarrow.types.is_null(col.type)]
-        new_schema = item.schema
-        for i in reversed(null_idx):
-            new_schema = new_schema.remove(i)
-        return pyarrow.RecordBatch.from_arrays(
-            [col for i, col in enumerate(item.columns) if i not in null_idx],
-            schema=new_schema
-        )
+        # NOTE: select is available in pyarrow 12 an up
+        return item.select([n for n in item.schema.names if n not in columns])  # reverse selection
     else:
         raise ValueError(item)
 
+
+def rename_columns(item: TAnyArrowItem, new_column_names: Sequence[str]) -> TAnyArrowItem:
+    """Rename arrow columns on Table or RecordBatch, returns same data but with renamed schema"""
+
+    if list(item.schema.names) == list(new_column_names):
+        # No need to rename
+        return item
+
+    if isinstance(item, pyarrow.Table):
+        return item.rename_columns(new_column_names)
+    elif isinstance(item, pyarrow.RecordBatch):
+        new_fields = [field.with_name(new_name) for new_name, field in zip(new_column_names, item.schema)]
+        return pyarrow.RecordBatch.from_arrays(item.columns, schema=pyarrow.schema(new_fields))
+    else:
+        raise TypeError(f"Unsupported data item type {type(item)}")
 
 
 def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColumns:
