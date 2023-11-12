@@ -181,6 +181,11 @@ def custom_pua_remove(obj: Any) -> Any:
     return obj
 
 
+def may_have_pua(line: bytes) -> bool:
+    """Checks if bytes string contains pua marker"""
+    return b'\xef\x80' in line
+
+
 # pick the right impl
 json: SupportsJson = None
 if os.environ.get("DLT_USE_JSON") == "simplejson":
