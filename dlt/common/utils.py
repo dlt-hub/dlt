@@ -245,6 +245,7 @@ def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None:
 
 
 def update_dict_nested(dst: TDict, src: StrAny) -> TDict:
+    """Merges `src` into `dst` key wise. Does not recur into lists. Values in `src` overwrite `dst` if both keys exit."""
     # based on https://github.com/clarketm/mergedeep/blob/master/mergedeep/mergedeep.py
 
     def _is_recursive_merge(a: StrAny, b: StrAny) -> bool:
