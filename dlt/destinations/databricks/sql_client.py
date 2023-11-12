@@ -31,7 +31,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSQLConnection], DBTransaction)
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, dataset_name: str, credentials: DatabricksCredentials) -> None:
-        super().__init__(credentials.database, dataset_name)
+        super().__init__(credentials.catalog, dataset_name)
         self._conn: DatabricksSQLConnection = None
         self.credentials = credentials
 
@@ -68,6 +68,18 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSQLConnection], DBTransaction)
     def native_connection(self) -> "DatabricksSQLConnection":
         return self._conn
 
+    def has_dataset(self) -> bool:
+        query = """
+            SELECT 1
+            FROM SYSTEM.INFORMATION_SCHEMA.SCHEMATA
+            WHERE """
+        db_params = self.fully_qualified_dataset_name(escape=False).split(".", 2)
+        if len(db_params) == 2:
+            query += " catalog_name = %s AND "
+        query += "schema_name = %s"
+        rows = self.execute_sql(query, *db_params)
+        return len(rows) > 0
+
     def drop_tables(self, *tables: str) -> None:
         # Tables are drop with `IF EXISTS`, but databricks raises when the schema doesn't exist.
         # Multi statement exec is safe and the error can be ignored since all tables are in the same schema.
@@ -89,7 +101,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSQLConnection], DBTransaction)
         db_args = args if args else kwargs if kwargs else None
         with self._conn.cursor() as curr:  # type: ignore[assignment]
             try:
-                curr.execute(query, db_args, num_statements=0)
+                curr.execute(query, db_args)
                 yield DatabricksCursorImpl(curr)  # type: ignore[abstract]
             except databricks_lib.Error as outer:
                 try:
@@ -101,8 +113,12 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSQLConnection], DBTransaction)
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         if escape:
-            return self.capabilities.escape_identifier(self.dataset_name)
-        return self.dataset_name
+            catalog = self.capabilities.escape_identifier(self.credentials.catalog)
+            dataset_name = self.capabilities.escape_identifier(self.dataset_name)
+        else:
+            catalog = self.credentials.catalog
+            dataset_name = self.dataset_name
+        return f"{catalog}.{dataset_name}"
 
     def _reset_connection(self) -> None:
         self.close_connection()
@@ -120,3 +136,11 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSQLConnection], DBTransaction)
             return DatabaseTransientException(ex)
         else:
             return ex
+
+    @staticmethod
+    def _maybe_make_terminal_exception_from_data_error(databricks_ex: databricks_lib.DatabaseError) -> Optional[Exception]:
+        return None
+
+    @staticmethod
+    def is_dbapi_exception(ex: Exception) -> bool:
+        return isinstance(ex, databricks_lib.DatabaseError)
