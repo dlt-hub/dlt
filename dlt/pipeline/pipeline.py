@@ -537,7 +537,6 @@ class Pipeline(SupportsPipeline):
                     # on merge schemas are replaced so we delete all old versions
                     self._schema_storage.clear_storage()
                 for schema in restored_schemas:
-                    print("RESTORE SCHEMA?")
                     self._schema_storage.save_schema(schema)
                 # if the remote state is present then unset first run
                 if remote_state is not None:
@@ -804,9 +803,19 @@ class Pipeline(SupportsPipeline):
     ) -> List[DltSource]:
 
         def apply_hint_args(resource: DltResource) -> None:
-            # apply hints only if any of the hints is present, table_name must be always present
-            if table_name or parent_table_name or write_disposition or columns or primary_key:
-                resource.apply_hints(table_name or resource.table_name or resource.name, parent_table_name, write_disposition, columns, primary_key)
+            resource.apply_hints(
+                table_name,
+                parent_table_name,
+                write_disposition,
+                columns,
+                primary_key,
+                schema_contract=schema_contract
+                )
+
+        def apply_settings(source_: DltSource) -> None:
+            # apply schema contract settings
+            if schema_contract:
+                source_.schema_contract = schema_contract
 
         def choose_schema() -> Schema:
             """Except of explicitly passed schema, use a clone that will get discarded if extraction fails"""
@@ -816,9 +825,6 @@ class Pipeline(SupportsPipeline):
                 schema_ = self.default_schema.clone()
             else:
                 schema_ = self._make_schema_with_default_name()
-            # apply schema contract settings
-            if schema_contract:
-                schema_.set_schema_contract(schema_contract, update_table_settings=True)
             return schema_
 
         effective_schema = choose_schema()
@@ -832,14 +838,8 @@ class Pipeline(SupportsPipeline):
                 # if schema is explicit then override source schema
                 if schema:
                     data_item.schema = schema
-                # try to apply hints to resources
-                _resources = data_item.resources.values()
-                for r in _resources:
-                    apply_hint_args(r)
                 sources.append(data_item)
             elif isinstance(data_item, DltResource):
-                # apply hints
-                apply_hint_args(data_item)
                 # do not set section to prevent source that represent a standalone resource
                 # to overwrite other standalone resources (ie. parents) in that source
                 sources.append(
@@ -848,10 +848,9 @@ class Pipeline(SupportsPipeline):
             else:
                 # iterator/iterable/generator
                 # create resource first without table template
-                resource = DltResource.from_data(data_item, name=table_name, section=self.pipeline_name)
-                # apply hints
-                apply_hint_args(resource)
-                resources.append(resource)
+                resources.append(
+                    DltResource.from_data(data_item, name=table_name, section=self.pipeline_name)
+                )
 
         if isinstance(data, C_Sequence) and len(data) > 0:
             # if first element is source or resource
@@ -863,9 +862,15 @@ class Pipeline(SupportsPipeline):
         else:
             append_data(data)
 
+        # add all the appended resources in one source
         if resources:
-            # add all the appended resources in one source
             sources.append(DltSource(effective_schema.name, self.pipeline_name, effective_schema, resources))
+
+        # apply hints and settings
+        for source in sources:
+            apply_settings(source)
+            for resource in source.selected_resources.values():
+                apply_hint_args(resource)
 
         return sources
 

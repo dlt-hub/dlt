@@ -1,8 +1,10 @@
+import os
 
 import dlt
 
 
 def test_schema_updates() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     p = dlt.pipeline(pipeline_name="test_schema_updates", full_refresh=True, destination="dummy")
 
     @dlt.source()
@@ -15,7 +17,7 @@ def test_schema_updates() -> None:
     # test without normalizer attributes
     s = source()
     p.run(s, table_name="items", write_disposition="append")
-    assert p.default_schema._normalizers_config["json"]["config"] == {}
+    assert "config" not in p.default_schema._normalizers_config["json"]
 
     # add table propagation
     s = source()
