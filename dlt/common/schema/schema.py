@@ -10,7 +10,7 @@ from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.normalizers.json import DataItemNormalizer, TNormalizedRowIterator
 from dlt.common.schema import utils
 from dlt.common.data_types import py_type_to_sc_type, coerce_value, TDataType
-from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, STATE_TABLE_NAME, TPartialTableSchema, TSchemaSettings, TSimpleRegex, TStoredSchema,
+from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, VERSION_TABLE_NAME, STATE_TABLE_NAME, TPartialTableSchema, TSchemaContractEntities, TSchemaEvolutionMode, TSchemaSettings, TSimpleRegex, TStoredSchema,
                                       TSchemaTables, TTableSchema, TTableSchemaColumns, TColumnSchema, TColumnProp, TColumnHint, TTypeDetections, TSchemaContractDict, TSchemaContract)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException)
@@ -198,12 +198,18 @@ class Schema:
 
         return new_row, updated_table_partial
 
-    @staticmethod
-    def apply_schema_contract(pipeline_schema: Optional["Schema"], contract_modes: TSchemaContractDict, row: DictStrAny, partial_table: TPartialTableSchema) -> Tuple[DictStrAny, TPartialTableSchema]:
+    def apply_schema_contract(
+            self,
+            schema_contract: TSchemaContractDict,
+            partial_table: TPartialTableSchema,
+            raise_on_freeze: bool = True
+        ) -> Tuple[TPartialTableSchema, List[Tuple[TSchemaContractEntities, str, TSchemaEvolutionMode]]]:
         """
-        Checks if contract mode allows for the requested changes to the data and the schema. It will allow all changes to pass, filter out the row filter out
-        columns for both the data and the schema_update or reject the update completely, depending on the mode. An example settings could be:
+        Checks if `schema_contract` allows for the `partial_table` to update the schema. It applies the contract dropping
+        the affected columns or the whole `partial_table`. It generates and returns a set of filters that should be applied to incoming data in order to modify it
+        so it conforms to the contract.
 
+        Example `schema_contract`:
         {
             "tables": "freeze",
             "columns": "evolve",
@@ -215,54 +221,82 @@ class Schema:
         * freeze: allow no change and fail the load
         * discard_row: allow no schema change and filter out the row
         * discard_value: allow no schema change and filter out the value but load the rest of the row
+
+        Returns a tuple where a first element is modified partial table and the second is a list of filters. The modified partial may be None in case the
+        whole table is not allowed.
+        Each filter is a tuple of (table|columns, entity name, freeze | discard_row | discard_value).
+        Note: by default `freeze` immediately raises SchemaFrozenException which is convenient in most use cases
+
         """
+        # default settings allow all evolutions, skip all else
+        if schema_contract == DEFAULT_SCHEMA_CONTRACT_MODE:
+            return partial_table, []
 
         assert partial_table
         table_name = partial_table["name"]
+        existing_table: TTableSchema = self._schema_tables.get(table_name, None)
 
-        # default settings allow all evolutions, skip all else
-        if contract_modes == DEFAULT_SCHEMA_CONTRACT_MODE:
-            return row, partial_table
-
-        is_new_table = not pipeline_schema or pipeline_schema.is_new_table(table_name)
-
+        # table is new when not yet exist or
+        is_new_table = not existing_table or self.is_new_table(table_name)
         # check case where we have a new table
-        if is_new_table:
-            if contract_modes["tables"] in ["discard_row", "discard_value"]:
-                return None, None
-            if contract_modes["tables"] == "freeze":
-                raise SchemaFrozenException(pipeline_schema.name if pipeline_schema else "", table_name, f"Trying to add table {table_name} but new tables are frozen.")
+        if is_new_table and schema_contract["tables"] != "evolve":
+            if raise_on_freeze and schema_contract["tables"] == "freeze":
+                raise SchemaFrozenException(self.name, table_name, f"Trying to add table {table_name} but new tables are frozen.")
+            # filter tables with name below
+            return None, [("tables", table_name, schema_contract["tables"])]
 
-        # iif there is no row data, we only check table modes
-        if not row or not pipeline_schema:
-            return row, partial_table
+        column_mode, data_mode = schema_contract["columns"], schema_contract["data_type"]
+        # allow to add new columns when table is new or if columns are allowed to evolve once
+        if is_new_table or existing_table.get("x-normalizer", {}).get("evolve-columns-once", False):  # type: ignore[attr-defined]
+            column_mode = "evolve"
 
-        # if evolve once is set, allow all column changes
-        evolve_once = pipeline_schema.tables.get(table_name, {}).get("x-normalizer", {}).get("evolve_once", False)  # type: ignore[attr-defined]
-        if evolve_once:
-           return row, partial_table
-
-        # check columns
-        for column_name in list(row.keys()):
+        # check if we should filter any columns, partial table below contains only new columns
+        filters: List[Tuple[TSchemaContractEntities, str, TSchemaEvolutionMode]] = []
+        for column_name, column in list(partial_table["columns"].items()):
             # dlt cols may always be added
-            if column_name.startswith(pipeline_schema._dlt_tables_prefix):
+            if column_name.startswith(self._dlt_tables_prefix):
                 continue
-            # if this is a new column for an existing table...
-            if not is_new_table and not utils.is_complete_column(pipeline_schema.tables[table_name]["columns"].get(column_name, {})):
-                is_variant = partial_table["columns"].get(column_name, {}).get("variant")
-                if contract_modes["columns"] == "discard_value" or (is_variant and contract_modes["data_type"] == "discard_value"):
-                    row.pop(column_name)
-                    partial_table["columns"].pop(column_name)
-                elif contract_modes["columns"] == "discard_row" or (is_variant and contract_modes["data_type"] == "discard_row"):
-                    return None, None
-                # raise on variant columns frozen
-                elif is_variant and contract_modes["data_type"] == "freeze":
-                    raise SchemaFrozenException(pipeline_schema.name, table_name, f"Trying to create new variant column {column_name} to table {table_name} data_types are frozen.")
-                # raise on new columns frozen
-                elif contract_modes["columns"] == "freeze":
-                    raise SchemaFrozenException(pipeline_schema.name, table_name, f"Trying to add column {column_name} to table {table_name} but columns are frozen.")
+            is_variant = column.get("variant", False)
+            # new column and contract prohibits that
+            if column_mode != "evolve" and not is_variant:
+                if raise_on_freeze and column_mode == "freeze":
+                    raise SchemaFrozenException(self.name, table_name, f"Trying to add column {column_name} to table {table_name} but columns are frozen.")
+                # filter column with name below
+                filters.append(("columns", column_name, column_mode))
+                # pop the column
+                partial_table["columns"].pop(column_name)
 
-        return row, partial_table
+            # variant (data type evolution) and contract prohibits that
+            if data_mode != "evolve" and is_variant:
+                if raise_on_freeze and data_mode == "freeze":
+                    raise SchemaFrozenException(self.name, table_name, f"Trying to create new variant column {column_name} to table {table_name} but data_types are frozen.")
+                # filter column with name below
+                filters.append(("columns", column_name, data_mode))
+                # pop the column
+                partial_table["columns"].pop(column_name)
+
+        return partial_table, filters
+
+    @staticmethod
+    def expand_schema_contract_settings(settings: TSchemaContract) -> TSchemaContractDict:
+        """Expand partial or shorthand settings into full settings dictionary"""
+        if isinstance(settings, str):
+            settings = TSchemaContractDict(tables=settings, columns=settings, data_type=settings)
+        return cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **settings})
+
+    def resolve_contract_settings_for_table(self, table_name: str) -> TSchemaContractDict:
+        """Resolve the exact applicable schema contract settings for the table `table_name`."""
+
+        settings: TSchemaContract = {}
+        # find root table
+        try:
+            table = utils.get_top_level_table(self._schema_tables, table_name)
+            settings = table["schema_contract"]
+        except KeyError:
+            settings = self._settings.get("schema_contract", {})
+
+        # expand settings, empty settings will expand into default settings
+        return Schema.expand_schema_contract_settings(settings)
 
     def update_table(self, partial_table: TPartialTableSchema) -> TPartialTableSchema:
         table_name = partial_table["name"]
@@ -472,14 +506,11 @@ class Schema:
         normalizers["json"] = normalizers["json"] or self._normalizers_config["json"]
         self._configure_normalizers(normalizers)
 
-    def set_schema_contract(self, settings: TSchemaContract, update_table_settings: bool = False) -> None:
+    def set_schema_contract(self, settings: TSchemaContract) -> None:
         if not settings:
-            return
-        self._settings["schema_contract"] = settings
-        if update_table_settings:
-            for table in self.tables.values():
-                if not table.get("parent"):
-                    table["schema_contract"] = settings
+            self._settings.pop("schema_contract", None)
+        else:
+            self._settings["schema_contract"] = settings
 
     def add_type_detection(self, detection: TTypeDetections) -> None:
         """Add type auto detection to the schema."""
@@ -686,37 +717,3 @@ class Schema:
 
     def __repr__(self) -> str:
         return f"Schema {self.name} at {id(self)}"
-
-def resolve_contract_settings_for_table(parent_table: str, table_name: str, current_schema: Optional[Schema], incoming_schema: Schema = None, incoming_table: TTableSchema = None) -> TSchemaContractDict:
-    """Resolve the exact applicable schema contract settings for the table during the normalization stage."""
-
-    current_schema = current_schema or incoming_schema
-
-    # find settings and expand them to dict if needed
-    def resolve_single(settings: TSchemaContract) -> TSchemaContractDict:
-        settings = settings or {}
-        if isinstance(settings, str):
-            settings = TSchemaContractDict(tables=settings, columns=settings, data_type=settings)
-        return cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **settings} if settings else {})
-
-    # we have contract modes set on the incoming table definition (from the resource)
-    if incoming_table and (incoming_table_contract_mode := resolve_single(incoming_table.get("schema_contract", {}))):
-        return incoming_table_contract_mode
-
-    # find correct parent table
-    table = parent_table or table_name
-    if table in current_schema.tables:
-        table = utils.get_top_level_table(current_schema.tables, parent_table or table_name)["name"]
-
-    # resolve existing contract modes
-    current_table_contract_modes = resolve_single(current_schema.tables.get(table, {}).get("schema_contract", {}))
-    current_schema_contract_modes = resolve_single(current_schema._settings.get("schema_contract", {}))
-
-    # if we have stuff defined on the incoming schema, this takes precedence
-    if incoming_schema:
-        if incoming_table_contract_mode := resolve_single(incoming_schema.tables.get(table, {}).get("schema_contract", {})):
-            return incoming_table_contract_mode
-        if not current_table_contract_modes and (incoming_schema_contract_modes := resolve_single(incoming_schema._settings.get("schema_contract", {}))):
-            return incoming_schema_contract_modes
-
-    return current_table_contract_modes or current_schema_contract_modes or DEFAULT_SCHEMA_CONTRACT_MODE

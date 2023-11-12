@@ -72,6 +72,7 @@ TColumnName = NewType("TColumnName", str)
 SIMPLE_REGEX_PREFIX = "re:"
 
 TSchemaEvolutionMode = Literal["evolve", "discard_value", "freeze", "discard_row"]
+TSchemaContractEntities = Literal["tables", "columns", "data_type"]
 
 class TSchemaContractDict(TypedDict, total=False):
     """TypedDict defining the schema update settings"""
