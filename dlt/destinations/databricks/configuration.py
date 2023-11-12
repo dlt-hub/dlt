@@ -10,11 +10,11 @@ CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 
 @configspec
 class DatabricksCredentials(CredentialsConfiguration):
-    database: Optional[str] = None  # type: ignore[assignment]
+    catalog: Optional[str] = None  # type: ignore[assignment]
     schema: Optional[str] = None  # type: ignore[assignment]
-    host: str = None
+    server_hostname: str = None
     http_path: str = None
-    token: Optional[TSecretStrValue] = None
+    access_token: Optional[TSecretStrValue] = None
     client_id: Optional[str] = None
     client_secret: Optional[TSecretStrValue] = None
     session_properties: Optional[Dict[str, Any]] = None
@@ -38,25 +38,25 @@ class DatabricksCredentials(CredentialsConfiguration):
 
         session_properties = self.session_properties or {}
         if CATALOG_KEY_IN_SESSION_PROPERTIES in session_properties:
-            if self.database is None:
-                self.database = session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
+            if self.catalog is None:
+                self.catalog = session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
                 del session_properties[CATALOG_KEY_IN_SESSION_PROPERTIES]
             else:
                 raise ConfigurationValueError(
                     f"Got duplicate keys: (`{CATALOG_KEY_IN_SESSION_PROPERTIES}` "
-                    'in session_properties) all map to "database"'
+                    'in session_properties) all map to "catalog"'
                 )
         self.session_properties = session_properties
 
-        if self.database is not None:
-            database = self.database.strip()
-            if not database:
+        if self.catalog is not None:
+            catalog = self.catalog.strip()
+            if not catalog:
                 raise ConfigurationValueError(
-                    f"Invalid catalog name : `{self.database}`."
+                    f"Invalid catalog name : `{self.catalog}`."
                 )
-            self.database = database
+            self.catalog = catalog
         else:
-            self.database = "hive_metastore"
+            self.catalog = "hive_metastore"
 
         connection_parameters = self.connection_parameters or {}
         for key in (
@@ -108,7 +108,18 @@ class DatabricksCredentials(CredentialsConfiguration):
             )
 
     def to_connector_params(self) -> Dict[str, Any]:
-        return self.connection_parameters or {}
+        return dict(
+            catalog=self.catalog,
+            schema=self.schema,
+            server_hostname=self.server_hostname,
+            http_path=self.http_path,
+            access_token=self.access_token,
+            client_id=self.client_id,
+            client_secret=self.client_secret,
+            session_properties=self.session_properties or {},
+            connection_parameters=self.connection_parameters or {},
+            auth_type=self.auth_type,
+        )
 
 
 @configspec
