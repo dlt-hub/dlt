@@ -10,6 +10,7 @@ from dlt.common.pipeline import StateInjectableContext, source_state
 from dlt.common.schema import Schema
 from dlt.common.typing import TDataItems
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataTypeMultiplePipes, InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, ResourcesNotFoundError
+from dlt.extract.incremental import Incremental
 from dlt.extract.pipe import Pipe
 from dlt.extract.typing import FilterItem, MapItem
 from dlt.extract.source import DltResource, DltResourceDict, DltSource
@@ -1170,7 +1171,7 @@ def test_apply_hints() -> None:
     assert empty_r.table_name == "table"
 
     # reset
-    empty_r.apply_hints(table_name="", parent_table_name="", primary_key=[], merge_key="", columns={})
+    empty_r.apply_hints(table_name="", parent_table_name="", primary_key=[], merge_key="", columns={}, incremental=Incremental.EMPTY)
     assert empty_r._table_schema_template == {'columns': {}, 'incremental': None, 'validator': None, 'write_disposition': 'append'}
     table = empty_r.compute_table_schema()
     assert table["name"] == "empty_gen"

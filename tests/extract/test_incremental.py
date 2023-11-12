@@ -19,7 +19,7 @@ from dlt.common.json import json
 
 from dlt.extract.source import DltSource
 from dlt.sources.helpers.transform import take_first
-from dlt.extract.incremental import IncrementalCursorPathMissing, IncrementalPrimaryKeyMissing
+from dlt.extract.incremental.exceptions import IncrementalCursorPathMissing, IncrementalPrimaryKeyMissing
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.extract.utils import AssertItems, data_to_item_format, TItemFormat, ALL_ITEM_FORMATS, data_item_to_list
@@ -127,9 +127,8 @@ def test_unique_keys_are_deduplicated(item_type: TItemFormat) -> None:
             yield from source_items2
 
     p = dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'))
-
-    p.run(some_data())
-    p.run(some_data())
+    p.run(some_data()).raise_on_failed_jobs()
+    p.run(some_data()).raise_on_failed_jobs()
 
     with p.sql_client() as c:
         with c.execute_query("SELECT created_at, id FROM some_data order by created_at, id") as cur:
@@ -166,8 +165,8 @@ def test_unique_rows_by_hash_are_deduplicated(item_type: TItemFormat) -> None:
             yield from source_items2
 
     p = dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'))
-    p.run(some_data())
-    p.run(some_data())
+    p.run(some_data()).raise_on_failed_jobs()
+    p.run(some_data()).raise_on_failed_jobs()
 
     with p.sql_client() as c:
         with c.execute_query("SELECT created_at, id FROM some_data order by created_at, id") as cur:
@@ -360,7 +359,7 @@ def test_composite_primary_key(item_type: TItemFormat) -> None:
         yield from source_items
 
     p = dlt.pipeline(pipeline_name=uniq_id(), destination='duckdb', credentials=duckdb.connect(':memory:'))
-    p.run(some_data())
+    p.run(some_data()).raise_on_failed_jobs()
 
     with p.sql_client() as c:
         with c.execute_query("SELECT created_at, isrc, market FROM some_data order by created_at, isrc, market") as cur:
@@ -688,10 +687,12 @@ def test_replace_resets_state(item_type: TItemFormat) -> None:
     info = p.run(child, write_disposition="replace")
     # print(info.load_packages[0])
     assert len(info.loads_ids) == 1
-    # pipeline applied hints to the child resource
-    assert child.write_disposition == "replace"
+    # pipeline applied hints to the child resource but it was placed into source first
+    # so the original is still "append"
+    assert child.write_disposition == "append"
 
     # create a source where we place only child
+    child.write_disposition = "replace"
     s = DltSource("comp", "section", Schema("comp"), [child])
     # but extracted resources will include its parent where it derives write disposition from child
     extracted = s.resources.extracted

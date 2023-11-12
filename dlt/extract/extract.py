@@ -1,28 +1,28 @@
 import contextlib
+from copy import copy
 import os
-from typing import ClassVar, List, Set, Dict, Type, Any, Sequence, Optional, Set
-from collections import defaultdict
+from typing import ClassVar, Set, Dict, Any, Optional, Set
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.libs.pyarrow import TAnyArrowItem
 from dlt.common.pipeline import reset_resource_state
 from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.utils import uniq_id
-from dlt.common.typing import TDataItems, TDataItem
-from dlt.common.schema import Schema, utils, TSchemaUpdate
-from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns
+from dlt.common.utils import uniq_id, update_dict_nested
+from dlt.common.typing import StrStr, TDataItems, TDataItem
+from dlt.common.schema import Schema, utils
+from dlt.common.schema.typing import TSchemaContractDict, TSchemaEvolutionMode, TTableSchema, TTableSchemaColumns
 from dlt.common.storages import NormalizeStorageConfiguration, NormalizeStorage, DataItemStorage, FileStorage
 from dlt.common.configuration.specs import known_sections
 from dlt.common.schema.typing import TPartialTableSchema
-from dlt.common.schema.schema import resolve_contract_settings_for_table
 
 from dlt.extract.decorators import SourceSchemaInjectableContext
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, NameNormalizationClash
 from dlt.extract.pipe import PipeIterator
 from dlt.extract.source import DltResource, DltSource
 from dlt.extract.typing import TableNameMeta
@@ -109,23 +109,22 @@ class ExtractorStorage(NormalizeStorage):
 
 class Extractor:
     file_format: TLoaderFileFormat
-    dynamic_tables: TSchemaUpdate
     def __init__(
             self,
             extract_id: str,
             storage: ExtractorStorage,
             schema: Schema,
             resources_with_items: Set[str],
-            dynamic_tables: TSchemaUpdate,
             collector: Collector = NULL_COLLECTOR
     ) -> None:
-        self._storage = storage
         self.schema = schema
-        self.dynamic_tables = dynamic_tables
         self.collector = collector
         self.resources_with_items = resources_with_items
         self.extract_id = extract_id
-        self.disallowed_tables: Set[str] = set()
+        self._table_contracts: Dict[str, TSchemaContractDict] = {}
+        self._filtered_tables: Set[str] = set()
+        self._filtered_columns: Dict[str, Dict[str, TSchemaEvolutionMode]]
+        self._storage = storage
 
     @property
     def storage(self) -> ExtractorItemStorage:
@@ -146,87 +145,91 @@ class Extractor:
             return "puae-jsonl"
         return None # Empty list is unknown format
 
-    def write_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
+    def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
+        """Write `items` to `resource` optionally computing table schemas and revalidating/filtering data"""
         if isinstance(meta, TableNameMeta):
-            table_name = meta.table_name
-            self._write_static_table(resource, table_name, items)
+            # write item belonging to table with static name
+            self._write_to_static_table(resource, meta.table_name, items)
         else:
             if resource._table_name_hint_fun:
-                if isinstance(items, list):
-                    for item in items:
-                        self._write_dynamic_table(resource, item)
-                else:
-                    self._write_dynamic_table(resource, items)
+                # table has name or other hints depending on data items
+                self._write_to_dynamic_table(resource, items)
             else:
                 # write item belonging to table with static name
-                table_name = resource.table_name  # type: ignore[assignment]
-                self._write_static_table(resource, table_name, items)
+                self._write_to_static_table(resource, resource.table_name, items)  # type: ignore[arg-type]
 
     def write_empty_file(self, table_name: str) -> None:
         table_name = self.schema.naming.normalize_table_identifier(table_name)
         self.storage.write_empty_file(self.extract_id, self.schema.name, table_name, None)
 
     def _write_item(self, table_name: str, resource_name: str, items: TDataItems, columns: TTableSchemaColumns = None) -> None:
-        # normalize table name before writing so the name match the name in schema
-        # note: normalize_table_identifier is caching the normalization results
-        table_name = self.schema.naming.normalize_table_identifier(table_name)
-        self.collector.update(table_name)
+        new_rows_count = self.storage.write_data_item(self.extract_id, self.schema.name, table_name, items, columns)
+        self.collector.update(table_name, inc=new_rows_count)
         self.resources_with_items.add(resource_name)
-        self.storage.write_data_item(self.extract_id, self.schema.name, table_name, items, columns)
 
-    def _write_dynamic_table(self, resource: DltResource, item: TDataItem) -> None:
-        table_name = resource._table_name_hint_fun(item)
-        existing_table = self.dynamic_tables.get(table_name)
-        if existing_table is None:
-            if not self._add_dynamic_table(resource, data_item=item):
-                return
-        else:
-            # quick check if deep table merge is required
-            if resource._table_has_other_dynamic_hints:
-                new_table = resource.compute_table_schema(item)
-                # this merges into existing table in place
-                utils.merge_tables(existing_table[0], new_table)
-            else:
-                # if there are no other dynamic hints besides name then we just leave the existing partial table
-                pass
-        # write to storage with inferred table name
-        self._write_item(table_name, resource.name, item)
+    def _write_to_dynamic_table(self, resource: DltResource, items: TDataItems) -> None:
+        if not isinstance(items, list):
+            items = [items]
+        for item in items:
+            table_name = self.schema.naming.normalize_table_identifier(resource._table_name_hint_fun(item))
+            if table_name in self._filtered_tables:
+                continue
+            if table_name not in self._table_contracts or resource._table_has_other_dynamic_hints:
+                self._compute_and_update_table(resource, table_name, item)
+            # write to storage with inferred table name
+            if table_name not in self._filtered_tables:
+                self._write_item(table_name, resource.name, item)
 
-    def _write_static_table(self, resource: DltResource, table_name: str, items: TDataItems) -> None:
-        existing_table = self.dynamic_tables.get(table_name)
-        if existing_table is None:
-            if not self._add_dynamic_table(resource, items, table_name=table_name):
-                return
-        self._write_item(table_name, resource.name, items)
+    def _write_to_static_table(self, resource: DltResource, table_name: str, items: TDataItems) -> None:
+        table_name = self.schema.naming.normalize_table_identifier(table_name)
+        if table_name not in self._table_contracts:
+            self._compute_and_update_table(resource, table_name, items)
+        if table_name not in self._filtered_tables:
+            self._write_item(table_name, resource.name, items)
 
-    def _add_dynamic_table(self, resource: DltResource, data_item: TDataItems = None, table_name: Optional[str] = None) -> bool:
+    def _compute_table(self, resource: DltResource, data_item: TDataItem) -> TTableSchema:
+        """Computes a schema for a new or dynamic table and normalizes identifiers"""
+        return self.schema.normalize_table_identifiers(
+            resource.compute_table_schema(data_item)
+        )
+
+    def _compute_and_update_table(self, resource: DltResource, table_name: str, data_item: TDataItem) -> None:
         """
         Computes new table and does contract checks, if false is returned, the table may not be created and not items should be written
         """
-        table = resource.compute_table_schema(data_item)
-        if table_name:
-            table["name"] = table_name
-
-        # fast exit if we already evaluated this
-        if table["name"] in self.disallowed_tables:
-            return False
+        computed_table = self._compute_table(resource, data_item)
+        # overwrite table name (if coming from meta)
+        computed_table["name"] = table_name
+        # get or compute contract
+        schema_contract = self._table_contracts.setdefault(
+            table_name,
+            self.schema.resolve_contract_settings_for_table(table_name)
+        )
 
         # this is a new table so allow evolve once
-        is_new_table = self.schema.is_new_table(table["name"])
-        if is_new_table:
-            table["x-normalizer"] = {"evolve_once": True}  # type: ignore[typeddict-unknown-key]
+        if schema_contract["columns"] != "evolve" and self.schema.is_new_table(table_name):
+            computed_table["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore[typeddict-unknown-key]
+        existing_table = self.schema._schema_tables.get(table_name, None)
+        if existing_table:
+            diff_table = utils.merge_tables(existing_table, computed_table)
+        else:
+            diff_table = computed_table
 
-        # apply schema contract and apply on pipeline schema
-        # here we only check that table may be created
-        schema_contract = resolve_contract_settings_for_table(None, table["name"], self.schema)
-        _, checked_table = Schema.apply_schema_contract(self.schema, schema_contract, None, table)
+        # apply contracts
+        diff_table, filters = self.schema.apply_schema_contract(schema_contract, diff_table)
 
-        if not checked_table:
-            self.disallowed_tables.add(table["name"])
-            return False
+        # merge with schema table
+        if diff_table:
+            self.schema.update_table(diff_table)
 
-        self.dynamic_tables[checked_table["name"]] = [checked_table]
-        return True
+        # process filters
+        if filters:
+            for entity, name, mode in filters:
+                if entity == "tables":
+                    self._filtered_tables.add(name)
+                elif entity == "columns":
+                    filtered_columns = self._filtered_columns.setdefault(table_name, {})
+                    filtered_columns[name] = mode
 
 
 class JsonLExtractor(Extractor):
@@ -236,54 +239,57 @@ class JsonLExtractor(Extractor):
 class ArrowExtractor(Extractor):
     file_format = "arrow"
 
-    def _rename_columns(self, items: List[TDataItem], new_column_names: List[str]) -> List[TDataItem]:
-        """Rename arrow columns to normalized schema column names"""
-        if not items:
-            return items
-        if items[0].schema.names == new_column_names:
-            # No need to rename
-            return items
-        if isinstance(items[0], pyarrow.pyarrow.Table):
-            return [item.rename_columns(new_column_names) for item in items]
-        elif isinstance(items[0], pyarrow.pyarrow.RecordBatch):
-            # Convert the batches to table -> rename -> then back to batches
-            return pa.Table.from_batches(items).rename_columns(new_column_names).to_batches()  # type: ignore[no-any-return]
-        else:
-            raise TypeError(f"Unsupported data item type {type(items[0])}")
 
-    def write_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
+
+    def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         items = [
+            # 3. remove columns and rows in data contract filters
             # 2. Remove null-type columns from the table(s) as they can't be loaded
-            pyarrow.remove_null_columns(tbl) for tbl in (
+            self._apply_contract_filters(pyarrow.remove_null_columns(tbl)) for tbl in (
                 # 1. Convert pandas frame(s) to arrow Table
-                pyarrow.pyarrow.Table.from_pandas(item) if (pd and isinstance(item, pd.DataFrame)) else item
+                pa.Table.from_pandas(item) if (pd and isinstance(item, pd.DataFrame)) else item
                 for item in (items if isinstance(items, list) else [items])
             )
         ]
-        super().write_table(resource, items, meta)
+        super().write_items(resource, items, meta)
+
+    def _apply_contract_filters(self, item: TAnyArrowItem) -> TAnyArrowItem:
+        # convert arrow schema names into normalized names
+        # find matching columns and delete by original name
+        return item
+
+    def _get_normalized_arrow_fields(self, resource_name: str, item: TAnyArrowItem) -> StrStr:
+        """Normalizes schema field names and returns mapping from original to normalized name. Raises on name clashes"""
+        norm_f = self.schema.naming.normalize_identifier
+        name_mapping = {n.name: norm_f(n.name) for n in item.schema}
+        # verify if names uniquely normalize
+        normalized_names = set(name_mapping.values())
+        if len(name_mapping) != len(normalized_names):
+            raise NameNormalizationClash(resource_name, f"Arrow schema fields normalized from {list(name_mapping.keys())} to {list(normalized_names)}")
+        return name_mapping
 
     def _write_item(self, table_name: str, resource_name: str, items: TDataItems, columns: TTableSchemaColumns = None) -> None:
         # Note: `items` is always a list here due to the conversion in `write_table`
-        new_columns = list(self.dynamic_tables[table_name][0]["columns"].keys())
-        super()._write_item(table_name, resource_name, self._rename_columns(items, new_columns), self.dynamic_tables[table_name][0]["columns"])
+        items = [pyarrow.rename_columns(
+            item,
+            list(self._get_normalized_arrow_fields(resource_name, item).values())
+        )
+        for item in items]
+        super()._write_item(table_name, resource_name, items, self.schema.tables[table_name]["columns"])
 
-    def _write_static_table(self, resource: DltResource, table_name: str, items: TDataItems) -> None:
-        existing_table = self.dynamic_tables.get(table_name)
-        if existing_table is None:
-            static_table = resource.compute_table_schema()
-            if isinstance(items, list):
-                item = items[0]
-            else:
-                item = items
-            # Merge the columns to include primary_key and other hints that may be set on the resource
-            arrow_columns = pyarrow.py_arrow_to_table_schema_columns(item.schema)
-            for key, value in static_table["columns"].items():
-                arrow_columns[key] = utils.merge_columns(value, arrow_columns.get(key, {}))
-            static_table["columns"] = arrow_columns
-            static_table["name"] = table_name
-            self.dynamic_tables[table_name] = [self.schema.normalize_table_identifiers(static_table)]
-        self._write_item(table_name, resource.name, items)
+    def _compute_table(self, resource: DltResource, data_item: TDataItem) -> TPartialTableSchema:
+        data_item = data_item[0]
+        computed_table = super()._compute_table(resource, data_item)
 
+        # Merge the columns to include primary_key and other hints that may be set on the resource
+        arrow_table = copy(computed_table)
+        arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(data_item.schema)
+        # normalize arrow table before merging
+        arrow_table = self.schema.normalize_table_identifiers(arrow_table)
+        # we must override the columns to preserve the order in arrow table
+        arrow_table["columns"] = update_dict_nested(arrow_table["columns"], computed_table["columns"])
+
+        return arrow_table
 
 def extract(
     extract_id: str,
@@ -294,16 +300,15 @@ def extract(
     max_parallel_items: int = None,
     workers: int = None,
     futures_poll_interval: float = None
-) -> TSchemaUpdate:
-    dynamic_tables: TSchemaUpdate = {}
+) -> None:
     schema = source.schema
     resources_with_items: Set[str] = set()
     extractors: Dict[TLoaderFileFormat, Extractor] = {
         "puae-jsonl": JsonLExtractor(
-            extract_id, storage, schema, resources_with_items, dynamic_tables, collector=collector
+            extract_id, storage, schema, resources_with_items, collector=collector
         ),
         "arrow": ArrowExtractor(
-            extract_id, storage, schema, resources_with_items, dynamic_tables, collector=collector
+            extract_id, storage, schema, resources_with_items, collector=collector
         )
     }
     last_item_format: Optional[TLoaderFileFormat] = None
@@ -326,7 +331,7 @@ def extract(
                 resource = source.resources[pipe_item.pipe.name]
                 # Fallback to last item's format or default (puae-jsonl) if the current item is an empty list
                 item_format = Extractor.item_format(pipe_item.item) or last_item_format or "puae-jsonl"
-                extractors[item_format].write_table(resource, pipe_item.item, pipe_item.meta)
+                extractors[item_format].write_items(resource, pipe_item.item, pipe_item.meta)
                 last_item_format = item_format
 
             # find defined resources that did not yield any pipeitems and create empty jobs for them
@@ -349,9 +354,6 @@ def extract(
         # flush all buffered writers
         storage.close_writers(extract_id)
 
-    # returns set of partial tables
-    return dynamic_tables
-
 
 def extract_with_schema(
     storage: ExtractorStorage,
@@ -370,10 +372,6 @@ def extract_with_schema(
                 with contextlib.suppress(DataItemRequiredForDynamicTableHints):
                     if resource.write_disposition == "replace":
                         reset_resource_state(resource.name)
-            extractor = extract(extract_id, source, storage, collector, max_parallel_items=max_parallel_items, workers=workers)
-            # iterate over all items in the pipeline and update the schema if dynamic table hints were present
-            for _, partials in extractor.items():
-                for partial in partials:
-                    source.schema.update_table(source.schema.normalize_table_identifiers(partial))
+            extract(extract_id, source, storage, collector, max_parallel_items=max_parallel_items, workers=workers)
 
     return extract_id

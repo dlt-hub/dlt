@@ -3,7 +3,7 @@ from collections.abc import Mapping as C_Mapping
 from typing import List, TypedDict, cast, Any
 
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
-from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TTableFormat, TSchemaContract
+from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TTableFormat, TSchemaContract
 from dlt.common.typing import TDataItem
 from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
@@ -70,7 +70,7 @@ class DltResourceSchema:
             return None
         return self._table_schema_template.get("columns")
 
-    def compute_table_schema(self, item: TDataItem =  None) -> TPartialTableSchema:
+    def compute_table_schema(self, item: TDataItem =  None) -> TTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation. `item` parameter is used to resolve table hints based on data"""
         if not self._table_schema_template:
             return new_table(self.name, resource=self.name)
@@ -85,13 +85,11 @@ class DltResourceSchema:
         if self._table_name_hint_fun and item is None:
             raise DataItemRequiredForDynamicTableHints(self.name)
         # resolve
-        resolved_template: TTableSchemaTemplate = {k: self._resolve_hint(item, v) for k, v in table_template.items()}  # type: ignore
-        resolved_template.pop("incremental", None)
-        resolved_template.pop("validator", None)
+        resolved_template: TTableSchemaTemplate = {k: self._resolve_hint(item, v) for k, v in table_template.items() if k not in ["incremental", "validator"]}  # type: ignore
         table_schema = self._merge_keys(resolved_template)
         table_schema["resource"] = self.name
         validate_dict_ignoring_xkeys(
-            spec=TPartialTableSchema,
+            spec=TTableSchema,
             doc=table_schema,
             path=f"new_table/{self.name}",
         )
@@ -139,8 +137,6 @@ class DltResourceSchema:
                     t.pop("parent", None)
             if write_disposition:
                 t["write_disposition"] = write_disposition
-            if schema_contract:
-                t["schema_contract"] = schema_contract
             if columns is not None:
                 t['validator'] = get_column_validator(columns)
                 # if callable then override existing
@@ -154,7 +150,6 @@ class DltResourceSchema:
                 else:
                     # set to empty columns
                     t["columns"] = ensure_table_schema_columns(columns)
-
             if primary_key is not None:
                 if primary_key:
                     t["primary_key"] = primary_key
@@ -165,9 +160,15 @@ class DltResourceSchema:
                     t["merge_key"] = merge_key
                 else:
                     t.pop("merge_key", None)
+            if schema_contract is not None:
+                t["schema_contract"] = schema_contract
 
         # set properties that cannot be passed to new_table_template
-        t["incremental"] = incremental
+        if incremental is not None:
+            if incremental is Incremental.EMPTY:
+                t["incremental"] = None
+            else:
+                t["incremental"] = incremental
         self.set_template(t)
 
     def set_template(self, table_schema_template: TTableSchemaTemplate) -> None:
