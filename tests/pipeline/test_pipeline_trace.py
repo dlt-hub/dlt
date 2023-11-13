@@ -16,6 +16,7 @@ from dlt.common.pipeline import ExtractInfo, NormalizeInfo, LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.runtime.telemetry import stop_telemetry
 from dlt.common.typing import DictStrAny, StrStr, DictStrStr, TSecretValue
+from dlt.common.utils import digest128
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
@@ -231,12 +232,13 @@ def test_load_none_trace() -> None:
 
 def test_trace_telemetry() -> None:
     with patch("dlt.common.runtime.sentry.before_send", _mock_sentry_before_send), patch("dlt.common.runtime.segment.before_send", _mock_segment_before_send):
+        # os.environ["FAIL_PROB"] = "1.0"  # make it complete immediately
         start_test_telemetry()
 
         SEGMENT_SENT_ITEMS.clear()
         SENTRY_SENT_ITEMS.clear()
         # default dummy fails all files
-        dlt.pipeline().run([1,2,3], table_name="data", destination="dummy")
+        load_info = dlt.pipeline().run([1,2,3], table_name="data", destination="dummy", dataset_name="data_data")
         # we should have 4 segment items
         assert len(SEGMENT_SENT_ITEMS) == 4
         expected_steps = ["extract", "normalize", "load", "run"]
@@ -244,6 +246,9 @@ def test_trace_telemetry() -> None:
             assert event["event"] == f"pipeline_{step}"
             assert event["properties"]["success"] is True
             assert event["properties"]["destination_name"] == "dummy"
+            assert event["properties"]["pipeline_name_hash"] == digest128(load_info.pipeline.pipeline_name)
+            assert event["properties"]["dataset_name_hash"] == digest128(load_info.pipeline.dataset_name)
+            assert event["properties"]["default_schema_name_hash"] == digest128(load_info.pipeline.default_schema_name)
             assert isinstance(event["properties"]["elapsed"], float)
             assert isinstance(event["properties"]["transaction_id"], str)
             # check extract info
@@ -276,6 +281,19 @@ def test_trace_telemetry() -> None:
             assert event["properties"]["extract_data"] == [{"name": "data", "data_type": "resource"}]
         # we didn't log any errors
         assert len(SENTRY_SENT_ITEMS) == 0
+
+        # trace without destination and dataset
+        p = dlt.pipeline(pipeline_name="fresh").drop()
+        SEGMENT_SENT_ITEMS.clear()
+        SENTRY_SENT_ITEMS.clear()
+        p.extract([1, 2, 3], table_name="data")
+        event = SEGMENT_SENT_ITEMS[0]
+        assert event["event"] == "pipeline_extract"
+        assert event["properties"]["success"] is True
+        assert event["properties"]["destination_name"] is None
+        assert event["properties"]["pipeline_name_hash"] == digest128("fresh")
+        assert event["properties"]["dataset_name_hash"] == digest128(p.dataset_name)
+        assert event["properties"]["default_schema_name_hash"] == digest128(p.default_schema_name)
 
 
 def test_extract_data_describe() -> None:

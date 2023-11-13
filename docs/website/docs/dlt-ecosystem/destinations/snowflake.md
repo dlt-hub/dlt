@@ -69,6 +69,7 @@ You can also decrease the suspend time for your warehouse to 1 minute (**Admin**
 Snowflake destination accepts three authentication types
 - password authentication
 - [key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
+- external authentication
 
 The **password authentication** is not any different from other databases like Postgres or Redshift. `dlt` follows the same syntax as [SQLAlchemy dialect](https://docs.snowflake.com/en/developer-guide/python-connector/sqlalchemy#required-parameters).
 
