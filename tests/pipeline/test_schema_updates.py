@@ -47,12 +47,12 @@ def test_schema_updates() -> None:
     s = source()
     s.root_key = False
     p.run(s, table_name="items", write_disposition="merge")
+    # source schema overwrites normalizer settings so `root` propagation is gone
     assert p.default_schema._normalizers_config["json"]["config"] == {
         "propagation": {
             "tables": {
                 "items": {'_dlt_id': '_dlt_root_id'}
-            },
-            "root": {'_dlt_id': '_dlt_root_id'}
+            }
         }
     }
 
@@ -64,8 +64,7 @@ def test_schema_updates() -> None:
         "propagation": {
             "tables": {
                 "items": {'_dlt_id': '_dlt_root_id'}
-            },
-            "root": {'_dlt_id': '_dlt_root_id'}
+            }
         },
         "max_nesting": 5
     }
@@ -79,8 +78,7 @@ def test_schema_updates() -> None:
             "tables": {
                 "items": {'_dlt_id': '_dlt_root_id'},
                 "items2": {'_dlt_id': '_dlt_root_id'},
-            },
-            "root": {'_dlt_id': '_dlt_root_id'}
+            }
         },
         "max_nesting": 50
     }

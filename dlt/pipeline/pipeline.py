@@ -87,7 +87,7 @@ def with_schemas_sync(f: TFun) -> TFun:
         for name in self._schema_storage.live_schemas:
             self._schema_storage.commit_live_schema(name)
         # refresh list of schemas if any new schemas are added
-        self.schema_names = self._schema_storage.list_schemas()
+        self.schema_names = self._list_schemas_sorted()
         return rv
 
     return _wrap  # type: ignore
@@ -1210,13 +1210,6 @@ class Pipeline(SupportsPipeline):
             backup_state = self._get_state()
             # restore original pipeline props
             self._state_to_props(backup_state)
-            # synchronize schema storage with initial list of schemas, note that we'll not be able to synchronize the schema content
-            # NOTE: not needed - schemas are not saved and are kept as live until with_schema_sync ends
-            # if self._schema_storage:
-            #     # TODO: we should restore schemas backup here
-            #     for existing_schema_name in self._schema_storage.list_schemas():
-            #         if existing_schema_name not in self.schema_names:
-            #             self._schema_storage.remove_schema(existing_schema_name)
             # raise original exception
             raise
         else:
@@ -1267,7 +1260,11 @@ class Pipeline(SupportsPipeline):
             state["destination"] = self.destination.__name__
         if self.staging:
             state["staging"] = self.staging.__name__
-        state["schema_names"] = self._schema_storage.list_schemas()
+        state["schema_names"] = self._list_schemas_sorted()
+
+    def _list_schemas_sorted(self) -> List[str]:
+        """Lists schema names sorted to have deterministic state"""
+        return sorted(self._schema_storage.list_schemas())
 
     def _save_state(self, state: TPipelineState) -> None:
         self._pipeline_storage.save(Pipeline.STATE_FILE, json_encode_state(state))
