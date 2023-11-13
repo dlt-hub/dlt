@@ -4,8 +4,7 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.typing import TTableSchemaColumns
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.schema.typing import TColumnType, TColumnSchemaBase
-from dlt.common.data_types import TDataType
+from dlt.common.schema.typing import TColumnType
 from dlt.common.typing import TFileOrPath
 
 try:

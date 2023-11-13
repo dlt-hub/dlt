@@ -6,7 +6,6 @@ from typing import ClassVar, Set, Dict, Any, Optional, Set
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.libs.pyarrow import TAnyArrowItem
 from dlt.common.pipeline import reset_resource_state
 from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.exceptions import MissingDependencyException
@@ -14,7 +13,7 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.utils import uniq_id, update_dict_nested
-from dlt.common.typing import StrStr, TDataItems, TDataItem
+from dlt.common.typing import StrStr, TDataItems, TDataItem, NoneType
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.typing import TSchemaContractDict, TSchemaEvolutionMode, TTableSchema, TTableSchemaColumns
 from dlt.common.storages import NormalizeStorageConfiguration, NormalizeStorage, DataItemStorage, FileStorage
@@ -28,9 +27,10 @@ from dlt.extract.source import DltResource, DltSource
 from dlt.extract.typing import TableNameMeta
 try:
     from dlt.common.libs import pyarrow
-    from dlt.common.libs.pyarrow import pyarrow as pa
+    from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
 except MissingDependencyException:
     pyarrow = None
+    TAnyArrowItem = Any  # type: ignore[misc]
 try:
     import pandas as pd
 except ModuleNotFoundError:
@@ -238,8 +238,6 @@ class JsonLExtractor(Extractor):
 
 class ArrowExtractor(Extractor):
     file_format = "arrow"
-
-
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         items = [

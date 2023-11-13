@@ -325,9 +325,8 @@ class Schema:
         # update all tables
         for table in schema.tables.values():
             self.update_table(table)
-        # update normalizer config nondestructively
-        self.data_item_normalizer.update_normalizer_config(self, self.data_item_normalizer.get_normalizer_config(schema))
-        self.update_normalizers()
+        # pass normalizer config
+        self._configure_normalizers(schema._normalizers_config)
         # update and compile settings
         self._settings = deepcopy(schema.settings)
         self._compile_settings()
