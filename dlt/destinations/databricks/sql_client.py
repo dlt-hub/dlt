@@ -3,10 +3,10 @@ from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List
 
 from databricks import sql as databricks_lib
 from databricks.sql.client import (
-    Connection as DatabricksSQLConnection,
-    Cursor as DatabricksSQLCursor,
+    Connection as DatabricksSqlConnection,
+    Cursor as DatabricksSqlCursor,
 )
-from databricks.sql.exc import Error as DatabricksSQLError
+from databricks.sql.exc import Error as DatabricksSqlError
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -17,7 +17,7 @@ from dlt.destinations.databricks.configuration import DatabricksCredentials
 from dlt.destinations.databricks import capabilities
 
 class DatabricksCursorImpl(DBApiCursorImpl):
-    native_cursor: DatabricksSQLCursor  # type: ignore[assignment]
+    native_cursor: DatabricksSqlCursor  # type: ignore[assignment]
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         if chunk_size is None:
@@ -25,17 +25,16 @@ class DatabricksCursorImpl(DBApiCursorImpl):
         return super().df(chunk_size=chunk_size, **kwargs)
 
 
-class DatabricksSqlClient(SqlClientBase[DatabricksSQLConnection], DBTransaction):
-
+class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction):
     dbapi: ClassVar[DBApi] = databricks_lib
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, dataset_name: str, credentials: DatabricksCredentials) -> None:
         super().__init__(credentials.catalog, dataset_name)
-        self._conn: DatabricksSQLConnection = None
+        self._conn: DatabricksSqlConnection = None
         self.credentials = credentials
 
-    def open_connection(self) -> DatabricksSQLConnection:
+    def open_connection(self) -> DatabricksSqlConnection:
         conn_params = self.credentials.to_connector_params()
         self._conn = databricks_lib.connect(
             **conn_params
@@ -47,7 +46,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSQLConnection], DBTransaction)
         try:
             self._conn.close()
             self._conn = None
-        except DatabricksSQLError as exc:
+        except DatabricksSqlError as exc:
             logger.warning("Exception while closing connection: {}".format(exc))
 
     @contextmanager
@@ -65,7 +64,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSQLConnection], DBTransaction)
         logger.warning("NotImplemented: rollback")
 
     @property
-    def native_connection(self) -> "DatabricksSQLConnection":
+    def native_connection(self) -> "DatabricksSqlConnection":
         return self._conn
 
     def has_dataset(self) -> bool:
