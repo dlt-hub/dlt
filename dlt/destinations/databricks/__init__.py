@@ -20,8 +20,8 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = "jsonl"
     caps.supported_loader_file_formats = ["jsonl", "parquet"]
-    caps.preferred_staging_file_format = "jsonl"
-    caps.supported_staging_file_formats = ["jsonl", "parquet"]
+    caps.preferred_staging_file_format = "parquet"
+    caps.supported_staging_file_formats = ["parquet", "jsonl"]
     caps.escape_identifier = escape_databricks_identifier
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
