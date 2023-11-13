@@ -97,8 +97,13 @@ class DatabricksTypeMapper(TypeMapper):
 
 class DatabricksLoadJob(LoadJob, FollowupJob):
     def __init__(
-            self, file_path: str, table_name: str, load_id: str, client: DatabricksSqlClient,
-            stage_name: Optional[str] = None, keep_staged_files: bool = True, staging_credentials: Optional[CredentialsConfiguration] = None
+        self, file_path: str,
+        table_name: str,
+        load_id: str,
+        client: DatabricksSqlClient,
+        stage_name: Optional[str] = None,
+        keep_staged_files: bool = True,
+        staging_credentials: Optional[CredentialsConfiguration] = None
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
@@ -127,12 +132,12 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             elif bucket_scheme in ["az", "abfss"] and staging_credentials and isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
                 # Explicit azure credentials are needed to load from bucket without a named stage
                 credentials_clause = f"CREDENTIALS=(AZURE_SAS_TOKEN='?{staging_credentials.azure_storage_sas_token}')"
-                # Converts an az://<container_name>/<path> to azure://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
+                # Converts an az://<container_name>/<path> to abfss://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
                 # as required by databricks
                 _path = "/" + bucket_url.netloc + bucket_url.path
                 bucket_path = urlunparse(
                     bucket_url._replace(
-                        scheme="azure",
+                        scheme="abfss",
                         netloc=f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net",
                         path=_path
                     )
