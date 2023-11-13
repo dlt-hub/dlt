@@ -17,6 +17,7 @@ SCHEMA_ENGINE_VERSION = 7
 VERSION_TABLE_NAME = "_dlt_version"
 LOADS_TABLE_NAME = "_dlt_loads"
 STATE_TABLE_NAME = "_dlt_pipeline_state"
+DLT_NAME_PREFIX = "_dlt"
 
 TColumnProp = Literal["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique", "merge_key", "root_key"]
 """Known properties and hints of the column"""

@@ -217,6 +217,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             table_updates.append(table_update)
             load_id_type = pa.dictionary(pa.int8(), pa.string())
             new_columns.append((
+                -1,
                 pa.field("_dlt_load_id", load_id_type, nullable=False),
                 lambda batch: pa.array([load_id] * batch.num_rows, type=load_id_type)
             ))
@@ -226,6 +227,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             table_updates = schema_update.setdefault(root_table_name, [])
             table_updates.append(table_update)
             new_columns.append((
+                -1,
                 pa.field("_dlt_id", pyarrow.pyarrow.string(), nullable=False),
                 lambda batch: pa.array(generate_dlt_ids(batch.num_rows))
             ))
@@ -269,7 +271,6 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         self, extracted_items_file: str, root_table_name: str
     ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
         base_schema_update = self._fix_schema_precisions(root_table_name)
-        import pyarrow as pa
 
         add_dlt_id = self.config.parquet_normalizer.add_dlt_id
         add_dlt_load_id = self.config.parquet_normalizer.add_dlt_load_id

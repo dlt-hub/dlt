@@ -5,7 +5,9 @@ from typing import ClassVar, Set, Dict, Any, Optional, Set
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
-from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.configuration.inject import with_config
+from dlt.common.configuration.specs import ConfigSectionContext, BaseConfiguration, configspec, known_sections
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.pipeline import reset_resource_state
 from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.exceptions import MissingDependencyException
@@ -13,15 +15,13 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.utils import uniq_id, update_dict_nested
-from dlt.common.typing import StrStr, TDataItems, TDataItem, NoneType
+from dlt.common.typing import TDataItems, TDataItem
 from dlt.common.schema import Schema, utils
-from dlt.common.schema.typing import TSchemaContractDict, TSchemaEvolutionMode, TTableSchema, TTableSchemaColumns
+from dlt.common.schema.typing import TSchemaContractDict, TSchemaEvolutionMode, TTableSchema, TTableSchemaColumns, TPartialTableSchema
 from dlt.common.storages import NormalizeStorageConfiguration, NormalizeStorage, DataItemStorage, FileStorage
-from dlt.common.configuration.specs import known_sections
-from dlt.common.schema.typing import TPartialTableSchema
 
 from dlt.extract.decorators import SourceSchemaInjectableContext
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, NameNormalizationClash
+from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
 from dlt.extract.pipe import PipeIterator
 from dlt.extract.source import DltResource, DltSource
 from dlt.extract.typing import TableNameMeta
@@ -109,13 +109,21 @@ class ExtractorStorage(NormalizeStorage):
 
 class Extractor:
     file_format: TLoaderFileFormat
+
+    @configspec
+    class ExtractorConfiguration(BaseConfiguration):
+        _caps: Optional[DestinationCapabilitiesContext] = None
+
+    @with_config(spec=ExtractorConfiguration)
     def __init__(
             self,
             extract_id: str,
             storage: ExtractorStorage,
             schema: Schema,
             resources_with_items: Set[str],
-            collector: Collector = NULL_COLLECTOR
+            collector: Collector = NULL_COLLECTOR,
+            *,
+            _caps: DestinationCapabilitiesContext = None
     ) -> None:
         self.schema = schema
         self.collector = collector
@@ -125,6 +133,7 @@ class Extractor:
         self._filtered_tables: Set[str] = set()
         self._filtered_columns: Dict[str, Dict[str, TSchemaEvolutionMode]]
         self._storage = storage
+        self._caps = _caps or DestinationCapabilitiesContext.generic_capabilities()
 
     @property
     def storage(self) -> ExtractorItemStorage:
@@ -256,24 +265,11 @@ class ArrowExtractor(Extractor):
         # find matching columns and delete by original name
         return item
 
-    def _get_normalized_arrow_fields(self, resource_name: str, item: TAnyArrowItem) -> StrStr:
-        """Normalizes schema field names and returns mapping from original to normalized name. Raises on name clashes"""
-        norm_f = self.schema.naming.normalize_identifier
-        name_mapping = {n.name: norm_f(n.name) for n in item.schema}
-        # verify if names uniquely normalize
-        normalized_names = set(name_mapping.values())
-        if len(name_mapping) != len(normalized_names):
-            raise NameNormalizationClash(resource_name, f"Arrow schema fields normalized from {list(name_mapping.keys())} to {list(normalized_names)}")
-        return name_mapping
-
     def _write_item(self, table_name: str, resource_name: str, items: TDataItems, columns: TTableSchemaColumns = None) -> None:
+        columns = columns or self.schema.tables[table_name]["columns"]
         # Note: `items` is always a list here due to the conversion in `write_table`
-        items = [pyarrow.rename_columns(
-            item,
-            list(self._get_normalized_arrow_fields(resource_name, item).values())
-        )
-        for item in items]
-        super()._write_item(table_name, resource_name, items, self.schema.tables[table_name]["columns"])
+        items = [pyarrow.normalize_py_arrow_schema(item, columns, self.schema.naming, self._caps) for item in items]
+        super()._write_item(table_name, resource_name, items, columns)
 
     def _compute_table(self, resource: DltResource, data_item: TDataItem) -> TPartialTableSchema:
         data_item = data_item[0]

@@ -212,12 +212,6 @@ class DataItemRequiredForDynamicTableHints(DltResourceException):
         One of table hints for that resource (typically table name) is a function and hint is computed separately for each instance of data extracted from that resource.""")
 
 
-class NameNormalizationClash(DltResourceException):
-    def __init__(self, resource_name: str, reason: str) -> None:
-        msg = f"Column name clash after input data normalization. {reason}"
-        super().__init__(resource_name, msg)
-
-
 class SourceDataIsNone(DltSourceException):
     def __init__(self, source_name: str) -> None:
         self.source_name = source_name

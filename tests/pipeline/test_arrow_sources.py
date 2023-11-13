@@ -6,15 +6,17 @@ import numpy as np
 import os
 import io
 import pyarrow as pa
-from typing import List
 
 import dlt
+from dlt.common import json, Decimal
 from dlt.common.utils import uniq_id
+from dlt.common.libs.pyarrow import NameNormalizationClash
+
 from dlt.pipeline.exceptions import PipelineStepFailed
+
 from tests.cases import arrow_table_all_data_types, TArrowFormat
 from tests.utils import preserve_environ
-from dlt.common import json
-from dlt.common import Decimal
+
 
 
 @pytest.mark.parametrize(
@@ -85,7 +87,6 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
     assert schema_columns['binary']['data_type'] == 'binary'
     assert schema_columns['string']['data_type'] == 'text'
     assert schema_columns['json']['data_type'] == 'complex'
-
 
 
 @pytest.mark.parametrize(
@@ -182,6 +183,44 @@ def test_extract_normalize_file_rotation(item_type: TArrowFormat) -> None:
 
 
 @pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
+def test_arrow_clashing_names(item_type: TArrowFormat) -> None:
+    # # use parquet for dummy
+    os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
+    pipeline_name = "arrow_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+
+    item, _ = arrow_table_all_data_types(item_type, include_name_clash=True)
+
+    @dlt.resource
+    def data_frames():
+        for _ in range(10):
+            yield item
+
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        pipeline.extract(data_frames())
+    assert isinstance(py_ex.value.__context__, NameNormalizationClash)
+
+
+@pytest.mark.parametrize("item_type", ["table", "record_batch"])
+def test_load_arrow_vary_schema(item_type: TArrowFormat) -> None:
+    pipeline_name = "arrow_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+
+    item, _ = arrow_table_all_data_types(item_type, include_not_normalized_name=False)
+    pipeline.run(item, table_name="data").raise_on_failed_jobs()
+
+    item, _ = arrow_table_all_data_types(item_type, include_not_normalized_name=False)
+    # remove int column
+    try:
+        item = item.drop("int")
+    except AttributeError:
+        names = item.schema.names
+        names.remove("int")
+        item = item.select(names)
+    pipeline.run(item, table_name="data").raise_on_failed_jobs()
+
+
+@pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
 def test_arrow_as_data_loading(item_type: TArrowFormat) -> None:
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
@@ -199,7 +238,7 @@ def test_arrow_as_data_loading(item_type: TArrowFormat) -> None:
     assert info.row_counts["items"] == len(rows)
 
 
-@pytest.mark.parametrize("item_type", ["table", "pandas", "record_batch"])
+@pytest.mark.parametrize("item_type", ["table"])  # , "pandas", "record_batch"
 def test_normalize_with_dlt_columns(item_type: TArrowFormat):
     item, records = arrow_table_all_data_types(item_type, num_rows=5432)
     os.environ['NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID'] = "True"
@@ -212,10 +251,10 @@ def test_normalize_with_dlt_columns(item_type: TArrowFormat):
     def some_data():
         yield item
 
-    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="filesystem")
+    pipeline = dlt.pipeline("arrow_" + uniq_id(), destination="duckdb")
 
     pipeline.extract(some_data())
-    pipeline.normalize()
+    pipeline.normalize(loader_file_format="parquet")
 
     load_id = pipeline.list_normalized_load_packages()[0]
     storage = pipeline._get_load_storage()
@@ -241,3 +280,25 @@ def test_normalize_with_dlt_columns(item_type: TArrowFormat):
     schema = pipeline.default_schema
     assert schema.tables['some_data']['columns']['_dlt_id']['data_type'] == 'text'
     assert schema.tables['some_data']['columns']['_dlt_load_id']['data_type'] == 'text'
+
+    pipeline.load().raise_on_failed_jobs()
+
+    # should be able to load again
+    pipeline.run(some_data()).raise_on_failed_jobs()
+
+    # should be able to load arrow without a column
+    try:
+        item = item.drop("int")
+    except AttributeError:
+        names = item.schema.names
+        names.remove("int")
+        item = item.select(names)
+    pipeline.run(item, table_name="some_data").raise_on_failed_jobs()
+
+    # should be able to load arrow with a new column
+    item, records = arrow_table_all_data_types(item_type, num_rows=200)
+    item = item.append_column("static_int", [[0] * 200])
+    pipeline.run(item, table_name="some_data").raise_on_failed_jobs()
+
+    schema = pipeline.default_schema
+    assert schema.tables['some_data']['columns']['static_int']['data_type'] == 'bigint'

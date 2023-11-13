@@ -220,7 +220,7 @@ class ParquetDataWriter(DataWriter):
         self.parquet_row_group_size = row_group_size
 
     def _create_writer(self, schema: "pa.Schema") -> "pa.parquet.ParquetWriter":
-        from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_datatype
+        from dlt.common.libs.pyarrow import pyarrow
         return pyarrow.parquet.ParquetWriter(self._f, schema, flavor=self.parquet_flavor, version=self.parquet_version, data_page_size=self.parquet_data_page_size)
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
