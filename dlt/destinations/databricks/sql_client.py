@@ -68,14 +68,18 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         return self._conn
 
     def has_dataset(self) -> bool:
-        query = """
-            SELECT 1
-            FROM SYSTEM.INFORMATION_SCHEMA.SCHEMATA
-            WHERE """
         db_params = self.fully_qualified_dataset_name(escape=False).split(".", 2)
+
+        # Determine the base query based on the presence of a catalog in db_params
         if len(db_params) == 2:
-            query += " catalog_name = %s AND "
-        query += "schema_name = %s"
+            # Use catalog from db_params
+            query = "SELECT 1 FROM %s.`INFORMATION_SCHEMA`.`SCHEMATA` WHERE `schema_name` = %s" % (
+                self.capabilities.escape_identifier(db_params[0]), db_params[1])
+        else:
+            # Use system catalog
+            query = "SELECT 1 FROM `SYSTEM`.`INFORMATION_SCHEMA`.`SCHEMATA` WHERE `catalog_name` = %s AND `schema_name` = %s"
+
+        # Execute the query and check if any rows are returned
         rows = self.execute_sql(query, *db_params)
         return len(rows) > 0
 
