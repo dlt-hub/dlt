@@ -5,6 +5,7 @@ from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Ite
 from contextlib import contextmanager
 import datetime  # noqa: 251
 from copy import deepcopy
+import inspect
 
 from dlt.common import logger
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
@@ -358,7 +359,16 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     initial_config: DestinationClientConfiguration
 
     def __init__(self, **kwargs: Any) -> None:
-        self.initial_config = self.spec(**kwargs)
+        # Create initial unresolved destination config
+        # Argument defaults are filtered out here because we only want arguments passed explicitly
+        # to supersede config from the environment or pipeline args
+        sig = inspect.signature(self.__class__)
+        params = sig.parameters
+        config_args = {
+            k: v for k, v in kwargs.items()
+            if k not in params or v != params[k].default
+        }
+        self.initial_config = self.spec(**config_args)
 
     @property
     @abstractmethod
