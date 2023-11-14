@@ -350,63 +350,6 @@ class SupportsStagingDestination():
 TDestinationReferenceArg = Union[str, "Destination", None]
 
 
-# class DestinationReference(Protocol):
-#     __name__: str
-#     """Name of the destination"""
-
-#     def capabilities(self) -> DestinationCapabilitiesContext:
-#         """Destination capabilities ie. supported loader file formats, identifier name lengths, naming conventions, escape function etc."""
-
-#     def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> "JobClientBase":
-#         """A job client responsible for starting and resuming load jobs"""
-
-#     def spec(self) -> Type[DestinationClientConfiguration]:
-#         """A spec of destination configuration that also contains destination credentials"""
-
-#     @staticmethod
-#     def from_name(destination: TDestinationReferenceArg) -> "DestinationReference":
-#         if destination is None:
-#             return None
-
-#         # if destination is a str, get destination reference by dynamically importing module
-#         if isinstance(destination, str):
-#             try:
-#                 if "." in destination:
-#                     # this is full module name
-#                     destination_ref = cast(DestinationReference, import_module(destination))
-#                 else:
-#                     # from known location
-#                     destination_ref = cast(DestinationReference, import_module(f"dlt.destinations.impl.{destination}"))
-#             except ImportError:
-#                 if "." in destination:
-#                     raise UnknownDestinationModule(destination)
-#                 else:
-#                     # allow local external module imported without dot
-#                     try:
-#                         destination_ref = cast(DestinationReference, import_module(destination))
-#                     except ImportError:
-#                         raise UnknownDestinationModule(destination)
-#         else:
-#             destination_ref = cast(DestinationReference, destination)
-
-#         # make sure the reference is correct
-#         try:
-#             c = destination_ref.spec()
-#             c.credentials
-#         except Exception:
-#             raise InvalidDestinationReference(destination)
-
-#         return destination_ref
-
-#     @staticmethod
-#     def to_name(destination: TDestinationReferenceArg) -> str:
-#         if isinstance(destination, DestinationFactory):
-#             return destination.name
-#         if isinstance(destination, ModuleType):
-#             return get_module_name(destination)
-#         return destination.split(".")[-1]  # type: ignore
-
-
 class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     """A destination factory that can be partially pre-configured
     with credentials and other config params.
