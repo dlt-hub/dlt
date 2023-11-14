@@ -45,7 +45,7 @@ def ci_client() -> Iterator[WeaviateClient]:
 
 def make_client(naming_convention: str) -> Iterator[WeaviateClient]:
     schema = Schema('test_schema', {
-        'names': f"dlt.destinations.weaviate.{naming_convention}",
+        'names': f"dlt.destinations.impl.weaviate.{naming_convention}",
         'json': None
     })
     _client = get_client_instance(schema)

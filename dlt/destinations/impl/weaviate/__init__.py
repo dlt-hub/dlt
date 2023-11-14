@@ -14,6 +14,6 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.max_text_data_type_length = 8 * 1024 * 1024
     caps.is_max_text_data_type_length_in_bytes = False
     caps.supports_ddl_transactions = False
-    caps.naming_convention = "dlt.destinations.weaviate.naming"
+    caps.naming_convention = "dlt.destinations.impl.weaviate.naming"
 
     return caps
