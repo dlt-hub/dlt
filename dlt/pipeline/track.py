@@ -3,8 +3,8 @@ import contextlib
 from typing import Any
 import humanize
 
-from dlt.common import pendulum
-from dlt.common import logger
+from dlt.common import pendulum, logger
+from dlt.common.utils import digest128
 from dlt.common.runtime.exec_info import github_info
 from dlt.common.runtime.segment import track as dlthub_telemetry_track
 from dlt.common.runtime.slack import send_slack_message
@@ -88,6 +88,9 @@ def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: S
         "elapsed": (step.finished_at - trace.started_at).total_seconds(),
         "success": step.step_exception is None,
         "destination_name": DestinationReference.to_name(pipeline.destination) if pipeline.destination else None,
+        "pipeline_name_hash": digest128(pipeline.pipeline_name),
+        "dataset_name_hash": digest128(pipeline.dataset_name) if pipeline.dataset_name else None,
+        "default_schema_name_hash": digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None,
         "transaction_id": trace.transaction_id
     }
     # disable automatic slack messaging until we can configure messages themselves
