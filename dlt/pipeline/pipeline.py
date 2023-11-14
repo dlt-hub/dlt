@@ -901,10 +901,6 @@ class Pipeline(SupportsPipeline):
                 credentials
             )
 
-        if credentials and not as_staging:
-            # Explicit pipeline credentials always supersede other credentials
-            destination.credentials = credentials
-
         # this client support many schemas and datasets
         if issubclass(client_spec, DestinationClientDwhConfiguration):
             if not self.dataset_name and self.full_refresh:

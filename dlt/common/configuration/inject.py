@@ -61,6 +61,7 @@ def with_config(
     auto_pipeline_section: bool = False,
     include_defaults: bool = True,
     accept_partial: bool = False,
+    initial_config: Optional[BaseConfiguration] = None,
 ) ->  Callable[[TFun], TFun]:
     """Injects values into decorated function arguments following the specification in `spec` or by deriving one from function's signature.
 
@@ -130,7 +131,9 @@ def with_config(
                     curr_sections = sections
 
                 # if one of arguments is spec the use it as initial value
-                if spec_arg:
+                if initial_config:
+                    config = initial_config
+                elif spec_arg:
                     config = bound_args.arguments.get(spec_arg.name, None)
                 # resolve SPEC, also provide section_context with pipeline_name
                 if pipeline_name_arg:

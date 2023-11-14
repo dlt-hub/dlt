@@ -21,7 +21,6 @@ class snowflake(Destination):
 
         return SnowflakeClient
 
-    @with_config(spec=SnowflakeClientConfiguration, sections=(known_sections.DESTINATION, 'snowflake'), accept_partial=True)
     def __init__(
         self,
         credentials: SnowflakeCredentials = None,
@@ -29,4 +28,4 @@ class snowflake(Destination):
         keep_staged_files: bool = True,
         **kwargs: t.Any,
     ) -> None:
-        super().__init__(kwargs['_dlt_config'])
+        super().__init__(credentials=credentials, stage_name=stage_name, keep_staged_files=keep_staged_files, **kwargs)

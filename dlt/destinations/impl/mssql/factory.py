@@ -21,11 +21,10 @@ class mssql(Destination):
 
         return MsSqlClient
 
-    @with_config(spec=MsSqlClientConfiguration, sections=(known_sections.DESTINATION, 'mssql'), accept_partial=True)
     def __init__(
         self,
-        credentials: MsSqlCredentials = None,
+        credentials: t.Union[MsSqlCredentials, str] = None,
         create_indexes: bool = True,
         **kwargs: t.Any,
     ) -> None:
-        super().__init__(kwargs['_dlt_config'])
+        super().__init__(credentials=credentials, create_indexes=create_indexes, **kwargs)

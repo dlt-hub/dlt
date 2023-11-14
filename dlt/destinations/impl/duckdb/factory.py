@@ -2,11 +2,11 @@ import typing as t
 
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.destination.reference import DestinationClientConfiguration, Destination
-
 from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials, DuckDbClientConfiguration
 from dlt.destinations.impl.duckdb import capabilities
 
 if t.TYPE_CHECKING:
+    from duckdb import DuckDBPyConnection
     from dlt.destinations.impl.duckdb.duck import DuckDbClient
 
 
@@ -21,11 +21,11 @@ class duckdb(Destination):
 
         return DuckDbClient
 
-    @with_config(spec=DuckDbClientConfiguration, sections=(known_sections.DESTINATION, 'duckdb'), accept_partial=True)
+    # @with_config(spec=DuckDbClientConfiguration, sections=(known_sections.DESTINATION, 'duckdb'), accept_partial=True)
     def __init__(
         self,
-        credentials: DuckDbCredentials = None,
-        create_indexes: bool = True,
+        credentials: t.Union[DuckDbCredentials, str, "DuckDBPyConnection"] = None,
+        create_indexes: bool = False,
         **kwargs: t.Any,
     ) -> None:
-        super().__init__(kwargs['_dlt_config'])
+        super().__init__(credentials=credentials, create_indexes=create_indexes, **kwargs)

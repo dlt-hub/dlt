@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod, abstractproperty
 from importlib import import_module
 from types import TracebackType, ModuleType
-from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager, Dict, Any, Callable
+from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager, Dict, Any, Callable, TypeVar
 from contextlib import contextmanager
 import datetime  # noqa: 251
 from copy import deepcopy
@@ -12,7 +12,7 @@ from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.schema.utils import get_write_disposition, get_table_format
-from dlt.common.configuration import configspec
+from dlt.common.configuration import configspec, with_config, resolve_configuration, known_sections
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.accessors import config
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -25,6 +25,7 @@ from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithout
 
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
+TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
 
 
 class StorageSchemaInfo(NamedTuple):
@@ -411,11 +412,13 @@ class Destination(ABC):
     """
     credentials: Optional[CredentialsConfiguration] = None
     config_params: Optional[Dict[str, Any]] = None
+    initial_config: DestinationClientConfiguration
 
-    def __init__(self, cfg: DestinationClientConfiguration) -> None:
-        cfg_dict = dict(cfg)
-        self.credentials = cfg_dict.pop("credentials", None)
-        self.config_params = {key: val for key, val in cfg_dict.items() if val is not None}
+    def __init__(self, **kwargs: Any) -> None:
+        self.initial_config = self.spec(**kwargs)
+        # cfg_dict = dict(cfg)
+        # self.credentials = cfg_dict.pop("credentials", None)
+        # self.config_params = {key: val for key, val in cfg_dict.items() if val is not None}
 
     @property
     @abstractmethod
@@ -438,6 +441,16 @@ class Destination(ABC):
     def client_class(self) -> Type[JobClientBase]:
         """Returns the client class"""
         ...
+
+    def configuration(self, initial_config: TDestinationConfig) -> TDestinationConfig:
+        """Get a fully resolved destination config from the initial config
+        """
+        return resolve_configuration(
+            initial_config,
+            sections=(known_sections.DESTINATION, self.name),
+            # Already populated values will supersede resolved env config
+            explicit_value=dict(initial_config)
+        )
 
     @staticmethod
     def to_name(ref: TDestinationReferenceArg) -> str:
@@ -477,8 +490,11 @@ class Destination(ABC):
         return factory(**kwargs)
 
     def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> "JobClientBase":
-        cfg = initial_config
-        cfg.update(self.config_params)
-        if self.credentials:
-            cfg.credentials = self.credentials
-        return self.client_class(schema, cfg)
+        # Create merged config with the pipeline initial cfg and the partial config of this instance
+        cfg = self.spec(
+            **dict(
+                initial_config,
+                **{k: v for k, v in self.initial_config.items() if v is not None}
+            )
+        )
+        return self.client_class(schema, self.configuration(cfg))

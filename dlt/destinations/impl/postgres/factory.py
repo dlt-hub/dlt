@@ -21,12 +21,10 @@ class postgres(Destination):
 
         return PostgresClient
 
-
-    @with_config(spec=PostgresClientConfiguration, sections=(known_sections.DESTINATION, 'postgres'), accept_partial=True)
     def __init__(
         self,
-        credentials: PostgresCredentials = None,
+        credentials: t.Union[PostgresCredentials, str] = None,
         create_indexes: bool = True,
         **kwargs: t.Any,
     ) -> None:
-        super().__init__(kwargs['_dlt_config'])
+        super().__init__(credentials=credentials, create_indexes=create_indexes, **kwargs)

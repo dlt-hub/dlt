@@ -21,11 +21,10 @@ class filesystem(Destination):
 
         return FilesystemClient
 
-    @with_config(spec=FilesystemDestinationClientConfiguration, sections=(known_sections.DESTINATION, 'filesystem'), accept_partial=True)
     def __init__(
         self,
         bucket_url: str = None,
         credentials: FileSystemCredentials = None,
         **kwargs: t.Any,
     ) -> None:
-        super().__init__(kwargs['_dlt_config'])
+        super().__init__(bucket_url=bucket_url, credentials=credentials, **kwargs)

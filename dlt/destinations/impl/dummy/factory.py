@@ -24,10 +24,9 @@ class dummy(Destination):
 
         return DummyClient
 
-    @with_config(spec=DummyClientConfiguration, sections=(known_sections.DESTINATION, 'dummy'), accept_partial=True)
     def __init__(
         self,
         credentials: DummyClientCredentials = None,
         **kwargs: t.Any,
     ) -> None:
-        super().__init__(kwargs['_dlt_config'])
+        super().__init__(credentials=credentials, **kwargs)
