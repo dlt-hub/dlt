@@ -1,29 +1,5 @@
-from typing import Type
-
-from dlt.common.schema.schema import Schema
-from dlt.common.configuration import with_config, known_sections
-from dlt.common.configuration.accessors import config
-from dlt.common.destination.reference import (
-    JobClientBase,
-    DestinationClientConfiguration,
-)
 from dlt.common.destination import DestinationCapabilitiesContext
-
 from dlt.destinations.impl.weaviate.weaviate_adapter import weaviate_adapter
-from dlt.destinations.impl.weaviate.configuration import WeaviateClientConfiguration
-
-
-@with_config(
-    spec=WeaviateClientConfiguration,
-    sections=(
-        known_sections.DESTINATION,
-        "weaviate",
-    ),
-)
-def _configure(
-    config: WeaviateClientConfiguration = config.value,
-) -> WeaviateClientConfiguration:
-    return config
 
 
 def capabilities() -> DestinationCapabilitiesContext:
@@ -41,15 +17,3 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.naming_convention = "dlt.destinations.weaviate.naming"
 
     return caps
-
-
-def client(
-    schema: Schema, initial_config: DestinationClientConfiguration = config.value
-) -> JobClientBase:
-    from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
-
-    return WeaviateClient(schema, _configure(initial_config))  # type: ignore
-
-
-def spec() -> Type[WeaviateClientConfiguration]:
-    return WeaviateClientConfiguration

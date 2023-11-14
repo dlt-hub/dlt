@@ -1,18 +1,7 @@
-from typing import Type
-
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.configuration import with_config, known_sections
-from dlt.common.configuration.accessors import config
-from dlt.common.schema.schema import Schema
 from dlt.common.data_writers.escape import escape_athena_identifier
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
-from dlt.destinations.impl.athena.configuration import AthenaClientConfiguration
-from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
-
-@with_config(spec=AthenaClientConfiguration, sections=(known_sections.DESTINATION, "athena",))
-def _configure(config: AthenaClientConfiguration = config.value) -> AthenaClientConfiguration:
-    return config
 
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
@@ -37,13 +26,3 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.timestamp_precision = 3
     caps.supports_truncate_command = False
     return caps
-
-
-def client(schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> JobClientBase:
-    # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
-    from dlt.destinations.impl.athena.athena import AthenaClient
-    return AthenaClient(schema, _configure(initial_config))  # type: ignore
-
-
-def spec() -> Type[DestinationClientConfiguration]:
-    return AthenaClientConfiguration

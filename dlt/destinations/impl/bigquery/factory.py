@@ -60,7 +60,7 @@ class bigquery(Destination):
         self,
         credentials: t.Optional[GcpServiceAccountCredentials] = None,
         location: t.Optional[str] = None,
-        **kwargs: t.Any,            
+        **kwargs: t.Any,
     ) -> None:
         super().__init__(
             credentials=credentials,

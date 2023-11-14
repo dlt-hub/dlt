@@ -1,10 +1,6 @@
-from typing import Type
-
-from dlt.common.schema.schema import Schema
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
 
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 
@@ -30,14 +26,3 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supports_ddl_transactions = False
 
     return caps
-
-
-def client(schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> JobClientBase:
-    # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
-    from dlt.destinations.impl.dummy.dummy import DummyClient
-
-    return DummyClient(schema, _configure(initial_config))  # type: ignore
-
-
-def spec() -> Type[DestinationClientConfiguration]:
-    return DummyClientConfiguration
