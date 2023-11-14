@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod, abstractproperty
 from importlib import import_module
 from types import TracebackType, ModuleType
-from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager, Dict, Any
+from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager, Dict, Any, Callable
 from contextlib import contextmanager
 import datetime  # noqa: 251
 from copy import deepcopy
@@ -22,6 +22,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import get_module_name
 from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
+
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
@@ -344,94 +345,137 @@ class SupportsStagingDestination():
         # the default is to truncate the tables on the staging destination...
         return True
 
-TDestinationReferenceArg = Union["DestinationReference", ModuleType, None, str, "DestinationFactory"]
+TDestinationReferenceArg = Union[str, "Destination", None]
 
 
-class DestinationReference(Protocol):
-    __name__: str
-    """Name of the destination"""
+# class DestinationReference(Protocol):
+#     __name__: str
+#     """Name of the destination"""
 
-    def capabilities(self) -> DestinationCapabilitiesContext:
-        """Destination capabilities ie. supported loader file formats, identifier name lengths, naming conventions, escape function etc."""
+#     def capabilities(self) -> DestinationCapabilitiesContext:
+#         """Destination capabilities ie. supported loader file formats, identifier name lengths, naming conventions, escape function etc."""
 
-    def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> "JobClientBase":
-        """A job client responsible for starting and resuming load jobs"""
+#     def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> "JobClientBase":
+#         """A job client responsible for starting and resuming load jobs"""
 
-    def spec(self) -> Type[DestinationClientConfiguration]:
-        """A spec of destination configuration that also contains destination credentials"""
+#     def spec(self) -> Type[DestinationClientConfiguration]:
+#         """A spec of destination configuration that also contains destination credentials"""
 
-    @staticmethod
-    def from_name(destination: TDestinationReferenceArg) -> "DestinationReference":
-        if destination is None:
-            return None
+#     @staticmethod
+#     def from_name(destination: TDestinationReferenceArg) -> "DestinationReference":
+#         if destination is None:
+#             return None
 
-        # if destination is a str, get destination reference by dynamically importing module
-        if isinstance(destination, str):
-            try:
-                if "." in destination:
-                    # this is full module name
-                    destination_ref = cast(DestinationReference, import_module(destination))
-                else:
-                    # from known location
-                    destination_ref = cast(DestinationReference, import_module(f"dlt.destinations.impl.{destination}"))
-            except ImportError:
-                if "." in destination:
-                    raise UnknownDestinationModule(destination)
-                else:
-                    # allow local external module imported without dot
-                    try:
-                        destination_ref = cast(DestinationReference, import_module(destination))
-                    except ImportError:
-                        raise UnknownDestinationModule(destination)
-        else:
-            destination_ref = cast(DestinationReference, destination)
+#         # if destination is a str, get destination reference by dynamically importing module
+#         if isinstance(destination, str):
+#             try:
+#                 if "." in destination:
+#                     # this is full module name
+#                     destination_ref = cast(DestinationReference, import_module(destination))
+#                 else:
+#                     # from known location
+#                     destination_ref = cast(DestinationReference, import_module(f"dlt.destinations.impl.{destination}"))
+#             except ImportError:
+#                 if "." in destination:
+#                     raise UnknownDestinationModule(destination)
+#                 else:
+#                     # allow local external module imported without dot
+#                     try:
+#                         destination_ref = cast(DestinationReference, import_module(destination))
+#                     except ImportError:
+#                         raise UnknownDestinationModule(destination)
+#         else:
+#             destination_ref = cast(DestinationReference, destination)
 
-        # make sure the reference is correct
-        try:
-            c = destination_ref.spec()
-            c.credentials
-        except Exception:
-            raise InvalidDestinationReference(destination)
+#         # make sure the reference is correct
+#         try:
+#             c = destination_ref.spec()
+#             c.credentials
+#         except Exception:
+#             raise InvalidDestinationReference(destination)
 
-        return destination_ref
+#         return destination_ref
 
-    @staticmethod
-    def to_name(destination: TDestinationReferenceArg) -> str:
-        if isinstance(destination, DestinationFactory):
-            return destination.__name__
-        if isinstance(destination, ModuleType):
-            return get_module_name(destination)
-        return destination.split(".")[-1]  # type: ignore
+#     @staticmethod
+#     def to_name(destination: TDestinationReferenceArg) -> str:
+#         if isinstance(destination, DestinationFactory):
+#             return destination.name
+#         if isinstance(destination, ModuleType):
+#             return get_module_name(destination)
+#         return destination.split(".")[-1]  # type: ignore
 
 
-class DestinationFactory(ABC):
+class Destination(ABC):
     """A destination factory that can be partially pre-configured
     with credentials and other config params.
     """
     credentials: Optional[CredentialsConfiguration] = None
     config_params: Optional[Dict[str, Any]] = None
 
+    def __init__(self, cfg: DestinationClientConfiguration) -> None:
+        cfg_dict = dict(cfg)
+        self.credentials = cfg_dict.pop("credentials", None)
+        self.config_params = {key: val for key, val in cfg_dict.items() if val is not None}
+
     @property
     @abstractmethod
-    def destination(self) -> DestinationReference:
-        """Returns the destination module"""
+    def spec(self) -> Type[DestinationClientConfiguration]:
+        """Returns the destination configuration spec"""
         ...
 
     @property
-    def __name__(self) -> str:
-        return self.destination.__name__
+    @abstractmethod
+    def capabilities(self) -> DestinationCapabilitiesContext:
+        """Returns the destination capabilities"""
+        ...
+
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
+
+    @property
+    @abstractmethod
+    def client_class(self) -> Type[JobClientBase]:
+        """Returns the client class"""
+        ...
+
+    @staticmethod
+    def to_name(ref: TDestinationReferenceArg) -> str:
+        if not ref:
+            raise InvalidDestinationReference(ref)
+        if isinstance(ref, str):
+            return ref.rsplit(".", 1)[-1]
+        return ref.name
+
+    @staticmethod
+    def from_reference(ref: TDestinationReferenceArg, *args, **kwargs) -> "Destination":
+        if isinstance(ref, Destination):
+            return ref
+        if not isinstance(ref, str):
+            raise InvalidDestinationReference(ref)
+        try:
+            if "." in ref:
+                module_path, attr_name = ref.rsplit(".", 1)
+                dest_module = import_module(module_path)
+            else:
+                from dlt import destinations  as dest_module
+                attr_name = ref
+        except ImportError as e:
+            raise UnknownDestinationModule(ref) from e
+
+        try:
+            factory: Type[Destination] = getattr(dest_module, attr_name)
+        except AttributeError as e:
+            raise UnknownDestinationModule(ref) from e
+        return factory(*args, **kwargs)
+
 
     def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> "JobClientBase":
         # TODO: Raise error somewhere if both DestinationFactory and credentials argument are used together in pipeline
         cfg = initial_config.copy()
-        for key, value in self.config_params.items():
-            setattr(cfg, key, value)
+        cfg.update(self.config_params)
+        # for key, value in self.config_params.items():
+        #     setattr(cfg, key, value)
         if self.credentials:
             cfg.credentials = self.credentials
-        return self.destination.client(schema, cfg)
-
-    def capabilities(self) -> DestinationCapabilitiesContext:
-        return self.destination.capabilities()
-
-    def spec(self) -> Type[DestinationClientConfiguration]:
-        return self.destination.spec()
+        return self.client_class(schema, cfg)

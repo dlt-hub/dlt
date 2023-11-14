@@ -7,7 +7,7 @@ from dlt.common.typing import TSecretValue, Any
 from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args, last_config
-from dlt.common.destination.reference import DestinationReference, TDestinationReferenceArg
+from dlt.common.destination.reference import Destination, TDestinationReferenceArg
 from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
@@ -116,8 +116,8 @@ def pipeline(
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
 
-    destination = DestinationReference.from_name(destination or kwargs["destination_name"])
-    staging = DestinationReference.from_name(staging or kwargs.get("staging_name", None)) if staging is not None else None
+    destination = Destination.from_reference(destination or kwargs["destination_name"], credentials=credentials)
+    staging = Destination.from_reference(staging or kwargs.get("staging_name", None)) if staging is not None else None
 
     progress = collector_from_name(progress)
     # create new pipeline instance
@@ -224,7 +224,7 @@ def run(
     Returns:
         LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
     """
-    destination = DestinationReference.from_name(destination)
+    destination = Destination.from_reference(destination, credentials=credentials)
     return pipeline().run(
         data,
         destination=destination,

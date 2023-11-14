@@ -1,6 +1,7 @@
 import pytest
 
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, DestinationReference
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, Destination
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import InvalidDatasetName
@@ -11,24 +12,24 @@ from tests.utils import ACTIVE_DESTINATIONS
 def test_import_unknown_destination() -> None:
     # standard destination
     with pytest.raises(UnknownDestinationModule):
-        DestinationReference.from_name("meltdb")
+        Destination.from_reference("meltdb")
     # custom module
     with pytest.raises(UnknownDestinationModule):
-        DestinationReference.from_name("melt.db")
+        Destination.from_reference("melt.db")
 
 
 def test_invalid_destination_reference() -> None:
     with pytest.raises(InvalidDestinationReference):
-        DestinationReference.from_name("tests.load.cases.fake_destination")
+        Destination.from_reference("tests.load.cases.fake_destination")
 
 
 def test_import_all_destinations() -> None:
     # this must pass without the client dependencies being imported
     for module in ACTIVE_DESTINATIONS:
-        dest = DestinationReference.from_name(module)
-        assert dest.__name__ == "dlt.destinations." + module
+        dest = Destination.from_reference(module)
+        assert dest.name == "dlt.destinations." + module
         dest.spec()
-        dest.capabilities()
+        assert isinstance(dest.capabilities, DestinationCapabilitiesContext)
 
 
 def test_normalize_dataset_name() -> None:

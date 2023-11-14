@@ -71,7 +71,7 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
     for row in expected:
         for i in range(len(row)):
             if isinstance(row[i], datetime):
-                row[i] = reduce_pendulum_datetime_precision(row[i], pipeline.destination.capabilities().timestamp_precision)
+                row[i] = reduce_pendulum_datetime_precision(row[i], pipeline.destination.capabilities.timestamp_precision)
 
     load_id = load_info.loads_ids[0]
 

@@ -12,9 +12,9 @@ from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SC
 from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration
 
 
-@with_config(spec=SnowflakeClientConfiguration, sections=(known_sections.DESTINATION, "snowflake",))
-def _configure(config: SnowflakeClientConfiguration = config.value) -> SnowflakeClientConfiguration:
-    return config
+# @with_config(spec=SnowflakeClientConfiguration, sections=(known_sections.DESTINATION, "snowflake",))
+# def _configure(config: SnowflakeClientConfiguration = config.value) -> SnowflakeClientConfiguration:
+#     return config
 
 
 def capabilities() -> DestinationCapabilitiesContext:
@@ -37,12 +37,12 @@ def capabilities() -> DestinationCapabilitiesContext:
     return caps
 
 
-def client(schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> JobClientBase:
-    # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
-    from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
+# def client(schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> JobClientBase:
+#     # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
+#     from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
 
-    return SnowflakeClient(schema, _configure(initial_config))  # type: ignore
+#     return SnowflakeClient(schema, _configure(initial_config))  # type: ignore
 
 
-def spec() -> Type[DestinationClientConfiguration]:
-    return SnowflakeClientConfiguration
+# def spec() -> Type[DestinationClientConfiguration]:
+#     return SnowflakeClientConfiguration

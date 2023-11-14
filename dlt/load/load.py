@@ -20,7 +20,7 @@ from dlt.common.exceptions import TerminalValueError, DestinationTerminalExcepti
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, WithStagingDataset, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration, SupportsStagingDestination
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, WithStagingDataset, Destination, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration, SupportsStagingDestination
 
 from dlt.destinations.job_impl import EmptyLoadJob
 
@@ -34,8 +34,8 @@ class Load(Runnable[Executor]):
     @with_config(spec=LoaderConfiguration, sections=(known_sections.LOAD,))
     def __init__(
         self,
-        destination: DestinationReference,
-        staging_destination: DestinationReference = None,
+        destination: Destination,
+        staging_destination: Destination = None,
         collector: Collector = NULL_COLLECTOR,
         is_storage_owner: bool = False,
         config: LoaderConfiguration = config.value,
@@ -47,7 +47,7 @@ class Load(Runnable[Executor]):
         self.initial_client_config = initial_client_config
         self.initial_staging_client_config = initial_staging_client_config
         self.destination = destination
-        self.capabilities = destination.capabilities()
+        self.capabilities = destination.capabilities
         self.staging_destination = staging_destination
         self.pool = NullExecutor()
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
@@ -58,7 +58,7 @@ class Load(Runnable[Executor]):
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
         supported_file_formats = self.capabilities.supported_loader_file_formats
         if self.staging_destination:
-            supported_file_formats = self.staging_destination.capabilities().supported_loader_file_formats + ["reference"]
+            supported_file_formats = self.staging_destination.capabilities.supported_loader_file_formats + ["reference"]
         if isinstance(self.get_destination_client(Schema("test")), WithStagingDataset):
             supported_file_formats += ["sql"]
         load_storage = LoadStorage(
@@ -76,7 +76,7 @@ class Load(Runnable[Executor]):
         return self.staging_destination.client(schema, self.initial_staging_client_config)
 
     def is_staging_destination_job(self, file_path: str) -> bool:
-        return self.staging_destination is not None and os.path.splitext(file_path)[1][1:] in self.staging_destination.capabilities().supported_loader_file_formats
+        return self.staging_destination is not None and os.path.splitext(file_path)[1][1:] in self.staging_destination.capabilities.supported_loader_file_formats
 
     @contextlib.contextmanager
     def maybe_with_staging_dataset(self, job_client: JobClientBase, use_staging: bool) -> Iterator[None]:

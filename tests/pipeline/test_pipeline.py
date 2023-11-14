@@ -173,7 +173,7 @@ def test_configured_destination(environment) -> None:
 
     p = dlt.pipeline()
     assert p.destination is not None
-    assert p.destination.__name__.endswith("postgres")
+    assert p.destination.name.endswith("postgres")
     assert p.pipeline_name == "postgres_pipe"
 
 
