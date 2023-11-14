@@ -9,7 +9,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.mssql.mssql import MsSqlClient
 
 
-class mssql(Destination):
+class mssql(Destination[MsSqlClientConfiguration, "MsSqlClient"]):
 
     spec = MsSqlClientConfiguration
 

@@ -43,7 +43,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
 
 
-class bigquery(Destination):
+class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
 
     spec = BigQueryClientConfiguration
 

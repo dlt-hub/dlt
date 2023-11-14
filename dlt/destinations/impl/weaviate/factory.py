@@ -9,7 +9,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
 
 
-class weaviate(Destination):
+class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
 
     spec = WeaviateClientConfiguration
 

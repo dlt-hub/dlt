@@ -9,6 +9,7 @@ from dlt.destinations.impl.athena.factory import athena
 from dlt.destinations.impl.redshift.factory import redshift
 from dlt.destinations.impl.qdrant.factory import qdrant
 from dlt.destinations.impl.motherduck.factory import motherduck
+from dlt.destinations.impl.weaviate.factory import weaviate
 
 
 __all__ = [
@@ -23,4 +24,5 @@ __all__ = [
     "redshift",
     "qdrant",
     "motherduck",
+    "weaviate",
 ]

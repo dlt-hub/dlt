@@ -9,7 +9,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.duckdb.duck import DuckDbClient
 
 
-class duckdb(Destination):
+class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
 
     spec = DuckDbClientConfiguration
 

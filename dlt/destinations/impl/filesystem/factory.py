@@ -9,7 +9,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 
-class filesystem(Destination):
+class filesystem(Destination[FilesystemDestinationClientConfiguration, "FilesystemClient"]):
 
     spec = FilesystemDestinationClientConfiguration
 

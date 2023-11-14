@@ -9,7 +9,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.qdrant.qdrant_client import QdrantClient
 
 
-class qdrant(Destination):
+class qdrant(Destination[QdrantClientConfiguration, "QdrantClient"]):
 
     spec = QdrantClientConfiguration
 

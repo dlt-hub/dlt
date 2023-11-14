@@ -20,7 +20,7 @@ from dlt.common.exceptions import TerminalValueError, DestinationTerminalExcepti
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, WithStagingDataset, Destination, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration, SupportsStagingDestination
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, WithStagingDataset, Destination, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration, SupportsStagingDestination, TDestination
 
 from dlt.destinations.job_impl import EmptyLoadJob
 
@@ -34,8 +34,8 @@ class Load(Runnable[Executor]):
     @with_config(spec=LoaderConfiguration, sections=(known_sections.LOAD,))
     def __init__(
         self,
-        destination: Destination,
-        staging_destination: Destination = None,
+        destination: TDestination,
+        staging_destination: TDestination = None,
         collector: Collector = NULL_COLLECTOR,
         is_storage_owner: bool = False,
         config: LoaderConfiguration = config.value,

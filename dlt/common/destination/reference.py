@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod, abstractproperty
 from importlib import import_module
 from types import TracebackType, ModuleType
-from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager, Dict, Any, Callable, TypeVar
+from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager, Dict, Any, Callable, TypeVar, Generic
 from contextlib import contextmanager
 import datetime  # noqa: 251
 from copy import deepcopy
@@ -26,6 +26,7 @@ from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithout
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
+TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
 
 
 class StorageSchemaInfo(NamedTuple):
@@ -406,7 +407,7 @@ TDestinationReferenceArg = Union[str, "Destination", None]
 #         return destination.split(".")[-1]  # type: ignore
 
 
-class Destination(ABC):
+class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     """A destination factory that can be partially pre-configured
     with credentials and other config params.
     """
@@ -418,7 +419,7 @@ class Destination(ABC):
 
     @property
     @abstractmethod
-    def spec(self) -> Type[DestinationClientConfiguration]:
+    def spec(self) -> Type[TDestinationConfig]:
         """Returns the destination configuration spec"""
         ...
 
@@ -433,7 +434,7 @@ class Destination(ABC):
 
     @property
     @abstractmethod
-    def client_class(self) -> Type[JobClientBase]:
+    def client_class(self) -> Type[TDestinationClient]:
         """Returns the client class"""
         ...
 
@@ -456,7 +457,7 @@ class Destination(ABC):
         return ref.name
 
     @staticmethod
-    def from_reference(ref: TDestinationReferenceArg, credentials: Optional[CredentialsConfiguration] = None, **kwargs: Any) -> Optional["Destination"]:
+    def from_reference(ref: TDestinationReferenceArg, credentials: Optional[CredentialsConfiguration] = None, **kwargs: Any) -> Optional["Destination[DestinationClientConfiguration, JobClientBase]"]:
         """Instantiate destination from str reference.
         The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`)
         """
@@ -477,14 +478,14 @@ class Destination(ABC):
             raise UnknownDestinationModule(ref) from e
 
         try:
-            factory: Type[Destination] = getattr(dest_module, attr_name)
+            factory: Type[Destination[DestinationClientConfiguration, JobClientBase]] = getattr(dest_module, attr_name)
         except AttributeError as e:
             raise InvalidDestinationReference(ref) from e
         if credentials:
             kwargs["credentials"] = credentials
         return factory(**kwargs)
 
-    def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> "JobClientBase":
+    def client(self, schema: Schema, initial_config: TDestinationConfig = config.value) -> TDestinationClient:
         # Create merged config with the pipeline initial cfg and the partial config of this instance
         cfg = self.spec(
             **dict(
@@ -493,3 +494,6 @@ class Destination(ABC):
             )
         )
         return self.client_class(schema, self.configuration(cfg))
+
+
+TDestination = Destination[DestinationClientConfiguration, JobClientBase]

@@ -5,7 +5,7 @@ from contextlib import contextmanager
 from dlt.load import Load
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.destination.reference import Destination, LoadJob
+from dlt.common.destination.reference import Destination, LoadJob, TDestination
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.job_impl import EmptyLoadJob
@@ -13,7 +13,7 @@ from tests.load.utils import prepare_load_package
 
 
 def setup_loader(dataset_name: str) -> Load:
-    destination: Destination = filesystem()
+    destination: TDestination = filesystem()  # type: ignore[assignment]
     config = filesystem.spec(dataset_name=dataset_name)
     # setup loader
     with Container().injectable_context(ConfigSectionContext(sections=('filesystem',))):

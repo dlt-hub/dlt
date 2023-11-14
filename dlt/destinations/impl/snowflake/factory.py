@@ -8,7 +8,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
 
 
-class snowflake(Destination):
+class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
 
     spec = SnowflakeClientConfiguration
 

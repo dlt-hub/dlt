@@ -24,7 +24,7 @@ from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
 from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import LiveSchemaStorage, NormalizeStorage, LoadStorage, SchemaStorage, FileStorage, NormalizeStorageConfiguration, SchemaStorageConfiguration, LoadStorageConfiguration
-from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination import DestinationCapabilitiesContext, TDestination
 from dlt.common.destination.reference import (DestinationClientDwhConfiguration, WithStateSync, Destination, JobClientBase, DestinationClientConfiguration,
                                               TDestinationReferenceArg, DestinationClientStagingConfiguration,  DestinationClientStagingConfiguration,
                                               DestinationClientDwhWithStagingConfiguration)
@@ -166,8 +166,8 @@ class Pipeline(SupportsPipeline):
     """A directory where the pipelines' working directories are created"""
     working_dir: str
     """A working directory of the pipeline"""
-    destination: Destination = None
-    staging: Destination = None
+    destination: TDestination = None
+    staging: TDestination = None
     """The destination reference which is ModuleType. `destination.name` returns the name string"""
     dataset_name: str = None
     """Name of the dataset to which pipeline will be loaded to"""
@@ -183,8 +183,8 @@ class Pipeline(SupportsPipeline):
             pipeline_name: str,
             pipelines_dir: str,
             pipeline_salt: TSecretValue,
-            destination: Destination,
-            staging: Destination,
+            destination: TDestination,
+            staging: TDestination,
             dataset_name: str,
             credentials: Any,
             import_schema_path: str,
@@ -879,7 +879,7 @@ class Pipeline(SupportsPipeline):
 
         return extract_id
 
-    def _get_destination_client_initial_config(self, destination: Destination = None, credentials: Any = None, as_staging: bool = False) -> DestinationClientConfiguration:
+    def _get_destination_client_initial_config(self, destination: TDestination = None, credentials: Any = None, as_staging: bool = False) -> DestinationClientConfiguration:
         destination = destination or self.destination
         if not destination:
             raise PipelineConfigMissing(

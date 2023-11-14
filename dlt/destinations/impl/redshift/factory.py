@@ -42,7 +42,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.redshift.redshift import RedshiftClient
 
 
-class redshift(Destination):
+class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
 
     spec = RedshiftClientConfiguration
 

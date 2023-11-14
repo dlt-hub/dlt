@@ -9,7 +9,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.motherduck.motherduck import MotherDuckClient
 
 
-class motherduck(Destination):
+class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"]):
 
     spec = MotherDuckClientConfiguration
 

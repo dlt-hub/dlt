@@ -9,7 +9,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.postgres.postgres import PostgresClient
 
 
-class postgres(Destination):
+class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
 
     spec = PostgresClientConfiguration
 

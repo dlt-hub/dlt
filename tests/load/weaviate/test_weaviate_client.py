@@ -8,7 +8,7 @@ from dlt.common.configuration.specs.config_section_context import ConfigSectionC
 from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TWriteDisposition, TColumnSchema, TTableSchemaColumns
 
-from dlt.destinations.impl import weaviate
+from dlt.destinations import weaviate
 from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict
 from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
 
@@ -27,9 +27,10 @@ def drop_weaviate_schema() -> Iterator[None]:
 
 
 def get_client_instance(schema: Schema) -> WeaviateClient:
-    config = weaviate.spec()(dataset_name="ClientTest" + uniq_id())
-    with Container().injectable_context(ConfigSectionContext(sections=('destination', 'weaviate'))):
-        return weaviate.client(schema, config)  # type: ignore[return-value]
+    dest = weaviate(dataset_name="ClientTest" + uniq_id())
+    return dest.client(schema, dest.spec())
+    # with Container().injectable_context(ConfigSectionContext(sections=('destination', 'weaviate'))):
+    #     return dest.client(schema, config)
 
 
 @pytest.fixture(scope='function')

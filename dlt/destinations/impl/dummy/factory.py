@@ -9,7 +9,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.dummy.dummy import DummyClient
 
 
-class dummy(Destination):
+class dummy(Destination[DummyClientConfiguration, "DummyClient"]):
 
     spec = DummyClientConfiguration
 

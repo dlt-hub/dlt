@@ -9,7 +9,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.athena.athena import AthenaClient
 
 
-class athena(Destination):
+class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
 
     spec = AthenaClientConfiguration
 

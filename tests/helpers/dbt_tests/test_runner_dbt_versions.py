@@ -15,7 +15,7 @@ from dlt.common.runners.synth_pickle import decode_obj, encode_obj
 from dlt.common.typing import AnyFun
 
 from dlt.destinations.impl.postgres.postgres import PostgresClient
-from dlt.destinations.impl.bigquery import BigQueryClientConfiguration
+from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
 from dlt.helpers.dbt.exceptions import PrerequisitesException, DBTProcessingError
 from dlt.helpers.dbt import package_runner, create_venv, _create_dbt_deps, _default_profile_name, DEFAULT_DBT_VERSION
