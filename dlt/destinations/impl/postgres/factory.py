@@ -1,7 +1,6 @@
 import typing as t
 
-from dlt.common.configuration import with_config, known_sections
-from dlt.common.destination.reference import DestinationClientConfiguration, Destination
+from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
 from dlt.destinations.impl.postgres.configuration import PostgresCredentials, PostgresClientConfiguration
 from dlt.destinations.impl.postgres import capabilities
@@ -12,8 +11,10 @@ if t.TYPE_CHECKING:
 
 class postgres(Destination):
 
-    capabilities = capabilities()
     spec = PostgresClientConfiguration
+
+    def capabilities(self) -> DestinationCapabilitiesContext:
+        return capabilities()
 
     @property
     def client_class(self) -> t.Type["PostgresClient"]:

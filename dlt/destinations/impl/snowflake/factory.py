@@ -2,9 +2,7 @@ import typing as t
 
 from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials, SnowflakeClientConfiguration
 from dlt.destinations.impl.snowflake import capabilities
-from dlt.common.configuration import with_config, known_sections
-from dlt.common.destination.reference import DestinationClientConfiguration, Destination
-from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
@@ -12,8 +10,10 @@ if t.TYPE_CHECKING:
 
 class snowflake(Destination):
 
-    capabilities = capabilities()
     spec = SnowflakeClientConfiguration
+
+    def capabilities(self) -> DestinationCapabilitiesContext:
+        return capabilities()
 
     @property
     def client_class(self) -> t.Type["SnowflakeClient"]:

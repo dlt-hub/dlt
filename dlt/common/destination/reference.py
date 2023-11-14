@@ -410,15 +410,11 @@ class Destination(ABC):
     """A destination factory that can be partially pre-configured
     with credentials and other config params.
     """
-    credentials: Optional[CredentialsConfiguration] = None
     config_params: Optional[Dict[str, Any]] = None
     initial_config: DestinationClientConfiguration
 
     def __init__(self, **kwargs: Any) -> None:
         self.initial_config = self.spec(**kwargs)
-        # cfg_dict = dict(cfg)
-        # self.credentials = cfg_dict.pop("credentials", None)
-        # self.config_params = {key: val for key, val in cfg_dict.items() if val is not None}
 
     @property
     @abstractmethod
@@ -426,7 +422,6 @@ class Destination(ABC):
         """Returns the destination configuration spec"""
         ...
 
-    @property
     @abstractmethod
     def capabilities(self) -> DestinationCapabilitiesContext:
         """Returns the destination capabilities"""

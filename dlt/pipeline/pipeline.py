@@ -953,10 +953,10 @@ class Pipeline(SupportsPipeline):
                     "normalize",
                     "Please provide `destination` argument to `pipeline`, `run` or `load` method directly or via .dlt config.toml file or environment variable."
                 )
-        return self.destination.capabilities
+        return self.destination.capabilities()
 
     def _get_staging_capabilities(self) -> Optional[DestinationCapabilitiesContext]:
-        return self.staging.capabilities if self.staging is not None else None
+        return self.staging.capabilities() if self.staging is not None else None
 
     def _validate_pipeline_name(self) -> None:
         try:
@@ -989,7 +989,7 @@ class Pipeline(SupportsPipeline):
         if destination:
             self.destination = Destination.from_reference(destination)
 
-        if destination and not self.destination.capabilities.supported_loader_file_formats and not staging:
+        if destination and not self.destination.capabilities().supported_loader_file_formats and not staging:
             logger.warning(f"The destination {self.destination.name} requires the filesystem staging destination to be set, but it was not provided. Setting it to 'filesystem'.")
             staging = "filesystem"
 

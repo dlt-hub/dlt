@@ -1,7 +1,6 @@
 import typing as t
 
-from dlt.common.configuration import with_config, known_sections
-from dlt.common.destination.reference import DestinationClientConfiguration, Destination, DestinationCapabilitiesContext
+from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration, DummyClientCredentials
 from dlt.destinations.impl.dummy import capabilities
@@ -14,7 +13,6 @@ class dummy(Destination):
 
     spec = DummyClientConfiguration
 
-    @property
     def capabilities(self) -> DestinationCapabilitiesContext:
         return capabilities()
 

@@ -56,14 +56,14 @@ class Load(Runnable[Executor]):
 
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
-        supported_file_formats = self.capabilities.supported_loader_file_formats
+        supported_file_formats = self.capabilities().supported_loader_file_formats
         if self.staging_destination:
-            supported_file_formats = self.staging_destination.capabilities.supported_loader_file_formats + ["reference"]
+            supported_file_formats = self.staging_destination.capabilities().supported_loader_file_formats + ["reference"]
         if isinstance(self.get_destination_client(Schema("test")), WithStagingDataset):
             supported_file_formats += ["sql"]
         load_storage = LoadStorage(
             is_storage_owner,
-            self.capabilities.preferred_loader_file_format,
+            self.capabilities().preferred_loader_file_format,
             supported_file_formats,
             config=self.config._load_storage_config
         )
@@ -76,7 +76,7 @@ class Load(Runnable[Executor]):
         return self.staging_destination.client(schema, self.initial_staging_client_config)
 
     def is_staging_destination_job(self, file_path: str) -> bool:
-        return self.staging_destination is not None and os.path.splitext(file_path)[1][1:] in self.staging_destination.capabilities.supported_loader_file_formats
+        return self.staging_destination is not None and os.path.splitext(file_path)[1][1:] in self.staging_destination.capabilities().supported_loader_file_formats
 
     @contextlib.contextmanager
     def maybe_with_staging_dataset(self, job_client: JobClientBase, use_staging: bool) -> Iterator[None]:
@@ -99,7 +99,7 @@ class Load(Runnable[Executor]):
             with (self.get_staging_destination_client(schema) if is_staging_destination_job else job_client) as client:
                 job_info = self.load_storage.parse_job_file_name(file_path)
                 if job_info.file_format not in self.load_storage.supported_file_formats:
-                    raise LoadClientUnsupportedFileFormats(job_info.file_format, self.capabilities.supported_loader_file_formats, file_path)
+                    raise LoadClientUnsupportedFileFormats(job_info.file_format, self.capabilities().supported_loader_file_formats, file_path)
                 logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
                 table = client.get_load_table(job_info.table_name)
                 if table["write_disposition"] not in ["append", "replace", "merge"]:

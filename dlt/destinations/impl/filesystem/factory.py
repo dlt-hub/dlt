@@ -2,8 +2,7 @@ import typing as t
 
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.impl.filesystem import capabilities
-from dlt.common.configuration import with_config, known_sections
-from dlt.common.destination.reference import DestinationClientConfiguration, Destination
+from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.storages.configuration import FileSystemCredentials
 
 if t.TYPE_CHECKING:
@@ -12,8 +11,10 @@ if t.TYPE_CHECKING:
 
 class filesystem(Destination):
 
-    capabilities = capabilities()
     spec = FilesystemDestinationClientConfiguration
+
+    def capabilities(self) -> DestinationCapabilitiesContext:
+        return capabilities()
 
     @property
     def client_class(self) -> t.Type["FilesystemClient"]:
