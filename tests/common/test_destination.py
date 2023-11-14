@@ -29,7 +29,7 @@ def test_import_all_destinations() -> None:
         dest = Destination.from_reference(dest_name)
         assert dest.name == dest_name
         dest.spec()
-        assert isinstance(dest.capabilities, DestinationCapabilitiesContext)
+        assert isinstance(dest.capabilities(), DestinationCapabilitiesContext)
 
 
 def test_normalize_dataset_name() -> None:
