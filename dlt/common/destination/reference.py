@@ -356,7 +356,6 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     with credentials and other config params.
     """
     config_params: Optional[Dict[str, Any]] = None
-    initial_config: DestinationClientConfiguration
 
     def __init__(self, **kwargs: Any) -> None:
         # Create initial unresolved destination config
@@ -364,11 +363,10 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         # to supersede config from the environment or pipeline args
         sig = inspect.signature(self.__class__)
         params = sig.parameters
-        config_args = {
+        self.config_params = {
             k: v for k, v in kwargs.items()
             if k not in params or v != params[k].default
         }
-        self.initial_config = self.spec(**config_args)
 
     @property
     @abstractmethod
@@ -398,7 +396,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             initial_config,
             sections=(known_sections.DESTINATION, self.name),
             # Already populated values will supersede resolved env config
-            explicit_value=dict(initial_config)
+            explicit_value=self.config_params
         )
 
     @staticmethod
@@ -439,11 +437,13 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         return factory(**kwargs)
 
     def client(self, schema: Schema, initial_config: TDestinationConfig = config.value) -> TDestinationClient:
+        return self.client_class(schema, self.configuration(initial_config))
         # Create merged config with the pipeline initial cfg and the partial config of this instance
+
         cfg = self.spec(
             **dict(
                 initial_config,
-                **{k: v for k, v in self.initial_config.items() if v is not None}
+                **{k: v for k, v in self.config_params.items() if v is not None}
             )
         )
         return self.client_class(schema, self.configuration(cfg))
