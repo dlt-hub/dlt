@@ -6,4 +6,5 @@ __all__ = [
     "TLoaderFileFormat",
     "ALL_SUPPORTED_FILE_FORMATS",
     "TDestinationReferenceArg",
+    "Destination",
 ]

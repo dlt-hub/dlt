@@ -4,6 +4,11 @@ from dlt.destinations.impl.filesystem.factory import filesystem
 from dlt.destinations.impl.duckdb.factory import duckdb
 from dlt.destinations.impl.dummy.factory import dummy
 from dlt.destinations.impl.mssql.factory import mssql
+from dlt.destinations.impl.bigquery.factory import bigquery
+from dlt.destinations.impl.athena.factory import athena
+from dlt.destinations.impl.redshift.factory import redshift
+from dlt.destinations.impl.qdrant.factory import qdrant
+from dlt.destinations.impl.motherduck.factory import motherduck
 
 
 __all__ = [
@@ -13,4 +18,9 @@ __all__ = [
     "duckdb",
     "dummy",
     "mssql",
+    "bigquery",
+    "athena",
+    "redshift",
+    "qdrant",
+    "motherduck",
 ]

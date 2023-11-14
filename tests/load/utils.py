@@ -237,7 +237,7 @@ def yield_client(
 
     if default_config_values is not None:
         # apply the values to credentials, if dict is provided it will be used as default
-        dest_config.credentials = default_config_values  # type: ignore[assignment]
+        # dest_config.credentials = default_config_values  # type: ignore[assignment]
         # also apply to config
         dest_config.update(default_config_values)
     # get event default schema
