@@ -44,7 +44,7 @@ def test_iso_date_detection() -> None:
     assert is_iso_date(str, "2022-06-01T00:48:35.040Z") is None
     assert is_iso_date(str, "1975-0521T22:00:00Z") is None
     assert is_iso_date(str, "2021-07-24 10:51") is None
-    
+
     # times are not accepted
     assert is_iso_date(str, "22:00:00") is None
     # wrong formats
