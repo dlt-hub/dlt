@@ -67,23 +67,22 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
     def native_connection(self) -> "DatabricksSqlConnection":
         return self._conn
 
-    def has_dataset(self) -> bool:
-        db_params = self.fully_qualified_dataset_name(escape=False).split(".", 2)
+    # def has_dataset(self) -> bool:
+    #     db_params = self.fully_qualified_dataset_name(escape=False).split(".", 2)
 
-        # Determine the base query based on the presence of a catalog in db_params
-        if len(db_params) == 2:
-            # Use catalog from db_params
-            query = "SELECT 1 FROM %s.`INFORMATION_SCHEMA`.`SCHEMATA` WHERE `schema_name` = %s" % (
-                self.capabilities.escape_identifier(db_params[0]), db_params[1])
-        else:
-            # Use system catalog
-            query = "SELECT 1 FROM `SYSTEM`.`INFORMATION_SCHEMA`.`SCHEMATA` WHERE `catalog_name` = %s AND `schema_name` = %s"
+    #     # Determine the base query based on the presence of a catalog in db_params
+    #     if len(db_params) == 2:
+    #         # Use catalog from db_params
+    #         query = "SELECT 1 FROM %s.`INFORMATION_SCHEMA`.`SCHEMATA` WHERE `schema_name` = %s"
+    #     else:
+    #         # Use system catalog
+    #         query = "SELECT 1 FROM `SYSTEM`.`INFORMATION_SCHEMA`.`SCHEMATA` WHERE `catalog_name` = %s AND `schema_name` = %s"
 
-        # Execute the query and check if any rows are returned
-        rows = self.execute_sql(query, *db_params)
-        return len(rows) > 0
+    #     # Execute the query and check if any rows are returned
+    #     rows = self.execute_sql(query, *db_params)
+    #     return len(rows) > 0
 
-    def drop_tables(self, *tables: str) -> None:
+    def drop_tables(self, *tables: str) -> None:  
         # Tables are drop with `IF EXISTS`, but databricks raises when the schema doesn't exist.
         # Multi statement exec is safe and the error can be ignored since all tables are in the same schema.
         with suppress(DatabaseUndefinedRelation):
@@ -129,9 +128,11 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     @staticmethod
     def _make_database_exception(ex: Exception) -> Exception:
-        if isinstance(ex, databricks_lib.OperationalError):
+        
+        if isinstance(ex, databricks_lib.ServerOperationError):
             if "TABLE_OR_VIEW_NOT_FOUND" in str(ex):
                 return DatabaseUndefinedRelation(ex)
+        elif isinstance(ex, databricks_lib.OperationalError):
             return DatabaseTerminalException(ex)
         elif isinstance(ex, (databricks_lib.ProgrammingError, databricks_lib.IntegrityError)):
             return DatabaseTerminalException(ex)
