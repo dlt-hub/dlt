@@ -25,7 +25,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
     def __init__(
         self,
         bucket_url: str = None,
-        credentials: t.Union[FileSystemCredentials, t.Dict[str, t.Any]] = None,
+        credentials: t.Union[FileSystemCredentials, t.Dict[str, t.Any], t.Any] = None,
         **kwargs: t.Any,
     ) -> None:
         super().__init__(bucket_url=bucket_url, credentials=credentials, **kwargs)

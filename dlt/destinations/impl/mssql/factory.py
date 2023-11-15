@@ -24,7 +24,7 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlClient"]):
 
     def __init__(
         self,
-        credentials: t.Union[MsSqlCredentials, str] = None,
+        credentials: t.Union[MsSqlCredentials, t.Dict[str, t.Any], str] = None,
         create_indexes: bool = True,
         **kwargs: t.Any,
     ) -> None:

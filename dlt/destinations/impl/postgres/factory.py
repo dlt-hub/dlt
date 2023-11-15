@@ -24,7 +24,7 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
 
     def __init__(
         self,
-        credentials: t.Union[PostgresCredentials, str] = None,
+        credentials: t.Union[PostgresCredentials, t.Dict[str, t.Any], str] = None,
         create_indexes: bool = True,
         **kwargs: t.Any,
     ) -> None:

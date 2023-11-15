@@ -24,7 +24,7 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
 
     def __init__(
         self,
-        credentials: t.Union[MotherDuckCredentials, str, "DuckDBPyConnection"] = None,
+        credentials: t.Union[MotherDuckCredentials, str, t.Dict[str, t.Any], "DuckDBPyConnection"] = None,
         create_indexes: bool = False,
         **kwargs: t.Any,
     ) -> None:

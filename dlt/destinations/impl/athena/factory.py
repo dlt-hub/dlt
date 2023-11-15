@@ -25,7 +25,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
     def __init__(
         self,
         query_result_bucket: t.Optional[str] = None,
-        credentials: t.Optional[AwsCredentials] = None,
+        credentials: t.Union[AwsCredentials, t.Dict[str, t.Any], t.Any] = None,
         athena_work_group: t.Optional[str] = None,
         aws_data_catalog: t.Optional[str] = "awsdatacatalog",
         supports_truncate_command: bool = False,

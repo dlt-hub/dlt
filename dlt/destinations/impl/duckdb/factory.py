@@ -25,7 +25,7 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
     # @with_config(spec=DuckDbClientConfiguration, sections=(known_sections.DESTINATION, 'duckdb'), accept_partial=True)
     def __init__(
         self,
-        credentials: t.Union[DuckDbCredentials, str, "DuckDBPyConnection"] = None,
+        credentials: t.Union[DuckDbCredentials, t.Dict[str, t.Any],  str, "DuckDBPyConnection"] = None,
         create_indexes: bool = False,
         **kwargs: t.Any,
     ) -> None:

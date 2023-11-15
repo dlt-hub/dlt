@@ -24,7 +24,7 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
 
     def __init__(
         self,
-        credentials: t.Optional[WeaviateCredentials] = None,
+        credentials: t.Union[WeaviateCredentials, t.Dict[str, t.Any]] = None,
         **kwargs: t.Any,
     ) -> None:
         super().__init__(credentials=credentials, **kwargs)

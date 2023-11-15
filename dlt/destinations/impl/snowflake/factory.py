@@ -23,7 +23,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
 
     def __init__(
         self,
-        credentials: SnowflakeCredentials = None,
+        credentials: t.Union[SnowflakeCredentials, t.Dict[str, t.Any], str] = None,
         stage_name: t.Optional[str] = None,
         keep_staged_files: bool = True,
         **kwargs: t.Any,

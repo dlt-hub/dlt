@@ -57,7 +57,7 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
 
     def __init__(
         self,
-        credentials: t.Union[RedshiftCredentials, str] = None,
+        credentials: t.Union[RedshiftCredentials, t.Dict[str, t.Any], str] = None,
         create_indexes: bool = True,
         staging_iam_role: t.Optional[str] = None,
         **kwargs: t.Any,
