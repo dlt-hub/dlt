@@ -438,15 +438,6 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     def client(self, schema: Schema, initial_config: TDestinationConfig = config.value) -> TDestinationClient:
         return self.client_class(schema, self.configuration(initial_config))
-        # Create merged config with the pipeline initial cfg and the partial config of this instance
-
-        cfg = self.spec(
-            **dict(
-                initial_config,
-                **{k: v for k, v in self.config_params.items() if v is not None}
-            )
-        )
-        return self.client_class(schema, self.configuration(cfg))
 
 
 TDestination = Destination[DestinationClientConfiguration, JobClientBase]
