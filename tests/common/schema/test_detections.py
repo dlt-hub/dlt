@@ -38,7 +38,7 @@ def test_iso_date_detection() -> None:
     assert is_iso_date(str, str(pendulum.now().date())) == "date"
     assert is_iso_date(str, "1975-05-21") == "date"
     assert is_iso_date(str, "19750521") == "date"
-    
+
     # ISO-8601 allows dates with reduced precision
     assert is_iso_date(str, "1975-05") == "date"
     assert is_iso_date(str, "1975") == "date"
