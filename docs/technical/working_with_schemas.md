@@ -124,6 +124,7 @@ settings:
     detections:
     - timestamp
     - iso_timestamp
+    - iso_date
 ```
 
 ⛔ we may define `all_text` function that will generate string only schemas by telling `dlt` that all types should be coerced to strings.
