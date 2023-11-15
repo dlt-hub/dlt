@@ -231,17 +231,19 @@ def test_destination_explicit_credentials(environment: Any) -> None:
 
 
 def test_destination_staging_config(environment: Any) -> None:
+    fs_dest = filesystem("file:///testing-bucket")
     p = dlt.pipeline(
         pipeline_name="staging_pipeline",
         destination=redshift(credentials="redshift://loader:loader@localhost:5432/dlt_data"),
-        staging=filesystem("s3://testing-bucket", credentials={"aws_access_key_id": "key_id", "aws_secret_access_key": "key"})
+        staging=fs_dest
     )
     schema = Schema("foo")
     p._inject_schema(schema)
-    client, staging = p._get_destination_clients(p.default_schema)
+    initial_config = p._get_destination_client_initial_config(p.staging, as_staging=True)
+    staging_config = fs_dest.configuration(initial_config)  # type: ignore[arg-type]
 
     # Ensure that as_staging flag is set in the final resolved conifg
-    assert staging.config.as_staging is True  # type: ignore[attr-defined]
+    assert staging_config.as_staging is True
 
 
 def test_destination_factory_defaults_resolve_from_config(environment: Any) -> None:
@@ -261,15 +263,21 @@ def test_destination_factory_defaults_resolve_from_config(environment: Any) -> N
 def test_destination_credentials_in_factory(environment: Any) -> None:
     os.environ['DESTINATION__REDSHIFT__CREDENTIALS'] = "redshift://abc:123@localhost:5432/some_db"
 
-    p = dlt.pipeline(pipeline_name="dummy_pipeline", destination=redshift(credentials="redshift://abc:123@localhost:5432/other_db"))
+    redshift_dest = redshift("redshift://abc:123@localhost:5432/other_db")
 
+    p = dlt.pipeline(pipeline_name="dummy_pipeline", destination=redshift_dest)
+
+    initial_config = p._get_destination_client_initial_config(p.destination)
+    dest_config = redshift_dest.configuration(initial_config)  # type: ignore[arg-type]
     # Explicit factory arg supersedes config
-    assert p.destination_client().config.credentials.database == "other_db"  # type: ignore[attr-defined]
+    assert dest_config.credentials.database == "other_db"
 
-    p = dlt.pipeline(pipeline_name="dummy_pipeline", destination=redshift())
+    redshift_dest = redshift()
+    p = dlt.pipeline(pipeline_name="dummy_pipeline", destination=redshift_dest)
 
-    # Config value is used if no explicit arg is passed
-    assert p.destination_client().config.credentials.database == "some_db"  # type: ignore[attr-defined]
+    initial_config = p._get_destination_client_initial_config(p.destination)
+    dest_config = redshift_dest.configuration(initial_config)  # type: ignore[arg-type]
+    assert dest_config.credentials.database == "some_db"
 
 
 @pytest.mark.skip(reason="does not work on CI. probably takes right credentials from somewhere....")
