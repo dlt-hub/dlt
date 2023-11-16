@@ -1,4 +1,4 @@
-# +30 SQL Databases
+# 30+ SQL Databases
 
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
