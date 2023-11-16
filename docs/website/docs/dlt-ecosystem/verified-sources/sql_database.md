@@ -342,7 +342,7 @@ To create your own pipeline, use source and resource methods from this verified 
    info = pipeline.run(source, write_disposition="merge")
    print(info)
    ```
-   > In this example, we load data from the 'family' table, using the 'updated' column for incremental loading. In the first run, the process loads all data starting from midnight (00:00:00) on January 1, 2022. Subsequent runs perform incremental loading, guided by the values in the 'updated' field.
+   In this example, we load data from the `family` table, using the `updated` column for incremental loading. In the first run, the process loads all data starting from midnight (00:00:00) on January 1, 2022. Subsequent runs perform incremental loading, guided by the values in the `updated` field.
 
 1. To incrementally load the "family" table using the 'sql_table' resource.
 
