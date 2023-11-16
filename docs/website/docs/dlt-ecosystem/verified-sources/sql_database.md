@@ -55,9 +55,7 @@ This verified source utilizes SQLAlchemy for database connectivity. Let's take a
 `connection_url = "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"`
 
 The database above doesn't require a password.
-The database above doesn't require a password.
 
-The connection URL can be broken down into:
 The connection URL can be broken down into:
 
 ```python
