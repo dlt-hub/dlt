@@ -32,4 +32,12 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         force_iceberg: bool = False,
         **kwargs: t.Any,
     ) -> None:
-        super().__init__(**kwargs)
+        super().__init__(
+            query_result_bucket=query_result_bucket,
+            credentials=credentials,
+            athena_work_group=athena_work_group,
+            aws_data_catalog=aws_data_catalog,
+            supports_truncate_command=supports_truncate_command,
+            force_iceberg=force_iceberg,
+            **kwargs,
+        )
