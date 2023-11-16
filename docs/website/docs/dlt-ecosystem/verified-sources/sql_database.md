@@ -55,7 +55,9 @@ This verified source utilizes SQLAlchemy for database connectivity. Let's take a
 `connection_url = "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"`
 
 The database above doesn't require a password.
+The database above doesn't require a password.
 
+The connection URL can be broken down into:
 The connection URL can be broken down into:
 
 ```python
@@ -77,6 +79,9 @@ connection_url = "connection_string = f"{drivername}://{username}:{password}@{ho
 
 - E.g., A public database at "mysql-rfam-public.ebi.ac.uk" hosted by EBI.
 
+`port`: The port for the database connection. 
+
+- E.g., "4497", in the above connection URL.
 `port`: The port for the database connection. 
 
 - E.g., "4497", in the above connection URL.
@@ -350,7 +355,7 @@ To create your own pipeline, use source and resource methods from this verified 
    info = pipeline.run(source, write_disposition="merge")
    print(info)
    ```
-   > In this example, we load data from the 'family' table, using the 'updated' column for incremental loading. In the first run, the process loads all data starting from midnight (00:00:00) on January 1, 2022. Subsequent runs perform incremental loading, guided by the values in the 'updated' field.
+   In this example, we load data from the `family` table, using the `updated` column for incremental loading. In the first run, the process loads all data starting from midnight (00:00:00) on January 1, 2022. Subsequent runs perform incremental loading, guided by the values in the `updated` field.
 
 1. To incrementally load the "family" table using the 'sql_table' resource.
 
@@ -366,7 +371,8 @@ To create your own pipeline, use source and resource methods from this verified 
    print(info)
    ```
 
-   > This process initially loads all data from the "family" table starting at midnight on January 1, 2022. For later runs, it uses the "updated" field for incremental loading as well. 
+   > Loads all data from "family" table from January 1, 2022, at midnight (00:00:00) and then loads
+   > incrementally in subsequent runs using "updated" field.
 
    :::info
    * For merge write disposition, the source table needs a primary key, which `dlt` automatically sets up.
