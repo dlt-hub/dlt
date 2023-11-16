@@ -28,4 +28,14 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlClient"]):
         create_indexes: bool = True,
         **kwargs: t.Any,
     ) -> None:
+        """Configure the MsSql destination to use in a pipeline.
+
+        All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
+
+        Args:
+            credentials: Credentials to connect to the mssql database. Can be an instance of `MsSqlCredentials` or
+                a connection string in the format `mssql://user:password@host:port/database`
+            create_indexes: Should unique indexes be created
+            **kwargs: Additional arguments passed to the destination config
+        """
         super().__init__(credentials=credentials, create_indexes=create_indexes, **kwargs)

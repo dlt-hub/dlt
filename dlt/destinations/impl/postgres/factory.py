@@ -28,4 +28,14 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         create_indexes: bool = True,
         **kwargs: t.Any,
     ) -> None:
+        """Configure the Postgres destination to use in a pipeline.
+
+        All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
+
+        Args:
+            credentials: Credentials to connect to the postgres database. Can be an instance of `PostgresCredentials` or
+                a connection string in the format `postgres://user:password@host:port/database`
+            create_indexes: Should unique indexes be created
+            **kwargs: Additional arguments passed to the destination config
+        """
         super().__init__(credentials=credentials, create_indexes=create_indexes, **kwargs)

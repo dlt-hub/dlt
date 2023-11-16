@@ -28,4 +28,14 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
         create_indexes: bool = False,
         **kwargs: t.Any,
     ) -> None:
+        """Configure the DuckDB destination to use in a pipeline.
+
+        All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
+
+        Args:
+            credentials: Credentials to connect to the duckdb database. Can be an instance of `DuckDbCredentials` or
+                a path to a database file. Use `:memory:` to create an in-memory database.
+            create_indexes: Should unique indexes be created
+            **kwargs: Additional arguments passed to the destination config
+        """
         super().__init__(credentials=credentials, create_indexes=create_indexes, **kwargs)

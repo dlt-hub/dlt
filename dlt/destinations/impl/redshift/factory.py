@@ -29,6 +29,17 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
         staging_iam_role: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
+        """Configure the Redshift destination to use in a pipeline.
+
+        All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
+
+        Args:
+            credentials: Credentials to connect to the redshift database. Can be an instance of `RedshiftCredentials` or
+                a connection string in the format `redshift://user:password@host:port/database`
+            create_indexes: Should unique indexes be created
+            staging_iam_role: IAM role to use for staging data in S3
+            **kwargs: Additional arguments passed to the destination config
+        """
         super().__init__(
             credentials=credentials, create_indexes=create_indexes, staging_iam_role=staging_iam_role, **kwargs
         )

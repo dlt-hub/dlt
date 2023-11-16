@@ -28,4 +28,14 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         keep_staged_files: bool = True,
         **kwargs: t.Any,
     ) -> None:
+        """Configure the Snowflake destination to use in a pipeline.
+
+        All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
+
+        Args:
+            credentials: Credentials to connect to the snowflake database. Can be an instance of `SnowflakeCredentials` or
+                a connection string in the format `snowflake://user:password@host:port/database`
+            stage_name: Name of an existing stage to use for loading data. Default uses implicit stage per table
+            keep_staged_files: Whether to delete or keep staged files after loading
+        """
         super().__init__(credentials=credentials, stage_name=stage_name, keep_staged_files=keep_staged_files, **kwargs)

@@ -25,6 +25,23 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
     def __init__(
         self,
         credentials: t.Union[WeaviateCredentials, t.Dict[str, t.Any]] = None,
+        vectorizer: str = None,
+        module_config: t.Dict[str, t.Dict[str, str]] = None,
         **kwargs: t.Any,
     ) -> None:
-        super().__init__(credentials=credentials, **kwargs)
+        """Configure the Weaviate destination to use in a pipeline.
+
+        All destination config parameters can be provided as arguments here and will supersede other config sources (such as dlt config files and environment variables).
+
+        Args:
+            credentials: Weaviate credentials containing URL, API key and optional headers
+            vectorizer: The name of the Weaviate vectorizer to use
+            module_config: The configuration for the Weaviate modules
+            **kwargs: Additional arguments forwarded to the destination config
+        """
+        super().__init__(
+            credentials=credentials,
+            vectorizer=vectorizer,
+            module_config=module_config,
+            **kwargs
+        )
