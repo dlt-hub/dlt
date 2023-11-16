@@ -20,6 +20,7 @@ from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.utils import new_column, new_table
 from dlt.common.utils import uniq_id
 
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
 from dlt.extract.extract import ExtractorStorage
 from dlt.extract.source import DltResource, DltSource
@@ -1117,3 +1118,20 @@ def test_empty_rows_are_included() -> None:
 
     values = [r[0] for r in rows]
     assert values == [1, None, None, None, None, None, None, None]
+
+
+def test_resource_state_name_not_normalized() -> None:
+    pipeline = dlt.pipeline(pipeline_name="emojis", destination="duckdb")
+    peacock_s = airtable_emojis().with_resources("🦚Peacock")
+    pipeline.extract(peacock_s)
+    assert peacock_s.resources["🦚Peacock"].state == {"🦚🦚🦚": "🦚"}
+    pipeline.normalize()
+    pipeline.load()
+
+    # get state from destination
+    from dlt.pipeline.state_sync import load_state_from_destination
+    client: SqlClientBase
+    with pipeline.destination_client() as client:  # type: ignore[assignment]
+        state = load_state_from_destination(pipeline.pipeline_name, client)
+        assert "airtable_emojis" in state["sources"]
+        assert state["sources"]["airtable_emojis"]["resources"] == {"🦚Peacock": {"🦚🦚🦚": "🦚"}}

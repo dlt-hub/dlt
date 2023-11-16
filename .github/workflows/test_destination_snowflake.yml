@@ -71,7 +71,7 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E snowflake -E s3 -E gs -E az
+        run: poetry install --no-interaction -E snowflake -E s3 -E gs -E az --with sentry-sdk --with pipeline
 
       - run: |
           poetry run pytest tests/load

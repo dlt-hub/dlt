@@ -116,19 +116,6 @@ jobs:
         name: Run extract tests Windows
         shell: cmd
 
-      # - name: Install pipeline dependencies
-      #   run: poetry install --no-interaction -E duckdb -E parquet --with pipeline
-
-      # - run: |
-      #     poetry run pytest tests/pipeline tests/libs
-      #   if: runner.os != 'Windows'
-      #   name: Run extra tests Linux/MAC
-      # - run: |
-      #     poetry run pytest tests/pipeline tests/libs
-      #   if: runner.os == 'Windows'
-      #   name: Run extra tests Windows
-      #   shell: cmd
-
   matrix_job_required_check:
     name: Common tests
     needs: run_common
