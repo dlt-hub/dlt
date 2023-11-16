@@ -358,7 +358,7 @@ To create your own pipeline, use source and resource methods from this verified 
    print(info)
    ```
 
-   > This process initially loads all data from the "family" table starting at midnight on January 1, 2022. For later runs, it uses the "updated" field for incremental loading as well. 
+   This process initially loads all data from the `family` table starting at midnight on January 1, 2022. For later runs, it uses the `updated` field for incremental loading as well. 
 
    :::info
    * For merge write disposition, the source table needs a primary key, which `dlt` automatically sets up.
