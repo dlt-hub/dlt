@@ -810,7 +810,7 @@ class Pipeline(SupportsPipeline):
                 columns,
                 primary_key,
                 schema_contract=schema_contract
-                )
+            )
 
         def apply_settings(source_: DltSource) -> None:
             # apply schema contract settings

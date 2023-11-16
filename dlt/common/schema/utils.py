@@ -674,7 +674,7 @@ def new_table(
         # set write disposition only for root tables
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
         table["resource"] = resource or table_name
-        if schema_contract:
+        if schema_contract is not None:
             table["schema_contract"] = schema_contract
         if table_format:
             table["table_format"] = table_format

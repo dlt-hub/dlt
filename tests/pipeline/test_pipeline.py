@@ -1,15 +1,13 @@
 import itertools
 import logging
 import os
-import random
-from typing import Any, Optional, Iterator, Dict, Any, cast
+from typing import Any, Any, cast
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
-from pydantic import BaseModel
 
 import pytest
 
 import dlt
-from dlt.common import json, sleep, pendulum
+from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.configuration.specs.exceptions import NativeValueError
@@ -18,7 +16,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import TLoaderFileFormat
 from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, PipelineStateNotAvailable, UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
-from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, LogCollector, TqdmCollector
+from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.utils import new_column, new_table
 from dlt.common.utils import uniq_id
 
@@ -28,14 +26,12 @@ from dlt.extract.source import DltResource, DltSource
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
 from dlt.pipeline.helpers import retry_load
-from dlt.pipeline import TCollectorArg
 
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
-from tests.utils import TEST_STORAGE_ROOT
 from tests.common.configuration.utils import environment
+from tests.utils import TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
-from tests.pipeline.utils import assert_load_info, airtable_emojis
+from tests.pipeline.utils import assert_load_info, airtable_emojis, many_delayed
 
 
 def test_default_pipeline() -> None:
@@ -186,22 +182,6 @@ def test_deterministic_salt(environment) -> None:
 
     p3 = dlt.pipeline(pipeline_name="postgres_redshift")
     assert p.pipeline_salt != p3.pipeline_salt
-
-
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
-def test_create_pipeline_all_destinations(destination_config: DestinationTestConfiguration) -> None:
-    # create pipelines, extract and normalize. that should be possible without installing any dependencies
-    p = dlt.pipeline(pipeline_name=destination_config.destination + "_pipeline", destination=destination_config.destination, staging=destination_config.staging)
-    # are capabilities injected
-    caps = p._container[DestinationCapabilitiesContext]
-    print(caps.naming_convention)
-    # are right naming conventions created
-    assert p._default_naming.max_length == min(caps.max_column_identifier_length, caps.max_identifier_length)
-    p.extract([1, "2", 3], table_name="data")
-    # is default schema with right naming convention
-    assert p.default_schema.naming.max_length == min(caps.max_column_identifier_length, caps.max_identifier_length)
-    p.normalize()
-    assert p.default_schema.naming.max_length == min(caps.max_column_identifier_length, caps.max_identifier_length)
 
 
 def test_destination_explicit_credentials(environment: Any) -> None:
@@ -489,7 +469,7 @@ def test_pipeline_state_on_extract_exception() -> None:
 
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
     p.run([data_schema_1(), data_schema_2()], write_disposition="replace")
-    assert p.schema_names == p._schema_storage.list_schemas()
+    assert set(p.schema_names) == set(p._schema_storage.list_schemas())
 
 
 def test_run_with_table_name_exceeding_path_length() -> None:
@@ -782,52 +762,6 @@ def test_preserve_fields_order() -> None:
     assert list(p.default_schema.tables["order_2"]["columns"].keys()) == ["col_3", "col_2", "col_1", '_dlt_load_id', '_dlt_id']
 
 
-def run_deferred(iters):
-
-    @dlt.defer
-    def item(n):
-        sleep(random.random() / 2)
-        return n
-
-    for n in range(iters):
-        yield item(n)
-
-
-@dlt.source
-def many_delayed(many, iters):
-    for n in range(many):
-        yield dlt.resource(run_deferred(iters), name="resource_" + str(n))
-
-
-@pytest.mark.parametrize("progress", ["tqdm", "enlighten", "log", "alive_progress"])
-def test_pipeline_progress(progress: TCollectorArg) -> None:
-
-    os.environ["TIMEOUT"] = "3.0"
-
-    p = dlt.pipeline(destination="dummy", progress=progress)
-    p.extract(many_delayed(5, 10))
-    p.normalize()
-
-    collector = p.collector
-
-    # attach pipeline
-    p = dlt.attach(progress=collector)
-    p.extract(many_delayed(5, 10))
-    p.run(dataset_name="dummy")
-
-    assert collector == p.drop().collector
-
-    # make sure a valid logger was used
-    if progress == "tqdm":
-        assert isinstance(collector, TqdmCollector)
-    if progress == "enlighten":
-        assert isinstance(collector, EnlightenCollector)
-    if progress == "alive_progress":
-        assert isinstance(collector, AliveCollector)
-    if progress == "log":
-        assert isinstance(collector, LogCollector)
-
-
 def test_pipeline_log_progress() -> None:
 
     os.environ["TIMEOUT"] = "3.0"
@@ -1057,50 +991,6 @@ def test_invalid_data_edge_cases() -> None:
         pipeline.run(res_return_yield)
     assert isinstance(pip_ex.value.__context__, PipeGenInvalid)
     assert "dlt.resource" in str(pip_ex.value)
-
-
-@pytest.mark.parametrize('method', ('extract', 'run'))
-def test_column_argument_pydantic(method: str) -> None:
-    """Test columns schema is created from pydantic model"""
-    p = dlt.pipeline(destination='duckdb')
-
-    @dlt.resource
-    def some_data() -> Iterator[Dict[str, Any]]:
-        yield {}
-
-    class Columns(BaseModel):
-        a: Optional[int]
-        b: Optional[str]
-
-    if method == 'run':
-        p.run(some_data(), columns=Columns)
-    else:
-        p.extract(some_data(), columns=Columns)
-
-    assert p.default_schema.tables['some_data']['columns']['a']['data_type'] == 'bigint'
-    assert p.default_schema.tables['some_data']['columns']['a']['nullable'] is True
-    assert p.default_schema.tables['some_data']['columns']['b']['data_type'] == 'text'
-    assert p.default_schema.tables['some_data']['columns']['b']['nullable'] is True
-
-
-def test_extract_pydantic_models() -> None:
-    pipeline = dlt.pipeline(destination='duckdb')
-
-    class User(BaseModel):
-        user_id: int
-        name: str
-
-    @dlt.resource
-    def users() -> Iterator[User]:
-        yield User(user_id=1, name="a")
-        yield User(user_id=2, name="b")
-
-    pipeline.extract(users())
-
-    storage = ExtractorStorage(pipeline._normalize_storage_config)
-    expect_extracted_file(
-        storage, pipeline.default_schema_name, "users", json.dumps([{"user_id": 1, "name": "a"}, {"user_id": 2, "name": "b"}])
-    )
 
 
 def test_resource_rename_same_table():

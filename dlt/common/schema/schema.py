@@ -284,16 +284,22 @@ class Schema:
             settings = TSchemaContractDict(tables=settings, columns=settings, data_type=settings)
         return cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **settings})
 
-    def resolve_contract_settings_for_table(self, table_name: str) -> TSchemaContractDict:
-        """Resolve the exact applicable schema contract settings for the table `table_name`."""
+    def resolve_contract_settings_for_table(self, table_name: str, new_table_schema: TTableSchema = None) -> TSchemaContractDict:
+        """Resolve the exact applicable schema contract settings for the table `table_name`. `new_table_schema` is added to the tree during the resolution."""
 
         settings: TSchemaContract = {}
-        # find root table
-        try:
-            table = utils.get_top_level_table(self._schema_tables, table_name)
-            settings = table["schema_contract"]
-        except KeyError:
-            settings = self._settings.get("schema_contract", {})
+        if not table_name.startswith(self._dlt_tables_prefix):
+            if new_table_schema:
+                tables = copy(self._schema_tables)
+                tables[table_name] = new_table_schema
+            else:
+                tables = self._schema_tables
+            # find root table
+            try:
+                table = utils.get_top_level_table(tables, table_name)
+                settings = table["schema_contract"]
+            except KeyError:
+                settings = self._settings.get("schema_contract", {})
 
         # expand settings, empty settings will expand into default settings
         return Schema.expand_schema_contract_settings(settings)

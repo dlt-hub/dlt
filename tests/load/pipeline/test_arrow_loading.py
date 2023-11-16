@@ -138,4 +138,4 @@ def test_parquet_column_names_are_normalized(item_type: TArrowFormat, destinatio
         result_tbl = pa.parquet.read_table(f)
 
         # Parquet schema is written with normalized column names
-        assert result_tbl.column_names == expected_column_names
+        assert result_tbl.schema.names == expected_column_names

@@ -55,39 +55,79 @@ jobs:
           virtualenvs-in-project: true
           installer-parallel: true
 
-      - name: Load cached venv
-        id: cached-poetry-dependencies
-        uses: actions/cache@v3
-        with:
-          # path: ${{ steps.pip-cache.outputs.dir }}
-          path: .venv
-          key: venv-${{ matrix.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
+      # NOTE: do not cache. we want to have a clean state each run and we upgrade depdendencies later
+      # - name: Load cached venv
+      #   id: cached-poetry-dependencies
+      #   uses: actions/cache@v3
+      #   with:
+      #     # path: ${{ steps.pip-cache.outputs.dir }}
+      #     path: .venv
+      #     key: venv-${{ matrix.os }}-${{ matrix.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
-      - name: Install dependencies + sentry
-        run: poetry install --no-interaction  -E parquet -E pydantic && pip install sentry-sdk
+      - name: Install dependencies
+        run: poetry install --no-interaction --with sentry-sdk
 
       - run: |
-          poetry run pytest tests/common tests/normalize tests/reflection tests/sources
+          poetry run pytest tests/common tests/normalize tests/reflection tests/sources tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py
         if: runner.os != 'Windows'
-        name: Run tests Linux/MAC
+        name: Run common tests with minimum dependencies Linux/MAC
       - run: |
-          poetry run pytest tests/common tests/normalize tests/reflection tests/sources -m "not forked"
+          poetry run pytest tests/common tests/normalize tests/reflection tests/sources tests/load/test_dummy_client.py tests/extract/test_extract.py tests/extract/test_sources.py tests/pipeline/test_pipeline_state.py -m "not forked"
         if: runner.os == 'Windows'
-        name: Run tests Windows
+        name: Run common tests with minimum dependencies Windows
         shell: cmd
 
-      - name: Install extra dependencies
-        run: poetry install --no-interaction -E duckdb -E cli -E parquet -E pydantic
+      - name: Install duckdb dependencies
+        run: poetry install --no-interaction -E duckdb --with sentry-sdk
 
       - run: |
-          poetry run pytest tests/extract tests/pipeline tests/cli/common
+          poetry run pytest tests/pipeline/test_pipeline.py
         if: runner.os != 'Windows'
-        name: Run extra tests Linux/MAC
+        name: Run pipeline smoke tests with minimum deps Linux/MAC
       - run: |
-          poetry run pytest tests/extract tests/pipeline tests/cli/common
+          poetry run pytest tests/pipeline/test_pipeline.py
         if: runner.os == 'Windows'
-        name: Run extra tests Windows
+        name: Run smoke tests with minimum deps Windows
         shell: cmd
+
+      - name: Install pipeline dependencies
+        run: poetry install --no-interaction -E duckdb -E cli -E parquet --with sentry-sdk --with pipeline
+
+      - run: |
+          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common
+        if: runner.os != 'Windows'
+        name: Run extract and pipeline tests Linux/MAC
+      - run: |
+          poetry run pytest tests/extract tests/pipeline tests/libs tests/cli/common
+        if: runner.os == 'Windows'
+        name: Run extract tests Windows
+        shell: cmd
+
+      - name: Install Pydantic 1.0
+        run: pip install "pydantic<2"
+
+      - run: |
+          poetry run pytest tests/libs
+        if: runner.os != 'Windows'
+        name: Run extract and pipeline tests Linux/MAC
+      - run: |
+          poetry run pytest tests/libs
+        if: runner.os == 'Windows'
+        name: Run extract tests Windows
+        shell: cmd
+
+      # - name: Install pipeline dependencies
+      #   run: poetry install --no-interaction -E duckdb -E parquet --with pipeline
+
+      # - run: |
+      #     poetry run pytest tests/pipeline tests/libs
+      #   if: runner.os != 'Windows'
+      #   name: Run extra tests Linux/MAC
+      # - run: |
+      #     poetry run pytest tests/pipeline tests/libs
+      #   if: runner.os == 'Windows'
+      #   name: Run extra tests Windows
+      #   shell: cmd
 
   matrix_job_required_check:
     name: Common tests

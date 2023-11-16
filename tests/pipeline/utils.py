@@ -1,9 +1,10 @@
 import pytest
+import random
 from os import environ
 
 import dlt
-from dlt.common import json
-from dlt.common.pipeline import LoadInfo, PipelineContext
+from dlt.common import json, sleep
+from dlt.common.pipeline import LoadInfo
 from dlt.common.typing import DictStrAny
 
 from tests.utils import TEST_STORAGE_ROOT
@@ -59,3 +60,20 @@ def airtable_emojis():
 
 
     return budget, schedule, peacock, wide_peacock
+
+
+def run_deferred(iters):
+
+    @dlt.defer
+    def item(n):
+        sleep(random.random() / 2)
+        return n
+
+    for n in range(iters):
+        yield item(n)
+
+
+@dlt.source
+def many_delayed(many, iters):
+    for n in range(many):
+        yield dlt.resource(run_deferred(iters), name="resource_" + str(n))

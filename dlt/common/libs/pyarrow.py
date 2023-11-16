@@ -160,6 +160,17 @@ def remove_columns(item: TAnyArrowItem, columns: Sequence[str]) -> TAnyArrowItem
         raise ValueError(item)
 
 
+def append_column(item: TAnyArrowItem, name: str, data: Any) -> TAnyArrowItem:
+    """Appends new column to Table or RecordBatch"""
+    if isinstance(item, pyarrow.Table):
+        return item.append_column(name, data)
+    elif isinstance(item, pyarrow.RecordBatch):
+        new_field = pyarrow.field(name, data.type)
+        return pyarrow.RecordBatch.from_arrays(item.columns + [data], schema=item.schema.append(new_field))
+    else:
+        raise ValueError(item)
+
+
 def rename_columns(item: TAnyArrowItem, new_column_names: Sequence[str]) -> TAnyArrowItem:
     """Rename arrow columns on Table or RecordBatch, returns same data but with renamed schema"""
 

@@ -1,6 +1,6 @@
 import dlt, os, pytest
 import contextlib
-from typing import Any, Union, Optional
+from typing import Any, Callable, Iterator, Union, Optional
 
 from dlt.common.schema.typing import TSchemaContract
 from dlt.common.utils import uniq_id
@@ -11,7 +11,7 @@ from dlt.common.schema.exceptions import SchemaFrozenException
 from dlt.common.schema import utils
 
 from tests.load.pipeline.utils import load_table_counts
-from tests.utils import skip_if_not_active
+from tests.utils import TDataItemFormat, skip_if_not_active, data_to_item_format, ALL_DATA_ITEM_FORMATS
 
 skip_if_not_active("duckdb")
 
@@ -32,12 +32,13 @@ def raises_frozen_exception(check_raise: bool = True) -> Any:
 
 def items(settings: TSchemaContract) -> Any:
 
-    @dlt.resource(name="items", write_disposition="append", schema_contract=settings)
+    # NOTE: names must be normalizeds
+    @dlt.resource(name="Items", write_disposition="append", schema_contract=settings)
     def load_items():
         for _, index in enumerate(range(0, 10), 1):
             yield {
                 "id": index,
-                "some_int": 1,
+                "SomeInt": 1,
                 "name": f"item {index}"
             }
 
@@ -46,13 +47,13 @@ def items(settings: TSchemaContract) -> Any:
 
 def items_with_variant(settings: TSchemaContract) -> Any:
 
-    @dlt.resource(name="items", write_disposition="append", schema_contract=settings)
+    @dlt.resource(name="Items", write_disposition="append", schema_contract=settings)
     def load_items():
         for _, index in enumerate(range(0, 10), 1):
             yield {
                 "id": index,
                 "name": f"item {index}",
-                "some_int": "hello"
+                "SomeInt": "hello"
             }
 
     return load_items
@@ -60,13 +61,13 @@ def items_with_variant(settings: TSchemaContract) -> Any:
 
 def items_with_new_column(settings: TSchemaContract) -> Any:
 
-    @dlt.resource(name="items", write_disposition="append", schema_contract=settings)
+    @dlt.resource(name="Items", write_disposition="append", schema_contract=settings)
     def load_items():
         for _, index in enumerate(range(0, 10), 1):
             yield {
                 "id": index,
                 "name": f"item {index}",
-                "new_col": "hello"
+                "New^Col": "hello"
             }
 
     return load_items
@@ -74,7 +75,7 @@ def items_with_new_column(settings: TSchemaContract) -> Any:
 
 def items_with_subtable(settings: TSchemaContract) -> Any:
 
-    @dlt.resource(name="items", write_disposition="append", schema_contract=settings)
+    @dlt.resource(name="Items", write_disposition="append", schema_contract=settings)
     def load_items():
         for _, index in enumerate(range(0, 10), 1):
             yield {
@@ -108,7 +109,7 @@ SUBITEMS_TABLE = "items__sub_items"
 NEW_ITEMS_TABLE = "new_items"
 
 
-def run_resource(pipeline: Pipeline, resource_fun, settings) -> None:
+def run_resource(pipeline: Pipeline, resource_fun: Callable[..., DltResource], settings: Any, item_format: TDataItemFormat = "json", duplicates: int = 1) -> None:
 
     for item in settings.keys():
         assert item in LOCATIONS
@@ -120,8 +121,13 @@ def run_resource(pipeline: Pipeline, resource_fun, settings) -> None:
             assert key in SCHEMA_ELEMENTS
 
     @dlt.source(name="freeze_tests", schema_contract=settings.get("source"))
-    def source() -> DltResource:
-        return resource_fun(settings.get("resource"))
+    def source() -> Iterator[DltResource]:
+        for idx in range(duplicates):
+            resource: DltResource = resource_fun(settings.get("resource"))
+            if item_format != "json":
+                resource._pipe.replace_gen(data_to_item_format(item_format, resource._pipe.gen()))  # type: ignore
+            resource.table_name = resource.name
+            yield resource.with_name(resource.name + str(idx))
 
     # run pipeline
     pipeline.run(source(), schema_contract=settings.get("override"))
@@ -142,7 +148,8 @@ def get_pipeline():
 
 @pytest.mark.parametrize("contract_setting", schema_contract)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
-def test_freeze_new_tables(contract_setting: str, setting_location: str) -> None:
+@pytest.mark.parametrize("item_format", ALL_DATA_ITEM_FORMATS)
+def test_new_tables(contract_setting: str, setting_location: str, item_format: TDataItemFormat) -> None:
 
     pipeline = get_pipeline()
 
@@ -150,41 +157,45 @@ def test_freeze_new_tables(contract_setting: str, setting_location: str) -> None
         setting_location: {
         "tables": contract_setting
     }}
-    run_resource(pipeline, items, {})
+    run_resource(pipeline, items, {}, item_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
     assert OLD_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
 
-    run_resource(pipeline, items_with_new_column, full_settings)
+    run_resource(pipeline, items_with_new_column, full_settings, item_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 20
     assert NEW_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
 
-    run_resource(pipeline, items_with_variant, full_settings)
-    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == 30
-    assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
-
-    # test adding new subtable
+    # test adding new table
     with raises_frozen_exception(contract_setting == "freeze"):
-        run_resource(pipeline, items_with_subtable, full_settings)
+        run_resource(pipeline, new_items, full_settings, item_format)
+    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+    assert table_counts.get("new_items", 0) == (10 if contract_setting in ["evolve"] else 0)
     # delete extracted files if left after exception
     pipeline._get_normalize_storage().delete_extracted_files(pipeline.list_extracted_resources())
 
-    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == 30 if contract_setting in ["freeze"] else 40
-    assert table_counts.get(SUBITEMS_TABLE, 0) == (10 if contract_setting in ["evolve"] else 0)
+    # NOTE: arrow / pandas do not support variants and subtables so we must skip
+    if item_format == "json":
+        # run add variant column
+        run_resource(pipeline, items_with_variant, full_settings)
+        table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+        assert table_counts["items"] == 30
+        assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
 
-    # test adding new table
-    with raises_frozen_exception(contract_setting == "freeze"):
-        run_resource(pipeline, new_items, full_settings)
-    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts.get("new_items", 0) == (10 if contract_setting in ["evolve"] else 0)
+        # test adding new subtable
+        with raises_frozen_exception(contract_setting == "freeze"):
+            run_resource(pipeline, items_with_subtable, full_settings)
+
+        table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+        assert table_counts["items"] == 30 if contract_setting in ["freeze"] else 40
+        assert table_counts.get(SUBITEMS_TABLE, 0) == (10 if contract_setting in ["evolve"] else 0)
 
 
 @pytest.mark.parametrize("contract_setting", schema_contract)
 @pytest.mark.parametrize("setting_location", LOCATIONS)
-def test_freeze_new_columns(contract_setting: str, setting_location: str) -> None:
+@pytest.mark.parametrize("item_format", ALL_DATA_ITEM_FORMATS)
+def test_new_columns(contract_setting: str, setting_location: str, item_format: TDataItemFormat) -> None:
 
     full_settings = {
         setting_location: {
@@ -192,26 +203,21 @@ def test_freeze_new_columns(contract_setting: str, setting_location: str) -> Non
     }}
 
     pipeline = get_pipeline()
-    run_resource(pipeline, items, {})
+    run_resource(pipeline, items, {}, item_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
     assert table_counts["items"] == 10
     assert OLD_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
 
-    # subtable should work
-    run_resource(pipeline, items_with_subtable, full_settings)
-    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == 20
-    assert table_counts[SUBITEMS_TABLE] == 10
-
     # new should work
-    run_resource(pipeline, new_items, full_settings)
+    run_resource(pipeline, new_items, full_settings, item_format)
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == 20
+    expected_items_count = 10
+    assert table_counts["items"] == expected_items_count
     assert table_counts[NEW_ITEMS_TABLE] == 10
 
-    # test adding new column
+    # test adding new column twice: filter will try to catch it before it is added for the second time
     with raises_frozen_exception(contract_setting == "freeze"):
-        run_resource(pipeline, items_with_new_column, full_settings)
+        run_resource(pipeline, items_with_new_column, full_settings, item_format, duplicates=2)
     # delete extracted files if left after exception
     pipeline._get_normalize_storage().delete_extracted_files(pipeline.list_extracted_resources())
 
@@ -220,19 +226,25 @@ def test_freeze_new_columns(contract_setting: str, setting_location: str) -> Non
     else:
         assert NEW_COLUMN_NAME not in pipeline.default_schema.tables["items"]["columns"]
     table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == (30 if contract_setting in ["evolve", "discard_value"] else 20)
+    expected_items_count += (20 if contract_setting in ["evolve", "discard_value"] else 0)
+    assert table_counts["items"] == expected_items_count
 
-    # test adding variant column
-    # with raises_frozen_exception(contract_setting == "freeze"):
-    run_resource(pipeline, items_with_variant, full_settings)
-    # variants are not new columns and should be able to always evolve
-    assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
-    # if contract_setting == "evolve":
-    #     assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
-    # else:
-    #     assert VARIANT_COLUMN_NAME not in pipeline.default_schema.tables["items"]["columns"]
-    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
-    assert table_counts["items"] == (40 if contract_setting in ["evolve", "discard_value"] else 30)
+    # NOTE: arrow / pandas do not support variants and subtables so we must skip
+    if item_format == "json":
+        # subtable should work
+        run_resource(pipeline, items_with_subtable, full_settings)
+        table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+        expected_items_count += 10
+        assert table_counts["items"] == expected_items_count
+        assert table_counts[SUBITEMS_TABLE] == 10
+
+        # test adding variant column
+        run_resource(pipeline, items_with_variant, full_settings)
+        # variants are not new columns and should be able to always evolve
+        assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
+        table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()])
+        expected_items_count += 10
+        assert table_counts["items"] == expected_items_count
 
 
 @pytest.mark.parametrize("contract_setting", schema_contract)
