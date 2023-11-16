@@ -68,7 +68,7 @@ jobs:
 
       - name: Install dependencies
         # install dlt with postgres support
-        run: poetry install --no-interaction -E postgres -E dbt
+        run: poetry install --no-interaction -E postgres -E dbt --with sentry-sdk
 
       - run: |
           poetry run pytest tests/helpers/dbt_tests -k '(not venv)'

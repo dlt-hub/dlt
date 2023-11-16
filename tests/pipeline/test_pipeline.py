@@ -13,14 +13,13 @@ from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.capabilities import TLoaderFileFormat
+from dlt.common.destination.reference import WithStateSync
 from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, PipelineStateNotAvailable, UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.utils import new_column, new_table
 from dlt.common.utils import uniq_id
 
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
 from dlt.extract.extract import ExtractorStorage
 from dlt.extract.source import DltResource, DltSource
@@ -1032,17 +1031,6 @@ def test_resource_rename_same_table():
     assert pipeline.default_schema.get_table("single_table")["resource"] == "state1"
 
 
-@pytest.mark.parametrize("file_format", ("parquet", "insert_values", "jsonl"))
-def test_columns_hint_with_file_formats(file_format: TLoaderFileFormat) -> None:
-
-    @dlt.resource(write_disposition="replace", columns=[{"name": "text", "data_type": "text"}])
-    def generic(start=8):
-        yield [{"id": idx, "text": "A"*idx} for idx in range(start, start + 10)]
-
-    pipeline = dlt.pipeline(destination='duckdb')
-    pipeline.run(generic(), loader_file_format=file_format)
-
-
 def test_remove_autodetect() -> None:
     now = pendulum.now()
 
@@ -1130,7 +1118,7 @@ def test_resource_state_name_not_normalized() -> None:
 
     # get state from destination
     from dlt.pipeline.state_sync import load_state_from_destination
-    client: SqlClientBase
+    client: WithStateSync
     with pipeline.destination_client() as client:  # type: ignore[assignment]
         state = load_state_from_destination(pipeline.pipeline_name, client)
         assert "airtable_emojis" in state["sources"]

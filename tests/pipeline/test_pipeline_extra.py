@@ -6,6 +6,7 @@ from pydantic import BaseModel
 import dlt
 from dlt.common import json
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.capabilities import TLoaderFileFormat
 from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, LogCollector, TqdmCollector
 from dlt.extract.storage import ExtractorStorage
 
@@ -103,3 +104,14 @@ def test_extract_pydantic_models() -> None:
     expect_extracted_file(
         storage, pipeline.default_schema_name, "users", json.dumps([{"user_id": 1, "name": "a"}, {"user_id": 2, "name": "b"}])
     )
+
+
+@pytest.mark.parametrize("file_format", ("parquet", "insert_values", "jsonl"))
+def test_columns_hint_with_file_formats(file_format: TLoaderFileFormat) -> None:
+
+    @dlt.resource(write_disposition="replace", columns=[{"name": "text", "data_type": "text"}])
+    def generic(start=8):
+        yield [{"id": idx, "text": "A"*idx} for idx in range(start, start + 10)]
+
+    pipeline = dlt.pipeline(destination='duckdb')
+    pipeline.run(generic(), loader_file_format=file_format)
