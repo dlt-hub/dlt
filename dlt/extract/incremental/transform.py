@@ -23,9 +23,11 @@ from dlt.extract.utils import resolve_column_value
 from dlt.extract.typing import TTableHintTemplate
 from dlt.common.schema.typing import TColumnNames
 try:
+    from dlt.common.libs import pyarrow
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
 except MissingDependencyException:
     pa = None
+    pyarrow = None
 
 
 class IncrementalTransform:
@@ -182,24 +184,7 @@ class ArrowIncremental(IncrementalTransform):
         """Creates unique index if necessary."""
         # create unique index if necessary
         if self._dlt_index not in tbl.schema.names:
-            tbl = tbl.append_column(self._dlt_index, pa.array(np.arange(tbl.num_rows)))
-        # code below deduplicates groups that include the cursor column in the group id. that was just artifact of
-        # json incremental and there's no need to duplicate it here
-
-        # if unique_columns is None:
-        #     return tbl
-        # group_cols = unique_columns + [cursor_path]
-        # try:
-        #     tbl = tbl.filter(
-        #         pa.compute.is_in(
-        #             tbl[self._dlt_index],
-        #             tbl.group_by(group_cols).aggregate(
-        #                 [(self._dlt_index, "one"), (cursor_path, aggregate)]
-        #             )[f'{self._dlt_index}_one']
-        #         )
-        #     )
-        # except KeyError as e:
-            # raise IncrementalPrimaryKeyMissing(self.resource_name, unique_columns[0], tbl) from e
+            tbl = pyarrow.append_column(tbl, self._dlt_index, pa.array(np.arange(tbl.num_rows)))
         return tbl
 
     def __call__(
@@ -225,7 +210,7 @@ class ArrowIncremental(IncrementalTransform):
             if isinstance(primary_key, str):
                 self._dlt_index = primary_key
         elif primary_key is None:
-            unique_columns = tbl.column_names
+            unique_columns = tbl.schema.names
         else:  # deduplicating is disabled
             unique_columns = None
 
@@ -312,7 +297,7 @@ class ArrowIncremental(IncrementalTransform):
         if len(tbl) == 0:
             return None, start_out_of_range, end_out_of_range
         try:
-            tbl = tbl.drop(["_dlt_index"])
+            tbl = pyarrow.remove_columns(tbl, ["_dlt_index"])
         except KeyError:
             pass
         if is_pandas:

@@ -1,5 +1,4 @@
 from copy import copy, deepcopy
-from collections.abc import Mapping as C_Mapping
 from typing import List, TypedDict, cast, Any
 
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
@@ -12,7 +11,7 @@ from dlt.extract.incremental import Incremental
 from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate, ValidateItem
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, TableNameMissing
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
-from dlt.extract.validation import get_column_validator
+from dlt.extract.validation import create_item_validator
 
 
 class TTableSchemaTemplate(TypedDict, total=False):
@@ -34,6 +33,7 @@ class DltResourceSchema:
         self._table_name_hint_fun: TFunHintTemplate[str] = None
         self._table_has_other_dynamic_hints: bool = False
         self._table_schema_template: TTableSchemaTemplate = None
+        self._original_columns: TTableHintTemplate[TAnySchemaColumns] = None
         if table_schema_template:
             self.set_template(table_schema_template)
 
@@ -118,13 +118,17 @@ class DltResourceSchema:
            Please note that for efficient incremental loading, the resource must be aware of the Incremental by accepting it as one if its arguments and then using is to skip already loaded data.
            In non-aware resources, `dlt` will filter out the loaded values, however the resource will yield all the values again.
         """
+        # keep original columns: ie in case it is a Pydantic model
+        if columns is not None:
+            self._original_columns = columns
+
         t = None
         if not self._table_schema_template:
             # if there's no template yet, create and set new one
             t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key, schema_contract)
         else:
             # set single hints
-            t = deepcopy(self._table_schema_template)
+            t = self._clone_table_template(self._table_schema_template)
             if table_name is not None:
                 if table_name:
                     t["name"] = table_name
@@ -138,7 +142,6 @@ class DltResourceSchema:
             if write_disposition:
                 t["write_disposition"] = write_disposition
             if columns is not None:
-                t['validator'] = get_column_validator(columns)
                 # if callable then override existing
                 if callable(columns) or callable(t["columns"]):
                     t["columns"] = ensure_table_schema_columns_hint(columns)
@@ -161,7 +164,15 @@ class DltResourceSchema:
                 else:
                     t.pop("merge_key", None)
             if schema_contract is not None:
-                t["schema_contract"] = schema_contract
+                if schema_contract:
+                    t["schema_contract"] = schema_contract
+                else:
+                    t.pop("schema_contract", None)
+            # recreate validator if columns definition or contract changed
+            if schema_contract is not None or columns is not None:
+                t["validator"], schema_contract = create_item_validator(self._original_columns, t.get("schema_contract"))
+                if schema_contract is not None:
+                    t["schema_contract"] = schema_contract
 
         # set properties that cannot be passed to new_table_template
         if incremental is not None:
@@ -184,12 +195,20 @@ class DltResourceSchema:
         self._table_schema_template = table_schema_template
 
     @staticmethod
+    def _clone_table_template(template: TTableSchemaTemplate) -> TTableSchemaTemplate:
+        t_ = copy(template)
+        t_["columns"] = deepcopy(template["columns"])
+        if "schema_contract" in template:
+            t_["schema_contract"] = deepcopy(template["schema_contract"])
+        return t_
+
+    @staticmethod
     def _resolve_hint(item: TDataItem, hint: TTableHintTemplate[Any]) -> Any:
-            """Calls each dynamic hint passing a data item"""
-            if callable(hint):
-                return hint(item)
-            else:
-                return hint
+        """Calls each dynamic hint passing a data item"""
+        if callable(hint):
+            return hint(item)
+        else:
+            return hint
 
     @staticmethod
     def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:
@@ -225,24 +244,20 @@ class DltResourceSchema:
         merge_key: TTableHintTemplate[TColumnNames] = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
         table_format: TTableHintTemplate[TTableFormat] = None
-        ) -> TTableSchemaTemplate:
+    ) -> TTableSchemaTemplate:
+        validator, schema_contract = create_item_validator(columns, schema_contract)
         if columns is not None:
-            validator = get_column_validator(columns)
             columns = ensure_table_schema_columns_hint(columns)
             if not callable(columns):
                 columns = columns.values()  # type: ignore
-        else:
-            validator = None
-
-        # freeze the columns if we have a fully defined table and no other explicit contract
-        if not schema_contract and validator:
-            schema_contract = {
-                "columns": "freeze"
-            }
         # create a table schema template where hints can be functions taking TDataItem
         new_template: TTableSchemaTemplate = new_table(
-            table_name, parent_table_name, write_disposition=write_disposition, columns=columns, schema_contract=schema_contract, table_format=table_format   # type: ignore
-
+            table_name,  # type: ignore
+            parent_table_name,  # type: ignore
+            write_disposition=write_disposition,  # type: ignore
+            columns=columns,  # type: ignore
+            schema_contract=schema_contract,  # type: ignore
+            table_format=table_format  # type: ignore
         )
         if not table_name:
             new_template.pop("name")
