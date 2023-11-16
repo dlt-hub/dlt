@@ -1,4 +1,4 @@
-# +30 SQL Databases
+# 30+ SQL Databases
 
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
@@ -11,8 +11,9 @@ for efficient and reliable data retrieval.
 
 Our SQL Database verified source loads data to your specified destination using SQLAlchemy.
 
-> View the pipeline example
-> [here](https://github.com/dlt-hub/verified-sources/blob/master/sources/sql_database_pipeline.py).
+:::tip
+View the pipeline example [here](https://github.com/dlt-hub/verified-sources/blob/master/sources/sql_database_pipeline.py).
+:::
 
 Sources and resources that can be loaded using this verified source are:
 
@@ -41,7 +42,9 @@ We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/
 * Firebird
 * Teradata Vantage
 
-> Note that there many unofficial dialects, such as [DuckDB](https://duckdb.org/).
+:::note
+Note that there many unofficial dialects, such as [DuckDB](https://duckdb.org/).
+:::
 
 ## Setup Guide
 
@@ -51,7 +54,7 @@ This verified source utilizes SQLAlchemy for database connectivity. Let's take a
 
 `connection_url = "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"`
 
-> The database above doesn't require a password.
+The database above doesn't require a password.
 
 The connection URL can be broken down into:
 
@@ -119,7 +122,9 @@ To get started with your data pipeline, follow these steps:
    with an SQL database as the [source](../../general-usage/source) and
    [DuckDB](../destinations/duckdb.md) as the [destination](../destinations).
 
-   > If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../destinations).
+   :::tip
+   If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../destinations).
+   :::
 
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
@@ -185,8 +190,11 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    dlt pipeline <pipeline_name> show
    ```
 
-   > The pipeline_name for the above example is `rfam`, you may also use any
+   :::note
+   The pipeline_name for the above example is `rfam`, you may also use any
    custom name instead.
+   :::
+
 
 ## Sources and resources
 
