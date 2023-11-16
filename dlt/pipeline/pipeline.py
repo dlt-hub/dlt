@@ -52,6 +52,7 @@ from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, migrate_state, state_resource, json_encode_state, json_decode_state
 
 from dlt.common.schema.utils import normalize_schema_name
+from dlt.pipeline.deprecations import credentials_argument_deprecated
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -342,6 +343,9 @@ class Pipeline(SupportsPipeline):
         # set destination and default dataset if provided
         self._set_destinations(destination, None)
         self._set_dataset_name(dataset_name)
+
+        credentials_argument_deprecated("pipeline.load", credentials, destination)
+
         self.credentials = credentials or self.credentials
 
         # check if any schema is present, if not then no data was extracted
@@ -448,6 +452,8 @@ class Pipeline(SupportsPipeline):
         signals.raise_if_signalled()
         self._set_destinations(destination, staging)
         self._set_dataset_name(dataset_name)
+
+        credentials_argument_deprecated("pipeline.run", credentials, self.destination)
 
         # sync state with destination
         if self.config.restore_from_destination and not self.full_refresh and not self._state_restored and (self.destination or destination):

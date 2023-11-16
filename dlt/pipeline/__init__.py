@@ -13,6 +13,7 @@ from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
+from dlt.pipeline.deprecations import credentials_argument_deprecated
 
 
 @overload
@@ -103,6 +104,8 @@ def pipeline(
     orig_args = get_orig_args(**kwargs)  # original (*args, **kwargs)
     # is any of the arguments different from defaults
     has_arguments = bool(orig_args[0]) or any(orig_args[1].values())
+
+    credentials_argument_deprecated("pipeline", credentials, destination)
 
     if not has_arguments:
         context = Container()[PipelineContext]
