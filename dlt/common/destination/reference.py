@@ -371,12 +371,12 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     @property
     @abstractmethod
     def spec(self) -> Type[TDestinationConfig]:
-        """Returns the destination configuration spec"""
+        """A spec of destination configuration that also contains destination credentials"""
         ...
 
     @abstractmethod
     def capabilities(self) -> DestinationCapabilitiesContext:
-        """Returns the destination capabilities"""
+        """Destination capabilities ie. supported loader file formats, identifier name lengths, naming conventions, escape function etc."""
         ...
 
     @property
@@ -386,7 +386,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     @property
     @abstractmethod
     def client_class(self) -> Type[TDestinationClient]:
-        """Returns the client class"""
+        """A job client class responsible for starting and resuming load jobs"""
         ...
 
     def configuration(self, initial_config: TDestinationConfig) -> TDestinationConfig:
@@ -437,6 +437,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         return factory(**kwargs)
 
     def client(self, schema: Schema, initial_config: TDestinationConfig = config.value) -> TDestinationClient:
+        """Returns a configured instance of the destination's job client"""
         return self.client_class(schema, self.configuration(initial_config))
 
 
