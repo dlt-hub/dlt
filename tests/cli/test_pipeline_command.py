@@ -44,7 +44,7 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
         pipeline_command.pipeline_command("info", "chess_pipeline", None, 0)
         _out = buf.getvalue()
         # do we have duckdb destination
-        assert "dlt.destinations.duckdb" in _out
+        assert "destination: duckdb" in _out
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
