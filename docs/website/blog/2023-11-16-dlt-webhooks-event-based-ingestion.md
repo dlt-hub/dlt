@@ -6,10 +6,9 @@ authors:
   name: Aman Gupta
   title: Junior data engineer
   url: https://github.com/dat-a-man
-  image_url: https://iili.io/JCmQbAx.jpg
+  image_url: https://iili.io/JnB7vEl.md.png
 tags: [data ingestion, python sdk, ETL, python data pipelines, Open Source, Developer Tools]
 ---
-
 
 💡 This article explores methods for monitoring transactional events, allowing immediate action and data capture
 that might be lost otherwise. We focus on Github, Slack, and Hubspot, demonstrating techniques applicable to 
