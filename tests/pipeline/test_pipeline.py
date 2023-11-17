@@ -16,7 +16,7 @@ from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import TLoaderFileFormat
-from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, PipelineStateNotAvailable, InvalidDestinationReference
+from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, PipelineStateNotAvailable, UnknownDestinationModule
 from dlt.common.pipeline import PipelineContext
 from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, LogCollector, TqdmCollector
 from dlt.common.schema.utils import new_column, new_table
@@ -165,7 +165,7 @@ def test_pipeline_context() -> None:
 
 
 def test_import_unknown_destination() -> None:
-    with pytest.raises(InvalidDestinationReference):
+    with pytest.raises(UnknownDestinationModule):
         dlt.pipeline(destination="!")
 
 
