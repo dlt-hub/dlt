@@ -192,4 +192,7 @@ def qdrant_snippet():
 
         assert len(response) <= 3 and len(response) > 0 # @@@DLT_REMOVE
 
+        # @@@DLT_REMOVE
+        assert len(response) == 3
+
     # @@@DLT_SNIPPET_END example
