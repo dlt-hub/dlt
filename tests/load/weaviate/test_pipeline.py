@@ -374,7 +374,7 @@ def test_vectorize_property_without_data() -> None:
 
     # set the naming convention to case insensitive
     # os.environ["SCHEMA__NAMING"] = "direct"
-    dlt.config["schema.naming"] = "dlt.destinations.weaviate.ci_naming"
+    dlt.config["schema.naming"] = "dlt.destinations.impl.weaviate.ci_naming"
     # create new schema with changed naming convention
     p = p.drop()
     info = p.run(weaviate_adapter(["there are", "no stop", "words in here"], vectorize="vAlue"), primary_key="vALue", columns={"vAlue": {"data_type": "text"}})

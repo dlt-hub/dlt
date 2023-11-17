@@ -11,7 +11,7 @@ from tests.utils import ACTIVE_DESTINATIONS
 
 def test_import_unknown_destination() -> None:
     # standard destination
-    with pytest.raises(InvalidDestinationReference):
+    with pytest.raises(UnknownDestinationModule):
         Destination.from_reference("meltdb")
     # custom module
     with pytest.raises(UnknownDestinationModule):
@@ -20,7 +20,7 @@ def test_import_unknown_destination() -> None:
 
 def test_invalid_destination_reference() -> None:
     with pytest.raises(InvalidDestinationReference):
-        Destination.from_reference("tests.load.cases.fake_destination")
+        Destination.from_reference("tests.load.cases.fake_destination.not_a_destination")
 
 
 def test_import_all_destinations() -> None:

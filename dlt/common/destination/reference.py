@@ -431,10 +431,15 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         try:
             factory: Type[Destination[DestinationClientConfiguration, JobClientBase]] = getattr(dest_module, attr_name)
         except AttributeError as e:
-            raise InvalidDestinationReference(ref) from e
+            raise UnknownDestinationModule(ref) from e
         if credentials:
             kwargs["credentials"] = credentials
-        return factory(**kwargs)
+        try:
+            dest = factory(**kwargs)
+            dest.spec
+        except Exception as e:
+            raise InvalidDestinationReference(ref) from e
+        return dest
 
     def client(self, schema: Schema, initial_config: TDestinationConfig = config.value) -> TDestinationClient:
         """Returns a configured instance of the destination's job client"""

@@ -153,7 +153,7 @@ def test_keeps_initial_db_path() -> None:
 
 def test_duckdb_database_delete() -> None:
     db_path = "_storage/path_test_quack.duckdb"
-    p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duckdb(credentials=DuckDbCredentials(db_path)))
+    p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duckdb(credentials=db_path))
     p.run([1, 2, 3], table_name="table", dataset_name="dataset")
     # attach the pipeline
     p = dlt.attach(pipeline_name="quack_pipeline")

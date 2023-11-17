@@ -290,7 +290,7 @@ def pdf_to_weaviate_snippet() -> None:
     import os
 
     import dlt
-    from dlt.destinations.weaviate import weaviate_adapter
+    from dlt.destinations.impl.weaviate import weaviate_adapter
     from PyPDF2 import PdfReader
 
 
