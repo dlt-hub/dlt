@@ -84,6 +84,7 @@ normalizers:
   detections:
   - timestamp
   - iso_timestamp
+  - iso_date
   names: dlt.common.normalizers.names.snake_case
   json:
     module: dlt.common.normalizers.json.relational
