@@ -15,19 +15,6 @@ def qdrant_snippet():
 
     from dlt.common.configuration.inject import with_config
 
-    # helper function to fix the datetime format
-    def _parse_date_or_none(value: Optional[str]) -> Optional[pendulum.DateTime]:
-        if not value:
-            return None
-        return ensure_pendulum_datetime(value)
-
-    # modify dates to return datetime objects instead
-    def _fix_date(ticket):
-        ticket["updated_at"] = _parse_date_or_none(ticket["updated_at"])
-        ticket["created_at"] = _parse_date_or_none(ticket["created_at"])
-        ticket["due_at"] = _parse_date_or_none(ticket["due_at"])
-        return ticket
-
     # function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
     @dlt.source(max_table_nesting=2)
     def zendesk_support(
@@ -97,6 +84,21 @@ def qdrant_snippet():
 
         return tickets_data
 
+    # @@@DLT_SNIPPET_END zendesk_conn
+
+    # helper function to fix the datetime format
+    def _parse_date_or_none(value: Optional[str]) -> Optional[pendulum.DateTime]:
+        if not value:
+            return None
+        return ensure_pendulum_datetime(value)
+
+    # modify dates to return datetime objects instead
+    def _fix_date(ticket):
+        ticket["updated_at"] = _parse_date_or_none(ticket["updated_at"])
+        ticket["created_at"] = _parse_date_or_none(ticket["created_at"])
+        ticket["due_at"] = _parse_date_or_none(ticket["due_at"])
+        return ticket
+
     # function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
     def get_pages(
         url: str,
@@ -139,10 +141,8 @@ def qdrant_snippet():
             if not response_json["end_of_stream"]:
                 get_url = response_json["next_page"]
 
-    # @@@DLT_SNIPPET_END zendesk_conn
-
+    # @@@DLT_SNIPPET_START main_code
     if __name__ == "__main__":
-        # @@@DLT_SNIPPET_START main_code
 
         # create a pipeline with an appropriate name
         pipeline = dlt.pipeline(
@@ -190,7 +190,6 @@ def qdrant_snippet():
         )
         # @@@DLT_SNIPPET_END get_response
 
-        # @@@DLT_REMOVE
-        assert len(response) <= 3
+        assert len(response) <= 3 and len(response) > 0 # @@@DLT_REMOVE
 
     # @@@DLT_SNIPPET_END example

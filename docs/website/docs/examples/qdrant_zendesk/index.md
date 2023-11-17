@@ -7,11 +7,11 @@ import Header from '../_examples-header.md';
 
 <Header
     intro="In this tutorial, you will learn how to do use dlt to store your
-    vectorized Zendesk tickets data in the dlt destination; Qdrant. You can
+    vectorized Zendesk tickets data in the dlt destination: Qdrant. You can
     use Qdrant's vectorization and similarity searching capabilities on your tickets data,
     while using dlt as a medium to automate your pipeline."
     slug="qdrant_zendesk"
-    run_file="qdrant-snippets"
+    run_file="qdrant"
     destination="qdrant"
 />
 
@@ -24,7 +24,7 @@ This article outlines a system to map vectorized ticket data from Zendesk to Qdr
 - Query data that we stored in Qdrant.
 - Explore the similarity search results.
 
-First, configure the destination credentials for [Qdrant](https://dlthub.com/docs/dlt-ecosystem/destinations/qdrant#setup-guide) and [Zendesk](https://dlthub.com/docs/walkthroughs/zendesk-weaviate#configuration) in .dlt/secrets.toml.
+First, configure the destination credentials for [Qdrant](https://dlthub.com/docs/dlt-ecosystem/destinations/qdrant#setup-guide) and [Zendesk](https://dlthub.com/docs/walkthroughs/zendesk-weaviate#configuration) in `.dlt/secrets.toml`.
 
 ## Connect to Zendesk and load tickets data
 
@@ -41,19 +41,6 @@ from dlt.destinations.qdrant import qdrant_adapter
 from qdrant_client import QdrantClient
 
 from dlt.common.configuration.inject import with_config
-
-# helper function to fix the datetime format
-def _parse_date_or_none(value: Optional[str]) -> Optional[pendulum.DateTime]:
-    if not value:
-        return None
-    return ensure_pendulum_datetime(value)
-
-# modify dates to return datetime objects instead
-def _fix_date(ticket):
-    ticket["updated_at"] = _parse_date_or_none(ticket["updated_at"])
-    ticket["created_at"] = _parse_date_or_none(ticket["created_at"])
-    ticket["due_at"] = _parse_date_or_none(ticket["due_at"])
-    return ticket
 
 # function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
 @dlt.source(max_table_nesting=2)
@@ -123,71 +110,31 @@ def zendesk_support(
                 return
 
     return tickets_data
-
-# function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
-def get_pages(
-    url: str,
-    endpoint: str,
-    auth: Tuple[str, str],
-    data_point_name: str,
-    params: Optional[Dict[str, Any]] = None,
-):
-    """
-    Makes a request to a paginated endpoint and returns a generator of data items per page.
-
-    Args:
-        url: The base URL.
-        endpoint: The url to the endpoint, e.g. /api/v2/calls
-        auth: Credentials for authentication.
-        data_point_name: The key which data items are nested under in the response object (e.g. calls)
-        params: Optional dict of query params to include in the request.
-
-    Returns:
-        Generator of pages, each page is a list of dict data items.
-    """
-    # update the page size to enable cursor pagination
-    params = params or {}
-    params["per_page"] = 1000
-    headers = None
-
-    # make request and keep looping until there is no next page
-    get_url = f"{url}{endpoint}"
-    while get_url:
-        response = client.get(
-            get_url, headers=headers, auth=auth, params=params
-        )
-        response.raise_for_status()
-        response_json = response.json()
-        result = response_json[data_point_name]
-        yield result
-
-        get_url = None
-        # See https://developer.zendesk.com/api-reference/ticketing/ticket-management/incremental_exports/#json-format
-        if not response_json["end_of_stream"]:
-            get_url = response_json["next_page"]
 ```
 <!--@@@DLT_SNIPPET_END ./code/qdrant-snippets.py::zendesk_conn-->
 
 ## Inititating a pipeline with Qdrant
 <!--@@@DLT_SNIPPET_START ./code/qdrant-snippets.py::main_code-->
 ```py
-# create a pipeline with an appropriate name
-pipeline = dlt.pipeline(
-    pipeline_name="qdrant_zendesk_pipeline",
-    destination="qdrant",
-    dataset_name="zendesk_data",
-)
+if __name__ == "__main__":
 
-# run the dlt pipeline and save info about the load process
-load_info = pipeline.run(
-    # here we use a special function to tell Qdrant which fields to embed
-    qdrant_adapter(
-        zendesk_support(), # retrieve tickets data
-        embed=["subject", "description"],
+    # create a pipeline with an appropriate name
+    pipeline = dlt.pipeline(
+        pipeline_name="qdrant_zendesk_pipeline",
+        destination="qdrant",
+        dataset_name="zendesk_data",
     )
-)
 
-print(load_info)
+    # run the dlt pipeline and save info about the load process
+    load_info = pipeline.run(
+        # here we use a special function to tell Qdrant which fields to embed
+        qdrant_adapter(
+            zendesk_support(), # retrieve tickets data
+            embed=["subject", "description"],
+        )
+    )
+
+    print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END ./code/qdrant-snippets.py::main_code-->
 ## Querying the data
