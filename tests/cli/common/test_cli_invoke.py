@@ -40,7 +40,7 @@ def test_invoke_basic(script_runner: ScriptRunner) -> None:
 def test_invoke_list_pipelines(script_runner: ScriptRunner) -> None:
     result = script_runner.run(['dlt', 'pipeline', '--list-pipelines'])
     # directory does not exist (we point to TEST_STORAGE)
-    assert result.returncode == -1
+    assert result.returncode == -2
 
     # create empty
     os.makedirs(get_dlt_pipelines_dir())
@@ -76,11 +76,16 @@ def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
     assert result.returncode == 0
     result = script_runner.run(['dlt', 'pipeline', 'dummy_pipeline', 'load-package', "NON EXISTENT"])
     assert result.returncode == -2
-    # use debug flag to raise an exception
-    result = script_runner.run(['dlt', '--debug', 'pipeline', 'dummy_pipeline', 'load-package', "NON EXISTENT"])
-    # exception terminates command
-    assert result.returncode == 1
-    assert "LoadPackageNotFound" in result.stderr
+    try:
+        # use debug flag to raise an exception
+        result = script_runner.run(['dlt', '--debug', 'pipeline', 'dummy_pipeline', 'load-package', "NON EXISTENT"])
+        # exception terminates command
+        assert result.returncode == 1
+        assert "LoadPackageNotFound" in result.stderr
+    finally:
+        # reset debug flag so other tests may pass
+        from dlt.cli import _dlt
+        _dlt.DEBUG_FLAG = False
 
 
 def test_invoke_init_chess_and_template(script_runner: ScriptRunner) -> None:
