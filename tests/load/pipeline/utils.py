@@ -16,7 +16,7 @@ from dlt.common.schema.typing import LOADS_TABLE_NAME
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 
 if TYPE_CHECKING:
-    from dlt.destinations.filesystem.filesystem import FilesystemClient
+    from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 @pytest.fixture(autouse=True)
 def drop_pipeline(request) -> Iterator[None]:
@@ -67,7 +67,7 @@ def drop_active_pipeline_data() -> None:
 def _is_filesystem(p: dlt.Pipeline) -> bool:
     if not p.destination:
         return False
-    return p.destination.__name__.rsplit('.', 1)[-1] == 'filesystem'
+    return p.destination.name == 'filesystem'
 
 
 def assert_table(p: dlt.Pipeline, table_name: str, table_data: List[Any], schema_name: str = None, info: LoadInfo = None) -> None:

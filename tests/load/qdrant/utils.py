@@ -5,7 +5,7 @@ import dlt
 from dlt.common.pipeline import PipelineContext
 from dlt.common.configuration.container import Container
 
-from dlt.destinations.qdrant.qdrant_client import QdrantClient
+from dlt.destinations.impl.qdrant.qdrant_client import QdrantClient
 
 
 def assert_unordered_list_equal(list1: List[Any], list2: List[Any]) -> None:

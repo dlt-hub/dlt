@@ -11,14 +11,14 @@ from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage, LoadStorage
 from dlt.common.storages.load_storage import JobWithUnsupportedWriterException
 from dlt.common.utils import uniq_id
-from dlt.common.destination.reference import DestinationReference, LoadJob
+from dlt.common.destination.reference import Destination, LoadJob, TDestination
 
 from dlt.load import Load
 from dlt.destinations.job_impl import EmptyLoadJob
 
 from dlt.destinations import dummy
-from dlt.destinations.dummy import dummy as dummy_impl
-from dlt.destinations.dummy.configuration import DummyClientConfiguration
+from dlt.destinations.impl.dummy import dummy as dummy_impl
+from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry
 from dlt.common.schema.utils import get_top_level_table
 
@@ -445,7 +445,7 @@ def run_all(load: Load) -> None:
 def setup_loader(delete_completed_jobs: bool = False, client_config: DummyClientConfiguration = None) -> Load:
     # reset jobs for a test
     dummy_impl.JOBS = {}
-    destination: DestinationReference = dummy  # type: ignore[assignment]
+    destination: TDestination = dummy()  # type: ignore[assignment]
     client_config = client_config or DummyClientConfiguration(loader_file_format="jsonl")
     # patch destination to provide client_config
     # destination.client = lambda schema: dummy_impl.DummyClient(schema, client_config)

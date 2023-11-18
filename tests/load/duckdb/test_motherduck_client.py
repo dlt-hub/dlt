@@ -3,7 +3,7 @@ import pytest
 
 from dlt.common.configuration.resolve import resolve_configuration
 
-from dlt.destinations.motherduck.configuration import MotherDuckCredentials, MotherDuckClientConfiguration
+from dlt.destinations.impl.motherduck.configuration import MotherDuckCredentials, MotherDuckClientConfiguration
 
 from tests.utils import patch_home_dir, preserve_environ, skip_if_not_active
 

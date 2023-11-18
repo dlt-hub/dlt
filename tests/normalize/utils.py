@@ -1,10 +1,10 @@
 from typing import Mapping, cast
 
-from dlt.destinations.duckdb import capabilities as duck_insert_caps
-from dlt.destinations.redshift import capabilities as rd_insert_caps
-from dlt.destinations.postgres import capabilities as pg_insert_caps
-from dlt.destinations.bigquery import capabilities as jsonl_caps
-from dlt.destinations.filesystem import capabilities as filesystem_caps
+from dlt.destinations.impl.duckdb import capabilities as duck_insert_caps
+from dlt.destinations.impl.redshift import capabilities as rd_insert_caps
+from dlt.destinations.impl.postgres import capabilities as pg_insert_caps
+from dlt.destinations.impl.bigquery import capabilities as jsonl_caps
+from dlt.destinations.impl.filesystem import capabilities as filesystem_caps
 
 
 DEFAULT_CAPS = pg_insert_caps

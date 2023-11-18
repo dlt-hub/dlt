@@ -5,8 +5,8 @@ import sqlfluff
 
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
-from dlt.destinations.snowflake.snowflake import SnowflakeClient
-from dlt.destinations.snowflake.configuration import SnowflakeClientConfiguration, SnowflakeCredentials
+from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
+from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration, SnowflakeCredentials
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 
 from tests.load.utils import TABLE_UPDATE

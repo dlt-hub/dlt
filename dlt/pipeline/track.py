@@ -9,7 +9,7 @@ from dlt.common.runtime.exec_info import github_info
 from dlt.common.runtime.segment import track as dlthub_telemetry_track
 from dlt.common.runtime.slack import send_slack_message
 from dlt.common.pipeline import LoadInfo, ExtractInfo, SupportsPipeline
-from dlt.common.destination import DestinationReference
+from dlt.common.destination import Destination
 
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
@@ -21,7 +21,7 @@ try:
     def _add_sentry_tags(span: Span, pipeline: SupportsPipeline) -> None:
         span.set_tag("pipeline_name", pipeline.pipeline_name)
         if pipeline.destination:
-            span.set_tag("destination", pipeline.destination.__name__)
+            span.set_tag("destination", pipeline.destination.name)
         if pipeline.dataset_name:
             span.set_tag("dataset_name", pipeline.dataset_name)
 except ImportError:
@@ -87,7 +87,7 @@ def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: S
     props = {
         "elapsed": (step.finished_at - trace.started_at).total_seconds(),
         "success": step.step_exception is None,
-        "destination_name": DestinationReference.to_name(pipeline.destination) if pipeline.destination else None,
+        "destination_name": pipeline.destination.name if pipeline.destination else None,
         "pipeline_name_hash": digest128(pipeline.pipeline_name),
         "dataset_name_hash": digest128(pipeline.dataset_name) if pipeline.dataset_name else None,
         "default_schema_name_hash": digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None,

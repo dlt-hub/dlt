@@ -5,8 +5,8 @@ import sqlfluff
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
-from dlt.destinations.postgres.postgres import PostgresClient
-from dlt.destinations.postgres.configuration import PostgresClientConfiguration, PostgresCredentials
+from dlt.destinations.impl.postgres.postgres import PostgresClient
+from dlt.destinations.impl.postgres.configuration import PostgresClientConfiguration, PostgresCredentials
 
 from tests.load.utils import TABLE_UPDATE
 

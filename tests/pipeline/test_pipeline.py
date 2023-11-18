@@ -21,7 +21,9 @@ from dlt.common.pipeline import PipelineContext
 from dlt.common.runtime.collector import AliveCollector, EnlightenCollector, LogCollector, TqdmCollector
 from dlt.common.schema.utils import new_column, new_table
 from dlt.common.utils import uniq_id
+from dlt.common.schema import Schema
 
+from dlt.destinations import filesystem, redshift, dummy
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
 from dlt.extract.extract import ExtractorStorage
 from dlt.extract.source import DltResource, DltSource
@@ -173,7 +175,7 @@ def test_configured_destination(environment) -> None:
 
     p = dlt.pipeline()
     assert p.destination is not None
-    assert p.destination.__name__.endswith("postgres")
+    assert p.destination.name.endswith("postgres")
     assert p.pipeline_name == "postgres_pipe"
 
 
@@ -226,6 +228,56 @@ def test_destination_explicit_credentials(environment: Any) -> None:
     config = p._get_destination_client_initial_config(p.destination)
     assert isinstance(config.credentials, GcpOAuthCredentials)
     assert config.credentials.is_resolved()
+
+
+def test_destination_staging_config(environment: Any) -> None:
+    fs_dest = filesystem("file:///testing-bucket")
+    p = dlt.pipeline(
+        pipeline_name="staging_pipeline",
+        destination=redshift(credentials="redshift://loader:loader@localhost:5432/dlt_data"),
+        staging=fs_dest
+    )
+    schema = Schema("foo")
+    p._inject_schema(schema)
+    initial_config = p._get_destination_client_initial_config(p.staging, as_staging=True)
+    staging_config = fs_dest.configuration(initial_config)  # type: ignore[arg-type]
+
+    # Ensure that as_staging flag is set in the final resolved conifg
+    assert staging_config.as_staging is True
+
+
+def test_destination_factory_defaults_resolve_from_config(environment: Any) -> None:
+    """Params passed explicitly to destination supersede config values.
+    Env config values supersede default values.
+    """
+    environment["FAIL_PROB"] = "0.3"
+    environment["RETRY_PROB"] = "0.8"
+    p = dlt.pipeline(pipeline_name="dummy_pipeline", destination=dummy(retry_prob=0.5))
+
+    client = p.destination_client()
+
+    assert client.config.fail_prob == 0.3  # type: ignore[attr-defined]
+    assert client.config.retry_prob == 0.5  # type: ignore[attr-defined]
+
+
+def test_destination_credentials_in_factory(environment: Any) -> None:
+    os.environ['DESTINATION__REDSHIFT__CREDENTIALS'] = "redshift://abc:123@localhost:5432/some_db"
+
+    redshift_dest = redshift("redshift://abc:123@localhost:5432/other_db")
+
+    p = dlt.pipeline(pipeline_name="dummy_pipeline", destination=redshift_dest)
+
+    initial_config = p._get_destination_client_initial_config(p.destination)
+    dest_config = redshift_dest.configuration(initial_config)  # type: ignore[arg-type]
+    # Explicit factory arg supersedes config
+    assert dest_config.credentials.database == "other_db"
+
+    redshift_dest = redshift()
+    p = dlt.pipeline(pipeline_name="dummy_pipeline", destination=redshift_dest)
+
+    initial_config = p._get_destination_client_initial_config(p.destination)
+    dest_config = redshift_dest.configuration(initial_config)  # type: ignore[arg-type]
+    assert dest_config.credentials.database == "some_db"
 
 
 @pytest.mark.skip(reason="does not work on CI. probably takes right credentials from somewhere....")
