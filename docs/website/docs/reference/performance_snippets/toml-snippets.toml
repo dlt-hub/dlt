@@ -1,0 +1,116 @@
+# @@@DLT_SNIPPET_START buffer_toml
+# set buffer size for extract and normalize stages
+[data_writer]
+buffer_max_items=100
+
+# set buffers only in extract stage - for all sources
+[sources.data_writer]
+buffer_max_items=100
+
+# set buffers only for a source with name zendesk_support
+[sources.zendesk_support.data_writer]
+buffer_max_items=100
+
+# set buffers in normalize stage
+[normalize.data_writer]
+buffer_max_items=100
+# @@@DLT_SNIPPET_END buffer_toml
+
+
+# @@@DLT_SNIPPET_START file_size_toml
+# extract and normalize stages
+[data_writer]
+file_max_items=100000
+file_max_bytes=1000000
+
+# only for the extract stage - for all sources
+[sources.data_writer]
+file_max_items=100000
+file_max_bytes=1000000
+
+# only for the extract stage of a source with name zendesk_support
+[sources.zendesk_support.data_writer]
+file_max_items=100000
+file_max_bytes=1000000
+
+# only for the normalize stage
+[normalize.data_writer]
+file_max_items=100000
+file_max_bytes=1000000
+# @@@DLT_SNIPPET_END file_size_toml
+
+
+# @@@DLT_SNIPPET_START extract_workers_toml
+# for all sources and resources being extracted
+[extract]
+worker=1
+
+# for all resources in the zendesk_support source
+[sources.zendesk_support.extract]
+workers=2
+
+# for the tickets resource in the zendesk_support source
+[sources.zendesk_support.tickets.extract]
+workers=4
+# @@@DLT_SNIPPET_END extract_workers_toml
+
+
+# @@@DLT_SNIPPET_START extract_parallel_items_toml
+# for all sources and resources being extracted
+[extract]
+max_parallel_items=10
+
+# for all resources in the zendesk_support source
+[sources.zendesk_support.extract]
+max_parallel_items=10
+
+# for the tickets resource in the zendesk_support source
+[sources.zendesk_support.tickets.extract]
+max_parallel_items=10
+# @@@DLT_SNIPPET_END extract_parallel_items_toml
+
+
+# @@@DLT_SNIPPET_START normalize_workers_toml
+ [extract.data_writer]
+# force extract file rotation if size exceeds 1MiB
+file_max_bytes=1000000
+
+[normalize]
+# use 3 worker processes to process 3 files in parallel
+workers=3
+# @@@DLT_SNIPPET_END normalize_workers_toml
+
+
+# @@@DLT_SNIPPET_START normalize_workers_2_toml
+[normalize.data_writer]
+# force normalize file rotation if it exceeds 1MiB
+file_max_bytes=1000000
+
+[load]
+# have 50 concurrent load jobs
+workers=50
+# @@@DLT_SNIPPET_END normalize_workers_2_toml
+
+
+# @@@DLT_SNIPPET_START retry_toml
+[runtime]
+request_max_attempts = 10  # Stop after 10 retry attempts instead of 5
+request_backoff_factor = 1.5  # Multiplier applied to the exponential delays. Default is 1
+request_timeout = 120  # Timeout in seconds
+request_max_retry_delay = 30  # Cap exponential delay to 30 seconds
+# @@@DLT_SNIPPET_END retry_toml
+
+
+# @@@DLT_SNIPPET_START item_mode_toml
+[extract] # global setting
+next_item_mode="round_robin"
+
+[sources.my_pipeline.extract] # setting for the "my_pipeline" pipeline
+next_item_mode="fifo"
+# @@@DLT_SNIPPET_END item_mode_toml
+
+
+# @@@DLT_SNIPPET_START compression_toml
+[normalize.data_writer]
+disable_compression=true
+# @@@DLT_SNIPPET_END compression_toml

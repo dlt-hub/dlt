@@ -1,0 +1,44 @@
+---
+name: Feature Request
+description: Suggest a feature for dlt
+labels: ["kind:enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting a feature for dlt!
+        If you like to discuss your idea first, please join our [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+        and pose your questions in the #3-technical-help channel.
+        For minor features and improvements, feel free to open a [pull request](https://github.com/dlt-hub/dlt/pulls) directly.
+  - type: textarea
+    attributes:
+      label: Feature description
+      description: Describe the feature you'd like to see.
+      placeholder: >
+        What would you like to happen?
+  - type: dropdown
+    attributes:
+      label: Are you a dlt user?
+      description: Please tell us how you are using dlt.
+      multiple: false
+      options:
+        - "Yes, I'm already a dlt user."
+        - "Yes, I run dlt in production."
+        - "Yes, I use it for fun."
+        - "I'd consider using dlt, but it's lacking a feature I need."
+  - type: textarea
+    attributes:
+      label: Use case
+      description: Is your feature request related to a problem? Please describe.
+      placeholder: >
+        What problem are you trying to solve?
+  - type: textarea
+    attributes:
+      label: Proposed solution
+      description: Describe the solution you'd like to see.
+      placeholder: >
+        What would you like to see changed?
+  - type: textarea
+    attributes:
+      label: Related issues
+      description: Is there currently another issue associated with this?

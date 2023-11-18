@@ -1,16 +1,20 @@
+import sys
 import os
 from subprocess import CalledProcessError, PIPE
 import tempfile
 import pytest
 import shutil
-from dlt.common.exceptions import CannotInstallDependency
 
-from dlt.common.runners.venv import Venv, VenvNotFound
+from dlt.common.exceptions import CannotInstallDependencies
+from dlt.common.runners import Venv, VenvNotFound
 from dlt.common.utils import custom_environ
+
+from tests.utils import preserve_environ
 
 
 def test_create_venv() -> None:
     with Venv.create(tempfile.mkdtemp()) as venv:
+        assert venv.current is False
         assert os.path.isdir(venv.context.env_dir)
         assert os.path.isfile(venv.context.env_exe)
         # issue python command
@@ -24,6 +28,7 @@ def test_restore_venv() -> None:
     env_dir = tempfile.mkdtemp()
     with Venv.create(env_dir) as venv:
         restored_venv = Venv.restore(env_dir)
+        assert restored_venv.current is False
         # compare contexts
         assert venv.context.env_dir == restored_venv.context.env_dir
         assert venv.context.env_exe == restored_venv.context.env_exe
@@ -60,9 +65,9 @@ print('success')
 
 
 def test_create_with_wrong_dependency() -> None:
-    with pytest.raises(CannotInstallDependency) as cid:
+    with pytest.raises(CannotInstallDependencies) as cid:
         Venv.create(tempfile.mkdtemp(), ["six", "_six_"])
-    assert cid.value.dependency == "_six_"
+    assert cid.value.dependencies == ["six", "_six_"]
 
 
 def test_add_dependency() -> None:
@@ -83,6 +88,17 @@ import dateutil
 print('success')
         """
         assert venv.run_command(venv.context.env_exe, "-c", script) == "success\n"
+
+
+def test_venv_working_dir() -> None:
+    with Venv.create(tempfile.mkdtemp()) as venv:
+        assert venv.run_script("tests/common/scripts/cwd.py").strip() == os.getcwd()
+        script = """
+import os
+
+print(os.getcwd())
+        """
+        assert venv.run_command(venv.context.env_exe, "-c", script).strip() == os.getcwd()
 
 
 def test_run_command_with_error() -> None:
@@ -156,6 +172,12 @@ def test_run_script() -> None:
         assert cpe.value.returncode == 1
         assert "always raises" in cpe.value.stdout
 
+        # script with several long lines
+        result = venv.run_script("tests/common/scripts/long_lines.py")
+        lines = result.splitlines()
+        # stdin and stdout are mangled but the number of character matches
+        assert sum(len(line) for line in lines) == 6 * 1024 * 1024
+
 
 def test_create_over_venv() -> None:
     # we always wipe out previous env
@@ -168,6 +190,40 @@ def test_create_over_venv() -> None:
     with Venv.create(env_dir) as venv:
         freeze = venv.run_module("pip", "freeze", "--all")
         assert "six" not in freeze
+
+
+def test_current_venv() -> None:
+    venv = Venv.restore_current()
+    assert venv.current is True
+
+    # use python to run module
+    freeze = venv.run_module("pip", "freeze", "--all")
+    # we are in current venv so dlt package is here
+    assert "dlt" in freeze
+
+    # use command
+    with venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True) as process:
+        output, _ = process.communicate()
+        assert process.poll() == 0
+        assert "pip" in output
+
+
+def test_current_base_python() -> None:
+    # remove VIRTUAL_ENV variable to fallback to currently executing python interpreter
+    del os.environ["VIRTUAL_ENV"]
+    venv = Venv.restore_current()
+    assert venv.context.env_exe == sys.executable
+
+    # use python to run module
+    freeze = venv.run_module("pip", "freeze", "--all")
+    # we are still in poetry virtual env but directly
+    assert "dlt" in freeze
+
+    # use command
+    with venv.start_command("pip", "freeze", "--all", stdout=PIPE, text=True) as process:
+        output, _ = process.communicate()
+        assert process.poll() == 0
+        assert "pip" in output
 
 
 def test_start_command() -> None:

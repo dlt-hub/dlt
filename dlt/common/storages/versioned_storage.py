@@ -1,6 +1,8 @@
+from typing import Union
+
 import semver
 
-from dlt.common.file_storage import FileStorage
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.exceptions import NoMigrationPathException, WrongStorageVersionException
 
 
@@ -8,7 +10,9 @@ class VersionedStorage:
 
     VERSION_FILE = ".version"
 
-    def __init__(self, version: semver.VersionInfo, is_owner: bool, storage: FileStorage) -> None:
+    def __init__(self, version: Union[semver.VersionInfo, str], is_owner: bool, storage: FileStorage) -> None:
+        if isinstance(version, str):
+            version = semver.VersionInfo.parse(version)
         self.storage = storage
         # read current version
         if self.storage.has_file(VersionedStorage.VERSION_FILE):
@@ -31,7 +35,7 @@ class VersionedStorage:
             if is_owner:
                 self._save_version(version)
             else:
-               raise WrongStorageVersionException(storage.storage_path, semver.VersionInfo.parse("0.0.0"), version)
+                raise WrongStorageVersionException(storage.storage_path, semver.VersionInfo.parse("0.0.0"), version)
 
     def migrate_storage(self, from_version: semver.VersionInfo, to_version: semver.VersionInfo) -> None:
         # migration example:
@@ -48,7 +52,8 @@ class VersionedStorage:
         return self._load_version()
 
     def _load_version(self) -> semver.VersionInfo:
-        return self.storage.load(VersionedStorage.VERSION_FILE)
+        version_str = self.storage.load(VersionedStorage.VERSION_FILE)
+        return semver.VersionInfo.parse(version_str)
 
     def _save_version(self, version: semver.VersionInfo) -> None:
         self.storage.save(VersionedStorage.VERSION_FILE, str(version))

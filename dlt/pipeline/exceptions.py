@@ -1,72 +1,69 @@
-from typing import Any, Sequence
-from dlt.common.exceptions import DltException
-from dlt.common.telemetry import TRunMetrics
-from dlt.pipeline.typing import TPipelineStage
+from typing import Any
+from dlt.common.exceptions import PipelineException
+from dlt.common.pipeline import SupportsPipeline
+from dlt.pipeline.typing import TPipelineStep
 
 
-class PipelineException(DltException):
-    pass
+class InvalidPipelineName(PipelineException, ValueError):
+    def __init__(self, pipeline_name: str, details: str) -> None:
+        super().__init__(pipeline_name, f"The pipeline name {pipeline_name} contains invalid characters. The pipeline name is used to create a pipeline working directory and must be a valid directory name. The actual error is: {details}")
 
 
-class MissingDependencyException(PipelineException):
-    def __init__(self, caller: str, dependencies: Sequence[str], appendix: str = "") -> None:
-        self.caller = caller
-        self.dependencies = dependencies
-        super().__init__(self._get_msg(appendix))
-
-    def _get_msg(self, appendix: str) -> str:
-        msg = f"""
-You must install additional dependencies to run {self.caller}. If you use pip you may do the following:
-
-{self._to_pip_install()}
-"""
-        if appendix:
-            msg = msg + "\n" + appendix
-        return msg
-
-    def _to_pip_install(self) -> str:
-        return "\n".join([f"pip install {d}" for d in self.dependencies])
-
-
-class NoPipelineException(PipelineException):
-    def __init__(self) -> None:
-        super().__init__("Please create or restore pipeline before using this function")
-
-
-class InvalidPipelineContextException(PipelineException):
-    def __init__(self) -> None:
-        super().__init__("There may be just one active pipeline in single python process. You may have switch between pipelines by restoring pipeline just before using load method")
+class PipelineConfigMissing(PipelineException):
+    def __init__(self, pipeline_name: str, config_elem: str, step: TPipelineStep, _help: str = None) -> None:
+        self.config_elem = config_elem
+        self.step = step
+        msg = f"Configuration element {config_elem} was not provided and {step} step cannot be executed"
+        if _help:
+            msg += f"\n{_help}\n"
+        super().__init__(pipeline_name, msg)
 
 
 class CannotRestorePipelineException(PipelineException):
-    def __init__(self, reason: str) -> None:
-        super().__init__(reason)
-
-
-class PipelineBackupNotFound(PipelineException):
-    def __init__(self, method: str) -> None:
-        self.method = method
-        super().__init__(f"Backup not found for method {method}")
+    def __init__(self, pipeline_name: str, pipelines_dir: str, reason: str) -> None:
+        msg = f"Pipeline with name {pipeline_name} in working directory {pipelines_dir} could not be restored: {reason}"
+        super().__init__(pipeline_name, msg)
 
 
 class SqlClientNotAvailable(PipelineException):
-    def __init__(self, client_type: str) -> None:
-        super().__init__(f"SQL Client not available in {client_type}")
-
-
-class InvalidIteratorException(PipelineException):
-    def __init__(self, iterator: Any) -> None:
-        super().__init__(f"Unsupported source iterator or iterable type: {type(iterator).__name__}")
-
-
-class InvalidItemException(PipelineException):
-    def __init__(self, item: Any) -> None:
-        super().__init__(f"Source yielded unsupported item type: {type(item).__name}. Only dictionaries, sequences and deferred items allowed.")
+    def __init__(self, pipeline_name: str,destination_name: str) -> None:
+        super().__init__(pipeline_name, f"SQL Client not available for destination {destination_name} in pipeline {pipeline_name}")
 
 
 class PipelineStepFailed(PipelineException):
-    def __init__(self, stage: TPipelineStage, exception: BaseException, run_metrics: TRunMetrics) -> None:
-        self.stage = stage
+    def __init__(self, pipeline: SupportsPipeline, step: TPipelineStep, exception: BaseException, step_info: Any = None) -> None:
+        self.pipeline = pipeline
+        self.step = step
         self.exception = exception
-        self.run_metrics = run_metrics
-        super().__init__(f"Pipeline execution failed at stage {stage} with exception:\n\n{type(exception)}\n{exception}")
+        self.step_info = step_info
+        super().__init__(pipeline.pipeline_name, f"Pipeline execution failed at stage {step} with exception:\n\n{type(exception)}\n{exception}")
+
+
+class PipelineStateEngineNoUpgradePathException(PipelineException):
+    def __init__(self, pipeline_name: str, init_engine: int, from_engine: int, to_engine: int) -> None:
+        self.init_engine = init_engine
+        self.from_engine = from_engine
+        self.to_engine = to_engine
+        super().__init__(pipeline_name, f"No engine upgrade path for state in pipeline {pipeline_name} from {init_engine} to {to_engine}, stopped at {from_engine}")
+
+
+class PipelineHasPendingDataException(PipelineException):
+    def __init__(self, pipeline_name: str, pipelines_dir: str) -> None:
+        msg = (
+            f" Operation failed because pipeline with name {pipeline_name} in working directory {pipelines_dir} contains pending extracted files or load packages. "
+            "Use `dlt pipeline sync` to reset the local state then run this operation again."
+        )
+        super().__init__(pipeline_name, msg)
+
+class PipelineNeverRan(PipelineException):
+    def __init__(self, pipeline_name: str, pipelines_dir: str) -> None:
+        msg = (
+            f" Operation failed because pipeline with name {pipeline_name} in working directory {pipelines_dir} was never run or never synced with destination. "
+            "Use `dlt pipeline sync` to synchronize."
+        )
+        super().__init__(pipeline_name, msg)
+
+
+class PipelineNotActive(PipelineException):
+    def __init__(self, pipeline_name: str) -> None:
+        super().__init__(pipeline_name, f"Pipeline {pipeline_name} is not active so it cannot be deactivated")

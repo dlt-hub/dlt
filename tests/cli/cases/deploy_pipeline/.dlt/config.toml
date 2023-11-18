@@ -1,0 +1,8 @@
+restore_from_destination=false  # block restoring from destination
+
+# put your configuration values here
+[sources]
+api_url = "api_url" # please set me up!
+
+[runtime]
+log_level="WARNING"  # the system log level of dlt

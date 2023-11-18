@@ -1,0 +1,17 @@
+version: "3.7"
+services:
+   db:
+    env_file: postgres.env
+    build:
+      context: postgres
+      dockerfile: Dockerfile
+    container_name: dlt_postgres_db
+    restart: unless-stopped
+    volumes:
+      - db_home:/var/lib/postgresql/data
+    ports:
+      - 5432:5432
+
+volumes:
+  db_home:
+    external: false

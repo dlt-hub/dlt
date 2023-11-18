@@ -4,11 +4,12 @@ from typing import Any, Optional, Type
 from hexbytes import HexBytes
 
 from dlt.common import pendulum, Wei
-from dlt.common.schema.typing import TDataType
+from dlt.common.data_types import TDataType
+from dlt.common.time import parse_iso_like_datetime
 
 
 _NOW_TS: float = pendulum.now().timestamp()
-_FLOAT_TS_RANGE = 31536000.0  # seconds in year
+_FLOAT_TS_RANGE = 5 * 31536000.0  # seconds in year
 
 
 def is_timestamp(t: Type[Any], v: Any) -> Optional[TDataType]:
@@ -27,9 +28,28 @@ def is_iso_timestamp(t: Type[Any], v: Any) -> Optional[TDataType]:
         return None
     # strict autodetection of iso timestamps
     try:
-        dt = pendulum.parse(v, strict=True, exact=True)
-        if isinstance(dt, datetime.datetime):
+        dtv = parse_iso_like_datetime(v)
+        if isinstance(dtv, datetime.datetime):
             return "timestamp"
+    except Exception:
+        pass
+    return None
+
+
+def is_iso_date(t: Type[Any], v: Any) -> Optional[TDataType]:
+    # only strings can be converted
+    if not issubclass(t, str):
+        return None
+    if not v:
+        return None
+    # don't cast iso timestamps as dates
+    if is_iso_timestamp(t,v):
+        return None
+    # strict autodetection of iso timestamps
+    try:
+        dtv = parse_iso_like_datetime(v)
+        if isinstance(dtv, datetime.date):
+            return "date"
     except Exception:
         pass
     return None

@@ -1,0 +1,33 @@
+api_type="REST"
+
+api.url="http"
+api.port=1024
+
+[sources]
+max_range=10
+
+[api.params]
+param1="a"
+param2="b"
+
+[typecheck]
+str_val="test string"
+int_val=12345
+bool_val=true
+list_val=[1, "2", [3]]
+dict_val={'a'=1, "b"="2"}
+float_val=1.18927
+tuple_val=[1, 2, {1="complicated dicts allowed in literal eval"}]
+COMPLEX_VAL={"_"= [1440, ["*"], []], "change-email"= [560, ["*"], []]}
+date_val=1979-05-27T07:32:00-08:00
+dec_val="22.38"  # always use text to pass decimals
+bytes_val="0x48656c6c6f20576f726c6421"  # always use text to pass hex value that should be converted to bytes
+any_val="function() {}"
+none_val="none"
+sequence_val=["A", "B", "KAPPA"]
+gen_list_val=["C", "Z", "N"]
+mapping_val={"FL"=1, "FR"={"1"=2}}
+mutable_mapping_val={"str"="str"}
+
+[runtime]
+log_level="ERROR"

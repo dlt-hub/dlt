@@ -1,84 +1,102 @@
-![](docs/DLT-Pacman-Big.gif)
-
+<h1 align="center">
+    <strong>data load tool (dlt) — the open-source Python library for data loading</strong>
+</h1>
 <p align="center">
-
-[![PyPI version](https://badge.fury.io/py/python-dlt.svg)](https://pypi.org/project/python-dlt/)
-[![LINT Badge](https://github.com/scale-vector/dlt/actions/workflows/lint.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/lint.yml)
-[![TEST COMMON Badge](https://github.com/scale-vector/dlt/actions/workflows/test_common.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/test_common.yml)
-[![TEST REDSHIFT Badge](https://github.com/scale-vector/dlt/actions/workflows/test_loader_redshift.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/test_loader_redshift.yml)
-[![TEST BIGQUERY Badge](https://github.com/scale-vector/dlt/actions/workflows/test_loader_bigquery.yml/badge.svg)](https://github.com/scale-vector/dlt/actions/workflows/test_loader_bigquery.yml)
-
+Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local laptop,<br/>or a GPT-4 assisted development playground—<strong>dlt</strong> can be dropped in anywhere.
 </p>
 
-# Data Load Tool (DLT)
 
-## What is DLT?
+<h3 align="center">
 
-Data Load Tool (DLT) is an open source python library for building data pipelines. The goal of DLT is to make it easier and faster to build low-maintenance data pipelines. It's designed to run anywhere (Python 3.8+), so it can fit into your existing workflows or be scheduled independently (e.g. using GitHub Actions).
+🚀 Join our thriving community of likeminded developers and build the future together!
 
-If you are interested in trying DLT out, please email tyler@scalevector.ai :)
+</h3>
 
-## Who is DLT for?
+<div align="center">
+  <a target="_blank" href="https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA" style="background:none">
+    <img src="https://img.shields.io/badge/slack-join-dlt.svg?labelColor=191937&color=6F6FF7&logo=slack" style="width: 260px;"  />
+  </a>
+</div>
+<div align="center">
+  <a target="_blank" href="https://pypi.org/project/dlt/" style="background:none">
+    <img src="https://img.shields.io/pypi/v/dlt?labelColor=191937&color=6F6FF7">
+  </a>
+  <a target="_blank" href="https://pypi.org/project/dlt/" style="background:none">
+    <img src="https://img.shields.io/pypi/pyversions/dlt?labelColor=191937&color=6F6FF7">
+  </a>
+</div>
 
-DLT is for data professionals who use Python to build pipelines.
-- DLT enables anyone who knows a bit of Python to build commercial-grade pipelines
-- DLT minimises maintenance requirements by design
-- The DLT community shares pipelines with each other, so frequently you'll be able to just use a pipeline created by someone else
+## Installation
 
-## Why use DLT?
+dlt supports Python 3.8+.
 
-DLT takes the Python scripts you already write to the next level with a library you install using pip in order to create highly scalable, easily maintainable pipelines that are straightforward to deploy.
+```bash
+pip install dlt
+```
 
-If you end up creating your own pipeline in python, then create it with DLT and your loading scripts will benefit from
-- Automatic schema maintenance (i.e. schema inference, deployment, evolution, data contracts, etc.)
-- Configurable loading (e.g. append, replace, merge, etc.)
-- Configurable normalisation (i.e. decide how to unpack nested documents, specify date formats, etc.)
-- High performance loading engine (i.e. data engineering best practices like idempotent, atomic, scalable loading)
+## Quick Start
 
-## How does it work?
+Load chess game data from chess.com API and save it in DuckDB:
 
-DLT aims to simplify data loading for the millions of people who have taken at least one Python course
+```python
+import dlt
+from dlt.sources.helpers import requests
+# Create a dlt pipeline that will load
+# chess player data to the DuckDB destination
+pipeline = dlt.pipeline(
+    pipeline_name='chess_pipeline',
+    destination='duckdb',
+    dataset_name='player_data'
+)
+# Grab some player data from Chess.com API
+data = []
+for player in ['magnuscarlsen', 'rpragchess']:
+    response = requests.get(f'https://api.chess.com/pub/player/{player}')
+    response.raise_for_status()
+    data.append(response.json())
+# Extract, normalize, and load the data
+pipeline.run(data, table_name='player')
+```
 
-To achieve this, we take into account the progressive steps of data pipelining:
 
-![](docs/DLT-Diagram_2.png)
+Try it out in our **[Colab Demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)**
 
-### 1. Data extraction
+## Features
 
-DLT accepts json and json-producing functions as input, including nested, unstructured data.
+- **Automatic Schema:** Data structure inspection and schema creation for the destination.
+- **Data Normalization:** Consistent and verified data before loading.
+- **Seamless Integration:** Colab, AWS Lambda, Airflow, and local environments.
+- **Scalable:** Adapts to growing data needs in production.
+- **Easy Maintenance:** Clear data pipeline structure for updates.
+- **Rapid Exploration:** Quickly explore and gain insights from new data sources.
+- **Versatile Usage:** Suitable for ad-hoc exploration to advanced loading infrastructures.
+- **Start in Seconds with CLI:** Powerful CLI for managing, deploying and inspecting local pipelines.
+- **Incremental Loading:** Load only new or changed data and avoid loading old records again.
+- **Open Source:** Free and Apache 2.0 Licensed.
 
-### 2. Data normalisation
+## Ready to use Sources and Destinations
 
-DLT features a configurable normalisation engine that can recursively unpack nested structures into relational tables, handle various data type conversions, etc.
+Explore ready to use sources (e.g. Google Sheets) in the [Verified Sources docs](https://dlthub.com/docs/dlt-ecosystem/verified-sources) and supported destinations (e.g. DuckDB) in the [Destinations docs](https://dlthub.com/docs/dlt-ecosystem/destinations).
 
-### 3. Data loading
+## Documentation
 
-When we load data, many things can interrupt the process, so we want to make sure we can safely retry without generating artifacts in the data. Additionally, it's not uncommon to not know the data size in advance, making it a challenge to match data size to loading infrastructure. With good pipelining design, safe loading becomes a non-issue.
+For detailed usage and configuration, please refer to the [official documentation](https://dlthub.com/docs).
 
-* Schema evolution - configurable strategy for schema changes: automatic migration or fail&alert.
-* Idempotency & Atomicity: Built in best practices of Atomic loading (all or nothing), and configurable Idempotency (do not double load, incurs a table "read" cost)
-* Data-size agnostic: By using generators (like incremental downloading) and online storage as a buffer, it can incrementally process sources of any size without running into worker-machine size limitations.
+## Examples
 
-## Why?
+You can find examples for various use cases in the [examples](docs/examples) folder.
 
-Data loading is how all data work starts.
+## Get Involved
 
-The current ecosystem of tools follows an old paradigm, where the data pipeline creator is a software engineer, while the data pipeline user is an analyst. In the real world, the data analyst needs to solve problems end to end, including loading.
+The dlt project is quickly growing, and we're excited to have you join our community! Here's how you can get involved:
 
-Currently, there are no simple libraries to achieve this, only clunky frameworks that require engineering expertise to host, run, manage, scale, and maintain. DLT aims to simplify data pipeline building, making it easier and faster to build low-maintenance pipelines with evolving schemas.
+- **Connect with the Community**: Join other dlt users and contributors on our [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+- **Report issues and suggest features**: Please use the [GitHub Issues](https://github.com/dlt-hub/dlt/issues) to report bugs or suggest new features. Before creating a new issue, make sure to search the tracker for possible duplicates and add a comment if you find one.
+- **Track progress of our work and our plans**: Please check out our [public Github project](https://github.com/orgs/dlt-hub/projects/9)
+- **Contribute Verified Sources**: Contribute your custom sources to the [dlt-hub/verified-sources](https://github.com/dlt-hub/verified-sources) to help other folks in handling their data tasks.
+- **Contribute code**: Check out our [contributing guidelines](CONTRIBUTING.md) for information on how to make a pull request.
+- **Improve documentation**: Help us enhance the dlt documentation.
 
-## Why not an OOP framework?
+## License
 
-Data professionals operate at the intersection between business, statistics, and APIs.
-
-As a result, the learning curve to create data pipelines using complex Object Oriented Programming (OOP) frameworks / SDKs (e.g. Airbyte, Singer, etc.) is too steep for all but the most tech savvy people.
-
-In contrast, DLT allows you to throw JSON into a database with little to no learning curve.
-
-## Supported data warehouses
-
-Google BigQuery:
-```pip3 install python-dlt[gcp]```
-
-Amazon Redshift:
-```pip install python-dlt[redshift]```
+DLT is released under the [Apache 2.0 License](LICENSE.txt).

@@ -1,0 +1,358 @@
+version: 11
+version_hash: GPHX4B+0xnRuGZM/w3UYVbldRyg8jSJp1G60K4RDcZg=
+engine_version: 5
+name: ethereum
+tables:
+  _dlt_loads:
+    columns:
+      load_id:
+        data_type: text
+        nullable: false
+      schema_name:
+        data_type: text
+        nullable: true
+      status:
+        data_type: bigint
+        nullable: false
+      inserted_at:
+        data_type: timestamp
+        nullable: false
+    write_disposition: skip
+    description: Created by DLT. Tracks completed loads
+  _dlt_version:
+    columns:
+      version:
+        data_type: bigint
+        nullable: false
+      engine_version:
+        data_type: bigint
+        nullable: false
+      inserted_at:
+        data_type: timestamp
+        nullable: false
+      schema_name:
+        data_type: text
+        nullable: false
+      version_hash:
+        data_type: text
+        nullable: false
+      schema:
+        data_type: text
+        nullable: false
+    write_disposition: skip
+    description: Created by DLT. Tracks schema updates
+  blocks:
+    description: Ethereum blocks
+    x-annotation: this will be preserved on save
+    write_disposition: append
+    table_sealed: true
+    filters:
+      includes: []
+      excludes: []
+    columns:
+      _dlt_load_id:
+        description: load id coming from the extractor
+        data_type: text
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+      number:
+        primary_key: true
+        data_type: bigint
+        nullable: false
+      parent_hash:
+        data_type: text
+        nullable: true
+      hash:
+        cluster: true
+        unique: true
+        data_type: text
+        nullable: false
+      base_fee_per_gas:
+        data_type: wei
+        nullable: false
+      difficulty:
+        data_type: wei
+        nullable: false
+      extra_data:
+        data_type: text
+        nullable: true
+      gas_limit:
+        data_type: bigint
+        nullable: false
+      gas_used:
+        data_type: bigint
+        nullable: false
+      logs_bloom:
+        data_type: binary
+        nullable: true
+      miner:
+        data_type: text
+        nullable: true
+      mix_hash:
+        data_type: text
+        nullable: true
+      nonce:
+        data_type: text
+        nullable: true
+      receipts_root:
+        data_type: text
+        nullable: true
+      sha3_uncles:
+        data_type: text
+        nullable: true
+      size:
+        data_type: bigint
+        nullable: true
+      state_root:
+        data_type: text
+        nullable: false
+      timestamp:
+        unique: true
+        sort: true
+        data_type: timestamp
+        nullable: false
+      total_difficulty:
+        data_type: wei
+        nullable: true
+      transactions_root:
+        data_type: text
+        nullable: false
+  blocks__transactions:
+    parent: blocks
+    columns:
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+      block_number:
+        primary_key: true
+        foreign_key: true
+        data_type: bigint
+        nullable: false
+      transaction_index:
+        primary_key: true
+        data_type: bigint
+        nullable: false
+      hash:
+        unique: true
+        data_type: text
+        nullable: false
+      block_hash:
+        cluster: true
+        data_type: text
+        nullable: false
+      block_timestamp:
+        sort: true
+        data_type: timestamp
+        nullable: false
+      chain_id:
+        data_type: text
+        nullable: true
+      from:
+        data_type: text
+        nullable: true
+      gas:
+        data_type: bigint
+        nullable: true
+      gas_price:
+        data_type: bigint
+        nullable: true
+      input:
+        data_type: text
+        nullable: true
+      max_fee_per_gas:
+        data_type: wei
+        nullable: true
+      max_priority_fee_per_gas:
+        data_type: wei
+        nullable: true
+      nonce:
+        data_type: bigint
+        nullable: true
+      r:
+        data_type: text
+        nullable: true
+      s:
+        data_type: text
+        nullable: true
+      status:
+        data_type: bigint
+        nullable: true
+      to:
+        data_type: text
+        nullable: true
+      type:
+        data_type: text
+        nullable: true
+      v:
+        data_type: bigint
+        nullable: true
+      value:
+        data_type: wei
+        nullable: false
+      eth_value:
+        data_type: decimal
+        nullable: true
+  blocks__transactions__logs:
+    parent: blocks__transactions
+    columns:
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+      address:
+        data_type: text
+        nullable: false
+      block_timestamp:
+        sort: true
+        data_type: timestamp
+        nullable: false
+      block_hash:
+        cluster: true
+        data_type: text
+        nullable: false
+      block_number:
+        primary_key: true
+        foreign_key: true
+        data_type: bigint
+        nullable: false
+      transaction_index:
+        primary_key: true
+        foreign_key: true
+        data_type: bigint
+        nullable: false
+      log_index:
+        primary_key: true
+        data_type: bigint
+        nullable: false
+      data:
+        data_type: text
+        nullable: true
+      removed:
+        data_type: bool
+        nullable: true
+      transaction_hash:
+        data_type: text
+        nullable: false
+  blocks__transactions__logs__topics:
+    parent: blocks__transactions__logs
+    columns:
+      _dlt_parent_id:
+        foreign_key: true
+        data_type: text
+        nullable: false
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+      _dlt_root_id:
+        root_key: true
+        data_type: text
+        nullable: false
+      value:
+        data_type: text
+        nullable: true
+  blocks__transactions__access_list:
+    parent: blocks__transactions
+    columns:
+      _dlt_parent_id:
+        foreign_key: true
+        data_type: text
+        nullable: false
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+      _dlt_root_id:
+        root_key: true
+        data_type: text
+        nullable: false
+      address:
+        data_type: text
+        nullable: true
+  blocks__transactions__access_list__storage_keys:
+    parent: blocks__transactions__access_list
+    columns:
+      _dlt_parent_id:
+        foreign_key: true
+        data_type: text
+        nullable: false
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+      _dlt_root_id:
+        root_key: true
+        data_type: text
+        nullable: false
+      value:
+        data_type: text
+        nullable: true
+  blocks__uncles:
+    parent: blocks
+    columns:
+      _dlt_parent_id:
+        foreign_key: true
+        data_type: text
+        nullable: false
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        unique: true
+        data_type: text
+        nullable: false
+      _dlt_root_id:
+        root_key: true
+        data_type: text
+        nullable: false
+      value:
+        data_type: text
+        nullable: true
+settings:
+  schema_sealed: true
+  default_hints:
+    foreign_key:
+    - _dlt_parent_id
+    not_null:
+    - re:^_dlt_id$
+    - _dlt_root_id
+    - _dlt_parent_id
+    - _dlt_list_idx
+    unique:
+    - _dlt_id
+    cluster:
+    - block_hash
+    partition:
+    - block_timestamp
+    root_key:
+    - _dlt_root_id
+  preferred_types:
+    timestamp: timestamp
+    block_timestamp: timestamp
+normalizers:
+  names: dlt.common.normalizers.names.snake_case
+  json:
+    module: dlt.common.normalizers.json.relational
+    config:
+      generate_dlt_id: true
+      propagation:
+        root:
+          _dlt_id: _dlt_root_id
+        tables:
+          blocks:
+            timestamp: block_timestamp
+            hash: block_hash
+

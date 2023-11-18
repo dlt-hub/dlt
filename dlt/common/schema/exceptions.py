@@ -1,17 +1,30 @@
 from typing import Any
 
 from dlt.common.exceptions import DltException
-from dlt.common.schema.typing import TDataType
+from dlt.common.data_types import TDataType
 
 
 class SchemaException(DltException):
     pass
 
 
-class InvalidSchemaName(SchemaException):
-    def __init__(self, name: str, normalized_name: str) -> None:
+class InvalidSchemaName(ValueError, SchemaException):
+    MAXIMUM_SCHEMA_NAME_LENGTH = 64
+
+    def __init__(self, name: str) -> None:
         self.name = name
-        super().__init__(f"{name} is invalid schema name. Only lowercase letters are allowed. Try {normalized_name} instead")
+        super().__init__(f"{name} is an invalid schema/source name. The source or schema name must be a valid Python identifier ie. a snake case function name and have maximum {self.MAXIMUM_SCHEMA_NAME_LENGTH} characters. Ideally should contain only small letters, numbers and underscores.")
+
+
+# class InvalidDatasetName(ValueError, SchemaException):
+#     def __init__(self, name: str, normalized_name: str) -> None:
+#         self.name = name
+#         super().__init__(f"{name} is an invalid dataset name. The dataset name must conform to wide range of destinations and ideally should contain only small letters, numbers and underscores. Try {normalized_name} instead as suggested by current naming module.")
+
+class InvalidDatasetName(ValueError, SchemaException):
+    def __init__(self, destination_name: str) -> None:
+        self.destination_name = destination_name
+        super().__init__(f"Destination {destination_name} does not accept empty datasets. Please pass the dataset name to the destination configuration ie. via dlt pipeline.")
 
 
 class CannotCoerceColumnException(SchemaException):
@@ -56,3 +69,8 @@ class SchemaEngineNoUpgradePathException(SchemaException):
         self.from_engine = from_engine
         self.to_engine = to_engine
         super().__init__(f"No engine upgrade path in schema {schema_name} from {init_engine} to {to_engine}, stopped at {from_engine}")
+
+class UnknownTableException(SchemaException):
+    def __init__(self, table_name: str) -> None:
+        self.table_name = table_name
+        super().__init__(f"Trying to access unknown table {table_name}.")

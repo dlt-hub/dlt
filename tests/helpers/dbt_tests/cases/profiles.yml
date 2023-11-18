@@ -1,0 +1,15 @@
+config:
+  # do not track usage, do not create .user.yml
+  send_anonymous_usage_stats: False
+
+jaffle_shop:
+  target: analytics
+  outputs:
+    analytics:
+      type: postgres
+      host: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+      user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
+      password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"
+      port: 5432
+      dbname: dlt_data
+      schema: "{{ var('dbt_schema') }}"

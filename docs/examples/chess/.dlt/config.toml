@@ -1,0 +1,9 @@
+chess_url="https://api.chess.com/pub/"
+pipeline_name="chess"
+
+[runtime]
+log_level="WARNING"
+
+[sources.chess.extract]
+max_parallel_items = 5
+workers = 2

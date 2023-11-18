@@ -1,94 +1,126 @@
+from collections.abc import Mapping, MutableSequence
+from copy import copy
 from typing import Any, Type
 import pytest
 import datetime  # noqa: I251
 from hexbytes import HexBytes
+from enum import Enum
+
+from pendulum.tz import UTC
 
 from dlt.common import Decimal, Wei, json, pendulum
-from dlt.common.schema import utils
-from dlt.common.schema.typing import TDataType
-
+from dlt.common.json import _DATETIME, custom_pua_decode_nested
+from dlt.common.data_types import coerce_value, py_type_to_sc_type, TDataType
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
 
 
 def test_coerce_same_type() -> None:
     # same type coercion
-    assert utils.coerce_type("double", "double", 8721.1) == 8721.1
-    assert utils.coerce_type("bigint", "bigint", 8721) == 8721
+    assert coerce_value("double", "double", 8721.1) == 8721.1
+    assert coerce_value("bigint", "bigint", 8721) == 8721
     # try various special types
     for k, v in JSON_TYPED_DICT.items():
         typ_ = JSON_TYPED_DICT_TYPES[k]
-        assert utils.coerce_type(typ_, typ_, v)
+        assert coerce_value(typ_, typ_, v)
 
 
 def test_coerce_type_to_text() -> None:
-    assert utils.coerce_type("text", "bool", False) == str(False)
+    assert coerce_value("text", "bool", False) == str(False)
     # double into text
-    assert utils.coerce_type("text", "double", -1726.1288) == "-1726.1288"
+    assert coerce_value("text", "double", -1726.1288) == "-1726.1288"
     # bytes to text (base64)
-    assert utils.coerce_type("text", "binary", b'binary string') == "YmluYXJ5IHN0cmluZw=="
+    assert coerce_value("text", "binary", b'binary string') == "YmluYXJ5IHN0cmluZw=="
     # HexBytes to text (hex with prefix)
-    assert utils.coerce_type("text", "binary", HexBytes(b'binary string')) == "0x62696e61727920737472696e67"
+    assert coerce_value("text", "binary", HexBytes(b'binary string')) == "0x62696e61727920737472696e67"
+    # Str enum value
+    class StrEnum(Enum):
+        a = "a_value"
+        b = "b_value"
+
+    str_enum_result = coerce_value("text", "text", StrEnum.b)
+    # Make sure we get the bare str value, not the enum instance
+    assert not isinstance(str_enum_result, Enum)
+    assert str_enum_result == "b_value"
+    # Mixed enum value
+    class MixedEnum(Enum):
+        a = "a_value"
+        b = 1
+
+    mixed_enum_result = coerce_value("text", "text", MixedEnum.b)
+    # Make sure we get the bare str value, not the enum instance
+    assert not isinstance(mixed_enum_result, Enum)
+    assert mixed_enum_result == "1"
 
 
 def test_coerce_type_to_bool() -> None:
     # text into bool
-    assert utils.coerce_type("bool", "text", "False") is False
-    assert utils.coerce_type("bool", "text", "yes") is True
-    assert utils.coerce_type("bool", "text", "no") is False
+    assert coerce_value("bool", "text", "False") is False
+    assert coerce_value("bool", "text", "yes") is True
+    assert coerce_value("bool", "text", "no") is False
     # some numeric types
-    assert utils.coerce_type("bool", "bigint", 1) is True
-    assert utils.coerce_type("bool", "bigint", 0) is False
-    assert utils.coerce_type("bool", "decimal", Decimal(1)) is True
-    assert utils.coerce_type("bool", "decimal", Decimal(0)) is False
+    assert coerce_value("bool", "bigint", 1) is True
+    assert coerce_value("bool", "bigint", 0) is False
+    assert coerce_value("bool", "decimal", Decimal(1)) is True
+    assert coerce_value("bool", "decimal", Decimal(0)) is False
 
     # no coercions
     with pytest.raises(ValueError):
-        utils.coerce_type("bool", "complex", {"a": True})
+        coerce_value("bool", "complex", {"a": True})
     with pytest.raises(ValueError):
-        utils.coerce_type("bool", "binary", b'True')
+        coerce_value("bool", "binary", b'True')
     with pytest.raises(ValueError):
-        utils.coerce_type("bool", "timestamp", pendulum.now())
+        coerce_value("bool", "timestamp", pendulum.now())
 
 
 def test_coerce_type_to_double() -> None:
     # bigint into double
-    assert utils.coerce_type("double", "bigint", 762162) == 762162.0
+    assert coerce_value("double", "bigint", 762162) == 762162.0
     # text into double if parsable
-    assert utils.coerce_type("double", "text", " -1726.1288 ") == -1726.1288
+    assert coerce_value("double", "text", " -1726.1288 ") == -1726.1288
     # hex text into double
-    assert utils.coerce_type("double", "text",  "0xff") == 255.0
+    assert coerce_value("double", "text",  "0xff") == 255.0
     # wei, decimal to double
-    assert utils.coerce_type("double", "wei", Wei.from_int256(2137, decimals=2)) == 21.37
-    assert utils.coerce_type("double", "decimal", Decimal("-1121.11")) == -1121.11
+    assert coerce_value("double", "wei", Wei.from_int256(2137, decimals=2)) == 21.37
+    assert coerce_value("double", "decimal", Decimal("-1121.11")) == -1121.11
     # non parsable text
     with pytest.raises(ValueError):
-        utils.coerce_type("double", "text", "a912.12")
+        coerce_value("double", "text", "a912.12")
     # bool does not coerce
     with pytest.raises(ValueError):
-        utils.coerce_type("double", "bool", False)
+        coerce_value("double", "bool", False)
 
 
 def test_coerce_type_to_bigint() -> None:
-    assert utils.coerce_type("bigint", "text", " -1726 ") == -1726
+    assert coerce_value("bigint", "text", " -1726 ") == -1726
     # for round numerics we can convert
-    assert utils.coerce_type("bigint", "double", -762162.0) == -762162
-    assert utils.coerce_type("bigint", "decimal", Decimal("1276.0")) == 1276
-    assert utils.coerce_type("bigint", "wei", Wei("1276.0")) == 1276
+    assert coerce_value("bigint", "double", -762162.0) == -762162
+    assert coerce_value("bigint", "decimal", Decimal("1276.0")) == 1276
+    assert coerce_value("bigint", "wei", Wei("1276.0")) == 1276
 
     # raises when not round
     with pytest.raises(ValueError):
-        utils.coerce_type("bigint", "double", 762162.1)
+        coerce_value("bigint", "double", 762162.1)
     with pytest.raises(ValueError):
-        utils.coerce_type("bigint", "decimal", Decimal(912.12))
+        coerce_value("bigint", "decimal", Decimal(912.12))
     with pytest.raises(ValueError):
-        utils.coerce_type("bigint", "wei", Wei(912.12))
+        coerce_value("bigint", "wei", Wei(912.12))
 
     # non parsable floats and ints
     with pytest.raises(ValueError):
-        utils.coerce_type("bigint", "text", "f912.12")
+        coerce_value("bigint", "text", "f912.12")
     with pytest.raises(ValueError):
-        utils.coerce_type("bigint", "text", "912.12")
+        coerce_value("bigint", "text", "912.12")
+
+    # Int enum value
+    class IntEnum(int, Enum):
+        a = 1
+        b = 2
+
+    int_enum_result = coerce_value("bigint", "bigint", IntEnum.b)
+    # Make sure we get the bare int value, not the enum instance
+    assert not isinstance(int_enum_result, Enum)
+    assert int_enum_result == 2
 
 
 @pytest.mark.parametrize("dec_cls,data_type", [
@@ -96,129 +128,227 @@ def test_coerce_type_to_bigint() -> None:
     (Wei, "wei")
 ])
 def test_coerce_to_numeric(dec_cls: Type[Any], data_type: TDataType) -> None:
-    v = utils.coerce_type(data_type, "text", " -1726.839283 ")
+    v = coerce_value(data_type, "text", " -1726.839283 ")
     assert type(v) is dec_cls
     assert v == dec_cls("-1726.839283")
-    v = utils.coerce_type(data_type, "bigint", -1726)
+    v = coerce_value(data_type, "bigint", -1726)
     assert type(v) is dec_cls
     assert v == dec_cls("-1726")
     # mind that 1276.37 does not have binary representation as used in float
-    v = utils.coerce_type(data_type, "double", 1276.37)
+    v = coerce_value(data_type, "double", 1276.37)
     assert type(v) is dec_cls
     assert v.quantize(Decimal("1.00")) == dec_cls("1276.37")
 
     # wei to decimal and reverse
-    v = utils.coerce_type(data_type, "decimal", Decimal("1276.37"))
+    v = coerce_value(data_type, "decimal", Decimal("1276.37"))
     assert type(v) is dec_cls
     assert v == dec_cls("1276.37")
-    v = utils.coerce_type(data_type, "wei", Wei("1276.37"))
+    v = coerce_value(data_type, "wei", Wei("1276.37"))
     assert type(v) is dec_cls
     assert v == dec_cls("1276.37")
 
     # invalid format
     with pytest.raises(ValueError):
-        utils.coerce_type(data_type, "text", "p912.12")
+        coerce_value(data_type, "text", "p912.12")
 
 
 def test_coerce_type_from_hex_text() -> None:
     # hex text into various types
-    assert utils.coerce_type("wei", "text", " 0xff") == 255
-    assert utils.coerce_type("bigint", "text", " 0xff") == 255
-    assert utils.coerce_type("decimal", "text", " 0xff") == Decimal(255)
-    assert utils.coerce_type("double", "text", " 0xff") == 255.0
+    assert coerce_value("wei", "text", " 0xff") == 255
+    assert coerce_value("bigint", "text", " 0xff") == 255
+    assert coerce_value("decimal", "text", " 0xff") == Decimal(255)
+    assert coerce_value("double", "text", " 0xff") == 255.0
 
 
 def test_coerce_type_to_timestamp() -> None:
     # timestamp cases
-    assert utils.coerce_type("timestamp", "text", " 1580405246 ") == pendulum.parse("2020-01-30T17:27:26+00:00")
+    assert coerce_value("timestamp", "text", " 1580405246 ") == pendulum.parse("2020-01-30T17:27:26+00:00")
     # the tenths of microseconds will be ignored
-    assert utils.coerce_type("timestamp", "double", 1633344898.7415245) == pendulum.parse("2021-10-04T10:54:58.741524+00:00")
+    assert coerce_value("timestamp", "double", 1633344898.7415245) == pendulum.parse("2021-10-04T10:54:58.741524+00:00")
     # if text is ISO string it will be coerced
-    assert utils.coerce_type("timestamp", "text", "2022-05-10T03:41:31.466000+00:00") == pendulum.parse("2022-05-10T03:41:31.466000+00:00")
-    assert utils.coerce_type("timestamp", "text", "2022-05-10T03:41:31.466+02:00") == pendulum.parse("2022-05-10T01:41:31.466Z")
-    assert utils.coerce_type("timestamp", "text", "2022-05-10T03:41:31.466+0200") == pendulum.parse("2022-05-10T01:41:31.466Z")
+    assert coerce_value("timestamp", "text", "2022-05-10T03:41:31.466000+00:00") == pendulum.parse("2022-05-10T03:41:31.466000+00:00")
+    assert coerce_value("timestamp", "text", "2022-05-10T03:41:31.466+02:00") == pendulum.parse("2022-05-10T01:41:31.466Z")
+    assert coerce_value("timestamp", "text", "2022-05-10T03:41:31.466+0200") == pendulum.parse("2022-05-10T01:41:31.466Z")
     # parse almost ISO compliant string
-    assert utils.coerce_type("timestamp", "text", "2022-04-26 10:36+02") == pendulum.parse("2022-04-26T10:36:00+02:00")
-    assert utils.coerce_type("timestamp", "text", "2022-04-26 10:36") == pendulum.parse("2022-04-26T10:36:00+00:00")
+    assert coerce_value("timestamp", "text", "2022-04-26 10:36+02") == pendulum.parse("2022-04-26T10:36:00+02:00")
+    assert coerce_value("timestamp", "text", "2022-04-26 10:36") == pendulum.parse("2022-04-26T10:36:00+00:00")
     # parse date string
-    assert utils.coerce_type("timestamp", "text", "2021-04-25") == pendulum.parse("2021-04-25", exact=True)
+    assert coerce_value("timestamp", "text", "2021-04-25") == pendulum.parse("2021-04-25")
+    # from date type
+    assert coerce_value("timestamp", "date", datetime.date(2023, 2, 27)) == pendulum.parse("2023-02-27")
 
     # fails on "now" - yes pendulum by default parses "now" as .now()
     with pytest.raises(ValueError):
-        utils.coerce_type("timestamp", "text", "now")
+        coerce_value("timestamp", "text", "now")
 
     # fails on intervals - pendulum by default parses a string into: datetime, data, time or interval
     with pytest.raises(ValueError):
-        utils.coerce_type("timestamp", "text", "2007-03-01T13:00:00Z/2008-05-11T15:30:00Z")
+        coerce_value("timestamp", "text", "2007-03-01T13:00:00Z/2008-05-11T15:30:00Z")
     with pytest.raises(ValueError):
-        utils.coerce_type("timestamp", "text", "2011--20012")
+        coerce_value("timestamp", "text", "2011--20012")
 
     # test wrong unix timestamps
     with pytest.raises(ValueError):
-        print(utils.coerce_type("timestamp", "double", -1000000000000000000000000000))
+        coerce_value("timestamp", "double", -1000000000000000000000000000)
     with pytest.raises(ValueError):
-        print(utils.coerce_type("timestamp", "double", 1000000000000000000000000000))
+        coerce_value("timestamp", "double", 1000000000000000000000000000)
 
     # formats with timezones are not parsed
     with pytest.raises(ValueError):
-        print(utils.coerce_type("timestamp", "text", "06/04/22, 11:15PM IST"))
+        coerce_value("timestamp", "text", "06/04/22, 11:15PM IST")
 
     # we do not parse RFC 822, 2822, 850 etc.
     with pytest.raises(ValueError):
-        utils.coerce_type("timestamp", "text", "Wed, 06 Jul 2022 11:58:08 +0200")
+        coerce_value("timestamp", "text", "Wed, 06 Jul 2022 11:58:08 +0200")
     with pytest.raises(ValueError):
-        utils.coerce_type("timestamp", "text", "Tuesday, 13-Sep-22 18:42:31 UTC")
+        coerce_value("timestamp", "text", "Tuesday, 13-Sep-22 18:42:31 UTC")
 
     # time data type not supported yet
     with pytest.raises(ValueError):
-        utils.coerce_type("timestamp", "text", "10:36")
+        coerce_value("timestamp", "text", "10:36")
 
     # non parsable datetime
     with pytest.raises(ValueError):
-        utils.coerce_type("timestamp", "text", "x2022-05-10T03:41:31.466000X+00:00")
+        coerce_value("timestamp", "text", "x2022-05-10T03:41:31.466000X+00:00")
+
+    # iso time string fails
+    with pytest.raises(ValueError):
+        coerce_value("timestamp", "text", "03:41:31.466")
+
+    # time object fails
+    with pytest.raises(TypeError):
+        coerce_value("timestamp", "time", pendulum.Time(10, 36, 0, 0))
+
+
+def test_coerce_type_to_date() -> None:
+    # from datetime object
+    assert coerce_value("date", "timestamp", pendulum.datetime(1995, 5, 6, 00, 1, 1, tz=UTC)) == pendulum.parse("1995-05-06", exact=True)
+    # from unix timestamp
+    assert coerce_value("date", "double", 1677546399.494264) == pendulum.parse("2023-02-28", exact=True)
+    assert coerce_value("date", "text", " 1677546399 ") == pendulum.parse("2023-02-28", exact=True)
+    # ISO date string
+    assert coerce_value("date", "text", "2023-02-27") == pendulum.parse("2023-02-27", exact=True)
+    # ISO datetime string
+    assert coerce_value("date", "text", "2022-05-10T03:41:31.466000+00:00") == pendulum.parse("2022-05-10", exact=True)
+    assert coerce_value("date", "text", "2022-05-10T03:41:31.466+02:00") == pendulum.parse("2022-05-10", exact=True)
+    assert coerce_value("date", "text", "2022-05-10T03:41:31.466+0200") == pendulum.parse("2022-05-10", exact=True)
+    # almost ISO compliant string
+    assert coerce_value("date", "text", "2022-04-26 10:36+02") == pendulum.parse("2022-04-26", exact=True)
+    assert coerce_value("date", "text", "2022-04-26 10:36") == pendulum.parse("2022-04-26", exact=True)
+
+        # iso time string fails
+    with pytest.raises(ValueError):
+        coerce_value("timestamp", "text", "03:41:31.466")
+
+    # time object fails
+    with pytest.raises(TypeError):
+        coerce_value("timestamp", "time", pendulum.Time(10, 36, 0, 0))
+
+
+def test_coerce_type_to_time() -> None:
+    # from ISO time string
+    assert coerce_value("time", "text", "03:41:31.466000") == pendulum.parse("03:41:31.466000", exact=True)
+    # time object returns same value
+    assert coerce_value("time", "time", pendulum.time(3, 41, 31, 466000)) == pendulum.time(3, 41, 31, 466000)
+    # from datetime object fails
+    with pytest.raises(TypeError):
+        coerce_value("time", "timestamp", pendulum.datetime(1995, 5, 6, 00, 1, 1, tz=UTC))
+
+    # from unix timestamp fails
+    with pytest.raises(TypeError):
+        assert coerce_value("time", "double", 1677546399.494264) == pendulum.parse("01:06:39.494264", exact=True)
+    with pytest.raises(ValueError):
+        assert coerce_value("time", "text", " 1677546399 ") == pendulum.parse("01:06:39", exact=True)
+    # ISO date string fails
+    with pytest.raises(ValueError):
+        assert coerce_value("time", "text", "2023-02-27") == pendulum.parse("00:00:00", exact=True)
+    # ISO datetime string fails
+    with pytest.raises(ValueError):
+        assert coerce_value("time", "text", "2022-05-10T03:41:31.466000+00:00")
 
 
 def test_coerce_type_to_binary() -> None:
     # from hex string
-    assert utils.coerce_type("binary", "text", "0x30") == b'0'
+    assert coerce_value("binary", "text", "0x30") == b'0'
     # from base64
-    assert utils.coerce_type("binary", "text", "YmluYXJ5IHN0cmluZw==") == b'binary string'
+    assert coerce_value("binary", "text", "YmluYXJ5IHN0cmluZw==") == b'binary string'
     # int into bytes
-    assert utils.coerce_type("binary", "bigint", 15) == b"\x0f"
+    assert coerce_value("binary", "bigint", 15) == b"\x0f"
     # can't into double
     with pytest.raises(ValueError):
-        utils.coerce_type("binary", "double", 912.12)
+        coerce_value("binary", "double", 912.12)
     # can't broken base64
     with pytest.raises(ValueError):
-        assert utils.coerce_type("binary", "text", "!YmluYXJ5IHN0cmluZw==")
+        assert coerce_value("binary", "text", "!YmluYXJ5IHN0cmluZw==")
 
 
 def test_py_type_to_sc_type() -> None:
-    assert utils.py_type_to_sc_type(bool) == "bool"
-    assert utils.py_type_to_sc_type(int) == "bigint"
-    assert utils.py_type_to_sc_type(float) == "double"
-    assert utils.py_type_to_sc_type(str) == "text"
-    # unknown types are recognized as text
-    assert utils.py_type_to_sc_type(Exception) == "text"
-    assert utils.py_type_to_sc_type(type(pendulum.now())) == "timestamp"
-    assert utils.py_type_to_sc_type(type(datetime.datetime(1988, 12, 1))) == "timestamp"
-    assert utils.py_type_to_sc_type(type(Decimal(1))) == "decimal"
-    assert utils.py_type_to_sc_type(type(HexBytes("0xFF"))) == "binary"
-    assert utils.py_type_to_sc_type(type(Wei.from_int256(2137, decimals=2))) == "wei"
+    assert py_type_to_sc_type(bool) == "bool"
+    assert py_type_to_sc_type(int) == "bigint"
+    assert py_type_to_sc_type(float) == "double"
+    assert py_type_to_sc_type(str) == "text"
+    assert py_type_to_sc_type(type(pendulum.now())) == "timestamp"
+    assert py_type_to_sc_type(type(datetime.datetime(1988, 12, 1))) == "timestamp"
+    assert py_type_to_sc_type(type(pendulum.date(2023, 2, 27))) == "date"
+    assert py_type_to_sc_type(type(datetime.date.today())) == "date"
+    assert py_type_to_sc_type(type(pendulum.time(1, 6, 39))) == "time"
+    assert py_type_to_sc_type(type(Decimal(1))) == "decimal"
+    assert py_type_to_sc_type(type(HexBytes("0xFF"))) == "binary"
+    assert py_type_to_sc_type(type(Wei.from_int256(2137, decimals=2))) == "wei"
+    # unknown types raise TypeException
+    with pytest.raises(TypeError):
+        py_type_to_sc_type(Any)  # type: ignore[arg-type]
+    # none type raises TypeException
+    with pytest.raises(TypeError):
+        py_type_to_sc_type(type(None))
+    # complex types
+    assert py_type_to_sc_type(list) == "complex"
+    # assert py_type_to_sc_type(set) == "complex"
+    assert py_type_to_sc_type(dict) == "complex"
+    assert py_type_to_sc_type(tuple) == "complex"
+    assert py_type_to_sc_type(Mapping) == "complex"
+    assert py_type_to_sc_type(MutableSequence) == "complex"
+
+    class IntEnum(int, Enum):
+        a = 1
+        b = 2
+
+    class StrEnum(str, Enum):
+        a = "a"
+        b = "b"
+
+    class MixedEnum(Enum):
+        a = 1
+        b = "b"
+
+    assert py_type_to_sc_type(IntEnum) == "bigint"
+    assert py_type_to_sc_type(StrEnum) == "text"
+    assert py_type_to_sc_type(MixedEnum) == "text"
 
 
 def test_coerce_type_complex() -> None:
     # dicts and lists should be coerced into strings automatically
     v_list = [1, 2, "3", {"complex": True}]
     v_dict = {"list": [1, 2], "str": "complex"}
-    assert utils.py_type_to_sc_type(type(v_list)) == "complex"
-    assert utils.py_type_to_sc_type(type(v_dict)) == "complex"
-    assert type(utils.coerce_type("complex", "complex", v_dict)) is str
-    assert type(utils.coerce_type("complex", "complex", v_list)) is str
-    assert utils.coerce_type("complex", "complex", v_dict) == json.dumps(v_dict)
-    assert utils.coerce_type("complex", "complex", v_list) == json.dumps(v_list)
-    assert utils.coerce_type("text", "complex", v_dict) == json.dumps(v_dict)
-    assert utils.coerce_type("text", "complex", v_list) == json.dumps(v_list)
+    assert py_type_to_sc_type(type(v_list)) == "complex"
+    assert py_type_to_sc_type(type(v_dict)) == "complex"
+    assert type(coerce_value("complex", "complex", v_dict)) is dict
+    assert type(coerce_value("complex", "complex", v_list)) is list
+    assert coerce_value("complex", "complex", v_dict) == v_dict
+    assert coerce_value("complex", "complex", v_list) == v_list
+    assert coerce_value("text", "complex", v_dict) == json.dumps(v_dict)
+    assert coerce_value("text", "complex", v_list) == json.dumps(v_list)
     # all other coercions fail
     with pytest.raises(ValueError):
-        utils.coerce_type("binary", "complex", v_list)
+        coerce_value("binary", "complex", v_list)
+
+
+def test_coerce_type_complex_with_pua() -> None:
+    v_dict = {"list": [1, Wei.from_int256(10**18), f"{_DATETIME}2022-05-10T01:41:31.466Z"], "str": "complex", "pua_date": f"{_DATETIME}2022-05-10T01:41:31.466Z"}
+    exp_v = {"list":[1, Wei.from_int256(10**18), "2022-05-10T01:41:31.466Z"],"str":"complex","pua_date":"2022-05-10T01:41:31.466Z"}
+    assert coerce_value("complex", "complex", copy(v_dict)) == exp_v
+    assert coerce_value("text", "complex", copy(v_dict)) == json.dumps(exp_v)
+    # also decode recursively
+    custom_pua_decode_nested(v_dict)
+    # restores datetime type
+    assert v_dict["pua_date"] == pendulum.parse("2022-05-10T01:41:31.466Z")

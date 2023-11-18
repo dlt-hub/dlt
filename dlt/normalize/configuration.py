@@ -1,26 +1,45 @@
-from typing import Type
+from typing import TYPE_CHECKING, Optional
 
-from dlt.common.typing import StrAny
-from dlt.common.dataset_writers import TLoaderFileFormat
-from dlt.common.configuration import (PoolRunnerConfiguration, NormalizeVolumeConfiguration,
-                                              LoadVolumeConfiguration, SchemaVolumeConfiguration,
-                                              ProductionLoadVolumeConfiguration, ProductionNormalizeVolumeConfiguration,
-                                              ProductionSchemaVolumeConfiguration,
-                                              TPoolType, make_configuration)
+from dlt.common.configuration import configspec
+from dlt.common.configuration.specs import BaseConfiguration
+from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
+from dlt.common.storages import LoadStorageConfiguration, NormalizeStorageConfiguration, SchemaStorageConfiguration
 
-from . import __version__
+@configspec
+class ItemsNormalizerConfiguration(BaseConfiguration):
+    add_dlt_id: bool = False
+    """When true, items to be normalized will have `_dlt_id` column added with a unique ID for each row."""
+    add_dlt_load_id: bool = False
+    """When true, items to be normalized will have `_dlt_load_id` column added with the current load ID."""
 
-
-class NormalizeConfiguration(PoolRunnerConfiguration, NormalizeVolumeConfiguration, LoadVolumeConfiguration, SchemaVolumeConfiguration):
-    MAX_EVENTS_IN_CHUNK: int = 40000  # maximum events to be processed in single chunk
-    LOADER_FILE_FORMAT: TLoaderFileFormat = "jsonl"  # jsonp or insert commands will be generated
-    POOL_TYPE: TPoolType = "process"
-
-
-class ProductionNormalizeConfiguration(ProductionNormalizeVolumeConfiguration, ProductionLoadVolumeConfiguration,
-                                      ProductionSchemaVolumeConfiguration, NormalizeConfiguration):
-    pass
+    if TYPE_CHECKING:
+        def __init__(self, add_dlt_id: bool = None, add_dlt_load_id: bool = None) -> None:
+            ...
 
 
-def configuration(initial_values: StrAny = None) -> Type[NormalizeConfiguration]:
-    return make_configuration(NormalizeConfiguration, ProductionNormalizeConfiguration, initial_values=initial_values)
+@configspec
+class NormalizeConfiguration(PoolRunnerConfiguration):
+    pool_type: TPoolType = "process"
+    destination_capabilities: DestinationCapabilitiesContext = None  # injectable
+    _schema_storage_config: SchemaStorageConfiguration
+    _normalize_storage_config: NormalizeStorageConfiguration
+    _load_storage_config: LoadStorageConfiguration
+
+    json_normalizer: ItemsNormalizerConfiguration = ItemsNormalizerConfiguration(add_dlt_id=True, add_dlt_load_id=True)
+
+    parquet_normalizer: ItemsNormalizerConfiguration = ItemsNormalizerConfiguration(add_dlt_id=False, add_dlt_load_id=False)
+
+    def on_resolved(self) -> None:
+        self.pool_type = "none" if self.workers == 1 else "process"
+
+    if TYPE_CHECKING:
+        def __init__(
+            self,
+            pool_type: TPoolType = "process",
+            workers: int = None,
+            _schema_storage_config: SchemaStorageConfiguration = None,
+            _normalize_storage_config: NormalizeStorageConfiguration = None,
+            _load_storage_config: LoadStorageConfiguration = None
+        ) -> None:
+            ...

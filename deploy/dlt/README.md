@@ -1,0 +1,1 @@
+Example `Dockerfile` that installs `dlt` package on an alpine linux image. For actual pipeline deployment please refer to [deploy a pipeline walkthrough](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-github-actions)

@@ -1,16 +1,18 @@
 import pytest
+import sqlfluff
 from copy import deepcopy
 
 from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
-from dlt.common.configuration import make_configuration, GcpClientCredentials
+from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
 
-from dlt.load.bigquery.client import BigQueryClient
-from dlt.load.exceptions import LoadClientSchemaWillNotUpdate
+from dlt.destinations.bigquery.bigquery import BigQueryClient
+from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
+from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 
 from tests.load.utils import TABLE_UPDATE
-
 
 @pytest.fixture
 def schema() -> Schema:
@@ -19,25 +21,30 @@ def schema() -> Schema:
 
 def test_configuration() -> None:
     # check names normalized
-    with custom_environ({"GCP__PRIVATE_KEY": "---NO NEWLINE---\n"}):
-        C = make_configuration(GcpClientCredentials, GcpClientCredentials)
-        assert C.PRIVATE_KEY == "---NO NEWLINE---\n"
+    with custom_environ({"CREDENTIALS__PRIVATE_KEY": "---NO NEWLINE---\n"}):
+        C = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())
+        assert C.private_key == "---NO NEWLINE---\n"
 
-    with custom_environ({"GCP__PRIVATE_KEY": "---WITH NEWLINE---\n"}):
-        C = make_configuration(GcpClientCredentials, GcpClientCredentials)
-        assert C.PRIVATE_KEY == "---WITH NEWLINE---\n"
+    with custom_environ({"CREDENTIALS__PRIVATE_KEY": "---WITH NEWLINE---\n"}):
+        C = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())
+        assert C.private_key == "---WITH NEWLINE---\n"
 
 
 @pytest.fixture
 def gcp_client(schema: Schema) -> BigQueryClient:
     # return client without opening connection
-    BigQueryClient.configure(initial_values={"DEFAULT_DATASET": uniq_id()})
-    return BigQueryClient(schema)
+    creds = GcpServiceAccountCredentialsWithoutDefaults()
+    creds.project_id = "test_project_id"
+    return BigQueryClient(
+        schema,
+        BigQueryClientConfiguration(dataset_name="test_" + uniq_id(), credentials=creds)  # type: ignore[arg-type]
+    )
 
 
 def test_create_table(gcp_client: BigQueryClient) -> None:
-    gcp_client.schema.update_schema(new_table("event_test_table", columns=TABLE_UPDATE))
-    sql = gcp_client._get_table_update_sql("event_test_table", {}, False)
+    # non existing table
+    sql = gcp_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)[0]
+    sqlfluff.parse(sql, dialect="bigquery")
     assert sql.startswith("CREATE TABLE")
     assert "event_test_table" in sql
     assert "`col1` INTEGER NOT NULL" in sql
@@ -48,16 +55,25 @@ def test_create_table(gcp_client: BigQueryClient) -> None:
     assert "`col6` NUMERIC(38,9) NOT NULL" in sql
     assert "`col7` BYTES" in sql
     assert "`col8` BIGNUMERIC" in sql
-    assert "`col9` STRING NOT NULL)" in sql
+    assert "`col9` JSON NOT NULL" in sql
+    assert "`col10` DATE" in sql
+    assert "`col11` TIME" in sql
+    assert "`col1_precision` INTEGER NOT NULL" in sql
+    assert "`col4_precision` TIMESTAMP NOT NULL" in sql
+    assert "`col5_precision` STRING(25) " in sql
+    assert "`col6_precision` NUMERIC(6,2) NOT NULL" in sql
+    assert "`col7_precision` BYTES(19)" in sql
+    assert "`col11_precision` TIME NOT NULL" in sql
     assert "CLUSTER BY" not in sql
     assert "PARTITION BY" not in sql
 
 
 def test_alter_table(gcp_client: BigQueryClient) -> None:
-    gcp_client.schema.update_schema(new_table("event_test_table", columns=TABLE_UPDATE))
-    # table has no columns
-    sql = gcp_client._get_table_update_sql("event_test_table", {}, True)
+    # existing table has no columns
+    sql = gcp_client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)[0]
+    sqlfluff.parse(sql, dialect="bigquery")
     assert sql.startswith("ALTER TABLE")
+    assert sql.count("ALTER TABLE") == 1
     assert "event_test_table" in sql
     assert "ADD COLUMN `col1` INTEGER NOT NULL" in sql
     assert "ADD COLUMN `col2` FLOAT64 NOT NULL" in sql
@@ -67,9 +83,19 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
     assert "ADD COLUMN `col6` NUMERIC(38,9) NOT NULL" in sql
     assert "ADD COLUMN `col7` BYTES" in sql
     assert "ADD COLUMN `col8` BIGNUMERIC" in sql
-    assert "ADD COLUMN `col9` STRING NOT NULL" in sql
+    assert "ADD COLUMN `col9` JSON NOT NULL" in sql
+    assert "ADD COLUMN `col10` DATE" in sql
+    assert "ADD COLUMN `col11` TIME" in sql
+    assert "ADD COLUMN `col1_precision` INTEGER NOT NULL" in sql
+    assert "ADD COLUMN `col4_precision` TIMESTAMP NOT NULL" in sql
+    assert "ADD COLUMN `col5_precision` STRING(25)" in sql
+    assert "ADD COLUMN `col6_precision` NUMERIC(6,2) NOT NULL" in sql
+    assert "ADD COLUMN `col7_precision` BYTES(19)" in sql
+    assert "ADD COLUMN `col11_precision` TIME NOT NULL" in sql
     # table has col1 already in storage
-    sql = gcp_client._get_table_update_sql("event_test_table", {"col1": {}}, True)
+    mod_table = deepcopy(TABLE_UPDATE)
+    mod_table.pop(0)
+    sql = gcp_client._get_table_update_sql("event_test_table", mod_table, True)[0]
     assert "ADD COLUMN `col1` INTEGER NOT NULL" not in sql
     assert "ADD COLUMN `col2` FLOAT64 NOT NULL" in sql
 
@@ -80,8 +106,8 @@ def test_create_table_with_partition_and_cluster(gcp_client: BigQueryClient) -> 
     mod_update[3]["partition"] = True
     mod_update[4]["cluster"] = True
     mod_update[1]["cluster"] = True
-    gcp_client.schema.update_schema(new_table("event_test_table", columns=mod_update))
-    sql = gcp_client._get_table_update_sql("event_test_table", {}, False)
+    sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
+    sqlfluff.parse(sql, dialect="bigquery")
     # clustering must be the last
     assert sql.endswith("CLUSTER BY `col2`,`col5`")
     assert "PARTITION BY DATE(`col4`)" in sql
@@ -93,29 +119,6 @@ def test_double_partition_exception(gcp_client: BigQueryClient) -> None:
     mod_update[3]["partition"] = True
     mod_update[4]["partition"] = True
     # double partition
-    gcp_client.schema.update_schema(new_table("event_test_table", columns=mod_update))
-    with pytest.raises(LoadClientSchemaWillNotUpdate) as excc:
-        gcp_client._get_table_update_sql("event_test_table", {}, False)
+    with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
+        gcp_client._get_table_update_sql("event_test_table", mod_update, False)
     assert excc.value.columns == ["`col4`", "`col5`"]
-
-
-def test_partition_alter_table_exception(gcp_client: BigQueryClient) -> None:
-    mod_update = deepcopy(TABLE_UPDATE)
-    # timestamp
-    mod_update[3]["partition"] = True
-    # double partition
-    gcp_client.schema.update_schema(new_table("event_test_table", columns=mod_update))
-    with pytest.raises(LoadClientSchemaWillNotUpdate) as excc:
-        gcp_client._get_table_update_sql("event_test_table", {}, True)
-    assert excc.value.columns == ["`col4`"]
-
-
-def test_cluster_alter_table_exception(gcp_client: BigQueryClient) -> None:
-    mod_update = deepcopy(TABLE_UPDATE)
-    # timestamp
-    mod_update[3]["cluster"] = True
-    # double partition
-    gcp_client.schema.update_schema(new_table("event_test_table", columns=mod_update))
-    with pytest.raises(LoadClientSchemaWillNotUpdate) as excc:
-        gcp_client._get_table_update_sql("event_test_table", {}, True)
-    assert excc.value.columns == ["`col4`"]

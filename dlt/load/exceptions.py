@@ -1,73 +1,30 @@
 from typing import Sequence
-from dlt.common.exceptions import DltException, TerminalException, TransientException
-
-from dlt.load.typing import LoadJobStatus
+from dlt.destinations.exceptions import DestinationTerminalException, DestinationTransientException
 
 
-class LoadException(DltException):
-    def __init__(self, msg: str) -> None:
-        super().__init__(msg)
+# class LoadException(DltException):
+#     def __init__(self, msg: str) -> None:
+#         super().__init__(msg)
 
 
-class LoadClientTerminalException(LoadException, TerminalException):
-    def __init__(self, msg: str) -> None:
-        super().__init__(msg)
+class LoadClientJobFailed(DestinationTerminalException):
+    def __init__(self, load_id: str, job_id: str, failed_message: str) -> None:
+        self.load_id = load_id
+        self.job_id = job_id
+        self.failed_message = failed_message
+        super().__init__(f"Job for {job_id} failed terminally in load {load_id} with message {failed_message}. The package is aborted and cannot be retried.")
 
 
-class LoadClientTransientException(LoadException, TransientException):
-    def __init__(self, msg: str) -> None:
-        super().__init__(msg)
+class LoadClientJobRetry(DestinationTransientException):
+    def __init__(self, load_id: str, job_id: str, retry_count: int, max_retry_count: int) -> None:
+        self.load_id = load_id
+        self.job_id = job_id
+        self.retry_count = retry_count
+        self.max_retry_count = max_retry_count
+        super().__init__(f"Job for {job_id} had {retry_count} retries which a multiple of {max_retry_count}. Exiting retry loop. You can still rerun the load package to retry this job.")
 
 
-class LoadClientTerminalInnerException(LoadClientTerminalException):
-    def __init__(self, msg: str, inner_exc: Exception) -> None:
-        self.inner_exc = inner_exc
-        super().__init__(msg)
-
-
-class LoadClientTransientInnerException(LoadClientTransientException):
-    def __init__(self, msg: str, inner_exc: Exception) -> None:
-        self.inner_exc = inner_exc
-        super().__init__(msg)
-
-
-
-class LoadJobNotExistsException(LoadClientTerminalException):
-    def __init__(self, job_id: str) -> None:
-        super().__init__(f"Job with id/file name {job_id} not found")
-
-
-class LoadUnknownTableException(LoadClientTerminalException):
-    def __init__(self, table_name: str, file_name: str) -> None:
-        self.table_name = table_name
-        super().__init__(f"Client does not know table {table_name} for load file {file_name}")
-
-
-class LoadJobInvalidStateTransitionException(LoadClientTerminalException):
-    def __init__(self, from_state: LoadJobStatus, to_state: LoadJobStatus) -> None:
-        self.from_state = from_state
-        self.to_state = to_state
-        super().__init__(f"Load job cannot transition form {from_state} to {to_state}")
-
-class LoadJobServerTerminalException(LoadClientTerminalException):
-    def __init__(self, file_path: str) -> None:
-        super().__init__(f"Job with id/file name {file_path} encountered unrecoverable problem")
-
-
-class LoadClientSchemaVersionCorrupted(LoadClientTerminalException):
-    def __init__(self, dataset_name: str) -> None:
-        self.dataset_name = dataset_name
-        super().__init__(f"Schema _version table contains too many rows in {dataset_name}")
-
-
-class LoadClientSchemaWillNotUpdate(LoadClientTerminalException):
-    def __init__(self, table_name: str, columns: Sequence[str], msg: str) -> None:
-        self.table_name = table_name
-        self.columns = columns
-        super().__init__(f"Schema for table {table_name} column(s) {columns} will not update: {msg}")
-
-
-class LoadClientUnsupportedFileFormats(LoadClientTerminalException):
+class LoadClientUnsupportedFileFormats(DestinationTerminalException):
     def __init__(self, file_format: str, supported_file_format: Sequence[str], file_path: str) -> None:
         self.file_format = file_format
         self.supported_types = supported_file_format
@@ -75,14 +32,9 @@ class LoadClientUnsupportedFileFormats(LoadClientTerminalException):
         super().__init__(f"Loader does not support writer {file_format} in  file {file_path}. Supported writers: {supported_file_format}")
 
 
-class LoadClientUnsupportedWriteDisposition(LoadClientTerminalException):
+class LoadClientUnsupportedWriteDisposition(DestinationTerminalException):
     def __init__(self, table_name: str, write_disposition: str, file_name: str) -> None:
         self.table_name = table_name
         self.write_disposition = write_disposition
         self.file_name = file_name
         super().__init__(f"Loader does not support {write_disposition} in table {table_name} when loading file {file_name}")
-
-
-class LoadFileTooBig(LoadClientTerminalException):
-    def __init__(self, file_name: str, max_size: int) -> None:
-        super().__init__(f"File {file_name} exceedes {max_size} and cannot be loaded. Split the file and try again.")

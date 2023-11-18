@@ -19,7 +19,7 @@ while IFS= read -r d; do
       error="yes"
     fi
   fi
-done < <(find . -mindepth 1  -type d -regex "^./[^.^_].*" '!' -exec test -e "{}/__init__.py" ';' -print)
+done < <(find . -mindepth 1 -not -path "./docs/website/node_modules*" -type d -regex "^./[^.^_].*" '!' -exec test -e "{}/__init__.py" ';' -print)
 
 if [ -z $error ]; then
   exit 0

@@ -4,51 +4,55 @@ import pytest
 import yaml
 from dlt.common import json
 
-from dlt.common.configuration import make_configuration
-from dlt.common.file_storage import FileStorage
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TStoredSchema
-from dlt.common.schema.utils import default_normalizers
-from dlt.common.configuration import SchemaVolumeConfiguration
-from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFoundError
-from dlt.common.storages import SchemaStorage, LiveSchemaStorage
-from dlt.common.typing import DictStrAny
+from dlt.common.schema.utils import explicit_normalizers
+from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFoundError, UnexpectedSchemaName
+from dlt.common.storages import SchemaStorageConfiguration, SchemaStorage, LiveSchemaStorage, FileStorage
 
-from tests.utils import autouse_root_storage, TEST_STORAGE
-from tests.common.utils import load_yml_case, yml_case_path
+from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
+from tests.common.utils import load_yml_case, yml_case_path, COMMON_TEST_CASES_PATH, IMPORTED_VERSION_HASH_ETH_V6
 
 
 @pytest.fixture
 def storage() -> SchemaStorage:
-    return init_storage()
+    return init_storage(SchemaStorageConfiguration())
 
 
 @pytest.fixture
 def synced_storage() -> SchemaStorage:
     # will be created in /schemas
-    return init_storage({"IMPORT_SCHEMA_PATH": TEST_STORAGE + "/import", "EXPORT_SCHEMA_PATH": TEST_STORAGE + "/import"})
+    return init_storage(SchemaStorageConfiguration(import_schema_path=TEST_STORAGE_ROOT + "/import", export_schema_path=TEST_STORAGE_ROOT + "/import"))
 
 
 @pytest.fixture
 def ie_storage() -> SchemaStorage:
     # will be created in /schemas
-    return init_storage({"IMPORT_SCHEMA_PATH": TEST_STORAGE + "/import", "EXPORT_SCHEMA_PATH": TEST_STORAGE + "/export"})
+    return init_storage(SchemaStorageConfiguration(import_schema_path=TEST_STORAGE_ROOT + "/import", export_schema_path=TEST_STORAGE_ROOT + "/export"))
 
 
-def init_storage(initial: DictStrAny = None) -> SchemaStorage:
-    C = make_configuration(SchemaVolumeConfiguration, SchemaVolumeConfiguration, initial_values=initial)
+def init_storage(C: SchemaStorageConfiguration) -> SchemaStorage:
     # use live schema storage for test which must be backward compatible with schema storage
     s = LiveSchemaStorage(C, makedirs=True)
-    if C.EXPORT_SCHEMA_PATH:
-        os.makedirs(C.EXPORT_SCHEMA_PATH, exist_ok=True)
-    if C.IMPORT_SCHEMA_PATH:
-        os.makedirs(C.IMPORT_SCHEMA_PATH, exist_ok=True)
+    assert C is s.config
+    if C.export_schema_path:
+        os.makedirs(C.export_schema_path, exist_ok=True)
+    if C.import_schema_path:
+        os.makedirs(C.import_schema_path, exist_ok=True)
     return s
 
 
 def test_load_non_existing(storage: SchemaStorage) -> None:
     with pytest.raises(SchemaNotFoundError):
         storage.load_schema("nonexisting")
+
+
+def test_load_schema_with_upgrade() -> None:
+    # point the storage root to v4 schema google_spreadsheet_v3.schema
+    storage = LiveSchemaStorage(SchemaStorageConfiguration(COMMON_TEST_CASES_PATH + "schemas/sheets"))
+    # the hash when computed on the schema does not match the version_hash in the file so it should raise InStorageSchemaModified
+    # but because the version upgrade is required, the check is skipped and the load succeeds
+    storage.load_schema("google_spreadsheet_v4")
 
 
 def test_import_non_existing(synced_storage: SchemaStorage) -> None:
@@ -74,7 +78,7 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     # evolve schema
     row = {"floatX": 78172.128, "confidenceX": 1.2, "strX": "STR"}
     _, new_table = storage_schema.coerce_row("event_user", None, row)
-    storage_schema.update_schema(new_table)
+    storage_schema.update_table(new_table)
     storage.save_schema(storage_schema)
     # now use synced storage to load schema again
     reloaded_schema = synced_storage.load_schema("ethereum")
@@ -86,7 +90,7 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     # the import schema gets modified
     storage_schema.tables["_dlt_loads"]["write_disposition"] = "append"
     storage_schema.tables.pop("event_user")
-    synced_storage._export_schema(storage_schema, synced_storage.C.EXPORT_SCHEMA_PATH)
+    synced_storage._export_schema(storage_schema, synced_storage.config.export_schema_path)
     # now load will import again
     reloaded_schema = synced_storage.load_schema("ethereum")
     # we have overwritten storage schema
@@ -113,7 +117,7 @@ def test_store_schema_tampered(synced_storage: SchemaStorage, storage: SchemaSto
 def test_schema_export(ie_storage: SchemaStorage) -> None:
     schema = Schema("ethereum")
 
-    fs = FileStorage(ie_storage.C.EXPORT_SCHEMA_PATH)
+    fs = FileStorage(ie_storage.config.export_schema_path)
     exported_name = ie_storage._file_name_in_store("ethereum", "yaml")
     # no exported schema
     assert not fs.has_file(exported_name)
@@ -135,6 +139,10 @@ def test_list_schemas(storage: SchemaStorage) -> None:
     assert set(storage.list_schemas()) == set(["ethereum", "event"])
     storage.remove_schema("event")
     assert storage.list_schemas() == ["ethereum"]
+    # add schema with _ in the name
+    schema = Schema("dlt_pipeline")
+    storage.save_schema(schema)
+    assert set(storage.list_schemas()) == set(["ethereum", "dlt_pipeline"])
 
 
 def test_remove_schema(storage: SchemaStorage) -> None:
@@ -186,13 +194,14 @@ def test_save_store_schema_over_import(ie_storage: SchemaStorage) -> None:
     ie_storage.save_schema(schema)
     assert schema.version_hash == schema_hash
     # we linked schema to import schema
-    assert schema._imported_version_hash == "njJAySgJRs2TqGWgQXhP+3pCh1A1hXcqe77BpM7JtOU="
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V6
     # load schema and make sure our new schema is here
     schema = ie_storage.load_schema("ethereum")
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V6
+    assert schema._stored_version_hash == schema_hash
     assert schema.version_hash == schema_hash
-    assert schema._imported_version_hash == "njJAySgJRs2TqGWgQXhP+3pCh1A1hXcqe77BpM7JtOU="
     # we have simple schema in export folder
-    fs = FileStorage(ie_storage.C.EXPORT_SCHEMA_PATH)
+    fs = FileStorage(ie_storage.config.export_schema_path)
     exported_name = ie_storage._file_name_in_store("ethereum", "yaml")
     exported_schema = yaml.safe_load(fs.load(exported_name))
     assert schema.version_hash == exported_schema["version_hash"]
@@ -204,9 +213,9 @@ def test_save_store_schema_over_import_sync(synced_storage: SchemaStorage) -> No
     schema = Schema("ethereum")
     schema_hash = schema.version_hash
     synced_storage.save_schema(schema)
-    assert schema._imported_version_hash == "njJAySgJRs2TqGWgQXhP+3pCh1A1hXcqe77BpM7JtOU="
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V6
     # import schema is overwritten
-    fs = FileStorage(synced_storage.C.IMPORT_SCHEMA_PATH)
+    fs = FileStorage(synced_storage.config.import_schema_path)
     exported_name = synced_storage._file_name_in_store("ethereum", "yaml")
     exported_schema = yaml.safe_load(fs.load(exported_name))
     assert schema.version_hash == exported_schema["version_hash"] == schema_hash
@@ -222,14 +231,32 @@ def test_save_store_schema_over_import_sync(synced_storage: SchemaStorage) -> No
 
 
 def test_save_store_schema(storage: SchemaStorage) -> None:
-    d_n = default_normalizers()
-    d_n["names"] = "tests.common.schema.custom_normalizers"
-    schema = Schema("event", normalizers=d_n)
+    d_n = explicit_normalizers()
+    d_n["names"] = "tests.common.normalizers.custom_normalizers"
+    schema = Schema("column_event", normalizers=d_n)
     storage.save_schema(schema)
-    assert storage.storage.has_file(SchemaStorage.NAMED_SCHEMA_FILE_PATTERN % ("event", "json"))
-    loaded_schema = storage.load_schema("event")
-    assert loaded_schema.to_dict()["tables"]["_dlt_loads"] == schema.to_dict()["tables"]["_dlt_loads"]
+    assert storage.storage.has_file(SchemaStorage.NAMED_SCHEMA_FILE_PATTERN % ("column_event", "json"))
+    loaded_schema = storage.load_schema("column_event")
+    # also tables gets normalized inside so custom_ is added
+    assert loaded_schema.to_dict()["tables"]["column__dlt_loads"] == schema.to_dict()["tables"]["column__dlt_loads"]
     assert loaded_schema.to_dict() == schema.to_dict()
+
+
+def test_schema_from_file() -> None:
+    # json has precedence
+    schema = SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "event")
+    assert schema.name == "event"
+
+    schema = SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "event", extensions=("yaml",))
+    assert schema.name == "event"
+    assert "blocks" in schema.tables
+
+    with pytest.raises(SchemaNotFoundError):
+        SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "eth", extensions=("yaml",))
+
+    # file name and schema content mismatch
+    with pytest.raises(UnexpectedSchemaName):
+        SchemaStorage.load_schema_file(os.path.join(COMMON_TEST_CASES_PATH, "schemas/local"), "name_mismatch", extensions=("yaml",))
 
 
 # def test_save_empty_schema_name(storage: SchemaStorage) -> None:
@@ -242,18 +269,18 @@ def test_save_store_schema(storage: SchemaStorage) -> None:
 
 
 def prepare_import_folder(storage: SchemaStorage) -> None:
-    shutil.copy(yml_case_path("schemas/eth/ethereum_schema_v4"), storage.storage._make_path("../import/ethereum_schema.yaml"))
+    shutil.copy(yml_case_path("schemas/eth/ethereum_schema_v6"), os.path.join(storage.storage.storage_path, "../import/ethereum.schema.yaml"))
 
 
 def assert_schema_imported(synced_storage: SchemaStorage, storage: SchemaStorage) -> Schema:
     prepare_import_folder(synced_storage)
-    eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v4")
+    eth_v6: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v6")
     schema = synced_storage.load_schema("ethereum")
     # is linked to imported schema
-    schema._imported_version_hash = eth_v4["version_hash"]
+    schema._imported_version_hash = eth_v6["version_hash"]
     # also was saved in storage
     assert synced_storage.has_schema("ethereum")
     # and has link to imported schema s well (load without import)
     schema = storage.load_schema("ethereum")
-    assert schema._imported_version_hash == eth_v4["version_hash"]
+    assert schema._imported_version_hash == eth_v6["version_hash"]
     return schema

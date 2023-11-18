@@ -2,7 +2,7 @@ import semver
 from typing import Iterable
 
 from dlt.common.exceptions import DltException
-from dlt.common.dataset_writers import TLoaderFileFormat
+from dlt.common.data_writers import TLoaderFileFormat
 
 
 class StorageException(DltException):
@@ -27,15 +27,22 @@ class WrongStorageVersionException(StorageException):
         super().__init__(f"Expected storage {storage_path} with v {target_version} but found {initial_version}")
 
 
-class LoaderStorageException(StorageException):
+class LoadStorageException(StorageException):
     pass
 
 
-class JobWithUnsupportedWriterException(LoaderStorageException):
-    def __init__(self, load_id: str, expected_file_format: Iterable[TLoaderFileFormat], wrong_job: str) -> None:
+class JobWithUnsupportedWriterException(LoadStorageException):
+    def __init__(self, load_id: str, expected_file_formats: Iterable[TLoaderFileFormat], wrong_job: str) -> None:
         self.load_id = load_id
-        self.expected_file_format = expected_file_format
+        self.expected_file_formats = expected_file_formats
         self.wrong_job = wrong_job
+        super().__init__(f"Job {wrong_job} for load id {load_id} requires loader file format that is not one of {expected_file_formats}")
+
+
+class LoadPackageNotFound(LoadStorageException, FileNotFoundError):
+    def __init__(self, load_id: str) -> None:
+        self.load_id = load_id
+        super().__init__(f"Package with load id {load_id} could not be found")
 
 
 class SchemaStorageException(StorageException):
@@ -44,7 +51,7 @@ class SchemaStorageException(StorageException):
 
 class InStorageSchemaModified(SchemaStorageException):
     def __init__(self, schema_name: str, storage_path: str) -> None:
-        msg = f"Schema {schema_name} in {storage_path} was externally modified. This is not allowed as that would prevent correct version tracking. Use import/export capabilities of DLT to provide external changes."
+        msg = f"Schema {schema_name} in {storage_path} was externally modified. This is not allowed as that would prevent correct version tracking. Use import/export capabilities of dlt to provide external changes."
         super().__init__(msg)
 
 
@@ -54,3 +61,8 @@ class SchemaNotFoundError(SchemaStorageException, FileNotFoundError, KeyError):
         if import_path:
             msg += f"Import from {import_path} and format {import_format} failed."
         super().__init__(msg)
+
+
+class UnexpectedSchemaName(SchemaStorageException, ValueError):
+    def __init__(self, schema_name: str, storage_path: str, stored_name: str) -> None:
+        super().__init__(f"A schema file name '{schema_name}' in {storage_path} does not correspond to the name of schema in the file {stored_name}")

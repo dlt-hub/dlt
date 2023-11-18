@@ -1,22 +1,31 @@
-from typing import List, Sequence, Tuple, Type
+from typing import ClassVar, Sequence, NamedTuple, Union
 from itertools import groupby
 from pathlib import Path
 
-from dlt.common.utils import chunks
-from dlt.common.file_storage import FileStorage
-from dlt.common.configuration import NormalizeVolumeConfiguration
+from dlt.common.configuration import with_config, known_sections
+from dlt.common.configuration.accessors import config
+from dlt.common.storages.file_storage import FileStorage
+from dlt.common.storages.configuration import NormalizeStorageConfiguration
 from dlt.common.storages.versioned_storage import VersionedStorage
+from dlt.common.destination import TLoaderFileFormat, ALL_SUPPORTED_FILE_FORMATS
+from dlt.common.exceptions import TerminalValueError
+
+class TParsedNormalizeFileName(NamedTuple):
+    schema_name: str
+    table_name: str
+    file_id: str
+    file_format: TLoaderFileFormat
 
 
 class NormalizeStorage(VersionedStorage):
 
-    STORAGE_VERSION = "1.0.0"
-    EXTRACTED_FOLDER: str = "extracted"  # folder within the volume where extracted files to be normalized are stored
-    EXTRACTED_FILE_EXTENSION = ".extracted.json"
-    EXTRACTED_FILE_EXTENSION_LEN = len(EXTRACTED_FILE_EXTENSION)
+    STORAGE_VERSION: ClassVar[str] = "1.0.0"
+    EXTRACTED_FOLDER: ClassVar[str] = "extracted"  # folder within the volume where extracted files to be normalized are stored
 
-    def __init__(self, is_owner: bool, C: Type[NormalizeVolumeConfiguration]) -> None:
-        super().__init__(NormalizeStorage.STORAGE_VERSION, is_owner, FileStorage(C.NORMALIZE_VOLUME_PATH, "t", makedirs=is_owner))
+    @with_config(spec=NormalizeStorageConfiguration, sections=(known_sections.NORMALIZE,))
+    def __init__(self, is_owner: bool, config: NormalizeStorageConfiguration = config.value) -> None:
+        super().__init__(NormalizeStorage.STORAGE_VERSION, is_owner, FileStorage(config.normalize_volume_path, "t", makedirs=is_owner))
+        self.config = config
         if is_owner:
             self.initialize_storage()
 
@@ -26,50 +35,28 @@ class NormalizeStorage(VersionedStorage):
     def list_files_to_normalize_sorted(self) -> Sequence[str]:
         return sorted(self.storage.list_folder_files(NormalizeStorage.EXTRACTED_FOLDER))
 
-    def get_grouped_iterator(self, files: Sequence[str]) -> "groupby[str, str]":
-        return groupby(files, lambda f: NormalizeStorage.get_schema_name(f))
-
-    @staticmethod
-    def chunk_by_events(files: Sequence[str], max_events: int, processing_cores: int) -> List[Sequence[str]]:
-        # should distribute ~ N events evenly among m cores with fallback for small amounts of events
-
-        def count_events(file_name : str) -> int:
-            # return event count from file name
-            return NormalizeStorage.get_events_count(file_name)
-
-        counts = list(map(count_events, files))
-        # make a list of files containing ~max_events
-        events_count = 0
-        m = 0
-        while events_count < max_events and m < len(files):
-            events_count += counts[m]
-            m += 1
-        processing_chunks = round(m / processing_cores)
-        if processing_chunks == 0:
-            # return one small chunk
-            return [files]
-        else:
-            # should return ~ amount of chunks to fill all the cores
-            return list(chunks(files[:m], processing_chunks))
-
-    @staticmethod
-    def get_events_count(file_name: str) -> int:
-        return NormalizeStorage._parse_extracted_file_name(file_name)[0]
+    def group_by_schema(self, files: Sequence[str]) -> "groupby[str, str]":
+        return groupby(files, NormalizeStorage.get_schema_name)
 
     @staticmethod
     def get_schema_name(file_name: str) -> str:
-        return NormalizeStorage._parse_extracted_file_name(file_name)[2]
+        return NormalizeStorage.parse_normalize_file_name(file_name).schema_name
 
     @staticmethod
-    def build_extracted_file_name(schema_name: str, stem: str, event_count: int, load_id: str) -> str:
+    def build_extracted_file_stem(schema_name: str, table_name: str, file_id: str) -> str:
         # builds file name with the extracted data to be passed to normalize
-        return f"{schema_name}_{stem}_{load_id}_{event_count}{NormalizeStorage.EXTRACTED_FILE_EXTENSION}"
+        return f"{schema_name}.{table_name}.{file_id}"
 
     @staticmethod
-    def _parse_extracted_file_name(file_name: str) -> Tuple[int, str, str]:
+    def parse_normalize_file_name(file_name: str) -> TParsedNormalizeFileName:
         # parse extracted file name and returns (events found, load id, schema_name)
-        if not file_name.endswith(NormalizeStorage.EXTRACTED_FILE_EXTENSION):
-            raise ValueError(file_name)
+        file_name_p: Path = Path(file_name)
+        parts = file_name_p.name.split(".")
+        ext = parts[-1]
+        if ext not in ALL_SUPPORTED_FILE_FORMATS:
+            raise TerminalValueError(f"File format {ext} not supported. Filename: {file_name}")
+        return TParsedNormalizeFileName(*parts)  # type: ignore[arg-type]
 
-        parts = Path(file_name[:-NormalizeStorage.EXTRACTED_FILE_EXTENSION_LEN]).stem.split("_")
-        return (int(parts[-1]), parts[-2], parts[0])
+    def delete_extracted_files(self, files: Sequence[str]) -> None:
+        for file_name in files:
+            self.storage.delete(file_name)

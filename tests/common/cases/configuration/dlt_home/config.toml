@@ -1,0 +1,7 @@
+[runtime]
+# disable telemetry
+dlthub_telemetry=false
+
+[api.params]
+param1="GLOBAL"
+param_global="G"

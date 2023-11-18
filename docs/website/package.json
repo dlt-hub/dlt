@@ -1,0 +1,50 @@
+{
+  "name": "dlt-docs",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "docusaurus": "docusaurus",
+    "start": "PYTHONPATH=. poetry run pydoc-markdown && node tools/update_snippets.js && docusaurus start",
+    "watch-snippets": "node tools/update_snippets.js --watch",
+    "build": "PYTHONPATH=. poetry run pydoc-markdown && node tools/update_snippets.js && docusaurus build",
+    "build:netlify": "PYTHONPATH=. pydoc-markdown && node tools/update_snippets.js && docusaurus build --out-dir build/docs",
+    "swizzle": "docusaurus swizzle",
+    "clear": "docusaurus clear",
+    "serve": "docusaurus serve",
+    "write-translations": "docusaurus write-translations",
+    "write-heading-ids": "docusaurus write-heading-ids",
+    "update-snippets": "node tools/update_snippets.js"
+  },
+  "dependencies": {
+    "@docusaurus/core": "2.4.1",
+    "@docusaurus/preset-classic": "2.4.1",
+    "@mdx-js/react": "^1.6.22",
+    "clsx": "^1.2.1",
+    "dedent": "^1.5.1",
+    "node-watch": "^0.7.4",
+    "prism-react-renderer": "^1.3.5",
+    "raw-loader": "^4.0.2",
+    "react": "^17.0.2",
+    "react-dom": "^17.0.2",
+    "react-twitter-embed": "^4.0.4",
+    "string-dedent": "^3.0.1"
+  },
+  "devDependencies": {
+    "@docusaurus/module-type-aliases": "2.4.1"
+  },
+  "browserslist": {
+    "production": [
+      ">0.5%",
+      "not dead",
+      "not op_mini all"
+    ],
+    "development": [
+      "last 1 chrome version",
+      "last 1 firefox version",
+      "last 1 safari version"
+    ]
+  },
+  "engines": {
+    "node": ">=16.14"
+  }
+}

@@ -1,0 +1,3266 @@
+{
+  "tables": {
+    "_dlt_version": {
+      "version": {
+        "name": "version",
+        "data_type": "bigint",
+        "nullable": false
+      },
+      "engine_version": {
+        "name": "engine_version",
+        "data_type": "bigint",
+        "nullable": false
+      },
+      "inserted_at": {
+        "name": "inserted_at",
+        "data_type": "timestamp",
+        "nullable": false
+      }
+    },
+    "_dlt_loads": {
+      "load_id": {
+        "name": "load_id",
+        "data_type": "text",
+        "nullable": false
+      },
+      "status": {
+        "name": "status",
+        "data_type": "bigint",
+        "nullable": false
+      },
+      "inserted_at": {
+        "name": "inserted_at",
+        "data_type": "timestamp",
+        "nullable": false
+      }
+    },
+    "event": {
+      "sender_id": {
+        "name": "sender_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "model_id": {
+        "name": "model_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "environment": {
+        "name": "environment",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "timestamp": {
+        "name": "timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "name": {
+        "name": "name",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "event_type": {
+        "name": "event_type",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_slot": {
+      "event": {
+        "name": "event",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "timestamp": {
+        "name": "timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_flagged": {
+        "name": "metadata__rasa_x_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_id": {
+        "name": "metadata__rasa_x_id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "name": {
+        "name": "name",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "value__user_id": {
+        "name": "value__user_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "value__mitter_id": {
+        "name": "value__mitter_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "is_flagged": {
+        "name": "is_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "sender_id": {
+        "name": "sender_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "model_id": {
+        "name": "model_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "environment": {
+        "name": "environment",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "value": {
+        "name": "value",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_action": {
+      "event": {
+        "name": "event",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "timestamp": {
+        "name": "timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_flagged": {
+        "name": "metadata__rasa_x_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_id": {
+        "name": "metadata__rasa_x_id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "name": {
+        "name": "name",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "confidence": {
+        "name": "confidence",
+        "data_type": "double",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "hide_rule_turn": {
+        "name": "hide_rule_turn",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "is_flagged": {
+        "name": "is_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "sender_id": {
+        "name": "sender_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "model_id": {
+        "name": "model_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "environment": {
+        "name": "environment",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "policy": {
+        "name": "policy",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_session_started": {
+      "event": {
+        "name": "event",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "timestamp": {
+        "name": "timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_flagged": {
+        "name": "metadata__rasa_x_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_id": {
+        "name": "metadata__rasa_x_id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "is_flagged": {
+        "name": "is_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "sender_id": {
+        "name": "sender_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "model_id": {
+        "name": "model_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "environment": {
+        "name": "environment",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      }
+    },
+    "event_user__parse_data__intent_ranking": {
+      "name": {
+        "name": "name",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "confidence": {
+        "name": "confidence",
+        "data_type": "double",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "id": {
+        "name": "id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_user": {
+      "event": {
+        "name": "event",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "timestamp": {
+        "name": "timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__user_id": {
+        "name": "metadata__user_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__mitter_id": {
+        "name": "metadata__mitter_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_flagged": {
+        "name": "metadata__rasa_x_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_id": {
+        "name": "metadata__rasa_x_id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "text": {
+        "name": "text",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__intent__name": {
+        "name": "parse_data__intent__name",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__intent__confidence": {
+        "name": "parse_data__intent__confidence",
+        "data_type": "double",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__text": {
+        "name": "parse_data__text",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__message_id": {
+        "name": "parse_data__message_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__metadata__user_id": {
+        "name": "parse_data__metadata__user_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__metadata__mitter_id": {
+        "name": "parse_data__metadata__mitter_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "input_channel": {
+        "name": "input_channel",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "message_id": {
+        "name": "message_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "is_flagged": {
+        "name": "is_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "sender_id": {
+        "name": "sender_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "model_id": {
+        "name": "model_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "environment": {
+        "name": "environment",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "parse_data__intent__id": {
+        "name": "parse_data__intent__id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__faq__response__id": {
+        "name": "parse_data__response_selector__faq__response__id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__faq__response__confidence": {
+        "name": "parse_data__response_selector__faq__response__confidence",
+        "data_type": "double",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__faq__response__intent_response_key": {
+        "name": "parse_data__response_selector__faq__response__intent_response_key",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__faq__response__utter_action": {
+        "name": "parse_data__response_selector__faq__response__utter_action",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__faq__response__template_name": {
+        "name": "parse_data__response_selector__faq__response__template_name",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__chitchat__response__id": {
+        "name": "parse_data__response_selector__chitchat__response__id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__chitchat__response__confidence": {
+        "name": "parse_data__response_selector__chitchat__response__confidence",
+        "data_type": "double",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__chitchat__response__intent_response_key": {
+        "name": "parse_data__response_selector__chitchat__response__intent_response_key",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__chitchat__response__utter_action": {
+        "name": "parse_data__response_selector__chitchat__response__utter_action",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__chitchat__response__template_name": {
+        "name": "parse_data__response_selector__chitchat__response__template_name",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__out_of_scope__response__id": {
+        "name": "parse_data__response_selector__out_of_scope__response__id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__out_of_scope__response__confidence": {
+        "name": "parse_data__response_selector__out_of_scope__response__confidence",
+        "data_type": "double",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__out_of_scope__response__intent_response_key": {
+        "name": "parse_data__response_selector__out_of_scope__response__intent_response_key",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__out_of_scope__response__utter_action": {
+        "name": "parse_data__response_selector__out_of_scope__response__utter_action",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "parse_data__response_selector__out_of_scope__response__template_name": {
+        "name": "parse_data__response_selector__out_of_scope__response__template_name",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_user_featurization": {
+      "event": {
+        "name": "event",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "timestamp": {
+        "name": "timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_flagged": {
+        "name": "metadata__rasa_x_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_id": {
+        "name": "metadata__rasa_x_id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "use_text_for_featurization": {
+        "name": "use_text_for_featurization",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "is_flagged": {
+        "name": "is_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "sender_id": {
+        "name": "sender_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "model_id": {
+        "name": "model_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "environment": {
+        "name": "environment",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      }
+    },
+    "event_bot": {
+      "event": {
+        "name": "event",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "timestamp": {
+        "name": "timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__utter_action": {
+        "name": "metadata__utter_action",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_flagged": {
+        "name": "metadata__rasa_x_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_id": {
+        "name": "metadata__rasa_x_id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "text": {
+        "name": "text",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "is_flagged": {
+        "name": "is_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "sender_id": {
+        "name": "sender_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "model_id": {
+        "name": "model_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "environment": {
+        "name": "environment",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      }
+    },
+    "event_active_loop": {
+      "event": {
+        "name": "event",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "timestamp": {
+        "name": "timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_flagged": {
+        "name": "metadata__rasa_x_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_id": {
+        "name": "metadata__rasa_x_id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "name": {
+        "name": "name",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "is_flagged": {
+        "name": "is_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "sender_id": {
+        "name": "sender_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "model_id": {
+        "name": "model_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "environment": {
+        "name": "environment",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      }
+    },
+    "event_bot__data__buttons": {
+      "payload": {
+        "name": "payload",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "title": {
+        "name": "title",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__isdeeplink": {
+        "name": "metadata__isdeeplink",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rawdata__mmuuid": {
+        "name": "metadata__rawdata__mmuuid",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rawdata__jupitertransactionid": {
+        "name": "metadata__rawdata__jupitertransactionid",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rawdata__merchantlogo": {
+        "name": "metadata__rawdata__merchantlogo",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rawdata__payee": {
+        "name": "metadata__rawdata__payee",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rawdata__transactionamount": {
+        "name": "metadata__rawdata__transactionamount",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rawdata__transactiondatetime": {
+        "name": "metadata__rawdata__transactiondatetime",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rawdata__payeemcccode": {
+        "name": "metadata__rawdata__payeemcccode",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rawdata__failurereason__type": {
+        "name": "metadata__rawdata__failurereason__type",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rawdata__failurereason__subtype": {
+        "name": "metadata__rawdata__failurereason__subtype",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rawdata__failurereason__reason": {
+        "name": "metadata__rawdata__failurereason__reason",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__objecttype": {
+        "name": "metadata__objecttype",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_action_execution_rejected": {
+      "event": {
+        "name": "event",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "timestamp": {
+        "name": "timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_flagged": {
+        "name": "metadata__rasa_x_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_id": {
+        "name": "metadata__rasa_x_id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "name": {
+        "name": "name",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "policy": {
+        "name": "policy",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "confidence": {
+        "name": "confidence",
+        "data_type": "double",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "is_flagged": {
+        "name": "is_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "sender_id": {
+        "name": "sender_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "model_id": {
+        "name": "model_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "environment": {
+        "name": "environment",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      }
+    },
+    "event_user__parse_data__response_selector__all_retrieval_intents": {
+      "value": {
+        "name": "value",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_user__parse_data__response_selector__faq__response__responses": {
+      "text": {
+        "name": "text",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_user__parse_data__response_selector__faq__response__response_templates": {
+      "text": {
+        "name": "text",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_user__parse_data__response_selector__faq__ranking": {
+      "id": {
+        "name": "id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "confidence": {
+        "name": "confidence",
+        "data_type": "double",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "intent_response_key": {
+        "name": "intent_response_key",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_user__parse_data__response_selector__chitchat__response__responses": {
+      "text": {
+        "name": "text",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_user__parse_data__response_selector__chitchat__response__response_templates": {
+      "text": {
+        "name": "text",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_user__parse_data__response_selector__chitchat__ranking": {
+      "id": {
+        "name": "id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "confidence": {
+        "name": "confidence",
+        "data_type": "double",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "intent_response_key": {
+        "name": "intent_response_key",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_user__parse_data__response_selector__out_of_scope__response__responses": {
+      "text": {
+        "name": "text",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_user__parse_data__response_selector__out_of_scope__response__response_templates": {
+      "text": {
+        "name": "text",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_user__parse_data__response_selector__out_of_scope__ranking": {
+      "id": {
+        "name": "id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "confidence": {
+        "name": "confidence",
+        "data_type": "double",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "intent_response_key": {
+        "name": "intent_response_key",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_user__parse_data__entities": {
+      "entity": {
+        "name": "entity",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "start": {
+        "name": "start",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "end": {
+        "name": "end",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "value": {
+        "name": "value",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "confidence_entity": {
+        "name": "confidence_entity",
+        "data_type": "double",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "extractor": {
+        "name": "extractor",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_user__parse_data__entities__processors": {
+      "value": {
+        "name": "value",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dist_key": {
+        "name": "_dist_key",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_timestamp": {
+        "name": "_timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_parent_id": {
+        "name": "_dlt_parent_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": true
+      },
+      "_dlt_list_idx": {
+        "name": "_dlt_list_idx",
+        "data_type": "bigint",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      }
+    },
+    "event_restart": {
+      "event": {
+        "name": "event",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "timestamp": {
+        "name": "timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_flagged": {
+        "name": "metadata__rasa_x_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_id": {
+        "name": "metadata__rasa_x_id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "is_flagged": {
+        "name": "is_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "sender_id": {
+        "name": "sender_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "model_id": {
+        "name": "model_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "environment": {
+        "name": "environment",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      }
+    },
+    "event_rewind": {
+      "event": {
+        "name": "event",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "timestamp": {
+        "name": "timestamp",
+        "data_type": "timestamp",
+        "nullable": false,
+        "partition": true,
+        "cluster": false,
+        "sort": true,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_flagged": {
+        "name": "metadata__rasa_x_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "metadata__rasa_x_id": {
+        "name": "metadata__rasa_x_id",
+        "data_type": "bigint",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "is_flagged": {
+        "name": "is_flagged",
+        "data_type": "bool",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "sender_id": {
+        "name": "sender_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": true,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "model_id": {
+        "name": "model_id",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "environment": {
+        "name": "environment",
+        "data_type": "text",
+        "nullable": true,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_load_id": {
+        "name": "_dlt_load_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_root_id": {
+        "name": "_dlt_root_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": false,
+        "foreign_key": false
+      },
+      "_dlt_id": {
+        "name": "_dlt_id",
+        "data_type": "text",
+        "nullable": false,
+        "partition": false,
+        "cluster": false,
+        "sort": false,
+        "unique": false,
+        "primary_key": true,
+        "foreign_key": false
+      }
+    }
+  },
+  "name": "event",
+  "description": "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur? At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident, similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus, omnis voluptas assumenda est, omnis dolor repellendus. Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae. Itaque earum rerum hic tenetur a sapiente delectus, ut aut reiciendis voluptatibus maiores alias consequatur aut perferendis doloribus asperiores repellatLorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur? At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident, similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus, omnis voluptas assumenda est, omnis dolor repellendus. Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae. Itaque earum rerum hic tenetur a sapiente delectus, ut aut reiciendis voluptatibus maiores alias consequatur aut perferendis doloribus asperiores repellatLorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur? At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident, similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus, omnis voluptas assumenda est, omnis dolor repellendus. Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae. Itaque earum rerum hic tenetur a sapiente delectus, ut aut reiciendis voluptatibus maiores alias consequatur aut perferendis doloribus asperiores repellatLorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur? At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident, similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus, omnis voluptas assumenda est, omnis dolor repellendus. Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae. Itaque earum rerum hic tenetur a sapiente delectus, ut aut reiciendis voluptatibus maiores alias consequatur aut perferendis doloribus asperiores repellatLorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa. Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat. Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur. Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum. Sed ut perspiciatis unde omnis iste natus error sit voluptatem accusantium doloremque laudantium, totam rem aperiam, eaque ipsa quae ab illo inventore veritatis et quasi architecto beatae vitae dicta sunt explicabo. Nemo enim ipsam voluptatem quia voluptas sit aspernatur aut odit aut fugit, sed quia consequuntur magni dolores eos qui ratione voluptatem sequi nesciunt. Neque porro quisquam est, qui dolorem ipsum quia dolor sit amet, consectetur, adipisci velit, sed quia non numquam eius modi tempora incidunt ut labore et dolore magnam aliquam quaerat voluptatem. Ut enim ad minima veniam, quis nostrum exercitationem ullam corporis suscipit laboriosam, nisi ut aliquid ex ea commodi consequatur? Quis autem vel eum iure reprehenderit qui in ea voluptate velit esse quam nihil molestiae consequatur, vel illum qui dolorem eum fugiat quo voluptas nulla pariatur? At vero eos et accusamus et iusto odio dignissimos ducimus qui blanditiis praesentium voluptatum deleniti atque corrupti quos dolores et quas molestias excepturi sint occaecati cupiditate non provident, similique sunt in culpa qui officia deserunt mollitia animi, id est laborum et dolorum fuga. Et harum quidem rerum facilis est et expedita distinctio. Nam libero tempore, cum soluta nobis est eligendi optio cumque nihil impedit quo minus id quod maxime placeat facere possimus, omnis voluptas assumenda est, omnis dolor repellendus. Temporibus autem quibusdam et aut officiis debitis aut rerum necessitatibus saepe eveniet ut et voluptates repudiandae sint et molestiae non recusandae. Itaque earum rerum hic tenetur a sapiente delectus, ut aut reiciendis voluptatibus maiores alias consequatur aut perferendis doloribus asperiores repellat",
+  "version": 26,
+  "preferred_types": {
+    "^timestamp$": "timestamp",
+    "^_timestamp$": "timestamp",
+    "^inserted_at$": "timestamp",
+    "confidence": "double",
+    "^_dlt_list_idx$": "bigint"
+  },
+  "hints": {
+    "not_null": [
+      "^timestamp$",
+      "^_timestamp$",
+      "^_dist_key$",
+      "^_dlt_id$",
+      "^_dlt_root_id$",
+      "^_dlt_load_id$",
+      "^_dlt_parent_id$",
+      "^_dlt_list_idx$",
+      "^sender_id$"
+    ],
+    "partition": [
+      "^_timestamp$",
+      "^timestamp$"
+    ],
+    "cluster": [
+      "^_dist_key$",
+      "^sender_id$"
+    ],
+    "primary_key": [
+      "^_dlt_id$"
+    ],
+    "foreign_key": [
+      "^_dlt_parent_id$"
+    ],
+    "sort": [
+      "^timestamp$",
+      "^_timestamp$"
+    ],
+    "unique": []
+  },
+  "engine_version": 1
+}
