@@ -24,17 +24,20 @@ class LoadDummyJob(LoadJob, FollowupJob):
         self._exception: str = None
         self.start_time: float = pendulum.now().timestamp()
         super().__init__(file_name)
-        # if config.fail_in_init:
-        s = self.state()
-        if s == "failed":
-            raise DestinationTerminalException(self._exception)
-        if s == "retry":
-            raise DestinationTransientException(self._exception)
+        if config.fail_in_init:
+            s = self.state()
+            if s == "failed":
+                raise DestinationTerminalException(self._exception)
+            if s == "retry":
+                raise DestinationTransientException(self._exception)
 
 
     def state(self) -> TLoadJobState:
         # this should poll the server for a job status, here we simulate various outcomes
         if self._status == "running":
+            c_r = random.random()
+            if self.config.exception_prob >= c_r:
+                raise DestinationTransientException("Dummy job status raised exception")
             n = pendulum.now().timestamp()
             if n - self.start_time > self.config.timeout:
                 self._status = "failed"

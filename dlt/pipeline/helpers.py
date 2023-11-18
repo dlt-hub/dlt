@@ -11,7 +11,7 @@ from dlt.common.pipeline import TSourceState, reset_resource_state, _sources_sta
 from dlt.common.destination.reference import WithStagingDataset
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-from dlt.pipeline.exceptions import PipelineStepFailed, PipelineHasPendingDataException
+from dlt.pipeline.exceptions import PipelineNeverRan, PipelineStepFailed, PipelineHasPendingDataException
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline import Pipeline
 
@@ -70,6 +70,9 @@ class DropCommand:
             resources = [resources]
         if isinstance(state_paths, str):
             state_paths = [state_paths]
+
+        if not pipeline.default_schema_name:
+            raise PipelineNeverRan(pipeline.pipeline_name, pipeline.pipelines_dir)
 
         self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name].clone()
         self.schema_tables = self.schema.tables

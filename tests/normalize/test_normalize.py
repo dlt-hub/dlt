@@ -226,7 +226,7 @@ def test_normalize_many_schemas(caps: DestinationCapabilitiesContext, rasa_norma
     with ProcessPoolExecutor(max_workers=4) as p:
         rasa_normalize.run(p)
     # must have two loading groups with model and event schemas
-    loads = rasa_normalize.load_storage.list_packages()
+    loads = rasa_normalize.load_storage.list_normalized_packages()
     assert len(loads) == 2
     schemas = []
     # load all schemas
@@ -247,7 +247,7 @@ def test_normalize_typed_json(caps: DestinationCapabilitiesContext, raw_normaliz
     extract_items(raw_normalize.normalize_storage, [JSON_TYPED_DICT], "special", "special")
     with ThreadPoolExecutor(max_workers=1) as pool:
         raw_normalize.run(pool)
-    loads = raw_normalize.load_storage.list_packages()
+    loads = raw_normalize.load_storage.list_normalized_packages()
     assert len(loads) == 1
     # load all schemas
     schema = raw_normalize.load_storage.load_package_schema(loads[0])
@@ -438,7 +438,7 @@ def get_line_from_file(load_storage: LoadStorage, loaded_files: List[str], retur
 
 def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) -> None:
     # load generated schema
-    loads = load_storage.list_packages()
+    loads = load_storage.list_normalized_packages()
     event_schema = load_storage.load_package_schema(loads[0])
     # in raw normalize timestamp column must not be coerced to timestamp
     assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type

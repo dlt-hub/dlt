@@ -20,6 +20,8 @@ class DummyClientConfiguration(DestinationClientConfiguration):
     fail_prob: float = 0.0
     retry_prob: float = 0.0
     completed_prob: float = 0.0
+    exception_prob: float = 0.0
+    """probability of exception when checking job status"""
     timeout: float = 10.0
     fail_in_init: bool = True
 
@@ -35,6 +37,7 @@ class DummyClientConfiguration(DestinationClientConfiguration):
             fail_prob: float = None,
             retry_prob: float = None,
             completed_prob: float = None,
+            exception_prob: float = None,
             timeout: float = None,
             fail_in_init: bool = None,
         ) -> None:

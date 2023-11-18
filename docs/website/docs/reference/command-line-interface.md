@@ -236,3 +236,19 @@ dlt pipeline --list-pipelines
 
 This command lists all the pipelines executed on the local machine with their working data in the
 default pipelines folder.
+
+### Drop pending and partially loaded packages
+```sh
+dlt pipeline <pipeline name> drop-pending-packages
+```
+Removes all extracted and normalized packages in the pipeline's working dir.
+`dlt` keeps extracted and normalized load packages in pipeline working directory. When `run` method is called, it will attempt to normalize and load
+pending packages first. The command above removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted package
+were created. Use `dlt pipeline ... sync` is recommended if your destination supports state sync.
+
+
+## Show stack traces
+If the command fails and you want to see the full stack trace add `--debug` just after `dlt` executable.
+```sh
+dlt --debug pipeline github info
+```

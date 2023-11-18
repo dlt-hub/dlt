@@ -25,13 +25,22 @@ except ModuleNotFoundError:
     pass
 
 
+DEBUG_FLAG = False
+
+
+def on_exception(ex: Exception, info: str) -> None:
+    click.secho(str(ex), err=True, fg="red")
+    fmt.note("Please refer to %s for further assistance" % fmt.bold(info))
+    if DEBUG_FLAG:
+        raise ex
+
+
 @utils.track_command("init", False, "source_name", "destination_name")
 def init_command_wrapper(source_name: str, destination_name: str, use_generic_template: bool, repo_location: str, branch: str) -> int:
     try:
         init_command(source_name, destination_name, use_generic_template, repo_location, branch)
     except Exception as ex:
-        click.secho(str(ex), err=True, fg="red")
-        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_INIT_DOCS_URL))
+        on_exception(ex, DLT_INIT_DOCS_URL)
         return -1
     return 0
 
@@ -41,8 +50,7 @@ def list_verified_sources_command_wrapper(repo_location: str, branch: str) -> in
     try:
         list_verified_sources_command(repo_location, branch)
     except Exception as ex:
-        click.secho(str(ex), err=True, fg="red")
-        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_INIT_DOCS_URL))
+        on_exception(ex, DLT_INIT_DOCS_URL)
         return -1
     return 0
 
@@ -66,9 +74,8 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, re
             **kwargs
         )
     except (CannotRestorePipelineException, PipelineWasNotRun) as ex:
-        click.secho(str(ex), err=True, fg="red")
         fmt.note("You must run the pipeline locally successfully at least once in order to deploy it.")
-        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
+        on_exception(ex, DLT_DEPLOY_DOCS_URL)
         return -2
     except InvalidGitRepositoryError:
         click.secho(
@@ -89,10 +96,8 @@ def deploy_command_wrapper(pipeline_script_path: str, deployment_method: str, re
         )
         return -4
     except Exception as ex:
-        click.secho(str(ex), err=True, fg="red")
-        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_DEPLOY_DOCS_URL))
+        on_exception(ex, DLT_DEPLOY_DOCS_URL)
         return -5
-        # TODO: display stack trace if with debug flag
     return 0
 
 
@@ -106,10 +111,10 @@ def pipeline_command_wrapper(
     except CannotRestorePipelineException as ex:
         click.secho(str(ex), err=True, fg="red")
         click.secho("Try command %s to restore the pipeline state from destination" % fmt.bold(f"dlt pipeline {pipeline_name} sync"))
-        return 1
+        return -1
     except Exception as ex:
-        click.secho(str(ex), err=True, fg="red")
-        return 1
+        on_exception(ex, DLT_PIPELINE_COMMAND_DOCS_URL)
+        return -2
 
 
 @utils.track_command("schema", False, "operation")
@@ -133,8 +138,7 @@ def telemetry_status_command_wrapper() -> int:
     try:
         telemetry_status_command()
     except Exception as ex:
-        click.secho(str(ex), err=True, fg="red")
-        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_TELEMETRY_DOCS_URL))
+        on_exception(ex, DLT_TELEMETRY_DOCS_URL)
         return -1
     return 0
 
@@ -144,8 +148,7 @@ def telemetry_change_status_command_wrapper(enabled: bool) -> int:
     try:
         change_telemetry_status_command(enabled)
     except Exception as ex:
-        click.secho(str(ex), err=True, fg="red")
-        fmt.note("Please refer to %s for further assistance" % fmt.bold(DLT_TELEMETRY_DOCS_URL))
+        on_exception(ex, DLT_TELEMETRY_DOCS_URL)
         return -1
     return 0
 
@@ -186,12 +189,28 @@ class NonInteractiveAction(argparse.Action):
         fmt.ALWAYS_CHOOSE_DEFAULT = True
 
 
+class DebugAction(argparse.Action):
+    def __init__(self, option_strings: Sequence[str], dest: Any = argparse.SUPPRESS, default: Any = argparse.SUPPRESS, help: str = None) -> None:  # noqa
+        super(DebugAction, self).__init__(
+            option_strings=option_strings,
+            dest=dest,
+            default=default,
+            nargs=0,
+            help=help
+        )
+    def __call__(self, parser: argparse.ArgumentParser, namespace: argparse.Namespace, values: Any, option_string: str = None) -> None:
+        global DEBUG_FLAG
+        # will show stack traces (and maybe more debug things)
+        DEBUG_FLAG = True
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Creates, adds, inspects and deploys dlt pipelines.", formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('--version', action="version", version='%(prog)s {version}'.format(version=__version__))
     parser.add_argument('--disable-telemetry', action=TelemetryAction, help="Disables telemetry before command is executed")
     parser.add_argument('--enable-telemetry', action=TelemetryAction, help="Enables telemetry before command is executed")
     parser.add_argument('--non-interactive', action=NonInteractiveAction, help="Non interactive mode. Default choices are automatically made for confirmations and prompts.")
+    parser.add_argument('--debug', action=DebugAction, help="Displays full stack traces on exceptions.")
     subparsers = parser.add_subparsers(dest="command")
 
     init_cmd = subparsers.add_parser("init", help="Creates a pipeline project in the current folder by adding existing verified source or creating a new one from template.")
@@ -239,8 +258,6 @@ def main() -> int:
     pipe_cmd.add_argument("pipeline_name", nargs='?', help="Pipeline name")
     pipe_cmd.add_argument("--pipelines-dir", help="Pipelines working directory", default=None)
     pipe_cmd.add_argument("--verbose", "-v", action='count', default=0, help="Provides more information for certain commands.", dest="verbosity")
-    # pipe_cmd.add_argument("--dataset-name", help="Dataset name used to sync destination when local pipeline state is missing.")
-    # pipe_cmd.add_argument("--destination", help="Destination name used to sync when local pipeline state is missing.")
 
     pipeline_subparsers = pipe_cmd.add_subparsers(dest="operation", required=False)
 
@@ -251,6 +268,7 @@ def main() -> int:
     pipeline_subparsers.add_parser("info", help="Displays state of the pipeline, use -v or -vv for more info")
     pipeline_subparsers.add_parser("show", help="Generates and launches Streamlit app with the loading status and dataset explorer")
     pipeline_subparsers.add_parser("failed-jobs", help="Displays information on all the failed loads in all completed packages, failed jobs and associated error messages")
+    pipeline_subparsers.add_parser("drop-pending-packages", help="Deletes all extracted and normalized packages including those that are partially loaded.")
     pipeline_subparsers.add_parser(
         "sync",
         help="Drops the local state of the pipeline and resets all the schemas and restores it from destination. The destination state, data and schemas are left intact.",
@@ -290,6 +308,9 @@ def main() -> int:
             return pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbosity)
         else:
             command_kwargs = dict(args._get_kwargs())
+            if not command_kwargs.get("pipeline_name"):
+                pipe_cmd.print_usage()
+                return -1
             command_kwargs['operation'] = args.operation or "info"
             del command_kwargs["command"]
             del command_kwargs["list_pipelines"]

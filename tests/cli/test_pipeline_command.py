@@ -1,6 +1,7 @@
 import io
 import os
 import contextlib
+import pytest
 from subprocess import CalledProcessError
 
 import dlt
@@ -142,7 +143,6 @@ def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage)
 
     try:
         pipeline = dlt.attach(pipeline_name="chess_pipeline")
-        print(pipeline.working_dir)
         pipeline.drop()
     except Exception as e:
         print(e)
@@ -168,3 +168,42 @@ def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage)
         _out = buf.getvalue()
         # actual failed job data
         assert "JOB file type: jsonl" in _out
+
+
+def test_pipeline_command_drop_partial_loads(repo_dir: str, project_files: FileStorage) -> None:
+    init_command.init_command("chess", "dummy", False, repo_dir)
+
+    try:
+        pipeline = dlt.attach(pipeline_name="chess_pipeline")
+        pipeline.drop()
+    except Exception as e:
+        print(e)
+
+    # now run the pipeline
+    os.environ["EXCEPTION_PROB"] = "1.0"
+    os.environ["FAIL_IN_INIT"] = "False"
+    os.environ["TIMEOUT"] = "1.0"
+    venv = Venv.restore_current()
+    with pytest.raises(CalledProcessError) as cpe:
+        print(venv.run_script("chess_pipeline.py"))
+    assert "Dummy job status raised exception" in cpe.value.stdout
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        pipeline_command.pipeline_command("info", "chess_pipeline", None, 1)
+        _out = buf.getvalue()
+        # one package is partially loaded
+        assert 'This package is partially loaded' in _out
+    print(_out)
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        with echo.always_choose(False, True):
+            pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
+            _out = buf.getvalue()
+            assert 'Pending packages deleted' in _out
+    print(_out)
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
+        _out = buf.getvalue()
+        assert 'No pending packages found' in _out
+    print(_out)
