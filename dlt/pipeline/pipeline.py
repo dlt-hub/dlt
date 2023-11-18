@@ -595,7 +595,7 @@ class Pipeline(SupportsPipeline):
     @property
     def has_pending_data(self) -> bool:
         """Tells if the pipeline contains any extracted files or pending load packages"""
-        return bool(self.list_normalized_load_packages() or self.list_extracted_resources())
+        return len(self.list_normalized_load_packages()) > 0 or len(self.list_extracted_resources()) > 0
 
     @property
     def schemas(self) -> SchemaStorage:
@@ -623,7 +623,7 @@ class Pipeline(SupportsPipeline):
 
     def list_normalized_load_packages(self) -> Sequence[str]:
         """Returns a list of all load packages ids that are or will be loaded."""
-        return self._get_load_storage().list_packages()
+        return self._get_load_storage().list_normalized_packages()
 
     def list_completed_load_packages(self) -> Sequence[str]:
         """Returns a list of all load package ids that are completely loaded"""
@@ -636,6 +636,20 @@ class Pipeline(SupportsPipeline):
     def list_failed_jobs_in_package(self, load_id: str) -> Sequence[LoadJobInfo]:
         """List all failed jobs and associated error messages for a specified `load_id`"""
         return self._get_load_storage().get_load_package_info(load_id).jobs.get("failed_jobs", [])
+
+    def drop_pending_packages(self, with_partial_loads: bool = True) -> None:
+        """Deletes all extracted and normalized packages, including those that are partially loaded by default"""
+        # delete normalized packages
+        load_storage = self._get_load_storage()
+        for load_id in load_storage.list_normalized_packages():
+            package_info = load_storage.get_load_package_info(load_id)
+            if LoadStorage.is_package_partially_loaded(package_info) and not with_partial_loads:
+                continue
+            package_path = load_storage.get_normalized_package_path(load_id)
+            load_storage.storage.delete_folder(package_path, recursively=True)
+        # delete extracted files
+        normalize_storage = self._get_normalize_storage()
+        normalize_storage.delete_extracted_files(normalize_storage.list_files_to_normalize_sorted())
 
     @with_schemas_sync
     def sync_schema(self, schema_name: str = None, credentials: Any = None) -> TSchemaTables:

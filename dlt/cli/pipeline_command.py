@@ -1,5 +1,5 @@
 import yaml
-from typing import Any
+from typing import Any, Sequence, Tuple
 import dlt
 from dlt.cli.exceptions import CliCommandException
 
@@ -9,8 +9,7 @@ from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import group_tables_by_resource, remove_defaults
-from dlt.common.storages.file_storage import FileStorage
-from dlt.common.typing import DictStrAny
+from dlt.common.storages import FileStorage, LoadStorage
 from dlt.pipeline.helpers import DropCommand
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
@@ -33,6 +32,8 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
         return
 
     try:
+        if verbosity > 0:
+            fmt.echo("Attaching to pipeline %s" % fmt.bold(pipeline_name))
         p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir)
     except CannotRestorePipelineException as e:
         if operation not in {"sync", "drop"}:
@@ -51,6 +52,22 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             return
         if operation == "sync":
             return  # No need to sync again
+
+    def _display_pending_packages() -> Tuple[Sequence[str], Sequence[str]]:
+        extracted_files = p.list_extracted_resources()
+        if extracted_files:
+            fmt.echo("Has %s extracted files ready to be normalized" % fmt.bold(str(len(extracted_files))))
+        norm_packages = p.list_normalized_load_packages()
+        if norm_packages:
+            fmt.echo("Has %s load packages ready to be loaded with following load ids:" % fmt.bold(str(len(norm_packages))))
+            for load_id in norm_packages:
+                fmt.echo(load_id)
+            # load first (oldest) package
+            first_package_info = p.get_load_package_info(norm_packages[0])
+            if LoadStorage.is_package_partially_loaded(first_package_info):
+                fmt.warning("This package is partially loaded. Data in the destination may be modified.")
+            fmt.echo()
+        return extracted_files, norm_packages
 
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
 
@@ -102,15 +119,7 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
                     fmt.echo("%s with %s table(s) and %s resource state slot(s)" % (fmt.bold(resource_name), fmt.bold(str(len(tables))), fmt.bold(str(res_state_slots))))
         fmt.echo()
         fmt.echo("Working dir content:")
-        extracted_files = p.list_extracted_resources()
-        if extracted_files:
-            fmt.echo("Has %s extracted files ready to be normalized" % fmt.bold(str(len(extracted_files))))
-        norm_packages = p.list_normalized_load_packages()
-        if norm_packages:
-            fmt.echo("Has %s load packages ready to be loaded with following load ids:" % fmt.bold(str(len(norm_packages))))
-            for load_id in norm_packages:
-                fmt.echo(load_id)
-            fmt.echo()
+        _display_pending_packages()
         loaded_packages = p.list_completed_load_packages()
         if loaded_packages:
             fmt.echo("Has %s completed load packages with following load ids:" % fmt.bold(str(len(loaded_packages))))
@@ -148,6 +157,13 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
             else:
                 fmt.echo("No failed jobs found")
 
+    if operation == "drop-pending-packages":
+        extracted_files, norm_packages = _display_pending_packages()
+        if len(extracted_files) == 0 and len(norm_packages) == 0:
+            fmt.echo("No pending packages found")
+        if fmt.confirm("Delete the above packages?", default=False):
+            p.drop_pending_packages(with_partial_loads=True)
+            fmt.echo("Pending packages deleted")
 
     if operation == "sync":
         if fmt.confirm("About to drop the local state of the pipeline and reset all the schemas. The destination state, data and schemas are left intact. Proceed?", default=False):

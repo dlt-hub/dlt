@@ -1219,3 +1219,29 @@ def test_empty_rows_are_included() -> None:
 
     values = [r[0] for r in rows]
     assert values == [1, None, None, None, None, None, None, None]
+
+
+def test_remove_pending_packages() -> None:
+    pipeline = dlt.pipeline(pipeline_name="emojis", destination="dummy")
+    pipeline.extract(airtable_emojis())
+    assert pipeline.has_pending_data
+    pipeline.drop_pending_packages()
+    assert pipeline.has_pending_data is False
+    pipeline.extract(airtable_emojis())
+    pipeline.normalize()
+    pipeline.extract(airtable_emojis())
+    assert pipeline.has_pending_data
+    pipeline.drop_pending_packages()
+    assert pipeline.has_pending_data is False
+    # partial load
+    os.environ["EXCEPTION_PROB"] = "1.0"
+    os.environ["FAIL_IN_INIT"] = "False"
+    os.environ["TIMEOUT"] = "1.0"
+    # should produce partial loads
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run(airtable_emojis())
+    assert pipeline.has_pending_data
+    pipeline.drop_pending_packages(with_partial_loads=False)
+    assert pipeline.has_pending_data
+    pipeline.drop_pending_packages()
+    assert pipeline.has_pending_data is False

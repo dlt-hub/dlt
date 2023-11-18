@@ -55,6 +55,14 @@ class PipelineHasPendingDataException(PipelineException):
         )
         super().__init__(pipeline_name, msg)
 
+class PipelineNeverRan(PipelineException):
+    def __init__(self, pipeline_name: str, pipelines_dir: str) -> None:
+        msg = (
+            f" Operation failed because pipeline with name {pipeline_name} in working directory {pipelines_dir} was never run or never synced with destination. "
+            "Use `dlt pipeline sync` to synchronize."
+        )
+        super().__init__(pipeline_name, msg)
+
 
 class PipelineNotActive(PipelineException):
     def __init__(self, pipeline_name: str) -> None:
