@@ -27,7 +27,7 @@ from dlt.common.utils import flatten_list_or_items
 
 # folders to manage load jobs in a single load package
 TJobState = Literal["new_jobs", "failed_jobs", "started_jobs", "completed_jobs"]
-WORKING_FOLDERS = set(get_args(TJobState))
+WORKING_FOLDERS: Set[TJobState] = set(get_args(TJobState))
 TLoadPackageState = Literal["normalized", "loaded", "aborted"]
 
 
@@ -193,7 +193,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
 
     def load_package_schema(self, load_id: str) -> Schema:
         # load schema from a load package to be processed
-        schema_path = join(self.get_package_path(load_id), LoadStorage.SCHEMA_FILE_NAME)
+        schema_path = join(self.get_normalized_package_path(load_id), LoadStorage.SCHEMA_FILE_NAME)
         return self._load_schema(schema_path)
 
     def load_temp_schema(self, load_id: str) -> Schema:
@@ -211,14 +211,16 @@ class LoadStorage(DataItemStorage, VersionedStorage):
             json.dump(schema_update, f)
 
     def commit_temp_load_package(self, load_id: str) -> None:
-        self.storage.rename_tree(load_id, self.get_package_path(load_id))
+        self.storage.rename_tree(load_id, self.get_normalized_package_path(load_id))
 
-    def list_packages(self) -> Sequence[str]:
+    def list_normalized_packages(self) -> Sequence[str]:
+        """Lists all packages that are normalized and will be loaded or are currently loaded"""
         loads = self.storage.list_folder_dirs(LoadStorage.NORMALIZED_FOLDER, to_root=False)
         # start from the oldest packages
         return sorted(loads)
 
     def list_completed_packages(self) -> Sequence[str]:
+        """List packages that are completely loaded"""
         loads = self.storage.list_folder_dirs(LoadStorage.LOADED_FOLDER, to_root=False)
         # start from the oldest packages
         return sorted(loads)
@@ -264,7 +266,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         # check if package is completed or in process
         package_created_at: DateTime = None
         package_state: TLoadPackageState = "normalized"
-        package_path = self.get_package_path(load_id)
+        package_path = self.get_normalized_package_path(load_id)
         applied_update: TSchemaTables = {}
         if not self.storage.has_folder(package_path):
             package_path = self.get_completed_package_path(load_id)
@@ -291,7 +293,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         return LoadPackageInfo(load_id, self.storage.make_full_path(package_path), package_state, schema.name, applied_update, package_created_at, all_jobs)
 
     def begin_schema_update(self, load_id: str) -> Optional[TSchemaTables]:
-        package_path = self.get_package_path(load_id)
+        package_path = self.get_normalized_package_path(load_id)
         if not self.storage.has_folder(package_path):
             raise FileNotFoundError(package_path)
         schema_update_file = join(package_path, LoadStorage.SCHEMA_UPDATES_FILE_NAME)
@@ -303,7 +305,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
 
     def commit_schema_update(self, load_id: str, applied_update: TSchemaTables) -> None:
         """Marks schema update as processed and stores the update that was applied at the destination"""
-        load_path = self.get_package_path(load_id)
+        load_path = self.get_normalized_package_path(load_id)
         schema_update_file = join(load_path, LoadStorage.SCHEMA_UPDATES_FILE_NAME)
         processed_schema_update_file = join(load_path, LoadStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME)
         # delete initial schema update
@@ -344,7 +346,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         return self._move_job(load_id, LoadStorage.STARTED_JOBS_FOLDER, LoadStorage.COMPLETED_JOBS_FOLDER, file_name)
 
     def complete_load_package(self, load_id: str, aborted: bool) -> None:
-        load_path = self.get_package_path(load_id)
+        load_path = self.get_normalized_package_path(load_id)
         has_failed_jobs = len(self.list_failed_jobs(load_id)) > 0
         # delete completed jobs
         if self.config.delete_completed_jobs and not has_failed_jobs:
@@ -367,7 +369,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def wipe_normalized_packages(self) -> None:
         self.storage.delete_folder(self.NORMALIZED_FOLDER, recursively=True)
 
-    def get_package_path(self, load_id: str) -> str:
+    def get_normalized_package_path(self, load_id: str) -> str:
         return join(LoadStorage.NORMALIZED_FOLDER, load_id)
 
     def get_completed_package_path(self, load_id: str) -> str:
@@ -378,7 +380,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
 
     def _save_schema(self, schema: Schema, load_id: str) -> str:
         dump = json.dumps(schema.to_dict())
-        schema_path = join(self.get_package_path(load_id), LoadStorage.SCHEMA_FILE_NAME)
+        schema_path = join(self.get_normalized_package_path(load_id), LoadStorage.SCHEMA_FILE_NAME)
         return self.storage.save(schema_path, dump)
 
     def _load_schema(self, schema_path: str) -> Schema:
@@ -388,14 +390,14 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def _move_job(self, load_id: str, source_folder: TJobState, dest_folder: TJobState, file_name: str, new_file_name: str = None) -> str:
         # ensure we move file names, not paths
         assert file_name == FileStorage.get_file_name_from_file_path(file_name)
-        load_path = self.get_package_path(load_id)
+        load_path = self.get_normalized_package_path(load_id)
         dest_path = join(load_path, dest_folder, new_file_name or file_name)
         self.storage.atomic_rename(join(load_path, source_folder, file_name), dest_path)
         # print(f"{join(load_path, source_folder, file_name)} -> {dest_path}")
         return self.storage.make_full_path(dest_path)
 
     def _get_job_folder_path(self, load_id: str, folder: TJobState) -> str:
-        return join(self.get_package_path(load_id), folder)
+        return join(self.get_normalized_package_path(load_id), folder)
 
     def _get_job_file_path(self, load_id: str, folder: TJobState, file_name: str) -> str:
         return join(self._get_job_folder_path(load_id, folder), file_name)
@@ -429,6 +431,15 @@ class LoadStorage(DataItemStorage, VersionedStorage):
             format_spec = DataWriter.data_format_from_file_format(self.loader_file_format)
             return fn + f".{format_spec.file_extension}"
         return fn
+
+    @staticmethod
+    def is_package_partially_loaded(package_info: LoadPackageInfo) -> bool:
+        """Checks if package is partially loaded - has jobs that are not new."""
+        if package_info.state == "normalized":
+            pending_jobs: Sequence[TJobState] = ["new_jobs"]
+        else:
+            pending_jobs = ["completed_jobs", "failed_jobs"]
+        return sum(len(package_info.jobs[job_state]) for job_state in WORKING_FOLDERS if job_state not in pending_jobs) > 0
 
     @staticmethod
     def parse_job_file_name(file_name: str) -> ParsedLoadJobFileName:

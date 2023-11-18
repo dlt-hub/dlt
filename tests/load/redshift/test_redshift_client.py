@@ -12,8 +12,8 @@ from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import DatabaseTerminalException
-from dlt.destinations.redshift.configuration import RedshiftCredentials
-from dlt.destinations.redshift.redshift import RedshiftClient, psycopg2
+from dlt.destinations.impl.redshift.configuration import RedshiftCredentials
+from dlt.destinations.impl.redshift.redshift import RedshiftClient, psycopg2
 
 from tests.common.utils import COMMON_TEST_CASES_PATH
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, skipifpypy

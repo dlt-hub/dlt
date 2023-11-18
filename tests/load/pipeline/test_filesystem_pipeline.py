@@ -4,7 +4,7 @@ from pathlib import Path
 import dlt, os
 from dlt.common.utils import uniq_id
 from dlt.common.storages.load_storage import LoadJobInfo
-from dlt.destinations.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient, LoadFilesystemJob
 from dlt.common.schema.typing import LOADS_TABLE_NAME
 
 from tests.utils import skip_if_not_active

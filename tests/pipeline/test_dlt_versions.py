@@ -10,8 +10,8 @@ from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.common.storages import FileStorage
 from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME, TStoredSchema
 from dlt.common.configuration.resolve import resolve_configuration
-from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration
-from dlt.destinations.duckdb.sql_client import DuckDbSqlClient
+from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
+from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 
 from tests.utils import TEST_STORAGE_ROOT, test_storage
 

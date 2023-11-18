@@ -182,6 +182,7 @@ settings:
   detections:
     - timestamp
     - iso_timestamp
+    - iso_date
 ```
 
 ### Column hint rules

@@ -6,7 +6,7 @@ import pytest
 from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import LoadStorage, FileStorage
 
-from dlt.destinations.filesystem.filesystem import LoadFilesystemJob, FilesystemDestinationClientConfiguration
+from dlt.destinations.impl.filesystem.filesystem import LoadFilesystemJob, FilesystemDestinationClientConfiguration
 
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging

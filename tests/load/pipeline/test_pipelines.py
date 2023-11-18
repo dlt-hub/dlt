@@ -8,7 +8,7 @@ import dlt
 
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common import json, sleep
-from dlt.common.destination.reference import DestinationReference
+from dlt.common.destination import Destination
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.typing import TDataItem
@@ -66,8 +66,8 @@ def test_default_pipeline_names(use_single_dataset: bool, destination_config: De
     # mock the correct destinations (never do that in normal code)
     with p.managed_state():
         p._set_destinations(
-            DestinationReference.from_name(destination_config.destination),
-            DestinationReference.from_name(destination_config.staging) if destination_config.staging else None
+            Destination.from_reference(destination_config.destination),
+            Destination.from_reference(destination_config.staging) if destination_config.staging else None
             )
         # does not reset the dataset name
         assert p.dataset_name in possible_dataset_names

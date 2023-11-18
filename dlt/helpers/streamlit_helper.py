@@ -120,7 +120,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         schema_names = ", ".join(sorted(pipeline.schema_names))
         st.markdown(f"""
         * pipeline name: **{pipeline.pipeline_name}**
-        * destination: **{str(credentials)}** in **{pipeline.destination.__name__}**
+        * destination: **{str(credentials)}** in **{pipeline.destination.name}**
         * dataset name: **{pipeline.dataset_name}**
         * default schema name: **{pipeline.default_schema_name}**
         * all schema names: **{schema_names}**

@@ -14,7 +14,7 @@ from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.common.configuration.specs import RunConfiguration
-from dlt.common.destination import DestinationReference, TDestinationReferenceArg
+from dlt.common.destination import Destination, TDestinationReferenceArg, TDestination
 from dlt.common.exceptions import DestinationHasFailedJobs, PipelineStateNotAvailable, ResourceNameNotAvailable, SourceSectionNotAvailable
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnNames, TColumnSchema, TWriteDisposition, TSchemaContract
@@ -177,7 +177,7 @@ class SupportsPipeline(Protocol):
     """Name of the pipeline"""
     default_schema_name: str
     """Name of the default schema"""
-    destination: DestinationReference
+    destination: TDestination
     """The destination reference which is ModuleType. `destination.__name__` returns the name string"""
     dataset_name: str
     """Name of the dataset to which pipeline will be loaded to"""

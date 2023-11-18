@@ -47,8 +47,8 @@ def test_restore_state_props() -> None:
     assert state["destination"].endswith("redshift")
     assert state["staging"].endswith("filesystem")
     # also instances are restored
-    assert p.destination.__name__.endswith("redshift")
-    assert p.staging.__name__.endswith("filesystem")
+    assert p.destination.name.endswith("redshift")
+    assert p.staging.name.endswith("filesystem")
 
 
 def test_managed_state() -> None:

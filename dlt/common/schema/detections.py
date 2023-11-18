@@ -36,6 +36,25 @@ def is_iso_timestamp(t: Type[Any], v: Any) -> Optional[TDataType]:
     return None
 
 
+def is_iso_date(t: Type[Any], v: Any) -> Optional[TDataType]:
+    # only strings can be converted
+    if not issubclass(t, str):
+        return None
+    if not v:
+        return None
+    # don't cast iso timestamps as dates
+    if is_iso_timestamp(t,v):
+        return None
+    # strict autodetection of iso timestamps
+    try:
+        dtv = parse_iso_like_datetime(v)
+        if isinstance(dtv, datetime.date):
+            return "date"
+    except Exception:
+        pass
+    return None
+
+
 def is_large_integer(t: Type[Any], v: Any) -> Optional[TDataType]:
     # only ints can be converted
     if issubclass(t, int):

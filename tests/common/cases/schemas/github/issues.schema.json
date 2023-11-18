@@ -1294,7 +1294,8 @@
   "settings": {
     "detections": [
       "timestamp",
-      "iso_timestamp"
+      "iso_timestamp",
+      "iso_date"
     ],
     "default_hints": {
       "not_null": [

@@ -6,10 +6,10 @@ from dlt.common import json
 from dlt.common.schema import Schema
 from dlt.common.utils import uniq_id
 
-from dlt.destinations.weaviate import weaviate_adapter
-from dlt.destinations.weaviate.exceptions import PropertyNameConflict
-from dlt.destinations.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
-from dlt.destinations.weaviate.weaviate_client import WeaviateClient
+from dlt.destinations.impl.weaviate import weaviate_adapter
+from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict
+from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
+from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.pipeline.utils import assert_load_info
@@ -374,7 +374,7 @@ def test_vectorize_property_without_data() -> None:
 
     # set the naming convention to case insensitive
     # os.environ["SCHEMA__NAMING"] = "direct"
-    dlt.config["schema.naming"] = "dlt.destinations.weaviate.ci_naming"
+    dlt.config["schema.naming"] = "dlt.destinations.impl.weaviate.ci_naming"
     # create new schema with changed naming convention
     p = p.drop()
     info = p.run(weaviate_adapter(["there are", "no stop", "words in here"], vectorize="vAlue"), primary_key="vALue", columns={"vAlue": {"data_type": "text"}})

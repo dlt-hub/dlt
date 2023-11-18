@@ -23,7 +23,7 @@ help:
 	@echo "			runs flake and mypy"
 	@echo "		test"
 	@echo "			tests all the components including destinations"
-	@echo "		test-local"
+	@echo "		test-load-local"
 	@echo "			tests all components unsing local destinations: duckdb and postgres"
 	@echo "		test-common"
 	@echo "			tests common components"
