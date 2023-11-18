@@ -387,7 +387,7 @@ class Load(Runnable[Executor]):
 
         logger.info("Running file loading")
         # get list of loads and order by name ASC to execute schema updates
-        loads = self.load_storage.list_packages()
+        loads = self.load_storage.list_normalized_packages()
         logger.info(f"Found {len(loads)} load packages")
         if len(loads) == 0:
             return TRunMetrics(True, 0)
@@ -404,7 +404,7 @@ class Load(Runnable[Executor]):
         with self.collector(f"Load {schema.name} in {load_id}"):
             self.load_single_package(load_id, schema)
 
-        return TRunMetrics(False, len(self.load_storage.list_packages()))
+        return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
 
     def get_load_info(self, pipeline: SupportsPipeline, started_at: datetime.datetime = None) -> LoadInfo:
         # TODO: LoadInfo should hold many datasets
