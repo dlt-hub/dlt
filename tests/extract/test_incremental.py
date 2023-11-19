@@ -692,14 +692,14 @@ def test_replace_resets_state(item_type: TItemFormat) -> None:
     assert child.write_disposition == "replace"
 
     # create a source where we place only child
-    s = DltSource("comp", "section", Schema("comp"), [child])
+    s = DltSource("section", Schema("comp"), [child])
     # but extracted resources will include its parent where it derives write disposition from child
     extracted = s.resources.extracted
     assert extracted[child.name].write_disposition == "replace"
     assert extracted[child._pipe.parent.name].write_disposition == "replace"
 
     # create a source where we place parent explicitly
-    s = DltSource("comp", "section", Schema("comp"), [parent_r, child])
+    s = DltSource("section", Schema("comp"), [parent_r, child])
     extracted = s.resources.extracted
     assert extracted[child.name].write_disposition == "replace"
     # now parent exists separately and has its own write disposition
@@ -720,7 +720,7 @@ def test_replace_resets_state(item_type: TItemFormat) -> None:
 
     # now we add child that has parent_r as parent but we add another instance of standalone_some_data explicitly
     # so we have a resource with the same name as child parent but the pipe instance is different
-    s = DltSource("comp", "section", Schema("comp"), [standalone_some_data(now), child])
+    s = DltSource("section", Schema("comp"), [standalone_some_data(now), child])
     assert extracted[child.name].write_disposition == "replace"
     # now parent exists separately and has its own write disposition - because we search by name to identify matching resource
     assert extracted[child._pipe.parent.name].write_disposition == "append"

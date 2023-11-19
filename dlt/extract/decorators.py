@@ -145,9 +145,6 @@ def source(
         if name and name != schema.name:
             raise ExplicitSourceNameInvalid(name, schema.name)
 
-        # the name of the source must be identical to the name of the schema
-        name = schema.name
-
         # wrap source extraction function in configuration with section
         func_module = inspect.getmodule(f)
         source_section = section or _get_source_section_name(func_module)
@@ -171,7 +168,7 @@ def source(
                         rv = list(rv)
 
             # convert to source
-            s = _impl_cls.from_data(name, source_section, schema.clone(update_normalizers=True), rv)
+            s = _impl_cls.from_data(source_section, schema.clone(update_normalizers=True), rv)
             # apply hints
             if max_table_nesting is not None:
                 s.max_table_nesting = max_table_nesting
