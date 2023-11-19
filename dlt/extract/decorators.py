@@ -159,10 +159,10 @@ def source(
                 # configurations will be accessed in this section in the source
                 proxy = Container()[PipelineContext]
                 pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
-                with inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=source_sections, source_state_key=name)):
+                with inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=source_sections, source_state_key=schema.name)):
                     rv = conf_f(*args, **kwargs)
                     if rv is None:
-                        raise SourceDataIsNone(name)
+                        raise SourceDataIsNone(schema.name)
                     # if generator, consume it immediately
                     if inspect.isgenerator(rv):
                         rv = list(rv)
