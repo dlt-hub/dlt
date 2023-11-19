@@ -17,7 +17,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id, digest128, chunks
 from dlt.common.json import json
 
-from dlt.extract.source import DltSource
+from dlt.extract import DltSource
 from dlt.sources.helpers.transform import take_first
 from dlt.extract.incremental.exceptions import IncrementalCursorPathMissing, IncrementalPrimaryKeyMissing
 from dlt.pipeline.exceptions import PipelineStepFailed

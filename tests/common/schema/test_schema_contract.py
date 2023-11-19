@@ -4,7 +4,7 @@ import pytest
 import copy
 
 from dlt.common.schema import Schema, DEFAULT_SCHEMA_CONTRACT_MODE, TSchemaContractDict
-from dlt.common.schema.exceptions import SchemaFrozenException
+from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.schema.typing import TTableSchema
 
 def get_schema() -> Schema:
@@ -191,8 +191,15 @@ def test_check_adding_table(base_settings) -> None:
     partial, filters = schema.apply_schema_contract(cast(TSchemaContractDict, {**base_settings, **{"tables": "freeze"}}), new_table, raise_on_freeze=False)
     assert (partial, filters) == (None, [("tables", "new_table", "freeze")])
 
-    with pytest.raises(SchemaFrozenException):
-        schema.apply_schema_contract(cast(TSchemaContractDict, {**base_settings, **{"tables": "freeze"}}), new_table)
+    with pytest.raises(DataValidationError) as val_ex:
+        schema.apply_schema_contract(cast(TSchemaContractDict, {**base_settings, **{"tables": "freeze"}}), new_table, data_item={"item": 1})
+    assert val_ex.value.schema_name == schema.name
+    assert val_ex.value.table_name == "new_table"
+    assert val_ex.value.column_name is None
+    assert val_ex.value.contract_entity == "tables"
+    assert val_ex.value.contract_mode == "freeze"
+    assert val_ex.value.table_schema is None  # there's no validating schema on new table
+    assert val_ex.value.data_item == {"item": 1}
 
 
 @pytest.mark.parametrize("base_settings", base_settings)
@@ -213,8 +220,15 @@ def test_check_adding_new_columns(base_settings) -> None:
         partial, filters = schema.apply_schema_contract(cast(TSchemaContractDict, {**base_settings, **{"columns": "freeze"}}), copy.deepcopy(table_update), raise_on_freeze=False)
         assert (partial, filters) == (popped_table_update, [("columns", column_name, "freeze")])
 
-        with pytest.raises(SchemaFrozenException):
-            schema.apply_schema_contract(cast(TSchemaContractDict, {**base_settings, **{"columns": "freeze"}}), copy.deepcopy(table_update))
+        with pytest.raises(DataValidationError) as val_ex:
+            schema.apply_schema_contract(cast(TSchemaContractDict, {**base_settings, **{"columns": "freeze"}}), copy.deepcopy(table_update), {column_name: 1})
+        assert val_ex.value.schema_name == schema.name
+        assert val_ex.value.table_name == table_update["name"]
+        assert val_ex.value.column_name == column_name
+        assert val_ex.value.contract_entity == "columns"
+        assert val_ex.value.contract_mode == "freeze"
+        assert val_ex.value.table_schema == schema.get_table(table_update["name"])
+        assert val_ex.value.data_item == {column_name: 1}
 
     #
     # check adding new column
@@ -290,8 +304,15 @@ def test_check_adding_new_variant() -> None:
     partial, filters = schema.apply_schema_contract(cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}), copy.deepcopy(table_update), raise_on_freeze=False)
     assert (partial, filters) == (popped_table_update, [("columns", "column_2_variant", "freeze")])
 
-    with pytest.raises(SchemaFrozenException):
+    with pytest.raises(DataValidationError) as val_ex:
         schema.apply_schema_contract(cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}), copy.deepcopy(table_update))
+    assert val_ex.value.schema_name == schema.name
+    assert val_ex.value.table_name == table_update["name"]
+    assert val_ex.value.column_name == "column_2_variant"
+    assert val_ex.value.contract_entity == "data_type"
+    assert val_ex.value.contract_mode == "freeze"
+    assert val_ex.value.table_schema == schema.get_table(table_update["name"])
+    assert val_ex.value.data_item is None  # we do not pass it to apply_schema_contract
 
     # variants are not new columns - new data types
     partial, filters = schema.apply_schema_contract(cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "evolve", "columns": "freeze"}}), copy.deepcopy(table_update))
@@ -299,5 +320,5 @@ def test_check_adding_new_variant() -> None:
 
     # evolve once does not apply to variant evolution
     table_update["name"] = "evolve_once_table"
-    with pytest.raises(SchemaFrozenException):
+    with pytest.raises(DataValidationError):
         schema.apply_schema_contract(cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **{"data_type": "freeze"}}), copy.deepcopy(table_update))

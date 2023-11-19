@@ -4,11 +4,11 @@ from typing import Any, Callable, Iterator, Union, Optional
 
 from dlt.common.schema.typing import TSchemaContract
 from dlt.common.utils import uniq_id
-from dlt.extract.source import DltSource, DltResource
+from dlt.common.schema.exceptions import DataValidationError
+
+from dlt.extract import DltResource
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.exceptions import PipelineStepFailed
-from dlt.common.schema.exceptions import SchemaFrozenException
-from dlt.common.schema import utils
 
 from tests.load.pipeline.utils import load_table_counts
 from tests.utils import TDataItemFormat, skip_if_not_active, data_to_item_format, ALL_DATA_ITEM_FORMATS
@@ -27,7 +27,7 @@ def raises_frozen_exception(check_raise: bool = True) -> Any:
         return
     with pytest.raises(PipelineStepFailed) as py_exc:
         yield
-    assert isinstance(py_exc.value.__context__, SchemaFrozenException)
+    assert isinstance(py_exc.value.__context__, DataValidationError)
 
 
 def items(settings: TSchemaContract) -> Any:

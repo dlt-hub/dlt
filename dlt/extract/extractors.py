@@ -13,7 +13,7 @@ from dlt.common.typing import TDataItems, TDataItem
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.typing import TSchemaContractDict, TSchemaEvolutionMode, TTableSchema, TTableSchemaColumns, TPartialTableSchema
 
-from dlt.extract.source import DltResource
+from dlt.extract.resource import DltResource
 from dlt.extract.typing import TableNameMeta
 from dlt.extract.storage import ExtractorStorage, ExtractorItemStorage
 try:
@@ -155,7 +155,7 @@ class Extractor:
             diff_table = computed_table
 
         # apply contracts
-        diff_table, filters = self.schema.apply_schema_contract(schema_contract, diff_table)
+        diff_table, filters = self.schema.apply_schema_contract(schema_contract, diff_table, data_item=items)
 
         # merge with schema table
         if diff_table:

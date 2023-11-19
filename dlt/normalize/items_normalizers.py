@@ -125,7 +125,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             table_name,
                             schema.resolve_contract_settings_for_table(parent_table or table_name)  # parent_table, if present, exists in the schema
                         )
-                        partial_table, filters = schema.apply_schema_contract(schema_contract, partial_table)
+                        partial_table, filters = schema.apply_schema_contract(schema_contract, partial_table, data_item=row)
                         if filters:
                             for entity, name, mode in filters:
                                 if entity == "tables":

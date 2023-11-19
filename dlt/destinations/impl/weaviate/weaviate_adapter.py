@@ -1,8 +1,7 @@
 from typing import Dict, Any, Literal, Set, get_args
 
 from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns
-from dlt.extract.decorators import resource as make_resource
-from dlt.extract.source import DltResource
+from dlt.extract import DltResource, resource as make_resource
 
 TTokenizationTMethod = Literal["word", "lowercase", "whitespace", "field"]
 TOKENIZATION_METHODS: Set[TTokenizationTMethod] = set(get_args(TTokenizationTMethod))

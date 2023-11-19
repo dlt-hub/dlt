@@ -1,9 +1,10 @@
 import dlt
 from dlt.common import json
 from dlt.common.storages import NormalizeStorageConfiguration
+
+from dlt.extract import DltResource, DltSource
 from dlt.extract.extract import ExtractorStorage, extract
-from dlt.extract.source import DltResource, DltSource
-from dlt.common.schema import Schema
+
 from tests.utils import clean_test_storage
 from tests.extract.utils import expect_extracted_file
 

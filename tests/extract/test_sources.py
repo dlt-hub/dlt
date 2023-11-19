@@ -9,11 +9,14 @@ from dlt.common.exceptions import DictValidationException, PipelineStateNotAvail
 from dlt.common.pipeline import StateInjectableContext, source_state
 from dlt.common.schema import Schema
 from dlt.common.typing import TDataItems
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataTypeMultiplePipes, InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, ResourcesNotFoundError
-from dlt.extract.incremental import Incremental
+
+from dlt.extract import DltResource, DltSource, Incremental
+from dlt.extract.source import DltResourceDict
+from dlt.extract.exceptions import (DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, InvalidParentResourceDataType,
+                                    InvalidParentResourceIsAFunction, InvalidResourceDataTypeMultiplePipes,
+                                    InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidTransformerGeneratorFunction,
+                                    ParametrizedResourceUnbound, ResourcesNotFoundError)
 from dlt.extract.pipe import Pipe
-from dlt.extract.typing import FilterItem, MapItem
-from dlt.extract.source import DltResource, DltResourceDict, DltSource
 
 
 def test_call_data_resource() -> None:
@@ -1173,7 +1176,7 @@ def test_apply_hints() -> None:
 
     # reset
     empty_r.apply_hints(table_name="", parent_table_name="", primary_key=[], merge_key="", columns={}, incremental=Incremental.EMPTY, schema_contract={})
-    assert empty_r._table_schema_template == {'columns': {}, 'incremental': None, 'validator': None, 'write_disposition': 'append'}
+    assert empty_r._table_schema_template == {'columns': {}, 'incremental': None, 'validator': None, 'write_disposition': 'append', 'original_columns': {}}
     table = empty_r.compute_table_schema()
     assert table["name"] == "empty_gen"
     assert "parent" not in table

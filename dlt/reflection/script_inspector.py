@@ -12,7 +12,8 @@ from dlt.common.exceptions import DltException, MissingDependencyException
 from dlt.common.typing import DictStrAny
 
 from dlt.pipeline import Pipeline
-from dlt.extract.source import DltSource, ManagedPipeIterator
+from dlt.extract import DltSource
+from dlt.extract.pipe import ManagedPipeIterator
 
 
 def patch__init__(self: Any, *args: Any, **kwargs: Any) -> None:

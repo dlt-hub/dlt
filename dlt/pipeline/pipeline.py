@@ -5,7 +5,6 @@ from contextlib import contextmanager
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
 from typing import Any, Callable, ClassVar, List, Iterator, Optional, Sequence, Tuple, cast, get_type_hints, ContextManager
-from concurrent.futures import Executor
 
 from dlt import version
 from dlt.common import json, logger, pendulum
@@ -20,7 +19,7 @@ from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, Des
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
 from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition, TAnySchemaColumns, TSchemaContract
-from dlt.common.schema.utils import diff_tables
+from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
 from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
@@ -32,13 +31,12 @@ from dlt.common.destination.reference import (DestinationClientDwhConfiguration,
 from dlt.common.destination.capabilities import INTERNAL_LOADER_FILE_FORMATS
 from dlt.common.pipeline import ExtractInfo, LoadInfo, NormalizeInfo, PipelineContext, SupportsPipeline, TPipelineLocalState, TPipelineState, StateInjectableContext
 from dlt.common.schema import Schema
-from dlt.common.schema.exceptions import SchemaFrozenException
 from dlt.common.utils import is_interactive
 from dlt.common.data_writers import TLoaderFileFormat
 
+from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage, extract_with_schema
-from dlt.extract.source import DltResource, DltSource
 from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase
@@ -52,8 +50,6 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipel
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, load_trace, merge_traces, start_trace, start_trace_step, end_trace_step, end_trace, describe_extract_data
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, migrate_state, state_resource, json_encode_state, json_decode_state
-
-from dlt.common.schema.utils import normalize_schema_name
 from dlt.pipeline.deprecations import credentials_argument_deprecated
 
 

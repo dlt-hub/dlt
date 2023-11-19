@@ -24,7 +24,7 @@ from dlt.common.schema import Schema
 from dlt.destinations import filesystem, redshift, dummy
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
 from dlt.extract.extract import ExtractorStorage
-from dlt.extract.source import DltResource, DltSource
+from dlt.extract import DltResource, DltSource
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
 from dlt.pipeline.helpers import retry_load
