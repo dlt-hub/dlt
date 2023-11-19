@@ -1,9 +1,12 @@
-from typing import Generic, Sequence, TypedDict, List, Type, Union, TypeVar, get_type_hints, get_args, Any
+import inspect
+from copy import copy
+from typing import Generic, Sequence, Set, TypedDict, List, Type, Union, TypeVar, get_origin, get_type_hints, get_args, Any
 
-from dlt.common.exceptions import MissingDependencyException, DltException
+from dlt.common.exceptions import MissingDependencyException
+from dlt.common.schema import DataValidationError
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns
 from dlt.common.data_types import py_type_to_sc_type
-from dlt.common.typing import TDataItem, TDataItems, is_optional_type, extract_inner_type, is_list_generic_type, is_dict_generic_type, is_union
+from dlt.common.typing import TDataItem, TDataItems, extract_union_types, is_optional_type, extract_inner_type, is_list_generic_type, is_dict_generic_type, is_union
 
 try:
     from pydantic import BaseModel, ValidationError, Json, create_model
@@ -100,6 +103,33 @@ def pydantic_to_table_schema_columns(model: Union[BaseModel, Type[BaseModel]]) -
 
     return result
 
+
+def column_mode_to_extra(column_mode: TSchemaEvolutionMode) -> str:
+    extra = "forbid"
+    if column_mode == "evolve":
+        extra = "allow"
+    elif column_mode == "discard_value":
+        extra = "ignore"
+    return extra
+
+
+def extra_to_column_mode(extra: str) -> TSchemaEvolutionMode:
+    if extra == "forbid":
+        return "freeze"
+    if extra == "allow":
+        return "evolve"
+    return "discard_value"
+
+
+def get_extra_from_model(model: Type[BaseModel]) -> str:
+    default_extra = "ignore"
+    if _PYDANTIC_2:
+        default_extra = model.model_config.get("extra", default_extra)
+    else:
+        default_extra = model.Config.extra or default_extra  # type: ignore[attr-defined]
+    return default_extra
+
+
 def apply_schema_contract_to_model(
     model: Type[_TPydanticModel],
     column_mode: TSchemaEvolutionMode,
@@ -116,26 +146,46 @@ def apply_schema_contract_to_model(
         # create a lenient model that accepts any data
         model = create_model(model.__name__ + "Any", **{n:(Any, None) for n in model.__fields__})  # type: ignore[call-overload, attr-defined]
     elif data_mode == "discard_value":
-        raise ValueError("data_mode is discard_value. Cannot discard defined fields with validation errors using Pydantic models. Not yet implemented.")
+        raise NotImplementedError("data_mode is discard_value. Cannot discard defined fields with validation errors using Pydantic models.")
 
-    extra = "forbid"
-    if column_mode == "evolve":
-        extra = "allow"
-    elif column_mode == "discard_value":
-        extra = "ignore"
+    extra = column_mode_to_extra(column_mode)
+
+    if extra == get_extra_from_model(model):
+        # no need to change the model
+        return model
 
     if _PYDANTIC_2:
-        config = model.model_config
+        config = copy(model.model_config)
         config["extra"] = extra  # type: ignore[typeddict-item]
     else:
-        config = model.Config  # type: ignore[attr-defined]
+        config = copy(model.Config)  # type: ignore[attr-defined]
         config.extra = extra  # type: ignore[attr-defined]
 
-    return create_model(  # type: ignore[no-any-return, call-overload]
+    def _process_annotation(t_: Type[Any]) -> Any:
+        """Recursively recreates models with applied schema contract """
+        if is_list_generic_type(t_):
+            l_t = get_args(t_)[0]
+            return get_origin(t_)[_process_annotation(l_t)]
+        elif is_dict_generic_type(t_):
+            k_t, v_t = get_args(t_)
+            return get_origin(t_)[k_t, _process_annotation(v_t)]
+        elif is_union(t_):
+            u_t_s = tuple(_process_annotation(u_t) for u_t in extract_union_types(t_))
+            return Union[u_t_s]
+        elif inspect.isclass(t_) and issubclass(t_, BaseModel):
+            return apply_schema_contract_to_model(t_, column_mode, data_mode)
+        return t_
+
+    new_model: Type[_TPydanticModel] = create_model(  # type: ignore[call-overload]
         model.__name__ + "Extra" + extra.title(),
         __config__ = config,
-        **{n:(f.annotation, f) for n, f in model.__fields__.items()}  # type: ignore[attr-defined]
+        **{n:(_process_annotation(f.annotation), f) for n, f in model.__fields__.items()}  # type: ignore[attr-defined]
     )
+    # pass dlt config along
+    dlt_config = getattr(model, "dlt_config", None)
+    if dlt_config:
+        new_model.dlt_config = dlt_config  # type: ignore[attr-defined]
+    return new_model
 
 
 def create_list_model(model: Type[_TPydanticModel], data_mode: TSchemaEvolutionMode = "freeze") -> Type[ListModel[_TPydanticModel]]:
@@ -152,6 +202,7 @@ def create_list_model(model: Type[_TPydanticModel], data_mode: TSchemaEvolutionM
 
 
 def validate_items(
+    table_name: str,
     list_model: Type[ListModel[_TPydanticModel]],
     items: List[TDataItem],
     column_mode: TSchemaEvolutionMode,
@@ -164,57 +215,65 @@ def validate_items(
     try:
         return list_model(items=items).items
     except ValidationError as e:
-        delta_idx = 0
+        deleted: Set[int] = set()
         for err in e.errors():
+            # TODO: we can get rid of most of the code if we use LenientList as explained above
             if len(err["loc"]) >= 2:
-                err_idx = int(err["loc"][1]) - delta_idx
-                err_item = items[err_idx]
+                err_idx = int(err["loc"][1])
+                if err_idx in deleted:
+                    # already dropped
+                    continue
+                err_item = items[err_idx  - len(deleted)]
             else:
                 # top level error which means misalignment of list model and items
-                raise FullValidationError(list_model, items, e) from e
+                raise DataValidationError(None, table_name, str(err["loc"]), "columns", "freeze", list_model, {"columns": "freeze"}, items) from e
             # raise on freeze
             if err["type"] == 'extra_forbidden':
                 if column_mode == "freeze":
-                    raise FullValidationError(list_model, err_item, e) from e
+                    raise DataValidationError(None, table_name, str(err["loc"]), "columns", "freeze", list_model, {"columns": "freeze"}, err_item) from e
                 elif column_mode == "discard_row":
-                    items.pop(err_idx)
-                    delta_idx += 1
-
+                    # pop at the right index
+                    items.pop(err_idx - len(deleted))
+                    # store original index so we do not pop again
+                    deleted.add(err_idx)
+                else:
+                    raise NotImplementedError(f"{column_mode} column mode not implemented for Pydantic validation")
             else:
                 if data_mode == "freeze":
-                    raise FullValidationError(list_model, err_item, e) from e
+                    raise DataValidationError(None, table_name, str(err["loc"]), "data_type", "freeze", list_model, {"data_type": "freeze"}, err_item) from e
                 elif data_mode == "discard_row":
-                    items.pop(err_idx)
-                    delta_idx += 1
+                    items.pop(err_idx - len(deleted))
+                    deleted.add(err_idx)
+                else:
+                    raise NotImplementedError(f"{column_mode} column mode not implemented for Pydantic validation")
 
         # validate again with error items removed
-        return validate_items(list_model, items, column_mode, data_mode)
+        return validate_items(table_name, list_model, items, column_mode, data_mode)
 
 
-def validate_item(model: Type[_TPydanticModel], item: TDataItems, column_mode: TSchemaEvolutionMode, data_mode: TSchemaEvolutionMode) -> _TPydanticModel:
+def validate_item(
+    table_name: str,
+    model: Type[_TPydanticModel],
+    item: TDataItems,
+    column_mode: TSchemaEvolutionMode,
+    data_mode: TSchemaEvolutionMode
+) -> _TPydanticModel:
     """Validates `item` against model `model` and returns an instance of it"""
     try:
         return model.parse_obj(item)
     except ValidationError as e:
-        for err in e.errors(include_url=False, include_context=False):
+        for err in e.errors():
             # raise on freeze
             if err["type"] == 'extra_forbidden':
                 if column_mode == "freeze":
-                    raise FullValidationError(model, item, e) from e
+                    raise DataValidationError(None, table_name, str(err["loc"]), "columns", "freeze", model, {"columns": "freeze"}, item) from e
                 elif column_mode == "discard_row":
                     return None
+                raise NotImplementedError(f"{column_mode} column mode not implemented for Pydantic validation")
             else:
                 if data_mode == "freeze":
-                    raise FullValidationError(model, item, e) from e
+                    raise DataValidationError(None, table_name, str(err["loc"]), "data_type", "freeze", model, {"data_type": "freeze"}, item) from e
                 elif data_mode == "discard_row":
                     return None
-        # validate again with error items removed
-        return validate_item(model, item, column_mode, data_mode)
-
-
-class FullValidationError(ValueError, DltException):
-    def __init__(self, validator: Type[BaseModel], data_item: TDataItems, original_exception: Exception) ->None:
-        self.original_exception = original_exception
-        self.validator = validator
-        self.data_item = data_item
-        super().__init__(f"Extracted data item could not be validated with {validator}. Original message: {original_exception}")
+                raise NotImplementedError(f"{data_mode} data mode not implemented for Pydantic validation")
+        raise AssertionError("unreachable")
