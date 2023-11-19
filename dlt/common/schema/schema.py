@@ -15,7 +15,7 @@ from dlt.common.schema.typing import (COLUMN_HINTS, DLT_NAME_PREFIX, SCHEMA_ENGI
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, CannotCoerceNullException, InvalidSchemaName,
                                           ParentTableNotFoundException, SchemaCorruptedException)
 from dlt.common.validation import validate_dict
-from dlt.common.schema.exceptions import SchemaFrozenException
+from dlt.common.schema.exceptions import DataValidationError
 
 
 DEFAULT_SCHEMA_CONTRACT_MODE: TSchemaContractDict = {
@@ -202,12 +202,13 @@ class Schema:
             self,
             schema_contract: TSchemaContractDict,
             partial_table: TPartialTableSchema,
+            data_item: TDataItem = None,
             raise_on_freeze: bool = True
         ) -> Tuple[TPartialTableSchema, List[Tuple[TSchemaContractEntities, str, TSchemaEvolutionMode]]]:
         """
         Checks if `schema_contract` allows for the `partial_table` to update the schema. It applies the contract dropping
         the affected columns or the whole `partial_table`. It generates and returns a set of filters that should be applied to incoming data in order to modify it
-        so it conforms to the contract.
+        so it conforms to the contract. `data_item` is provided only as evidence in case DataValidationError is raised.
 
         Example `schema_contract`:
         {
@@ -225,7 +226,7 @@ class Schema:
         Returns a tuple where a first element is modified partial table and the second is a list of filters. The modified partial may be None in case the
         whole table is not allowed.
         Each filter is a tuple of (table|columns, entity name, freeze | discard_row | discard_value).
-        Note: by default `freeze` immediately raises SchemaFrozenException which is convenient in most use cases
+        Note: by default `freeze` immediately raises DataValidationError which is convenient in most use cases
 
         """
         # default settings allow all evolutions, skip all else
@@ -241,7 +242,9 @@ class Schema:
         # check case where we have a new table
         if is_new_table and schema_contract["tables"] != "evolve":
             if raise_on_freeze and schema_contract["tables"] == "freeze":
-                raise SchemaFrozenException(self.name, table_name, f"Trying to add table {table_name} but new tables are frozen.")
+                raise DataValidationError(
+                    self.name, table_name, None, "tables", "freeze", None, schema_contract, data_item, f"Trying to add table {table_name} but new tables are frozen."
+                )
             # filter tables with name below
             return None, [("tables", table_name, schema_contract["tables"])]
 
@@ -260,7 +263,9 @@ class Schema:
             # new column and contract prohibits that
             if column_mode != "evolve" and not is_variant:
                 if raise_on_freeze and column_mode == "freeze":
-                    raise SchemaFrozenException(self.name, table_name, f"Trying to add column {column_name} to table {table_name} but columns are frozen.")
+                    raise DataValidationError(
+                        self.name, table_name, column_name, "columns", "freeze", existing_table, schema_contract, data_item, f"Trying to add column {column_name} to table {table_name} but columns are frozen."
+                    )
                 # filter column with name below
                 filters.append(("columns", column_name, column_mode))
                 # pop the column
@@ -269,7 +274,9 @@ class Schema:
             # variant (data type evolution) and contract prohibits that
             if data_mode != "evolve" and is_variant:
                 if raise_on_freeze and data_mode == "freeze":
-                    raise SchemaFrozenException(self.name, table_name, f"Trying to create new variant column {column_name} to table {table_name} but data_types are frozen.")
+                    raise DataValidationError(
+                        self.name, table_name, column_name, "data_type", "freeze", existing_table, schema_contract, data_item, f"Trying to create new variant column {column_name} to table {table_name} but data_types are frozen."
+                    )
                 # filter column with name below
                 filters.append(("columns", column_name, data_mode))
                 # pop the column
@@ -278,11 +285,11 @@ class Schema:
         return partial_table, filters
 
     @staticmethod
-    def expand_schema_contract_settings(settings: TSchemaContract) -> TSchemaContractDict:
-        """Expand partial or shorthand settings into full settings dictionary"""
+    def expand_schema_contract_settings(settings: TSchemaContract, default: TSchemaContractDict = None) -> TSchemaContractDict:
+        """Expand partial or shorthand settings into full settings dictionary using `default` for unset entities"""
         if isinstance(settings, str):
             settings = TSchemaContractDict(tables=settings, columns=settings, data_type=settings)
-        return cast(TSchemaContractDict, {**DEFAULT_SCHEMA_CONTRACT_MODE, **settings})
+        return cast(TSchemaContractDict, {**(default or DEFAULT_SCHEMA_CONTRACT_MODE), **(settings or {})})
 
     def resolve_contract_settings_for_table(self, table_name: str, new_table_schema: TTableSchema = None) -> TSchemaContractDict:
         """Resolve the exact applicable schema contract settings for the table `table_name`. `new_table_schema` is added to the tree during the resolution."""

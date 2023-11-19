@@ -2,6 +2,7 @@ from typing import Any
 
 from dlt.common.exceptions import DltException
 from dlt.common.data_types import TDataType
+from dlt.common.schema.typing import TSchemaContractDict, TSchemaContractEntities, TSchemaEvolutionMode
 
 
 class SchemaException(DltException):
@@ -15,11 +16,6 @@ class InvalidSchemaName(ValueError, SchemaException):
         self.name = name
         super().__init__(f"{name} is an invalid schema/source name. The source or schema name must be a valid Python identifier ie. a snake case function name and have maximum {self.MAXIMUM_SCHEMA_NAME_LENGTH} characters. Ideally should contain only small letters, numbers and underscores.")
 
-
-# class InvalidDatasetName(ValueError, SchemaException):
-#     def __init__(self, name: str, normalized_name: str) -> None:
-#         self.name = name
-#         super().__init__(f"{name} is an invalid dataset name. The dataset name must conform to wide range of destinations and ideally should contain only small letters, numbers and underscores. Try {normalized_name} instead as suggested by current naming module.")
 
 class InvalidDatasetName(ValueError, SchemaException):
     def __init__(self, destination_name: str) -> None:
@@ -71,11 +67,43 @@ class SchemaEngineNoUpgradePathException(SchemaException):
         super().__init__(f"No engine upgrade path in schema {schema_name} from {init_engine} to {to_engine}, stopped at {from_engine}")
 
 
-class SchemaFrozenException(SchemaException):
-    def __init__(self, schema_name: str, table_name: str, msg: str) -> None:
+class DataValidationError(SchemaException):
+    def __init__(
+        self,
+        schema_name: str,
+        table_name: str,
+        column_name: str,
+        contract_entity: TSchemaContractEntities,
+        contract_mode: TSchemaEvolutionMode,
+        table_schema: Any,
+        schema_contract: TSchemaContractDict,
+        data_item: Any = None,
+        extended_info: str = None
+    ) -> None:
+        """Raised when `data_item` violates `contract_mode` on a `contract_entity` as defined by `table_schema`
+
+           Schema, table and column names are given as a context and full `schema_contract` and causing `data_item` as an evidence.
+        """
+        msg = ""
+        if schema_name:
+            msg = f"Schema: {schema_name} "
+        msg += f"Table: {table_name} "
+        if column_name:
+            msg += f"Column: {column_name}"
+        msg = "In " + msg  + f" . Contract on {contract_entity} with mode {contract_mode} is violated. " + (extended_info or "")
         super().__init__(msg)
         self.schema_name = schema_name
         self.table_name = table_name
+        self.column_name = column_name
+
+        # violated contract
+        self.contract_entity = contract_entity
+        self.contract_mode = contract_mode
+
+        # some evidence
+        self.table_schema = table_schema
+        self.schema_contract = schema_contract
+        self.data_item = data_item
 
 
 class UnknownTableException(SchemaException):
