@@ -37,6 +37,7 @@ class Schema:
     _dlt_tables_prefix: str
     _stored_version: int  # version at load/creation time
     _stored_version_hash: str  # version hash at load/creation time
+    _stored_ancestors: Optional[List[str]] # list of ancestor hashes of the schema
     _imported_version_hash: str  # version hash of recently imported schema
     _schema_description: str  # optional schema description
     _schema_tables: TSchemaTables
@@ -61,6 +62,7 @@ class Schema:
 
     @classmethod
     def from_dict(cls, d: DictStrAny) -> "Schema":
+
         # upgrade engine if needed
         stored_schema = utils.migrate_schema(d, d["engine_version"], cls.ENGINE_VERSION)
         # verify schema
@@ -91,7 +93,8 @@ class Schema:
             "name": self._schema_name,
             "tables": self._schema_tables,
             "settings": self._settings,
-            "normalizers": self._normalizers_config
+            "normalizers": self._normalizers_config,
+            "ancestors": self._stored_ancestors
         }
         if self._imported_version_hash and not remove_defaults:
             stored_schema["imported_version_hash"] = self._imported_version_hash
@@ -223,7 +226,7 @@ class Schema:
         self._compile_settings()
 
 
-    def bump_version(self) -> Tuple[int, str]:
+    def bump_version(self) -> Tuple[int, str, List[str]]:
         """Computes schema hash in order to check if schema content was modified. In such case the schema ``stored_version`` and ``stored_version_hash`` are updated.
 
         Should not be used in production code. The method ``to_dict`` will generate TStoredSchema with correct value, only once before persisting schema to storage.
@@ -232,7 +235,7 @@ class Schema:
             Tuple[int, str]: Current (``stored_version``, ``stored_version_hash``) tuple
         """
         version = utils.bump_version_if_modified(self.to_dict())
-        self._stored_version, self._stored_version_hash = version
+        self._stored_version, self._stored_version_hash, self._stored_ancestors = version
         return version
 
     def filter_row_with_hint(self, table_name: str, hint_type: TColumnHint, row: StrAny) -> StrAny:
@@ -349,6 +352,11 @@ class Schema:
     def version_hash(self) -> str:
         """Current version hash of the schema, recomputed from the actual content"""
         return utils.bump_version_if_modified(self.to_dict())[1]
+
+    @property
+    def ancestors(self) -> List[str]:
+        """Current version hash of the schema, recomputed from the actual content"""
+        return utils.bump_version_if_modified(self.to_dict())[2]
 
     @property
     def stored_version_hash(self) -> str:
@@ -532,6 +540,7 @@ class Schema:
         self._stored_version_hash: str = None
         self._imported_version_hash: str = None
         self._schema_description: str = None
+        self._stored_ancestors: List[str] = []
 
         self._settings: TSchemaSettings = {}
         self._compiled_preferred_types: List[Tuple[REPattern, TDataType]] = []
@@ -570,6 +579,7 @@ class Schema:
         self._imported_version_hash = stored_schema.get("imported_version_hash")
         self._schema_description = stored_schema.get("description")
         self._settings = stored_schema.get("settings") or {}
+        self._stored_ancestors = stored_schema.get("ancestors")
         self._compile_settings()
 
     def _set_schema_name(self, name: str) -> None:

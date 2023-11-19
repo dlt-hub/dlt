@@ -11,7 +11,7 @@ except ImportError:
 
 
 # current version of schema engine
-SCHEMA_ENGINE_VERSION = 6
+SCHEMA_ENGINE_VERSION = 7
 
 # dlt tables
 VERSION_TABLE_NAME = "_dlt_version"
@@ -108,6 +108,7 @@ class TStoredSchema(TypedDict, total=False):
     """TypeDict defining the schema representation in storage"""
     version: int
     version_hash: str
+    ancestors: List[str]
     imported_version_hash: Optional[str]
     engine_version: int
     name: str

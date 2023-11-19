@@ -87,7 +87,7 @@ def test_reserved_property_names() -> None:
 #     print(schema_2.name)
 #     print(schema_2.naming)
 
-#     eth_v6 = load_yml_case("schemas/eth/ethereum_schema_v6")
+#     eth_v6 = load_yml_case("schemas/eth/ethereum_schema_v7")
 #     eth_v6_schema = dlt.Schema.from_dict(eth_v6)
 
 #     pipeline.extract(s, schema=eth_v6_schema)
@@ -101,7 +101,7 @@ def test_reserved_property_names() -> None:
 #     print(pipeline.dataset_name)
 
 #     s = small()
-#     eth_v6 = load_yml_case("schemas/eth/ethereum_schema_v6")
+#     eth_v6 = load_yml_case("schemas/eth/ethereum_schema_v7")
 #     eth_v6_schema = dlt.Schema.from_dict(eth_v6)
 
 #     pipeline.extract(s, schema=eth_v6_schema)

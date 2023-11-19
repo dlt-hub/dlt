@@ -1,5 +1,6 @@
 import pytest
 import yaml
+from copy import deepcopy
 
 from dlt.common import json
 from dlt.common.schema import utils
@@ -83,7 +84,7 @@ def test_infer_column_bumps_version() -> None:
 
 
 def test_preserve_version_on_load() -> None:
-    eth_v6: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v6")
+    eth_v6: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
     version = eth_v6["version"]
     version_hash = eth_v6["version_hash"]
     schema = Schema.from_dict(eth_v6)  # type: ignore[arg-type]
@@ -95,7 +96,7 @@ def test_preserve_version_on_load() -> None:
 
 @pytest.mark.parametrize("remove_defaults", [True, False])
 def test_version_preserve_on_reload(remove_defaults: bool) -> None:
-    eth_v6: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v6")
+    eth_v6: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
     schema = Schema.from_dict(eth_v6)  # type: ignore[arg-type]
 
     to_save_dict = schema.to_dict(remove_defaults=remove_defaults)
@@ -122,3 +123,31 @@ def test_version_preserve_on_reload(remove_defaults: bool) -> None:
     saved_rasa_schema = Schema.from_dict(yaml.safe_load(rasa_yml))
     assert saved_rasa_schema.stored_version == rasa_schema.stored_version
     assert saved_rasa_schema.stored_version_hash == rasa_schema.stored_version_hash
+
+
+def test_create_ancestry() -> None:
+    eth_v7: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
+    schema = Schema.from_dict(eth_v7)  # type: ignore[arg-type]
+    assert schema._stored_ancestors == ["Q/LxiP7taycE+u9PQNb2wiit+G5GntiifOUK2CFM3sQ="]
+    version = schema._stored_version
+
+    # modify save and load schema 15 times and check ancestry
+    expected_ancestors = ["Q/LxiP7taycE+u9PQNb2wiit+G5GntiifOUK2CFM3sQ="]
+    for i in range(1,15):
+        # keep expected ancestors
+        expected_ancestors.insert(0, schema._stored_version_hash)
+
+        # update schema
+        row = {f"float{i}": 78172.128}
+        _, new_table = schema.coerce_row("event_user", None, row)
+        schema.update_table(new_table)
+        schema_dict = schema.to_dict()
+        schema = Schema.from_stored_schema(schema_dict)
+
+        assert schema._stored_ancestors == expected_ancestors[:10]
+        assert schema._stored_version == version + i
+
+        # we never have more than 10 ancestors
+        assert len(schema._stored_ancestors) == i + 1 if i + 1 <= 10 else 10
+
+    assert len(schema._stored_ancestors) == 10

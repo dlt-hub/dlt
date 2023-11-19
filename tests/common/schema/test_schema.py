@@ -295,6 +295,15 @@ def test_upgrade_engine_v1_schema() -> None:
     assert upgraded["engine_version"] == 6
     utils.validate_stored_schema(upgraded)
 
+    # upgrade 1 -> 7
+    schema_dict = load_json_case("schemas/ev1/event.schema")
+    assert schema_dict["engine_version"] == 1
+    upgraded = utils.migrate_schema(schema_dict, from_engine=1, to_engine=7)
+    assert upgraded["engine_version"] == 7
+    utils.validate_stored_schema(upgraded)
+    # we should have an empty ancestors list after upgrade to 7
+    assert upgraded["ancestors"] == []
+
 
 def test_unknown_engine_upgrade() -> None:
     schema_dict: TStoredSchema = load_json_case("schemas/ev1/event.schema")
@@ -573,7 +582,8 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema.stored_version == 1
     assert schema.stored_version_hash is not None
     assert schema.version_hash is not None
-    assert schema.ENGINE_VERSION == 6
+    assert schema.ENGINE_VERSION == 7
+    assert schema._stored_ancestors == []
     assert len(schema.settings["default_hints"]) > 0
     # check settings
     assert utils.standard_type_detections() == schema.settings["detections"] == schema._type_detections

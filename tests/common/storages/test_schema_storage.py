@@ -11,7 +11,7 @@ from dlt.common.storages.exceptions import InStorageSchemaModified, SchemaNotFou
 from dlt.common.storages import SchemaStorageConfiguration, SchemaStorage, LiveSchemaStorage, FileStorage
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
-from tests.common.utils import load_yml_case, yml_case_path, COMMON_TEST_CASES_PATH, IMPORTED_VERSION_HASH_ETH_V6
+from tests.common.utils import load_yml_case, yml_case_path, COMMON_TEST_CASES_PATH, IMPORTED_VERSION_HASH_ETH_V7
 
 
 @pytest.fixture
@@ -87,6 +87,7 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     assert storage_schema.version == reloaded_schema.stored_version
     assert storage_schema.version_hash == reloaded_schema.stored_version_hash
     assert storage_schema._imported_version_hash == reloaded_schema._imported_version_hash
+    assert storage_schema.ancestors == reloaded_schema.ancestors
     # the import schema gets modified
     storage_schema.tables["_dlt_loads"]["write_disposition"] = "append"
     storage_schema.tables.pop("event_user")
@@ -96,7 +97,11 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     # we have overwritten storage schema
     assert reloaded_schema.tables["_dlt_loads"]["write_disposition"] == "append"
     assert "event_user" not in reloaded_schema.tables
+
+    # hash and ancestry stay the same
     assert reloaded_schema._imported_version_hash == storage_schema.version_hash
+    assert storage_schema.ancestors == reloaded_schema.ancestors
+
     # but original version has increased
     assert reloaded_schema.stored_version == storage_schema.version + 1
 
@@ -194,12 +199,13 @@ def test_save_store_schema_over_import(ie_storage: SchemaStorage) -> None:
     ie_storage.save_schema(schema)
     assert schema.version_hash == schema_hash
     # we linked schema to import schema
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V6
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V7
     # load schema and make sure our new schema is here
     schema = ie_storage.load_schema("ethereum")
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V6
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V7
     assert schema._stored_version_hash == schema_hash
     assert schema.version_hash == schema_hash
+    assert schema.ancestors == []
     # we have simple schema in export folder
     fs = FileStorage(ie_storage.config.export_schema_path)
     exported_name = ie_storage._file_name_in_store("ethereum", "yaml")
@@ -213,12 +219,13 @@ def test_save_store_schema_over_import_sync(synced_storage: SchemaStorage) -> No
     schema = Schema("ethereum")
     schema_hash = schema.version_hash
     synced_storage.save_schema(schema)
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V6
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V7
     # import schema is overwritten
     fs = FileStorage(synced_storage.config.import_schema_path)
     exported_name = synced_storage._file_name_in_store("ethereum", "yaml")
     exported_schema = yaml.safe_load(fs.load(exported_name))
     assert schema.version_hash == exported_schema["version_hash"] == schema_hash
+    assert schema.ancestors == []
     # when it is loaded we will import schema again which is identical to the current one but the import link
     # will be set to itself
     schema = synced_storage.load_schema("ethereum")
@@ -269,12 +276,12 @@ def test_schema_from_file() -> None:
 
 
 def prepare_import_folder(storage: SchemaStorage) -> None:
-    shutil.copy(yml_case_path("schemas/eth/ethereum_schema_v6"), os.path.join(storage.storage.storage_path, "../import/ethereum.schema.yaml"))
+    shutil.copy(yml_case_path("schemas/eth/ethereum_schema_v7"), os.path.join(storage.storage.storage_path, "../import/ethereum.schema.yaml"))
 
 
 def assert_schema_imported(synced_storage: SchemaStorage, storage: SchemaStorage) -> Schema:
     prepare_import_folder(synced_storage)
-    eth_v6: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v6")
+    eth_v6: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
     schema = synced_storage.load_schema("ethereum")
     # is linked to imported schema
     schema._imported_version_hash = eth_v6["version_hash"]

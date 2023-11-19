@@ -16,7 +16,7 @@ from dlt.common.configuration.providers import environ as environ_provider
 
 COMMON_TEST_CASES_PATH = "./tests/common/cases/"
 # for import schema tests, change when upgrading the schema version
-IMPORTED_VERSION_HASH_ETH_V6 = "Q/LxiP7taycE+u9PQNb2wiit+G5GntiifOUK2CFM3sQ="
+IMPORTED_VERSION_HASH_ETH_V7 = "ZbDv9+tdJK7P/4QIB0qqHzqNSsVynVx90GL4giV8/p0="
 # test sentry DSN
 TEST_SENTRY_DSN = "https://797678dd0af64b96937435326c7d30c1@o1061158.ingest.sentry.io/4504306172821504"
 # preserve secrets path to be able to restore it

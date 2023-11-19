@@ -81,7 +81,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                 pipeline.sync_destination()
                 # print(pipeline.working_dir)
                 # we have updated schema
-                assert pipeline.default_schema.ENGINE_VERSION == 6
+                assert pipeline.default_schema.ENGINE_VERSION == 7
                 # make sure that schema hash retrieved from the destination is exactly the same as the schema hash that was in storage before the schema was wiped
                 assert pipeline.default_schema.stored_version_hash == github_schema["version_hash"]
 
@@ -114,6 +114,6 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
                 github_schema = json.loads(test_storage.load(f".dlt/pipelines/{GITHUB_PIPELINE_NAME}/schemas/github.schema.json"))
                 pipeline = pipeline.drop()
                 pipeline.sync_destination()
-                assert pipeline.default_schema.ENGINE_VERSION == 6
+                assert pipeline.default_schema.ENGINE_VERSION == 7
                 # schema version does not match `dlt.attach` does not update to the right schema by itself
                 assert pipeline.default_schema.stored_version_hash != github_schema["version_hash"]

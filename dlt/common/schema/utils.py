@@ -134,7 +134,7 @@ def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
 #     return copy(column)  # type: ignore
 
 
-def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str]:
+def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, List[str]]:
     # if any change to schema document is detected then bump version and write new hash
     hash_ = generate_version_hash(stored_schema)
     previous_hash = stored_schema.get("version_hash")
@@ -143,8 +143,13 @@ def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str]:
         pass
     elif hash_ != previous_hash:
         stored_schema["version"] += 1
+        # unshift previous hash to ancestors and limit array to 10 entries
+        if previous_hash not in stored_schema["ancestors"]:
+            stored_schema["ancestors"].insert(0, previous_hash)
+            stored_schema["ancestors"] = stored_schema["ancestors"][:10]
+
     stored_schema["version_hash"] = hash_
-    return stored_schema["version"], hash_
+    return stored_schema["version"], hash_, stored_schema["ancestors"]
 
 
 def generate_version_hash(stored_schema: TStoredSchema) -> str:
@@ -153,6 +158,7 @@ def generate_version_hash(stored_schema: TStoredSchema) -> str:
     schema_copy.pop("version")
     schema_copy.pop("version_hash", None)
     schema_copy.pop("imported_version_hash", None)
+    schema_copy.pop("ancestors", None)
     # ignore order of elements when computing the hash
     content = json.dumps(schema_copy, sort_keys=True)
     h = hashlib.sha3_256(content.encode("utf-8"))
@@ -240,12 +246,18 @@ def compile_simple_regexes(r: Iterable[TSimpleRegex]) -> REPattern:
 
 
 def validate_stored_schema(stored_schema: TStoredSchema) -> None:
+    # exclude validation of keys added later
+    ignored_keys = []
+    if stored_schema["engine_version"] < 7:
+        ignored_keys.append("ancestors")
+
     # use lambda to verify only non extra fields
     validate_dict_ignoring_xkeys(
         spec=TStoredSchema,
         doc=stored_schema,
         path=".",
-        validator_f=simple_regex_validator
+        validator_f=simple_regex_validator,
+        filter_required=lambda k: k not in ignored_keys
     )
     # check child parent relationships
     for table_name, table in stored_schema["tables"].items():
@@ -256,6 +268,7 @@ def validate_stored_schema(stored_schema: TStoredSchema) -> None:
 
 
 def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) -> TStoredSchema:
+
     if from_engine == to_engine:
         return cast(TStoredSchema, schema_dict)
 
@@ -340,6 +353,9 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
         # replace loads table
         schema_dict["tables"][LOADS_TABLE_NAME] = load_table()
         from_engine = 6
+    if from_engine == 6 and to_engine > 6:
+        schema_dict["ancestors"] = []
+        from_engine = 7
 
     schema_dict["engine_version"] = from_engine
     if from_engine != to_engine:
