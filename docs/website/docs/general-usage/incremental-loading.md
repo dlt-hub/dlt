@@ -23,7 +23,7 @@ achieve this, use `write_disposition='replace'` in your resources. Learn more in
 - **Append**: appends the new data to the destination. Use `write_disposition='append'`.
 
 - **Merge**: Merges new data to the destination using `merge_key` and/or deduplicates/upserts new data
-using `private_key`. Use `write_disposition='merge'`.
+using `primary_key`. Use `write_disposition='merge'`.
 
 ### Two simple questions determine the write disposition you use
 
