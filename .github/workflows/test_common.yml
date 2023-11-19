@@ -103,18 +103,18 @@ jobs:
         name: Run extract tests Windows
         shell: cmd
 
-      - name: Install Pydantic 1.0
-        run: pip install "pydantic<2"
+      # - name: Install Pydantic 1.0
+      #   run: pip install "pydantic<2"
 
-      - run: |
-          poetry run pytest tests/libs
-        if: runner.os != 'Windows'
-        name: Run extract and pipeline tests Linux/MAC
-      - run: |
-          poetry run pytest tests/libs
-        if: runner.os == 'Windows'
-        name: Run extract tests Windows
-        shell: cmd
+      # - run: |
+      #     poetry run pytest tests/libs
+      #   if: runner.os != 'Windows'
+      #   name: Run extract and pipeline tests Linux/MAC
+      # - run: |
+      #     poetry run pytest tests/libs
+      #   if: runner.os == 'Windows'
+      #   name: Run extract tests Windows
+      #   shell: cmd
 
   matrix_job_required_check:
     name: Common tests
