@@ -666,12 +666,12 @@ class DltSource(Iterable[TDataItem]):
 
         return cls(section, schema, resources)
 
-    # TODO: 4 properties below must go somewhere else ie. into RelationalSchema which is Schema + Relational normalizer.
-
     @property
     def name(self) -> str:
         return self._schema.name
 
+
+    # TODO: 4 properties below must go somewhere else ie. into RelationalSchema which is Schema + Relational normalizer.
     @property
     def max_table_nesting(self) -> int:
         """A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON."""
