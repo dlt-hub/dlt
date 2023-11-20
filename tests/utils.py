@@ -189,18 +189,29 @@ def skip_if_not_active(destination: str) -> None:
 
 
 def is_running_in_github_fork() -> bool:
-    is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
-    head_ref = os.environ.get("GITHUB_HEAD_REF", "")
-    repo = os.environ.get("GITHUB_REPOSITORY_OWNER", "")
-    ref = os.environ.get("GITHUB_REF", "")
-    event = os.environ.get("GITHUB_ACTION", "")
-    actor = os.environ.get("GITHUB_ACTOR")
+    import os
+    import json
 
-    is_fork = is_github_actions and not head_ref.startswith(repo)
+    def is_pull_request_from_fork():
+        event_path = os.environ['GITHUB_EVENT_PATH']
 
-    raise Exception(f"{is_github_actions}__{head_ref}__{repo}__{ref}__{event}__{actor}")
+        # Extract necessary information from the GitHub Actions event payload
+        with open(event_path) as f:
+            event_data = json.load(f)
 
-    return is_fork
+        # Extract the username or GitHub App name that initiated the workflow
+        actor = os.environ['GITHUB_ACTOR']
+
+        # Extract relevant information about the repository and pull request
+        repo_owner = event_data['repository']['owner']['login']
+        pr_user = event_data['pull_request']['user']['login']
+
+        raise Exception(f"{repo_owner}__{pr_user}__{actor}")
+
+        # Check if the pull request user is different from the repository owner
+        return pr_user != repo_owner
+
+    return is_pull_request_from_fork()
 
 
 skipifspawn = pytest.mark.skipif(
