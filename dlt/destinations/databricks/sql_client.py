@@ -82,7 +82,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
     #     rows = self.execute_sql(query, *db_params)
     #     return len(rows) > 0
 
-    def drop_tables(self, *tables: str) -> None:  
+    def drop_tables(self, *tables: str) -> None:
         # Tables are drop with `IF EXISTS`, but databricks raises when the schema doesn't exist.
         # Multi statement exec is safe and the error can be ignored since all tables are in the same schema.
         with suppress(DatabaseUndefinedRelation):
@@ -95,6 +95,10 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
             else:
                 f = curr.fetchall()
                 return f
+
+    # def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+    #     """Executes several SQL fragments as efficiently as possible to prevent data copying. Default implementation just joins the strings and executes them together."""
+    #     return [self.execute_sql(fragment, *args, **kwargs) for fragment in fragments]  # type: ignore
 
     @contextmanager
     @raise_database_error
@@ -128,7 +132,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     @staticmethod
     def _make_database_exception(ex: Exception) -> Exception:
-        
+
         if isinstance(ex, databricks_lib.ServerOperationError):
             if "TABLE_OR_VIEW_NOT_FOUND" in str(ex):
                 return DatabaseUndefinedRelation(ex)
