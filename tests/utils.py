@@ -192,8 +192,10 @@ def is_running_in_github_fork() -> bool:
     is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
     head_ref = os.environ.get("GITHUB_HEAD_REF", "")
     repo = os.environ.get("GITHUB_REPOSITORY", "")
-    raise Exception(f"{is_github_actions}_{head_ref}_{repo}")
-    return is_github_actions and ":" in head_ref and not head_ref.startswith(repo.split("/")[0])
+    is_fork = is_github_actions and not head_ref.startswith(repo.split("/")[0])
+        # raise Exception(f"{is_github_actions}_{head_ref}_{repo}")
+
+    return is_fork
 
 
 skipifspawn = pytest.mark.skipif(
