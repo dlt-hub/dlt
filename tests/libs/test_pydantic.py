@@ -1,6 +1,6 @@
 from copy import copy
 import pytest
-from typing import ClassVar, Union, Optional, List, Dict, Any
+from typing import ClassVar, Sequence, Mapping, Dict, MutableMapping, MutableSequence, Union, Optional, List, Dict, Any
 from enum import Enum
 
 from datetime import datetime, date, time  # noqa: I251
@@ -203,6 +203,38 @@ def test_model_for_column_mode() -> None:
 
     with pytest.raises(NotImplementedError):
         apply_schema_contract_to_model(ModelWithConfig, "evolve", "discard_value")
+
+
+def test_nested_model_config_propagation() -> None:
+    class UserLabel(BaseModel):
+        label: str
+
+    class UserAddress(BaseModel):
+        street: str
+        zip_code: Sequence[int]
+        label: Optional[UserLabel]
+        ro_labels: Mapping[str, UserLabel]
+        wr_labels: MutableMapping[str, List[UserLabel]]
+        ro_list: Sequence[UserLabel]
+        wr_list: MutableSequence[Dict[str, UserLabel]]
+
+    class User(BaseModel):
+        user_id: int
+        name: str
+        created_at: datetime
+        labels: List[str]
+        user_label: UserLabel
+        user_labels: List[UserLabel]
+        address: UserAddress
+        unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
+
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+    model_freeze = apply_schema_contract_to_model(User, "evolve", "freeze")
+    from typing import get_type_hints
+    print(get_type_hints(model_freeze))
+    print(get_type_hints(model_freeze.model_fields["address"].annotation))
+
 
 
 def test_item_list_validation() -> None:

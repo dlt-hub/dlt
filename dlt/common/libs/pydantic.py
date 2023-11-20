@@ -1,6 +1,7 @@
+from __future__ import annotations
 import inspect
 from copy import copy
-from typing import Generic, Sequence, Set, TypedDict, List, Type, Union, TypeVar, get_origin, get_type_hints, get_args, Any
+from typing import Dict, Generic, Set, TypedDict, List, Type, Union, TypeVar, get_origin, get_args, Any
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import DataValidationError
@@ -161,19 +162,36 @@ def apply_schema_contract_to_model(
         config = copy(model.Config)  # type: ignore[attr-defined]
         config.extra = extra  # type: ignore[attr-defined]
 
-    def _process_annotation(t_: Type[Any]) -> Any:
+    _child_models: Dict[int, Type[BaseModel]] = {}
+
+    def _process_annotation(t_: Type[Any]) -> Type[Any]:
         """Recursively recreates models with applied schema contract """
         if is_list_generic_type(t_):
-            l_t = get_args(t_)[0]
-            return get_origin(t_)[_process_annotation(l_t)]
+            l_t: Type[Any] = get_args(t_)[0]
+            try:
+                return get_origin(t_)[_process_annotation(l_t)]  # type: ignore[no-any-return]
+            except TypeError:
+                # this is Python3.8 fallback. it does not support indexers on types
+                return List[_process_annotation(l_t)]  # type: ignore
         elif is_dict_generic_type(t_):
+            k_t: Type[Any]
+            v_t: Type[Any]
             k_t, v_t = get_args(t_)
-            return get_origin(t_)[k_t, _process_annotation(v_t)]
+            try:
+                return get_origin(t_)[k_t, _process_annotation(v_t)]  # type: ignore[no-any-return]
+            except TypeError:
+                # this is Python3.8 fallback. it does not support indexers on types
+                return Dict[k_t, _process_annotation(v_t)]  # type: ignore
         elif is_union(t_):
             u_t_s = tuple(_process_annotation(u_t) for u_t in extract_union_types(t_))
-            return Union[u_t_s]
+            return Union[u_t_s]  # type: ignore[return-value]
         elif inspect.isclass(t_) and issubclass(t_, BaseModel):
-            return apply_schema_contract_to_model(t_, column_mode, data_mode)
+            # types must be same before and after processing
+            if id(t_) in _child_models:
+                return _child_models[id(t_)]
+            else:
+                _child_models[id(t_)] = child_model = apply_schema_contract_to_model(t_, column_mode, data_mode)
+                return child_model
         return t_
 
     new_model: Type[_TPydanticModel] = create_model(  # type: ignore[call-overload]
