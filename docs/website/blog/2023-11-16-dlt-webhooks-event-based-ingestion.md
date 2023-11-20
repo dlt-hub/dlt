@@ -4,7 +4,7 @@ title: "Deploy Google Cloud Functions as webhooks to capture event-based data fr
 image:  https://d1ice69yfovmhk.cloudfront.net/images/2023-11-16-dlt-webhooks/webhook_blog_image.jpeg
 authors:
   name: Aman Gupta
-  title: Junior data engineer
+  title: Junior Data Engineer
   url: https://github.com/dat-a-man
   image_url: https://iili.io/JnB7vEl.md.png
 tags: [data ingestion, python sdk, ETL, python data pipelines, Open Source, Developer Tools]
