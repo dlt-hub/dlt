@@ -8,6 +8,7 @@ import humanize
 
 from dlt.common import pendulum
 from dlt.common.runtime.logger import suppress_and_warn
+from dlt.common.runtime.exec_info import TExecutionContext, get_execution_context
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.utils import _RESOLVED_TRACES
 from dlt.common.pipeline import ExtractDataInfo, ExtractInfo, LoadInfo, NormalizeInfo, SupportsPipeline
@@ -92,6 +93,8 @@ class PipelineStepTrace(_PipelineStepTrace):
 class PipelineTrace:
     """Pipeline runtime trace containing data on "extract", "normalize" and "load" steps and resolved config and secret values."""
     transaction_id: str
+    pipeline_name: str
+    execution_context: TExecutionContext
     started_at: datetime.datetime
     steps: List[PipelineStepTrace]
     """A list of steps in the trace"""
@@ -122,7 +125,7 @@ class PipelineTrace:
             if step.step == step_name:
                 return step
         return None
-    
+
     def asdict(self) -> DictStrAny:
         """A dictionary representation of PipelineTrace that can be loaded with `dlt`"""
         return dataclasses.asdict(self)
@@ -167,11 +170,11 @@ class SupportsTracking(Protocol):
 
 
 # plug in your own tracking modules here
-TRACKING_MODULES: SupportsTracking = None
+TRACKING_MODULES: List[SupportsTracking] = None
 
 
 def start_trace(step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineTrace:
-    trace = PipelineTrace(uniq_id(), pendulum.now(), steps=[])
+    trace = PipelineTrace(uniq_id(), pipeline.pipeline_name, get_execution_context(), pendulum.now(), steps=[])
     for module in TRACKING_MODULES:
         with suppress_and_warn():
             module.on_start_trace(trace, step, pipeline)
