@@ -193,7 +193,7 @@ def is_running_in_github_fork() -> bool:
     head_ref = os.environ.get("GITHUB_HEAD_REF", "")
     repo = os.environ.get("GITHUB_REPOSITORY_OWNER", "")
     ref = os.environ.get("GITHUB_REF", "")
-    event = os.environ.get("GITHUB_EVENT", "")
+    event = os.environ.get("GITHUB_ACTION", "")
     actor = os.environ.get("GITHUB_ACTOR")
 
     is_fork = is_github_actions and not head_ref.startswith(repo)
