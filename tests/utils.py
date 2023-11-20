@@ -206,7 +206,7 @@ def is_running_in_github_fork() -> bool:
         repo_owner = event_data['repository']['owner']['login']
         pr_user = event_data['pull_request']['user']['login']
 
-        raise Exception(f"{repo_owner}__{pr_user}__{actor}")
+        raise Exception(f"{repo_owner}__{pr_user}__{actor}_{event_data}")
 
         # Check if the pull request user is different from the repository owner
         return pr_user != repo_owner
