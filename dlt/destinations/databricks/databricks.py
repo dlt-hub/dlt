@@ -97,7 +97,8 @@ class DatabricksTypeMapper(TypeMapper):
 
 class DatabricksLoadJob(LoadJob, FollowupJob):
     def __init__(
-        self, file_path: str,
+        self,
+        file_path: str,
         table_name: str,
         load_id: str,
         client: DatabricksSqlClient,
@@ -117,40 +118,30 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         credentials_clause = ""
         files_clause = ""
         stage_file_path = ""
+        format_options = ""
+        copy_options = ""
 
         if bucket_path:
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
-            # referencing an external s3/azure stage does not require explicit AWS credentials
-            if bucket_scheme in ["s3", "az", "abfss"] and stage_name:
-                from_clause = f"FROM '@{stage_name}'"
-                files_clause = f"LOCATION ('{bucket_url.path.lstrip('/')}')"
+            # referencing an external s3/azure stage does not require explicit credentials
+            if bucket_scheme in ["s3", "abfss"] and stage_name:
+                from_clause = f"FROM ('{bucket_path}')"
             # referencing an staged files via a bucket URL requires explicit AWS credentials
-            elif bucket_scheme == "s3" and staging_credentials and isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
-                credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"""
+            if bucket_scheme == "s3" and staging_credentials and isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+                credentials_clause = f"""WITH(CREDENTIAL(AWS_KEY_ID='{staging_credentials.aws_access_key_id}', AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}'))"""
                 from_clause = f"FROM '{bucket_path}'"
-            elif bucket_scheme in ["az", "abfss"] and staging_credentials and isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
+            elif bucket_scheme == "abfss" and staging_credentials and isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
                 # Explicit azure credentials are needed to load from bucket without a named stage
-                credentials_clause = f"CREDENTIALS=(AZURE_SAS_TOKEN='?{staging_credentials.azure_storage_sas_token}')"
-                # Converts an az://<container_name>/<path> to abfss://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
-                # as required by databricks
-                _path = "/" + bucket_url.netloc + bucket_url.path
-                bucket_path = urlunparse(
-                    bucket_url._replace(
-                        scheme="abfss",
-                        netloc=f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net",
-                        path=_path
-                    )
-                )
+                credentials_clause = f"""WITH(CREDENTIAL(AZURE_SAS_TOKEN='{staging_credentials.azure_storage_sas_token}'))"""
                 from_clause = f"FROM '{bucket_path}'"
             else:
-                # ensure that gcs bucket path starts with gcs://, this is a requirement of databricks
+                # ensure that gcs bucket path starts with gs://, this is a requirement of databricks
                 bucket_path = bucket_path.replace("gs://", "gcs://")
                 if not stage_name:
                     # when loading from bucket stage must be given
                     raise LoadJobTerminalException(file_path, f"Cannot load from bucket path {bucket_path} without a stage name. See https://dlthub.com/docs/dlt-ecosystem/destinations/databricks for instructions on setting up the `stage_name`")
-                from_clause = f"FROM @{stage_name}/"
-                files_clause = f"FILES = ('{urlparse(bucket_path).path.lstrip('/')}')"
+                from_clause = f"FROM ('{bucket_path}')"
         else:
             # this means we have a local file
             if not stage_name:
@@ -160,21 +151,19 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             from_clause = f"FROM {stage_file_path}"
 
         # decide on source format, stage_file_path will either be a local file or a bucket path
-        source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
+        source_format = "JSON"
         if file_name.endswith("parquet"):
-            source_format = "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE)"
+            source_format = "PARQUET"
 
         with client.begin_transaction():
-            # PUT and COPY in one tx if local file, otherwise only copy
-            if not bucket_path:
-                client.execute_sql(f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE, AUTO_COMPRESS = FALSE')
             client.execute_sql(
                 f"""COPY INTO {qualified_table_name}
                 {from_clause}
                 {files_clause}
                 {credentials_clause}
-                FILE_FORMAT = {source_format}
-                MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
+                FILEFORMAT = {source_format}
+                {format_options}
+                {copy_options}
                 """
             )
             if stage_file_path and not keep_staged_files:
