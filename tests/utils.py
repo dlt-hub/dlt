@@ -199,17 +199,8 @@ def is_running_in_github_fork() -> bool:
         with open(event_path) as f:
             event_data = json.load(f)
 
-        # Extract the username or GitHub App name that initiated the workflow
-        actor = os.environ['GITHUB_ACTOR']
-
-        # Extract relevant information about the repository and pull request
-        repo_owner = event_data['repository']['owner']['login']
-        pr_user = event_data['pull_request']['user']['login']
-
-        raise Exception(f"{repo_owner}__{pr_user}__{actor}_{event_data}")
-
-        # Check if the pull request user is different from the repository owner
-        return pr_user != repo_owner
+        # Check if the pull request is from a fork
+        return event_data.get('pull_request', {}).get('head', {}).get('repo', {}).get('fork', False)
 
     return is_pull_request_from_fork()
 
