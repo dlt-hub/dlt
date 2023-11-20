@@ -97,7 +97,10 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
                 return f
 
     # def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
-    #     """Executes several SQL fragments as efficiently as possible to prevent data copying. Default implementation just joins the strings and executes them together."""
+    #     """
+    #     Executes several SQL fragments as efficiently as possible to prevent data copying. 
+    #     Default implementation just joins the strings and executes them together.
+    #     """
     #     return [self.execute_sql(fragment, *args, **kwargs) for fragment in fragments]  # type: ignore
 
     @contextmanager
