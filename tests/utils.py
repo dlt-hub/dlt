@@ -5,7 +5,7 @@ import platform
 import requests
 import pytest
 from os import environ
-from typing import Iterator, List
+from typing import Iterator
 from unittest.mock import patch
 
 from requests import Response
@@ -55,6 +55,7 @@ for destination in SQL_DESTINATIONS:
 for destination in ACTIVE_DESTINATIONS:
     assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown active destination {destination}"
 
+
 def TEST_DICT_CONFIG_PROVIDER():
     # add test dictionary provider
     providers_context = Container()[ConfigProvidersContext]
@@ -64,6 +65,7 @@ def TEST_DICT_CONFIG_PROVIDER():
         provider = DictionaryProvider()
         providers_context.add_provider(provider)
         return provider
+
 
 class MockHttpResponse(Response):
     def __init__(self, status_code: int) -> None:
@@ -182,6 +184,7 @@ def create_schema_with_name(schema_name) -> Schema:
 def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
     assert all(not key.startswith(key_prefix) for key in d.keys())
 
+
 def skip_if_not_active(destination: str) -> None:
     assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown skipped destination {destination}"
     if destination not in ACTIVE_DESTINATIONS:
@@ -189,15 +192,12 @@ def skip_if_not_active(destination: str) -> None:
 
 
 def is_running_in_github_fork() -> bool:
-    import os
-    import json
-
     def is_pull_request_from_fork():
         event_path = os.environ['GITHUB_EVENT_PATH']
 
         # Extract necessary information from the GitHub Actions event payload
-        with open(event_path) as f:
-            event_data = json.load(f)
+        with open(event_path, encoding="utf-8") as f:
+            event_data = dlt.common.json.load(f)
 
         # Check if the pull request is from a fork
         return event_data.get('pull_request', {}).get('head', {}).get('repo', {}).get('fork', False)
