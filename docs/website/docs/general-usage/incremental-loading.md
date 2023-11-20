@@ -23,7 +23,7 @@ achieve this, use `write_disposition='replace'` in your resources. Learn more in
 - **Append**: appends the new data to the destination. Use `write_disposition='append'`.
 
 - **Merge**: Merges new data to the destination using `merge_key` and/or deduplicates/upserts new data
-using `primary_key`. Use `write_disposition='merge'`.
+using `private_key`. Use `write_disposition='merge'`.
 
 ### Two simple questions determine the write disposition you use
 
@@ -56,8 +56,8 @@ The `merge` write disposition is used in two scenarios:
    instance of a record for each batch even in case you load an old batch or load the current batch
    several times a day (i.e. to receive "live" updates).
 
-The `merge` write disposition loads data to a `staging` dataset, deduplicates the staging data if a
-`primary_key` is provided, deletes the data from the destination using `merge_key` and `primary_key`,
+The `merge` write disposition loads data to a `staging` dataset, deduplicates the staging data if a 
+`primary_key` is provided, deletes the data from the destination using `merge_key` and `primary_key`, 
 and then inserts the new records. All of this happens in a single atomic transaction for a parent and all
 child tables.
 
