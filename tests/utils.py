@@ -191,9 +191,17 @@ def skip_if_not_active(destination: str) -> None:
 def is_running_in_github_fork() -> bool:
     is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
     head_ref = os.environ.get("GITHUB_HEAD_REF", "")
-    repo = os.environ.get("GITHUB_REPOSITORY", "")
-    return is_github_actions and ":" in head_ref and not head_ref.startswith(repo.split("/")[0])
+    repo = os.environ.get("GITHUB_REPOSITORY_OWNER", "")
+    ref = os.environ.get("GITHUB_REF", "")
+    base_ref = os.environ.get("GITHUB_BASE_REF", "")
+    action_repo = os.environ.get("GITHUB_ACTION_REPOSITORY", "")
+    actor = os.environ.get("GITHUB_ACTOR")
 
+    is_fork = is_github_actions and not head_ref.startswith(repo)
+
+    raise Exception(f"{is_github_actions}__{head_ref}__{repo}__{ref}__{base_ref}__{action_repo}__{actor}")
+
+    return is_fork
 
 skipifspawn = pytest.mark.skipif(
     multiprocessing.get_start_method() != "fork", reason="process fork not supported"
