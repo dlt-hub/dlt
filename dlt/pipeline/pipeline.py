@@ -860,7 +860,7 @@ class Pipeline(SupportsPipeline):
                 # do not set section to prevent source that represent a standalone resource
                 # to overwrite other standalone resources (ie. parents) in that source
                 sources.append(
-                    DltSource(effective_schema.name, "", effective_schema, [data_item])
+                    DltSource(effective_schema, "", [data_item])
                     )
             else:
                 # iterator/iterable/generator
@@ -881,7 +881,7 @@ class Pipeline(SupportsPipeline):
 
         # add all the appended resources in one source
         if resources:
-            sources.append(DltSource(effective_schema.name, self.pipeline_name, effective_schema, resources))
+            sources.append(DltSource(effective_schema, self.pipeline_name, resources))
 
         # apply hints and settings
         for source in sources:
@@ -1293,7 +1293,7 @@ class Pipeline(SupportsPipeline):
     def _extract_state(self, state: TPipelineState) -> TPipelineState:
         # this will extract the state into current load package and update the schema with the _dlt_pipeline_state table
         # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
-        state_source = DltSource(self.default_schema.name, self.pipeline_name, self.default_schema, [state_resource(state)])
+        state_source = DltSource(self.default_schema, self.pipeline_name, [state_resource(state)])
         storage = ExtractorStorage(self._normalize_storage_config)
         extract_id = extract_with_schema(storage, state_source, _NULL_COLLECTOR, 1, 1)
         storage.commit_extract_files(extract_id)

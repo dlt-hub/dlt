@@ -134,7 +134,7 @@ def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
 #     return copy(column)  # type: ignore
 
 
-def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, str]:
+def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, str, List[str]]:
     """Bumps the `stored_schema` version and version hash if content modified, returns (new version, new hash, old hash) tuple"""
     hash_ = generate_version_hash(stored_schema)
     previous_hash = stored_schema.get("version_hash")
@@ -143,8 +143,13 @@ def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, st
         pass
     elif hash_ != previous_hash:
         stored_schema["version"] += 1
+        # unshift previous hash to previous_hashes and limit array to 10 entries
+        if previous_hash not in stored_schema["previous_hashes"]:
+            stored_schema["previous_hashes"].insert(0, previous_hash)
+            stored_schema["previous_hashes"] = stored_schema["previous_hashes"][:10]
+
     stored_schema["version_hash"] = hash_
-    return stored_schema["version"], hash_, previous_hash
+    return stored_schema["version"], hash_, previous_hash, stored_schema["previous_hashes"]
 
 
 def generate_version_hash(stored_schema: TStoredSchema) -> str:
@@ -153,6 +158,7 @@ def generate_version_hash(stored_schema: TStoredSchema) -> str:
     schema_copy.pop("version")
     schema_copy.pop("version_hash", None)
     schema_copy.pop("imported_version_hash", None)
+    schema_copy.pop("previous_hashes", None)
     # ignore order of elements when computing the hash
     content = json.dumps(schema_copy, sort_keys=True)
     h = hashlib.sha3_256(content.encode("utf-8"))
@@ -240,6 +246,7 @@ def compile_simple_regexes(r: Iterable[TSimpleRegex]) -> REPattern:
 
 
 def validate_stored_schema(stored_schema: TStoredSchema) -> None:
+
     # use lambda to verify only non extra fields
     validate_dict_ignoring_xkeys(
         spec=TStoredSchema,
@@ -256,6 +263,7 @@ def validate_stored_schema(stored_schema: TStoredSchema) -> None:
 
 
 def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) -> TStoredSchema:
+
     if from_engine == to_engine:
         return cast(TStoredSchema, schema_dict)
 
@@ -349,6 +357,9 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
             if not table.get("parent"):
                 table["schema_contract"] = {}
         from_engine = 7
+    if from_engine == 7 and to_engine > 7:
+        schema_dict["previous_hashes"] = []
+        from_engine = 8
 
     schema_dict["engine_version"] = from_engine
     if from_engine != to_engine:

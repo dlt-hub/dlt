@@ -44,6 +44,7 @@ class Schema:
     _dlt_tables_prefix: str
     _stored_version: int  # version at load/creation time
     _stored_version_hash: str  # version hash at load/creation time
+    _stored_previous_hashes: Optional[List[str]] # list of ancestor hashes of the schema
     _imported_version_hash: str  # version hash of recently imported schema
     _schema_description: str  # optional schema description
     _schema_tables: TSchemaTables
@@ -101,7 +102,8 @@ class Schema:
             "name": self._schema_name,
             "tables": self._schema_tables,
             "settings": self._settings,
-            "normalizers": self._normalizers_config
+            "normalizers": self._normalizers_config,
+            "previous_hashes": self._stored_previous_hashes
         }
         if self._imported_version_hash and not remove_defaults:
             stored_schema["imported_version_hash"] = self._imported_version_hash
@@ -353,7 +355,7 @@ class Schema:
         Returns:
             Tuple[int, str]: Current (``stored_version``, ``stored_version_hash``) tuple
         """
-        self._stored_version, self._stored_version_hash, _ = utils.bump_version_if_modified(self.to_dict(bump_version=False))
+        self._stored_version, self._stored_version_hash, _, _ = utils.bump_version_if_modified(self.to_dict(bump_version=False))
         return self._stored_version, self._stored_version_hash
 
     def filter_row_with_hint(self, table_name: str, hint_type: TColumnHint, row: StrAny) -> StrAny:
@@ -474,6 +476,11 @@ class Schema:
     def version_hash(self) -> str:
         """Current version hash of the schema, recomputed from the actual content"""
         return utils.bump_version_if_modified(self.to_dict())[1]
+
+    @property
+    def previous_hashes(self) -> List[str]:
+        """Current version hash of the schema, recomputed from the actual content"""
+        return utils.bump_version_if_modified(self.to_dict())[3]
 
     @property
     def stored_version_hash(self) -> str:
@@ -663,6 +670,7 @@ class Schema:
         self._stored_version_hash: str = None
         self._imported_version_hash: str = None
         self._schema_description: str = None
+        self._stored_previous_hashes: List[str] = []
 
         self._settings: TSchemaSettings = {}
         self._compiled_preferred_types: List[Tuple[REPattern, TDataType]] = []
@@ -701,6 +709,7 @@ class Schema:
         self._imported_version_hash = stored_schema.get("imported_version_hash")
         self._schema_description = stored_schema.get("description")
         self._settings = stored_schema.get("settings") or {}
+        self._stored_previous_hashes = stored_schema.get("previous_hashes")
         self._compile_settings()
 
     def _set_schema_name(self, name: str) -> None:

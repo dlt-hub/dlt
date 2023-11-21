@@ -150,9 +150,6 @@ def source(
         if name and name != schema.name:
             raise ExplicitSourceNameInvalid(name, schema.name)
 
-        # the name of the source must be identical to the name of the schema
-        name = schema.name
-
         # wrap source extraction function in configuration with section
         func_module = inspect.getmodule(f)
         source_section = section or _get_source_section_name(func_module)
@@ -167,16 +164,16 @@ def source(
                 # configurations will be accessed in this section in the source
                 proxy = Container()[PipelineContext]
                 pipeline_name = None if not proxy.is_active() else proxy.pipeline().pipeline_name
-                with inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=source_sections, source_state_key=name)):
+                with inject_section(ConfigSectionContext(pipeline_name=pipeline_name, sections=source_sections, source_state_key=schema.name)):
                     rv = conf_f(*args, **kwargs)
                     if rv is None:
-                        raise SourceDataIsNone(name)
+                        raise SourceDataIsNone(schema.name)
                     # if generator, consume it immediately
                     if inspect.isgenerator(rv):
                         rv = list(rv)
 
             # convert to source
-            s = _impl_cls.from_data(name, source_section, schema.clone(update_normalizers=True), rv)
+            s = _impl_cls.from_data(schema.clone(update_normalizers=True), source_section, rv)
             # apply hints
             if max_table_nesting is not None:
                 s.max_table_nesting = max_table_nesting

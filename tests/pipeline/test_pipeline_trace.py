@@ -298,14 +298,14 @@ def test_trace_telemetry() -> None:
 
 def test_extract_data_describe() -> None:
     schema = Schema("test")
-    assert describe_extract_data(DltSource("sss_extract", "sect", schema)) == [{"name": "sss_extract", "data_type": "source"}]
+    assert describe_extract_data(DltSource(schema, "sect")) == [{"name": "test", "data_type": "source"}]
     assert describe_extract_data(DltResource(Pipe("rrr_extract"), None, False)) == [{"name": "rrr_extract", "data_type": "resource"}]
-    assert describe_extract_data([DltSource("sss_extract", "sect", schema)]) == [{"name": "sss_extract", "data_type": "source"}]
+    assert describe_extract_data([DltSource(schema, "sect")]) == [{"name": "test", "data_type": "source"}]
     assert describe_extract_data([DltResource(Pipe("rrr_extract"), None, False)]) == [{"name": "rrr_extract", "data_type": "resource"}]
     assert describe_extract_data(
-        [DltResource(Pipe("rrr_extract"), None, False), DltSource("sss_extract", "sect", schema)]
+        [DltResource(Pipe("rrr_extract"), None, False), DltSource(schema, "sect")]
         ) == [
-            {"name": "rrr_extract", "data_type": "resource"}, {"name": "sss_extract", "data_type": "source"}
+            {"name": "rrr_extract", "data_type": "resource"}, {"name": "test", "data_type": "source"}
         ]
     assert describe_extract_data([{"a": "b"}]) == [{"name": "", "data_type": "dict"}]
     from pandas import DataFrame
@@ -313,7 +313,7 @@ def test_extract_data_describe() -> None:
     assert describe_extract_data([DataFrame(), {"a": "b"}]) == [{"name": "", "data_type": "DataFrame"}]
     # first unnamed element in the list breaks checking info
     assert describe_extract_data(
-        [DltResource(Pipe("rrr_extract"), None, False), DataFrame(), DltSource("sss_extract", "sect", schema)]
+        [DltResource(Pipe("rrr_extract"), None, False), DataFrame(), DltSource(schema, "sect")]
         ) == [
             {"name": "rrr_extract", "data_type": "resource"}, {"name": "", "data_type": "DataFrame"}
         ]

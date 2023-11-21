@@ -167,22 +167,17 @@ class DltSource(Iterable[TDataItem]):
     * You can use a `run` method to load the data with a default instance of dlt pipeline.
     * You can get source read only state for the currently active Pipeline instance
     """
-    def __init__(self, name: str, section: str, schema: Schema, resources: Sequence[DltResource] = None) -> None:
-        self.name = name
+    def __init__(self, schema: Schema, section: str, resources: Sequence[DltResource] = None) -> None:
         self.section = section
         """Tells if iterator associated with a source is exhausted"""
         self._schema = schema
         self._resources: DltResourceDict = DltResourceDict(self.name, self.section)
 
-        if self.name != schema.name:
-            # raise ValueError(f"Schema name {schema.name} differs from source name {name}! The explicit source name argument is deprecated and will be soon removed.")
-            warnings.warn(f"Schema name {schema.name} differs from source name {name}! The explicit source name argument is deprecated and will be soon removed.")
-
         if resources:
             self.resources.add(*resources)
 
     @classmethod
-    def from_data(cls, name: str, section: str, schema: Schema, data: Any) -> Self:
+    def from_data(cls, schema: Schema, section: str, data: Any) -> Self:
         """Converts any `data` supported by `dlt` `run` method into `dlt source` with a name `section`.`name` and `schema` schema."""
         # creates source from various forms of data
         if isinstance(data, DltSource):
@@ -194,10 +189,14 @@ class DltSource(Iterable[TDataItem]):
         else:
             resources = [DltResource.from_data(data)]
 
-        return cls(name, section, schema, resources)
+        return cls(schema, section, resources)
+
+    @property
+    def name(self) -> str:
+        return self._schema.name
+
 
     # TODO: 4 properties below must go somewhere else ie. into RelationalSchema which is Schema + Relational normalizer.
-
     @property
     def max_table_nesting(self) -> int:
         """A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON."""
@@ -328,7 +327,7 @@ class DltSource(Iterable[TDataItem]):
     def clone(self) -> "DltSource":
         """Creates a deep copy of the source where copies of schema, resources and pipes are created"""
         # mind that resources and pipes are cloned when added to the DltResourcesDict in the source constructor
-        return DltSource(self.name, self.section, self.schema.clone(), list(self._resources.values()))
+        return DltSource(self.schema.clone(), self.section, list(self._resources.values()))
 
     def __iter__(self) -> Iterator[TDataItem]:
         """Opens iterator that yields the data items from all the resources within the source in the same order as in Pipeline class.
