@@ -55,7 +55,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                 print(venv.run_script("../tests/pipeline/cases/github_pipeline/github_pipeline.py"))
                 # hash hash in schema
                 github_schema = json.loads(test_storage.load(f".dlt/pipelines/{GITHUB_PIPELINE_NAME}/schemas/github.schema.json"))
-                assert github_schema["engine_version"] == 7
+                assert github_schema["engine_version"] == 8
                 assert "schema_version_hash" in github_schema["tables"][LOADS_TABLE_NAME]["columns"]
                 with DuckDbSqlClient(GITHUB_DATASET, duckdb_cfg.credentials) as client:
                     rows = client.execute_sql(f"SELECT * FROM {LOADS_TABLE_NAME} ORDER BY inserted_at")
