@@ -132,10 +132,10 @@ def test_simple_regex_validator() -> None:
 
 
 def test_load_corrupted_schema() -> None:
-    eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v8")
-    del eth_v4["tables"]["blocks"]
+    eth_v8: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v8")
+    del eth_v8["tables"]["blocks"]
     with pytest.raises(ParentTableNotFoundException):
-        utils.validate_stored_schema(eth_v4)
+        utils.validate_stored_schema(eth_v8)
 
 
 def test_column_name_validator(schema: Schema) -> None:
@@ -287,21 +287,18 @@ def test_upgrade_engine_v1_schema() -> None:
     assert schema_dict["engine_version"] == 2
     upgraded = utils.migrate_schema(schema_dict, from_engine=2, to_engine=4)
     assert upgraded["engine_version"] == 4
-    utils.validate_stored_schema(upgraded)
 
     # upgrade 1 -> 4
     schema_dict = load_json_case("schemas/ev1/event.schema")
     assert schema_dict["engine_version"] == 1
     upgraded = utils.migrate_schema(schema_dict, from_engine=1, to_engine=4)
     assert upgraded["engine_version"] == 4
-    utils.validate_stored_schema(upgraded)
 
     # upgrade 1 -> 6
     schema_dict = load_json_case("schemas/ev1/event.schema")
     assert schema_dict["engine_version"] == 1
     upgraded = utils.migrate_schema(schema_dict, from_engine=1, to_engine=6)
     assert upgraded["engine_version"] == 6
-    utils.validate_stored_schema(upgraded)
 
     # upgrade 1 -> 7
     schema_dict = load_json_case("schemas/ev1/event.schema")

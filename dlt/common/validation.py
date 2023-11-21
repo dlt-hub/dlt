@@ -9,7 +9,7 @@ TFilterFunc = Callable[[str], bool]
 TCustomValidator = Callable[[str, str, Any, Any], bool]
 
 
-def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFilterFunc = None, validator_f: TCustomValidator = None, filter_required: TFilterFunc = None) -> None:
+def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFilterFunc = None, validator_f: TCustomValidator = None) -> None:
     """Validate the `doc` dictionary based on the given typed dictionary specification `spec`.
 
     Args:
@@ -34,12 +34,11 @@ def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFil
     """
     # pass through filter
     filter_f = filter_f or (lambda _: True)
-    filter_required = filter_required or (lambda _: True)
     # cannot validate anything
     validator_f = validator_f or (lambda p, pk, pv, t: False)
 
     allowed_props = get_type_hints(spec)
-    required_props = {k: v for k, v in allowed_props.items() if (not is_optional_type(v) and filter_required(k))}
+    required_props = {k: v for k, v in allowed_props.items() if not is_optional_type(v)}
     # remove optional props
     props = {k: v for k, v in doc.items() if filter_f(k)}
     # check missing props

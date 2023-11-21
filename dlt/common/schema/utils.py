@@ -246,18 +246,13 @@ def compile_simple_regexes(r: Iterable[TSimpleRegex]) -> REPattern:
 
 
 def validate_stored_schema(stored_schema: TStoredSchema) -> None:
-    # exclude validation of keys added later
-    ignored_keys = []
-    if stored_schema["engine_version"] < 7:
-        ignored_keys.append("previous_hashes")
 
     # use lambda to verify only non extra fields
     validate_dict_ignoring_xkeys(
         spec=TStoredSchema,
         doc=stored_schema,
         path=".",
-        validator_f=simple_regex_validator,
-        filter_required=lambda k: k not in ignored_keys
+        validator_f=simple_regex_validator
     )
     # check child parent relationships
     for table_name, table in stored_schema["tables"].items():
