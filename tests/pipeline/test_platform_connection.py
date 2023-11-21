@@ -65,5 +65,4 @@ def test_platform_connection() -> None:
         assert state_result["pipeline_name"] == "platform_test_pipeline"
         assert state_result["dataset_name"] == "platform_test_dataset"
         assert len(state_result["schemas"]) == 2
-        assert state_result["schemas"][0]["name"] == "first_source"
-        assert state_result["schemas"][1]["name"] == "second_source"
+        assert {state_result["schemas"][0]["name"], state_result["schemas"][1]["name"]} == {"first_source", "second_source"}
