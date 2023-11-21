@@ -57,7 +57,7 @@ def test_multiple_resources_pipeline():
     )
     load_info = pipeline.run([source1(10), source2(20)])
 
-    source1_schema = load_info.pipeline.schemas.get("source1") # type: ignore[attr-defined]
+    source1_schema = load_info.pipeline.schemas.get("source1")
 
     assert load_info.pipeline.schema_names == ["source2", "source1"] # type: ignore[attr-defined]
 
