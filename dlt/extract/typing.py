@@ -138,3 +138,8 @@ class ValidateItem(ItemTransform[TDataItem]):
     Subclass should implement the `__call__` method to either return the data item(s) or raise `extract.exceptions.ValidationError`.
     See `PydanticValidator` for possible implementation.
     """
+    table_name: str
+
+    def bind(self, pipe: SupportsPipe) -> ItemTransform[TDataItem]:
+        self.table_name = pipe.name
+        return self

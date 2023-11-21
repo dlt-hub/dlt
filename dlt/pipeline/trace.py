@@ -14,7 +14,7 @@ from dlt.common.pipeline import ExtractDataInfo, ExtractInfo, LoadInfo, Normaliz
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
 
-from dlt.extract.source import DltResource, DltSource
+from dlt.extract import DltResource, DltSource
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.exceptions import PipelineStepFailed
 

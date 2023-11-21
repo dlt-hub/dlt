@@ -12,7 +12,7 @@ from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import STATE_TABLE_NAME, TTableSchemaColumns
 from dlt.common.destination.reference import JobClientBase, WithStateSync
 
-from dlt.extract.source import DltResource
+from dlt.extract import DltResource
 
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException
 from dlt.common.utils import compressed_b64decode, compressed_b64encode

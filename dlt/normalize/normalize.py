@@ -14,7 +14,6 @@ from dlt.common.schema.typing import TStoredSchema
 from dlt.common.schema.utils import merge_schema_updates
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import NormalizeStorage, SchemaStorage, LoadStorage, LoadStorageConfiguration, NormalizeStorageConfiguration
-from dlt.common.typing import TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.pipeline import NormalizeInfo
@@ -52,7 +51,12 @@ class Normalize(Runnable[Executor]):
         # pass initial normalize storage config embedded in normalize config
         self.normalize_storage = NormalizeStorage(True, config=self.config._normalize_storage_config)
         # normalize saves in preferred format but can read all supported formats
-        self.load_storage = LoadStorage(True, self.config.destination_capabilities.preferred_loader_file_format, LoadStorage.ALL_SUPPORTED_FILE_FORMATS, config=self.config._load_storage_config)
+        self.load_storage = LoadStorage(
+            True,
+            self.config.destination_capabilities.preferred_loader_file_format,
+            LoadStorage.ALL_SUPPORTED_FILE_FORMATS,
+            config=self.config._load_storage_config
+        )
 
     @staticmethod
     def load_or_create_schema(schema_storage: SchemaStorage, schema_name: str) -> Schema:
@@ -237,7 +241,7 @@ class Normalize(Runnable[Executor]):
             self.load_storage.config,
             schema.to_dict(),
             load_id,
-            files,
+            files
         )
         self.update_table(schema, result[0])
         self.collector.update("Files", len(result[2]))
@@ -246,14 +250,14 @@ class Normalize(Runnable[Executor]):
 
     def spool_files(self, schema_name: str, load_id: str, map_f: TMapFuncType, files: Sequence[str]) -> None:
         schema = Normalize.load_or_create_schema(self.schema_storage, schema_name)
-
         # process files in parallel or in single thread, depending on map_f
         schema_updates, row_counts = map_f(schema, load_id, files)
-        # logger.metrics("Normalize metrics", extra=get_logging_extras([self.schema_version_gauge.labels(schema_name)]))
-        if len(schema_updates) > 0:
-            logger.info(f"Saving schema {schema_name} with version {schema.version}, writing manifest files")
-            # schema is updated, save it to schema volume
-            self.schema_storage.save_schema(schema)
+        # remove normalizer specific info
+        for table in schema.tables.values():
+            table.pop("x-normalizer", None)  # type: ignore[typeddict-item]
+        logger.info(f"Saving schema {schema_name} with version {schema.version}, writing manifest files")
+        # schema is updated, save it to schema volume
+        self.schema_storage.save_schema(schema)
         # save schema to temp load folder
         self.load_storage.save_temp_schema(schema, load_id)
         # save schema updates even if empty

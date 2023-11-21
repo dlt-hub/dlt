@@ -77,7 +77,7 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
     if with_root_key:
         assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["root"] == {'_dlt_id': '_dlt_root_id'}
     else:
-        assert "propagation" not in pipeline.default_schema._normalizers_config["json"]["config"]
+        assert "propagation" not in pipeline.default_schema._normalizers_config["json"].get("config", {})
 
     # without a root key this will fail, it is expected
     if not with_root_key and destination_config.supports_merge:

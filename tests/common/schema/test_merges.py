@@ -202,14 +202,17 @@ def test_diff_tables() -> None:
     # ignore identical table props
     existing = deepcopy(table)
     changed["write_disposition"] = "append"
+    changed["schema_contract"] = "freeze"
     partial = utils.diff_tables(deepcopy(existing), changed)
     assert partial == {
         "name": "new name",
         "description": "new description",
         "write_disposition": "append",
+        "schema_contract": "freeze",
         "columns": {}
     }
     existing["write_disposition"] = "append"
+    existing["schema_contract"] = "freeze"
     partial = utils.diff_tables(deepcopy(existing), changed)
     assert partial == {
         "name": "new name",

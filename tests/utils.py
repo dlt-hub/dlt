@@ -5,7 +5,7 @@ import platform
 import requests
 import pytest
 from os import environ
-from typing import Iterator, List
+from typing import Any, Iterable, Iterator, List, Literal, Union, get_args
 from unittest.mock import patch
 
 from requests import Response
@@ -21,7 +21,7 @@ from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
 from dlt.common.storages.versioned_storage import VersionedStorage
-from dlt.common.typing import StrAny
+from dlt.common.typing import StrAny, TDataItem
 from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.pipeline import PipelineContext
 
@@ -54,6 +54,13 @@ for destination in SQL_DESTINATIONS:
 
 for destination in ACTIVE_DESTINATIONS:
     assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown active destination {destination}"
+
+
+# possible TDataItem types
+TDataItemFormat = Literal["json", "pandas", "arrow", "arrow-batch"]
+ALL_DATA_ITEM_FORMATS = get_args(TDataItemFormat)
+"""List with TDataItem formats: json, arrow table/batch / pandas"""
+
 
 def TEST_DICT_CONFIG_PROVIDER():
     # add test dictionary provider
@@ -136,6 +143,7 @@ def unload_modules() -> Iterator[None]:
 
 @pytest.fixture(autouse=True)
 def wipe_pipeline() -> Iterator[None]:
+    """Wipes pipeline local state and deactivates it"""
     container = Container()
     if container[PipelineContext].is_active():
         container[PipelineContext].deactivate()
@@ -146,6 +154,26 @@ def wipe_pipeline() -> Iterator[None]:
         p._wipe_working_folder()
         # deactivate context
         container[PipelineContext].deactivate()
+
+
+def data_to_item_format(item_format: TDataItemFormat, data: Union[Iterator[TDataItem], Iterable[TDataItem]]) -> Any:
+    """Return the given data in the form of pandas, arrow table/batch or json items"""
+    if item_format == "json":
+        return data
+
+    import pandas as pd
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    # Make dataframe from the data
+    df = pd.DataFrame(list(data))
+    if item_format == "pandas":
+        return [df]
+    elif item_format == "arrow":
+        return [pa.Table.from_pandas(df)]
+    elif item_format == "arrow-batch":
+        return [pa.RecordBatch.from_pandas(df)]
+    else:
+        raise ValueError(f"Unknown item format: {item_format}")
 
 
 def init_test_logging(c: RunConfiguration = None) -> None:
@@ -181,6 +209,7 @@ def create_schema_with_name(schema_name) -> Schema:
 
 def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
     assert all(not key.startswith(key_prefix) for key in d.keys())
+
 
 def skip_if_not_active(destination: str) -> None:
     assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown skipped destination {destination}"

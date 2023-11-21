@@ -1,12 +1,14 @@
 from typing import Any, Tuple, Optional, Union, Callable, Iterable, Iterator, Sequence, Tuple
+from copy import copy
+
 from dlt import version
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.typing import DLT_NAME_PREFIX, TTableSchemaColumns
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.schema.typing import TColumnType, TColumnSchemaBase
-from dlt.common.data_types import TDataType
-from dlt.common.typing import TFileOrPath
+from dlt.common.schema.typing import TColumnType
+from dlt.common.typing import StrStr, TFileOrPath
+from dlt.common.normalizers.naming import NamingConvention
 
 try:
     import pyarrow
@@ -140,22 +142,119 @@ def _get_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType:
 
 
 def remove_null_columns(item: TAnyArrowItem) -> TAnyArrowItem:
-    """Remove all columns of datatype pyarrow.null() from the table or record batch
-    """
+    """Remove all columns of datatype pyarrow.null() from the table or record batch"""
+    return remove_columns(item, [field.name for field in item.schema if pyarrow.types.is_null(field.type)])
+
+
+def remove_columns(item: TAnyArrowItem, columns: Sequence[str]) -> TAnyArrowItem:
+    """Remove `columns` from Arrow `item`"""
+    if not columns:
+        return item
+
     if isinstance(item, pyarrow.Table):
-        return item.drop([field.name for field in item.schema if pyarrow.types.is_null(field.type)])
+        return item.drop(columns)
     elif isinstance(item, pyarrow.RecordBatch):
-        null_idx = [i for i, col in enumerate(item.columns) if pyarrow.types.is_null(col.type)]
-        new_schema = item.schema
-        for i in reversed(null_idx):
-            new_schema = new_schema.remove(i)
-        return pyarrow.RecordBatch.from_arrays(
-            [col for i, col in enumerate(item.columns) if i not in null_idx],
-            schema=new_schema
-        )
+        # NOTE: select is available in pyarrow 12 an up
+        return item.select([n for n in item.schema.names if n not in columns])  # reverse selection
     else:
         raise ValueError(item)
 
+
+def append_column(item: TAnyArrowItem, name: str, data: Any) -> TAnyArrowItem:
+    """Appends new column to Table or RecordBatch"""
+    if isinstance(item, pyarrow.Table):
+        return item.append_column(name, data)
+    elif isinstance(item, pyarrow.RecordBatch):
+        new_field = pyarrow.field(name, data.type)
+        return pyarrow.RecordBatch.from_arrays(item.columns + [data], schema=item.schema.append(new_field))
+    else:
+        raise ValueError(item)
+
+
+def rename_columns(item: TAnyArrowItem, new_column_names: Sequence[str]) -> TAnyArrowItem:
+    """Rename arrow columns on Table or RecordBatch, returns same data but with renamed schema"""
+
+    if list(item.schema.names) == list(new_column_names):
+        # No need to rename
+        return item
+
+    if isinstance(item, pyarrow.Table):
+        return item.rename_columns(new_column_names)
+    elif isinstance(item, pyarrow.RecordBatch):
+        new_fields = [field.with_name(new_name) for new_name, field in zip(new_column_names, item.schema)]
+        return pyarrow.RecordBatch.from_arrays(item.columns, schema=pyarrow.schema(new_fields))
+    else:
+        raise TypeError(f"Unsupported data item type {type(item)}")
+
+
+def normalize_py_arrow_schema(
+    item: TAnyArrowItem,
+    columns: TTableSchemaColumns,
+    naming: NamingConvention,
+    caps: DestinationCapabilitiesContext
+) -> TAnyArrowItem:
+    """Normalize arrow `item` schema according to the `columns`.
+
+       1. arrow schema field names will be normalized according to `naming`
+       2. arrows columns will be reordered according to `columns`
+       3. empty columns will be inserted if they are missing, types will be generated using `caps`
+    """
+    rename_mapping = get_normalized_arrow_fields_mapping(item, naming)
+    rev_mapping = {v: k for k, v in rename_mapping.items()}
+    dlt_table_prefix = naming.normalize_table_identifier(DLT_NAME_PREFIX)
+
+    # remove all columns that are dlt columns but are not present in arrow schema. we do not want to add such columns
+    # that should happen in the normalizer
+    columns = {name:column for name, column in columns.items() if not name.startswith(dlt_table_prefix) or name in rev_mapping}
+
+    # check if nothing to rename
+    if list(rename_mapping.keys()) == list(rename_mapping.values()):
+        # check if nothing to reorder
+        if list(rename_mapping.keys())[:len(columns)]== list(columns.keys()):
+            return item
+
+    schema = item.schema
+    new_fields = []
+    new_columns = []
+
+    for column_name, column in columns.items():
+        # get original field name
+        field_name = rev_mapping.pop(column_name, column_name)
+        if field_name in rename_mapping:
+            idx = schema.get_field_index(field_name)
+            # use renamed field
+            new_fields.append(schema.field(idx).with_name(column_name))
+            new_columns.append(item.column(idx))
+        else:
+            # column does not exist in pyarrow. create empty field and column
+            new_field = pyarrow.field(
+                    column_name,
+                    get_py_arrow_datatype(column, caps, "UTC"),
+                    nullable=column.get("nullable", True)
+                )
+            new_fields.append(new_field)
+            new_columns.append(pyarrow.nulls(item.num_rows, type=new_field.type))
+
+    # add the remaining columns
+    for column_name, field_name in rev_mapping.items():
+        idx = schema.get_field_index(field_name)
+        # use renamed field
+        new_fields.append(schema.field(idx).with_name(column_name))
+        new_columns.append(item.column(idx))
+
+    # create desired type
+    return item.__class__.from_arrays(new_columns, schema=pyarrow.schema(new_fields))
+
+
+def get_normalized_arrow_fields_mapping(item: TAnyArrowItem, naming: NamingConvention) -> StrStr:
+    """Normalizes schema field names and returns mapping from original to normalized name. Raises on name clashes"""
+    norm_f = naming.normalize_identifier
+    name_mapping = {n.name: norm_f(n.name) for n in item.schema}
+    # verify if names uniquely normalize
+    normalized_names = set(name_mapping.values())
+    if len(name_mapping) != len(normalized_names):
+        raise NameNormalizationClash(f"Arrow schema fields normalized from {list(name_mapping.keys())} to {list(normalized_names)}")
+    return name_mapping
 
 
 def py_arrow_to_table_schema_columns(schema: pyarrow.Schema) -> TTableSchemaColumns:
@@ -193,9 +292,8 @@ def get_row_count(parquet_file: TFileOrPath) -> int:
 def is_arrow_item(item: Any) -> bool:
     return isinstance(item, (pyarrow.Table, pyarrow.RecordBatch))
 
-
-TNewColumns = Sequence[Tuple[pyarrow.Field, Callable[[pyarrow.Table], Iterable[Any]]]]
-
+TNewColumns = Sequence[Tuple[int, pyarrow.Field, Callable[[pyarrow.Table], Iterable[Any]]]]
+"""Sequence of tuples: (field index, field, generating function)"""
 
 def pq_stream_with_new_columns(
     parquet_file: TFileOrPath, columns: TNewColumns, row_groups_per_read: int = 1
@@ -206,7 +304,7 @@ def pq_stream_with_new_columns(
 
     Args:
         parquet_file: path or file object to parquet file
-        columns: list of columns to add in the form of (`pyarrow.Field`, column_value_callback)
+        columns: list of columns to add in the form of (insertion index, `pyarrow.Field`, column_value_callback)
             The callback should accept a `pyarrow.Table` and return an array of values for the column.
         row_groups_per_read: number of row groups to read at a time. Defaults to 1.
 
@@ -218,6 +316,15 @@ def pq_stream_with_new_columns(
         # Iterate through n row groups at a time
         for i in range(0, n_groups, row_groups_per_read):
             tbl: pyarrow.Table = reader.read_row_groups(range(i, min(i + row_groups_per_read, n_groups)))
-            for col in columns:
-                tbl = tbl.append_column(col[0], col[1](tbl))
+            for idx, field, gen_ in columns:
+                if idx == -1:
+                    tbl = tbl.append_column(field, gen_(tbl))
+                else:
+                    tbl = tbl.add_column(idx, field, gen_(tbl))
             yield tbl
+
+
+class NameNormalizationClash(ValueError):
+    def __init__(self, reason: str) -> None:
+        msg = f"Arrow column name clash after input data normalization. {reason}"
+        super().__init__(msg)

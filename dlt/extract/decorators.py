@@ -15,7 +15,7 @@ from dlt.common.exceptions import ArgumentsOverloadException
 from dlt.common.pipeline import PipelineContext
 from dlt.common.source import _SOURCES, SourceInfo
 from dlt.common.schema.schema import Schema
-from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TTableFormat
+from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TSchemaContract, TTableFormat
 from dlt.extract.utils import ensure_table_schema_columns_hint, simulate_func_call, wrap_compat_transformer, wrap_resource_gen
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
@@ -25,7 +25,8 @@ from dlt.extract.exceptions import DynamicNameNotStandaloneResource, InvalidTran
 from dlt.extract.incremental import IncrementalResourceWrapper
 
 from dlt.extract.typing import TTableHintTemplate
-from dlt.extract.source import DltResource, DltSource, TUnboundDltResource
+from dlt.extract.source import DltSource
+from dlt.extract.resource import DltResource, TUnboundDltResource
 
 
 @configspec
@@ -53,9 +54,10 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
+    schema_contract: TSchemaContract = None,
     spec: Type[BaseConfiguration] = None,
     _impl_cls: Type[TDltSourceImpl] = DltSource  # type: ignore[assignment]
-) -> Callable[TSourceFunParams, TDltSourceImpl]:
+) -> Callable[TSourceFunParams, DltSource]:
     ...
 
 @overload
@@ -67,6 +69,7 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
+    schema_contract: TSchemaContract = None,
     spec: Type[BaseConfiguration] = None,
     _impl_cls: Type[TDltSourceImpl] = DltSource  # type: ignore[assignment]
 ) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, TDltSourceImpl]]:
@@ -80,6 +83,7 @@ def source(
     max_table_nesting: int = None,
     root_key: bool = False,
     schema: Schema = None,
+    schema_contract: TSchemaContract = None,
     spec: Type[BaseConfiguration] = None,
     _impl_cls: Type[TDltSourceImpl] = DltSource  # type: ignore[assignment]
 ) -> Any:
@@ -115,6 +119,8 @@ def source(
 
         schema (Schema, optional): An explicit `Schema` instance to be associated with the source. If not present, `dlt` creates a new `Schema` object with provided `name`. If such `Schema` already exists in the same folder as the module containing the decorated function, such schema will be loaded from file.
 
+        schema_contract (TSchemaContract, optional): Schema contract settings that will be applied to this resource.
+
         spec (Type[BaseConfiguration], optional): A specification of configuration and secret values required by the source.
 
         _impl_cls (Type[TDltSourceImpl], optional): A custom implementation of DltSource, may be also used to providing just a typing stub
@@ -122,7 +128,6 @@ def source(
     Returns:
         `DltSource` instance
     """
-
     if name and schema:
         raise ArgumentsOverloadException("'name' has no effect when `schema` argument is present", source.__name__)
 
@@ -175,6 +180,7 @@ def source(
             # apply hints
             if max_table_nesting is not None:
                 s.max_table_nesting = max_table_nesting
+            s.schema_contract = schema_contract
             # enable root propagation
             s.root_key = root_key
             return s
@@ -206,6 +212,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
@@ -222,6 +229,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
@@ -238,6 +246,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
@@ -256,6 +265,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None
@@ -272,6 +282,7 @@ def resource(
     columns: TTableHintTemplate[TAnySchemaColumns] = None,
     primary_key: TTableHintTemplate[TColumnNames] = None,
     merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
@@ -322,6 +333,7 @@ def resource(
         merge_key (str | Sequence[str]): A column name or a list of column names that define a merge key. Typically used with "merge" write disposition to remove overlapping data ranges ie. to keep a single record for a given day.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
+        schema_contract (TSchemaContract, optional): Schema contract settings that will be applied to all resources of this source (if not overridden in the resource itself)
         table_format (Literal["iceberg"], optional): Defines the storage format of the table. Currently only "iceberg" is supported on Athena, other destinations ignore this hint.
 
         selected (bool, optional): When `True` `dlt pipeline` will extract and load this resource, if `False`, the resource will be ignored.
@@ -346,6 +358,7 @@ def resource(
             columns=columns,
             primary_key=primary_key,
             merge_key=merge_key,
+            schema_contract=schema_contract,
             table_format=table_format
         )
         return DltResource.from_data(_data, _name, _section, table_template, selected, cast(DltResource, data_from), incremental=incremental)

@@ -10,14 +10,13 @@ from dlt.common.source import get_current_pipe_name
 from dlt.common.storages import FileStorage
 from dlt.common import pipeline as state_module
 from dlt.common.utils import uniq_id
-from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import migrate_state, STATE_ENGINE_VERSION
 
 from tests.utils import test_storage
-from tests.pipeline.utils import json_case_path, load_json_case, airtable_emojis
+from tests.pipeline.utils import json_case_path, load_json_case
 
 
 @dlt.resource()
@@ -427,20 +426,3 @@ def test_migrate_state(test_storage: FileStorage) -> None:
     p = dlt.attach(pipeline_name="debug_pipeline", pipelines_dir=test_storage.storage_path)
     assert p.dataset_name == "debug_pipeline_data"
     assert p.default_schema_name == "example_source"
-
-
-def test_resource_state_name_not_normalized() -> None:
-    pipeline = dlt.pipeline(pipeline_name="emojis", destination="duckdb")
-    peacock_s = airtable_emojis().with_resources("🦚Peacock")
-    pipeline.extract(peacock_s)
-    assert peacock_s.resources["🦚Peacock"].state == {"🦚🦚🦚": "🦚"}
-    pipeline.normalize()
-    pipeline.load()
-
-    # get state from destination
-    from dlt.pipeline.state_sync import load_state_from_destination
-    client: SqlJobClientBase
-    with pipeline.destination_client() as client:  # type: ignore[assignment]
-        state = load_state_from_destination(pipeline.pipeline_name, client)
-        assert "airtable_emojis" in state["sources"]
-        assert state["sources"]["airtable_emojis"]["resources"] == {"🦚Peacock": {"🦚🦚🦚": "🦚"}}

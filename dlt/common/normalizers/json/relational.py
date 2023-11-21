@@ -48,6 +48,8 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     _skip_primary_key: Dict[str, bool]
 
     def __init__(self, schema: Schema) -> None:
+        """This item normalizer works with nested dictionaries. It flattens dictionaries and descends into lists.
+        It yields row dictionaries at each nesting level."""
         self.schema = schema
         self._reset()
 
@@ -230,7 +232,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         extend.update(self._get_propagated_values(table, flattened_row, _r_lvl ))
 
         # yield parent table first
-        yield (table, schema.naming.shorten_fragments(*parent_path)), flattened_row
+        should_descend = yield (table, schema.naming.shorten_fragments(*parent_path)), flattened_row
+        if should_descend is False:
+            return
 
         # normalize and yield lists
         for list_path, list_content in lists.items():
@@ -264,7 +268,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def extend_table(self, table_name: str) -> None:
         # if the table has a merge w_d, add propagation info to normalizer
         table = self.schema.tables.get(table_name)
-        if not table.get("parent") and table["write_disposition"] == "merge":
+        if not table.get("parent") and table.get("write_disposition") == "merge":
             DataItemNormalizer.update_normalizer_config(self.schema, {"propagation": {
                 "tables": {
                     table_name: {

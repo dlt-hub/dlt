@@ -1,5 +1,5 @@
 import os
-from typing import Generic, Any, Optional, get_args, get_origin, Type, Dict
+from typing import Generic, ClassVar, Any, Optional, get_args, get_origin, Type, Dict
 import inspect
 from functools import wraps
 
@@ -69,10 +69,14 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             The values passed explicitly to Incremental will be ignored.
             Note that if logical "end date" is present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
     """
+    # this is config/dataclass so declare members
     cursor_path: str = None
     # TODO: Support typevar here
     initial_value: Optional[Any] = None
     end_value: Optional[Any] = None
+
+    # incremental acting as empty
+    EMPTY: ClassVar["Incremental[Any]"] = None
 
     def __init__(
             self,
@@ -335,6 +339,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         if isinstance(rows, list):
             return  [item for item in (self._transform_item(transformer, row) for row in rows) if item is not None]
         return self._transform_item(transformer, rows)
+
+Incremental.EMPTY = Incremental[Any]("")
 
 
 class IncrementalResourceWrapper(ItemTransform[TDataItem]):

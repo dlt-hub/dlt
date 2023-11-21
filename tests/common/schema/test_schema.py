@@ -132,7 +132,7 @@ def test_simple_regex_validator() -> None:
 
 
 def test_load_corrupted_schema() -> None:
-    eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v4")
+    eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
     del eth_v4["tables"]["blocks"]
     with pytest.raises(ParentTableNotFoundException):
         utils.validate_stored_schema(eth_v4)
@@ -203,12 +203,20 @@ def test_replace_schema_content() -> None:
     eth_v5: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v5")
     eth_v5["imported_version_hash"] = "IMP_HASH"
     schema_eth = Schema.from_dict(eth_v5)  # type: ignore[arg-type]
-    schema_eth.bump_version()
     schema.replace_schema_content(schema_eth)
     assert schema_eth.stored_version_hash == schema.stored_version_hash
     assert schema_eth.version == schema.version
     assert schema_eth.version_hash == schema.version_hash
     assert schema_eth._imported_version_hash == schema._imported_version_hash
+
+    # replace content of modified schema
+    eth_v5 = load_yml_case("schemas/eth/ethereum_schema_v5")
+    schema_eth = Schema.from_dict(eth_v5, bump_version=False)  # type: ignore[arg-type]
+    assert schema_eth.version_hash != schema_eth.stored_version_hash
+    # replace content does not bump version
+    schema = Schema("simple")
+    schema.replace_schema_content(schema_eth)
+    assert schema.version_hash != schema.stored_version_hash
 
 
 @pytest.mark.parametrize("columns,hint,value", [
@@ -573,7 +581,7 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema.stored_version == 1
     assert schema.stored_version_hash is not None
     assert schema.version_hash is not None
-    assert schema.ENGINE_VERSION == 6
+    assert schema.ENGINE_VERSION == 7
     assert len(schema.settings["default_hints"]) > 0
     # check settings
     assert utils.standard_type_detections() == schema.settings["detections"] == schema._type_detections
