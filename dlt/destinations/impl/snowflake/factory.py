@@ -24,6 +24,8 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
     def __init__(
         self,
         credentials: t.Union[SnowflakeCredentials, t.Dict[str, t.Any], str] = None,
+        name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         stage_name: t.Optional[str] = None,
         keep_staged_files: bool = True,
         **kwargs: t.Any,
@@ -38,4 +40,10 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             stage_name: Name of an existing stage to use for loading data. Default uses implicit stage per table
             keep_staged_files: Whether to delete or keep staged files after loading
         """
-        super().__init__(credentials=credentials, stage_name=stage_name, keep_staged_files=keep_staged_files, **kwargs)
+        super().__init__(
+            credentials=credentials,
+            name=name,
+            environment=environment,
+            stage_name=stage_name,
+            keep_staged_files=keep_staged_files,
+            **kwargs)

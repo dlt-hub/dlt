@@ -25,6 +25,12 @@ class qdrant(Destination[QdrantClientConfiguration, "QdrantClient"]):
     def __init__(
         self,
         credentials: t.Union[QdrantCredentials, t.Dict[str, t.Any]] = None,
+        name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
-        super().__init__(credentials=credentials, **kwargs)
+        super().__init__(
+            credentials=credentials,
+            name=name,
+            environment=environment,
+            **kwargs)

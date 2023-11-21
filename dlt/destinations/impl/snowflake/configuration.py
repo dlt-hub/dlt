@@ -105,7 +105,7 @@ class SnowflakeCredentials(ConnectionStringCredentials):
 
 @configspec
 class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_name: Final[str] = "snowflake"  # type: ignore[misc]
+    destination_type: Final[str]  = "snowflake"  # type: ignore[misc]
     credentials: SnowflakeCredentials
 
     stage_name: Optional[str] = None

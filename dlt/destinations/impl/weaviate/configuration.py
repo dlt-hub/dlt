@@ -24,7 +24,7 @@ class WeaviateCredentials(CredentialsConfiguration):
 
 @configspec
 class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
-    destination_name: Final[str] = "weaviate"  # type: ignore
+    destination_type: Final[str]  = "weaviate"  # type: ignore
     # make it optional do empty dataset is allowed
     dataset_name: Optional[str] = None  # type: ignore
 

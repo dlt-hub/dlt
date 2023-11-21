@@ -58,10 +58,10 @@ def test_loading_errors(client: InsertValuesJobClient, file_storage: FileStorage
     TNumericValueOutOfRange = psycopg2.errors.NumericValueOutOfRange
     TUndefinedColumn = psycopg2.errors.UndefinedColumn
     TDatatypeMismatch = psycopg2.errors.DatatypeMismatch
-    if client.config.destination_name == "redshift":
+    if client.config.destination_type == "redshift":
         # redshift does not know or psycopg does not recognize those correctly
         TNotNullViolation = psycopg2.errors.InternalError_
-    if client.config.destination_name == "duckdb":
+    if client.config.destination_type == "duckdb":
         TUndefinedColumn = duckdb.BinderException
         TNotNullViolation = duckdb.ConstraintException
         TNumericValueOutOfRange = TDatatypeMismatch = duckdb.ConversionException

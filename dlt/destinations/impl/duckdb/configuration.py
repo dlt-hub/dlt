@@ -186,7 +186,7 @@ class DuckDbCredentials(DuckDbBaseCredentials):
 
 @configspec
 class DuckDbClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_name: Final[str] = "duckdb"  # type: ignore
+    destination_type: Final[str]  = "duckdb"  # type: ignore
     credentials: DuckDbCredentials
 
     create_indexes: bool = False  # should unique indexes be created, this slows loading down massively
@@ -199,7 +199,7 @@ class DuckDbClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
         def __init__(
             self,
-            destination_name: str = None,
+            destination_type: str = None,
             credentials: Union[DuckDbCredentials, str, DuckDBPyConnection] = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,

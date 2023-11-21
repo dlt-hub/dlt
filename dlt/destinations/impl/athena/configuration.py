@@ -7,7 +7,7 @@ from dlt.common.configuration.specs import  AwsCredentials
 
 @configspec
 class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_name: Final[str] = "athena"  # type: ignore[misc]
+    destination_type: Final[str]  = "athena"  # type: ignore[misc]
     query_result_bucket: str = None
     credentials: AwsCredentials = None
     athena_work_group: Optional[str] = None

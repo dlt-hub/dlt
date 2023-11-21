@@ -44,7 +44,7 @@ class QdrantClientOptions(BaseConfiguration):
 
 @configspec
 class QdrantClientConfiguration(DestinationClientDwhConfiguration):
-    destination_name: Final[str] = "qdrant"  # type: ignore
+    destination_type: Final[str]  = "qdrant"  # type: ignore
     # character for the dataset separator
     dataset_separator: str = "_"
 

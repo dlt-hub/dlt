@@ -26,6 +26,8 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         self,
         bucket_url: str = None,
         credentials: t.Union[FileSystemCredentials, t.Dict[str, t.Any], t.Any] = None,
+        name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the filesystem destination to use in a pipeline and load data to local or remote filesystem.
@@ -47,4 +49,9 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
                 A dictionary with the credentials parameters can also be provided.
             **kwargs: Additional arguments passed to the destination config
         """
-        super().__init__(bucket_url=bucket_url, credentials=credentials, **kwargs)
+        super().__init__(
+            bucket_url=bucket_url,
+            credentials=credentials,
+            name=name,
+            environment=environment,
+            **kwargs)

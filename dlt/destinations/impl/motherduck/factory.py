@@ -25,6 +25,8 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
     def __init__(
         self,
         credentials: t.Union[MotherDuckCredentials, str, t.Dict[str, t.Any], "DuckDBPyConnection"] = None,
+        name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         create_indexes: bool = False,
         **kwargs: t.Any,
     ) -> None:
@@ -38,4 +40,9 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
             create_indexes: Should unique indexes be created
             **kwargs: Additional arguments passed to the destination config
         """
-        super().__init__(credentials=credentials, create_indexes=create_indexes, **kwargs)
+        super().__init__(
+            credentials=credentials,
+            name=name,
+            environment=environment,
+            create_indexes=create_indexes,
+            **kwargs)

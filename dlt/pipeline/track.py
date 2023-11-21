@@ -48,7 +48,7 @@ def slack_notify_load_success(incoming_hook: str, load_info: LoadInfo, trace: Pi
         normalize_step = next((step for step in trace.steps if step.step == "normalize"), None)
         extract_step = next((step for step in trace.steps if step.step == "extract"), None)
 
-        message = f"""The {author}pipeline *{load_info.pipeline.pipeline_name}* just loaded *{len(load_info.loads_ids)}* load package(s) to destination *{load_info.destination_name}* and into dataset *{load_info.dataset_name}*.
+        message = f"""The {author}pipeline *{load_info.pipeline.pipeline_name}* just loaded *{len(load_info.loads_ids)}* load package(s) to destination *{load_info.destination_type}* and into dataset *{load_info.dataset_name}*.
 🚀 *{humanize.precisedelta(total_elapsed)}* of which {_get_step_elapsed(load_step)}{_get_step_elapsed(normalize_step)}{_get_step_elapsed(extract_step)}"""
 
         send_slack_message(incoming_hook, message)
@@ -87,7 +87,7 @@ def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: S
     props = {
         "elapsed": (step.finished_at - trace.started_at).total_seconds(),
         "success": step.step_exception is None,
-        "destination_name": pipeline.destination.name if pipeline.destination else None,
+        "destination_type": pipeline.destination.name if pipeline.destination else None,
         "pipeline_name_hash": digest128(pipeline.pipeline_name),
         "dataset_name_hash": digest128(pipeline.dataset_name) if pipeline.dataset_name else None,
         "default_schema_name_hash": digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None,

@@ -73,8 +73,10 @@ class NormalizeInfo(NamedTuple):
 class LoadInfo(NamedTuple):
     """A tuple holding the information on recently loaded packages. Returned by pipeline `run` and `load` methods"""
     pipeline: "SupportsPipeline"
-    destination_name: str
+    destination_type: str
     destination_displayable_credentials: str
+    destination_name: str
+    environmnet: str
     staging_name: str
     staging_displayable_credentials: str
     destination_fingerprint: str
@@ -135,7 +137,7 @@ class LoadInfo(NamedTuple):
         for load_package in self.load_packages:
             failed_jobs = load_package.jobs["failed_jobs"]
             if len(failed_jobs):
-                raise DestinationHasFailedJobs(self.destination_name, load_package.load_id, failed_jobs)
+                raise DestinationHasFailedJobs(self.destination_type, load_package.load_id, failed_jobs)
 
     def __str__(self) -> str:
         return self.asstr(verbosity=1)

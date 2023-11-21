@@ -73,7 +73,7 @@ class MsSqlCredentials(ConnectionStringCredentials):
 
 @configspec
 class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_name: Final[str] = "mssql"  # type: ignore
+    destination_type: Final[str]  = "mssql"  # type: ignore
     credentials: MsSqlCredentials
 
     create_indexes: bool = False

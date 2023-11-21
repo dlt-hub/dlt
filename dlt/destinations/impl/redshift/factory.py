@@ -25,6 +25,8 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
     def __init__(
         self,
         credentials: t.Union[RedshiftCredentials, t.Dict[str, t.Any], str] = None,
+        name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         create_indexes: bool = True,
         staging_iam_role: t.Optional[str] = None,
         **kwargs: t.Any,
@@ -41,5 +43,10 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
             **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(
-            credentials=credentials, create_indexes=create_indexes, staging_iam_role=staging_iam_role, **kwargs
+            credentials=credentials,
+            name=name,
+            environment=environment,
+            create_indexes=create_indexes,
+            staging_iam_role=staging_iam_role,
+            **kwargs
         )

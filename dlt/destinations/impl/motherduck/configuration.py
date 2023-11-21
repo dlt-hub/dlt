@@ -52,7 +52,7 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
 
 @configspec
 class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_name: Final[str] = "motherduck"  # type: ignore
+    destination_type: Final[str]  = "motherduck"  # type: ignore
     credentials: MotherDuckCredentials
 
     create_indexes: bool = False  # should unique indexes be created, this slows loading down massively

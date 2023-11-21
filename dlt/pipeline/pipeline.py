@@ -979,8 +979,8 @@ class Pipeline(SupportsPipeline):
         except ModuleNotFoundError:
             client_spec = self.destination.spec()
             raise MissingDependencyException(
-                f"{client_spec.destination_name} destination",
-                [f"{version.DLT_PKG_NAME}[{client_spec.destination_name}]"],
+                f"{client_spec.destination_type} destination",
+                [f"{version.DLT_PKG_NAME}[{client_spec.destination_type}]"],
                 "Dependencies for specific destinations are available as extras of dlt"
             )
 

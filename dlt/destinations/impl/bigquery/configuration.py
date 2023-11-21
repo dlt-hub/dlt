@@ -1,5 +1,5 @@
 import warnings
-from typing import TYPE_CHECKING, ClassVar, List, Optional
+from typing import TYPE_CHECKING, ClassVar, List, Optional, Final
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
@@ -10,7 +10,7 @@ from dlt.common.destination.reference import DestinationClientDwhWithStagingConf
 
 @configspec
 class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_name: str = "bigquery"
+    destination_type: Final[str] = "bigquery"  # type: ignore
     credentials: GcpServiceAccountCredentials = None
     location: str = "US"
 
@@ -37,7 +37,7 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     if TYPE_CHECKING:
         def __init__(
             self,
-            destination_name: str = None,
+            destination_type: str = None,
             credentials: Optional[GcpServiceAccountCredentials] = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,

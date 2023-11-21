@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Final
 
 from dlt.common.configuration import configspec
 from dlt.common.destination import TLoaderFileFormat
@@ -14,7 +14,7 @@ class DummyClientCredentials(CredentialsConfiguration):
 
 @configspec
 class DummyClientConfiguration(DestinationClientConfiguration):
-    destination_name: str = "dummy"
+    destination_type: Final[str] = "bigquery"  # type: ignore
     loader_file_format: TLoaderFileFormat = "jsonl"
     fail_schema_update: bool = False
     fail_prob: float = 0.0
@@ -30,8 +30,10 @@ class DummyClientConfiguration(DestinationClientConfiguration):
     if TYPE_CHECKING:
         def __init__(
             self,
-            destination_name: str = None,
+            destination_type: str = None,
             credentials: Optional[CredentialsConfiguration] = None,
+            name: str = None,
+            environment: str = None,
             loader_file_format: TLoaderFileFormat = None,
             fail_schema_update: bool = None,
             fail_prob: float = None,

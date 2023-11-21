@@ -9,7 +9,7 @@ from dlt.common.storages import FilesystemConfiguration
 
 @configspec
 class FilesystemDestinationClientConfiguration(FilesystemConfiguration, DestinationClientStagingConfiguration): # type: ignore[misc]
-    destination_name: Final[str] = "filesystem"  # type: ignore
+    destination_type: Final[str]  = "filesystem"  # type: ignore
 
     @resolve_type('credentials')
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
@@ -19,7 +19,7 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, Destinat
     if TYPE_CHECKING:
         def __init__(
             self,
-            destination_name: str = None,
+            destination_type: str = None,
             credentials: Optional[Any] = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,

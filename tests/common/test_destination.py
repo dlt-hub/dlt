@@ -26,8 +26,10 @@ def test_invalid_destination_reference() -> None:
 def test_import_all_destinations() -> None:
     # this must pass without the client dependencies being imported
     for dest_name in ACTIVE_DESTINATIONS:
-        dest = Destination.from_reference(dest_name)
+        dest = Destination.from_reference(dest_name, None, dest_name + "_name", "production")
         assert dest.name == dest_name
+        assert dest.config_params["environment"] == "production"
+        assert dest.config_params["name"] == dest_name + "_name"
         dest.spec()
         assert isinstance(dest.capabilities(), DestinationCapabilitiesContext)
 

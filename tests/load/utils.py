@@ -222,14 +222,14 @@ def prepare_table(client: JobClientBase, case_name: str = "event_user", table_na
     return user_table_name
 
 def yield_client(
-    destination_name: str,
+    destination_type: str,
     dataset_name: str = None,
     default_config_values: StrAny = None,
     schema_name: str = "event"
 ) -> Iterator[SqlJobClientBase]:
     os.environ.pop("DATASET_NAME", None)
     # import destination reference by name
-    destination = Destination.from_reference(destination_name)
+    destination = Destination.from_reference(destination_type)
     # create initial config
     dest_config: DestinationClientDwhConfiguration = None
     dest_config = destination.spec()  # type: ignore[assignment]
@@ -250,9 +250,9 @@ def yield_client(
     client: SqlJobClientBase = None
 
     # athena requires staging config to be present, so stick this in there here
-    if destination_name == "athena":
+    if destination_type == "athena":
         staging_config = DestinationClientStagingConfiguration(
-            destination_name="fake-stage",
+            destination_type="fake-stage",
             dataset_name=dest_config.dataset_name,
             default_schema_name=dest_config.default_schema_name,
             bucket_url=AWS_BUCKET
@@ -260,22 +260,22 @@ def yield_client(
         dest_config.staging_config = staging_config  # type: ignore[attr-defined]
 
     # lookup for credentials in the section that is destination name
-    with Container().injectable_context(ConfigSectionContext(sections=("destination", destination_name,))):
+    with Container().injectable_context(ConfigSectionContext(sections=("destination", destination_type,))):
         with destination.client(schema, dest_config) as client:  # type: ignore[assignment]
             yield client
 
 @contextlib.contextmanager
 def cm_yield_client(
-    destination_name: str,
+    destination_type: str,
     dataset_name: str,
     default_config_values: StrAny = None,
     schema_name: str = "event"
 ) -> Iterator[SqlJobClientBase]:
-    return yield_client(destination_name, dataset_name, default_config_values, schema_name)
+    return yield_client(destination_type, dataset_name, default_config_values, schema_name)
 
 
 def yield_client_with_storage(
-    destination_name: str,
+    destination_type: str,
     default_config_values: StrAny = None,
     schema_name: str = "event"
 ) -> Iterator[SqlJobClientBase]:
@@ -283,7 +283,7 @@ def yield_client_with_storage(
     # create dataset with random name
     dataset_name = "test_" + uniq_id()
 
-    with cm_yield_client(destination_name, dataset_name, default_config_values, schema_name) as client:
+    with cm_yield_client(destination_type, dataset_name, default_config_values, schema_name) as client:
         client.initialize_storage()
         yield client
         # print(dataset_name)
@@ -304,11 +304,11 @@ def delete_dataset(client: SqlClientBase[Any], normalized_dataset_name: str) -> 
 
 @contextlib.contextmanager
 def cm_yield_client_with_storage(
-    destination_name: str,
+    destination_type: str,
     default_config_values: StrAny = None,
     schema_name: str = "event"
 ) -> Iterator[SqlJobClientBase]:
-    return yield_client_with_storage(destination_name, default_config_values, schema_name)
+    return yield_client_with_storage(destination_type, default_config_values, schema_name)
 
 
 def write_dataset(client: JobClientBase, f: IO[bytes], rows: Union[List[Dict[str, Any]], List[StrAny]], columns_schema: TTableSchemaColumns) -> None:

@@ -177,10 +177,10 @@ def test_execute_query(client: SqlJobClientBase) -> None:
 
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_execute_df(client: SqlJobClientBase) -> None:
-    if client.config.destination_name == "bigquery":
+    if client.config.destination_type == "bigquery":
         chunk_size = 50
         total_records = 80
-    elif client.config.destination_name == "mssql":
+    elif client.config.destination_type == "mssql":
         chunk_size = 700
         total_records = 1000
     else:
@@ -377,7 +377,7 @@ def test_transaction_isolation(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
     if client.capabilities.max_identifier_length >= 65536:
-        pytest.skip(f"destination {client.config.destination_name} has no table name length restriction")
+        pytest.skip(f"destination {client.config.destination_type} has no table name length restriction")
     table_name = 8 * "prospects_external_data__data365_member__member__feed_activities_created_post__items__comments__items__comments__items__author_details__educations"
     with pytest.raises(IdentifierTooLongException) as py_ex:
         prepare_table(client, "long_table_name", table_name, make_uniq_table=False)
@@ -392,7 +392,7 @@ def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
     # BQ is failing on the HTTP protocol level
 
     # exists, _ = client.get_storage_table(long_table_name)
-    # assert exists is (client.config.destination_name == "postgres")
+    # assert exists is (client.config.destination_type == "postgres")
     # exists, table_def = client.get_storage_table(long_table_name[:client.capabilities.max_identifier_length])
     # assert exists is True
 
@@ -400,7 +400,7 @@ def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
 @pytest.mark.parametrize("client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name)
 def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
     if client.capabilities.max_column_identifier_length >= 65536:
-        pytest.skip(f"destination {client.config.destination_name} has no column name length restriction")
+        pytest.skip(f"destination {client.config.destination_type} has no column name length restriction")
     table_name = "prospects_external_data__data365_member__member"
     column_name = 7 * "prospects_external_data__data365_member__member__feed_activities_created_post__items__comments__items__comments__items__author_details__educations__school_name"
     with pytest.raises(IdentifierTooLongException) as py_ex:
@@ -466,7 +466,7 @@ def prepare_temp_table(client: SqlJobClientBase) -> str:
     table_name = f"tmp_{uniq_suffix}"
     iceberg_table_suffix = ""
     coltype = "numeric"
-    if client.config.destination_name == "athena":
+    if client.config.destination_type == "athena":
         iceberg_table_suffix = f"LOCATION '{AWS_BUCKET}/ci/{table_name}' TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');"
         coltype = "bigint"
         qualified_table_name = table_name

@@ -25,6 +25,8 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
     def __init__(
         self,
         credentials: t.Union[PostgresCredentials, t.Dict[str, t.Any], str] = None,
+        name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         create_indexes: bool = True,
         **kwargs: t.Any,
     ) -> None:
@@ -38,4 +40,9 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
             create_indexes: Should unique indexes be created
             **kwargs: Additional arguments passed to the destination config
         """
-        super().__init__(credentials=credentials, create_indexes=create_indexes, **kwargs)
+        super().__init__(
+            credentials=credentials,
+            name=name,
+            environment=environment,
+            create_indexes=create_indexes,
+            **kwargs)

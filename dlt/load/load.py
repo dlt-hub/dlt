@@ -287,11 +287,11 @@ class Load(Runnable[Executor]):
     @staticmethod
     def _init_dataset_and_update_schema(job_client: JobClientBase, expected_update: TSchemaTables, update_tables: Iterable[str], truncate_tables: Iterable[str] = None, staging_info: bool = False) -> TSchemaTables:
         staging_text = "for staging dataset" if staging_info else ""
-        logger.info(f"Client for {job_client.config.destination_name} will start initialize storage {staging_text}")
+        logger.info(f"Client for {job_client.config.destination_type} will start initialize storage {staging_text}")
         job_client.initialize_storage()
-        logger.info(f"Client for {job_client.config.destination_name} will update schema to package schema {staging_text}")
+        logger.info(f"Client for {job_client.config.destination_type} will update schema to package schema {staging_text}")
         applied_update = job_client.update_stored_schema(only_tables=update_tables, expected_update=expected_update)
-        logger.info(f"Client for {job_client.config.destination_name} will truncate tables {staging_text}")
+        logger.info(f"Client for {job_client.config.destination_type} will truncate tables {staging_text}")
         job_client.initialize_storage(truncate_tables=truncate_tables)
         return applied_update
 
@@ -416,9 +416,11 @@ class Load(Runnable[Executor]):
 
         return LoadInfo(
             pipeline,
-            self.initial_client_config.destination_name,
+            self.initial_client_config.destination_type,
             str(self.initial_client_config),
-            self.initial_staging_client_config.destination_name if self.initial_staging_client_config else None,
+            self.initial_client_config.name,
+            self.initial_client_config.environment,
+            self.initial_staging_client_config.destination_type if self.initial_staging_client_config else None,
             str(self.initial_staging_client_config) if self.initial_staging_client_config else None,
             self.initial_client_config.fingerprint(),
             _dataset_name,

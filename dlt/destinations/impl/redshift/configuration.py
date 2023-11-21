@@ -17,7 +17,7 @@ class RedshiftCredentials(PostgresCredentials):
 
 @configspec
 class RedshiftClientConfiguration(PostgresClientConfiguration):
-    destination_name: Final[str] = "redshift"  # type: ignore
+    destination_type: Final[str]  = "redshift"  # type: ignore
     credentials: RedshiftCredentials
     staging_iam_role: Optional[str] = None
 
