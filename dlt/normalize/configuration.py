@@ -1,10 +1,11 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 from dlt.common.storages import LoadStorageConfiguration, NormalizeStorageConfiguration, SchemaStorageConfiguration
+
 
 @configspec
 class ItemsNormalizerConfiguration(BaseConfiguration):

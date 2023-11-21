@@ -17,15 +17,18 @@ from dlt.common.source import _SOURCES
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table, new_column
 from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.exceptions import InvalidSchemaName
+from dlt.common.typing import TDataItem
 
 from dlt.cli.source_detection import detect_source_configs
-from dlt.common.typing import TDataItem
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, DynamicNameNotStandaloneResource, ExplicitSourceNameInvalid, InconsistentTableTemplate, InvalidResourceDataTypeFunctionNotAGenerator, InvalidResourceDataTypeIsNone, InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, PipeGenInvalid, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed, SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable
-from dlt.extract.source import DltResource, DltSource
-from dlt.common.schema.exceptions import InvalidSchemaName
+from dlt.extract import DltResource, DltSource
+from dlt.extract.exceptions import (DynamicNameNotStandaloneResource, InvalidResourceDataTypeFunctionNotAGenerator,
+                                    InvalidResourceDataTypeIsNone, InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound,
+                                    PipeGenInvalid, PipeNotBoundToData, ResourceFunctionExpected, ResourceInnerCallableConfigWrapDisallowed,
+                                    SourceDataIsNone, SourceIsAClassTypeError, SourceNotAFunction, SourceSchemaNotAvailable)
 from dlt.extract.typing import TableNameMeta
 
-from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V6
+from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V7
 
 
 def test_none_returning_source() -> None:
@@ -72,7 +75,7 @@ def test_load_schema_for_callable() -> None:
     schema = s.schema
     assert schema.name == "ethereum" == s.name
     # the schema in the associated file has this hash
-    assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V6
+    assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V7
 
 
 def test_unbound_parametrized_transformer() -> None:

@@ -6,7 +6,7 @@ from itertools import chain
 import pytest
 
 import dlt
-from dlt.extract.source import DltResource
+from dlt.extract import DltResource
 from dlt.common.utils import uniq_id
 from dlt.pipeline import helpers, state_sync, Pipeline
 from dlt.load import Load

@@ -22,7 +22,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import PipelineTrace, SerializableResolvedValueTrace, describe_extract_data, load_trace
 from dlt.pipeline.track import slack_notify_load_success
-from dlt.extract.source import DltResource, DltSource
+from dlt.extract import DltResource, DltSource
 from dlt.extract.pipe import Pipe
 
 from tests.utils import start_test_telemetry

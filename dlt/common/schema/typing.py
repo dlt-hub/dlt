@@ -11,12 +11,13 @@ except ImportError:
 
 
 # current version of schema engine
-SCHEMA_ENGINE_VERSION = 6
+SCHEMA_ENGINE_VERSION = 7
 
 # dlt tables
 VERSION_TABLE_NAME = "_dlt_version"
 LOADS_TABLE_NAME = "_dlt_loads"
 STATE_TABLE_NAME = "_dlt_pipeline_state"
+DLT_NAME_PREFIX = "_dlt"
 
 TColumnProp = Literal["name", "data_type", "nullable", "partition", "cluster", "primary_key", "foreign_key", "sort", "unique", "merge_key", "root_key"]
 """Known properties and hints of the column"""
@@ -71,17 +72,32 @@ TSimpleRegex = NewType("TSimpleRegex", str)
 TColumnName = NewType("TColumnName", str)
 SIMPLE_REGEX_PREFIX = "re:"
 
+TSchemaEvolutionMode = Literal["evolve", "discard_value", "freeze", "discard_row"]
+TSchemaContractEntities = Literal["tables", "columns", "data_type"]
+
+class TSchemaContractDict(TypedDict, total=False):
+    """TypedDict defining the schema update settings"""
+    tables: Optional[TSchemaEvolutionMode]
+    columns: Optional[TSchemaEvolutionMode]
+    data_type: Optional[TSchemaEvolutionMode]
+
+TSchemaContract = Union[TSchemaEvolutionMode, TSchemaContractDict]
 
 class TRowFilters(TypedDict, total=True):
     excludes: Optional[List[TSimpleRegex]]
     includes: Optional[List[TSimpleRegex]]
 
+class NormalizerInfo(TypedDict, total=True):
+    new_table: bool
+
+# TypedDict that defines properties of a table
 
 class TTableSchema(TypedDict, total=False):
     """TypedDict that defines properties of a table"""
     name: Optional[str]
     description: Optional[str]
     write_disposition: Optional[TWriteDisposition]
+    schema_contract: Optional[TSchemaContract]
     table_sealed: Optional[bool]
     parent: Optional[str]
     filters: Optional[TRowFilters]
@@ -89,16 +105,15 @@ class TTableSchema(TypedDict, total=False):
     resource: Optional[str]
     table_format: Optional[TTableFormat]
 
-
 class TPartialTableSchema(TTableSchema):
     pass
-
 
 TSchemaTables = Dict[str, TTableSchema]
 TSchemaUpdate = Dict[str, List[TPartialTableSchema]]
 
+
 class TSchemaSettings(TypedDict, total=False):
-    schema_sealed: Optional[bool]
+    schema_contract: Optional[TSchemaContract]
     detections: Optional[List[TTypeDetections]]
     default_hints: Optional[Dict[TColumnHint, List[TSimpleRegex]]]
     preferred_types: Optional[Dict[TSimpleRegex, TDataType]]
@@ -115,3 +130,4 @@ class TStoredSchema(TypedDict, total=False):
     settings: Optional[TSchemaSettings]
     tables: TSchemaTables
     normalizers: TNormalizersConfig
+

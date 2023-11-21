@@ -1,5 +1,5 @@
 import abc
-from typing import Any, Generic, Type, Iterator, Tuple, Protocol, TYPE_CHECKING, TypeVar
+from typing import Any, Generic, Type, Generator, Tuple, Protocol, TYPE_CHECKING, TypeVar
 
 from dlt.common.typing import DictStrAny, TDataItem, StrAny
 if TYPE_CHECKING:
@@ -10,7 +10,7 @@ else:
 # type definitions for json normalization function
 
 # iterator of form ((table_name, parent_table), dict) must be returned from normalization function
-TNormalizedRowIterator = Iterator[Tuple[Tuple[str, str], StrAny]]
+TNormalizedRowIterator = Generator[Tuple[Tuple[str, str], StrAny], bool, None]
 
 # type var for data item normalizer config
 TNormalizerConfig = TypeVar("TNormalizerConfig", bound=Any)

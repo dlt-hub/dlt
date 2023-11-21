@@ -70,7 +70,7 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E athena
+        run: poetry install --no-interaction -E  --with sentry-sdk --with pipeline
 
       - run: |
           poetry run pytest tests/load

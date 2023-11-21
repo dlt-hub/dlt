@@ -110,20 +110,26 @@ Things to note:
 
 - Fields with an `Optional` type are marked as `nullable`
 - Fields with a `Union` type are converted to the first (not `None`) type listed in the union. E.g. `status: Union[int, str]` results in a `bigint` column.
-- `list`, `dict` and nested pydantic model fields will use the `complex` type which means they'll be stored as a JSON object in the database instead of creating child tables. You can override this by manually calling the pydantic helper with `skip_complex_types=True`, see below:
+- `list`, `dict` and nested pydantic model fields will use the `complex` type which means they'll be stored as a JSON object in the database instead of creating child tables.
+
+You can override this by configuring the Pydantic model
 
 ```python
-from dlt.common.lib.pydantic import pydantic_to_table_schema_columns
+from typing import ClassVar
+from dlt.common.libs.pydantic import DltConfig
 
-...
+class UserWithNesting(User):
+  dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
 
-@dlt.resource(name="user", columns=pydantic_to_table_schema_columns(User, skip_complex_types=True))
+@dlt.resource(name="user", columns=UserWithNesting)
 def get_users():
     ...
 ```
 
-This omits any `dict`/`list`/`BaseModel` type fields from the schema, so dlt will fall back on the default
+`"skip_complex_types"` omits any `dict`/`list`/`BaseModel` type fields from the schema, so dlt will fall back on the default
 behaviour of creating child tables for these fields.
+
+We do not support `RootModel` that validate simple types. You can add such validator yourself, see [data filtering section](#filter-transform-and-pivot-data).
 
 ### Dispatch data to many tables
 

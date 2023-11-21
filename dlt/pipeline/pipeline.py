@@ -5,7 +5,6 @@ from contextlib import contextmanager
 from functools import wraps
 from collections.abc import Sequence as C_Sequence
 from typing import Any, Callable, ClassVar, List, Iterator, Optional, Sequence, Tuple, cast, get_type_hints, ContextManager, Mapping
-from concurrent.futures import Executor
 
 from dlt import version
 from dlt.common import json, logger, pendulum
@@ -19,7 +18,8 @@ from dlt.common.exceptions import (DestinationLoadingViaStagingNotSupported, Des
                                    MissingDependencyException, DestinationUndefinedEntity, DestinationIncompatibleLoaderFileFormatException)
 from dlt.common.normalizers import explicit_normalizers, import_normalizers
 from dlt.common.runtime import signals, initialize_runtime
-from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition, TAnySchemaColumns
+from dlt.common.schema.typing import TColumnNames, TColumnSchema, TSchemaTables, TWriteDisposition, TAnySchemaColumns, TSchemaContract
+from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
 from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
@@ -34,9 +34,9 @@ from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
 from dlt.common.data_writers import TLoaderFileFormat
 
+from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import ExtractorStorage, extract_with_schema
-from dlt.extract.source import DltResource, DltSource
 from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.destinations.sql_client import SqlClientBase
@@ -50,8 +50,6 @@ from dlt.pipeline.exceptions import CannotRestorePipelineException, InvalidPipel
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace, load_trace, merge_traces, start_trace, start_trace_step, end_trace_step, end_trace, describe_extract_data
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import STATE_ENGINE_VERSION, load_state_from_destination, merge_state_if_changed, migrate_state, state_resource, json_encode_state, json_decode_state
-
-from dlt.common.schema.utils import normalize_schema_name
 from dlt.pipeline.deprecations import credentials_argument_deprecated
 
 
@@ -82,8 +80,11 @@ def with_schemas_sync(f: TFun) -> TFun:
             # refresh live schemas in storage or import schema path
             self._schema_storage.commit_live_schema(name)
         rv = f(self, *args, **kwargs)
+        # save modified live schemas
+        for name in self._schema_storage.live_schemas:
+            self._schema_storage.commit_live_schema(name)
         # refresh list of schemas if any new schemas are added
-        self.schema_names = self._schema_storage.list_schemas()
+        self.schema_names = self._list_schemas_sorted()
         return rv
 
     return _wrap  # type: ignore
@@ -272,7 +273,8 @@ class Pipeline(SupportsPipeline):
         primary_key: TColumnNames = None,
         schema: Schema = None,
         max_parallel_items: int = None,
-        workers: int = None
+        workers: int = None,
+        schema_contract: TSchemaContract = None
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         # create extract storage to which all the sources will be extracted
@@ -281,7 +283,7 @@ class Pipeline(SupportsPipeline):
         try:
             with self._maybe_destination_capabilities():
                 # extract all sources
-                for source in self._data_to_sources(data, schema, table_name, parent_table_name, write_disposition, columns, primary_key):
+                for source in self._data_to_sources(data, schema, table_name, parent_table_name, write_disposition, columns, primary_key, schema_contract):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
                     # TODO: merge infos for all the sources
@@ -292,6 +294,7 @@ class Pipeline(SupportsPipeline):
                 # TODO: if we fail here we should probably wipe out the whole extract folder
                 for extract_id in extract_ids:
                     storage.commit_extract_files(extract_id)
+
                 return ExtractInfo(describe_extract_data(data))
         except Exception as exc:
             # TODO: provide metrics from extractor
@@ -398,7 +401,8 @@ class Pipeline(SupportsPipeline):
         columns: TAnySchemaColumns = None,
         primary_key: TColumnNames = None,
         schema: Schema = None,
-        loader_file_format: TLoaderFileFormat = None
+        loader_file_format: TLoaderFileFormat = None,
+        schema_contract: TSchemaContract = None
     ) -> LoadInfo:
         """Loads the data from `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -448,6 +452,8 @@ class Pipeline(SupportsPipeline):
 
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional). The file format the loader will use to create the load package. Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
 
+            schema_contract (TSchemaContract, optional): On override for the schema contract settings, this will replace the schema contract settings for all tables in the schema. Defaults to None.
+
         Raises:
             PipelineStepFailed when a problem happened during `extract`, `normalize` or `load` steps.
         Returns:
@@ -474,9 +480,10 @@ class Pipeline(SupportsPipeline):
                 logger.warn("The pipeline `run` method will now load the pending load packages. The data you passed to the run function will not be loaded. In order to do that you must run the pipeline again")
             return self.load(destination, dataset_name, credentials=credentials)
 
+
         # extract from the source
         if data is not None:
-            self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, schema=schema)
+            self.extract(data, table_name=table_name, write_disposition=write_disposition, columns=columns, primary_key=primary_key, schema=schema, schema_contract=schema_contract)
             self.normalize(loader_file_format=loader_file_format)
             return self.load(destination, dataset_name, credentials=credentials)
         else:
@@ -812,21 +819,34 @@ class Pipeline(SupportsPipeline):
         parent_table_name: str = None,
         write_disposition: TWriteDisposition = None,
         columns: TAnySchemaColumns = None,
-        primary_key: TColumnNames = None
+        primary_key: TColumnNames = None,
+        schema_contract: TSchemaContract = None
     ) -> List[DltSource]:
 
         def apply_hint_args(resource: DltResource) -> None:
-            # apply hints only if any of the hints is present, table_name must be always present
-            if table_name or parent_table_name or write_disposition or columns or primary_key:
-                resource.apply_hints(table_name or resource.table_name or resource.name, parent_table_name, write_disposition, columns, primary_key)
+            resource.apply_hints(
+                table_name,
+                parent_table_name,
+                write_disposition,
+                columns,
+                primary_key,
+                schema_contract=schema_contract
+            )
+
+        def apply_settings(source_: DltSource) -> None:
+            # apply schema contract settings
+            if schema_contract:
+                source_.schema_contract = schema_contract
 
         def choose_schema() -> Schema:
             """Except of explicitly passed schema, use a clone that will get discarded if extraction fails"""
             if schema:
-                return schema
-            if self.default_schema_name:
-                return self.default_schema.clone()
-            return self._make_schema_with_default_name()
+                schema_ =  schema
+            elif self.default_schema_name:
+                schema_ = self.default_schema.clone()
+            else:
+                schema_ = self._make_schema_with_default_name()
+            return schema_
 
         effective_schema = choose_schema()
 
@@ -839,14 +859,8 @@ class Pipeline(SupportsPipeline):
                 # if schema is explicit then override source schema
                 if schema:
                     data_item.schema = schema
-                # try to apply hints to resources
-                _resources = data_item.resources.values()
-                for r in _resources:
-                    apply_hint_args(r)
                 sources.append(data_item)
             elif isinstance(data_item, DltResource):
-                # apply hints
-                apply_hint_args(data_item)
                 # do not set section to prevent source that represent a standalone resource
                 # to overwrite other standalone resources (ie. parents) in that source
                 sources.append(
@@ -855,10 +869,9 @@ class Pipeline(SupportsPipeline):
             else:
                 # iterator/iterable/generator
                 # create resource first without table template
-                resource = DltResource.from_data(data_item, name=table_name, section=self.pipeline_name)
-                # apply hints
-                apply_hint_args(resource)
-                resources.append(resource)
+                resources.append(
+                    DltResource.from_data(data_item, name=table_name, section=self.pipeline_name)
+                )
 
         if isinstance(data, C_Sequence) and len(data) > 0:
             # if first element is source or resource
@@ -870,36 +883,42 @@ class Pipeline(SupportsPipeline):
         else:
             append_data(data)
 
+        # add all the appended resources in one source
         if resources:
-            # add all the appended resources in one source
             sources.append(DltSource(effective_schema.name, self.pipeline_name, effective_schema, resources))
+
+        # apply hints and settings
+        for source in sources:
+            apply_settings(source)
+            for resource in source.selected_resources.values():
+                apply_hint_args(resource)
 
         return sources
 
     def _extract_source(self, storage: ExtractorStorage, source: DltSource, max_parallel_items: int, workers: int) -> str:
-        # discover the schema from source
-        source_schema = source.schema
-        source_schema.update_normalizers()
+        # discover the existing pipeline schema
+        if source.schema.name in self.schemas:
+            # use clone until extraction complete
+            pipeline_schema = self.schemas[source.schema.name].clone()
+            # apply all changes in the source schema to pipeline schema
+            # NOTE: we do not apply contracts to changes done programmatically
+            pipeline_schema.update_schema(source.schema)
+            # replace schema in the source
+            source.schema = pipeline_schema
 
         # extract into pipeline schema
-        extract_id = extract_with_schema(storage, source, source_schema, self.collector, max_parallel_items, workers)
+        extract_id = extract_with_schema(storage, source, self.collector, max_parallel_items, workers)
 
         # save import with fully discovered schema
-        self._schema_storage.save_import_schema_if_not_exists(source_schema)
+        self._schema_storage.save_import_schema_if_not_exists(source.schema)
 
-        # if source schema does not exist in the pipeline
-        if source_schema.name not in self._schema_storage:
-            # create new schema
-            self._schema_storage.save_schema(source_schema)
-
-        # update pipeline schema (do contract checks here)
-        pipeline_schema = self._schema_storage[source_schema.name]
-        pipeline_schema.update_schema(source_schema)
+        # update live schema but not update the store yet
+        self._schema_storage.update_live_schema(source.schema)
 
         # set as default if this is first schema in pipeline
         if not self.default_schema_name:
             # this performs additional validations as schema contains the naming module
-            self._set_default_schema_name(pipeline_schema)
+            self._set_default_schema_name(source.schema)
 
         return extract_id
 
@@ -1216,12 +1235,6 @@ class Pipeline(SupportsPipeline):
             backup_state = self._get_state()
             # restore original pipeline props
             self._state_to_props(backup_state)
-            # synchronize schema storage with initial list of schemas, note that we'll not be able to synchronize the schema content
-            if self._schema_storage:
-                # TODO: we should restore schemas backup here
-                for existing_schema_name in self._schema_storage.list_schemas():
-                    if existing_schema_name not in self.schema_names:
-                        self._schema_storage.remove_schema(existing_schema_name)
             # raise original exception
             raise
         else:
@@ -1272,7 +1285,11 @@ class Pipeline(SupportsPipeline):
             state["destination"] = self.destination.name
         if self.staging:
             state["staging"] = self.staging.name
-        state["schema_names"] = self._schema_storage.list_schemas()
+        state["schema_names"] = self._list_schemas_sorted()
+
+    def _list_schemas_sorted(self) -> List[str]:
+        """Lists schema names sorted to have deterministic state"""
+        return sorted(self._schema_storage.list_schemas())
 
     def _save_state(self, state: TPipelineState) -> None:
         self._pipeline_storage.save(Pipeline.STATE_FILE, json_encode_state(state))
@@ -1282,7 +1299,7 @@ class Pipeline(SupportsPipeline):
         # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
         state_source = DltSource(self.default_schema.name, self.pipeline_name, self.default_schema, [state_resource(state)])
         storage = ExtractorStorage(self._normalize_storage_config)
-        extract_id = extract_with_schema(storage, state_source, self.default_schema, _NULL_COLLECTOR, 1, 1)
+        extract_id = extract_with_schema(storage, state_source, _NULL_COLLECTOR, 1, 1)
         storage.commit_extract_files(extract_id)
         return state
 

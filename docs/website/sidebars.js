@@ -106,6 +106,7 @@ const sidebars = {
         'general-usage/incremental-loading',
         'general-usage/full-loading',
         'general-usage/schema',
+        'general-usage/data-contracts',
         {
           type: 'category',
           label: 'Configuration',

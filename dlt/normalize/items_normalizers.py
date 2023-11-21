@@ -1,19 +1,19 @@
 import os
-from typing import List, Dict, Tuple, Protocol, Any
-from pathlib import Path
+from typing import List, Dict, Set, Tuple, Any
 from abc import abstractmethod
 
 from dlt.common import json, logger
-from dlt.common.json import custom_pua_decode
+from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.runtime import signals
-from dlt.common.schema.typing import TTableSchemaColumns
-from dlt.common.storages import NormalizeStorage, LoadStorage, NormalizeStorageConfiguration, FileStorage
-from dlt.common.typing import TDataItem
+from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
+from dlt.common.storages import NormalizeStorage, LoadStorage, FileStorage
+from dlt.common.typing import DictStrAny, TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.utils import TRowCount, merge_row_count, increase_row_count
-from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers.utils import generate_dlt_ids
+
+from dlt.normalize.configuration import NormalizeConfiguration
 
 try:
     from dlt.common.libs import pyarrow
@@ -44,54 +44,136 @@ class ItemsNormalizer:
 
 
 class JsonLItemsNormalizer(ItemsNormalizer):
-    def _normalize_chunk(self, root_table_name: str, items: List[TDataItem]) -> Tuple[TSchemaUpdate, int, TRowCount]:
-        column_schemas: Dict[
-            str, TTableSchemaColumns
-        ] = {}  # quick access to column schema for writers below
+    def __init__(
+        self,
+        load_storage: LoadStorage,
+        normalize_storage: NormalizeStorage,
+        schema: Schema,
+        load_id: str,
+        config: NormalizeConfiguration
+    ) -> None:
+        super().__init__(load_storage, normalize_storage, schema, load_id, config)
+        self._table_contracts: Dict[str, TSchemaContractDict] = {}
+        self._filtered_tables: Set[str] = set()
+        self._filtered_tables_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
+        # quick access to column schema for writers below
+        self._column_schemas: Dict[str, TTableSchemaColumns] = {}
+
+    def _filter_columns(self, filtered_columns: Dict[str, TSchemaEvolutionMode], row: DictStrAny) -> DictStrAny:
+        for name, mode in filtered_columns.items():
+            if name in row:
+                if mode == "discard_row":
+                    return None
+                elif mode == "discard_value":
+                    row.pop(name)
+        return row
+
+    def _normalize_chunk(self, root_table_name: str, items: List[TDataItem], may_have_pua: bool) -> Tuple[TSchemaUpdate, int, TRowCount]:
+        column_schemas = self._column_schemas
         schema_update: TSchemaUpdate = {}
         schema = self.schema
         schema_name = schema.name
         items_count = 0
         row_counts: TRowCount = {}
+        normalize_data_fun = self.schema.normalize_data_item
 
         for item in items:
-            for (table_name, parent_table), row in self.schema.normalize_data_item(
-                item, self.load_id, root_table_name
-            ):
-                # filter row, may eliminate some or all fields
-                row = schema.filter_row(table_name, row)
-                # do not process empty rows
-                if row:
+            items_gen = normalize_data_fun(item, self.load_id, root_table_name)
+            try:
+                should_descend: bool = None
+                # use send to prevent descending into child rows when row was discarded
+                while row_info := items_gen.send(should_descend):
+                    should_descend = True
+                    (table_name, parent_table), row = row_info
+
+                    # rows belonging to filtered out tables are skipped
+                    if table_name in self._filtered_tables:
+                        # stop descending into further rows
+                        should_descend = False
+                        continue
+
+                    # filter row, may eliminate some or all fields
+                    row = schema.filter_row(table_name, row)
+                    # do not process empty rows
+                    if not row:
+                        should_descend = False
+                        continue
+
+                    # filter columns or full rows if schema contract said so
+                    # do it before schema inference in `coerce_row` to not trigger costly migration code
+                    filtered_columns = self._filtered_tables_columns.get(table_name, None)
+                    if filtered_columns:
+                        row = self._filter_columns(filtered_columns, row)  # type: ignore[arg-type]
+                        # if whole row got dropped
+                        if not row:
+                            should_descend = False
+                            continue
+
                     # decode pua types
-                    for k, v in row.items():
-                        row[k] = custom_pua_decode(v)  # type: ignore
+                    if may_have_pua:
+                        for k, v in row.items():
+                            row[k] = custom_pua_decode(v)  # type: ignore
+
                     # coerce row of values into schema table, generating partial table with new columns if any
                     row, partial_table = schema.coerce_row(
                         table_name, parent_table, row
                     )
-                    # theres a new table or new columns in existing table
+
+                    # if we detect a migration, check schema contract
                     if partial_table:
+                        schema_contract = self._table_contracts.setdefault(
+                            table_name,
+                            schema.resolve_contract_settings_for_table(parent_table or table_name)  # parent_table, if present, exists in the schema
+                        )
+                        partial_table, filters = schema.apply_schema_contract(schema_contract, partial_table, data_item=row)
+                        if filters:
+                            for entity, name, mode in filters:
+                                if entity == "tables":
+                                    self._filtered_tables.add(name)
+                                elif entity == "columns":
+                                    filtered_columns = self._filtered_tables_columns.setdefault(table_name, {})
+                                    filtered_columns[name] = mode
+
+                        if partial_table is None:
+                            # discard migration and row
+                            should_descend = False
+                            continue
+                        # theres a new table or new columns in existing table
                         # update schema and save the change
                         schema.update_table(partial_table)
                         table_updates = schema_update.setdefault(table_name, [])
                         table_updates.append(partial_table)
+
                         # update our columns
                         column_schemas[table_name] = schema.get_table_columns(
                             table_name
                         )
+
+                        # apply new filters
+                        if filtered_columns and filters:
+                            row = self._filter_columns(filtered_columns, row)
+                            # do not continue if new filters skipped the full row
+                            if not row:
+                                should_descend = False
+                                continue
+
                     # get current columns schema
                     columns = column_schemas.get(table_name)
                     if not columns:
                         columns = schema.get_table_columns(table_name)
                         column_schemas[table_name] = columns
                     # store row
-                    # TODO: it is possible to write to single file from many processes using this: https://gitlab.com/warsaw/flufl.lock
+                    # TODO: store all rows for particular items all together after item is fully completed
+                    #   will be useful if we implement bad data sending to a table
                     self.load_storage.write_data_item(
                         self.load_id, schema_name, table_name, row, columns
                     )
                     # count total items
+                    # TODO: take counts and bytes from buffered file writers instead of taking those here
                     items_count += 1
                     increase_row_count(row_counts, table_name, 1)
+            except StopIteration:
+                pass
             signals.raise_if_signalled()
         return schema_update, items_count, row_counts
 
@@ -102,12 +184,13 @@ class JsonLItemsNormalizer(ItemsNormalizer):
     ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
         schema_updates: List[TSchemaUpdate] = []
         row_counts: TRowCount = {}
-        with self.normalize_storage.storage.open_file(extracted_items_file) as f:
+        with self.normalize_storage.storage.open_file(extracted_items_file, "rb") as f:
             # enumerate jsonl file line by line
             items_count = 0
+            line: bytes
             for line_no, line in enumerate(f):
-                items: List[TDataItem] = json.loads(line)
-                partial_update, items_count, r_counts = self._normalize_chunk(root_table_name, items)
+                items: List[TDataItem] = json.loadb(line)
+                partial_update, items_count, r_counts = self._normalize_chunk(root_table_name, items, may_have_pua(line))
                 schema_updates.append(partial_update)
                 merge_row_count(row_counts, r_counts)
                 logger.debug(
@@ -134,6 +217,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             table_updates.append(table_update)
             load_id_type = pa.dictionary(pa.int8(), pa.string())
             new_columns.append((
+                -1,
                 pa.field("_dlt_load_id", load_id_type, nullable=False),
                 lambda batch: pa.array([load_id] * batch.num_rows, type=load_id_type)
             ))
@@ -143,6 +227,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             table_updates = schema_update.setdefault(root_table_name, [])
             table_updates.append(table_update)
             new_columns.append((
+                -1,
                 pa.field("_dlt_id", pyarrow.pyarrow.string(), nullable=False),
                 lambda batch: pa.array(generate_dlt_ids(batch.num_rows))
             ))
@@ -186,7 +271,6 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         self, extracted_items_file: str, root_table_name: str
     ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
         base_schema_update = self._fix_schema_precisions(root_table_name)
-        import pyarrow as pa
 
         add_dlt_id = self.config.parquet_normalizer.add_dlt_id
         add_dlt_load_id = self.config.parquet_normalizer.add_dlt_load_id

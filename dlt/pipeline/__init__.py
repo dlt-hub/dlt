@@ -1,13 +1,13 @@
 from typing import Sequence, cast, overload
 
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
+from dlt.common.schema.typing import TColumnSchema, TWriteDisposition, TSchemaContract
 
 from dlt.common.typing import TSecretValue, Any
 from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args, last_config
-from dlt.common.destination import Destination, TDestinationReferenceArg
+from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
 from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
@@ -177,7 +177,9 @@ def run(
     table_name: str = None,
     write_disposition: TWriteDisposition = None,
     columns: Sequence[TColumnSchema] = None,
-    schema: Schema = None
+    schema: Schema = None,
+    loader_file_format: TLoaderFileFormat = None,
+    schema_contract: TSchemaContract = None,
 ) -> LoadInfo:
     """Loads the data in `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -237,7 +239,9 @@ def run(
         table_name=table_name,
         write_disposition=write_disposition,
         columns=columns,
-        schema=schema
+        schema=schema,
+        loader_file_format=loader_file_format,
+        schema_contract=schema_contract
     )
 
 # plug default tracking module

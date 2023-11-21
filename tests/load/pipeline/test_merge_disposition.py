@@ -13,7 +13,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.pipeline import StateInjectableContext
 from dlt.common.typing import AnyFun, StrAny
 from dlt.common.utils import digest128
-from dlt.extract.source import DltResource
+from dlt.extract import DltResource
 from dlt.sources.helpers.transform import skip_first, take_first
 
 from tests.pipeline.utils import assert_load_info

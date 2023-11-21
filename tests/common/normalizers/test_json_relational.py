@@ -321,6 +321,59 @@ def test_list_position(norm: RelationalNormalizer) -> None:
 #     print(rows)
 
 
+def test_control_descending(norm: RelationalNormalizer) -> None:
+    row: StrAny = {
+        "f": [{
+            "l": ["a", "b", "c"],
+            "v": 120,
+            "lo": [[{"e": "a"}, {"e": "b"}, {"e":"c"}]]
+        }],
+        "g": "val"
+    }
+
+    # break at first row
+    rows_gen = norm.normalize_data_item(row, "load_id", "table")
+    rows_gen.send(None)
+    # won't yield anything else
+    with pytest.raises(StopIteration):
+        rows_gen.send(False)
+
+    # prevent yielding descendants of "f" but yield all else
+    rows_gen = norm.normalize_data_item(row, "load_id", "table")
+    rows_gen.send(None)
+    (table, _), _ = rows_gen.send(True)
+    assert table == "table__f"
+    # won't yield anything else
+    with pytest.raises(StopIteration):
+        rows_gen.send(False)
+
+    # descend into "l"
+    rows_gen = norm.normalize_data_item(row, "load_id", "table")
+    rows_gen.send(None)
+    rows_gen.send(True)
+    (table, _), one_row = rows_gen.send(True)
+    assert table == "table__f__l"
+    assert one_row["value"] == "a"
+    # get next element in the list - even with sending False - we do not descend
+    (table, _), one_row = rows_gen.send(False)
+    assert table == "table__f__l"
+    assert one_row["value"] == "b"
+
+    # prevent descending into list of lists
+    rows_gen = norm.normalize_data_item(row, "load_id", "table")
+    rows_gen.send(None)
+    rows_gen.send(True)
+    # yield "l"
+    next(rows_gen)
+    next(rows_gen)
+    next(rows_gen)
+    (table, _), one_row = rows_gen.send(True)
+    assert table == "table__f__lo"
+    # do not descend into lists
+    with pytest.raises(StopIteration):
+        rows_gen.send(False)
+
+
 def test_list_in_list() -> None:
     chats = {
         "_dlt_id": "123456",

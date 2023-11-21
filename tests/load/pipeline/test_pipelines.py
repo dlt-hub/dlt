@@ -14,7 +14,7 @@ from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
 from dlt.extract.exceptions import ResourceNameMissing
-from dlt.extract.source import DltSource
+from dlt.extract import DltSource
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineConfigMissing, PipelineStepFailed
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.exceptions import DestinationHasFailedJobs
