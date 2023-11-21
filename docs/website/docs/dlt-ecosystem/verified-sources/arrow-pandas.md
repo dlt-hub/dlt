@@ -6,6 +6,12 @@ keywords: [arrow, pandas, parquet, source]
 
 # Arrow Table / Pandas
 
+:::info Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our Slack community](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
 You can load data directly from an Arrow table or Pandas dataframe.
 This is supported by all destinations, but recommended especially when using destinations that support the `parquet` foramt natively (e.g. [Snowflake](../destinations/snowflake.md) and [Filesystem](../destinations/filesystem.md)).
 See the [destination support](#destination-support-and-fallback) section for more information.
