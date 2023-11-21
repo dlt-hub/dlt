@@ -26,12 +26,12 @@ def test_complete_successful_package(storage: LoadStorage) -> None:
     # should delete package in full
     storage.config.delete_completed_jobs = True
     load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
-    assert storage.storage.has_folder(storage.get_package_path(load_id))
+    assert storage.storage.has_folder(storage.get_normalized_package_path(load_id))
     storage.complete_job(load_id, file_name)
     assert_package_info(storage, load_id, "normalized", "completed_jobs")
     storage.complete_load_package(load_id, False)
     # deleted from loading
-    assert not storage.storage.has_folder(storage.get_package_path(load_id))
+    assert not storage.storage.has_folder(storage.get_normalized_package_path(load_id))
     # has package
     assert storage.storage.has_folder(storage.get_completed_package_path(load_id))
     assert storage.storage.has_file(os.path.join(storage.get_completed_package_path(load_id), LoadStorage.PACKAGE_COMPLETED_FILE_NAME))
@@ -47,7 +47,7 @@ def test_complete_successful_package(storage: LoadStorage) -> None:
     storage.complete_job(load_id, file_name)
     storage.complete_load_package(load_id, False)
     # deleted from loading
-    assert not storage.storage.has_folder(storage.get_package_path(load_id))
+    assert not storage.storage.has_folder(storage.get_normalized_package_path(load_id))
     # has load preserved
     assert storage.storage.has_folder(storage.get_completed_package_path(load_id))
     assert storage.storage.has_file(os.path.join(storage.get_completed_package_path(load_id), LoadStorage.PACKAGE_COMPLETED_FILE_NAME))
@@ -59,22 +59,45 @@ def test_complete_successful_package(storage: LoadStorage) -> None:
 
 def test_wipe_normalized_packages(storage: LoadStorage) -> None:
     load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
-
     storage.wipe_normalized_packages()
-
     assert not storage.storage.has_folder(storage.NORMALIZED_FOLDER)
+
+
+def test_is_partially_loaded(storage: LoadStorage) -> None:
+    load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}], start_job=False)
+    info = storage.get_load_package_info(load_id)
+    # all jobs are new
+    assert LoadStorage.is_package_partially_loaded(info) is False
+    # start job
+    storage.start_job(load_id, file_name)
+    info = storage.get_load_package_info(load_id)
+    assert LoadStorage.is_package_partially_loaded(info) is True
+    # complete job
+    storage.complete_job(load_id, file_name)
+    info = storage.get_load_package_info(load_id)
+    assert LoadStorage.is_package_partially_loaded(info) is True
+    # must complete package
+    storage.complete_load_package(load_id, False)
+    info = storage.get_load_package_info(load_id)
+    assert LoadStorage.is_package_partially_loaded(info) is False
+
+    # abort package
+    load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
+    storage.complete_load_package(load_id, True)
+    info = storage.get_load_package_info(load_id)
+    assert LoadStorage.is_package_partially_loaded(info) is True
 
 
 def test_complete_package_failed_jobs(storage: LoadStorage) -> None:
     # loads with failed jobs are always persisted
     storage.config.delete_completed_jobs = True
     load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
-    assert storage.storage.has_folder(storage.get_package_path(load_id))
+    assert storage.storage.has_folder(storage.get_normalized_package_path(load_id))
     storage.fail_job(load_id, file_name, "EXCEPTION")
     assert_package_info(storage, load_id, "normalized", "failed_jobs")
     storage.complete_load_package(load_id, False)
     # deleted from loading
-    assert not storage.storage.has_folder(storage.get_package_path(load_id))
+    assert not storage.storage.has_folder(storage.get_normalized_package_path(load_id))
     # present in completed loads folder
     assert storage.storage.has_folder(storage.get_completed_package_path(load_id))
     # has completed loads
@@ -105,7 +128,7 @@ def test_abort_package(storage: LoadStorage) -> None:
     # loads with failed jobs are always persisted
     storage.config.delete_completed_jobs = True
     load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}])
-    assert storage.storage.has_folder(storage.get_package_path(load_id))
+    assert storage.storage.has_folder(storage.get_normalized_package_path(load_id))
     storage.fail_job(load_id, file_name, "EXCEPTION")
     assert_package_info(storage, load_id, "normalized", "failed_jobs")
     storage.complete_load_package(load_id, True)
@@ -195,7 +218,7 @@ def test_process_schema_update(storage: LoadStorage) -> None:
         storage.commit_schema_update(load_id, applied_update)
     assert storage.begin_schema_update(load_id) is None
     # processed file exists
-    applied_update_path = os.path.join(storage.get_package_path(load_id), LoadStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME)
+    applied_update_path = os.path.join(storage.get_normalized_package_path(load_id), LoadStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME)
     assert storage.storage.has_file(applied_update_path) is True
     assert json.loads(storage.storage.load(applied_update_path)) == applied_update
     # verify info package
@@ -237,7 +260,7 @@ def test_unknown_migration_path() -> None:
         LoadStorage(False, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
 
 
-def start_loading_file(s: LoadStorage, content: Sequence[StrAny]) -> Tuple[str, str]:
+def start_loading_file(s: LoadStorage, content: Sequence[StrAny], start_job: bool = True) -> Tuple[str, str]:
     load_id = uniq_id()
     s.create_temp_load_package(load_id)
     # write test file
@@ -247,8 +270,9 @@ def start_loading_file(s: LoadStorage, content: Sequence[StrAny]) -> Tuple[str, 
     s.save_temp_schema_updates(load_id, {})
     s.commit_temp_load_package(load_id)
     assert_package_info(s, load_id, "normalized", "new_jobs")
-    s.start_job(load_id, file_name)
-    assert_package_info(s, load_id, "normalized", "started_jobs")
+    if start_job:
+        s.start_job(load_id, file_name)
+        assert_package_info(s, load_id, "normalized", "started_jobs")
     return load_id, file_name
 
 

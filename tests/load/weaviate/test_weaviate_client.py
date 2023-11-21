@@ -9,8 +9,8 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema.typing import TWriteDisposition, TColumnSchema, TTableSchemaColumns
 
 from dlt.destinations import weaviate
-from dlt.destinations.weaviate.exceptions import PropertyNameConflict
-from dlt.destinations.weaviate.weaviate_client import WeaviateClient
+from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict
+from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
 
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema.utils import new_table
@@ -27,9 +27,10 @@ def drop_weaviate_schema() -> Iterator[None]:
 
 
 def get_client_instance(schema: Schema) -> WeaviateClient:
-    config = weaviate.spec()(dataset_name="ClientTest" + uniq_id())
-    with Container().injectable_context(ConfigSectionContext(sections=('destination', 'weaviate'))):
-        return weaviate.client(schema, config)  # type: ignore[return-value]
+    dest = weaviate(dataset_name="ClientTest" + uniq_id())
+    return dest.client(schema, dest.spec())
+    # with Container().injectable_context(ConfigSectionContext(sections=('destination', 'weaviate'))):
+    #     return dest.client(schema, config)
 
 
 @pytest.fixture(scope='function')
@@ -44,7 +45,7 @@ def ci_client() -> Iterator[WeaviateClient]:
 
 def make_client(naming_convention: str) -> Iterator[WeaviateClient]:
     schema = Schema('test_schema', {
-        'names': f"dlt.destinations.weaviate.{naming_convention}",
+        'names': f"dlt.destinations.impl.weaviate.{naming_convention}",
         'json': None
     })
     _client = get_client_instance(schema)

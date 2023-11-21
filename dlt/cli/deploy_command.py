@@ -16,7 +16,7 @@ from dlt.cli.deploy_command_helpers import (PipelineWasNotRun, BaseDeployment, a
 
 from dlt.version import DLT_PKG_NAME
 
-from dlt.common.destination.reference import DestinationReference
+from dlt.common.destination.reference import Destination
 
 REQUIREMENTS_GITHUB_ACTION = "requirements_github_action.txt"
 DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
@@ -198,7 +198,7 @@ class AirflowDeployment(BaseDeployment):
     def _generate_workflow(self, *args: Optional[Any]) -> None:
         self.deployment_method = DeploymentMethods.airflow_composer.value
 
-        req_dep = f"{DLT_PKG_NAME}[{DestinationReference.to_name(self.state['destination'])}]"
+        req_dep = f"{DLT_PKG_NAME}[{Destination.to_name(self.state['destination'])}]"
         req_dep_line = f"{req_dep}>={pkg_version(DLT_PKG_NAME)}"
 
         self.artifacts["requirements_txt"] = req_dep_line

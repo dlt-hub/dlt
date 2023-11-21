@@ -1,4 +1,4 @@
-from typing import Any, Optional, List, Literal, get_args
+from typing import Any, Optional, List
 import pytest
 from itertools import zip_longest
 
@@ -7,13 +7,7 @@ from dlt.common.typing import TDataItem, TDataItems
 from dlt.extract.extract import ExtractorStorage
 from dlt.extract.typing import ItemTransform
 
-import pandas as pd
-from dlt.common.libs.pyarrow import pyarrow as pa
-
-
-TItemFormat = Literal["json", "pandas", "arrow"]
-
-ALL_ITEM_FORMATS = get_args(TItemFormat)
+from tests.utils import TDataItemFormat
 
 
 def expect_extracted_file(storage: ExtractorStorage, schema_name: str, table_name: str, content: str) -> None:
@@ -35,7 +29,7 @@ def expect_extracted_file(storage: ExtractorStorage, schema_name: str, table_nam
 
 
 class AssertItems(ItemTransform[TDataItem]):
-     def __init__(self, expected_items: Any, item_type: TItemFormat = "json") -> None:
+     def __init__(self, expected_items: Any, item_type: TDataItemFormat = "json") -> None:
          self.expected_items = expected_items
          self.item_type = item_type
 
@@ -44,22 +38,8 @@ class AssertItems(ItemTransform[TDataItem]):
         return item
 
 
-def data_to_item_format(item_format: TItemFormat, data: List[TDataItem]):
-    """Return the given data in the form of pandas, arrow table or json items"""
-    if item_format == "json":
-        return data
-    # Make dataframe from the data
-    df = pd.DataFrame(data)
-    if item_format == "pandas":
-        return [df]
-    elif item_format == "arrow":
-        return [pa.Table.from_pandas(df)]
-    else:
-        raise ValueError(f"Unknown item format: {item_format}")
-
-
-def data_item_to_list(from_type: TItemFormat, values: List[TDataItem]):
-    if from_type == "arrow":
+def data_item_to_list(from_type: TDataItemFormat, values: List[TDataItem]):
+    if from_type in ["arrow", "arrow-batch"]:
         return values[0].to_pylist()
     elif from_type == "pandas":
         return values[0].to_dict("records")

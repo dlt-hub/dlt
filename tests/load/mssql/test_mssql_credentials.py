@@ -1,6 +1,6 @@
 from dlt.common.configuration import resolve_configuration
 
-from dlt.destinations.mssql.configuration import MsSqlCredentials
+from dlt.destinations.impl.mssql.configuration import MsSqlCredentials
 
 
 

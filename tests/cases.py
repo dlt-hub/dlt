@@ -333,7 +333,14 @@ def assert_all_data_types_row(
     assert db_mapping == expected_rows
 
 
-def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool = True, include_time: bool = True, num_rows: int = 3) -> Tuple[Any, List[Dict[str, Any]]]:
+def arrow_table_all_data_types(
+    object_format: TArrowFormat,
+    include_json: bool = True,
+    include_time: bool = True,
+    include_not_normalized_name: bool = True,
+    include_name_clash: bool = False,
+    num_rows: int = 3
+) -> Tuple[Any, List[Dict[str, Any]]]:
     """Create an arrow object or pandas dataframe with all supported data types.
 
     Returns the table and its records in python format
@@ -342,7 +349,6 @@ def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool =
     from dlt.common.libs.pyarrow import pyarrow as pa
 
     data = {
-        "Pre Normalized Column": [random.choice(ascii_lowercase) for _ in range(num_rows)],
         "string": [random.choice(ascii_lowercase) for _ in range(num_rows)],
         "float": [round(random.uniform(0, 100), 4) for _ in range(num_rows)],
         "int": [random.randrange(0, 100) for _ in range(num_rows)],
@@ -354,6 +360,12 @@ def arrow_table_all_data_types(object_format: TArrowFormat, include_json: bool =
         "string_null": [random.choice(ascii_lowercase) for _ in range(num_rows - 1)] + [None],
         "null": pd.Series( [None for _ in range(num_rows)])
     }
+
+    if include_name_clash:
+        data["pre Normalized Column"] = [random.choice(ascii_lowercase) for _ in range(num_rows)]
+        include_not_normalized_name = True
+    if include_not_normalized_name:
+        data["Pre Normalized Column"] = [random.choice(ascii_lowercase) for _ in range(num_rows)]
 
     if include_json:
         data["json"] = [{"a": random.randrange(0, 100)} for _ in range(num_rows)]

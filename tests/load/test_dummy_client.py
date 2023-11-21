@@ -11,14 +11,14 @@ from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage, LoadStorage
 from dlt.common.storages.load_storage import JobWithUnsupportedWriterException
 from dlt.common.utils import uniq_id
-from dlt.common.destination.reference import DestinationReference, LoadJob
+from dlt.common.destination.reference import Destination, LoadJob, TDestination
 
 from dlt.load import Load
 from dlt.destinations.job_impl import EmptyLoadJob
 
 from dlt.destinations import dummy
-from dlt.destinations.dummy import dummy as dummy_impl
-from dlt.destinations.dummy.configuration import DummyClientConfiguration
+from dlt.destinations.impl.dummy import dummy as dummy_impl
+from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry
 from dlt.common.schema.utils import get_top_level_table
 
@@ -184,7 +184,7 @@ def test_spool_job_failed_exception_init() -> None:
 
 def test_spool_job_failed_exception_complete() -> None:
     # this config fails job on start
-    os.environ["RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
     os.environ["FAIL_IN_INIT"] = "false"
     load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
     load_id, _ = prepare_load_package(
@@ -340,7 +340,7 @@ def test_retry_on_new_loop() -> None:
         assert len(files) == 0
         # complete package
         load.run(pool)
-        assert not load.load_storage.storage.has_folder(load.load_storage.get_package_path(load_id))
+        assert not load.load_storage.storage.has_folder(load.load_storage.get_normalized_package_path(load_id))
         # parse the completed job names
         completed_path = load.load_storage.get_completed_package_path(load_id)
         for fn in load.load_storage.storage.list_folder_files(os.path.join(completed_path, LoadStorage.COMPLETED_JOBS_FOLDER)):
@@ -382,7 +382,7 @@ def test_load_single_thread() -> None:
     metrics = load.run(None)
     while metrics.pending_items > 0:
         metrics = load.run(None)
-    assert not load.load_storage.storage.has_folder(load.load_storage.get_package_path(load_id))
+    assert not load.load_storage.storage.has_folder(load.load_storage.get_normalized_package_path(load_id))
 
 
 def test_wrong_writer_type() -> None:
@@ -417,11 +417,11 @@ def assert_complete_job(load: Load, storage: FileStorage, should_delete_complete
         with ThreadPoolExecutor() as pool:
             load.run(pool)
             # did process schema update
-            assert storage.has_file(os.path.join(load.load_storage.get_package_path(load_id), LoadStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME))
+            assert storage.has_file(os.path.join(load.load_storage.get_normalized_package_path(load_id), LoadStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME))
             # will finalize the whole package
             load.run(pool)
             # moved to loaded
-            assert not storage.has_folder(load.load_storage.get_package_path(load_id))
+            assert not storage.has_folder(load.load_storage.get_normalized_package_path(load_id))
             completed_path = load.load_storage._get_job_folder_completed_path(load_id, "completed_jobs")
             if should_delete_completed:
                 # package was deleted
@@ -445,7 +445,7 @@ def run_all(load: Load) -> None:
 def setup_loader(delete_completed_jobs: bool = False, client_config: DummyClientConfiguration = None) -> Load:
     # reset jobs for a test
     dummy_impl.JOBS = {}
-    destination: DestinationReference = dummy  # type: ignore[assignment]
+    destination: TDestination = dummy()  # type: ignore[assignment]
     client_config = client_config or DummyClientConfiguration(loader_file_format="jsonl")
     # patch destination to provide client_config
     # destination.client = lambda schema: dummy_impl.DummyClient(schema, client_config)

@@ -25,7 +25,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.runtime.collector import NULL_COLLECTOR
 
-from dlt.extract.source import DltSource
+from dlt.extract import DltSource
 from dlt.pipeline.helpers import retry_load
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.progress import log

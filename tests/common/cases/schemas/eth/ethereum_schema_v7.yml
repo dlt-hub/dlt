@@ -1,5 +1,5 @@
-version: 14
-version_hash: ZbDv9+tdJK7P/4QIB0qqHzqNSsVynVx90GL4giV8/p0=
+version: 15
+version_hash: yjMtV4Zv0IJlfR5DPMwuXxGg8BRhy7E79L26XAHWEGE=
 engine_version: 7
 name: ethereum
 tables:
@@ -27,6 +27,7 @@ tables:
         name: schema_version_hash
     write_disposition: skip
     description: Created by DLT. Tracks completed loads
+    schema_contract: {}
     name: _dlt_loads
     resource: _dlt_loads
   _dlt_version:
@@ -57,13 +58,13 @@ tables:
         name: schema
     write_disposition: skip
     description: Created by DLT. Tracks schema updates
+    schema_contract: {}
     name: _dlt_version
     resource: _dlt_version
   blocks:
     description: Ethereum blocks
     x-annotation: this will be preserved on save
     write_disposition: append
-    table_sealed: true
     filters:
       includes: []
       excludes: []
@@ -159,6 +160,7 @@ tables:
         nullable: false
         data_type: text
         name: transactions_root
+    schema_contract: {}
     name: blocks
     resource: blocks
   blocks__transactions:
@@ -421,7 +423,6 @@ tables:
         name: value
     name: blocks__uncles
 settings:
-  schema_sealed: true
   default_hints:
     foreign_key:
     - _dlt_parent_id
@@ -441,6 +442,7 @@ settings:
   preferred_types:
     timestamp: timestamp
     block_timestamp: timestamp
+  schema_contract: {}
 normalizers:
   names: dlt.common.normalizers.names.snake_case
   json:
@@ -454,6 +456,4 @@ normalizers:
           blocks:
             timestamp: block_timestamp
             hash: block_hash
-ancestors:
-- Q/LxiP7taycE+u9PQNb2wiit+G5GntiifOUK2CFM3sQ=
 

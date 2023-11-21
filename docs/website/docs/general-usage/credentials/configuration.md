@@ -1,6 +1,6 @@
 ---
 title: Secrets and Configs
-description: Overview secrets and configs
+description: What are secrets and configs and how sources and destinations read them.
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment
       variables]
 ---
@@ -11,7 +11,7 @@ Secrets and configs are two types of sensitive and non-sensitive information use
 
 1. **Configs**:
   - Configs refer to non-sensitive configuration data. These are settings, parameters, or options that define the behavior of a data pipeline.
-  - They can include things like file paths, database connection strings, API endpoints, or any other settings that affect the pipeline's behavior.
+  - They can include things like file paths, database hosts and timeouts, API endpoints, or any other settings that affect the pipeline's behavior.
 2. **Secrets**:
   - Secrets are sensitive information that should be kept confidential, such as passwords, API keys, private keys, and other confidential data.
   - It's crucial to never hard-code secrets directly into the code, as it can pose a security risk. Instead, they should be stored securely and accessed via a secure mechanism.
@@ -209,6 +209,15 @@ You can pass destination credentials and ignore the default lookup:
 ```python
 pipeline = dlt.pipeline(destination="postgres", credentials=dlt.secrets["postgres_dsn"])
 ```
+
+:::Note
+**dlt.config** and **dlt.secrets** can be also used as setters. For example:
+```python
+dlt.config["sheet_id"] = "23029402349032049"
+dlt.secrets["destination.postgres.credentials"] = BaseHook.get_connection('postgres_dsn').extra
+```
+Will mock the **toml** provider to desired values.
+:::
 
 ## Injection mechanism
 

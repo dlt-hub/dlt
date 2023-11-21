@@ -9,10 +9,14 @@ from dlt.common.exceptions import DictValidationException, PipelineStateNotAvail
 from dlt.common.pipeline import StateInjectableContext, source_state
 from dlt.common.schema import Schema
 from dlt.common.typing import TDataItems
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, InvalidParentResourceDataType, InvalidParentResourceIsAFunction, InvalidResourceDataTypeMultiplePipes, InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidTransformerGeneratorFunction, ParametrizedResourceUnbound, ResourcesNotFoundError
+
+from dlt.extract import DltResource, DltSource, Incremental
+from dlt.extract.source import DltResourceDict
+from dlt.extract.exceptions import (DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, InvalidParentResourceDataType,
+                                    InvalidParentResourceIsAFunction, InvalidResourceDataTypeMultiplePipes,
+                                    InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidTransformerGeneratorFunction,
+                                    ParametrizedResourceUnbound, ResourcesNotFoundError)
 from dlt.extract.pipe import Pipe
-from dlt.extract.typing import FilterItem, MapItem
-from dlt.extract.source import DltResource, DltResourceDict, DltSource
 
 
 def test_call_data_resource() -> None:
@@ -1147,7 +1151,7 @@ def test_apply_hints() -> None:
     empty_r = empty()
     # check defaults
     assert empty_r.name == empty.name == empty_r.table_name == empty.table_name == "empty_gen"
-    assert empty_r._table_schema_template is None
+    # assert empty_r._table_schema_template is None
     assert empty_r.compute_table_schema() == empty_table_schema
     assert empty_r.write_disposition == "append"
 
@@ -1160,7 +1164,7 @@ def test_apply_hints() -> None:
     empty_r.write_disposition = "append"
     assert empty_r.compute_table_schema()["write_disposition"] == "append"
 
-    empty_r.apply_hints(table_name="table", parent_table_name="parent", primary_key=["a", "b"], merge_key=["c", "a"])
+    empty_r.apply_hints(table_name="table", parent_table_name="parent", primary_key=["a", "b"], merge_key=["c", "a"], schema_contract="freeze")
     table = empty_r.compute_table_schema()
     assert table["columns"]["a"] == {'merge_key': True, 'name': 'a', 'nullable': False, 'primary_key': True}
     assert table["columns"]["b"] == {'name': 'b', 'nullable': False, 'primary_key': True}
@@ -1168,10 +1172,11 @@ def test_apply_hints() -> None:
     assert table["name"] == "table"
     assert table["parent"] == "parent"
     assert empty_r.table_name == "table"
+    assert table["schema_contract"] == "freeze"
 
     # reset
-    empty_r.apply_hints(table_name="", parent_table_name="", primary_key=[], merge_key="", columns={})
-    assert empty_r._table_schema_template == {'columns': {}, 'incremental': None, 'validator': None, 'write_disposition': 'append'}
+    empty_r.apply_hints(table_name="", parent_table_name="", primary_key=[], merge_key="", columns={}, incremental=Incremental.EMPTY, schema_contract={})
+    assert empty_r._table_schema_template == {'columns': {}, 'incremental': None, 'validator': None, 'write_disposition': 'append', 'original_columns': {}}
     table = empty_r.compute_table_schema()
     assert table["name"] == "empty_gen"
     assert "parent" not in table

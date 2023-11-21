@@ -16,7 +16,7 @@ from dlt.common.validation import TCustomValidator, validate_dict, validate_dict
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (COLUMN_HINTS, SCHEMA_ENGINE_VERSION, LOADS_TABLE_NAME, SIMPLE_REGEX_PREFIX, VERSION_TABLE_NAME, TColumnName, TPartialTableSchema, TSchemaTables, TSchemaUpdate,
                                       TSimpleRegex, TStoredSchema, TTableSchema, TTableSchemaColumns, TColumnSchemaBase, TColumnSchema, TColumnProp, TTableFormat,
-                                      TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition)
+                                      TColumnHint, TTypeDetectionFunc, TTypeDetections, TWriteDisposition, TSchemaContract, TSchemaContractDict)
 from dlt.common.schema.exceptions import (CannotCoerceColumnException, ParentTableNotFoundException, SchemaEngineNoUpgradePathException, SchemaException,
                                           TablePropertiesConflictException, InvalidSchemaName, UnknownTableException)
 
@@ -134,8 +134,8 @@ def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
 #     return copy(column)  # type: ignore
 
 
-def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, List[str]]:
-    # if any change to schema document is detected then bump version and write new hash
+def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, str, List[str]]:
+    """Bumps the `stored_schema` version and version hash if content modified, returns (new version, new hash, old hash) tuple"""
     hash_ = generate_version_hash(stored_schema)
     previous_hash = stored_schema.get("version_hash")
     if not previous_hash:
@@ -149,7 +149,7 @@ def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, Li
             stored_schema["ancestors"] = stored_schema["ancestors"][:10]
 
     stored_schema["version_hash"] = hash_
-    return stored_schema["version"], hash_, stored_schema["ancestors"]
+    return stored_schema["version"], hash_, previous_hash, stored_schema["ancestors"]
 
 
 def generate_version_hash(stored_schema: TStoredSchema) -> str:
@@ -354,8 +354,17 @@ def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) ->
         schema_dict["tables"][LOADS_TABLE_NAME] = load_table()
         from_engine = 6
     if from_engine == 6 and to_engine > 6:
-        schema_dict["ancestors"] = []
+        # migrate from sealed properties to schema evolution settings
+        schema_dict["settings"].pop("schema_sealed", None)
+        schema_dict["settings"]["schema_contract"] = {}
+        for table in schema_dict["tables"].values():
+            table.pop("table_sealed", None)
+            if not table.get("parent"):
+                table["schema_contract"] = {}
         from_engine = 7
+    if from_engine == 7 and to_engine > 7:
+        schema_dict["ancestors"] = []
+        from_engine = 8
 
     schema_dict["engine_version"] = from_engine
     if from_engine != to_engine:
@@ -442,7 +451,6 @@ def diff_tables(tab_a: TTableSchema, tab_b: TPartialTableSchema) -> TPartialTabl
             continue
         existing_v = tab_a.get(k)
         if existing_v != v:
-            # print(f"{k} ==? {v} ==? {existing_v}")
             partial_table[k] = v  # type: ignore
 
     # this should not really happen
@@ -665,6 +673,7 @@ def new_table(
     columns: Sequence[TColumnSchema] = None,
     validate_schema: bool = False,
     resource: str = None,
+    schema_contract: TSchemaContract = None,
     table_format: TTableFormat = None
 ) -> TTableSchema:
 
@@ -676,10 +685,13 @@ def new_table(
         table["parent"] = parent_table_name
         assert write_disposition is None
         assert resource is None
+        assert schema_contract is None
     else:
         # set write disposition only for root tables
         table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
         table["resource"] = resource or table_name
+        if schema_contract is not None:
+            table["schema_contract"] = schema_contract
         if table_format:
             table["table_format"] = table_format
     if validate_schema:
@@ -707,7 +719,6 @@ def new_column(column_name: str, data_type: TDataType = None, nullable: bool = T
         )
 
     return column
-
 
 def standard_hints() -> Dict[TColumnHint, List[TSimpleRegex]]:
     return None

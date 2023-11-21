@@ -1,8 +1,13 @@
 import os
+import shutil
+from subprocess import CalledProcessError
+import pytest
 from pytest_console_scripts import ScriptRunner
 from unittest.mock import patch
 
+import dlt
 from dlt.common.configuration.paths import get_dlt_data_dir
+from dlt.common.runners.venv import Venv
 from dlt.common.utils import custom_environ, set_working_dir
 from dlt.common.pipeline import get_dlt_pipelines_dir
 
@@ -35,7 +40,7 @@ def test_invoke_basic(script_runner: ScriptRunner) -> None:
 def test_invoke_list_pipelines(script_runner: ScriptRunner) -> None:
     result = script_runner.run(['dlt', 'pipeline', '--list-pipelines'])
     # directory does not exist (we point to TEST_STORAGE)
-    assert result.returncode == 1
+    assert result.returncode == -2
 
     # create empty
     os.makedirs(get_dlt_pipelines_dir())
@@ -43,10 +48,44 @@ def test_invoke_list_pipelines(script_runner: ScriptRunner) -> None:
     assert result.returncode == 0
     assert "No pipelines found in" in result.stdout
 
+
+def test_invoke_pipeline(script_runner: ScriptRunner) -> None:
     # info on non existing pipeline
     result = script_runner.run(['dlt', 'pipeline', 'debug_pipeline', 'info'])
-    assert result.returncode == 1
+    assert result.returncode == -1
     assert "the pipeline was not found in" in result.stderr
+
+    # copy dummy pipeline
+    p = dlt.pipeline(pipeline_name="dummy_pipeline")
+    p._wipe_working_folder()
+
+    shutil.copytree("tests/cli/cases/deploy_pipeline", TEST_STORAGE_ROOT, dirs_exist_ok=True)
+
+    with set_working_dir(TEST_STORAGE_ROOT):
+        with custom_environ({"COMPETED_PROB": "1.0", "DLT_DATA_DIR": get_dlt_data_dir()}):
+            venv = Venv.restore_current()
+            venv.run_script("dummy_pipeline.py")
+    # we check output test_pipeline_command else
+    result = script_runner.run(['dlt', 'pipeline', 'dummy_pipeline', 'info'])
+    assert result.returncode == 0
+    result = script_runner.run(['dlt', 'pipeline', 'dummy_pipeline', 'trace'])
+    assert result.returncode == 0
+    result = script_runner.run(['dlt', 'pipeline', 'dummy_pipeline', 'failed-jobs'])
+    assert result.returncode == 0
+    result = script_runner.run(['dlt', 'pipeline', 'dummy_pipeline', 'load-package'])
+    assert result.returncode == 0
+    result = script_runner.run(['dlt', 'pipeline', 'dummy_pipeline', 'load-package', "NON EXISTENT"])
+    assert result.returncode == -2
+    try:
+        # use debug flag to raise an exception
+        result = script_runner.run(['dlt', '--debug', 'pipeline', 'dummy_pipeline', 'load-package', "NON EXISTENT"])
+        # exception terminates command
+        assert result.returncode == 1
+        assert "LoadPackageNotFound" in result.stderr
+    finally:
+        # reset debug flag so other tests may pass
+        from dlt.cli import _dlt
+        _dlt.DEBUG_FLAG = False
 
 
 def test_invoke_init_chess_and_template(script_runner: ScriptRunner) -> None:

@@ -1,6 +1,6 @@
 ---
 title: Configuration Specs
-description: Overview configuration specs and how to create custom specs
+description: How to specify complex custom configurations
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment
       variables, specs]
 ---

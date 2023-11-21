@@ -5,8 +5,8 @@ import sqlfluff
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
-from dlt.destinations.duckdb.duck import DuckDbClient
-from dlt.destinations.duckdb.configuration import DuckDbClientConfiguration
+from dlt.destinations.impl.duckdb.duck import DuckDbClient
+from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 
 from tests.load.utils import TABLE_UPDATE
 

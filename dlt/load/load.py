@@ -20,7 +20,7 @@ from dlt.common.exceptions import TerminalValueError, DestinationTerminalExcepti
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
 from dlt.common.storages import LoadStorage
-from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, WithStagingDataset, DestinationReference, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration, SupportsStagingDestination
+from dlt.common.destination.reference import DestinationClientDwhConfiguration, FollowupJob, JobClientBase, WithStagingDataset, Destination, LoadJob, NewLoadJob, TLoadJobState, DestinationClientConfiguration, SupportsStagingDestination, TDestination
 
 from dlt.destinations.job_impl import EmptyLoadJob
 
@@ -34,8 +34,8 @@ class Load(Runnable[Executor]):
     @with_config(spec=LoaderConfiguration, sections=(known_sections.LOAD,))
     def __init__(
         self,
-        destination: DestinationReference,
-        staging_destination: DestinationReference = None,
+        destination: TDestination,
+        staging_destination: TDestination = None,
         collector: Collector = NULL_COLLECTOR,
         is_storage_owner: bool = False,
         config: LoaderConfiguration = config.value,
@@ -53,7 +53,6 @@ class Load(Runnable[Executor]):
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._processed_load_ids: Dict[str, str] = {}
         """Load ids to dataset name"""
-
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
         supported_file_formats = self.capabilities.supported_loader_file_formats
@@ -387,7 +386,7 @@ class Load(Runnable[Executor]):
 
         logger.info("Running file loading")
         # get list of loads and order by name ASC to execute schema updates
-        loads = self.load_storage.list_packages()
+        loads = self.load_storage.list_normalized_packages()
         logger.info(f"Found {len(loads)} load packages")
         if len(loads) == 0:
             return TRunMetrics(True, 0)
@@ -404,7 +403,7 @@ class Load(Runnable[Executor]):
         with self.collector(f"Load {schema.name} in {load_id}"):
             self.load_single_package(load_id, schema)
 
-        return TRunMetrics(False, len(self.load_storage.list_packages()))
+        return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
 
     def get_load_info(self, pipeline: SupportsPipeline, started_at: datetime.datetime = None) -> LoadInfo:
         # TODO: LoadInfo should hold many datasets

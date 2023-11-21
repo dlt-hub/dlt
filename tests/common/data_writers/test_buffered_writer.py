@@ -1,28 +1,14 @@
-import os
-from typing import Iterator, Set, Literal
+from typing import Iterator
 
 import pytest
 
-from dlt.common.data_writers.buffered import BufferedDataWriter, DataWriter
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
-from dlt.common.destination import TLoaderFileFormat, DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt.common.typing import DictStrAny
 
-from tests.utils import TEST_STORAGE_ROOT, write_version, autouse_test_storage
-import datetime  # noqa: 251
-
-
-ALL_WRITERS: Set[Literal[TLoaderFileFormat]] = {"insert_values", "jsonl", "parquet", "arrow", "puae-jsonl"}
-
-
-def get_writer(_format: TLoaderFileFormat = "insert_values", buffer_max_items: int = 10, disable_compression: bool = False) -> BufferedDataWriter[DataWriter]:
-    caps = DestinationCapabilitiesContext.generic_capabilities()
-    caps.preferred_loader_file_format = _format
-    file_template = os.path.join(TEST_STORAGE_ROOT, f"{_format}.%s")
-    return BufferedDataWriter(_format, file_template, buffer_max_items=buffer_max_items, disable_compression=disable_compression, _caps=caps)
+from tests.common.data_writers.utils import ALL_WRITERS, get_writer
 
 
 def test_write_no_item() -> None:
@@ -175,47 +161,3 @@ def test_writer_optional_schema(disable_compression: bool) -> None:
     with get_writer(_format="jsonl", disable_compression=disable_compression) as writer:
             writer.write_data_item([{"col1": 1}], None)
             writer.write_data_item([{"col1": 1}], None)
-
-
-@pytest.mark.parametrize("writer_format", ALL_WRITERS - {"arrow"})
-def test_writer_items_count(writer_format: TLoaderFileFormat) -> None:
-    c1 = {"col1": new_column("col1", "bigint")}
-    with get_writer(_format=writer_format) as writer:
-        assert writer._buffered_items_count == 0
-        # single item
-        writer.write_data_item({"col1": 1}, columns=c1)
-        assert writer._buffered_items_count == 1
-        # list
-        writer.write_data_item([{"col1": 1}, {"col1": 2}], columns=c1)
-        assert writer._buffered_items_count == 3
-        writer._flush_items()
-        assert writer._buffered_items_count == 0
-        assert writer._writer.items_count == 3
-
-
-def test_writer_items_count_arrow() -> None:
-    import pyarrow as pa
-    c1 = {"col1": new_column("col1", "bigint")}
-    with get_writer(_format="arrow") as writer:
-        assert writer._buffered_items_count == 0
-        # single item
-        writer.write_data_item(pa.Table.from_pylist([{"col1": 1}]), columns=c1)
-        assert writer._buffered_items_count == 1
-        # single item with many rows
-        writer.write_data_item(pa.Table.from_pylist([{"col1": 1}, {"col1": 2}]), columns=c1)
-        assert writer._buffered_items_count == 3
-        # empty list
-        writer.write_data_item([], columns=c1)
-        assert writer._buffered_items_count == 3
-        # list with one item
-        writer.write_data_item([pa.Table.from_pylist([{"col1": 1}])], columns=c1)
-        assert writer._buffered_items_count == 4
-        # list with many items
-        writer.write_data_item(
-            [pa.Table.from_pylist([{"col1": 1}]), pa.Table.from_pylist([{"col1": 1}, {"col1": 2}])],
-            columns=c1
-        )
-        assert writer._buffered_items_count == 7
-        writer._flush_items()
-        assert writer._buffered_items_count == 0
-        assert writer._writer.items_count == 7

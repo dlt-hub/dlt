@@ -1,10 +1,11 @@
 from abc import ABC, abstractmethod, abstractproperty
 from importlib import import_module
 from types import TracebackType, ModuleType
-from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager, Dict, Any
+from typing import ClassVar, Final, Optional, NamedTuple, Literal, Sequence, Iterable, Type, Protocol, Union, TYPE_CHECKING, cast, List, ContextManager, Dict, Any, Callable, TypeVar, Generic
 from contextlib import contextmanager
 import datetime  # noqa: 251
 from copy import deepcopy
+import inspect
 
 from dlt.common import logger
 from dlt.common.exceptions import IdentifierTooLongException, InvalidDestinationReference, UnknownDestinationModule
@@ -12,7 +13,7 @@ from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.exceptions import InvalidDatasetName
 from dlt.common.schema.utils import get_write_disposition, get_table_format
-from dlt.common.configuration import configspec
+from dlt.common.configuration import configspec, with_config, resolve_configuration, known_sections
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.accessors import config
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -23,7 +24,10 @@ from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import get_module_name
 from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
 
+
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
+TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
+TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
 
 
 class StorageSchemaInfo(NamedTuple):
@@ -344,59 +348,102 @@ class SupportsStagingDestination():
         # the default is to truncate the tables on the staging destination...
         return True
 
-TDestinationReferenceArg = Union["DestinationReference", ModuleType, None, str]
+TDestinationReferenceArg = Union[str, "Destination", None]
 
 
-class DestinationReference(Protocol):
-    __name__: str
-    """Name of the destination"""
+class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
+    """A destination factory that can be partially pre-configured
+    with credentials and other config params.
+    """
+    config_params: Optional[Dict[str, Any]] = None
 
+    def __init__(self, **kwargs: Any) -> None:
+        # Create initial unresolved destination config
+        # Argument defaults are filtered out here because we only want arguments passed explicitly
+        # to supersede config from the environment or pipeline args
+        sig = inspect.signature(self.__class__)
+        params = sig.parameters
+        self.config_params = {
+            k: v for k, v in kwargs.items()
+            if k not in params or v != params[k].default
+        }
+
+    @property
+    @abstractmethod
+    def spec(self) -> Type[TDestinationConfig]:
+        """A spec of destination configuration that also contains destination credentials"""
+        ...
+
+    @abstractmethod
     def capabilities(self) -> DestinationCapabilitiesContext:
         """Destination capabilities ie. supported loader file formats, identifier name lengths, naming conventions, escape function etc."""
+        ...
 
-    def client(self, schema: Schema, initial_config: DestinationClientConfiguration = config.value) -> "JobClientBase":
-        """A job client responsible for starting and resuming load jobs"""
+    @property
+    def name(self) -> str:
+        return self.__class__.__name__
 
-    def spec(self) -> Type[DestinationClientConfiguration]:
-        """A spec of destination configuration that also contains destination credentials"""
+    @property
+    @abstractmethod
+    def client_class(self) -> Type[TDestinationClient]:
+        """A job client class responsible for starting and resuming load jobs"""
+        ...
+
+    def configuration(self, initial_config: TDestinationConfig) -> TDestinationConfig:
+        """Get a fully resolved destination config from the initial config
+        """
+        return resolve_configuration(
+            initial_config,
+            sections=(known_sections.DESTINATION, self.name),
+            # Already populated values will supersede resolved env config
+            explicit_value=self.config_params
+        )
 
     @staticmethod
-    def from_name(destination: TDestinationReferenceArg) -> "DestinationReference":
-        if destination is None:
+    def to_name(ref: TDestinationReferenceArg) -> str:
+        if ref is None:
+            raise InvalidDestinationReference(ref)
+        if isinstance(ref, str):
+            return ref.rsplit(".", 1)[-1]
+        return ref.name
+
+    @staticmethod
+    def from_reference(ref: TDestinationReferenceArg, credentials: Optional[CredentialsConfiguration] = None, **kwargs: Any) -> Optional["Destination[DestinationClientConfiguration, JobClientBase]"]:
+        """Instantiate destination from str reference.
+        The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`)
+        """
+        if ref is None:
             return None
-
-        # if destination is a str, get destination reference by dynamically importing module
-        if isinstance(destination, str):
-            try:
-                if "." in destination:
-                    # this is full module name
-                    destination_ref = cast(DestinationReference, import_module(destination))
-                else:
-                    # from known location
-                    destination_ref = cast(DestinationReference, import_module(f"dlt.destinations.{destination}"))
-            except ImportError:
-                if "." in destination:
-                    raise UnknownDestinationModule(destination)
-                else:
-                    # allow local external module imported without dot
-                    try:
-                        destination_ref = cast(DestinationReference, import_module(destination))
-                    except ImportError:
-                        raise UnknownDestinationModule(destination)
-        else:
-            destination_ref = cast(DestinationReference, destination)
-
-        # make sure the reference is correct
+        if isinstance(ref, Destination):
+            return ref
+        if not isinstance(ref, str):
+            raise InvalidDestinationReference(ref)
         try:
-            c = destination_ref.spec()
-            c.credentials
-        except Exception:
-            raise InvalidDestinationReference(destination)
+            if "." in ref:
+                module_path, attr_name = ref.rsplit(".", 1)
+                dest_module = import_module(module_path)
+            else:
+                from dlt import destinations as dest_module
+                attr_name = ref
+        except ModuleNotFoundError as e:
+            raise UnknownDestinationModule(ref) from e
 
-        return destination_ref
+        try:
+            factory: Type[Destination[DestinationClientConfiguration, JobClientBase]] = getattr(dest_module, attr_name)
+        except AttributeError as e:
+            raise UnknownDestinationModule(ref) from e
+        if credentials:
+            kwargs["credentials"] = credentials
+        try:
+            dest = factory(**kwargs)
+            dest.spec
+        except Exception as e:
+            raise InvalidDestinationReference(ref) from e
+        return dest
 
-    @staticmethod
-    def to_name(destination: TDestinationReferenceArg) -> str:
-        if isinstance(destination, ModuleType):
-            return get_module_name(destination)
-        return destination.split(".")[-1]  # type: ignore
+    def client(self, schema: Schema, initial_config: TDestinationConfig = config.value) -> TDestinationClient:
+        """Returns a configured instance of the destination's job client"""
+        return self.client_class(schema, self.configuration(initial_config))
+
+
+TDestination = Destination[DestinationClientConfiguration, JobClientBase]

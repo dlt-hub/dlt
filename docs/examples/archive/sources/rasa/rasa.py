@@ -3,7 +3,7 @@ from typing import Any, Iterator
 import dlt
 from dlt.common.typing import StrAny, TDataItem, TDataItems
 from dlt.common.time import timestamp_within
-from dlt.extract.source import DltResource
+from dlt.extract.resource import DltResource
 
 
 @dlt.source

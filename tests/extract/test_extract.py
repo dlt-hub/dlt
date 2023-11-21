@@ -1,8 +1,9 @@
 import dlt
 from dlt.common import json
 from dlt.common.storages import NormalizeStorageConfiguration
+
+from dlt.extract import DltResource, DltSource
 from dlt.extract.extract import ExtractorStorage, extract
-from dlt.extract.source import DltResource, DltSource
 
 from tests.utils import clean_test_storage
 from tests.extract.utils import expect_extracted_file
@@ -18,13 +19,11 @@ def test_extract_select_tables() -> None:
 
         storage = ExtractorStorage(NormalizeStorageConfiguration())
         extract_id = storage.create_extract_id()
-        schema_update = extract(extract_id, source, storage)
-        # odd and even tables
-        assert len(schema_update) == 2
-        assert "odd_table" in schema_update
-        assert "even_table" in schema_update
-        for partials in schema_update.values():
-            assert len(partials) == 1
+        extract(extract_id, source, storage)
+        # odd and even tables must be in the source schema
+        assert len(source.schema.data_tables(include_incomplete=True)) == 2
+        assert "odd_table" in source.schema._schema_tables
+        assert "even_table" in source.schema._schema_tables
         # you must commit the files
         assert len(storage.list_files_to_normalize_sorted()) == 0
         storage.commit_extract_files(extract_id)
@@ -42,11 +41,9 @@ def test_extract_select_tables() -> None:
         source = source.with_resources(resource.name)
         source.selected_resources[resource.name].bind(10).select_tables("odd_table")
         extract_id = storage.create_extract_id()
-        schema_update = extract(extract_id, source, storage)
-        assert len(schema_update) == 1
-        assert "odd_table" in schema_update
-        for partials in schema_update.values():
-            assert len(partials) == 1
+        extract(extract_id, source, storage)
+        assert len(source.schema.data_tables(include_incomplete=True)) == 1
+        assert "odd_table" in source.schema._schema_tables
         storage.commit_extract_files(extract_id)
         assert len(storage.list_files_to_normalize_sorted()) == 1
         expect_extracted_file(storage, "selectables", "odd_table", json.dumps([1,3,5,7,9]))
@@ -86,10 +83,10 @@ def test_extract_shared_pipe():
     source = DltSource("module", dlt.Schema("selectables"), [input_r, input_r.with_name("gen_clone")])
     storage = ExtractorStorage(NormalizeStorageConfiguration())
     extract_id = storage.create_extract_id()
-    schema_update = extract(extract_id, source, storage)
+    extract(extract_id, source, storage)
     # both tables got generated
-    assert "input_gen" in  schema_update
-    assert "gen_clone" in schema_update
+    assert "input_gen" in  source.schema._schema_tables
+    assert "gen_clone" in source.schema._schema_tables
 
 
 def test_extract_renamed_clone_and_parent():
@@ -105,8 +102,8 @@ def test_extract_renamed_clone_and_parent():
     source = DltSource("module", dlt.Schema("selectables"), [input_r, (input_r | input_tx).with_name("tx_clone")])
     storage = ExtractorStorage(NormalizeStorageConfiguration())
     extract_id = storage.create_extract_id()
-    schema_update = extract(extract_id, source, storage)
-    assert "input_gen" in schema_update
-    assert "tx_clone" in schema_update
+    extract(extract_id, source, storage)
+    assert "input_gen" in source.schema._schema_tables
+    assert "tx_clone" in source.schema._schema_tables
     # mind that pipe name of the evaluated parent will have different name than the resource
     assert source.tx_clone._pipe.parent.name == "input_gen_tx_clone"

@@ -1,7 +1,5 @@
 from typing import List
 from fsspec import AbstractFileSystem
-import pandas
-from pyarrow import parquet
 
 from dlt.common import pendulum
 from dlt.common.storages import FilesystemConfiguration
@@ -29,13 +27,16 @@ def assert_sample_files(all_file_items: List[FileItem], filesystem: AbstractFile
             assert content == f.read()
         # read via various readers
         if item["mime_type"] == "text/csv":
-            with file_dict.open() as f:
-                df = pandas.read_csv(f, header="infer")
-                assert len(df.to_dict(orient="records")) > 0
+            # parse csv
+            with file_dict.open(mode="rt") as f:
+                from csv import DictReader
+                elements = list(DictReader(f))
+                assert len(elements) > 0
         if item["mime_type"] == "application/parquet":
+            # verify it is a real parquet
             with file_dict.open() as f:
-                table = parquet.ParquetFile(f).read()
-                assert len(table.to_pylist())
+                parquet: bytes = f.read()
+                assert parquet.startswith(b"PAR1")
         if item["mime_type"].startswith("text"):
             with file_dict.open(mode="rt") as f_txt:
                 lines = f_txt.readlines()

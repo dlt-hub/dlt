@@ -68,40 +68,37 @@ class SupportsHumanize(Protocol):
         ...
 
 
+def is_union_type(t: Type[Any]) -> bool:
+    return get_origin(t) is Union
+
 def is_optional_type(t: Type[Any]) -> bool:
     return get_origin(t) is Union and type(None) in get_args(t)
-
 
 def is_final_type(t: Type[Any]) -> bool:
     return get_origin(t) is Final
 
-
-def extract_optional_type(t: Type[Any]) -> Any:
-    return get_args(t)[0]
-
+def extract_union_types(t: Type[Any], no_none: bool = False) -> List[Any]:
+    if no_none:
+        return [arg for arg in get_args(t) if arg is not type(None)]  # noqa: E721
+    return list(get_args(t))
 
 def is_literal_type(hint: Type[Any]) -> bool:
     return get_origin(hint) is Literal
 
-
 def is_union(hint: Type[Any]) -> bool:
     return get_origin(hint) is Union
-
 
 def is_newtype_type(t: Type[Any]) -> bool:
     return hasattr(t, "__supertype__")
 
-
 def is_typeddict(t: Type[Any]) -> bool:
     return isinstance(t, _TypedDict)
-
 
 def is_list_generic_type(t: Type[Any]) -> bool:
     try:
         return issubclass(get_origin(t), C_Sequence)
     except TypeError:
         return False
-
 
 def is_dict_generic_type(t: Type[Any]) -> bool:
     try:

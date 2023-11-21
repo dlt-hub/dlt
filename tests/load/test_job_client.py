@@ -337,7 +337,7 @@ def test_preserve_column_order(client: SqlJobClientBase) -> None:
     import random
     columns = deepcopy(TABLE_UPDATE)
     random.shuffle(columns)
-    print(columns)
+
     schema.update_table(new_table(table_name, columns=columns))
     schema.bump_version()
 

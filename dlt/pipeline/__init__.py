@@ -1,18 +1,19 @@
 from typing import Sequence, cast, overload
 
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
+from dlt.common.schema.typing import TColumnSchema, TWriteDisposition, TSchemaContract
 
 from dlt.common.typing import TSecretValue, Any
 from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args, last_config
-from dlt.common.destination.reference import DestinationReference, TDestinationReferenceArg
+from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
 from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
+from dlt.pipeline.deprecations import credentials_argument_deprecated
 
 
 @overload
@@ -104,6 +105,8 @@ def pipeline(
     # is any of the arguments different from defaults
     has_arguments = bool(orig_args[0]) or any(orig_args[1].values())
 
+    credentials_argument_deprecated("pipeline", credentials, destination)
+
     if not has_arguments:
         context = Container()[PipelineContext]
         # if pipeline instance is already active then return it, otherwise create a new one
@@ -116,8 +119,8 @@ def pipeline(
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
 
-    destination = DestinationReference.from_name(destination or kwargs["destination_name"])
-    staging = DestinationReference.from_name(staging or kwargs.get("staging_name", None)) if staging is not None else None
+    destination = Destination.from_reference(destination or kwargs["destination_name"])
+    staging = Destination.from_reference(staging or kwargs.get("staging_name", None)) if staging is not None else None
 
     progress = collector_from_name(progress)
     # create new pipeline instance
@@ -174,7 +177,9 @@ def run(
     table_name: str = None,
     write_disposition: TWriteDisposition = None,
     columns: Sequence[TColumnSchema] = None,
-    schema: Schema = None
+    schema: Schema = None,
+    loader_file_format: TLoaderFileFormat = None,
+    schema_contract: TSchemaContract = None,
 ) -> LoadInfo:
     """Loads the data in `data` argument into the destination specified in `destination` and dataset specified in `dataset_name`.
 
@@ -224,7 +229,7 @@ def run(
     Returns:
         LoadInfo: Information on loaded data including the list of package ids and failed job statuses. Please not that `dlt` will not raise if a single job terminally fails. Such information is provided via LoadInfo.
     """
-    destination = DestinationReference.from_name(destination)
+    destination = Destination.from_reference(destination, credentials=credentials)
     return pipeline().run(
         data,
         destination=destination,
@@ -234,7 +239,9 @@ def run(
         table_name=table_name,
         write_disposition=write_disposition,
         columns=columns,
-        schema=schema
+        schema=schema,
+        loader_file_format=loader_file_format,
+        schema_contract=schema_contract
     )
 
 # plug default tracking module

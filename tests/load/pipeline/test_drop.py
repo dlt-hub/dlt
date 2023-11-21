@@ -1,3 +1,4 @@
+import os
 from typing import Any, Iterator, Dict, Any, List
 from unittest import mock
 from itertools import chain
@@ -5,11 +6,11 @@ from itertools import chain
 import pytest
 
 import dlt
-from dlt.extract.source import DltResource
+from dlt.extract import DltResource
 from dlt.common.utils import uniq_id
 from dlt.pipeline import helpers, state_sync, Pipeline
 from dlt.load import Load
-from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt.pipeline.exceptions import PipelineHasPendingDataException, PipelineNeverRan, PipelineStepFailed
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
@@ -186,7 +187,7 @@ def test_fail_after_drop_tables(destination_config: DestinationTestConfiguration
 
 @pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
 def test_load_step_fails(destination_config: DestinationTestConfiguration) -> None:
-    """Test idempotency. pipeline.load() fails. Command can be run again successfully"""
+    """Test idempotence. pipeline.load() fails. Command can be run again successfully"""
     source = droppable_source()
     pipeline = destination_config.setup_pipeline('drop_test_' + uniq_id(), full_refresh=True)
     pipeline.run(source)
@@ -292,3 +293,15 @@ def test_drop_state_only(destination_config: DestinationTestConfiguration) -> No
     assert_dropped_resource_tables(attached, [])  # No tables dropped
     assert_dropped_resource_states(attached, ['droppable_a', 'droppable_b'])
     assert_destination_state_loaded(attached)
+
+
+def test_drop_first_run_and_pending_packages() -> None:
+    """Attempts to drop before pipeline runs and when partial loads happen"""
+    pipeline = dlt.pipeline('drop_test_' + uniq_id(), destination="dummy")
+    with pytest.raises(PipelineNeverRan):
+        helpers.drop(pipeline, "droppable_a")
+    os.environ["COMPLETED_PROB"] = "1.0"
+    pipeline.run(droppable_source().with_resources("droppable_a"))
+    pipeline.extract(droppable_source().with_resources("droppable_b"))
+    with pytest.raises(PipelineHasPendingDataException):
+        helpers.drop(pipeline, "droppable_a")

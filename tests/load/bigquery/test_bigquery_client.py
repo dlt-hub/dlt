@@ -14,7 +14,7 @@ from dlt.common.configuration.specs.exceptions import InvalidGoogleNativeCredent
 from dlt.common.storages import FileStorage
 from dlt.common.utils import digest128, uniq_id, custom_environ
 
-from dlt.destinations.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration
+from dlt.destinations.impl.bigquery.bigquery import BigQueryClient, BigQueryClientConfiguration
 from dlt.destinations.exceptions import LoadJobNotExistsException, LoadJobTerminalException
 
 from tests.utils import TEST_STORAGE_ROOT, delete_test_storage, preserve_environ
@@ -242,7 +242,7 @@ def test_bigquery_job_errors(client: BigQueryClient, file_storage: FileStorage) 
 
 @pytest.mark.parametrize('location', ["US", "EU"])
 def test_bigquery_location(location: str, file_storage: FileStorage) -> None:
-    with cm_yield_client_with_storage("bigquery", default_config_values={"location": location}) as client:
+    with cm_yield_client_with_storage("bigquery", default_config_values={"credentials": {"location": location}}) as client:
         user_table_name = prepare_table(client)
         load_json = {
             "_dlt_id": uniq_id(),

@@ -12,7 +12,7 @@ from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, Config
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.source import _SOURCES
 from dlt.version import DLT_PKG_NAME, __version__
-from dlt.common.destination import DestinationReference
+from dlt.common.destination import Destination
 from dlt.common.reflection.utils import rewrite_python_script
 from dlt.common.schema.utils import is_valid_schema_name
 from dlt.common.schema.exceptions import InvalidSchemaName
@@ -160,8 +160,8 @@ def list_verified_sources_command(repo_location: str, branch: str = None) -> Non
 
 def init_command(source_name: str, destination_name: str, use_generic_template: bool, repo_location: str, branch: str = None) -> None:
     # try to import the destination and get config spec
-    destination_reference = DestinationReference.from_name(destination_name)
-    destination_spec = destination_reference.spec()
+    destination_reference = Destination.from_reference(destination_name)
+    destination_spec = destination_reference.spec
 
     fmt.echo("Looking up the init scripts in %s..." % fmt.bold(repo_location))
     clone_storage = git.get_fresh_repo_files(repo_location, get_dlt_repos_dir(), branch=branch)

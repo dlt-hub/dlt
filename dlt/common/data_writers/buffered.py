@@ -68,7 +68,7 @@ class BufferedDataWriter(Generic[TWriter]):
         except TypeError:
             raise InvalidFileNameTemplateException(file_name_template)
 
-    def write_data_item(self, item: TDataItems, columns: TTableSchemaColumns) -> None:
+    def write_data_item(self, item: TDataItems, columns: TTableSchemaColumns) -> int:
         self._ensure_open()
         # rotate file if columns changed and writer does not allow for that
         # as the only allowed change is to add new column (no updates/deletes), we detect the change by comparing lengths
@@ -78,21 +78,24 @@ class BufferedDataWriter(Generic[TWriter]):
         # until the first chunk is written we can change the columns schema freely
         if columns is not None:
             self._current_columns = dict(columns)
+
+        new_rows_count: int
         if isinstance(item, List):
             # items coming in single list will be written together, not matter how many are there
             self._buffered_items.extend(item)
             # update row count, if item supports "num_rows" it will be used to count items
             if len(item) > 0 and hasattr(item[0], "num_rows"):
-                self._buffered_items_count += sum(tbl.num_rows for tbl in item)
+                new_rows_count = sum(tbl.num_rows for tbl in item)
             else:
-                self._buffered_items_count += len(item)
+                new_rows_count = len(item)
         else:
             self._buffered_items.append(item)
             # update row count, if item supports "num_rows" it will be used to count items
             if hasattr(item, "num_rows"):
-                self._buffered_items_count += item.num_rows
+                new_rows_count = item.num_rows
             else:
-                self._buffered_items_count += 1
+                new_rows_count = 1
+        self._buffered_items_count += new_rows_count
         # flush if max buffer exceeded
         if self._buffered_items_count >= self.buffer_max_items:
             self._flush_items()
@@ -104,6 +107,7 @@ class BufferedDataWriter(Generic[TWriter]):
             # rotate on max items
             elif self.file_max_items and self._writer.items_count >= self.file_max_items:
                 self._rotate_file()
+        return new_rows_count
 
     def write_empty_file(self, columns: TTableSchemaColumns) -> None:
         if columns is not None:
