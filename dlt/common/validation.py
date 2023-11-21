@@ -22,6 +22,8 @@ def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFil
         validator_f (TCustomValidator, optional): A function to perform additional validation
             for types not covered by this function. It should return `True` if the validation passes.
             Defaults to a function that rejects all such types.
+        filter_required (TFilterFunc, optional): A function to filter out required fields, useful
+            for testing historic versions of dict that might now have certain fields yet.
 
     Raises:
         DictValidationException: If there are missing required fields, unexpected fields,

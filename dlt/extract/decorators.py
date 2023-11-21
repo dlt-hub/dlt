@@ -173,7 +173,7 @@ def source(
                         rv = list(rv)
 
             # convert to source
-            s = _impl_cls.from_data(source_section, schema.clone(update_normalizers=True), rv)
+            s = _impl_cls.from_data(schema.clone(update_normalizers=True), source_section, rv)
             # apply hints
             if max_table_nesting is not None:
                 s.max_table_nesting = max_table_nesting

@@ -55,7 +55,7 @@ def test_parametrized_resource() -> None:
 
     # as part of the source
     r = DltResource.from_data(parametrized)
-    s = DltSource("module", Schema("source"), [r])
+    s = DltSource(Schema("source"), "module", [r])
 
     with pytest.raises(ParametrizedResourceUnbound) as py_ex:
         list(s)
@@ -1014,7 +1014,7 @@ def test_source_multiple_iterations() -> None:
         yield [1, 2, 3]
         yield [1, 2, 3]
 
-    s = DltSource("module", Schema("source"), [dlt.resource(some_data())])
+    s = DltSource(Schema("source"), "module", [dlt.resource(some_data())])
     assert s.exhausted is False
     assert list(s) == [1, 2, 3, 1, 2, 3]
     assert s.exhausted is True
@@ -1028,19 +1028,19 @@ def test_exhausted_property() -> None:
     # this example will be exhausted after iteration
     def open_generator_data():
         yield from [1, 2, 3, 4]
-    s = DltSource("module", Schema("source"), [dlt.resource(open_generator_data())])
+    s = DltSource(Schema("source"), "module", [dlt.resource(open_generator_data())])
     assert s.exhausted is False
     assert next(iter(s)) == 1
     assert s.exhausted is True
 
     # lists will not exhaust
-    s = DltSource("module", Schema("source"), [dlt.resource([1, 2, 3, 4], table_name="table", name="resource")])
+    s = DltSource(Schema("source"), "module", [dlt.resource([1, 2, 3, 4], table_name="table", name="resource")])
     assert s.exhausted is False
     assert next(iter(s)) == 1
     assert s.exhausted is False
 
     # iterators will not exhaust
-    s = DltSource("module", Schema("source"), [dlt.resource(iter([1, 2, 3, 4]), table_name="table", name="resource")])
+    s = DltSource(Schema("source"), "module", [dlt.resource(iter([1, 2, 3, 4]), table_name="table", name="resource")])
     assert s.exhausted is False
     assert next(iter(s)) == 1
     assert s.exhausted is False
@@ -1048,7 +1048,7 @@ def test_exhausted_property() -> None:
     # having on exhausted generator resource will make the whole source exhausted
     def open_generator_data():  # type: ignore[no-redef]
         yield from [1, 2, 3, 4]
-    s = DltSource("module", Schema("source"), [ dlt.resource([1, 2, 3, 4], table_name="table", name="resource"), dlt.resource(open_generator_data())])
+    s = DltSource(Schema("source"), "module", [ dlt.resource([1, 2, 3, 4], table_name="table", name="resource"), dlt.resource(open_generator_data())])
     assert s.exhausted is False
 
     # execute the whole source
@@ -1239,7 +1239,7 @@ def test_selected_pipes_with_duplicates():
     input_r_clone = input_r.with_name("input_gen_2")
 
     # separate resources have separate pipe instances
-    source = DltSource("module", Schema("dupes"), [input_r, input_r_clone])
+    source = DltSource(Schema("dupes"), "module", [input_r, input_r_clone])
     pipes = source.resources.pipes
     assert len(pipes) == 2
     assert pipes[0].name == "input_gen"
@@ -1250,13 +1250,13 @@ def test_selected_pipes_with_duplicates():
     assert list(source) == [1, 2, 3, 1, 2, 3]
 
     # cloned from fresh resource
-    source = DltSource("module", Schema("dupes"), [DltResource.from_data(input_gen), DltResource.from_data(input_gen).with_name("gen_2")])
+    source = DltSource(Schema("dupes"), "module", [DltResource.from_data(input_gen), DltResource.from_data(input_gen).with_name("gen_2")])
     assert list(source) == [1, 2, 3, 1, 2, 3]
 
     # clone transformer
     input_r = DltResource.from_data(input_gen)
     input_tx = DltResource.from_data(tx_step, data_from=DltResource.Empty)
-    source = DltSource("module", Schema("dupes"), [input_r, (input_r | input_tx).with_name("tx_clone")])
+    source = DltSource(Schema("dupes"), "module", [input_r, (input_r | input_tx).with_name("tx_clone")])
     pipes = source.resources.pipes
     assert len(pipes) == 2
     assert source.resources[pipes[0].name] == source.input_gen

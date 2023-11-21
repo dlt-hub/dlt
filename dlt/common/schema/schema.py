@@ -44,7 +44,7 @@ class Schema:
     _dlt_tables_prefix: str
     _stored_version: int  # version at load/creation time
     _stored_version_hash: str  # version hash at load/creation time
-    _stored_ancestors: Optional[List[str]] # list of ancestor hashes of the schema
+    _stored_previous_hashes: Optional[List[str]] # list of ancestor hashes of the schema
     _imported_version_hash: str  # version hash of recently imported schema
     _schema_description: str  # optional schema description
     _schema_tables: TSchemaTables
@@ -103,7 +103,7 @@ class Schema:
             "tables": self._schema_tables,
             "settings": self._settings,
             "normalizers": self._normalizers_config,
-            "ancestors": self._stored_ancestors
+            "previous_hashes": self._stored_previous_hashes
         }
         if self._imported_version_hash and not remove_defaults:
             stored_schema["imported_version_hash"] = self._imported_version_hash
@@ -478,9 +478,9 @@ class Schema:
         return utils.bump_version_if_modified(self.to_dict())[1]
 
     @property
-    def ancestors(self) -> List[str]:
+    def previous_hashes(self) -> List[str]:
         """Current version hash of the schema, recomputed from the actual content"""
-        return utils.bump_version_if_modified(self.to_dict())[2]
+        return utils.bump_version_if_modified(self.to_dict())[3]
 
     @property
     def stored_version_hash(self) -> str:
@@ -670,7 +670,7 @@ class Schema:
         self._stored_version_hash: str = None
         self._imported_version_hash: str = None
         self._schema_description: str = None
-        self._stored_ancestors: List[str] = []
+        self._stored_previous_hashes: List[str] = []
 
         self._settings: TSchemaSettings = {}
         self._compiled_preferred_types: List[Tuple[REPattern, TDataType]] = []
@@ -709,7 +709,7 @@ class Schema:
         self._imported_version_hash = stored_schema.get("imported_version_hash")
         self._schema_description = stored_schema.get("description")
         self._settings = stored_schema.get("settings") or {}
-        self._stored_ancestors = stored_schema.get("ancestors")
+        self._stored_previous_hashes = stored_schema.get("previous_hashes")
         self._compile_settings()
 
     def _set_schema_name(self, name: str) -> None:

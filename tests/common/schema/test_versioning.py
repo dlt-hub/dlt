@@ -84,10 +84,10 @@ def test_infer_column_bumps_version() -> None:
 
 
 def test_preserve_version_on_load() -> None:
-    eth_v7: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
-    version = eth_v7["version"]
-    version_hash = eth_v7["version_hash"]
-    schema = Schema.from_dict(eth_v7)  # type: ignore[arg-type]
+    eth_v8: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v8")
+    version = eth_v8["version"]
+    version_hash = eth_v8["version_hash"]
+    schema = Schema.from_dict(eth_v8)  # type: ignore[arg-type]
     # version should not be bumped
     assert version_hash == schema._stored_version_hash
     assert version_hash == schema.version_hash
@@ -96,8 +96,8 @@ def test_preserve_version_on_load() -> None:
 
 @pytest.mark.parametrize("remove_defaults", [True, False])
 def test_version_preserve_on_reload(remove_defaults: bool) -> None:
-    eth_v7: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
-    schema = Schema.from_dict(eth_v7)  # type: ignore[arg-type]
+    eth_v8: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v8")
+    schema = Schema.from_dict(eth_v8)  # type: ignore[arg-type]
 
     to_save_dict = schema.to_dict(remove_defaults=remove_defaults)
     assert schema.stored_version == to_save_dict["version"]
@@ -126,16 +126,16 @@ def test_version_preserve_on_reload(remove_defaults: bool) -> None:
 
 
 def test_create_ancestry() -> None:
-    eth_v7: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
-    schema = Schema.from_dict(eth_v7)  # type: ignore[arg-type]
-    assert schema._stored_ancestors == ["Q/LxiP7taycE+u9PQNb2wiit+G5GntiifOUK2CFM3sQ="]
+    eth_v8: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v8")
+    schema = Schema.from_dict(eth_v8)  # type: ignore[arg-type]
+    assert schema._stored_previous_hashes == ["yjMtV4Zv0IJlfR5DPMwuXxGg8BRhy7E79L26XAHWEGE="]
     version = schema._stored_version
 
     # modify save and load schema 15 times and check ancestry
-    expected_ancestors = ["Q/LxiP7taycE+u9PQNb2wiit+G5GntiifOUK2CFM3sQ="]
+    expected_previous_hashes = ["yjMtV4Zv0IJlfR5DPMwuXxGg8BRhy7E79L26XAHWEGE="]
     for i in range(1,15):
-        # keep expected ancestors
-        expected_ancestors.insert(0, schema._stored_version_hash)
+        # keep expected previous_hashes
+        expected_previous_hashes.insert(0, schema._stored_version_hash)
 
         # update schema
         row = {f"float{i}": 78172.128}
@@ -144,10 +144,10 @@ def test_create_ancestry() -> None:
         schema_dict = schema.to_dict()
         schema = Schema.from_stored_schema(schema_dict)
 
-        assert schema._stored_ancestors == expected_ancestors[:10]
+        assert schema._stored_previous_hashes == expected_previous_hashes[:10]
         assert schema._stored_version == version + i
 
-        # we never have more than 10 ancestors
-        assert len(schema._stored_ancestors) == i + 1 if i + 1 <= 10 else 10
+        # we never have more than 10 previous_hashes
+        assert len(schema._stored_previous_hashes) == i + 1 if i + 1 <= 10 else 10
 
-    assert len(schema._stored_ancestors) == 10
+    assert len(schema._stored_previous_hashes) == 10

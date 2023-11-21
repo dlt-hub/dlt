@@ -132,7 +132,7 @@ def test_simple_regex_validator() -> None:
 
 
 def test_load_corrupted_schema() -> None:
-    eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v7")
+    eth_v4: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v8")
     del eth_v4["tables"]["blocks"]
     with pytest.raises(ParentTableNotFoundException):
         utils.validate_stored_schema(eth_v4)
@@ -308,9 +308,13 @@ def test_upgrade_engine_v1_schema() -> None:
     assert schema_dict["engine_version"] == 1
     upgraded = utils.migrate_schema(schema_dict, from_engine=1, to_engine=7)
     assert upgraded["engine_version"] == 7
-    utils.validate_stored_schema(upgraded)
-    # we should have an empty ancestors list after upgrade to 7
-    assert upgraded["ancestors"] == []
+
+
+    # upgrade 1 -> 8
+    schema_dict = load_json_case("schemas/ev1/event.schema")
+    assert schema_dict["engine_version"] == 1
+    upgraded = utils.migrate_schema(schema_dict, from_engine=1, to_engine=8)
+    assert upgraded["engine_version"] == 8
 
 
 def test_unknown_engine_upgrade() -> None:
@@ -590,8 +594,8 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema.stored_version == 1
     assert schema.stored_version_hash is not None
     assert schema.version_hash is not None
-    assert schema.ENGINE_VERSION == 7
-    assert schema._stored_ancestors == []
+    assert schema.ENGINE_VERSION == 8
+    assert schema._stored_previous_hashes == []
     assert len(schema.settings["default_hints"]) > 0
     # check settings
     assert utils.standard_type_detections() == schema.settings["detections"] == schema._type_detections

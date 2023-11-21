@@ -167,7 +167,7 @@ class DltSource(Iterable[TDataItem]):
     * You can use a `run` method to load the data with a default instance of dlt pipeline.
     * You can get source read only state for the currently active Pipeline instance
     """
-    def __init__(self, section: str, schema: Schema, resources: Sequence[DltResource] = None) -> None:
+    def __init__(self, schema: Schema, section: str, resources: Sequence[DltResource] = None) -> None:
         self.section = section
         """Tells if iterator associated with a source is exhausted"""
         self._schema = schema
@@ -177,7 +177,7 @@ class DltSource(Iterable[TDataItem]):
             self.resources.add(*resources)
 
     @classmethod
-    def from_data(cls, section: str, schema: Schema, data: Any) -> Self:
+    def from_data(cls, schema: Schema, section: str, data: Any) -> Self:
         """Converts any `data` supported by `dlt` `run` method into `dlt source` with a name `section`.`name` and `schema` schema."""
         # creates source from various forms of data
         if isinstance(data, DltSource):
@@ -189,7 +189,7 @@ class DltSource(Iterable[TDataItem]):
         else:
             resources = [DltResource.from_data(data)]
 
-        return cls(section, schema, resources)
+        return cls(schema, section, resources)
 
     @property
     def name(self) -> str:
@@ -327,7 +327,7 @@ class DltSource(Iterable[TDataItem]):
     def clone(self) -> "DltSource":
         """Creates a deep copy of the source where copies of schema, resources and pipes are created"""
         # mind that resources and pipes are cloned when added to the DltResourcesDict in the source constructor
-        return DltSource(self.section, self.schema.clone(), list(self._resources.values()))
+        return DltSource(self.schema.clone(), self.section, list(self._resources.values()))
 
     def __iter__(self) -> Iterator[TDataItem]:
         """Opens iterator that yields the data items from all the resources within the source in the same order as in Pipeline class.

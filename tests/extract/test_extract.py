@@ -14,7 +14,7 @@ def test_extract_select_tables() -> None:
     def expect_tables(resource: DltResource) -> dlt.Schema:
         # delete files
         clean_test_storage()
-        source = DltSource("module", dlt.Schema("selectables"), [resource(10)])
+        source = DltSource(dlt.Schema("selectables"), "module", [resource(10)])
         schema = source.discover_schema()
 
         storage = ExtractorStorage(NormalizeStorageConfiguration())
@@ -37,7 +37,7 @@ def test_extract_select_tables() -> None:
         clean_test_storage()
         storage = ExtractorStorage(NormalizeStorageConfiguration())
         # same thing but select only odd
-        source = DltSource("module", dlt.Schema("selectables"), [resource])
+        source = DltSource(dlt.Schema("selectables"), "module", [resource])
         source = source.with_resources(resource.name)
         source.selected_resources[resource.name].bind(10).select_tables("odd_table")
         extract_id = storage.create_extract_id()
@@ -80,7 +80,7 @@ def test_extract_shared_pipe():
         yield from [1, 2, 3]
 
     input_r = DltResource.from_data(input_gen)
-    source = DltSource("module", dlt.Schema("selectables"), [input_r, input_r.with_name("gen_clone")])
+    source = DltSource(dlt.Schema("selectables"), "module", [input_r, input_r.with_name("gen_clone")])
     storage = ExtractorStorage(NormalizeStorageConfiguration())
     extract_id = storage.create_extract_id()
     extract(extract_id, source, storage)
@@ -99,7 +99,7 @@ def test_extract_renamed_clone_and_parent():
     input_r = DltResource.from_data(input_gen)
     input_tx = DltResource.from_data(tx_step, data_from=DltResource.Empty)
 
-    source = DltSource("module", dlt.Schema("selectables"), [input_r, (input_r | input_tx).with_name("tx_clone")])
+    source = DltSource(dlt.Schema("selectables"), "module", [input_r, (input_r | input_tx).with_name("tx_clone")])
     storage = ExtractorStorage(NormalizeStorageConfiguration())
     extract_id = storage.create_extract_id()
     extract(extract_id, source, storage)
