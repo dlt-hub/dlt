@@ -1,7 +1,17 @@
 from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Set, Type, TypedDict, NewType, Union, get_args
 
 
-TExecInfoNames = Literal["kubernetes", "docker", "codespaces", "github_actions", "airflow", "notebook", "colab","aws_lambda","gcp_cloud_function"]
+TExecInfoNames = Literal[
+    "kubernetes",
+    "docker",
+    "codespaces",
+    "github_actions",
+    "airflow",
+    "notebook",
+    "colab",
+    "aws_lambda",
+    "gcp_cloud_function"
+    ]
 
 class TVersion(TypedDict):
     """TypeDict representing a library version"""

@@ -162,10 +162,10 @@ class SupportsTracking(Protocol):
     def on_start_trace_step(self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
         ...
 
-    def on_end_trace_step(self, trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any) -> None:
+    def on_end_trace_step(self, trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any, send_state: bool) -> None:
         ...
 
-    def on_end_trace(self, trace: PipelineTrace, pipeline: SupportsPipeline) -> None:
+    def on_end_trace(self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool) -> None:
         ...
 
 
@@ -189,7 +189,7 @@ def start_trace_step(trace: PipelineTrace, step: TPipelineStep, pipeline: Suppor
     return trace_step
 
 
-def end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any) -> None:
+def end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any, send_state: bool) -> None:
     # saves runtime trace of the pipeline
     if isinstance(step_info, PipelineStepFailed):
         step_exception = str(step_info)
@@ -221,16 +221,16 @@ def end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: Supp
     trace.steps.append(step)
     for module in TRACKING_MODULES:
         with suppress_and_warn():
-            module.on_end_trace_step(trace, step, pipeline, step_info)
+            module.on_end_trace_step(trace, step, pipeline, step_info, send_state)
 
 
-def end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, trace_path: str) -> None:
+def end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, trace_path: str, send_state: bool) -> None:
     trace.finished_at = pendulum.now()
     if trace_path:
         save_trace(trace_path, trace)
     for module in TRACKING_MODULES:
         with suppress_and_warn():
-            module.on_end_trace(trace, pipeline)
+            module.on_end_trace(trace, pipeline, send_state)
 
 
 def merge_traces(last_trace: PipelineTrace, new_trace: PipelineTrace) -> PipelineTrace:

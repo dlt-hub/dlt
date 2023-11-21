@@ -461,7 +461,7 @@ def test_configuration_is_mutable_mapping(environment: Any, env_provider: Config
         'request_backoff_factor': 1,
         'request_max_retry_delay': 300,
         'config_files_storage_path': 'storage',
-        'platform_dsn': None,
+        'dlthub_dsn': None,
         "secret_value": None
     }
     assert dict(_SecretCredentials()) == expected_dict

@@ -2,7 +2,7 @@ import os
 import datetime  # noqa: 251
 import humanize
 import contextlib
-from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Sequence, TYPE_CHECKING, Tuple, TypedDict
+from typing import Any, Callable, ClassVar, Dict, List, NamedTuple, Optional, Protocol, Sequence, TYPE_CHECKING, Tuple, TypedDict, Mapping
 from typing_extensions import NotRequired
 
 from dlt.common import pendulum, logger
@@ -193,6 +193,10 @@ class SupportsPipeline(Protocol):
     @property
     def state(self) -> TPipelineState:
         """Returns dictionary with pipeline state"""
+
+    @property
+    def schemas(self) -> Mapping[str, Schema]:
+        """Mapping of all pipeline schemas"""
 
     def set_local_state_val(self, key: str, value: Any) -> None:
         """Sets value in local state. Local state is not synchronized with destination."""

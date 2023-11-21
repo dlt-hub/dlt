@@ -11,6 +11,7 @@ from typing import Literal, Optional
 from dlt.common.configuration.paths import get_dlt_data_dir
 
 from dlt.common.runtime import logger
+from dlt.common.managed_thread_pool import ManagedThreadPool
 
 from dlt.common.configuration.specs import RunConfiguration
 from dlt.common.runtime.exec_info import get_execution_context, TExecutionContext
@@ -20,7 +21,7 @@ from dlt.version import __version__
 
 TEventCategory = Literal["pipeline", "command", "helper"]
 
-_THREAD_POOL: ThreadPoolExecutor = None
+_THREAD_POOL: ManagedThreadPool = ManagedThreadPool(1)
 _SESSION: requests.Session = None
 _WRITE_KEY: str = None
 _SEGMENT_REQUEST_TIMEOUT = (1.0, 1.0)  # short connect & send timeouts
@@ -32,9 +33,8 @@ def init_segment(config: RunConfiguration) -> None:
     assert config.dlthub_telemetry_segment_write_key, "dlthub_telemetry_segment_write_key not present in RunConfiguration"
 
     # create thread pool to send telemetry to segment
-    global _THREAD_POOL, _WRITE_KEY, _SESSION
-    if not _THREAD_POOL:
-        _THREAD_POOL = ThreadPoolExecutor(1)
+    global _WRITE_KEY, _SESSION
+    if not _SESSION:
         _SESSION = requests.Session()
         # flush pool on exit
         atexit.register(_at_exit_cleanup)
@@ -84,10 +84,9 @@ def before_send(event: DictStrAny) -> Optional[DictStrAny]:
 
 
 def _at_exit_cleanup() -> None:
-    global _THREAD_POOL, _SESSION, _WRITE_KEY, _SEGMENT_CONTEXT
-    if _THREAD_POOL:
-        _THREAD_POOL.shutdown(wait=True)
-        _THREAD_POOL = None
+    global _SESSION, _WRITE_KEY, _SEGMENT_CONTEXT
+    if _SESSION:
+        _THREAD_POOL.stop(True)
         _SESSION.close()
         _SESSION = None
         _WRITE_KEY = None
@@ -211,4 +210,4 @@ def _send_event(
                     f"Segment telemetry request returned a failure. Response: {data}"
                 )
 
-    _THREAD_POOL.submit(_future_send)
+    _THREAD_POOL.thread_pool.submit(_future_send)
