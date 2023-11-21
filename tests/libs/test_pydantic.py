@@ -273,7 +273,7 @@ def test_item_list_validation() -> None:
     assert val_ex.value.schema_name is None
     assert val_ex.value.table_name == "items"
     assert val_ex.value.column_name == str(("items", 1 , 'b')) # pydantic location
-    assert val_ex.value.contract_entity == "data_type"
+    assert val_ex.value.schema_entity == "data_type"
     assert val_ex.value.contract_mode == "freeze"
     assert val_ex.value.table_schema is freeze_list_model
     assert val_ex.value.data_item == {"b": 2}
@@ -283,7 +283,7 @@ def test_item_list_validation() -> None:
     assert val_ex.value.schema_name is None
     assert val_ex.value.table_name == "items"
     assert val_ex.value.column_name == str(("items", 1 , 'a')) # pydantic location
-    assert val_ex.value.contract_entity == "columns"
+    assert val_ex.value.schema_entity == "columns"
     assert val_ex.value.contract_mode == "freeze"
     assert val_ex.value.table_schema is freeze_list_model
     assert val_ex.value.data_item == {"a": 2, "b": False}
@@ -350,7 +350,7 @@ def test_item_validation() -> None:
     assert val_ex.value.schema_name is None
     assert val_ex.value.table_name == "items"
     assert val_ex.value.column_name == str(('b',)) # pydantic location
-    assert val_ex.value.contract_entity == "data_type"
+    assert val_ex.value.schema_entity == "data_type"
     assert val_ex.value.contract_mode == "freeze"
     assert val_ex.value.table_schema is freeze_model
     assert val_ex.value.data_item == {"b": 2}
@@ -360,7 +360,7 @@ def test_item_validation() -> None:
     assert val_ex.value.schema_name is None
     assert val_ex.value.table_name == "items"
     assert val_ex.value.column_name == str(('a',)) # pydantic location
-    assert val_ex.value.contract_entity == "columns"
+    assert val_ex.value.schema_entity == "columns"
     assert val_ex.value.contract_mode == "freeze"
     assert val_ex.value.table_schema is freeze_model
     assert val_ex.value.data_item == {"a": 2, "b": False}

@@ -32,13 +32,12 @@ We'll learn:
 
 <!--@@@DLT_SNIPPET_START ./code/zendesk-snippets.py::markdown_source-->
 ```py
-from typing import Iterator, Optional, Dict, Any, Tuple
+from typing import Optional, Dict, Any, Tuple
 
 import dlt
 from dlt.common import pendulum
 from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.typing import TDataItem, TDataItems, TAnyDateTime
-from dlt.extract.source import DltResource
+from dlt.common.typing import TAnyDateTime
 from dlt.sources.helpers.requests import client
 
 

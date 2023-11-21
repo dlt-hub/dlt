@@ -73,14 +73,14 @@ class DataValidationError(SchemaException):
         schema_name: str,
         table_name: str,
         column_name: str,
-        contract_entity: TSchemaContractEntities,
+        schema_entity: TSchemaContractEntities,
         contract_mode: TSchemaEvolutionMode,
         table_schema: Any,
         schema_contract: TSchemaContractDict,
         data_item: Any = None,
         extended_info: str = None
     ) -> None:
-        """Raised when `data_item` violates `contract_mode` on a `contract_entity` as defined by `table_schema`
+        """Raised when `data_item` violates `contract_mode` on a `schema_entity` as defined by `table_schema`
 
            Schema, table and column names are given as a context and full `schema_contract` and causing `data_item` as an evidence.
         """
@@ -90,14 +90,14 @@ class DataValidationError(SchemaException):
         msg += f"Table: {table_name} "
         if column_name:
             msg += f"Column: {column_name}"
-        msg = "In " + msg  + f" . Contract on {contract_entity} with mode {contract_mode} is violated. " + (extended_info or "")
+        msg = "In " + msg  + f" . Contract on {schema_entity} with mode {contract_mode} is violated. " + (extended_info or "")
         super().__init__(msg)
         self.schema_name = schema_name
         self.table_name = table_name
         self.column_name = column_name
 
         # violated contract
-        self.contract_entity = contract_entity
+        self.schema_entity = schema_entity
         self.contract_mode = contract_mode
 
         # some evidence
