@@ -392,6 +392,11 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     @property
     def name(self) -> str:
+        """The destination name will either be explicitely set while creating the destination or will be taken from the type"""
+        return self.config_params.get("name") or self.destination_type
+
+    @property
+    def destination_type(self) -> str:
         return self.__class__.__name__
 
     @property
@@ -409,7 +414,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             # Already populated values will supersede resolved env config
             explicit_value=self.config_params
         )
-        config.name = config.name or config.destination_type # default name to type if not present
+        config.name = self.name
         return config
 
     @staticmethod
