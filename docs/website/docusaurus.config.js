@@ -78,13 +78,14 @@ const config = {
           href: 'https://dlthub.com'
         },
         items: [
-          { label: 'dlt ' + (process.env.DOCUSAURUS_DLT_VERSION || "master"), position: 'left', href: 'https://github.com/dlt-hub/dlt', className: 'version-navbar'  },
+          { label: 'dlt ' + (process.env.DOCUSAURUS_DLT_VERSION || "0.0.1"), position: 'left', href: 'https://github.com/dlt-hub/dlt', className: 'version-navbar'  },
           {
             type: 'doc',
             docId: 'intro',
             position: 'left',
             label: 'Docs',
           },
+          { href: 'https://dlthub.com/docs/intro', 'label': 'Devel Docs', position: 'left', className: 'switch-navbar' },
           { to: 'blog', label: 'Blog', position: 'left' },
           {
             href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA',

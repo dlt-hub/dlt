@@ -362,13 +362,17 @@ html[data-theme='dark'] .footer__item a:hover{
   display: none;
 }
 
+.switch-navbar>svg {
+  display: none;
+}
+
 .version-navbar {
   pointer-events: none;
   background: var(--ifm-color-primary-light);
   border-radius: 16px;
   color: var(--docsearch-text-color);
+  margin-right: 16px;
 }
-
 
 .github-navbar:hover,
 .slack-navbar:hover ,.navbar__items.navbar__items--right  .clean-btn:hover {
