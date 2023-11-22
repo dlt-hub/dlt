@@ -166,7 +166,7 @@ def test_import_unknown_destination() -> None:
 
 
 def test_configured_destination(environment) -> None:
-    environment["DESTINATION_NAME"] = "postgres"
+    environment["DESTINATION_TYPE"] = "postgres"
     environment["PIPELINE_NAME"] = "postgres_pipe"
 
     p = dlt.pipeline()
