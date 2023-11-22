@@ -76,7 +76,8 @@ class LoadInfo(NamedTuple):
     destination_type: str
     destination_displayable_credentials: str
     destination_name: str
-    environmnet: str
+    environment: str
+    staging_type: str
     staging_name: str
     staging_displayable_credentials: str
     destination_fingerprint: str

@@ -1278,9 +1278,9 @@ class Pipeline(SupportsPipeline):
             if not prop.startswith("_"):
                 state["_local"][prop] = getattr(self, prop)  # type: ignore
         if self.destination:
-            state["destination"] = self.destination.name
+            state["destination"] = self.destination.destination_type
         if self.staging:
-            state["staging"] = self.staging.name
+            state["staging"] = self.staging.destination_type
         state["schema_names"] = self._list_schemas_sorted()
 
     def _list_schemas_sorted(self) -> List[str]:

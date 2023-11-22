@@ -233,7 +233,7 @@ def yield_client(
     # create initial config
     dest_config: DestinationClientDwhConfiguration = None
     dest_config = destination.spec()  # type: ignore[assignment]
-    dest_config.dataset_name = dataset_name  # type: ignore[misc]  # TODO: Why is dataset_name final?
+    dest_config.dataset_name = dataset_name
 
     if default_config_values is not None:
         # apply the values to credentials, if dict is provided it will be used as default

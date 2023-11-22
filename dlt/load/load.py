@@ -421,6 +421,7 @@ class Load(Runnable[Executor]):
             self.initial_client_config.name,
             self.initial_client_config.environment,
             self.initial_staging_client_config.destination_type if self.initial_staging_client_config else None,
+            self.initial_staging_client_config.name if self.initial_staging_client_config else None,
             str(self.initial_staging_client_config) if self.initial_staging_client_config else None,
             self.initial_client_config.fingerprint(),
             _dataset_name,

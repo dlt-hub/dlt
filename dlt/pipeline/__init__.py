@@ -119,7 +119,7 @@ def pipeline(
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
 
-    destination = Destination.from_reference(destination or kwargs["destination_name"])
+    destination = Destination.from_reference(destination or kwargs["destination_type"])
     staging = Destination.from_reference(staging or kwargs.get("staging_name", None)) if staging is not None else None
 
     progress = collector_from_name(progress)
