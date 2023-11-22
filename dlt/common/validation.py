@@ -2,14 +2,31 @@ import functools
 from typing import Callable, Any, Type, get_type_hints, get_args
 
 from dlt.common.exceptions import DictValidationException
-from dlt.common.typing import StrAny, is_literal_type, is_optional_type, extract_union_types, is_union_type, is_typeddict, is_list_generic_type, is_dict_generic_type, _TypedDict, is_union
+from dlt.common.typing import (
+    StrAny,
+    is_literal_type,
+    is_optional_type,
+    extract_union_types,
+    is_union_type,
+    is_typeddict,
+    is_list_generic_type,
+    is_dict_generic_type,
+    _TypedDict,
+    is_union,
+)
 
 
 TFilterFunc = Callable[[str], bool]
 TCustomValidator = Callable[[str, str, Any, Any], bool]
 
 
-def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFilterFunc = None, validator_f: TCustomValidator = None) -> None:
+def validate_dict(
+    spec: Type[_TypedDict],
+    doc: StrAny,
+    path: str,
+    filter_f: TFilterFunc = None,
+    validator_f: TCustomValidator = None,
+) -> None:
     """Validate the `doc` dictionary based on the given typed dictionary specification `spec`.
 
     Args:
@@ -44,11 +61,15 @@ def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFil
     # check missing props
     missing = set(required_props.keys()).difference(props.keys())
     if len(missing):
-        raise DictValidationException(f"In {path}: following required fields are missing {missing}", path)
+        raise DictValidationException(
+            f"In {path}: following required fields are missing {missing}", path
+        )
     # check unknown props
     unexpected = set(props.keys()).difference(allowed_props.keys())
     if len(unexpected):
-        raise DictValidationException(f"In {path}: following fields are unexpected {unexpected}", path)
+        raise DictValidationException(
+            f"In {path}: following fields are unexpected {unexpected}", path
+        )
 
     def verify_prop(pk: str, pv: Any, t: Any) -> None:
         # covers none in optional and union types
@@ -69,41 +90,82 @@ def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFil
                     except DictValidationException:
                         pass
                 if not has_passed:
-                    type_names = [str(get_args(ut)) if is_literal_type(ut) else ut.__name__ for ut in union_types]
-                    raise DictValidationException(f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__}. One of these types expected: {', '.join(type_names)}.", path, pk, pv)
+                    type_names = [
+                        str(get_args(ut)) if is_literal_type(ut) else ut.__name__
+                        for ut in union_types
+                    ]
+                    raise DictValidationException(
+                        f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__}."
+                        f" One of these types expected: {', '.join(type_names)}.",
+                        path,
+                        pk,
+                        pv,
+                    )
         elif is_literal_type(t):
             a_l = get_args(t)
             if pv not in a_l:
-                raise DictValidationException(f"In {path}: field {pk} value {pv} not in allowed {a_l}", path, pk, pv)
+                raise DictValidationException(
+                    f"In {path}: field {pk} value {pv} not in allowed {a_l}", path, pk, pv
+                )
         elif t in [int, bool, str, float]:
             if not isinstance(pv, t):
-                raise DictValidationException(f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while {t.__name__} is expected", path, pk, pv)
+                raise DictValidationException(
+                    f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while"
+                    f" {t.__name__} is expected",
+                    path,
+                    pk,
+                    pv,
+                )
         elif is_typeddict(t):
             if not isinstance(pv, dict):
-                raise DictValidationException(f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while dict is expected", path, pk, pv)
+                raise DictValidationException(
+                    f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while"
+                    " dict is expected",
+                    path,
+                    pk,
+                    pv,
+                )
             validate_dict(t, pv, path + "/" + pk, filter_f, validator_f)
         elif is_list_generic_type(t):
             if not isinstance(pv, list):
-                raise DictValidationException(f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while list is expected", path, pk, pv)
+                raise DictValidationException(
+                    f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while"
+                    " list is expected",
+                    path,
+                    pk,
+                    pv,
+                )
             # get list element type from generic and process each list element
             l_t = get_args(t)[0]
             for i, l_v in enumerate(pv):
                 verify_prop(pk + f"[{i}]", l_v, l_t)
         elif is_dict_generic_type(t):
             if not isinstance(pv, dict):
-                raise DictValidationException(f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while dict is expected", path, pk, pv)
+                raise DictValidationException(
+                    f"In {path}: field {pk} value {pv} has invalid type {type(pv).__name__} while"
+                    " dict is expected",
+                    path,
+                    pk,
+                    pv,
+                )
             # get dict key and value type from generic and process each k: v of the dict
             _, d_v_t = get_args(t)
             for d_k, d_v in pv.items():
                 if not isinstance(d_k, str):
-                    raise DictValidationException(f"In {path}: field {pk} key {d_k} must be a string", path, pk, d_k)
+                    raise DictValidationException(
+                        f"In {path}: field {pk} key {d_k} must be a string", path, pk, d_k
+                    )
                 verify_prop(pk + f"[{d_k}]", d_v, d_v_t)
         elif t is Any:
             # pass everything with any type
             pass
         else:
             if not validator_f(path, pk, pv, t):
-                raise DictValidationException(f"In {path}: field {pk} has expected type {t.__name__} which lacks validator", path, pk)
+                raise DictValidationException(
+                    f"In {path}: field {pk} has expected type {t.__name__} which lacks validator",
+                    path,
+                    pk,
+                )
 
     # check allowed props
     for pk, pv in props.items():
@@ -111,6 +173,5 @@ def validate_dict(spec: Type[_TypedDict], doc: StrAny, path: str, filter_f: TFil
 
 
 validate_dict_ignoring_xkeys = functools.partial(
-    validate_dict,
-    filter_f=lambda k: not k.startswith("x-")
+    validate_dict, filter_f=lambda k: not k.startswith("x-")
 )

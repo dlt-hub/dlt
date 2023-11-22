@@ -235,7 +235,9 @@ def test_start_command() -> None:
 
         # custom environ
         with custom_environ({"_CUSTOM_ENV_VALUE": "uniq"}):
-            with venv.start_command("python", "tests/common/scripts/environ.py", stdout=PIPE, text=True) as process:
+            with venv.start_command(
+                "python", "tests/common/scripts/environ.py", stdout=PIPE, text=True
+            ) as process:
                 output, _ = process.communicate()
                 assert process.poll() == 0
                 assert "_CUSTOM_ENV_VALUE" in output

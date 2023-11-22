@@ -11,11 +11,18 @@ from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.utils import update_dict_nested
 from dlt.common.typing import TDataItems, TDataItem
 from dlt.common.schema import Schema, utils
-from dlt.common.schema.typing import TSchemaContractDict, TSchemaEvolutionMode, TTableSchema, TTableSchemaColumns, TPartialTableSchema
+from dlt.common.schema.typing import (
+    TSchemaContractDict,
+    TSchemaEvolutionMode,
+    TTableSchema,
+    TTableSchemaColumns,
+    TPartialTableSchema,
+)
 
 from dlt.extract.resource import DltResource
 from dlt.extract.typing import TableNameMeta
 from dlt.extract.storage import ExtractorStorage, ExtractorItemStorage
+
 try:
     from dlt.common.libs import pyarrow
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
@@ -37,14 +44,14 @@ class Extractor:
 
     @with_config(spec=ExtractorConfiguration)
     def __init__(
-            self,
-            extract_id: str,
-            storage: ExtractorStorage,
-            schema: Schema,
-            resources_with_items: Set[str],
-            collector: Collector = NULL_COLLECTOR,
-            *,
-            _caps: DestinationCapabilitiesContext = None
+        self,
+        extract_id: str,
+        storage: ExtractorStorage,
+        schema: Schema,
+        resources_with_items: Set[str],
+        collector: Collector = NULL_COLLECTOR,
+        *,
+        _caps: DestinationCapabilitiesContext = None,
     ) -> None:
         self.schema = schema
         self.naming = schema.naming
@@ -74,7 +81,7 @@ class Extractor:
             if (pyarrow and pyarrow.is_arrow_item(item)) or (pd and isinstance(item, pd.DataFrame)):
                 return "arrow"
             return "puae-jsonl"
-        return None # Empty list is unknown format
+        return None  # Empty list is unknown format
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         """Write `items` to `resource` optionally computing table schemas and revalidating/filtering data"""
@@ -101,8 +108,16 @@ class Extractor:
     def _get_dynamic_table_name(self, resource: DltResource, item: TDataItem) -> str:
         return self.naming.normalize_table_identifier(resource._table_name_hint_fun(item))
 
-    def _write_item(self, table_name: str, resource_name: str, items: TDataItems, columns: TTableSchemaColumns = None) -> None:
-        new_rows_count = self.storage.write_data_item(self.extract_id, self.schema.name, table_name, items, columns)
+    def _write_item(
+        self,
+        table_name: str,
+        resource_name: str,
+        items: TDataItems,
+        columns: TTableSchemaColumns = None,
+    ) -> None:
+        new_rows_count = self.storage.write_data_item(
+            self.extract_id, self.schema.name, table_name, items, columns
+        )
         self.collector.update(table_name, inc=new_rows_count)
         self.resources_with_items.add(resource_name)
 
@@ -120,7 +135,9 @@ class Extractor:
             if table_name not in self._filtered_tables:
                 self._write_item(table_name, resource.name, item)
 
-    def _write_to_static_table(self, resource: DltResource, table_name: str, items: TDataItems) -> None:
+    def _write_to_static_table(
+        self, resource: DltResource, table_name: str, items: TDataItems
+    ) -> None:
         if table_name not in self._table_contracts:
             items = self._compute_and_update_table(resource, table_name, items)
         if table_name not in self._filtered_tables:
@@ -128,11 +145,11 @@ class Extractor:
 
     def _compute_table(self, resource: DltResource, items: TDataItems) -> TTableSchema:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
-        return self.schema.normalize_table_identifiers(
-            resource.compute_table_schema(items)
-        )
+        return self.schema.normalize_table_identifiers(resource.compute_table_schema(items))
 
-    def _compute_and_update_table(self, resource: DltResource, table_name: str, items: TDataItems) -> TDataItems:
+    def _compute_and_update_table(
+        self, resource: DltResource, table_name: str, items: TDataItems
+    ) -> TDataItems:
         """
         Computes new table and does contract checks, if false is returned, the table may not be created and not items should be written
         """
@@ -141,8 +158,7 @@ class Extractor:
         computed_table["name"] = table_name
         # get or compute contract
         schema_contract = self._table_contracts.setdefault(
-            table_name,
-            self.schema.resolve_contract_settings_for_table(table_name, computed_table)
+            table_name, self.schema.resolve_contract_settings_for_table(table_name, computed_table)
         )
 
         # this is a new table so allow evolve once
@@ -155,7 +171,9 @@ class Extractor:
             diff_table = computed_table
 
         # apply contracts
-        diff_table, filters = self.schema.apply_schema_contract(schema_contract, diff_table, data_item=items)
+        diff_table, filters = self.schema.apply_schema_contract(
+            schema_contract, diff_table, data_item=items
+        )
 
         # merge with schema table
         if diff_table:
@@ -184,15 +202,24 @@ class ArrowExtractor(Extractor):
         items = [
             # 3. remove columns and rows in data contract filters
             # 2. Remove null-type columns from the table(s) as they can't be loaded
-            self._apply_contract_filters(pyarrow.remove_null_columns(tbl), resource, static_table_name) for tbl in (
-                # 1. Convert pandas frame(s) to arrow Table
-                pa.Table.from_pandas(item) if (pd and isinstance(item, pd.DataFrame)) else item
+            self._apply_contract_filters(
+                pyarrow.remove_null_columns(tbl), resource, static_table_name
+            )
+            for tbl in (
+                (
+                    # 1. Convert pandas frame(s) to arrow Table
+                    pa.Table.from_pandas(item)
+                    if (pd and isinstance(item, pd.DataFrame))
+                    else item
+                )
                 for item in (items if isinstance(items, list) else [items])
             )
         ]
         super().write_items(resource, items, meta)
 
-    def _apply_contract_filters(self, item: "TAnyArrowItem", resource: DltResource, static_table_name: Optional[str]) -> "TAnyArrowItem":
+    def _apply_contract_filters(
+        self, item: "TAnyArrowItem", resource: DltResource, static_table_name: Optional[str]
+    ) -> "TAnyArrowItem":
         """Removes the columns (discard value) or rows (discard rows) as indicated by contract filters."""
         # convert arrow schema names into normalized names
         rename_mapping = pyarrow.get_normalized_arrow_fields_mapping(item, self.naming)
@@ -204,7 +231,9 @@ class ArrowExtractor(Extractor):
             # create a mask where rows will be False if any of the specified columns are non-null
             mask = None
             rev_mapping = {v: k for k, v in rename_mapping.items()}
-            for column in [name for name, mode in filtered_columns.items() if mode == "discard_row"]:
+            for column in [
+                name for name, mode in filtered_columns.items() if mode == "discard_row"
+            ]:
                 is_null = pyarrow.pyarrow.compute.is_null(item[rev_mapping[column]])
                 mask = is_null if mask is None else pyarrow.pyarrow.compute.and_(mask, is_null)
             # filter the table using the mask
@@ -213,16 +242,29 @@ class ArrowExtractor(Extractor):
 
             # remove value actually removes the whole columns from the table
             # NOTE: filtered columns has normalized column names so we need to go through mapping
-            removed_columns = [name for name in rename_mapping if filtered_columns.get(rename_mapping[name]) is not None]
+            removed_columns = [
+                name
+                for name in rename_mapping
+                if filtered_columns.get(rename_mapping[name]) is not None
+            ]
             if removed_columns:
                 item = pyarrow.remove_columns(item, removed_columns)
 
         return item
 
-    def _write_item(self, table_name: str, resource_name: str, items: TDataItems, columns: TTableSchemaColumns = None) -> None:
+    def _write_item(
+        self,
+        table_name: str,
+        resource_name: str,
+        items: TDataItems,
+        columns: TTableSchemaColumns = None,
+    ) -> None:
         columns = columns or self.schema.tables[table_name]["columns"]
         # Note: `items` is always a list here due to the conversion in `write_table`
-        items = [pyarrow.normalize_py_arrow_schema(item, columns, self.naming, self._caps) for item in items]
+        items = [
+            pyarrow.normalize_py_arrow_schema(item, columns, self.naming, self._caps)
+            for item in items
+        ]
         super()._write_item(table_name, resource_name, items, columns)
 
     def _compute_table(self, resource: DltResource, items: TDataItems) -> TPartialTableSchema:
@@ -235,11 +277,15 @@ class ArrowExtractor(Extractor):
         # normalize arrow table before merging
         arrow_table = self.schema.normalize_table_identifiers(arrow_table)
         # we must override the columns to preserve the order in arrow table
-        arrow_table["columns"] = update_dict_nested(arrow_table["columns"], computed_table["columns"])
+        arrow_table["columns"] = update_dict_nested(
+            arrow_table["columns"], computed_table["columns"]
+        )
 
         return arrow_table
 
-    def _compute_and_update_table(self, resource: DltResource, table_name: str, items: TDataItems) -> TDataItems:
+    def _compute_and_update_table(
+        self, resource: DltResource, table_name: str, items: TDataItems
+    ) -> TDataItems:
         items = super()._compute_and_update_table(resource, table_name, items)
         # filter data item as filters could be updated in compute table
         items = [self._apply_contract_filters(item, resource, table_name) for item in items]

@@ -5,7 +5,11 @@ from typing import List, IO, Any, Optional, Type, TypeVar, Generic
 from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.data_writers import TLoaderFileFormat
-from dlt.common.data_writers.exceptions import BufferedDataWriterClosed, DestinationCapabilitiesRequired, InvalidFileNameTemplateException
+from dlt.common.data_writers.exceptions import (
+    BufferedDataWriterClosed,
+    DestinationCapabilitiesRequired,
+    InvalidFileNameTemplateException,
+)
 from dlt.common.data_writers.writers import DataWriter
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.configuration import with_config, known_sections, configspec
@@ -17,7 +21,6 @@ TWriter = TypeVar("TWriter", bound=DataWriter)
 
 
 class BufferedDataWriter(Generic[TWriter]):
-
     @configspec
     class BufferedDataWriterConfiguration(BaseConfiguration):
         buffer_max_items: int = 5000
@@ -27,7 +30,6 @@ class BufferedDataWriter(Generic[TWriter]):
         _caps: Optional[DestinationCapabilitiesContext] = None
 
         __section__ = known_sections.DATA_WRITER
-
 
     @with_config(spec=BufferedDataWriterConfiguration)
     def __init__(
@@ -54,7 +56,11 @@ class BufferedDataWriter(Generic[TWriter]):
         self.file_max_bytes = file_max_bytes
         self.file_max_items = file_max_items
         # the open function is either gzip.open or open
-        self.open = gzip.open if self._file_format_spec.supports_compression and not disable_compression else open
+        self.open = (
+            gzip.open
+            if self._file_format_spec.supports_compression and not disable_compression
+            else open
+        )
 
         self._current_columns: TTableSchemaColumns = None
         self._file_name: str = None
@@ -72,7 +78,11 @@ class BufferedDataWriter(Generic[TWriter]):
         self._ensure_open()
         # rotate file if columns changed and writer does not allow for that
         # as the only allowed change is to add new column (no updates/deletes), we detect the change by comparing lengths
-        if self._writer and not self._writer.data_format().supports_schema_changes and len(columns) != len(self._current_columns):
+        if (
+            self._writer
+            and not self._writer.data_format().supports_schema_changes
+            and len(columns) != len(self._current_columns)
+        ):
             assert len(columns) > len(self._current_columns)
             self._rotate_file()
         # until the first chunk is written we can change the columns schema freely
@@ -131,7 +141,9 @@ class BufferedDataWriter(Generic[TWriter]):
 
     def _rotate_file(self) -> None:
         self._flush_and_close_file()
-        self._file_name = self.file_name_template % uniq_id(5) + "." + self._file_format_spec.file_extension
+        self._file_name = (
+            self.file_name_template % uniq_id(5) + "." + self._file_format_spec.file_extension
+        )
 
     def _flush_items(self, allow_empty_file: bool = False) -> None:
         if self._buffered_items_count > 0 or allow_empty_file:
@@ -139,9 +151,9 @@ class BufferedDataWriter(Generic[TWriter]):
             if not self._writer:
                 # create new writer and write header
                 if self._file_format_spec.is_binary_format:
-                    self._file = self.open(self._file_name, "wb") # type: ignore
+                    self._file = self.open(self._file_name, "wb")  # type: ignore
                 else:
-                    self._file = self.open(self._file_name, "wt", encoding="utf-8") # type: ignore
+                    self._file = self.open(self._file_name, "wt", encoding="utf-8")  # type: ignore
                 self._writer = DataWriter.from_file_format(self.file_format, self._file, caps=self._caps)  # type: ignore[assignment]
                 self._writer.write_header(self._current_columns)
             # write buffer

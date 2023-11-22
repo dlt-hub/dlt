@@ -65,7 +65,6 @@ def test_delayed_signals_context_manager() -> None:
 
 
 def test_sleep_signal() -> None:
-
     thread_signal = 0
 
     def _thread() -> None:

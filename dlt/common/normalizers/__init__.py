@@ -4,6 +4,8 @@ from dlt.common.normalizers.utils import explicit_normalizers, import_normalizer
 
 __all__ = [
     "NormalizersConfiguration",
-    "TJSONNormalizer", "TNormalizersConfig",
-    "explicit_normalizers", "import_normalizers"
+    "TJSONNormalizer",
+    "TNormalizersConfig",
+    "explicit_normalizers",
+    "import_normalizers",
 ]

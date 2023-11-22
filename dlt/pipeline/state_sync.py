@@ -23,31 +23,11 @@ STATE_ENGINE_VERSION = 2
 
 # state table columns
 STATE_TABLE_COLUMNS: TTableSchemaColumns = {
-    "version": {
-        "name": "version",
-        "data_type": "bigint",
-        "nullable": False
-    },
-    "engine_version": {
-        "name": "engine_version",
-        "data_type": "bigint",
-        "nullable": False
-    },
-    "pipeline_name": {
-        "name": "pipeline_name",
-        "data_type": "text",
-        "nullable": False
-    },
-    "state": {
-        "name": "state",
-        "data_type": "text",
-        "nullable": False
-    },
-    "created_at": {
-        "name": "created_at",
-        "data_type": "timestamp",
-        "nullable": False
-    }
+    "version": {"name": "version", "data_type": "bigint", "nullable": False},
+    "engine_version": {"name": "engine_version", "data_type": "bigint", "nullable": False},
+    "pipeline_name": {"name": "pipeline_name", "data_type": "text", "nullable": False},
+    "state": {"name": "state", "data_type": "text", "nullable": False},
+    "created_at": {"name": "created_at", "data_type": "timestamp", "nullable": False},
 }
 
 
@@ -72,7 +52,9 @@ def decompress_state(state_str: str) -> DictStrAny:
         return json.typed_loadb(state_bytes)  # type: ignore[no-any-return]
 
 
-def merge_state_if_changed(old_state: TPipelineState, new_state: TPipelineState, increase_version: bool = True) -> Optional[TPipelineState]:
+def merge_state_if_changed(
+    old_state: TPipelineState, new_state: TPipelineState, increase_version: bool = True
+) -> Optional[TPipelineState]:
     # we may want to compare hashes like we do with schemas
     if json.dumps(old_state, sort_keys=True) == json.dumps(new_state, sort_keys=True):
         return None
@@ -89,10 +71,12 @@ def state_resource(state: TPipelineState) -> DltResource:
         "version": state["_state_version"],
         "engine_version": state["_state_engine_version"],
         "pipeline_name": state["pipeline_name"],
-        "state":  state_str,
-        "created_at": pendulum.now()
+        "state": state_str,
+        "created_at": pendulum.now(),
     }
-    return dlt.resource([state_doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS)
+    return dlt.resource(
+        [state_doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS
+    )
 
 
 def load_state_from_destination(pipeline_name: str, client: WithStateSync) -> TPipelineState:
@@ -104,7 +88,9 @@ def load_state_from_destination(pipeline_name: str, client: WithStateSync) -> TP
     return migrate_state(pipeline_name, s, s["_state_engine_version"], STATE_ENGINE_VERSION)
 
 
-def migrate_state(pipeline_name: str, state: DictStrAny, from_engine: int, to_engine: int) -> TPipelineState:
+def migrate_state(
+    pipeline_name: str, state: DictStrAny, from_engine: int, to_engine: int
+) -> TPipelineState:
     if from_engine == to_engine:
         return cast(TPipelineState, state)
     if from_engine == 1 and to_engine > 1:
@@ -114,6 +100,8 @@ def migrate_state(pipeline_name: str, state: DictStrAny, from_engine: int, to_en
     # check state engine
     state["_state_engine_version"] = from_engine
     if from_engine != to_engine:
-        raise PipelineStateEngineNoUpgradePathException(pipeline_name, state["_state_engine_version"], from_engine, to_engine)
+        raise PipelineStateEngineNoUpgradePathException(
+            pipeline_name, state["_state_engine_version"], from_engine, to_engine
+        )
 
     return cast(TPipelineState, state)

@@ -13,13 +13,21 @@ from dlt.version import DLT_PKG_NAME, __version__
 
 from tests.common.runtime.utils import mock_image_env, mock_github_env, mock_pod_env
 from tests.common.configuration.utils import environment
-from tests.utils import preserve_environ, skipifspawn, skipifwindows, init_test_logging, start_test_telemetry
+from tests.utils import (
+    preserve_environ,
+    skipifspawn,
+    skipifwindows,
+    init_test_logging,
+    start_test_telemetry,
+)
 
 
 @configspec
 class SentryLoggerConfiguration(RunConfiguration):
     pipeline_name: str = "logger"
-    sentry_dsn: str = "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
+    sentry_dsn: str = (
+        "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
+    )
     dlthub_telemetry_segment_write_key: str = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB"
 
 
@@ -28,17 +36,19 @@ class SentryLoggerCriticalConfiguration(SentryLoggerConfiguration):
     log_level: str = "CRITICAL"
 
     if TYPE_CHECKING:
+
         def __init__(
             self,
             pipeline_name: str = "logger",
             sentry_dsn: str = "https://sentry.io",
             dlthub_telemetry_segment_write_key: str = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB",
             log_level: str = "CRITICAL",
-        ) -> None:
-            ...
+        ) -> None: ...
+
 
 def test_sentry_log_level() -> None:
     from dlt.common.runtime.sentry import _get_sentry_log_level
+
     sll = _get_sentry_log_level(SentryLoggerCriticalConfiguration(log_level="CRITICAL"))
     assert sll._handler.level == logging._nameToLevel["CRITICAL"]
     sll = _get_sentry_log_level(SentryLoggerCriticalConfiguration(log_level="ERROR"))
@@ -97,6 +107,8 @@ def test_cleanup(environment: DictStrStr) -> None:
 
 
 SENT_ITEMS = []
+
+
 def _mock_before_send(event: DictStrAny, _unused_hint: Any = None) -> DictStrAny:
     # print(event)
     SENT_ITEMS.append(event)

@@ -3,7 +3,12 @@ from datetime import datetime, date, timezone, timedelta  # noqa: I251
 from pendulum.tz import UTC
 
 from dlt.common import pendulum
-from dlt.common.time import timestamp_before, timestamp_within, ensure_pendulum_datetime, ensure_pendulum_date
+from dlt.common.time import (
+    timestamp_before,
+    timestamp_within,
+    ensure_pendulum_datetime,
+    ensure_pendulum_date,
+)
 from dlt.common.typing import TAnyDateTime
 
 
@@ -72,9 +77,7 @@ test_params = [
 
 
 @pytest.mark.parametrize("date_value, expected", test_params)
-def test_ensure_pendulum_datetime(
-    date_value: TAnyDateTime, expected: pendulum.DateTime
-) -> None:
+def test_ensure_pendulum_datetime(date_value: TAnyDateTime, expected: pendulum.DateTime) -> None:
     dt = ensure_pendulum_datetime(date_value)
     assert dt == expected
     # always UTC
@@ -86,4 +89,6 @@ def test_ensure_pendulum_datetime(
 def test_ensure_pendulum_date_utc() -> None:
     # when converting from datetimes make sure to shift to UTC before doing date
     assert ensure_pendulum_date("2021-01-01T00:00:00+05:00") == pendulum.date(2020, 12, 31)
-    assert ensure_pendulum_date(datetime(2021, 1, 1, 0, 0, 0, tzinfo=timezone(timedelta(hours=8)))) == pendulum.date(2020, 12, 31)
+    assert ensure_pendulum_date(
+        datetime(2021, 1, 1, 0, 0, 0, tzinfo=timezone(timedelta(hours=8)))
+    ) == pendulum.date(2020, 12, 31)

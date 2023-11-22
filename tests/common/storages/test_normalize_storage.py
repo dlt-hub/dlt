@@ -16,13 +16,20 @@ def test_load_events_and_group_by_sender() -> None:
 
 def test_build_extracted_file_name() -> None:
     load_id = uniq_id()
-    name = NormalizeStorage.build_extracted_file_stem("event", "table_with_parts__many", load_id) + ".jsonl"
+    name = (
+        NormalizeStorage.build_extracted_file_stem("event", "table_with_parts__many", load_id)
+        + ".jsonl"
+    )
     assert NormalizeStorage.get_schema_name(name) == "event"
-    assert NormalizeStorage.parse_normalize_file_name(name) == TParsedNormalizeFileName("event", "table_with_parts__many", load_id, "jsonl")
+    assert NormalizeStorage.parse_normalize_file_name(name) == TParsedNormalizeFileName(
+        "event", "table_with_parts__many", load_id, "jsonl"
+    )
 
     # empty schema should be supported
     name = NormalizeStorage.build_extracted_file_stem("", "table", load_id) + ".jsonl"
-    assert NormalizeStorage.parse_normalize_file_name(name) == TParsedNormalizeFileName("", "table", load_id, "jsonl")
+    assert NormalizeStorage.parse_normalize_file_name(name) == TParsedNormalizeFileName(
+        "", "table", load_id, "jsonl"
+    )
 
 
 def test_full_migration_path() -> None:

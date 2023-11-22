@@ -1,4 +1,3 @@
-
 from dlt.common.exceptions import DltException
 
 
@@ -19,5 +18,8 @@ class UnknownNamingModule(NormalizersException):
 class InvalidNamingModule(NormalizersException):
     def __init__(self, naming_module: str) -> None:
         self.naming_module = naming_module
-        msg = f"Naming module {naming_module} does not implement required SupportsNamingConvention protocol"
+        msg = (
+            f"Naming module {naming_module} does not implement required SupportsNamingConvention"
+            " protocol"
+        )
         super().__init__(msg)

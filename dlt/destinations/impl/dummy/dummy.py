@@ -8,10 +8,20 @@ from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, JobClientBase
+from dlt.common.destination.reference import (
+    FollowupJob,
+    NewLoadJob,
+    TLoadJobState,
+    LoadJob,
+    JobClientBase,
+)
 
-from dlt.destinations.exceptions import (LoadJobNotExistsException, LoadJobInvalidStateTransitionException,
-                                            DestinationTerminalException, DestinationTransientException)
+from dlt.destinations.exceptions import (
+    LoadJobNotExistsException,
+    LoadJobInvalidStateTransitionException,
+    DestinationTerminalException,
+    DestinationTransientException,
+)
 
 from dlt.destinations.impl.dummy import capabilities
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
@@ -30,7 +40,6 @@ class LoadDummyJob(LoadJob, FollowupJob):
                 raise DestinationTerminalException(self._exception)
             if s == "retry":
                 raise DestinationTransientException(self._exception)
-
 
     def state(self) -> TLoadJobState:
         # this should poll the server for a job status, here we simulate various outcomes
@@ -90,10 +99,14 @@ class DummyClient(JobClientBase):
     def drop_storage(self) -> None:
         pass
 
-    def update_stored_schema(self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None) -> Optional[TSchemaTables]:
+    def update_stored_schema(
+        self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
+    ) -> Optional[TSchemaTables]:
         applied_update = super().update_stored_schema(only_tables, expected_update)
         if self.config.fail_schema_update:
-            raise DestinationTransientException("Raise on schema update due to fail_schema_update config flag")
+            raise DestinationTransientException(
+                "Raise on schema update due to fail_schema_update config flag"
+            )
         return applied_update
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
@@ -115,7 +128,9 @@ class DummyClient(JobClientBase):
             raise LoadJobNotExistsException(job_id)
         return JOBS[job_id]
 
-    def create_table_chain_completed_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+    def create_table_chain_completed_followup_jobs(
+        self, table_chain: Sequence[TTableSchema]
+    ) -> List[NewLoadJob]:
         """Creates a list of followup jobs that should be executed after a table chain is completed"""
         return []
 
@@ -125,11 +140,10 @@ class DummyClient(JobClientBase):
     def __enter__(self) -> "DummyClient":
         return self
 
-    def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType) -> None:
+    def __exit__(
+        self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
+    ) -> None:
         pass
 
     def _create_job(self, job_id: str) -> LoadDummyJob:
-        return LoadDummyJob(
-            job_id,
-            config=self.config
-            )
+        return LoadDummyJob(job_id, config=self.config)

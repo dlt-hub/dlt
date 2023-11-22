@@ -11,8 +11,7 @@ EVM_DECIMAL_PRECISION = 78
 WEI_SCALE_POW = 10**18
 
 
-class Wei(Decimal,SupportsVariant[Decimal]):
-
+class Wei(Decimal, SupportsVariant[Decimal]):
     ctx = default_context(decimal.getcontext().copy(), EVM_DECIMAL_PRECISION)
 
     @classmethod
@@ -29,11 +28,13 @@ class Wei(Decimal,SupportsVariant[Decimal]):
     def __call__(self) -> Union["Wei", TVariantRV]:
         # TODO: this should look into DestinationCapabilitiesContext to get maximum Decimal value.
         # this is BigQuery BIGDECIMAL max
-        if self > 578960446186580977117854925043439539266 or self < -578960446186580977117854925043439539267:
-            return  ("str", str(self))
+        if (
+            self > 578960446186580977117854925043439539266
+            or self < -578960446186580977117854925043439539267
+        ):
+            return ("str", str(self))
         else:
             return self
-
 
     def __repr__(self) -> str:
         return f"Wei('{str(self)}')"
