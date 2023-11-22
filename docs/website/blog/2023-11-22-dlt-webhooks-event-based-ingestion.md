@@ -103,7 +103,6 @@ in-depth guide, please refer to the detailed documentation.
 1. Name the function entry point "github_webhook" and list required modules in requirements.txt.
    ```text
    # requirements.txt
-   dlt
    dlt[bigquery]
    ```
 1. Post-deployment, a webhook URL is generated, typically following a specific format.
@@ -137,8 +136,8 @@ in Slack App settings.
 
 ### 2.1 Initialize Slack webhook deployment
 
-Set up the webhook by creating a cloud function, using the same steps as for the GitHub webhook.
-(Link to above)
+Set up the webhook by creating a cloud function, using the same steps as for the [GitHub webhook.](#1-github-webhook)
+
 
 1. Here’s what `main.py` looks like:
    ```python
@@ -212,8 +211,8 @@ retrieve its URL, and input this in Hubspot's automation workflow settings for m
 
 ### 3.1 Initialize Hubspot webhook deployment
 
-Set up the webhook by creating a cloud function, using the same steps as for the GitHub webhook.
-(Link to above)
+Set up the webhook by creating a cloud function, using the same steps as for the [GitHub webhook.](#1-github-webhook)
+
 
 1. Here’s what `main.py`looks like:
    ```python
