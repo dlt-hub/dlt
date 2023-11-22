@@ -14,7 +14,7 @@ class DummyClientCredentials(CredentialsConfiguration):
 
 @configspec
 class DummyClientConfiguration(DestinationClientConfiguration):
-    destination_type: Final[str] = "bigquery"  # type: ignore
+    destination_type: Final[str] = "dummy"  # type: ignore
     loader_file_format: TLoaderFileFormat = "jsonl"
     fail_schema_update: bool = False
     fail_prob: float = 0.0
@@ -30,7 +30,7 @@ class DummyClientConfiguration(DestinationClientConfiguration):
     if TYPE_CHECKING:
         def __init__(
             self,
-            destination_type: str = None,
+            *,
             credentials: Optional[CredentialsConfiguration] = None,
             name: str = None,
             environment: str = None,

@@ -37,8 +37,10 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     if TYPE_CHECKING:
         def __init__(
             self,
-            destination_type: str = None,
+            *,
             credentials: Optional[GcpServiceAccountCredentials] = None,
+            name: str = None,
+            environment: str = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             location: str = "US",

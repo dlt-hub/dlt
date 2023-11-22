@@ -199,8 +199,10 @@ class DuckDbClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
         def __init__(
             self,
-            destination_type: str = None,
+            *,
             credentials: Union[DuckDbCredentials, str, DuckDBPyConnection] = None,
+            name: str = None,
+            environment: str = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             create_indexes: bool = False,

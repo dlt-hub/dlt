@@ -62,7 +62,7 @@ class DestinationClientConfiguration(BaseConfiguration):
         return str(self.credentials)
 
     if TYPE_CHECKING:
-        def __init__(self, destination_type: str = None, credentials: Optional[CredentialsConfiguration] = None, name: str = None, environment: str = None
+        def __init__(self, *, destination_type: str = None, credentials: Optional[CredentialsConfiguration] = None, name: str = None, environment: str = None
 ) -> None:
             ...
 
@@ -96,6 +96,7 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     if TYPE_CHECKING:
         def __init__(
             self,
+            *,
             destination_type: str = None,
             credentials: Optional[CredentialsConfiguration] = None,
             name: str = None,
@@ -119,6 +120,7 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     if TYPE_CHECKING:
         def __init__(
             self,
+            *,
             destination_type: str = None,
             credentials: Union[AwsCredentialsWithoutDefaults, GcpCredentials] = None,
             name: str = None,
@@ -139,6 +141,7 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
     if TYPE_CHECKING:
         def __init__(
             self,
+            *,
             destination_type: str = None,
             credentials: Optional[CredentialsConfiguration] = None,
             name: str = None,

@@ -1,7 +1,7 @@
 import base64
 import binascii
 
-from typing import Final, Optional, Any, Dict, ClassVar, List
+from typing import Final, Optional, Any, Dict, ClassVar, List, TYPE_CHECKING
 
 from sqlalchemy.engine import URL
 
@@ -118,3 +118,18 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
+
+    if TYPE_CHECKING:
+        def __init__(
+            self,
+            *,
+            destination_type: str = None,
+            credentials: SnowflakeCredentials = None,
+            name: str = None,
+            environment: str = None,
+            dataset_name: str = None,
+            default_schema_name: str = None,
+            stage_name: str = None,
+            keep_staged_files: bool = True
+        ) -> None:
+            ...

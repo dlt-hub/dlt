@@ -245,7 +245,7 @@ def test_trace_telemetry() -> None:
         for event, step in zip(SEGMENT_SENT_ITEMS, expected_steps):
             assert event["event"] == f"pipeline_{step}"
             assert event["properties"]["success"] is True
-            assert event["properties"]["destination_name"] == "dummy"
+            assert event["properties"]["destination_type"] == "dummy"
             assert event["properties"]["pipeline_name_hash"] == digest128(load_info.pipeline.pipeline_name)
             assert event["properties"]["dataset_name_hash"] == digest128(load_info.pipeline.dataset_name)
             assert event["properties"]["default_schema_name_hash"] == digest128(load_info.pipeline.default_schema_name)
@@ -274,7 +274,7 @@ def test_trace_telemetry() -> None:
         event = SEGMENT_SENT_ITEMS[0]
         assert event["event"] == "pipeline_extract"
         assert event["properties"]["success"] is False
-        assert event["properties"]["destination_name"] == "dummy"
+        assert event["properties"]["destination_type"] == "dummy"
         assert isinstance(event["properties"]["elapsed"], float)
         # check extract info
         if step == "extract":
@@ -290,7 +290,7 @@ def test_trace_telemetry() -> None:
         event = SEGMENT_SENT_ITEMS[0]
         assert event["event"] == "pipeline_extract"
         assert event["properties"]["success"] is True
-        assert event["properties"]["destination_name"] is None
+        assert event["properties"]["destination_type"] is None
         assert event["properties"]["pipeline_name_hash"] == digest128("fresh")
         assert event["properties"]["dataset_name_hash"] == digest128(p.dataset_name)
         assert event["properties"]["default_schema_name_hash"] == digest128(p.default_schema_name)
