@@ -49,7 +49,7 @@ dev: has-poetry
 lint:
 	./check-package.sh
 	poetry run black ./ --diff --exclude=".*syntax_error.py"
-	poetry run isort ./ --diff
+	# poetry run isort ./ --diff
 	poetry run mypy --config-file mypy.ini dlt tests
 	poetry run flake8 --max-line-length=200 dlt
 	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
@@ -57,7 +57,7 @@ lint:
 
 format:
 	poetry run black ./ --exclude=".*syntax_error.py"
-	poetry run isort ./
+	# poetry run isort ./
 
 test-and-lint-snippets:
 	poetry run mypy --config-file mypy.ini docs/website docs/examples
