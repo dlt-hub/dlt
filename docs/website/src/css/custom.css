@@ -358,6 +358,17 @@ html[data-theme='dark'] .footer__item a:hover{
   display: none;
 }
 
+.version-navbar>svg {
+  display: none;
+}
+
+.version-navbar {
+  pointer-events: none;
+  background: var(--ifm-color-primary-light);
+  border-radius: 16px;
+  color: var(--docsearch-text-color);
+}
+
 
 .github-navbar:hover,
 .slack-navbar:hover ,.navbar__items.navbar__items--right  .clean-btn:hover {
@@ -741,7 +752,7 @@ html[data-theme='dark'] .overlayButton:hover {
   left:0px;
   top: 50%;
   transform: translateY(-50%);
-  background-color: var(--ifm-background-color); ;
+  background-color: var(--ifm-background-color);
   z-index: 1002;
   left: calc(50% - 350px);
   padding: 30px;

@@ -1,5 +1,6 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
+require('dotenv').config()
 
 const lightCodeTheme = require('prism-react-renderer/themes/dracula');
 // const lightCodeTheme = require('prism-react-renderer/themes/github');
@@ -77,6 +78,7 @@ const config = {
           href: 'https://dlthub.com'
         },
         items: [
+          { label: 'dlt ' + (process.env.DOCUSAURUS_DLT_VERSION || "master"), position: 'left', href: 'https://github.com/dlt-hub/dlt', className: 'version-navbar'  },
           {
             type: 'doc',
             docId: 'intro',
