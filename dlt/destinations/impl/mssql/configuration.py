@@ -45,16 +45,17 @@ class MsSqlCredentials(ConnectionStringCredentials):
         if self.odbc_driver:
             return self.odbc_driver
         # Pick a default driver if available
-        supported_drivers = ['ODBC Driver 18 for SQL Server', 'ODBC Driver 17 for SQL Server']
+        supported_drivers = ["ODBC Driver 18 for SQL Server", "ODBC Driver 17 for SQL Server"]
         import pyodbc
+
         available_drivers = pyodbc.drivers()
         for driver in supported_drivers:
             if driver in available_drivers:
                 return driver
         docs_url = "https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16"
         raise SystemConfigurationException(
-            f"No supported ODBC driver found for MS SQL Server.  "
-            f"See {docs_url} for information on how to install the '{supported_drivers[0]}' on your platform."
+            f"No supported ODBC driver found for MS SQL Server.  See {docs_url} for information on"
+            f" how to install the '{supported_drivers[0]}' on your platform."
         )
 
     def to_odbc_dsn(self) -> str:
@@ -70,10 +71,9 @@ class MsSqlCredentials(ConnectionStringCredentials):
         return ";".join([f"{k}={v}" for k, v in params.items()])
 
 
-
 @configspec
 class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_type: Final[str]  = "mssql"  # type: ignore
+    destination_type: Final[str] = "mssql"  # type: ignore
     credentials: MsSqlCredentials
 
     create_indexes: bool = False
@@ -85,6 +85,7 @@ class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         return ""
 
     if TYPE_CHECKING:
+
         def __init__(
             self,
             *,
@@ -94,6 +95,4 @@ class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             create_indexes: Optional[bool] = None,
-        ) -> None:
-            ...
-
+        ) -> None: ...

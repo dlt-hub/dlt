@@ -6,7 +6,10 @@ import sqlfluff
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
-from dlt.destinations.impl.snowflake.configuration import SnowflakeClientConfiguration, SnowflakeCredentials
+from dlt.destinations.impl.snowflake.configuration import (
+    SnowflakeClientConfiguration,
+    SnowflakeCredentials,
+)
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 
 from tests.load.utils import TABLE_UPDATE
@@ -21,14 +24,16 @@ def schema() -> Schema:
 def snowflake_client(schema: Schema) -> SnowflakeClient:
     # return client without opening connection
     creds = SnowflakeCredentials()
-    return SnowflakeClient(schema, SnowflakeClientConfiguration(dataset_name="test_" + uniq_id(), credentials=creds))
+    return SnowflakeClient(
+        schema, SnowflakeClientConfiguration(dataset_name="test_" + uniq_id(), credentials=creds)
+    )
 
 
 def test_create_table(snowflake_client: SnowflakeClient) -> None:
     statements = snowflake_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)
     assert len(statements) == 1
     sql = statements[0]
-    sqlfluff.parse(sql, dialect='snowflake')
+    sqlfluff.parse(sql, dialect="snowflake")
 
     assert sql.strip().startswith("CREATE TABLE")
     assert "EVENT_TEST_TABLE" in sql

@@ -1,10 +1,7 @@
-
 def transformers_snippet() -> None:
-
     # @@@DLT_SNIPPET_START example
     import dlt
     from dlt.sources.helpers import requests
-
 
     @dlt.source(max_table_nesting=2)
     def source(pokemon_api_url: str):
@@ -49,12 +46,9 @@ def transformers_snippet() -> None:
         # 2. send pokemon details into `species` transformer to get species details
         # NOTE: dlt is smart enough to get data from pokemon_list and pokemon details once
 
-        return (
-            pokemon_list | pokemon,
-            pokemon_list | pokemon | species
-        )
+        return (pokemon_list | pokemon, pokemon_list | pokemon | species)
 
-    __name__ = "__main__" # @@@DLT_REMOVE
+    __name__ = "__main__"  # @@@DLT_REMOVE
     if __name__ == "__main__":
         # build duck db pipeline
         pipeline = dlt.pipeline(

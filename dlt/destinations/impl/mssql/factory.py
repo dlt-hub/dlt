@@ -10,7 +10,6 @@ if t.TYPE_CHECKING:
 
 
 class mssql(Destination[MsSqlClientConfiguration, "MsSqlClient"]):
-
     spec = MsSqlClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:
@@ -45,4 +44,5 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlClient"]):
             name=name,
             environment=environment,
             create_indexes=create_indexes,
-            **kwargs)
+            **kwargs,
+        )

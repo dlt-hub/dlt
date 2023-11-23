@@ -10,7 +10,6 @@ if t.TYPE_CHECKING:
 
 
 class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
-
     spec = BigQueryClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:
@@ -31,9 +30,5 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         **kwargs: t.Any,
     ) -> None:
         super().__init__(
-            credentials=credentials,
-            name=name,
-            environment=environment,
-            location=location,
-            **kwargs
+            credentials=credentials, name=name, environment=environment, location=location, **kwargs
         )

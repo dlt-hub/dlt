@@ -10,7 +10,9 @@ from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration
 class DBTRunnerConfiguration(BaseConfiguration):
     package_location: str = None
     package_repository_branch: Optional[str] = None
-    package_repository_ssh_key: TSecretValue = TSecretValue("")  # the default is empty value which will disable custom SSH KEY
+    package_repository_ssh_key: TSecretValue = TSecretValue(
+        ""
+    )  # the default is empty value which will disable custom SSH KEY
     package_profiles_dir: Optional[str] = None
     package_profile_name: Optional[str] = None
     auto_full_refresh_when_out_of_sync: bool = True

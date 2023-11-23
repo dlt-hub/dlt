@@ -11,7 +11,7 @@ def test_column_schema_from_list() -> None:
     result = ensure_table_schema_columns_hint(TABLE_UPDATE)
 
     for col in TABLE_UPDATE:
-        assert result[col['name']] == col  # type: ignore[index]
+        assert result[col["name"]] == col  # type: ignore[index]
 
 
 def test_dynamic_columns_schema_from_list() -> None:
@@ -23,7 +23,7 @@ def test_dynamic_columns_schema_from_list() -> None:
     result = result_func({})  # type: ignore[operator]
 
     for col in TABLE_UPDATE:
-        assert result[col['name']] == col
+        assert result[col["name"]] == col
 
 
 def test_dynamic_columns_schema_from_pydantic() -> None:
@@ -38,5 +38,5 @@ def test_dynamic_columns_schema_from_pydantic() -> None:
 
     result = result_func({})  # type: ignore[operator]
 
-    assert result['a']['data_type'] == 'bigint'
-    assert result['b']['data_type'] == 'text'
+    assert result["a"]["data_type"] == "bigint"
+    assert result["b"]["data_type"] == "text"

@@ -5,7 +5,13 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 
 
-@with_config(spec=DummyClientConfiguration, sections=(known_sections.DESTINATION, "dummy",))
+@with_config(
+    spec=DummyClientConfiguration,
+    sections=(
+        known_sections.DESTINATION,
+        "dummy",
+    ),
+)
 def _configure(config: DummyClientConfiguration = config.value) -> DummyClientConfiguration:
     return config
 

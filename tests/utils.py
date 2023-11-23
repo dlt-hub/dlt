@@ -29,12 +29,27 @@ TEST_STORAGE_ROOT = "_storage"
 
 
 # destination constants
-IMPLEMENTED_DESTINATIONS = {"athena", "duckdb", "bigquery", "redshift", "postgres", "snowflake", "filesystem", "weaviate", "dummy", "motherduck", "mssql", "qdrant"}
+IMPLEMENTED_DESTINATIONS = {
+    "athena",
+    "duckdb",
+    "bigquery",
+    "redshift",
+    "postgres",
+    "snowflake",
+    "filesystem",
+    "weaviate",
+    "dummy",
+    "motherduck",
+    "mssql",
+    "qdrant",
+}
 NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant"}
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
 
 # exclude destination configs (for now used for athena and athena iceberg separation)
-EXCLUDED_DESTINATION_CONFIGURATIONS = set(dlt.config.get("EXCLUDED_DESTINATION_CONFIGURATIONS", list) or set())
+EXCLUDED_DESTINATION_CONFIGURATIONS = set(
+    dlt.config.get("EXCLUDED_DESTINATION_CONFIGURATIONS", list) or set()
+)
 
 
 # filter out active destinations for current tests
@@ -71,6 +86,7 @@ def TEST_DICT_CONFIG_PROVIDER():
         provider = DictionaryProvider()
         providers_context.add_provider(provider)
         return provider
+
 
 class MockHttpResponse(Response):
     def __init__(self, status_code: int) -> None:
@@ -156,7 +172,9 @@ def wipe_pipeline() -> Iterator[None]:
         container[PipelineContext].deactivate()
 
 
-def data_to_item_format(item_format: TDataItemFormat, data: Union[Iterator[TDataItem], Iterable[TDataItem]]) -> Any:
+def data_to_item_format(
+    item_format: TDataItemFormat, data: Union[Iterator[TDataItem], Iterable[TDataItem]]
+) -> Any:
     """Return the given data in the form of pandas, arrow table/batch or json items"""
     if item_format == "json":
         return data
@@ -189,15 +207,19 @@ def start_test_telemetry(c: RunConfiguration = None):
     start_telemetry(c)
 
 
-def clean_test_storage(init_normalize: bool = False, init_loader: bool = False, mode: str = "t") -> FileStorage:
+def clean_test_storage(
+    init_normalize: bool = False, init_loader: bool = False, mode: str = "t"
+) -> FileStorage:
     storage = FileStorage(TEST_STORAGE_ROOT, mode, makedirs=True)
     storage.delete_folder("", recursively=True, delete_ro=True)
     storage.create_folder(".")
     if init_normalize:
         from dlt.common.storages import NormalizeStorage
+
         NormalizeStorage(True)
     if init_loader:
         from dlt.common.storages import LoadStorage
+
         LoadStorage(True, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
     return storage
 
@@ -232,9 +254,7 @@ skipifpypy = pytest.mark.skipif(
     platform.python_implementation() == "PyPy", reason="won't run in PyPy interpreter"
 )
 
-skipifnotwindows = pytest.mark.skipif(
-    platform.system() != "Windows", reason="runs only on windows"
-)
+skipifnotwindows = pytest.mark.skipif(platform.system() != "Windows", reason="runs only on windows")
 
 skipifwindows = pytest.mark.skipif(
     platform.system() == "Windows", reason="does not runs on windows"

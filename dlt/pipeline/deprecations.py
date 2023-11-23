@@ -13,8 +13,9 @@ def credentials_argument_deprecated(
     dest_name = Destination.to_name(destination) if destination else "postgres"
 
     warnings.warn(
-        f"The `credentials argument` to {caller_name} is deprecated and will be removed in a future version. "
-        f"Pass the same credentials to the `destination` instance instead, e.g. {caller_name}(destination=dlt.destinations.{dest_name}(credentials=...))",
+        f"The `credentials argument` to {caller_name} is deprecated and will be removed in a future"
+        " version. Pass the same credentials to the `destination` instance instead, e.g."
+        f" {caller_name}(destination=dlt.destinations.{dest_name}(credentials=...))",
         DeprecationWarning,
         stacklevel=2,
     )

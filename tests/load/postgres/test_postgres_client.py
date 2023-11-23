@@ -43,14 +43,20 @@ def test_postgres_credentials_defaults() -> None:
 
 def test_postgres_credentials_native_value(environment) -> None:
     with pytest.raises(ConfigFieldMissingException):
-        resolve_configuration(PostgresCredentials(), explicit_value="postgres://loader@localhost/dlt_data")
+        resolve_configuration(
+            PostgresCredentials(), explicit_value="postgres://loader@localhost/dlt_data"
+        )
     # set password via env
     os.environ["CREDENTIALS__PASSWORD"] = "pass"
-    c = resolve_configuration(PostgresCredentials(), explicit_value="postgres://loader@localhost/dlt_data")
+    c = resolve_configuration(
+        PostgresCredentials(), explicit_value="postgres://loader@localhost/dlt_data"
+    )
     assert c.is_resolved()
     assert c.password == "pass"
     # but if password is specified - it is final
-    c = resolve_configuration(PostgresCredentials(), explicit_value="postgres://loader:loader@localhost/dlt_data")
+    c = resolve_configuration(
+        PostgresCredentials(), explicit_value="postgres://loader:loader@localhost/dlt_data"
+    )
     assert c.is_resolved()
     assert c.password == "loader"
 
@@ -68,14 +74,32 @@ def test_wei_value(client: PostgresClient, file_storage: FileStorage) -> None:
     user_table_name = prepare_table(client)
 
     # postgres supports EVM precisions
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, parse_data__metadata__rasa_x_id)\nVALUES\n"
-    insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {Wei.from_int256(2*256-1)});"
-    expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
+    insert_sql = (
+        "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp,"
+        " parse_data__metadata__rasa_x_id)\nVALUES\n"
+    )
+    insert_values = (
+        f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
+        f" '{str(pendulum.now())}', {Wei.from_int256(2*256-1)});"
+    )
+    expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
 
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, parse_data__metadata__rasa_x_id)\nVALUES\n"
-    insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {Wei.from_int256(2*256-1, 18)});"
-    expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
+    insert_sql = (
+        "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp,"
+        " parse_data__metadata__rasa_x_id)\nVALUES\n"
+    )
+    insert_values = (
+        f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
+        f" '{str(pendulum.now())}', {Wei.from_int256(2*256-1, 18)});"
+    )
+    expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)
 
-    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, parse_data__metadata__rasa_x_id)\nVALUES\n"
-    insert_values = f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd', '{str(pendulum.now())}', {Wei.from_int256(2*256-1, 78)});"
-    expect_load_file(client, file_storage, insert_sql+insert_values, user_table_name)
+    insert_sql = (
+        "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp,"
+        " parse_data__metadata__rasa_x_id)\nVALUES\n"
+    )
+    insert_values = (
+        f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
+        f" '{str(pendulum.now())}', {Wei.from_int256(2*256-1, 78)});"
+    )
+    expect_load_file(client, file_storage, insert_sql + insert_values, user_table_name)

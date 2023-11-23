@@ -9,7 +9,7 @@ from dlt.sources.helpers.requests import client
 
 @dlt.source(max_table_nesting=2)
 def zendesk_support(
-    credentials: Dict[str, str]=dlt.secrets.value,
+    credentials: Dict[str, str] = dlt.secrets.value,
     start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
     end_date: Optional[TAnyDateTime] = None,
 ):
@@ -101,9 +101,7 @@ def get_pages(
     # make request and keep looping until there is no next page
     get_url = f"{url}{endpoint}"
     while get_url:
-        response = client.get(
-            get_url, headers=headers, auth=auth, params=params
-        )
+        response = client.get(get_url, headers=headers, auth=auth, params=params)
         response.raise_for_status()
         response_json = response.json()
         result = response_json[data_point_name]

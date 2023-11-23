@@ -5,7 +5,6 @@ from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SC
 from dlt.common.wei import EVM_DECIMAL_PRECISION
 
 
-
 def capabilities() -> DestinationCapabilitiesContext:
     # https://www.postgresql.org/docs/current/limits.html
     caps = DestinationCapabilitiesContext()
@@ -16,7 +15,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_postgres_literal
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
-    caps.wei_precision = (2*EVM_DECIMAL_PRECISION, EVM_DECIMAL_PRECISION)
+    caps.wei_precision = (2 * EVM_DECIMAL_PRECISION, EVM_DECIMAL_PRECISION)
     caps.max_identifier_length = 63
     caps.max_column_identifier_length = 63
     caps.max_query_length = 32 * 1024 * 1024
@@ -26,5 +25,3 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supports_ddl_transactions = True
 
     return caps
-
-

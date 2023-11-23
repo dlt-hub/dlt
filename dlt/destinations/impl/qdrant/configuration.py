@@ -1,7 +1,10 @@
 from typing import Optional, Final
 
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration
+from dlt.common.configuration.specs.base_configuration import (
+    BaseConfiguration,
+    CredentialsConfiguration,
+)
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 
 
@@ -44,7 +47,7 @@ class QdrantClientOptions(BaseConfiguration):
 
 @configspec
 class QdrantClientConfiguration(DestinationClientDwhConfiguration):
-    destination_type: Final[str]  = "qdrant"  # type: ignore
+    destination_type: Final[str] = "qdrant"  # type: ignore
     # character for the dataset separator
     dataset_separator: str = "_"
 

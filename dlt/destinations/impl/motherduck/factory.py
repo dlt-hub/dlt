@@ -1,7 +1,10 @@
 import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
-from dlt.destinations.impl.motherduck.configuration import MotherDuckCredentials, MotherDuckClientConfiguration
+from dlt.destinations.impl.motherduck.configuration import (
+    MotherDuckCredentials,
+    MotherDuckClientConfiguration,
+)
 from dlt.destinations.impl.motherduck import capabilities
 
 if t.TYPE_CHECKING:
@@ -10,7 +13,6 @@ if t.TYPE_CHECKING:
 
 
 class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"]):
-
     spec = MotherDuckClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:
@@ -24,7 +26,9 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
 
     def __init__(
         self,
-        credentials: t.Union[MotherDuckCredentials, str, t.Dict[str, t.Any], "DuckDBPyConnection"] = None,
+        credentials: t.Union[
+            MotherDuckCredentials, str, t.Dict[str, t.Any], "DuckDBPyConnection"
+        ] = None,
         name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         create_indexes: bool = False,
@@ -45,4 +49,5 @@ class motherduck(Destination[MotherDuckClientConfiguration, "MotherDuckClient"])
             name=name,
             environment=environment,
             create_indexes=create_indexes,
-            **kwargs)
+            **kwargs,
+        )

@@ -10,7 +10,6 @@ if t.TYPE_CHECKING:
 
 
 class qdrant(Destination[QdrantClientConfiguration, "QdrantClient"]):
-
     spec = QdrantClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:
@@ -29,8 +28,4 @@ class qdrant(Destination[QdrantClientConfiguration, "QdrantClient"]):
         environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
-        super().__init__(
-            credentials=credentials,
-            name=name,
-            environment=environment,
-            **kwargs)
+        super().__init__(credentials=credentials, name=name, environment=environment, **kwargs)

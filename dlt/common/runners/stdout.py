@@ -26,14 +26,16 @@ def exec_to_stdout(f: AnyFun) -> Iterator[Any]:
 
 def iter_stdout(venv: Venv, command: str, *script_args: Any) -> Iterator[str]:
     # start a process in virtual environment, assume that text comes from stdout
-    with venv.start_command(command, *script_args, stdout=PIPE, stderr=PIPE, bufsize=1, text=True) as process:
+    with venv.start_command(
+        command, *script_args, stdout=PIPE, stderr=PIPE, bufsize=1, text=True
+    ) as process:
         exit_code: int = None
         line = ""
         stderr: List[str] = []
 
         def _r_stderr() -> None:
             nonlocal stderr
-            for line in iter(process.stderr.readline, ''):
+            for line in iter(process.stderr.readline, ""):
                 stderr.append(line)
 
         # read stderr with a thread, selectors do not work on windows
@@ -41,7 +43,7 @@ def iter_stdout(venv: Venv, command: str, *script_args: Any) -> Iterator[str]:
         t.start()
 
         # read stdout with
-        for line in iter(process.stdout.readline, ''):
+        for line in iter(process.stdout.readline, ""):
             if line.endswith("\n"):
                 yield line[:-1]
             else:
@@ -57,9 +59,11 @@ def iter_stdout(venv: Venv, command: str, *script_args: Any) -> Iterator[str]:
             raise CalledProcessError(exit_code, command, output=line, stderr="".join(stderr))
 
 
-def iter_stdout_with_result(venv: Venv, command: str, *script_args: Any) -> Generator[str, None, Any]:
+def iter_stdout_with_result(
+    venv: Venv, command: str, *script_args: Any
+) -> Generator[str, None, Any]:
     """Yields stdout lines coming from remote process and returns the last result decoded with decode_obj. In case of exit code != 0 if exception is decoded
-       it will be raised, otherwise CalledProcessError is raised"""
+    it will be raised, otherwise CalledProcessError is raised"""
     last_result: Any = None
     try:
         for line in iter_stdout(venv, command, *script_args):

@@ -1,7 +1,18 @@
-import decimal # noqa: I251
+import decimal  # noqa: I251
 from contextlib import contextmanager
 from typing import Iterator
-from decimal import ROUND_HALF_UP, Decimal, Inexact, DivisionByZero, DefaultContext, InvalidOperation, localcontext, Context, Subnormal, ConversionSyntax  # noqa: I251
+from decimal import (  # noqa: I251
+    ROUND_HALF_UP,
+    Decimal,
+    Inexact,
+    DivisionByZero,
+    DefaultContext,
+    InvalidOperation,
+    localcontext,
+    Context,
+    Subnormal,
+    ConversionSyntax,
+)
 
 
 DEFAULT_NUMERIC_PRECISION = 38

@@ -24,6 +24,7 @@ try:
             span.set_tag("destination", pipeline.destination.name)
         if pipeline.dataset_name:
             span.set_tag("dataset_name", pipeline.dataset_name)
+
 except ImportError:
     # sentry is optional dependency and enabled only when RuntimeConfiguration.sentry_dsn is set
     pass
@@ -67,7 +68,9 @@ def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: Supports
         transaction.__enter__()
 
 
-def on_start_trace_step(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
+def on_start_trace_step(
+    trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"START SENTRY SPAN {trace.transaction_id}:{trace_step.span_id} SCOPE: {Hub.current.scope}")
         span = Hub.current.scope.span.start_child(description=step, op=step).__enter__()
@@ -75,7 +78,9 @@ def on_start_trace_step(trace: PipelineTrace, step: TPipelineStep, pipeline: Sup
         _add_sentry_tags(span, pipeline)
 
 
-def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any) -> None:
+def on_end_trace_step(
+    trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any
+) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"---END SENTRY SPAN {trace.transaction_id}:{step.span_id}: {step} SCOPE: {Hub.current.scope}")
         with contextlib.suppress(Exception):
@@ -90,8 +95,10 @@ def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: S
         "destination_type": pipeline.destination.name if pipeline.destination else None,
         "pipeline_name_hash": digest128(pipeline.pipeline_name),
         "dataset_name_hash": digest128(pipeline.dataset_name) if pipeline.dataset_name else None,
-        "default_schema_name_hash": digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None,
-        "transaction_id": trace.transaction_id
+        "default_schema_name_hash": (
+            digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None
+        ),
+        "transaction_id": trace.transaction_id,
     }
     # disable automatic slack messaging until we can configure messages themselves
     if step.step == "extract" and step_info:

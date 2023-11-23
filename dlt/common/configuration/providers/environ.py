@@ -8,8 +8,8 @@ from .provider import ConfigProvider, get_key_name
 
 SECRET_STORAGE_PATH: str = "/run/secrets/%s"
 
-class EnvironProvider(ConfigProvider):
 
+class EnvironProvider(ConfigProvider):
     @staticmethod
     def get_key_name(key: str, *sections: str) -> str:
         return get_key_name(key, "__", *sections).upper()
@@ -18,7 +18,9 @@ class EnvironProvider(ConfigProvider):
     def name(self) -> str:
         return "Environment Variables"
 
-    def get_value(self, key: str, hint: Type[Any], pipeline_name: str, *sections: str) -> Tuple[Optional[Any], str]:
+    def get_value(
+        self, key: str, hint: Type[Any], pipeline_name: str, *sections: str
+    ) -> Tuple[Optional[Any], str]:
         # apply section to the key
         key = self.get_key_name(key, pipeline_name, *sections)
         if hint is TSecretValue:

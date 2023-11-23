@@ -104,14 +104,12 @@ def nested_data_snippet() -> None:
             destination="duckdb",
             dataset_name="unpacked_data",
         )
-        source_data = mongodb_collection(
-            collection="movies", write_disposition="replace"
-        )
+        source_data = mongodb_collection(collection="movies", write_disposition="replace")
         load_info = pipeline.run(source_data)
         print(load_info)
         tables = pipeline.last_trace.last_normalize_info.row_counts  # @@@DLT_REMOVE
         tables.pop("_dlt_pipeline_state")  # @@@DLT_REMOVE
-        assert (len(tables) == 7), pipeline.last_trace.last_normalize_info  # @@@DLT_REMOVE
+        assert len(tables) == 7, pipeline.last_trace.last_normalize_info  # @@@DLT_REMOVE
 
         # The second method involves setting the max_table_nesting attribute directly
         # on the source data object.
@@ -123,15 +121,13 @@ def nested_data_snippet() -> None:
             destination="duckdb",
             dataset_name="not_unpacked_data",
         )
-        source_data = mongodb_collection(
-            collection="movies", write_disposition="replace"
-        )
+        source_data = mongodb_collection(collection="movies", write_disposition="replace")
         source_data.max_table_nesting = 0
         load_info = pipeline.run(source_data)
         print(load_info)
         tables = pipeline.last_trace.last_normalize_info.row_counts  # @@@DLT_REMOVE
         tables.pop("_dlt_pipeline_state")  # @@@DLT_REMOVE
-        assert (len(tables) == 1), pipeline.last_trace.last_normalize_info  # @@@DLT_REMOVE
+        assert len(tables) == 1, pipeline.last_trace.last_normalize_info  # @@@DLT_REMOVE
 
         # The third method involves applying data type hints to specific columns in the data.
         # In this case, we tell dlt that column 'cast' (containing a list of actors)
@@ -142,15 +138,13 @@ def nested_data_snippet() -> None:
             destination="duckdb",
             dataset_name="unpacked_data_without_cast",
         )
-        source_data = mongodb_collection(
-            collection="movies", write_disposition="replace"
-        )
+        source_data = mongodb_collection(collection="movies", write_disposition="replace")
         source_data.movies.apply_hints(columns={"cast": {"data_type": "complex"}})
         load_info = pipeline.run(source_data)
         print(load_info)
         tables = pipeline.last_trace.last_normalize_info.row_counts  # @@@DLT_REMOVE
         tables.pop("_dlt_pipeline_state")  # @@@DLT_REMOVE
-        assert (len(tables) == 6), pipeline.last_trace.last_normalize_info  # @@@DLT_REMOVE
+        assert len(tables) == 6, pipeline.last_trace.last_normalize_info  # @@@DLT_REMOVE
 
     # @@@DLT_SNIPPET_END nested_data_run
     # @@@DLT_SNIPPET_END example

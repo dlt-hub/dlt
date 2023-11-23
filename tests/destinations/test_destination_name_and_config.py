@@ -4,7 +4,6 @@ from dlt.destinations import duckdb
 
 
 def test_default_name_to_type() -> None:
-
     duck = duckdb(credentials="quack.duckdb")
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duck)
     load_info = p.run([1, 2, 3], table_name="table", dataset_name="dataset")
@@ -17,7 +16,6 @@ def test_default_name_to_type() -> None:
 
 
 def test_set_name_and_environment() -> None:
-
     duck = duckdb(credentials="quack.duckdb", name="duck1", environment="production")
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duck)
     load_info = p.run([1, 2, 3], table_name="table", dataset_name="dataset")
@@ -30,7 +28,6 @@ def test_set_name_and_environment() -> None:
 
 
 def test_config_respects_name() -> None:
-
     os.environ["DESTINATION__ENVIRONMENT"] = "devel"
     os.environ["DESTINATION__DATASET_NAME"] = "devel_dataset"
 

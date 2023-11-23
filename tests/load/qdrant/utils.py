@@ -20,14 +20,16 @@ def assert_collection(
     expected_items_count: int = None,
     items: List[Any] = None,
 ) -> None:
-    client: QdrantClient = pipeline.destination_client() # type: ignore[assignment]
+    client: QdrantClient = pipeline.destination_client()  # type: ignore[assignment]
 
     # Check if collection exists
     exists = client._collection_exists(collection_name)
     assert exists
 
     qualified_collection_name = client._make_qualified_collection_name(collection_name)
-    point_records, offset = client.db_client.scroll(qualified_collection_name, with_payload=True, limit=50)
+    point_records, offset = client.db_client.scroll(
+        qualified_collection_name, with_payload=True, limit=50
+    )
 
     if expected_items_count is not None:
         assert expected_items_count == len(point_records)
@@ -42,8 +44,10 @@ def assert_collection(
 
     assert_unordered_list_equal(objects_without_dlt_keys, items)
 
+
 def drop_active_pipeline_data() -> None:
     print("Dropping active pipeline data for test")
+
     def has_collections(client):
         schema = client.db_client.get_collections().collections
         return len(schema) > 0
@@ -51,7 +55,7 @@ def drop_active_pipeline_data() -> None:
     if Container()[PipelineContext].is_active():
         # take existing pipeline
         p = dlt.pipeline()
-        client: QdrantClient = p.destination_client() # type: ignore[assignment]
+        client: QdrantClient = p.destination_client()  # type: ignore[assignment]
 
         if has_collections(client):
             client.drop_storage()

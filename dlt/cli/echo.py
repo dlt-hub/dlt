@@ -20,7 +20,6 @@ def always_choose(always_choose_default: bool, always_choose_value: Any) -> Iter
     ALWAYS_CHOOSE_VALUE = _always_choose_value
 
 
-
 echo = click.echo
 secho = click.secho
 style = click.style
@@ -64,6 +63,7 @@ def prompt(text: str, choices: Iterable[str], default: Optional[Any] = None) -> 
         return default
     click_choices = click.Choice(choices)
     return click.prompt(text, type=click_choices, default=default)
+
 
 def text_input(text: str) -> str:
     return click.prompt(text)  # type: ignore[no-any-return]

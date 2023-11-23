@@ -4,8 +4,21 @@ from typing import Any, Dict
 import pytest
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.configuration.specs import ConnectionStringCredentials, GcpServiceAccountCredentialsWithoutDefaults, GcpServiceAccountCredentials, GcpOAuthCredentialsWithoutDefaults, GcpOAuthCredentials, AwsCredentials
-from dlt.common.configuration.specs.exceptions import InvalidConnectionString, InvalidGoogleNativeCredentialsType, InvalidGoogleOauth2Json, InvalidGoogleServicesJson, OAuth2ScopesRequired
+from dlt.common.configuration.specs import (
+    ConnectionStringCredentials,
+    GcpServiceAccountCredentialsWithoutDefaults,
+    GcpServiceAccountCredentials,
+    GcpOAuthCredentialsWithoutDefaults,
+    GcpOAuthCredentials,
+    AwsCredentials,
+)
+from dlt.common.configuration.specs.exceptions import (
+    InvalidConnectionString,
+    InvalidGoogleNativeCredentialsType,
+    InvalidGoogleOauth2Json,
+    InvalidGoogleServicesJson,
+    OAuth2ScopesRequired,
+)
 from dlt.common.configuration.specs.run_configuration import RunConfiguration
 
 from tests.utils import preserve_environ
@@ -155,7 +168,10 @@ def test_gcp_service_credentials_native_representation(environment) -> None:
     assert GcpServiceAccountCredentials.__config_gen_annotations__ == []
 
     gcpc = GcpServiceAccountCredentials()
-    gcpc.parse_native_representation(SERVICE_JSON % '"private_key": "-----BEGIN PRIVATE KEY-----\\n\\n-----END PRIVATE KEY-----\\n",')
+    gcpc.parse_native_representation(
+        SERVICE_JSON
+        % '"private_key": "-----BEGIN PRIVATE KEY-----\\n\\n-----END PRIVATE KEY-----\\n",'
+    )
     assert gcpc.private_key == "-----BEGIN PRIVATE KEY-----\n\n-----END PRIVATE KEY-----\n"
     assert gcpc.project_id == "chat-analytics"
     assert gcpc.client_email == "loader@iam.gserviceaccount.com"
@@ -191,7 +207,6 @@ def test_gcp_service_credentials_resolved_from_native_representation(environment
 
 
 def test_gcp_oauth_credentials_native_representation(environment) -> None:
-
     with pytest.raises(InvalidGoogleNativeCredentialsType):
         GcpOAuthCredentials().parse_native_representation(1)
 
@@ -205,12 +220,14 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
     # but is not partial - all required fields are present
     assert gcoauth.is_partial() is False
     assert gcoauth.project_id == "level-dragon-333983"
-    assert gcoauth.client_id == "921382012504-3mtjaj1s7vuvf53j88mgdq4te7akkjm3.apps.googleusercontent.com"
+    assert (
+        gcoauth.client_id
+        == "921382012504-3mtjaj1s7vuvf53j88mgdq4te7akkjm3.apps.googleusercontent.com"
+    )
     assert gcoauth.client_secret == "gOCSPX-XdY5znbrvjSMEG3pkpA_GHuLPPth"
     assert gcoauth.refresh_token == "refresh_token"
     assert gcoauth.token is None
     assert gcoauth.scopes == ["email", "service"]
-
 
     # get native representation, it will also location
     _repr = gcoauth.to_native_representation()
@@ -289,16 +306,16 @@ def test_run_configuration_slack_credentials(environment: Any) -> None:
 
 
 def test_aws_credentials_resolved(environment: Dict[str, str]) -> None:
-    environment['CREDENTIALS__AWS_ACCESS_KEY_ID'] = 'fake_access_key'
-    environment['CREDENTIALS__AWS_SECRET_ACCESS_KEY'] = 'fake_secret_key'
-    environment['CREDENTIALS__AWS_SESSION_TOKEN'] = 'fake_session_token'
-    environment['CREDENTIALS__PROFILE_NAME'] = 'fake_profile'
-    environment['CREDENTIALS__REGION_NAME'] = 'eu-central'
+    environment["CREDENTIALS__AWS_ACCESS_KEY_ID"] = "fake_access_key"
+    environment["CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = "fake_secret_key"
+    environment["CREDENTIALS__AWS_SESSION_TOKEN"] = "fake_session_token"
+    environment["CREDENTIALS__PROFILE_NAME"] = "fake_profile"
+    environment["CREDENTIALS__REGION_NAME"] = "eu-central"
 
     config = resolve_configuration(AwsCredentials())
 
-    assert config.aws_access_key_id == 'fake_access_key'
-    assert config.aws_secret_access_key == 'fake_secret_key'
-    assert config.aws_session_token == 'fake_session_token'
-    assert config.profile_name == 'fake_profile'
+    assert config.aws_access_key_id == "fake_access_key"
+    assert config.aws_secret_access_key == "fake_secret_key"
+    assert config.aws_session_token == "fake_session_token"
+    assert config.profile_name == "fake_profile"
     assert config.region_name == "eu-central"

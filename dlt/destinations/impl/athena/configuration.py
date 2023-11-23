@@ -2,7 +2,7 @@ from typing import ClassVar, Final, List, Optional, TYPE_CHECKING
 
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
-from dlt.common.configuration.specs import  AwsCredentials
+from dlt.common.configuration.specs import AwsCredentials
 
 
 @configspec
@@ -25,6 +25,7 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             return "[no staging set]"
 
     if TYPE_CHECKING:
+
         def __init__(
             self,
             *,
@@ -37,5 +38,4 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             aws_data_catalog: Optional[str] = None,
             supports_truncate_command: bool = False,
             force_iceberg: Optional[bool] = False,
-        ) -> None:
-            ...
+        ) -> None: ...

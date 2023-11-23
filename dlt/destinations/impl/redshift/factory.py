@@ -2,7 +2,10 @@ import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
-from dlt.destinations.impl.redshift.configuration import RedshiftCredentials, RedshiftClientConfiguration
+from dlt.destinations.impl.redshift.configuration import (
+    RedshiftCredentials,
+    RedshiftClientConfiguration,
+)
 from dlt.destinations.impl.redshift import capabilities
 
 if t.TYPE_CHECKING:
@@ -10,7 +13,6 @@ if t.TYPE_CHECKING:
 
 
 class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
-
     spec = RedshiftClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:
@@ -48,5 +50,5 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
             environment=environment,
             create_indexes=create_indexes,
             staging_iam_role=staging_iam_role,
-            **kwargs
+            **kwargs,
         )

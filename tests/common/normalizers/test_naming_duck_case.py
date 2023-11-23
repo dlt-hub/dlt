@@ -17,8 +17,11 @@ def test_normalize_identifier(naming_unlimited: NamingConvention) -> None:
     assert naming_unlimited.normalize_identifier("🦚🦚Peacocks") == "🦚🦚Peacocks"
     assert naming_unlimited.normalize_identifier("🦚🦚peacocks") == "🦚🦚peacocks"
     # non latin alphabets
-    assert naming_unlimited.normalize_identifier("Ölübeµrsईउऊऋऌऍऎएc⇨usǁs⛔lÄnder") == "Ölübeµrsईउऊऋऌऍऎएc⇨usǁs⛔lÄnder"
+    assert (
+        naming_unlimited.normalize_identifier("Ölübeµrsईउऊऋऌऍऎएc⇨usǁs⛔lÄnder")
+        == "Ölübeµrsईउऊऋऌऍऎएc⇨usǁs⛔lÄnder"
+    )
 
 
 def test_alphabet_reduction(naming_unlimited: NamingConvention) -> None:
-    assert naming_unlimited.normalize_identifier("A\nB\"C\rD") == "A_B_C_D"
+    assert naming_unlimited.normalize_identifier('A\nB"C\rD') == "A_B_C_D"

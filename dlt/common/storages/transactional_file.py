@@ -34,6 +34,7 @@ def lock_id(k: int = 4) -> str:
 
 class Heartbeat(Timer):
     """A thread designed to periodically execute a fn."""
+
     daemon = True
 
     def run(self) -> None:
@@ -60,7 +61,9 @@ class TransactionalFile:
 
         parsed_path = Path(path)
         if not parsed_path.is_absolute():
-            raise ValueError(f"{path} is not absolute. Please pass only absolute paths to TransactionalFile")
+            raise ValueError(
+                f"{path} is not absolute. Please pass only absolute paths to TransactionalFile"
+            )
         self.path = path
         if proto == "file":
             # standardize path separator to POSIX. fsspec always uses POSIX. Windows may use either.
@@ -102,7 +105,7 @@ class TransactionalFile:
             # Purge stale locks
             mtime = self.extract_mtime(lock)
             if now - mtime > timedelta(seconds=TransactionalFile.LOCK_TTL_SECONDS):
-                try: # Janitors can race, so we ignore errors
+                try:  # Janitors can race, so we ignore errors
                     self._fs.rm(name)
                 except OSError:
                     pass
@@ -110,7 +113,10 @@ class TransactionalFile:
             # The name is timestamp + random suffix and is time sortable
             output.append(name)
         if not output:
-            raise RuntimeError(f"When syncing locks for path {self.path} and lock {self.lock_path} no lock file was found")
+            raise RuntimeError(
+                f"When syncing locks for path {self.path} and lock {self.lock_path} no lock file"
+                " was found"
+            )
         return output
 
     def read(self) -> t.Optional[bytes]:
@@ -136,7 +142,9 @@ class TransactionalFile:
         elif self._fs.isfile(self.path):
             self._fs.rm(self.path)
 
-    def acquire_lock(self, blocking: bool = True, timeout: float = -1, jitter_mean: float = 0) -> bool:
+    def acquire_lock(
+        self, blocking: bool = True, timeout: float = -1, jitter_mean: float = 0
+    ) -> bool:
         """Acquires a lock on a path. Mimics the stdlib's `threading.Lock` interface.
 
         Acquire a lock, blocking or non-blocking.

@@ -10,7 +10,6 @@ if t.TYPE_CHECKING:
 
 
 class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
-
     spec = DuckDbClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:
@@ -24,7 +23,9 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
 
     def __init__(
         self,
-        credentials: t.Union[DuckDbCredentials, t.Dict[str, t.Any],  str, "DuckDBPyConnection"] = None,
+        credentials: t.Union[
+            DuckDbCredentials, t.Dict[str, t.Any], str, "DuckDBPyConnection"
+        ] = None,
         name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         create_indexes: bool = False,
@@ -45,4 +46,5 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
             name=name,
             environment=environment,
             create_indexes=create_indexes,
-            **kwargs)
+            **kwargs,
+        )

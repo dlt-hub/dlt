@@ -28,11 +28,16 @@ def test_version_extract(environment: DictStrStr) -> None:
     version = exec_info.dlt_version_info("logger")
     # assert version["dlt_version"].startswith(code_version)
     lib_version = pkg_version("dlt")
-    assert version == {'dlt_version': lib_version, 'pipeline_name': 'logger'}
+    assert version == {"dlt_version": lib_version, "pipeline_name": "logger"}
     # mock image info available in container
     mock_image_env(environment)
     version = exec_info.dlt_version_info("logger")
-    assert version == {'dlt_version': lib_version, 'commit_sha': '192891', 'pipeline_name': 'logger', 'image_version': 'scale/v:112'}
+    assert version == {
+        "dlt_version": lib_version,
+        "commit_sha": "192891",
+        "pipeline_name": "logger",
+        "image_version": "scale/v:112",
+    }
 
 
 def test_pod_info_extract(environment: DictStrStr) -> None:
@@ -40,17 +45,29 @@ def test_pod_info_extract(environment: DictStrStr) -> None:
     assert pod_info == {}
     mock_pod_env(environment)
     pod_info = exec_info.kube_pod_info()
-    assert pod_info == {'kube_node_name': 'node_name', 'kube_pod_name': 'pod_name', 'kube_pod_namespace': 'namespace'}
+    assert pod_info == {
+        "kube_node_name": "node_name",
+        "kube_pod_name": "pod_name",
+        "kube_pod_namespace": "namespace",
+    }
 
 
 def test_github_info_extract(environment: DictStrStr) -> None:
     mock_github_env(environment)
     github_info = exec_info.github_info()
-    assert github_info == {"github_user": "rudolfix", "github_repository": "dlt-hub/beginners-workshop-2022", "github_repository_owner": "dlt-hub"}
+    assert github_info == {
+        "github_user": "rudolfix",
+        "github_repository": "dlt-hub/beginners-workshop-2022",
+        "github_repository_owner": "dlt-hub",
+    }
     mock_github_env(environment)
     del environment["GITHUB_USER"]
     github_info = exec_info.github_info()
-    assert github_info == {"github_user": "dlt-hub", "github_repository": "dlt-hub/beginners-workshop-2022", "github_repository_owner": "dlt-hub"}
+    assert github_info == {
+        "github_user": "dlt-hub",
+        "github_repository": "dlt-hub/beginners-workshop-2022",
+        "github_repository_owner": "dlt-hub",
+    }
 
 
 @pytest.mark.forked
@@ -68,9 +85,9 @@ def test_text_logger_init(environment: DictStrStr) -> None:
 
 
 @pytest.mark.forked
-
 def test_json_logger_init(environment: DictStrStr) -> None:
     from dlt.common.runtime import json_logging
+
     mock_image_env(environment)
     mock_pod_env(environment)
     init_test_logging(JsonLoggerConfiguration())
@@ -87,7 +104,6 @@ def test_json_logger_init(environment: DictStrStr) -> None:
 
 @pytest.mark.forked
 def test_double_log_init(environment: DictStrStr) -> None:
-
     mock_image_env(environment)
     mock_pod_env(environment)
 

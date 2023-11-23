@@ -4,7 +4,10 @@ from dlt.common.typing import TSecretValue
 from dlt.common.configuration import configspec
 from dlt.common.utils import digest128
 
-from dlt.destinations.impl.postgres.configuration import PostgresCredentials, PostgresClientConfiguration
+from dlt.destinations.impl.postgres.configuration import (
+    PostgresCredentials,
+    PostgresClientConfiguration,
+)
 
 
 @configspec
@@ -17,7 +20,7 @@ class RedshiftCredentials(PostgresCredentials):
 
 @configspec
 class RedshiftClientConfiguration(PostgresClientConfiguration):
-    destination_type: Final[str]  = "redshift"  # type: ignore
+    destination_type: Final[str] = "redshift"  # type: ignore
     credentials: RedshiftCredentials
     staging_iam_role: Optional[str] = None
 
@@ -28,6 +31,7 @@ class RedshiftClientConfiguration(PostgresClientConfiguration):
         return ""
 
     if TYPE_CHECKING:
+
         def __init__(
             self,
             *,
@@ -38,5 +42,4 @@ class RedshiftClientConfiguration(PostgresClientConfiguration):
             dataset_name: str = None,
             default_schema_name: str = None,
             staging_iam_role: str = None
-        ) -> None:
-            ...
+        ) -> None: ...

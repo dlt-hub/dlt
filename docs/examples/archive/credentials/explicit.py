@@ -4,7 +4,9 @@ import dlt
 
 
 @dlt.resource
-def simple_data(api_url: str = dlt.config.value, api_secret: dlt.TSecretValue = dlt.secrets.value) -> Iterator[str]:
+def simple_data(
+    api_url: str = dlt.config.value, api_secret: dlt.TSecretValue = dlt.secrets.value
+) -> Iterator[str]:
     # just yield api_url and api_secret to show what was configured in the example
     yield api_url
     yield api_secret
@@ -29,12 +31,16 @@ data = simple_data(dlt.config["custom.simple_data.api_url"], dlt.secrets["simple
 print(list(data))
 
 # you are free to pass credentials from custom location to destination
-pipeline = dlt.pipeline(destination="postgres", credentials=dlt.secrets["custom.destination.credentials"])
+pipeline = dlt.pipeline(
+    destination="postgres", credentials=dlt.secrets["custom.destination.credentials"]
+)
 # see nice credentials object
 print(pipeline.credentials)
 
 # you can also pass credentials partially, only the password comes from the secrets or environment
-pipeline = dlt.pipeline(destination="postgres", credentials="postgres://loader@localhost:5432/dlt_data")
+pipeline = dlt.pipeline(
+    destination="postgres", credentials="postgres://loader@localhost:5432/dlt_data"
+)
 
 # now lets compare it with default location for config and credentials
 data = simple_data()

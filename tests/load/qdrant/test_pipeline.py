@@ -10,6 +10,7 @@ from dlt.destinations.impl.qdrant.qdrant_client import QdrantClient
 from tests.pipeline.utils import assert_load_info
 from tests.load.qdrant.utils import drop_active_pipeline_data, assert_collection
 
+
 @pytest.fixture(autouse=True)
 def drop_qdrant_data() -> Iterator[None]:
     yield
@@ -146,7 +147,6 @@ def test_explicit_append() -> None:
 
 
 def test_pipeline_replace() -> None:
-
     generator_instance1 = sequence_generator()
     generator_instance2 = sequence_generator()
 
@@ -164,7 +164,8 @@ def test_pipeline_replace() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="test_pipeline_replace",
         destination="qdrant",
-        dataset_name="test_pipeline_replace_dataset" + uid,  # Qdrant doesn't mandate any name normalization
+        dataset_name="test_pipeline_replace_dataset"
+        + uid,  # Qdrant doesn't mandate any name normalization
     )
 
     info = pipeline.run(
@@ -172,7 +173,9 @@ def test_pipeline_replace() -> None:
         write_disposition="replace",
     )
     assert_load_info(info)
-    assert info.dataset_name == "test_pipeline_replace_dataset" + uid  # Qdrant doesn't mandate any name normalization
+    assert (
+        info.dataset_name == "test_pipeline_replace_dataset" + uid
+    )  # Qdrant doesn't mandate any name normalization
 
     data = next(generator_instance2)
     assert_collection(pipeline, "some_data", items=data)
@@ -193,16 +196,14 @@ def test_pipeline_merge() -> None:
             "doc_id": 1,
             "title": "The Shawshank Redemption",
             "description": (
-                "Two imprisoned men find redemption through acts "
-                "of decency over the years."
+                "Two imprisoned men find redemption through acts of decency over the years."
             ),
         },
         {
             "doc_id": 2,
             "title": "The Godfather",
             "description": (
-                "A crime dynasty's aging patriarch transfers "
-                "control to his reluctant son."
+                "A crime dynasty's aging patriarch transfers control to his reluctant son."
             ),
         },
         {
@@ -230,9 +231,7 @@ def test_pipeline_merge() -> None:
         dataset_name="TestPipelineAppendDataset" + uniq_id(),
     )
     info = pipeline.run(
-        movies_data(),
-        write_disposition="merge",
-        dataset_name="MoviesDataset" + uniq_id()
+        movies_data(), write_disposition="merge", dataset_name="MoviesDataset" + uniq_id()
     )
     assert_load_info(info)
     assert_collection(pipeline, "movies_data", items=data)
@@ -308,21 +307,38 @@ def test_merge_github_nested() -> None:
     p = dlt.pipeline(destination="qdrant", dataset_name="github1", full_refresh=True)
     assert p.dataset_name.startswith("github1_202")
 
-    with open("tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8") as f:
+    with open(
+        "tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
+    ) as f:
         data = json.load(f)
 
     info = p.run(
         qdrant_adapter(data[:17], embed=["title", "body"]),
         table_name="issues",
         write_disposition="merge",
-        primary_key="id"
+        primary_key="id",
     )
     assert_load_info(info)
     # assert if schema contains tables with right names
     print(p.default_schema.tables.keys())
-    assert set(p.default_schema.tables.keys()) == {'_dlt_version', '_dlt_loads', 'issues', '_dlt_pipeline_state', 'issues__labels', 'issues__assignees'}
-    assert set([t["name"] for t in p.default_schema.data_tables()]) == {'issues', 'issues__labels', 'issues__assignees'}
-    assert set([t["name"] for t in p.default_schema.dlt_tables()]) == {'_dlt_version', '_dlt_loads', '_dlt_pipeline_state'}
+    assert set(p.default_schema.tables.keys()) == {
+        "_dlt_version",
+        "_dlt_loads",
+        "issues",
+        "_dlt_pipeline_state",
+        "issues__labels",
+        "issues__assignees",
+    }
+    assert set([t["name"] for t in p.default_schema.data_tables()]) == {
+        "issues",
+        "issues__labels",
+        "issues__assignees",
+    }
+    assert set([t["name"] for t in p.default_schema.dlt_tables()]) == {
+        "_dlt_version",
+        "_dlt_loads",
+        "_dlt_pipeline_state",
+    }
     issues = p.default_schema.tables["issues"]
     assert issues["columns"]["id"]["primary_key"] is True
     # make sure that vectorization is enabled for
@@ -345,4 +361,3 @@ def test_empty_dataset_allowed() -> None:
     assert client.dataset_name is None
     assert client.sentinel_collection == "DltSentinelCollection"
     assert_collection(p, "content", expected_items_count=3)
-
