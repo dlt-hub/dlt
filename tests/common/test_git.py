@@ -3,7 +3,15 @@ from git import GitCommandError, RepositoryDirtyError, GitError
 import pytest
 
 from dlt.common.storages import FileStorage
-from dlt.common.git import clone_repo, ensure_remote_head, git_custom_key_command, get_fresh_repo_files, get_repo, is_dirty, is_clean_and_synced
+from dlt.common.git import (
+    clone_repo,
+    ensure_remote_head,
+    git_custom_key_command,
+    get_fresh_repo_files,
+    get_repo,
+    is_dirty,
+    is_clean_and_synced,
+)
 
 from tests.utils import test_storage, skipifwindows
 from tests.common.utils import load_secret, modify_and_commit_file, restore_secret_storage_path
@@ -42,7 +50,12 @@ def test_clone(test_storage: FileStorage) -> None:
 def test_clone_with_commit_id(test_storage: FileStorage) -> None:
     repo_path = test_storage.make_full_path("awesome_repo")
     # clone a small public repo
-    clone_repo(AWESOME_REPO, repo_path, with_git_command=None, branch="7f88000be2d4f265c83465fec4b0b3613af347dd").close()
+    clone_repo(
+        AWESOME_REPO,
+        repo_path,
+        with_git_command=None,
+        branch="7f88000be2d4f265c83465fec4b0b3613af347dd",
+    ).close()
     assert test_storage.has_folder("awesome_repo")
     # cannot pull detached head
     with pytest.raises(GitError):

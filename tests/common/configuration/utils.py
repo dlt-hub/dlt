@@ -1,13 +1,30 @@
 import pytest
 from os import environ
 import datetime  # noqa: I251
-from typing import Any, Iterator, List, Optional, Tuple, Type, Dict, MutableMapping, Optional, Sequence, TYPE_CHECKING
+from typing import (
+    Any,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Dict,
+    MutableMapping,
+    Optional,
+    Sequence,
+    TYPE_CHECKING,
+)
 
 from dlt.common import Decimal, pendulum
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, ConfigTomlProvider, SecretsTomlProvider
+from dlt.common.configuration.providers import (
+    ConfigProvider,
+    EnvironProvider,
+    ConfigTomlProvider,
+    SecretsTomlProvider,
+)
 from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.typing import TSecretValue, StrAny
@@ -64,8 +81,8 @@ class SectionedConfiguration(BaseConfiguration):
     password: str = None
 
     if TYPE_CHECKING:
-        def __init__(self, password: str = None) -> None:
-            ...
+
+        def __init__(self, password: str = None) -> None: ...
 
 
 @pytest.fixture(scope="function")
@@ -115,7 +132,6 @@ def toml_providers() -> Iterator[ConfigProvidersContext]:
 
 
 class MockProvider(ConfigProvider):
-
     def __init__(self) -> None:
         self.value: Any = None
         self.return_value_on: Tuple[str, ...] = ()
@@ -125,9 +141,11 @@ class MockProvider(ConfigProvider):
         self.last_section: Tuple[str, ...] = None
         self.last_sections: List[Tuple[str, ...]] = []
 
-    def get_value(self, key: str, hint: Type[Any], pipeline_name: str, *sections: str) -> Tuple[Optional[Any], str]:
+    def get_value(
+        self, key: str, hint: Type[Any], pipeline_name: str, *sections: str
+    ) -> Tuple[Optional[Any], str]:
         if pipeline_name:
-            sections = (pipeline_name, ) + sections
+            sections = (pipeline_name,) + sections
         self.last_section = sections
         self.last_sections.append(sections)
         if sections == self.return_value_on:
@@ -156,27 +174,21 @@ class SecretMockProvider(MockProvider):
 
 
 COERCIONS = {
-    'str_val': 'test string',
-    'int_val': 12345,
-    'bool_val': True,
-    'list_val': [1, "2", [3]],
-    'dict_val': {
-        'a': 1,
-        "b": "2"
-    },
-    'bytes_val': b'Hello World!',
-    'float_val': 1.18927,
+    "str_val": "test string",
+    "int_val": 12345,
+    "bool_val": True,
+    "list_val": [1, "2", [3]],
+    "dict_val": {"a": 1, "b": "2"},
+    "bytes_val": b"Hello World!",
+    "float_val": 1.18927,
     "tuple_val": (1, 2, {"1": "complicated dicts allowed in literal eval"}),
-    'any_val': "function() {}",
-    'none_val': "none",
-    'COMPLEX_VAL': {
-        "_": [1440, ["*"], []],
-        "change-email": [560, ["*"], []]
-    },
+    "any_val": "function() {}",
+    "none_val": "none",
+    "COMPLEX_VAL": {"_": [1440, ["*"], []], "change-email": [560, ["*"], []]},
     "date_val": pendulum.now(),
     "dec_val": Decimal("22.38"),
     "sequence_val": ["A", "B", "KAPPA"],
     "gen_list_val": ["C", "Z", "N"],
     "mapping_val": {"FL": 1, "FR": {"1": 2}},
-    "mutable_mapping_val": {"str": "str"}
+    "mutable_mapping_val": {"str": "str"},
 }

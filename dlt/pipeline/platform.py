@@ -14,6 +14,7 @@ _THREAD_POOL: ManagedThreadPool = ManagedThreadPool(1)
 TRACE_URL_SUFFIX = "/trace"
 STATE_URL_SUFFIX = "/state"
 
+
 class TSchemaSyncPayload(TypedDict):
     pipeline_name: str
     destination_name: str
@@ -21,6 +22,7 @@ class TSchemaSyncPayload(TypedDict):
     destination_fingerprint: str
     dataset_name: str
     schemas: List[TStoredSchema]
+
 
 def _send_trace_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) -> None:
     """
@@ -36,15 +38,18 @@ def _send_trace_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) ->
             url = pipeline.runtime_config.dlthub_dsn + TRACE_URL_SUFFIX
             response = requests.put(url, data=trace_dump)
             if response.status_code != 200:
-                logger.debug(f"Failed to send trace to platform, response code: {response.status_code}")
+                logger.debug(
+                    f"Failed to send trace to platform, response code: {response.status_code}"
+                )
         except Exception as e:
             logger.debug(f"Exception while sending trace to platform: {e}")
 
     _THREAD_POOL.thread_pool.submit(_future_send)
 
-        # trace_dump = json.dumps(trace.asdict(), pretty=True)
-        # with open(f"trace.json", "w") as f:
-        #     f.write(trace_dump)
+    # trace_dump = json.dumps(trace.asdict(), pretty=True)
+    # with open(f"trace.json", "w") as f:
+    #     f.write(trace_dump)
+
 
 def _sync_schemas_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) -> None:
     if not pipeline.runtime_config.dlthub_dsn:
@@ -57,7 +62,7 @@ def _sync_schemas_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) 
             load_info = cast(LoadInfo, step.step_info)
 
     if not load_info:
-            return
+        return
 
     payload = TSchemaSyncPayload(
         pipeline_name=pipeline.pipeline_name,
@@ -65,7 +70,7 @@ def _sync_schemas_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) 
         destination_displayable_credentials=load_info.destination_displayable_credentials,
         destination_fingerprint=load_info.destination_fingerprint,
         dataset_name=load_info.dataset_name,
-        schemas=[]
+        schemas=[],
     )
 
     # attach all schemas
@@ -78,24 +83,37 @@ def _sync_schemas_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) 
             url = pipeline.runtime_config.dlthub_dsn + STATE_URL_SUFFIX
             response = requests.put(url, data=json.dumps(payload))
             if response.status_code != 200:
-                logger.debug(f"Failed to send state to platform, response code: {response.status_code}")
+                logger.debug(
+                    f"Failed to send state to platform, response code: {response.status_code}"
+                )
         except Exception as e:
             logger.debug(f"Exception while sending state to platform: {e}")
 
     _THREAD_POOL.thread_pool.submit(_future_send)
 
+
 def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
     pass
 
-def on_start_trace_step(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
+
+def on_start_trace_step(
+    trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+) -> None:
     pass
 
-def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any, send_state: bool) -> None:
+
+def on_end_trace_step(
+    trace: PipelineTrace,
+    step: PipelineStepTrace,
+    pipeline: SupportsPipeline,
+    step_info: Any,
+    send_state: bool,
+) -> None:
     pass
+
 
 def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool) -> None:
     _send_trace_to_platform(trace, pipeline)
     if send_state:
         # also sync schemas to dlthub
         _sync_schemas_to_platform(trace, pipeline)
-

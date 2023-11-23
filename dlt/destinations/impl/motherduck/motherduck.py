@@ -11,14 +11,10 @@ from dlt.destinations.impl.motherduck.configuration import MotherDuckClientConfi
 
 
 class MotherDuckClient(DuckDbClient):
-
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: MotherDuckClientConfiguration) -> None:
         super().__init__(schema, config)  # type: ignore
-        sql_client = MotherDuckSqlClient(
-            config.normalize_dataset_name(schema),
-            config.credentials
-        )
+        sql_client = MotherDuckSqlClient(config.normalize_dataset_name(schema), config.credentials)
         self.config: MotherDuckClientConfiguration = config  # type: ignore
         self.sql_client: MotherDuckSqlClient = sql_client

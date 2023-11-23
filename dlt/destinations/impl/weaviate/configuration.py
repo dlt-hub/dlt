@@ -34,20 +34,22 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     batch_retries: int = 5
 
     conn_timeout: float = 10.0
-    read_timeout: float = 3*60.0
+    read_timeout: float = 3 * 60.0
     startup_period: int = 5
 
     dataset_separator: str = "_"
 
     credentials: WeaviateCredentials
     vectorizer: str = "text2vec-openai"
-    module_config: Dict[str, Dict[str, str]] = field(default_factory=lambda: {
-        "text2vec-openai": {
-            "model": "ada",
-            "modelVersion": "002",
-            "type": "text",
+    module_config: Dict[str, Dict[str, str]] = field(
+        default_factory=lambda: {
+            "text2vec-openai": {
+                "model": "ada",
+                "modelVersion": "002",
+                "type": "text",
+            }
         }
-    })
+    )
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""

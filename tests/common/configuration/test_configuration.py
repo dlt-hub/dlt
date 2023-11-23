@@ -1,52 +1,99 @@
 import pytest
 import datetime  # noqa: I251
 from unittest.mock import patch
-from typing import Any, Dict, Final, List, Mapping, MutableMapping, NewType, Optional, Type, Union, TYPE_CHECKING
+from typing import (
+    Any,
+    Dict,
+    Final,
+    List,
+    Mapping,
+    MutableMapping,
+    NewType,
+    Optional,
+    Type,
+    Union,
+    TYPE_CHECKING,
+)
 
 from dlt.common import json, pendulum, Decimal, Wei
 from dlt.common.configuration.providers.provider import ConfigProvider
-from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentialsWithoutDefaults
+from dlt.common.configuration.specs.gcp_credentials import (
+    GcpServiceAccountCredentialsWithoutDefaults,
+)
 from dlt.common.utils import custom_environ
 from dlt.common.typing import AnyType, DictStrAny, StrAny, TSecretValue, extract_inner_type
 from dlt.common.configuration.exceptions import (
-    ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported,
-    InvalidNativeValue, LookupTrace, ValueNotSecretException, UnmatchedConfigHintResolversException
+    ConfigFieldMissingTypeHintException,
+    ConfigFieldTypeHintNotSupported,
+    InvalidNativeValue,
+    LookupTrace,
+    ValueNotSecretException,
+    UnmatchedConfigHintResolversException,
 )
-from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigValueCannotBeCoercedException, resolve, is_valid_hint, resolve_type
-from dlt.common.configuration.specs import BaseConfiguration, RunConfiguration, ConnectionStringCredentials
+from dlt.common.configuration import (
+    configspec,
+    ConfigFieldMissingException,
+    ConfigValueCannotBeCoercedException,
+    resolve,
+    is_valid_hint,
+    resolve_type,
+)
+from dlt.common.configuration.specs import (
+    BaseConfiguration,
+    RunConfiguration,
+    ConnectionStringCredentials,
+)
 from dlt.common.configuration.providers import environ as environ_provider, toml
-from dlt.common.configuration.utils import get_resolved_traces, ResolvedValueTrace, serialize_value, deserialize_value, add_config_dict_to_env, add_config_to_env
+from dlt.common.configuration.utils import (
+    get_resolved_traces,
+    ResolvedValueTrace,
+    serialize_value,
+    deserialize_value,
+    add_config_dict_to_env,
+    add_config_to_env,
+)
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import (
-    MockProvider, CoercionTestConfiguration, COERCIONS, SecretCredentials, WithCredentialsConfiguration, WrongConfiguration, SecretConfiguration,
-    SectionedConfiguration, environment, mock_provider, env_provider, reset_resolved_traces)
+    MockProvider,
+    CoercionTestConfiguration,
+    COERCIONS,
+    SecretCredentials,
+    WithCredentialsConfiguration,
+    WrongConfiguration,
+    SecretConfiguration,
+    SectionedConfiguration,
+    environment,
+    mock_provider,
+    env_provider,
+    reset_resolved_traces,
+)
 
 INVALID_COERCIONS = {
     # 'STR_VAL': 'test string',  # string always OK
-    'int_val': "a12345",
-    'bool_val': "not_bool",  # bool overridden by string - that is the most common problem
-    'list_val': {"2": 1, "3": 3.0},
-    'dict_val': "{'a': 1, 'b', '2'}",
-    'bytes_val': 'Hello World!',
-    'float_val': "invalid",
+    "int_val": "a12345",
+    "bool_val": "not_bool",  # bool overridden by string - that is the most common problem
+    "list_val": {"2": 1, "3": 3.0},
+    "dict_val": "{'a': 1, 'b', '2'}",
+    "bytes_val": "Hello World!",
+    "float_val": "invalid",
     "tuple_val": "{1:2}",
     "date_val": "01 May 2022",
-    "dec_val": True
+    "dec_val": True,
 }
 
 EXCEPTED_COERCIONS = {
     # allows to use int for float
-    'float_val': 10,
+    "float_val": 10,
     # allows to use float for str
-    'str_val': 10.0
+    "str_val": 10.0,
 }
 
 COERCED_EXCEPTIONS = {
     # allows to use int for float
-    'float_val': 10.0,
+    "float_val": 10.0,
     # allows to use float for str
-    'str_val': "10.0"
+    "str_val": "10.0",
 }
 
 
@@ -82,8 +129,8 @@ class FieldWithNoDefaultConfiguration(RunConfiguration):
     no_default: str
 
     if TYPE_CHECKING:
-        def __init__(self, no_default: str = None, sentry_dsn: str = None) -> None:
-            ...
+
+        def __init__(self, no_default: str = None, sentry_dsn: str = None) -> None: ...
 
 
 @configspec
@@ -110,8 +157,8 @@ class InstrumentedConfiguration(BaseConfiguration):
             raise RuntimeError("Head over heels")
 
     if TYPE_CHECKING:
-        def __init__(self, head: str = None, tube: List[str] = None, heels: str = None) -> None:
-            ...
+
+        def __init__(self, head: str = None, tube: List[str] = None, heels: str = None) -> None: ...
 
 
 @configspec
@@ -121,8 +168,13 @@ class EmbeddedConfiguration(BaseConfiguration):
     sectioned: SectionedConfiguration
 
     if TYPE_CHECKING:
-        def __init__(self, default: str = None, instrumented: InstrumentedConfiguration = None, sectioned: SectionedConfiguration = None) -> None:
-            ...
+
+        def __init__(
+            self,
+            default: str = None,
+            instrumented: InstrumentedConfiguration = None,
+            sectioned: SectionedConfiguration = None,
+        ) -> None: ...
 
 
 @configspec
@@ -162,26 +214,26 @@ class ConfigWithDynamicType(BaseConfiguration):
     discriminator: str
     embedded_config: BaseConfiguration
 
-    @resolve_type('embedded_config')
+    @resolve_type("embedded_config")
     def resolve_embedded_type(self) -> Type[BaseConfiguration]:
-        if self.discriminator == 'a':
+        if self.discriminator == "a":
             return DynamicConfigA
-        elif self.discriminator == 'b':
+        elif self.discriminator == "b":
             return DynamicConfigB
         return BaseConfiguration
 
 
 @configspec
 class ConfigWithInvalidDynamicType(BaseConfiguration):
-    @resolve_type('a')
+    @resolve_type("a")
     def resolve_a_type(self) -> Type[BaseConfiguration]:
         return DynamicConfigA
 
-    @resolve_type('b')
+    @resolve_type("b")
     def resolve_b_type(self) -> Type[BaseConfiguration]:
         return DynamicConfigB
 
-    @resolve_type('c')
+    @resolve_type("c")
     def resolve_c_type(self) -> Type[BaseConfiguration]:
         return DynamicConfigC
 
@@ -191,13 +243,13 @@ class SubclassConfigWithDynamicType(ConfigWithDynamicType):
     is_number: bool
     dynamic_type_field: Any
 
-    @resolve_type('embedded_config')
+    @resolve_type("embedded_config")
     def resolve_embedded_type(self) -> Type[BaseConfiguration]:
-        if self.discriminator == 'c':
+        if self.discriminator == "c":
             return DynamicConfigC
         return super().resolve_embedded_type()
 
-    @resolve_type('dynamic_type_field')
+    @resolve_type("dynamic_type_field")
     def resolve_dynamic_type_field(self) -> Type[Union[int, str]]:
         if self.is_number:
             return int
@@ -221,7 +273,9 @@ def test_initial_config_state() -> None:
 
 def test_set_default_config_value(environment: Any) -> None:
     # set from init method
-    c = resolve.resolve_configuration(InstrumentedConfiguration(head="h", tube=["a", "b"], heels="he"))
+    c = resolve.resolve_configuration(
+        InstrumentedConfiguration(head="h", tube=["a", "b"], heels="he")
+    )
     assert c.to_native_representation() == "h>a>b>he"
     # set from native form
     c = resolve.resolve_configuration(InstrumentedConfiguration(), explicit_value="h>a>b>he")
@@ -229,7 +283,10 @@ def test_set_default_config_value(environment: Any) -> None:
     assert c.tube == ["a", "b"]
     assert c.heels == "he"
     # set from dictionary
-    c = resolve.resolve_configuration(InstrumentedConfiguration(), explicit_value={"head": "h", "tube": ["tu", "be"], "heels": "xhe"})
+    c = resolve.resolve_configuration(
+        InstrumentedConfiguration(),
+        explicit_value={"head": "h", "tube": ["tu", "be"], "heels": "xhe"},
+    )
     assert c.to_native_representation() == "h>tu>be>xhe"
 
 
@@ -238,9 +295,14 @@ def test_explicit_values(environment: Any) -> None:
     environment["PIPELINE_NAME"] = "env name"
     environment["CREATED_VAL"] = "12837"
     # set explicit values and allow partial config
-    c = resolve.resolve_configuration(CoercionTestConfiguration(),
-        explicit_value={"pipeline_name": "initial name", "none_val": type(environment), "bytes_val": b"str"},
-        accept_partial=True
+    c = resolve.resolve_configuration(
+        CoercionTestConfiguration(),
+        explicit_value={
+            "pipeline_name": "initial name",
+            "none_val": type(environment),
+            "bytes_val": b"str",
+        },
+        accept_partial=True,
     )
     # explicit
     assert c.pipeline_name == "initial name"
@@ -249,13 +311,17 @@ def test_explicit_values(environment: Any) -> None:
     assert c.none_val == type(environment)
 
     # unknown field in explicit value dict is ignored
-    c = resolve.resolve_configuration(CoercionTestConfiguration(), explicit_value={"created_val": "3343"}, accept_partial=True)
+    c = resolve.resolve_configuration(
+        CoercionTestConfiguration(), explicit_value={"created_val": "3343"}, accept_partial=True
+    )
     assert "created_val" not in c
 
 
 def test_explicit_values_false_when_bool() -> None:
     # values like 0, [], "" all coerce to bool False
-    c = resolve.resolve_configuration(InstrumentedConfiguration(), explicit_value={"head": "", "tube": [], "heels": ""})
+    c = resolve.resolve_configuration(
+        InstrumentedConfiguration(), explicit_value={"head": "", "tube": [], "heels": ""}
+    )
     assert c.head == ""
     assert c.tube == []
     assert c.heels == ""
@@ -280,7 +346,6 @@ def test_default_values(environment: Any) -> None:
 
 
 def test_raises_on_final_value_change(environment: Any) -> None:
-
     @configspec
     class FinalConfiguration(BaseConfiguration):
         pipeline_name: Final[str] = "comp"
@@ -313,7 +378,10 @@ def test_explicit_native_always_skips_resolve(environment: Any) -> None:
 
         # explicit representation
         environment["INS"] = "h>a>b>he"
-        c = resolve.resolve_configuration(InstrumentedConfiguration(), explicit_value={"head": "h", "tube": ["tu", "be"], "heels": "uhe"})
+        c = resolve.resolve_configuration(
+            InstrumentedConfiguration(),
+            explicit_value={"head": "h", "tube": ["tu", "be"], "heels": "uhe"},
+        )
         assert c.heels == "uhe"
 
         # also the native explicit value
@@ -336,7 +404,10 @@ def test_skip_lookup_native_config_value_if_no_config_section(environment: Any) 
     # the INSTRUMENTED is not looked up because InstrumentedConfiguration has no section
     with custom_environ({"INSTRUMENTED": "he>tu>u>be>h"}):
         with pytest.raises(ConfigFieldMissingException) as py_ex:
-            resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "sectioned": {"password": "pwd"}})
+            resolve.resolve_configuration(
+                EmbeddedConfiguration(),
+                explicit_value={"default": "set", "sectioned": {"password": "pwd"}},
+            )
         assert py_ex.value.spec_name == "InstrumentedConfiguration"
         assert py_ex.value.fields == ["head", "tube", "heels"]
 
@@ -360,14 +431,28 @@ def test_on_resolved(environment: Any) -> None:
 
 def test_embedded_config(environment: Any) -> None:
     # resolve all embedded config, using explicit value for instrumented config and explicit dict for sectioned config
-    C = resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "instrumented": "h>tu>be>xhe", "sectioned": {"password": "pwd"}})
+    C = resolve.resolve_configuration(
+        EmbeddedConfiguration(),
+        explicit_value={
+            "default": "set",
+            "instrumented": "h>tu>be>xhe",
+            "sectioned": {"password": "pwd"},
+        },
+    )
     assert C.default == "set"
     assert C.instrumented.to_native_representation() == "h>tu>be>xhe"
     assert C.sectioned.password == "pwd"
 
     # resolve but providing values via env
     with custom_environ(
-            {"INSTRUMENTED__HEAD": "h", "INSTRUMENTED__TUBE": '["tu", "u", "be"]', "INSTRUMENTED__HEELS": "xhe", "SECTIONED__PASSWORD": "passwd", "DEFAULT": "DEF"}):
+        {
+            "INSTRUMENTED__HEAD": "h",
+            "INSTRUMENTED__TUBE": '["tu", "u", "be"]',
+            "INSTRUMENTED__HEELS": "xhe",
+            "SECTIONED__PASSWORD": "passwd",
+            "DEFAULT": "DEF",
+        }
+    ):
         C = resolve.resolve_configuration(EmbeddedConfiguration())
         assert C.default == "DEF"
         assert C.instrumented.to_native_representation() == "h>tu>u>be>xhe"
@@ -391,11 +476,23 @@ def test_embedded_config(environment: Any) -> None:
     with patch.object(InstrumentedConfiguration, "__section__", "instrumented"):
         with custom_environ({"INSTRUMENTED": "he>tu>u>be>h"}):
             with pytest.raises(RuntimeError):
-                resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "sectioned": {"password": "pwd"}})
+                resolve.resolve_configuration(
+                    EmbeddedConfiguration(),
+                    explicit_value={"default": "set", "sectioned": {"password": "pwd"}},
+                )
 
     # part via env part via explicit values
-    with custom_environ({"INSTRUMENTED__HEAD": "h", "INSTRUMENTED__TUBE": '["tu", "u", "be"]', "INSTRUMENTED__HEELS": "xhe"}):
-        C = resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "sectioned": {"password": "pwd"}})
+    with custom_environ(
+        {
+            "INSTRUMENTED__HEAD": "h",
+            "INSTRUMENTED__TUBE": '["tu", "u", "be"]',
+            "INSTRUMENTED__HEELS": "xhe",
+        }
+    ):
+        C = resolve.resolve_configuration(
+            EmbeddedConfiguration(),
+            explicit_value={"default": "set", "sectioned": {"password": "pwd"}},
+        )
         assert C.instrumented.to_native_representation() == "h>tu>u>be>xhe"
 
 
@@ -404,7 +501,11 @@ def test_embedded_explicit_value_over_provider(environment: Any) -> None:
     with patch.object(InstrumentedConfiguration, "__section__", "instrumented"):
         with custom_environ({"INSTRUMENTED": "h>tu>u>be>he"}):
             # explicit value over the env
-            c = resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"instrumented": "h>tu>be>xhe"}, accept_partial=True)
+            c = resolve.resolve_configuration(
+                EmbeddedConfiguration(),
+                explicit_value={"instrumented": "h>tu>be>xhe"},
+                accept_partial=True,
+            )
             assert c.instrumented.to_native_representation() == "h>tu>be>xhe"
             # parent configuration is not resolved
             assert not c.is_resolved()
@@ -421,7 +522,9 @@ def test_provider_values_over_embedded_default(environment: Any) -> None:
         with custom_environ({"INSTRUMENTED": "h>tu>u>be>he"}):
             # read from env - over the default values
             InstrumentedConfiguration().parse_native_representation("h>tu>be>xhe")
-            c = resolve.resolve_configuration(EmbeddedConfiguration(instrumented=None), accept_partial=True)
+            c = resolve.resolve_configuration(
+                EmbeddedConfiguration(instrumented=None), accept_partial=True
+            )
             assert c.instrumented.to_native_representation() == "h>tu>u>be>he"
             # parent configuration is not resolved
             assert not c.is_resolved()
@@ -438,31 +541,31 @@ def test_run_configuration_gen_name(environment: Any) -> None:
 
 
 def test_configuration_is_mutable_mapping(environment: Any, env_provider: ConfigProvider) -> None:
-
     @configspec
     class _SecretCredentials(RunConfiguration):
         pipeline_name: Optional[str] = "secret"
         secret_value: TSecretValue = None
         config_files_storage_path: str = "storage"
 
-
     # configurations provide full MutableMapping support
     # here order of items in dict matters
     expected_dict = {
-        'pipeline_name': 'secret',
-        'sentry_dsn': None,
-        'slack_incoming_hook': None,
-        'dlthub_telemetry': True,
-        'dlthub_telemetry_segment_write_key': 'TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB',
-        'log_format': '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}',
-        'log_level': 'WARNING',
-        'request_timeout': 60,
-        'request_max_attempts': 5,
-        'request_backoff_factor': 1,
-        'request_max_retry_delay': 300,
-        'config_files_storage_path': 'storage',
-        'dlthub_dsn': None,
-        "secret_value": None
+        "pipeline_name": "secret",
+        "sentry_dsn": None,
+        "slack_incoming_hook": None,
+        "dlthub_telemetry": True,
+        "dlthub_telemetry_segment_write_key": "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB",
+        "log_format": (
+            "{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}"
+        ),
+        "log_level": "WARNING",
+        "request_timeout": 60,
+        "request_max_attempts": 5,
+        "request_backoff_factor": 1,
+        "request_max_retry_delay": 300,
+        "config_files_storage_path": "storage",
+        "dlthub_dsn": None,
+        "secret_value": None,
     }
     assert dict(_SecretCredentials()) == expected_dict
 
@@ -526,9 +629,10 @@ def test_init_method_gen(environment: Any) -> None:
 
 
 def test_multi_derivation_defaults(environment: Any) -> None:
-
     @configspec
-    class MultiConfiguration(SectionedConfiguration, MockProdConfiguration, ConfigurationWithOptionalTypes):
+    class MultiConfiguration(
+        SectionedConfiguration, MockProdConfiguration, ConfigurationWithOptionalTypes
+    ):
         pass
 
     # apparently dataclasses set default in reverse mro so MockProdConfiguration overwrites
@@ -565,12 +669,19 @@ def test_raises_on_many_unresolved_fields(environment: Any, env_provider: Config
         resolve.resolve_configuration(CoercionTestConfiguration())
     assert cf_missing_exc.value.spec_name == "CoercionTestConfiguration"
     # get all fields that must be set
-    val_fields = [f for f in CoercionTestConfiguration().get_resolvable_fields() if f.lower().endswith("_val")]
+    val_fields = [
+        f for f in CoercionTestConfiguration().get_resolvable_fields() if f.lower().endswith("_val")
+    ]
     traces = cf_missing_exc.value.traces
     assert len(traces) == len(val_fields)
     for tr_field, exp_field in zip(traces, val_fields):
         assert len(traces[tr_field]) == 1
-        assert traces[tr_field][0] == LookupTrace("Environment Variables", [], environ_provider.EnvironProvider.get_key_name(exp_field), None)
+        assert traces[tr_field][0] == LookupTrace(
+            "Environment Variables",
+            [],
+            environ_provider.EnvironProvider.get_key_name(exp_field),
+            None,
+        )
         # assert traces[tr_field][1] == LookupTrace("secrets.toml", [], toml.TomlFileProvider.get_key_name(exp_field), None)
         # assert traces[tr_field][2] == LookupTrace("config.toml", [], toml.TomlFileProvider.get_key_name(exp_field), None)
 
@@ -582,7 +693,9 @@ def test_accepts_optional_missing_fields(environment: Any) -> None:
     # make optional config
     resolve.resolve_configuration(ConfigurationWithOptionalTypes())
     # make config with optional values
-    resolve.resolve_configuration(ProdConfigurationWithOptionalTypes(), explicit_value={"int_val": None})
+    resolve.resolve_configuration(
+        ProdConfigurationWithOptionalTypes(), explicit_value={"int_val": None}
+    )
     # make config with optional embedded config
     C2 = resolve.resolve_configuration(EmbeddedOptionalConfiguration())
     # embedded config was not fully resolved
@@ -592,14 +705,18 @@ def test_accepts_optional_missing_fields(environment: Any) -> None:
 def test_find_all_keys() -> None:
     keys = VeryWrongConfiguration().get_resolvable_fields()
     # assert hints and types: LOG_COLOR had it hint overwritten in derived class
-    assert set({'str_val': str, 'int_val': int, 'NoneConfigVar': str, 'log_color': str}.items()).issubset(keys.items())
+    assert set(
+        {"str_val": str, "int_val": int, "NoneConfigVar": str, "log_color": str}.items()
+    ).issubset(keys.items())
 
 
 def test_coercion_to_hint_types(environment: Any) -> None:
     add_config_dict_to_env(COERCIONS)
 
     C = CoercionTestConfiguration()
-    resolve._resolve_config_fields(C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False)
+    resolve._resolve_config_fields(
+        C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False
+    )
 
     for key in COERCIONS:
         assert getattr(C, key) == COERCIONS[key]
@@ -660,7 +777,13 @@ def test_invalid_coercions(environment: Any) -> None:
     add_config_dict_to_env(INVALID_COERCIONS)
     for key, value in INVALID_COERCIONS.items():
         try:
-            resolve._resolve_config_fields(C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False)
+            resolve._resolve_config_fields(
+                C,
+                explicit_values=None,
+                explicit_sections=(),
+                embedded_sections=(),
+                accept_partial=False,
+            )
         except ConfigValueCannotBeCoercedException as coerc_exc:
             # must fail exactly on expected value
             if coerc_exc.field_name != key:
@@ -675,7 +798,9 @@ def test_excepted_coercions(environment: Any) -> None:
     C = CoercionTestConfiguration()
     add_config_dict_to_env(COERCIONS)
     add_config_dict_to_env(EXCEPTED_COERCIONS, overwrite_keys=True)
-    resolve._resolve_config_fields(C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False)
+    resolve._resolve_config_fields(
+        C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False
+    )
     for key in EXCEPTED_COERCIONS:
         assert getattr(C, key) == COERCED_EXCEPTIONS[key]
 
@@ -687,6 +812,7 @@ def test_config_with_unsupported_types_in_hints(environment: Any) -> None:
         class InvalidHintConfiguration(BaseConfiguration):
             tuple_val: tuple = None  # type: ignore
             set_val: set = None  # type: ignore
+
         InvalidHintConfiguration()
 
 
@@ -696,6 +822,7 @@ def test_config_with_no_hints(environment: Any) -> None:
         @configspec
         class NoHintConfiguration(BaseConfiguration):
             tuple_val = None
+
         NoHintConfiguration()
 
 
@@ -704,8 +831,8 @@ def test_config_with_non_templated_complex_hints(environment: Any) -> None:
     environment["TUPLE_VAL"] = "(1,2,3)"
     environment["DICT_VAL"] = '{"a": 1}'
     c = resolve.resolve_configuration(NonTemplatedComplexTypesConfiguration())
-    assert c.list_val == [1,2,3]
-    assert c.tuple_val == (1,2,3)
+    assert c.list_val == [1, 2, 3]
+    assert c.tuple_val == (1, 2, 3)
     assert c.dict_val == {"a": 1}
 
 
@@ -719,7 +846,7 @@ def test_resolve_configuration(environment: Any) -> None:
 
 def test_dataclass_instantiation(environment: Any) -> None:
     # resolve_configuration works on instances of dataclasses and types are not modified
-    environment['SECRET_VALUE'] = "1"
+    environment["SECRET_VALUE"] = "1"
     C = resolve.resolve_configuration(SecretConfiguration())
     # auto derived type holds the value
     assert C.secret_value == "1"
@@ -779,14 +906,13 @@ def test_is_valid_hint() -> None:
 
 
 def test_configspec_auto_base_config_derivation() -> None:
-
     @configspec
     class AutoBaseDerivationConfiguration:
         auto: str
 
         if TYPE_CHECKING:
-            def __init__(self, auto: str=None) -> None:
-                ...
+
+            def __init__(self, auto: str = None) -> None: ...
 
     assert issubclass(AutoBaseDerivationConfiguration, BaseConfiguration)
     assert hasattr(AutoBaseDerivationConfiguration, "auto")
@@ -874,30 +1000,59 @@ def test_last_resolve_exception(environment: Any) -> None:
 
 def test_resolved_trace(environment: Any) -> None:
     with custom_environ(
-            {"INSTRUMENTED__HEAD": "h", "INSTRUMENTED__TUBE": '["tu", "u", "be"]', "INSTRUMENTED__HEELS": "xhe", "SECTIONED__PASSWORD": "passwd", "DEFAULT": "DEF"}):
+        {
+            "INSTRUMENTED__HEAD": "h",
+            "INSTRUMENTED__TUBE": '["tu", "u", "be"]',
+            "INSTRUMENTED__HEELS": "xhe",
+            "SECTIONED__PASSWORD": "passwd",
+            "DEFAULT": "DEF",
+        }
+    ):
         c = resolve.resolve_configuration(EmbeddedConfiguration(default="_DEFF"))
     traces = get_resolved_traces()
     prov_name = environ_provider.EnvironProvider().name
-    assert traces[".default"] == ResolvedValueTrace("default", "DEF", "_DEFF", str, [], prov_name, c)
-    assert traces["instrumented.head"] == ResolvedValueTrace("head", "h", None, str, ["instrumented"], prov_name, c.instrumented)
+    assert traces[".default"] == ResolvedValueTrace(
+        "default", "DEF", "_DEFF", str, [], prov_name, c
+    )
+    assert traces["instrumented.head"] == ResolvedValueTrace(
+        "head", "h", None, str, ["instrumented"], prov_name, c.instrumented
+    )
     # value is before casting
-    assert traces["instrumented.tube"] == ResolvedValueTrace("tube", '["tu", "u", "be"]', None, List[str], ["instrumented"], prov_name, c.instrumented)
-    assert deserialize_value("tube", traces["instrumented.tube"].value, resolve.extract_inner_hint(List[str])) == ["tu", "u", "be"]
-    assert traces["instrumented.heels"] == ResolvedValueTrace("heels", "xhe", None, str, ["instrumented"], prov_name, c.instrumented)
-    assert traces["sectioned.password"] == ResolvedValueTrace("password", "passwd", None, str, ["sectioned"], prov_name, c.sectioned)
+    assert traces["instrumented.tube"] == ResolvedValueTrace(
+        "tube", '["tu", "u", "be"]', None, List[str], ["instrumented"], prov_name, c.instrumented
+    )
+    assert deserialize_value(
+        "tube", traces["instrumented.tube"].value, resolve.extract_inner_hint(List[str])
+    ) == ["tu", "u", "be"]
+    assert traces["instrumented.heels"] == ResolvedValueTrace(
+        "heels", "xhe", None, str, ["instrumented"], prov_name, c.instrumented
+    )
+    assert traces["sectioned.password"] == ResolvedValueTrace(
+        "password", "passwd", None, str, ["sectioned"], prov_name, c.sectioned
+    )
     assert len(traces) == 5
 
     # try to get native representation
     with patch.object(InstrumentedConfiguration, "__section__", "snake"):
         with custom_environ(
-                {"INSTRUMENTED": "h>t>t>t>he", "SECTIONED__PASSWORD": "pass", "DEFAULT": "UNDEF", "SNAKE": "h>t>t>t>he"}):
+            {
+                "INSTRUMENTED": "h>t>t>t>he",
+                "SECTIONED__PASSWORD": "pass",
+                "DEFAULT": "UNDEF",
+                "SNAKE": "h>t>t>t>he",
+            }
+        ):
             c = resolve.resolve_configuration(EmbeddedConfiguration())
             resolve.resolve_configuration(InstrumentedConfiguration())
 
     assert traces[".default"] == ResolvedValueTrace("default", "UNDEF", None, str, [], prov_name, c)
-    assert traces[".instrumented"] == ResolvedValueTrace("instrumented", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, c)
+    assert traces[".instrumented"] == ResolvedValueTrace(
+        "instrumented", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, c
+    )
 
-    assert traces[".snake"] == ResolvedValueTrace("snake", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, None)
+    assert traces[".snake"] == ResolvedValueTrace(
+        "snake", "h>t>t>t>he", None, InstrumentedConfiguration, [], prov_name, None
+    )
 
 
 def test_extract_inner_hint() -> None:
@@ -945,49 +1100,47 @@ def coerce_single_value(key: str, value: str, hint: Type[Any]) -> Any:
 
 
 def test_dynamic_type_hint(environment: Dict[str, str]) -> None:
-    """Test dynamic type hint using @resolve_type decorator
-    """
-    environment['DUMMY__DISCRIMINATOR'] = 'b'
-    environment['DUMMY__EMBEDDED_CONFIG__FIELD_FOR_B'] = 'some_value'
+    """Test dynamic type hint using @resolve_type decorator"""
+    environment["DUMMY__DISCRIMINATOR"] = "b"
+    environment["DUMMY__EMBEDDED_CONFIG__FIELD_FOR_B"] = "some_value"
 
-    config = resolve.resolve_configuration(ConfigWithDynamicType(), sections=('dummy', ))
+    config = resolve.resolve_configuration(ConfigWithDynamicType(), sections=("dummy",))
 
     assert isinstance(config.embedded_config, DynamicConfigB)
-    assert config.embedded_config.field_for_b == 'some_value'
+    assert config.embedded_config.field_for_b == "some_value"
 
 
 def test_dynamic_type_hint_subclass(environment: Dict[str, str]) -> None:
-    """Test overriding @resolve_type method in subclass
-    """
-    environment['DUMMY__IS_NUMBER'] = 'true'
-    environment['DUMMY__DYNAMIC_TYPE_FIELD'] = '22'
+    """Test overriding @resolve_type method in subclass"""
+    environment["DUMMY__IS_NUMBER"] = "true"
+    environment["DUMMY__DYNAMIC_TYPE_FIELD"] = "22"
 
     # Test extended resolver method is applied
-    environment['DUMMY__DISCRIMINATOR'] = 'c'
-    environment['DUMMY__EMBEDDED_CONFIG__FIELD_FOR_C'] = 'some_value'
+    environment["DUMMY__DISCRIMINATOR"] = "c"
+    environment["DUMMY__EMBEDDED_CONFIG__FIELD_FOR_C"] = "some_value"
 
-    config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=('dummy', ))
+    config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=("dummy",))
 
     assert isinstance(config.embedded_config, DynamicConfigC)
-    assert config.embedded_config.field_for_c == 'some_value'
+    assert config.embedded_config.field_for_c == "some_value"
 
     # Test super() call is applied correctly
-    environment['DUMMY__DISCRIMINATOR'] = 'b'
-    environment['DUMMY__EMBEDDED_CONFIG__FIELD_FOR_B'] = 'some_value'
+    environment["DUMMY__DISCRIMINATOR"] = "b"
+    environment["DUMMY__EMBEDDED_CONFIG__FIELD_FOR_B"] = "some_value"
 
-    config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=('dummy', ))
+    config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=("dummy",))
 
     assert isinstance(config.embedded_config, DynamicConfigB)
-    assert config.embedded_config.field_for_b == 'some_value'
+    assert config.embedded_config.field_for_b == "some_value"
 
     # Test second dynamic field added in subclass
-    environment['DUMMY__IS_NUMBER'] = 'true'
-    environment['DUMMY__DYNAMIC_TYPE_FIELD'] = 'some'
+    environment["DUMMY__IS_NUMBER"] = "true"
+    environment["DUMMY__DYNAMIC_TYPE_FIELD"] = "some"
 
     with pytest.raises(ConfigValueCannotBeCoercedException) as e:
-        config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=('dummy', ))
+        config = resolve.resolve_configuration(SubclassConfigWithDynamicType(), sections=("dummy",))
 
-    assert e.value.field_name == 'dynamic_type_field'
+    assert e.value.field_name == "dynamic_type_field"
     assert e.value.hint == int
 
 
@@ -1006,31 +1159,49 @@ def test_add_config_to_env(environment: Dict[str, str]) -> None:
         EmbeddedConfiguration(
             instrumented="h>tu>u>be>he",  # type: ignore[arg-type]
             sectioned=SectionedConfiguration(password="PASS"),
-            default="BUBA")
+            default="BUBA",
+        )
     )
-    add_config_to_env(c, ("dlt", ))
+    add_config_to_env(c, ("dlt",))
     # must contain dlt prefix everywhere, INSTRUMENTED section taken from key and DLT_TEST taken from password
-    assert environment.items() >= {
-        'DLT__DEFAULT': 'BUBA',
-        'DLT__INSTRUMENTED__HEAD': 'h', 'DLT__INSTRUMENTED__TUBE': '["tu","u","be"]', 'DLT__INSTRUMENTED__HEELS': 'he',
-        'DLT__DLT_TEST__PASSWORD': 'PASS'
-    }.items()
+    assert (
+        environment.items()
+        >= {
+            "DLT__DEFAULT": "BUBA",
+            "DLT__INSTRUMENTED__HEAD": "h",
+            "DLT__INSTRUMENTED__TUBE": '["tu","u","be"]',
+            "DLT__INSTRUMENTED__HEELS": "he",
+            "DLT__DLT_TEST__PASSWORD": "PASS",
+        }.items()
+    )
     # no dlt
     environment.clear()
     add_config_to_env(c)
-    assert environment.items() == {
-        'DEFAULT': 'BUBA',
-        'INSTRUMENTED__HEAD': 'h', 'INSTRUMENTED__TUBE': '["tu","u","be"]', 'INSTRUMENTED__HEELS': 'he',
-        'DLT_TEST__PASSWORD': 'PASS'
-    }.items()
+    assert (
+        environment.items()
+        == {
+            "DEFAULT": "BUBA",
+            "INSTRUMENTED__HEAD": "h",
+            "INSTRUMENTED__TUBE": '["tu","u","be"]',
+            "INSTRUMENTED__HEELS": "he",
+            "DLT_TEST__PASSWORD": "PASS",
+        }.items()
+    )
     # starts with sectioned
     environment.clear()
     add_config_to_env(c.sectioned)
-    assert environment == {'DLT_TEST__PASSWORD': 'PASS'}
+    assert environment == {"DLT_TEST__PASSWORD": "PASS"}
 
 
 def test_configuration_copy() -> None:
-    c = resolve.resolve_configuration(EmbeddedConfiguration(), explicit_value={"default": "set", "instrumented": "h>tu>be>xhe", "sectioned": {"password": "pwd"}})
+    c = resolve.resolve_configuration(
+        EmbeddedConfiguration(),
+        explicit_value={
+            "default": "set",
+            "instrumented": "h>tu>be>xhe",
+            "sectioned": {"password": "pwd"},
+        },
+    )
     assert c.is_resolved()
     copy_c = c.copy()
     assert copy_c.is_resolved()
@@ -1043,7 +1214,9 @@ def test_configuration_copy() -> None:
     cred.parse_native_representation("postgresql://loader:loader@localhost:5432/dlt_data")
     copy_cred = cred.copy()
     assert dict(copy_cred) == dict(cred)
-    assert copy_cred.to_native_representation() == "postgresql://loader:loader@localhost:5432/dlt_data"
+    assert (
+        copy_cred.to_native_representation() == "postgresql://loader:loader@localhost:5432/dlt_data"
+    )
     # resolve the copy
     assert not copy_cred.is_resolved()
     resolved_cred_copy = c = resolve.resolve_configuration(copy_cred)  # type: ignore[assignment]
@@ -1051,7 +1224,6 @@ def test_configuration_copy() -> None:
 
 
 def test_configuration_with_configuration_as_default() -> None:
-
     instrumented_default = InstrumentedConfiguration()
     instrumented_default.parse_native_representation("h>a>b>he")
     cred = ConnectionStringCredentials()

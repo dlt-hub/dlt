@@ -10,7 +10,6 @@ if t.TYPE_CHECKING:
 
 
 class filesystem(Destination[FilesystemDestinationClientConfiguration, "FilesystemClient"]):
-
     spec = FilesystemDestinationClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:

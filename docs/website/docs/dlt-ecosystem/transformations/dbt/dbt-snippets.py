@@ -10,11 +10,14 @@ def run_dbt_standalone_snippet() -> None:
         working_dir=".",  # the package below will be cloned to current dir
         package_location="https://github.com/dbt-labs/jaffle_shop.git",
         package_profiles_dir=os.path.abspath("."),  # profiles.yml must be placed in this dir
-        package_profile_name="duckdb_dlt_dbt_test"  # name of the profile
+        package_profile_name="duckdb_dlt_dbt_test",  # name of the profile
     )
 
     models = runner.run_all()
     # @@@DLT_SNIPPET_END run_dbt_standalone
 
     for m in models:
-        print(f"Model {m.model_name} materialized in {m.time} with status {m.status} and message {m.message}")
+        print(
+            f"Model {m.model_name} materialized in {m.time} with status {m.status} and message"
+            f" {m.message}"
+        )

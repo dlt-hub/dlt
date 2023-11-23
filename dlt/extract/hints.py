@@ -2,14 +2,29 @@ from copy import copy, deepcopy
 from typing import List, TypedDict, cast, Any
 
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
-from dlt.common.schema.typing import TColumnNames, TColumnProp, TColumnSchema, TPartialTableSchema, TTableSchema, TTableSchemaColumns, TWriteDisposition, TAnySchemaColumns, TTableFormat, TSchemaContract
+from dlt.common.schema.typing import (
+    TColumnNames,
+    TColumnProp,
+    TColumnSchema,
+    TPartialTableSchema,
+    TTableSchema,
+    TTableSchemaColumns,
+    TWriteDisposition,
+    TAnySchemaColumns,
+    TTableFormat,
+    TSchemaContract,
+)
 from dlt.common.typing import TDataItem
 from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
 
 from dlt.extract.incremental import Incremental
 from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate, ValidateItem
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, InconsistentTableTemplate, TableNameMissing
+from dlt.extract.exceptions import (
+    DataItemRequiredForDynamicTableHints,
+    InconsistentTableTemplate,
+    TableNameMissing,
+)
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
 
@@ -48,7 +63,11 @@ class DltResourceHints:
         if self._table_name_hint_fun:
             return self._table_name_hint_fun
         # get table name or default name
-        return self._table_schema_template.get("name") or self.name if self._table_schema_template else self.name
+        return (
+            self._table_schema_template.get("name") or self.name
+            if self._table_schema_template
+            else self.name
+        )
 
     @table_name.setter
     def table_name(self, value: TTableHintTemplate[str]) -> None:
@@ -56,7 +75,10 @@ class DltResourceHints:
 
     @property
     def write_disposition(self) -> TTableHintTemplate[TWriteDisposition]:
-        if self._table_schema_template is None or self._table_schema_template.get("write_disposition") is None:
+        if (
+            self._table_schema_template is None
+            or self._table_schema_template.get("write_disposition") is None
+        ):
             return DEFAULT_WRITE_DISPOSITION
         return self._table_schema_template.get("write_disposition")
 
@@ -75,7 +97,7 @@ class DltResourceHints:
     def schema_contract(self) -> TTableHintTemplate[TSchemaContract]:
         return self._table_schema_template.get("schema_contract")
 
-    def compute_table_schema(self, item: TDataItem =  None) -> TTableSchema:
+    def compute_table_schema(self, item: TDataItem = None) -> TTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation. `item` parameter is used to resolve table hints based on data"""
         if not self._table_schema_template:
             return new_table(self.name, resource=self.name)
@@ -113,20 +135,28 @@ class DltResourceHints:
     ) -> None:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 
-           This method accepts the same table hints arguments as `dlt.resource` decorator with the following additions.
-           Skip the argument or pass None to leave the existing hint.
-           Pass empty value (for particular type ie "" for a string) to remove hint
+        This method accepts the same table hints arguments as `dlt.resource` decorator with the following additions.
+        Skip the argument or pass None to leave the existing hint.
+        Pass empty value (for particular type ie "" for a string) to remove hint
 
-           parent_table_name (str, optional): A name of parent table if foreign relation is defined. Please note that if you use merge you must define `root_key` columns explicitly
-           incremental (Incremental, optional): Enables the incremental loading for a resource.
+        parent_table_name (str, optional): A name of parent table if foreign relation is defined. Please note that if you use merge you must define `root_key` columns explicitly
+        incremental (Incremental, optional): Enables the incremental loading for a resource.
 
-           Please note that for efficient incremental loading, the resource must be aware of the Incremental by accepting it as one if its arguments and then using is to skip already loaded data.
-           In non-aware resources, `dlt` will filter out the loaded values, however the resource will yield all the values again.
+        Please note that for efficient incremental loading, the resource must be aware of the Incremental by accepting it as one if its arguments and then using is to skip already loaded data.
+        In non-aware resources, `dlt` will filter out the loaded values, however the resource will yield all the values again.
         """
         t = None
         if not self._table_schema_template:
             # if there's no template yet, create and set new one
-            t = self.new_table_template(table_name, parent_table_name, write_disposition, columns, primary_key, merge_key, schema_contract)
+            t = self.new_table_template(
+                table_name,
+                parent_table_name,
+                write_disposition,
+                columns,
+                primary_key,
+                merge_key,
+                schema_contract,
+            )
         else:
             # set single hints
             t = self._clone_table_template(self._table_schema_template)
@@ -173,7 +203,9 @@ class DltResourceHints:
                     t.pop("schema_contract", None)
             # recreate validator if columns definition or contract changed
             if schema_contract is not None or columns is not None:
-                t["validator"], schema_contract = create_item_validator(t.get("original_columns"), t.get("schema_contract"))
+                t["validator"], schema_contract = create_item_validator(
+                    t.get("original_columns"), t.get("schema_contract")
+                )
                 if schema_contract is not None:
                     t["schema_contract"] = schema_contract
 
@@ -194,7 +226,9 @@ class DltResourceHints:
         else:
             self._table_name_hint_fun = None
         # check if any other hints in the table template should be inferred from data
-        self._table_has_other_dynamic_hints = any(callable(v) for k, v in table_schema_template.items() if k != "name")
+        self._table_has_other_dynamic_hints = any(
+            callable(v) for k, v in table_schema_template.items() if k != "name"
+        )
         self._table_schema_template = table_schema_template
 
     @staticmethod
@@ -246,7 +280,7 @@ class DltResourceHints:
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
-        table_format: TTableHintTemplate[TTableFormat] = None
+        table_format: TTableHintTemplate[TTableFormat] = None,
     ) -> TTableSchemaTemplate:
         validator, schema_contract = create_item_validator(columns, schema_contract)
         clean_columns = columns
@@ -261,7 +295,7 @@ class DltResourceHints:
             write_disposition=write_disposition,  # type: ignore
             columns=clean_columns,  # type: ignore
             schema_contract=schema_contract,  # type: ignore
-            table_format=table_format  # type: ignore
+            table_format=table_format,  # type: ignore
         )
         if not table_name:
             new_template.pop("name")
@@ -283,5 +317,11 @@ class DltResourceHints:
     def validate_dynamic_hints(template: TTableSchemaTemplate) -> None:
         table_name = template.get("name")
         # if any of the hints is a function then name must be as well
-        if any(callable(v) for k, v in template.items() if k not in ["name", "incremental", "validator", "original_columns"]) and not callable(table_name):
-            raise InconsistentTableTemplate(f"Table name {table_name} must be a function if any other table hint is a function")
+        if any(
+            callable(v)
+            for k, v in template.items()
+            if k not in ["name", "incremental", "validator", "original_columns"]
+        ) and not callable(table_name):
+            raise InconsistentTableTemplate(
+                f"Table name {table_name} must be a function if any other table hint is a function"
+            )

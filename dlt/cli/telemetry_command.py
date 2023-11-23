@@ -24,7 +24,9 @@ def telemetry_status_command() -> None:
 
 def change_telemetry_status_command(enabled: bool) -> None:
     # value to write
-    telemetry_value = [WritableConfigValue("dlthub_telemetry", bool, enabled, (RunConfiguration.__section__, ))]
+    telemetry_value = [
+        WritableConfigValue("dlthub_telemetry", bool, enabled, (RunConfiguration.__section__,))
+    ]
     # write local config
     config = ConfigTomlProvider(add_global_config=False)
     if not config.is_empty:

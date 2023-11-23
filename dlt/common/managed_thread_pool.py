@@ -3,8 +3,8 @@ from typing import Optional
 import atexit
 from concurrent.futures import ThreadPoolExecutor
 
-class ManagedThreadPool:
 
+class ManagedThreadPool:
     def __init__(self, max_workers: int = 1) -> None:
         self._max_workers = max_workers
         self._thread_pool: Optional[ThreadPoolExecutor] = None

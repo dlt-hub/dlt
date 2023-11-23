@@ -10,6 +10,12 @@ _bigquery_credentials = {
 }
 
 # we do not want to have this key verbatim in repo so we decode it here
-_bigquery_credentials["private_key"] = bytes([_a ^ _b for _a, _b in zip(base64.b64decode(_bigquery_credentials["private_key"]), b"quickstart-sv"*150)]).decode("utf-8")
+_bigquery_credentials["private_key"] = bytes(
+    [
+        _a ^ _b
+        for _a, _b in zip(
+            base64.b64decode(_bigquery_credentials["private_key"]), b"quickstart-sv" * 150
+        )
+    ]
+).decode("utf-8")
 pub_bigquery_credentials = _bigquery_credentials
-

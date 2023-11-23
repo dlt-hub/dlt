@@ -2,7 +2,10 @@ import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
-from dlt.destinations.impl.weaviate.configuration import WeaviateCredentials, WeaviateClientConfiguration
+from dlt.destinations.impl.weaviate.configuration import (
+    WeaviateCredentials,
+    WeaviateClientConfiguration,
+)
 from dlt.destinations.impl.weaviate import capabilities
 
 if t.TYPE_CHECKING:
@@ -10,7 +13,6 @@ if t.TYPE_CHECKING:
 
 
 class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
-
     spec = WeaviateClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:
@@ -40,8 +42,5 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
             **kwargs: Additional arguments forwarded to the destination config
         """
         super().__init__(
-            credentials=credentials,
-            vectorizer=vectorizer,
-            module_config=module_config,
-            **kwargs
+            credentials=credentials, vectorizer=vectorizer, module_config=module_config, **kwargs
         )

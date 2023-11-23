@@ -1,4 +1,3 @@
-
 # from dlt.common import json
 # from dlt.common.schema import Schema
 # from dlt.common.typing import DictStrAny

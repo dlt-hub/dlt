@@ -9,7 +9,12 @@ from .provider import get_key_name
 
 
 class GoogleSecretsProvider(VaultTomlProvider):
-    def __init__(self, credentials: GcpServiceAccountCredentials, only_secrets: bool = True, only_toml_fragments: bool = True) -> None:
+    def __init__(
+        self,
+        credentials: GcpServiceAccountCredentials,
+        only_secrets: bool = True,
+        only_toml_fragments: bool = True,
+    ) -> None:
         self.credentials = credentials
         super().__init__(only_secrets, only_toml_fragments)
 
@@ -26,7 +31,11 @@ class GoogleSecretsProvider(VaultTomlProvider):
             from googleapiclient.discovery import build
             from googleapiclient.errors import HttpError
         except ModuleNotFoundError:
-            raise MissingDependencyException("GoogleSecretsProvider", ["google-api-python-client"], "We need google-api-python-client to build client for secretmanager v1")
+            raise MissingDependencyException(
+                "GoogleSecretsProvider",
+                ["google-api-python-client"],
+                "We need google-api-python-client to build client for secretmanager v1",
+            )
         from dlt.common import logger
 
         resource_name = f"projects/{self.credentials.project_id}/secrets/{full_key}/versions/latest"
@@ -42,10 +51,17 @@ class GoogleSecretsProvider(VaultTomlProvider):
                 # logger.warning(f"{self.credentials.client_email} has roles/secretmanager.secretAccessor role but {full_key} not found in Google Secrets: {error_doc['message']}[{error_doc['status']}]")
                 return None
             elif error.resp.status == 403:
-                logger.warning(f"{self.credentials.client_email} does not have roles/secretmanager.secretAccessor role. It also does not have read permission to {full_key} or the key is not found in Google Secrets: {error_doc['message']}[{error_doc['status']}]")
+                logger.warning(
+                    f"{self.credentials.client_email} does not have"
+                    " roles/secretmanager.secretAccessor role. It also does not have read"
+                    f" permission to {full_key} or the key is not found in Google Secrets:"
+                    f" {error_doc['message']}[{error_doc['status']}]"
+                )
                 return None
             elif error.resp.status == 400:
-                logger.warning(f"Unable to read {full_key} : {error_doc['message']}[{error_doc['status']}]")
+                logger.warning(
+                    f"Unable to read {full_key} : {error_doc['message']}[{error_doc['status']}]"
+                )
                 return None
             raise
 

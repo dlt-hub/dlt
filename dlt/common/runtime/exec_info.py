@@ -103,7 +103,7 @@ def is_running_in_airflow_task() -> bool:
             from airflow.operators.python import get_current_context
 
             context = get_current_context()
-            return context is not None and 'ti' in context
+            return context is not None and "ti" in context
     except Exception:
         return False
 
@@ -177,5 +177,5 @@ def get_execution_context() -> TExecutionContext:
         cpu=multiprocessing.cpu_count(),
         exec_info=exec_info_names(),
         os=TVersion(name=platform.system(), version=platform.release()),
-        library=TVersion(name=DLT_PKG_NAME, version=__version__)
+        library=TVersion(name=DLT_PKG_NAME, version=__version__),
     )

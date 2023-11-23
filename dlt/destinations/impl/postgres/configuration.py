@@ -48,12 +48,12 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         return ""
 
     if TYPE_CHECKING:
+
         def __init__(
             self,
             destination_name: str = None,
             credentials: PostgresCredentials = None,
             dataset_name: str = None,
             default_schema_name: str = None,
-            create_indexes: bool = True
-        ) -> None:
-            ...
+            create_indexes: bool = True,
+        ) -> None: ...

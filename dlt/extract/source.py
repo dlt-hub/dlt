@@ -14,14 +14,24 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnName, TSchemaContract
 from dlt.common.typing import StrAny, TDataItem
 from dlt.common.configuration.container import Container
-from dlt.common.pipeline import PipelineContext, StateInjectableContext, SupportsPipelineRun, source_state, pipeline_state
+from dlt.common.pipeline import (
+    PipelineContext,
+    StateInjectableContext,
+    SupportsPipelineRun,
+    source_state,
+    pipeline_state,
+)
 from dlt.common.utils import graph_find_scc_nodes, flatten_list_or_items, graph_edges_to_nodes
 
 from dlt.extract.typing import TDecompositionStrategy
 from dlt.extract.pipe import Pipe, ManagedPipeIterator
 from dlt.extract.hints import DltResourceHints
 from dlt.extract.resource import DltResource
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ResourcesNotFoundError, DeletingResourcesNotSupported
+from dlt.extract.exceptions import (
+    DataItemRequiredForDynamicTableHints,
+    ResourcesNotFoundError,
+    DeletingResourcesNotSupported,
+)
 
 
 class DltResourceDict(Dict[str, DltResource]):
@@ -38,7 +48,7 @@ class DltResourceDict(Dict[str, DltResource]):
     @property
     def selected(self) -> Dict[str, DltResource]:
         """Returns a subset of all resources that will be extracted and loaded to the destination."""
-        return {k:v for k,v in self.items() if v.selected}
+        return {k: v for k, v in self.items() if v.selected}
 
     @property
     def extracted(self) -> Dict[str, DltResource]:
@@ -55,8 +65,7 @@ class DltResourceDict(Dict[str, DltResource]):
                     except KeyError:
                         # resource for pipe not found: return mock resource
                         mock_template = DltResourceHints.new_table_template(
-                            pipe.name,
-                            write_disposition=resource.write_disposition
+                            pipe.name, write_disposition=resource.write_disposition
                         )
                         resource = DltResource(pipe, mock_template, False, section=resource.section)
                         resource.source_name = resource.source_name
@@ -97,7 +106,9 @@ class DltResourceDict(Dict[str, DltResource]):
         for name in resource_names:
             if name not in self:
                 # if any key is missing, display the full info
-                raise ResourcesNotFoundError(self.source_name, set(self.keys()), set(resource_names))
+                raise ResourcesNotFoundError(
+                    self.source_name, set(self.keys()), set(resource_names)
+                )
         # set the selected flags
         for resource in self.values():
             self[resource.name].selected = resource.name in resource_names
@@ -131,7 +142,10 @@ class DltResourceDict(Dict[str, DltResource]):
 
     def __setitem__(self, resource_name: str, resource: DltResource) -> None:
         if resource_name != resource.name:
-            raise ValueError(f"The index name {resource_name} does not correspond to resource name {resource.name}")
+            raise ValueError(
+                f"The index name {resource_name} does not correspond to resource name"
+                f" {resource.name}"
+            )
         pipe_id = id(resource._pipe)
         # make shallow copy of the resource
         resource = copy(resource)
@@ -167,22 +181,20 @@ class DltSource(Iterable[TDataItem]):
     * You can use a `run` method to load the data with a default instance of dlt pipeline.
     * You can get source read only state for the currently active Pipeline instance
     """
-    def __init__(self, name: str, section: str, schema: Schema, resources: Sequence[DltResource] = None) -> None:
-        self.name = name
+
+    def __init__(
+        self, schema: Schema, section: str, resources: Sequence[DltResource] = None
+    ) -> None:
         self.section = section
         """Tells if iterator associated with a source is exhausted"""
         self._schema = schema
         self._resources: DltResourceDict = DltResourceDict(self.name, self.section)
 
-        if self.name != schema.name:
-            # raise ValueError(f"Schema name {schema.name} differs from source name {name}! The explicit source name argument is deprecated and will be soon removed.")
-            warnings.warn(f"Schema name {schema.name} differs from source name {name}! The explicit source name argument is deprecated and will be soon removed.")
-
         if resources:
             self.resources.add(*resources)
 
     @classmethod
-    def from_data(cls, name: str, section: str, schema: Schema, data: Any) -> Self:
+    def from_data(cls, schema: Schema, section: str, data: Any) -> Self:
         """Converts any `data` supported by `dlt` `run` method into `dlt source` with a name `section`.`name` and `schema` schema."""
         # creates source from various forms of data
         if isinstance(data, DltSource):
@@ -194,10 +206,13 @@ class DltSource(Iterable[TDataItem]):
         else:
             resources = [DltResource.from_data(data)]
 
-        return cls(name, section, schema, resources)
+        return cls(schema, section, resources)
+
+    @property
+    def name(self) -> str:
+        return self._schema.name
 
     # TODO: 4 properties below must go somewhere else ie. into RelationalSchema which is Schema + Relational normalizer.
-
     @property
     def max_table_nesting(self) -> int:
         """A schema hint that sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON."""
@@ -229,19 +244,24 @@ class DltSource(Iterable[TDataItem]):
     def root_key(self) -> bool:
         """Enables merging on all resources by propagating root foreign key to child tables. This option is most useful if you plan to change write disposition of a resource to disable/enable merge"""
         config = RelationalNormalizer.get_normalizer_config(self._schema).get("propagation")
-        return config is not None and "root" in config and "_dlt_id" in config["root"] and config["root"]["_dlt_id"] == "_dlt_root_id"
+        return (
+            config is not None
+            and "root" in config
+            and "_dlt_id" in config["root"]
+            and config["root"]["_dlt_id"] == "_dlt_root_id"
+        )
 
     @root_key.setter
     def root_key(self, value: bool) -> None:
         if value is True:
-            RelationalNormalizer.update_normalizer_config(self._schema,
-                {"propagation": {
-                    "root": {
-                        "_dlt_id": TColumnName("_dlt_root_id")
-                    }}})
+            RelationalNormalizer.update_normalizer_config(
+                self._schema, {"propagation": {"root": {"_dlt_id": TColumnName("_dlt_root_id")}}}
+            )
         else:
             if self.root_key:
-                propagation_config = RelationalNormalizer.get_normalizer_config(self._schema)["propagation"]
+                propagation_config = RelationalNormalizer.get_normalizer_config(self._schema)[
+                    "propagation"
+                ]
                 propagation_config["root"].pop("_dlt_id")  # type: ignore
 
     @property
@@ -284,8 +304,8 @@ class DltSource(Iterable[TDataItem]):
     def decompose(self, strategy: TDecompositionStrategy) -> List["DltSource"]:
         """Decomposes source into a list of sources with a given strategy.
 
-            "none" will return source as is
-            "scc" will decompose the dag of selected pipes and their parent into strongly connected components
+        "none" will return source as is
+        "scc" will decompose the dag of selected pipes and their parent into strongly connected components
         """
         if strategy == "none":
             return [self]
@@ -316,7 +336,9 @@ class DltSource(Iterable[TDataItem]):
     @property
     def run(self) -> SupportsPipelineRun:
         """A convenience method that will call `run` run on the currently active `dlt` pipeline. If pipeline instance is not found, one with default settings will be created."""
-        self_run: SupportsPipelineRun = makefun.partial(Container()[PipelineContext].pipeline().run, *(), data=self)
+        self_run: SupportsPipelineRun = makefun.partial(
+            Container()[PipelineContext].pipeline().run, *(), data=self
+        )
         return self_run
 
     @property
@@ -328,14 +350,14 @@ class DltSource(Iterable[TDataItem]):
     def clone(self) -> "DltSource":
         """Creates a deep copy of the source where copies of schema, resources and pipes are created"""
         # mind that resources and pipes are cloned when added to the DltResourcesDict in the source constructor
-        return DltSource(self.name, self.section, self.schema.clone(), list(self._resources.values()))
+        return DltSource(self.schema.clone(), self.section, list(self._resources.values()))
 
     def __iter__(self) -> Iterator[TDataItem]:
         """Opens iterator that yields the data items from all the resources within the source in the same order as in Pipeline class.
 
-            A read-only state is provided, initialized from active pipeline state. The state is discarded after the iterator is closed.
+        A read-only state is provided, initialized from active pipeline state. The state is discarded after the iterator is closed.
 
-            A source config section is injected to allow secrets/config injection as during regular extraction.
+        A source config section is injected to allow secrets/config injection as during regular extraction.
         """
         # use the same state dict when opening iterator and when iterator is iterated
         mock_state, _ = pipeline_state(Container(), {})
@@ -355,14 +377,16 @@ class DltSource(Iterable[TDataItem]):
         return ConfigSectionContext(
             pipeline_name=pipeline_name,
             sections=(known_sections.SOURCES, self.section, self.name),
-            source_state_key=self.name
+            source_state_key=self.name,
         )
 
     def __getattr__(self, resource_name: str) -> DltResource:
         try:
             return self._resources[resource_name]
         except KeyError:
-            raise AttributeError(f"Resource with name {resource_name} not found in source {self.name}")
+            raise AttributeError(
+                f"Resource with name {resource_name} not found in source {self.name}"
+            )
 
     def __setattr__(self, name: str, value: Any) -> None:
         if isinstance(value, DltResource):
@@ -371,17 +395,29 @@ class DltSource(Iterable[TDataItem]):
             super().__setattr__(name, value)
 
     def __str__(self) -> str:
-        info = f"DltSource {self.name} section {self.section} contains {len(self.resources)} resource(s) of which {len(self.selected_resources)} are selected"
+        info = (
+            f"DltSource {self.name} section {self.section} contains"
+            f" {len(self.resources)} resource(s) of which {len(self.selected_resources)} are"
+            " selected"
+        )
         for r in self.resources.values():
             selected_info = "selected" if r.selected else "not selected"
             if r.is_transformer:
-                info += f"\ntransformer {r.name} is {selected_info} and takes data from {r._pipe.parent.name}"
+                info += (
+                    f"\ntransformer {r.name} is {selected_info} and takes data from"
+                    f" {r._pipe.parent.name}"
+                )
             else:
                 info += f"\nresource {r.name} is {selected_info}"
         if self.exhausted:
-            info += "\nSource is already iterated and cannot be used again ie. to display or load data."
+            info += (
+                "\nSource is already iterated and cannot be used again ie. to display or load data."
+            )
         else:
-            info += "\nIf you want to see the data items in this source you must iterate it or convert to list ie. list(source)."
+            info += (
+                "\nIf you want to see the data items in this source you must iterate it or convert"
+                " to list ie. list(source)."
+            )
         info += " Note that, like any iterator, you can iterate the source only once."
         info += f"\ninstance id: {id(self)}"
         return info

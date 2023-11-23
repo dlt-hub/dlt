@@ -6,8 +6,8 @@ import requests_mock
 TRACE_URL_SUFFIX = "/trace"
 STATE_URL_SUFFIX = "/state"
 
-def test_platform_connection() -> None:
 
+def test_platform_connection() -> None:
     mock_platform_url = "http://platform.com/endpoint"
 
     os.environ["RUNTIME__DLTHUB_DSN"] = mock_platform_url
@@ -18,7 +18,6 @@ def test_platform_connection() -> None:
     # simple pipeline
     @dlt.source(name="first_source")
     def my_source():
-
         @dlt.resource(name="test_resource")
         def data():
             yield [1, 2, 3]
@@ -27,14 +26,17 @@ def test_platform_connection() -> None:
 
     @dlt.source(name="second_source")
     def my_source_2():
-
         @dlt.resource(name="test_resource")
         def data():
             yield [1, 2, 3]
 
         return data()
 
-    p = dlt.pipeline(destination="duckdb", pipeline_name="platform_test_pipeline", dataset_name="platform_test_dataset")
+    p = dlt.pipeline(
+        destination="duckdb",
+        pipeline_name="platform_test_pipeline",
+        dataset_name="platform_test_dataset",
+    )
 
     with requests_mock.mock() as m:
         m.put(mock_platform_url, json={}, status_code=200)
@@ -65,4 +67,7 @@ def test_platform_connection() -> None:
         assert state_result["pipeline_name"] == "platform_test_pipeline"
         assert state_result["dataset_name"] == "platform_test_dataset"
         assert len(state_result["schemas"]) == 2
-        assert {state_result["schemas"][0]["name"], state_result["schemas"][1]["name"]} == {"first_source", "second_source"}
+        assert {state_result["schemas"][0]["name"], state_result["schemas"][1]["name"]} == {
+            "first_source",
+            "second_source",
+        }

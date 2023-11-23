@@ -5,9 +5,20 @@ import pytest
 from typing import Dict
 
 from dlt.common.runners import Venv
-from dlt.common.utils import (graph_find_scc_nodes, flatten_list_of_str_or_dicts, digest128, graph_edges_to_nodes, map_nested_in_place,
-                              reveal_pseudo_secret, obfuscate_pseudo_secret, get_module_name, concat_strings_with_limit, increase_row_count,
-                              merge_row_count, extend_list_deduplicated)
+from dlt.common.utils import (
+    graph_find_scc_nodes,
+    flatten_list_of_str_or_dicts,
+    digest128,
+    graph_edges_to_nodes,
+    map_nested_in_place,
+    reveal_pseudo_secret,
+    obfuscate_pseudo_secret,
+    get_module_name,
+    concat_strings_with_limit,
+    increase_row_count,
+    merge_row_count,
+    extend_list_deduplicated,
+)
 
 
 def test_flatten_list_of_str_or_dicts() -> None:
@@ -21,30 +32,27 @@ def test_flatten_list_of_str_or_dicts() -> None:
 
 
 def test_digest128_length() -> None:
-    assert len(digest128("hash it")) == 120/6
+    assert len(digest128("hash it")) == 120 / 6
 
 
 def test_map_dicts_in_place() -> None:
-    _d = {
-        "a": "1",
-        "b": ["a", "b", ["a", "b"], {"a": "c"}],
-        "c": {
-            "d": "e",
-            "e": ["a", 2]
-        }
+    _d = {"a": "1", "b": ["a", "b", ["a", "b"], {"a": "c"}], "c": {"d": "e", "e": ["a", 2]}}
+    exp_d = {
+        "a": "11",
+        "b": ["aa", "bb", ["aa", "bb"], {"a": "cc"}],
+        "c": {"d": "ee", "e": ["aa", 4]},
     }
-    exp_d = {'a': '11', 'b': ['aa', 'bb', ['aa', 'bb'], {'a': 'cc'}], 'c': {'d': 'ee', 'e': ['aa', 4]}}
-    assert map_nested_in_place(lambda v: v*2, _d) == exp_d
+    assert map_nested_in_place(lambda v: v * 2, _d) == exp_d
     # in place
     assert _d == exp_d
 
     _l = ["a", "b", ["a", "b"], {"a": "c"}]
     exp_l = ["aa", "bb", ["aa", "bb"], {"a": "cc"}]
-    assert map_nested_in_place(lambda v: v*2, _l) == exp_l
+    assert map_nested_in_place(lambda v: v * 2, _l) == exp_l
     assert _l == exp_l
 
     with pytest.raises(ValueError):
-        map_nested_in_place(lambda v: v*2, "a")
+        map_nested_in_place(lambda v: v * 2, "a")
 
 
 def test_pseudo_obfuscation() -> None:
@@ -79,9 +87,25 @@ def test_concat_strings_with_limit() -> None:
     assert list(concat_strings_with_limit(philosopher, ";\n", 15)) == ["Bertrand Russell"]
 
     # only two strings will be merged (22 chars total)
-    philosophers = ["Bertrand Russell", "Ludwig Wittgenstein", "G.E. Moore", "J.L. Mackie", "Alfred Tarski"]
-    moore_merged = ['Bertrand Russell', 'Ludwig Wittgenstein', 'G.E. Moore J.L. Mackie', 'Alfred Tarski']
-    moore_merged_2 = ['Bertrand Russell', 'Ludwig Wittgenstein', 'G.E. Moore;\nJ.L. Mackie', 'Alfred Tarski']
+    philosophers = [
+        "Bertrand Russell",
+        "Ludwig Wittgenstein",
+        "G.E. Moore",
+        "J.L. Mackie",
+        "Alfred Tarski",
+    ]
+    moore_merged = [
+        "Bertrand Russell",
+        "Ludwig Wittgenstein",
+        "G.E. Moore J.L. Mackie",
+        "Alfred Tarski",
+    ]
+    moore_merged_2 = [
+        "Bertrand Russell",
+        "Ludwig Wittgenstein",
+        "G.E. Moore;\nJ.L. Mackie",
+        "Alfred Tarski",
+    ]
     assert list(concat_strings_with_limit(philosophers, " ", 22)) == moore_merged
     # none will be merged
     assert list(concat_strings_with_limit(philosophers, ";\n", 22)) == philosophers
@@ -94,7 +118,7 @@ def test_concat_strings_with_limit() -> None:
 
 
 def test_find_scc_nodes() -> None:
-    edges = [('A', 'B'), ('B', 'C'), ('D', 'E'), ('F', 'G'), ('G', 'H'), ('I', 'I'), ('J', 'J')]
+    edges = [("A", "B"), ("B", "C"), ("D", "E"), ("F", "G"), ("G", "H"), ("I", "I"), ("J", "J")]
 
     def _comp(s):
         return sorted([tuple(sorted(c)) for c in s])
@@ -113,8 +137,28 @@ def test_find_scc_nodes() -> None:
 
 
 def test_graph_edges_to_nodes() -> None:
-    edges = [('A', 'B'), ('A', 'C'), ('B', 'C'), ('D', 'E'), ('F', 'G'), ('G', 'H'), ('I', 'I'), ('J', 'J')]
-    graph = {"A": {"B", "C"}, "B": {"C"}, "C": set(), "D": {"E"}, "E": set(), "F": {"G"}, "G": {"H"}, "H": set(), "I": set(), "J": set()}
+    edges = [
+        ("A", "B"),
+        ("A", "C"),
+        ("B", "C"),
+        ("D", "E"),
+        ("F", "G"),
+        ("G", "H"),
+        ("I", "I"),
+        ("J", "J"),
+    ]
+    graph = {
+        "A": {"B", "C"},
+        "B": {"C"},
+        "C": set(),
+        "D": {"E"},
+        "E": set(),
+        "F": {"G"},
+        "G": {"H"},
+        "H": set(),
+        "I": set(),
+        "J": set(),
+    }
     g1 = graph_edges_to_nodes(edges)
 
     for perm_edges in itertools.permutations(edges):
@@ -126,7 +170,7 @@ def test_graph_edges_to_nodes() -> None:
     # test a few edge cases
     assert graph_edges_to_nodes([]) == {}
     # ignores double edge
-    assert graph_edges_to_nodes([('A', 'B'), ('A', 'B')]) == {'A': {'B'}, 'B': set()}
+    assert graph_edges_to_nodes([("A", "B"), ("A", "B")]) == {"A": {"B"}, "B": set()}
 
 
 def test_increase_row_counts() -> None:
@@ -135,21 +179,13 @@ def test_increase_row_counts() -> None:
     increase_row_count(counts, "table2", 0)
     increase_row_count(counts, "table3", 10)
 
-    assert counts == {
-        "table1": 1,
-        "table2": 0,
-        "table3": 10
-    }
+    assert counts == {"table1": 1, "table2": 0, "table3": 10}
 
     increase_row_count(counts, "table1", 2)
     increase_row_count(counts, "table2", 3)
     increase_row_count(counts, "table3", 4)
 
-    assert counts == {
-        "table1": 3,
-        "table2": 3,
-        "table3": 14
-    }
+    assert counts == {"table1": 3, "table2": 3, "table3": 14}
 
 
 def test_merge_row_counts() -> None:
@@ -158,30 +194,33 @@ def test_merge_row_counts() -> None:
         "table2": 3,
     }
 
-    merge_row_count(rc1, {
-        "table2": 5,
-        "table3": 20,
-    })
-    assert rc1 == {
-        "table1": 3,
-        "table2": 8,
-        "table3": 20
-    }
-    merge_row_count(rc1, {
-        "table2": 5,
-        "table3": 20,
-        "table4": 2
-    })
-    assert rc1 == {
-        "table1": 3,
-        "table2": 13,
-        "table3": 40,
-        "table4": 2
-    }
+    merge_row_count(
+        rc1,
+        {
+            "table2": 5,
+            "table3": 20,
+        },
+    )
+    assert rc1 == {"table1": 3, "table2": 8, "table3": 20}
+    merge_row_count(rc1, {"table2": 5, "table3": 20, "table4": 2})
+    assert rc1 == {"table1": 3, "table2": 13, "table3": 40, "table4": 2}
 
 
 def test_extend_list_deduplicated() -> None:
-    assert extend_list_deduplicated(["one", "two", "three"], ["four", "five", "six"]) == ["one", "two", "three", "four", "five", "six"]
-    assert extend_list_deduplicated(["one", "two", "three", "six"], ["two", "four", "five", "six"]) == ["one", "two", "three", "six", "four", "five"]
-    assert extend_list_deduplicated(["one", "two", "three"], ["one", "two", "three"]) == ["one", "two", "three"]
+    assert extend_list_deduplicated(["one", "two", "three"], ["four", "five", "six"]) == [
+        "one",
+        "two",
+        "three",
+        "four",
+        "five",
+        "six",
+    ]
+    assert extend_list_deduplicated(
+        ["one", "two", "three", "six"], ["two", "four", "five", "six"]
+    ) == ["one", "two", "three", "six", "four", "five"]
+    assert extend_list_deduplicated(["one", "two", "three"], ["one", "two", "three"]) == [
+        "one",
+        "two",
+        "three",
+    ]
     assert extend_list_deduplicated([], ["one", "two", "three"]) == ["one", "two", "three"]

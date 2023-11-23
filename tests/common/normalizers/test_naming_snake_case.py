@@ -38,7 +38,10 @@ def test_normalize_identifier(naming_unlimited: NamingConvention) -> None:
 
 
 def test_alphabet_reduction(naming_unlimited: NamingConvention) -> None:
-    assert naming_unlimited.normalize_identifier(SnakeCaseNamingConvention._REDUCE_ALPHABET[0]) == SnakeCaseNamingConvention._REDUCE_ALPHABET[1]
+    assert (
+        naming_unlimited.normalize_identifier(SnakeCaseNamingConvention._REDUCE_ALPHABET[0])
+        == SnakeCaseNamingConvention._REDUCE_ALPHABET[1]
+    )
 
 
 def test_normalize_path(naming_unlimited: NamingConvention) -> None:
@@ -78,6 +81,7 @@ def test_normalize_make_path(convention: Type[NamingConvention]) -> None:
 
 
 def test_normalizes_underscores(naming_unlimited: NamingConvention) -> None:
-    assert naming_unlimited.normalize_identifier("event__value_value2____") == "event_value_value2xxxx"
+    assert (
+        naming_unlimited.normalize_identifier("event__value_value2____") == "event_value_value2xxxx"
+    )
     assert naming_unlimited.normalize_path("e_vent__value_value2___") == "e_vent__value_value2__x"
-

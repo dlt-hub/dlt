@@ -9,7 +9,10 @@ class DataWriterException(DltException):
 class InvalidFileNameTemplateException(DataWriterException, ValueError):
     def __init__(self, file_name_template: str):
         self.file_name_template = file_name_template
-        super().__init__(f"Wrong file name template {file_name_template}. File name template must contain exactly one %s formatter")
+        super().__init__(
+            f"Wrong file name template {file_name_template}. File name template must contain"
+            " exactly one %s formatter"
+        )
 
 
 class BufferedDataWriterClosed(DataWriterException):
@@ -21,4 +24,6 @@ class BufferedDataWriterClosed(DataWriterException):
 class DestinationCapabilitiesRequired(DataWriterException, ValueError):
     def __init__(self, file_format: TLoaderFileFormat):
         self.file_format = file_format
-        super().__init__(f"Writer for {file_format} requires destination capabilities which were not provided.")
+        super().__init__(
+            f"Writer for {file_format} requires destination capabilities which were not provided."
+        )

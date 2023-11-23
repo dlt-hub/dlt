@@ -14,7 +14,12 @@ from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import WithStateSync
-from dlt.common.exceptions import DestinationHasFailedJobs, DestinationTerminalException, PipelineStateNotAvailable, UnknownDestinationModule
+from dlt.common.exceptions import (
+    DestinationHasFailedJobs,
+    DestinationTerminalException,
+    PipelineStateNotAvailable,
+    UnknownDestinationModule,
+)
 from dlt.common.pipeline import PipelineContext
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.utils import new_column, new_table
@@ -188,23 +193,45 @@ def test_deterministic_salt(environment) -> None:
 
 def test_destination_explicit_credentials(environment: Any) -> None:
     # test redshift
-    p = dlt.pipeline(pipeline_name="postgres_pipeline", destination="redshift", credentials="redshift://loader:loader@localhost:5432/dlt_data")
+    p = dlt.pipeline(
+        pipeline_name="postgres_pipeline",
+        destination="redshift",
+        credentials="redshift://loader:loader@localhost:5432/dlt_data",
+    )
     config = p._get_destination_client_initial_config()
     assert config.credentials.is_resolved()
     # with staging
-    p = dlt.pipeline(pipeline_name="postgres_pipeline", staging="filesystem", destination="redshift", credentials="redshift://loader:loader@localhost:5432/dlt_data")
+    p = dlt.pipeline(
+        pipeline_name="postgres_pipeline",
+        staging="filesystem",
+        destination="redshift",
+        credentials="redshift://loader:loader@localhost:5432/dlt_data",
+    )
     config = p._get_destination_client_initial_config(p.destination)
     assert config.credentials.is_resolved()
     config = p._get_destination_client_initial_config(p.staging, as_staging=True)
     assert config.credentials is None
     p._wipe_working_folder()
     # try filesystem which uses union of credentials that requires bucket_url to resolve
-    p = dlt.pipeline(pipeline_name="postgres_pipeline", destination="filesystem", credentials={"aws_access_key_id": "key_id", "aws_secret_access_key": "key"})
+    p = dlt.pipeline(
+        pipeline_name="postgres_pipeline",
+        destination="filesystem",
+        credentials={"aws_access_key_id": "key_id", "aws_secret_access_key": "key"},
+    )
     config = p._get_destination_client_initial_config(p.destination)
     assert isinstance(config.credentials, AwsCredentials)
     assert config.credentials.is_resolved()
     # resolve gcp oauth
-    p = dlt.pipeline(pipeline_name="postgres_pipeline", destination="filesystem", credentials={"project_id": "pxid", "refresh_token": "123token", "client_id": "cid", "client_secret": "s"})
+    p = dlt.pipeline(
+        pipeline_name="postgres_pipeline",
+        destination="filesystem",
+        credentials={
+            "project_id": "pxid",
+            "refresh_token": "123token",
+            "client_id": "cid",
+            "client_secret": "s",
+        },
+    )
     config = p._get_destination_client_initial_config(p.destination)
     assert isinstance(config.credentials, GcpOAuthCredentials)
     assert config.credentials.is_resolved()
@@ -215,7 +242,7 @@ def test_destination_staging_config(environment: Any) -> None:
     p = dlt.pipeline(
         pipeline_name="staging_pipeline",
         destination=redshift(credentials="redshift://loader:loader@localhost:5432/dlt_data"),
-        staging=fs_dest
+        staging=fs_dest,
     )
     schema = Schema("foo")
     p._inject_schema(schema)
@@ -241,7 +268,7 @@ def test_destination_factory_defaults_resolve_from_config(environment: Any) -> N
 
 
 def test_destination_credentials_in_factory(environment: Any) -> None:
-    os.environ['DESTINATION__REDSHIFT__CREDENTIALS'] = "redshift://abc:123@localhost:5432/some_db"
+    os.environ["DESTINATION__REDSHIFT__CREDENTIALS"] = "redshift://abc:123@localhost:5432/some_db"
 
     redshift_dest = redshift("redshift://abc:123@localhost:5432/other_db")
 
@@ -263,18 +290,19 @@ def test_destination_credentials_in_factory(environment: Any) -> None:
 @pytest.mark.skip(reason="does not work on CI. probably takes right credentials from somewhere....")
 def test_destination_explicit_invalid_credentials_filesystem(environment: Any) -> None:
     # if string cannot be parsed
-    p = dlt.pipeline(pipeline_name="postgres_pipeline", destination="filesystem", credentials="PR8BLEM")
+    p = dlt.pipeline(
+        pipeline_name="postgres_pipeline", destination="filesystem", credentials="PR8BLEM"
+    )
     with pytest.raises(NativeValueError):
         p._get_destination_client_initial_config(p.destination)
 
 
 def test_extract_source_twice() -> None:
-
     def some_data():
         yield [1, 2, 3]
         yield [1, 2, 3]
 
-    s = DltSource("source", "module", dlt.Schema("source"), [dlt.resource(some_data())])
+    s = DltSource(dlt.Schema("source"), "module", [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
     with pytest.raises(PipelineStepFailed) as py_ex:
         dlt.pipeline().extract(s)
@@ -289,7 +317,7 @@ def test_disable_enable_state_sync(environment: Any) -> None:
     def some_data():
         yield [1, 2, 3]
 
-    s = DltSource("default", "module", dlt.Schema("default"), [dlt.resource(some_data())])
+    s = DltSource(dlt.Schema("default"), "module", [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
     storage = ExtractorStorage(p._normalize_storage_config)
     assert len(storage.list_files_to_normalize_sorted()) == 1
@@ -299,14 +327,22 @@ def test_disable_enable_state_sync(environment: Any) -> None:
 
     p.config.restore_from_destination = True
     # extract to different schema, state must go to default schema
-    s = DltSource("default_2", "module", dlt.Schema("default_2"), [dlt.resource(some_data())])
+    s = DltSource(dlt.Schema("default_2"), "module", [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
     expect_extracted_file(storage, "default", s.schema.state_table_name, "***")
 
 
 def test_extract_multiple_sources() -> None:
-    s1 = DltSource("default", "module", dlt.Schema("default"), [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")])
-    s2 = DltSource("default_2", "module", dlt.Schema("default_2"), [dlt.resource([6, 7, 8], name="resource_3"), dlt.resource([9, 10, 0], name="resource_4")])
+    s1 = DltSource(
+        dlt.Schema("default"),
+        "module",
+        [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")],
+    )
+    s2 = DltSource(
+        dlt.Schema("default_2"),
+        "module",
+        [dlt.resource([6, 7, 8], name="resource_3"), dlt.resource([9, 10, 0], name="resource_4")],
+    )
 
     p = dlt.pipeline(destination="dummy")
     p.config.restore_from_destination = False
@@ -325,12 +361,18 @@ def test_extract_multiple_sources() -> None:
     def i_fail():
         raise NotImplementedError()
 
-    s3 = DltSource("default_3", "module", dlt.Schema("default_3"), [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")])
-    s4 = DltSource("default_4", "module", dlt.Schema("default_4"), [dlt.resource([6, 7, 8], name="resource_3"), i_fail])
+    s3 = DltSource(
+        dlt.Schema("default_3"),
+        "module",
+        [dlt.resource([1, 2, 3], name="resource_1"), dlt.resource([3, 4, 5], name="resource_2")],
+    )
+    s4 = DltSource(
+        dlt.Schema("default_4"), "module", [dlt.resource([6, 7, 8], name="resource_3"), i_fail]
+    )
 
     with pytest.raises(PipelineStepFailed):
-       # NOTE: if you swap s3 and s4 the test on list_schemas will fail: s3 will extract normally and update live schemas, s4 will break exec later
-       p.extract([s4, s3])
+        # NOTE: if you swap s3 and s4 the test on list_schemas will fail: s3 will extract normally and update live schemas, s4 will break exec later
+        p.extract([s4, s3])
 
     # nothing to normalize
     assert len(storage.list_files_to_normalize_sorted()) == 0
@@ -430,7 +472,7 @@ def test_sentry_tracing() -> None:
     def r_check_sentry():
         assert sentry_sdk.Hub.current.scope.span.op == "extract"
         assert sentry_sdk.Hub.current.scope.span.containing_transaction.name == "run"
-        yield [1,2,3]
+        yield [1, 2, 3]
 
     p.run(r_check_sentry)
     assert sentry_sdk.Hub.current.scope.span is None
@@ -455,11 +497,9 @@ def test_sentry_tracing() -> None:
     assert sentry_sdk.Hub.current.scope.span is None
 
 
-
 def test_pipeline_state_on_extract_exception() -> None:
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
-
 
     @dlt.resource
     def data_piece_1():
@@ -587,7 +627,6 @@ def test_run_load_pending() -> None:
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
 
-
     def some_data():
         yield from [1, 2, 3]
 
@@ -632,7 +671,11 @@ def test_retry_load() -> None:
 
     attempt = None
 
-    for attempt in Retrying(stop=stop_after_attempt(3), retry=retry_if_exception(retry_load(("load", "extract"))), reraise=True):
+    for attempt in Retrying(
+        stop=stop_after_attempt(3),
+        retry=retry_if_exception(retry_load(("load", "extract"))),
+        reraise=True,
+    ):
         with attempt:
             p.run(fail_extract())
     # it retried
@@ -641,7 +684,9 @@ def test_retry_load() -> None:
     # now it fails (extract is terminal exception)
     retry_count = 2
     with pytest.raises(PipelineStepFailed) as py_ex:
-        for attempt in Retrying(stop=stop_after_attempt(3), retry=retry_if_exception(retry_load(())), reraise=True):
+        for attempt in Retrying(
+            stop=stop_after_attempt(3), retry=retry_if_exception(retry_load(())), reraise=True
+        ):
             with attempt:
                 p.run(fail_extract())
     assert isinstance(py_ex.value, PipelineStepFailed)
@@ -651,7 +696,11 @@ def test_retry_load() -> None:
     os.environ["RAISE_ON_FAILED_JOBS"] = "true"
     os.environ["FAIL_PROB"] = "1.0"
     with pytest.raises(PipelineStepFailed) as py_ex:
-        for attempt in Retrying(stop=stop_after_attempt(3), retry=retry_if_exception(retry_load(("load", "extract"))), reraise=True):
+        for attempt in Retrying(
+            stop=stop_after_attempt(3),
+            retry=retry_if_exception(retry_load(("load", "extract"))),
+            reraise=True,
+        ):
             with attempt:
                 p.run(fail_extract())
     assert isinstance(py_ex.value, PipelineStepFailed)
@@ -681,6 +730,7 @@ def test_set_get_local_value() -> None:
     assert p.state["_local"][value] == value  # type: ignore[literal-required]
 
     new_val = uniq_id()
+
     # check in context manager
     @dlt.resource
     def _w_local_state():
@@ -709,30 +759,38 @@ def test_changed_write_disposition() -> None:
 
     p.run(resource_1, write_disposition="replace")
     print(list(p._schema_storage.live_schemas.values())[0].to_pretty_yaml())
-    assert p.schemas[p.default_schema_name].get_table("resource_1")["write_disposition"] == "replace"
+    assert (
+        p.schemas[p.default_schema_name].get_table("resource_1")["write_disposition"] == "replace"
+    )
     assert p.default_schema.get_table("resource_1")["write_disposition"] == "replace"
 
 
-@dlt.transformer(name="github_repo_events", primary_key="id", write_disposition="merge", table_name=lambda i: i['type'])
+@dlt.transformer(
+    name="github_repo_events",
+    primary_key="id",
+    write_disposition="merge",
+    table_name=lambda i: i["type"],
+)
 def github_repo_events(page):
     yield page
 
 
 @dlt.transformer(name="github_repo_events", primary_key="id", write_disposition="merge")
 def github_repo_events_table_meta(page):
-    yield from [dlt.mark.with_table_name(p, p['type']) for p in page]
+    yield from [dlt.mark.with_table_name(p, p["type"]) for p in page]
 
 
 @dlt.resource
 def _get_shuffled_events():
-    with open("tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8") as f:
+    with open(
+        "tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8"
+    ) as f:
         issues = json.load(f)
         yield issues
 
 
-@pytest.mark.parametrize('github_resource', (github_repo_events_table_meta, github_repo_events))
+@pytest.mark.parametrize("github_resource", (github_repo_events_table_meta, github_repo_events))
 def test_dispatch_rows_to_tables(github_resource: DltResource):
-
     os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
@@ -742,51 +800,55 @@ def test_dispatch_rows_to_tables(github_resource: DltResource):
 
     # get all expected tables
     events = list(_get_shuffled_events)
-    expected_tables = set(map(lambda e: p.default_schema.naming.normalize_identifier(e["type"]), events))
+    expected_tables = set(
+        map(lambda e: p.default_schema.naming.normalize_identifier(e["type"]), events)
+    )
 
     # all the tables present
-    assert expected_tables.intersection([t["name"] for t in p.default_schema.data_tables()]) == expected_tables
+    assert (
+        expected_tables.intersection([t["name"] for t in p.default_schema.data_tables()])
+        == expected_tables
+    )
 
     # all the columns have primary keys and merge disposition derived from resource
-    for table in  p.default_schema.data_tables():
+    for table in p.default_schema.data_tables():
         if table.get("parent") is None:
             assert table["write_disposition"] == "merge"
             assert table["columns"]["id"]["primary_key"] is True
 
 
 def test_resource_name_in_schema() -> None:
-    @dlt.resource(table_name='some_table')
+    @dlt.resource(table_name="some_table")
     def static_data():
-        yield {'a': 1, 'b': 2}
+        yield {"a": 1, "b": 2}
 
-    @dlt.resource(table_name=lambda x: 'dynamic_func_table')
+    @dlt.resource(table_name=lambda x: "dynamic_func_table")
     def dynamic_func_data():
-        yield {'a': 1, 'b': 2}
+        yield {"a": 1, "b": 2}
 
     @dlt.resource
     def dynamic_mark_data():
-        yield dlt.mark.with_table_name({'a': 1, 'b': 2}, 'dynamic_mark_table')
+        yield dlt.mark.with_table_name({"a": 1, "b": 2}, "dynamic_mark_table")
 
-    @dlt.resource(table_name='parent_table')
+    @dlt.resource(table_name="parent_table")
     def nested_data():
-        yield {'a': 1, 'items': [{'c': 2}, {'c': 3}, {'c': 4}]}
+        yield {"a": 1, "items": [{"c": 2}, {"c": 3}, {"c": 4}]}
 
     @dlt.source
     def some_source():
         return [static_data(), dynamic_func_data(), dynamic_mark_data(), nested_data()]
 
-
     source = some_source()
-    p = dlt.pipeline(pipeline_name=uniq_id(), destination='dummy')
+    p = dlt.pipeline(pipeline_name=uniq_id(), destination="dummy")
     p.run(source)
 
     schema = p.default_schema
 
-    assert schema.tables['some_table']['resource'] == 'static_data'
-    assert schema.tables['dynamic_func_table']['resource'] == 'dynamic_func_data'
-    assert schema.tables['dynamic_mark_table']['resource'] == 'dynamic_mark_data'
-    assert schema.tables['parent_table']['resource'] == 'nested_data'
-    assert 'resource' not in schema.tables['parent_table__items']
+    assert schema.tables["some_table"]["resource"] == "static_data"
+    assert schema.tables["dynamic_func_table"]["resource"] == "dynamic_func_data"
+    assert schema.tables["dynamic_mark_table"]["resource"] == "dynamic_mark_data"
+    assert schema.tables["parent_table"]["resource"] == "nested_data"
+    assert "resource" not in schema.tables["parent_table__items"]
 
 
 def test_preserve_fields_order() -> None:
@@ -810,16 +872,29 @@ def test_preserve_fields_order() -> None:
     p.extract(ordered_dict().add_map(reverse_order))
     p.normalize()
 
-    assert list(p.default_schema.tables["order_1"]["columns"].keys()) == ["col_1", "col_2", "col_3", '_dlt_load_id', '_dlt_id']
-    assert list(p.default_schema.tables["order_2"]["columns"].keys()) == ["col_3", "col_2", "col_1", '_dlt_load_id', '_dlt_id']
+    assert list(p.default_schema.tables["order_1"]["columns"].keys()) == [
+        "col_1",
+        "col_2",
+        "col_3",
+        "_dlt_load_id",
+        "_dlt_id",
+    ]
+    assert list(p.default_schema.tables["order_2"]["columns"].keys()) == [
+        "col_3",
+        "col_2",
+        "col_1",
+        "_dlt_load_id",
+        "_dlt_id",
+    ]
 
 
 def test_pipeline_log_progress() -> None:
-
     os.environ["TIMEOUT"] = "3.0"
 
     # will attach dlt logger
-    p = dlt.pipeline(destination="dummy", progress=dlt.progress.log(0.5, logger=None, log_level=logging.WARNING))
+    p = dlt.pipeline(
+        destination="dummy", progress=dlt.progress.log(0.5, logger=None, log_level=logging.WARNING)
+    )
     # collector was created before pipeline so logger is not attached
     assert cast(LogCollector, p.collector).logger is None
     p.extract(many_delayed(2, 10))
@@ -833,7 +908,6 @@ def test_pipeline_log_progress() -> None:
 
 
 def test_pipeline_source_state_activation() -> None:
-
     appendix_yielded = None
 
     @dlt.source
@@ -852,7 +926,7 @@ def test_pipeline_source_state_activation() -> None:
         def writes_state():
             dlt.current.source_state()["appendix"] = source_st
             dlt.current.resource_state()["RX"] = resource_st
-            yield from [1,2,3]
+            yield from [1, 2, 3]
 
         yield writes_state
 
@@ -863,8 +937,11 @@ def test_pipeline_source_state_activation() -> None:
     assert s_appendix.state == {}
     # create state by running extract
     p_appendix.extract(s_appendix)
-    assert s_appendix.state == {'appendix': 'appendix', 'resources': {'writes_state': {'RX': 'r_appendix'}}}
-    assert s_appendix.writes_state.state == {'RX': 'r_appendix'}
+    assert s_appendix.state == {
+        "appendix": "appendix",
+        "resources": {"writes_state": {"RX": "r_appendix"}},
+    }
+    assert s_appendix.writes_state.state == {"RX": "r_appendix"}
 
     # change the active pipeline
     p_postfix = dlt.pipeline(pipeline_name="postfix_p")
@@ -872,7 +949,7 @@ def test_pipeline_source_state_activation() -> None:
     assert s_appendix.state == {}
     # and back
     p_appendix.activate()
-    assert s_appendix.writes_state.state == {'RX': 'r_appendix'}
+    assert s_appendix.writes_state.state == {"RX": "r_appendix"}
 
     # create another source
     s_w_appendix = reads_state("appendix", "r_appendix")
@@ -902,7 +979,10 @@ def test_extract_add_tables() -> None:
     assert s.resources["🦚Peacock"].compute_table_schema()["resource"] == "🦚Peacock"
     # only name will be normalized
     assert s.resources["🦚Peacock"].compute_table_schema()["name"] == "🦚Peacock"
-    assert s.resources["💰Budget"].compute_table_schema()["columns"]["🔑book_id"]["name"] == "🔑book_id"
+    assert (
+        s.resources["💰Budget"].compute_table_schema()["columns"]["🔑book_id"]["name"]
+        == "🔑book_id"
+    )
     pipeline = dlt.pipeline(pipeline_name="emojis", destination="dummy")
     info = pipeline.extract(s)
     assert info.extract_data_info[0]["name"] == "airtable_emojis"
@@ -949,7 +1029,12 @@ def test_emojis_resource_names() -> None:
     table = info.load_packages[0].schema_update["_schedule"]
     assert table["resource"] == "📆 Schedule"
     # only schedule is added
-    assert set(info.load_packages[0].schema_update.keys()) == {"_dlt_version", "_dlt_loads", "_schedule", "_dlt_pipeline_state"}
+    assert set(info.load_packages[0].schema_update.keys()) == {
+        "_dlt_version",
+        "_dlt_loads",
+        "_schedule",
+        "_dlt_pipeline_state",
+    }
     info = pipeline.run(airtable_emojis())
     assert_load_info(info)
     # here we add _peacock with has primary_key (so at least single column)
@@ -973,12 +1058,13 @@ def test_apply_hints_infer_hints() -> None:
 
     @dlt.source
     def infer():
-        yield dlt.resource([{"id": 1, "timestamp": "NOW"}], name="table1", columns=[new_column("timestamp", nullable=True)])
+        yield dlt.resource(
+            [{"id": 1, "timestamp": "NOW"}],
+            name="table1",
+            columns=[new_column("timestamp", nullable=True)],
+        )
 
-    new_new_hints = {
-        "not_null": ["timestamp"],
-        "primary_key": ["id"]
-    }
+    new_new_hints = {"not_null": ["timestamp"], "primary_key": ["id"]}
     s = infer()
     s.schema.merge_hints(new_new_hints)  # type: ignore[arg-type]
     pipeline = dlt.pipeline(pipeline_name="inf", destination="dummy")
@@ -986,18 +1072,41 @@ def test_apply_hints_infer_hints() -> None:
     # check schema
     table = pipeline.default_schema.get_table("table1")
     # nullable True coming from hint overrides inferred hint
-    assert table["columns"]["timestamp"] == {"name": "timestamp", "data_type": "text", "nullable": True}
+    assert table["columns"]["timestamp"] == {
+        "name": "timestamp",
+        "data_type": "text",
+        "nullable": True,
+    }
     # fully from data
-    assert table["columns"]["id"] == {"name": "id", "data_type": "bigint", "nullable": True, "primary_key": True}
+    assert table["columns"]["id"] == {
+        "name": "id",
+        "data_type": "bigint",
+        "nullable": True,
+        "primary_key": True,
+    }
 
     # remove primary key and change nullable
     s = infer()
-    s.table1.apply_hints(columns=[{"name": "timestamp", "nullable": False}, {"name": "id", "nullable": False, "primary_key": False}])
+    s.table1.apply_hints(
+        columns=[
+            {"name": "timestamp", "nullable": False},
+            {"name": "id", "nullable": False, "primary_key": False},
+        ]
+    )
     pipeline.run(s)
     table = pipeline.default_schema.get_table("table1")
     # hints overwrite pipeline schema
-    assert table["columns"]["timestamp"] == {"name": "timestamp", "data_type": "text", "nullable": False}
-    assert table["columns"]["id"] == {"name": "id", "data_type": "bigint", "nullable": False, "primary_key": False}
+    assert table["columns"]["timestamp"] == {
+        "name": "timestamp",
+        "data_type": "text",
+        "nullable": False,
+    }
+    assert table["columns"]["id"] == {
+        "name": "id",
+        "data_type": "bigint",
+        "nullable": False,
+        "primary_key": False,
+    }
     # print(pipeline.default_schema.to_pretty_yaml())
 
 
@@ -1049,13 +1158,13 @@ def test_resource_rename_same_table():
     @dlt.resource(write_disposition="replace")
     def generic(start):
         dlt.current.resource_state()["start"] = start
-        yield [{"id": idx, "text": "A"*idx} for idx in range(start, start + 10)]
+        yield [{"id": idx, "text": "A" * idx} for idx in range(start, start + 10)]
 
-    pipeline = dlt.pipeline(destination='duckdb')
-    load_info = pipeline.run([
-        generic(10).with_name("state1"),
-        generic(20).with_name("state2")
-    ], table_name="single_table")
+    pipeline = dlt.pipeline(destination="duckdb")
+    load_info = pipeline.run(
+        [generic(10).with_name("state1"), generic(20).with_name("state2")],
+        table_name="single_table",
+    )
     assert_load_info(load_info)
     # both resources loaded
     assert pipeline.last_trace.last_normalize_info.row_counts["single_table"] == 20
@@ -1072,9 +1181,12 @@ def test_resource_rename_same_table():
     assert pipeline.default_schema.get_table("single_table")["resource"] == "state2"
 
     # now load only state1
-    load_info = pipeline.run([
-        generic(5).with_name("state1"),
-    ], table_name="single_table")
+    load_info = pipeline.run(
+        [
+            generic(5).with_name("state1"),
+        ],
+        table_name="single_table",
+    )
     assert_load_info(load_info)
     # both resources loaded
     assert pipeline.last_trace.last_normalize_info.row_counts["single_table"] == 10
@@ -1090,20 +1202,25 @@ def test_remove_autodetect() -> None:
     def autodetect():
         # add unix ts autodetection to current source schema
         dlt.current.source_schema().add_type_detection("timestamp")
-        return dlt.resource([int(now.timestamp()), int(now.timestamp() + 1), int(now.timestamp() + 2)], name="numbers")
+        return dlt.resource(
+            [int(now.timestamp()), int(now.timestamp() + 1), int(now.timestamp() + 2)],
+            name="numbers",
+        )
 
-    pipeline = dlt.pipeline(destination='duckdb')
+    pipeline = dlt.pipeline(destination="duckdb")
     pipeline.run(autodetect())
 
     # unix ts recognized
-    assert pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "timestamp"
+    assert (
+        pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "timestamp"
+    )
 
     pipeline = pipeline.drop()
 
     source = autodetect()
     source.schema.remove_type_detection("timestamp")
 
-    pipeline = dlt.pipeline(destination='duckdb')
+    pipeline = dlt.pipeline(destination="duckdb")
     pipeline.run(source)
 
     assert pipeline.default_schema.get_table("numbers")["columns"]["value"]["data_type"] == "bigint"
@@ -1118,7 +1235,10 @@ def test_flattened_column_hint() -> None:
         # dlt.current.source_schema().add_type_detection("timestamp")
 
         for delta in range(4):
-            yield {"delta": delta, "values": [{"Value": {"timestampValue": now.timestamp() + delta}}]}
+            yield {
+                "delta": delta,
+                "values": [{"Value": {"timestampValue": now.timestamp() + delta}}],
+            }
 
     @dlt.source
     def nested_resource():
@@ -1129,16 +1249,21 @@ def test_flattened_column_hint() -> None:
         values_table = new_table(
             dict_resource.name + "__values",
             parent_table_name=dict_resource.name,
-            columns=[{"name": "value__timestamp_value", "data_type": "timestamp"}]
+            columns=[{"name": "value__timestamp_value", "data_type": "timestamp"}],
         )
         # and child table
         dlt.current.source_schema().update_table(values_table)
         return dict_resource
 
-    pipeline = dlt.pipeline(destination='duckdb')
+    pipeline = dlt.pipeline(destination="duckdb")
     pipeline.run(nested_resource())
     # print(pipeline.default_schema.to_pretty_yaml())
-    assert pipeline.default_schema.get_table("flattened_dict__values")["columns"]["value__timestamp_value"]["data_type"] == "timestamp"
+    assert (
+        pipeline.default_schema.get_table("flattened_dict__values")["columns"][
+            "value__timestamp_value"
+        ]["data_type"]
+        == "timestamp"
+    )
     # make sure data is there
     assert pipeline.last_trace.last_normalize_info.row_counts["flattened_dict__values"] == 4
 
@@ -1147,7 +1272,7 @@ def test_empty_rows_are_included() -> None:
     """Empty rows where all values are `None` or empty dicts
     create rows in the dataset with `NULL` in all columns
     """
-    pipeline = dlt.pipeline(destination='duckdb')
+    pipeline = dlt.pipeline(destination="duckdb")
 
     pipeline.run(iter([{}, {}, {}]), table_name="empty_rows")
     pipeline.run(iter([{"a": 1}, {}, {}]), table_name="empty_rows")
@@ -1170,6 +1295,7 @@ def test_resource_state_name_not_normalized() -> None:
 
     # get state from destination
     from dlt.pipeline.state_sync import load_state_from_destination
+
     client: WithStateSync
     with pipeline.destination_client() as client:  # type: ignore[assignment]
         state = load_state_from_destination(pipeline.pipeline_name, client)
