@@ -18,6 +18,17 @@ def initialize_runtime(config: RunConfiguration) -> None:
     # Init or update default requests client config
     requests.init(config)
 
+    from exec_info import is_notebook
+
+
+    if is_notebook():
+        try:
+            from magics import register_magics
+
+            register_magics()
+        except ImportError:
+            pass
+
     # initialize only once
     if not _INITIALIZED:
         start_telemetry(config)
