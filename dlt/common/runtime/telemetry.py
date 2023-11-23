@@ -21,6 +21,7 @@ def start_telemetry(config: RunConfiguration) -> None:
     if config.sentry_dsn:
         # may raise if sentry is not installed
         from dlt.common.runtime.sentry import init_sentry
+
         init_sentry(config)
 
     if config.dlthub_telemetry:
@@ -36,6 +37,7 @@ def stop_telemetry() -> None:
 
     try:
         from dlt.common.runtime.sentry import disable_sentry
+
         disable_sentry()
     except ImportError:
         pass
@@ -49,14 +51,18 @@ def is_telemetry_started() -> bool:
     return _TELEMETRY_STARTED
 
 
-def with_telemetry(category: TEventCategory, command: str, track_before: bool, *args: str) -> Callable[[TFun], TFun]:
+def with_telemetry(
+    category: TEventCategory, command: str, track_before: bool, *args: str
+) -> Callable[[TFun], TFun]:
     """Adds telemetry to f: TFun and add optional f *args values to `properties` of telemetry event"""
+
     def decorator(f: TFun) -> TFun:
         sig: inspect.Signature = inspect.signature(f)
+
         def _wrap(*f_args: Any, **f_kwargs: Any) -> Any:
             # look for additional arguments
             bound_args = sig.bind(*f_args, **f_kwargs)
-            props = {p:bound_args.arguments[p] for p in args if p in bound_args.arguments}
+            props = {p: bound_args.arguments[p] for p in args if p in bound_args.arguments}
             start_ts = time.time()
 
             def _track(success: bool) -> None:
@@ -88,4 +94,5 @@ def with_telemetry(category: TEventCategory, command: str, track_before: bool, *
                 raise
 
         return _wrap  # type: ignore
+
     return decorator

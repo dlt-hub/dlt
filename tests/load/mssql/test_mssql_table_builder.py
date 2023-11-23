@@ -12,6 +12,7 @@ from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, 
 
 from tests.load.utils import TABLE_UPDATE
 
+
 @pytest.fixture
 def schema() -> Schema:
     return Schema("event")
@@ -20,7 +21,10 @@ def schema() -> Schema:
 @pytest.fixture
 def client(schema: Schema) -> MsSqlClient:
     # return client without opening connection
-    return MsSqlClient(schema, MsSqlClientConfiguration(dataset_name="test_" + uniq_id(), credentials=MsSqlCredentials()))
+    return MsSqlClient(
+        schema,
+        MsSqlClientConfiguration(dataset_name="test_" + uniq_id(), credentials=MsSqlCredentials()),
+    )
 
 
 def test_create_table(client: MsSqlClient) -> None:

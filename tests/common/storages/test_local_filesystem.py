@@ -11,7 +11,9 @@ from tests.common.storages.utils import assert_sample_files
 TEST_SAMPLE_FILES = "tests/common/storages/samples"
 
 
-@pytest.mark.parametrize("bucket_url,load_content", itertools.product(["file:///", "/", ""], [True, False]))
+@pytest.mark.parametrize(
+    "bucket_url,load_content", itertools.product(["file:///", "/", ""], [True, False])
+)
 def test_filesystem_dict_local(bucket_url: str, load_content: bool) -> None:
     if bucket_url in [""]:
         # relative paths
@@ -20,7 +22,7 @@ def test_filesystem_dict_local(bucket_url: str, load_content: bool) -> None:
         if bucket_url == "/":
             bucket_url = os.path.abspath(TEST_SAMPLE_FILES)
         else:
-            bucket_url  = pathlib.Path(TEST_SAMPLE_FILES).absolute().as_uri()
+            bucket_url = pathlib.Path(TEST_SAMPLE_FILES).absolute().as_uri()
 
     config = FilesystemConfiguration(bucket_url=bucket_url)
     filesystem, _ = fsspec_from_config(config)

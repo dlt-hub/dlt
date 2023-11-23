@@ -133,7 +133,7 @@ def test_create_ancestry() -> None:
 
     # modify save and load schema 15 times and check ancestry
     expected_previous_hashes = ["yjMtV4Zv0IJlfR5DPMwuXxGg8BRhy7E79L26XAHWEGE="]
-    for i in range(1,15):
+    for i in range(1, 15):
         # keep expected previous_hashes
         expected_previous_hashes.insert(0, schema._stored_version_hash)
 

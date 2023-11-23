@@ -6,7 +6,12 @@ from dlt.common.storages import FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import FileItem, FileItemDict
 
 
-def assert_sample_files(all_file_items: List[FileItem], filesystem: AbstractFileSystem, config: FilesystemConfiguration, load_content: bool) -> None:
+def assert_sample_files(
+    all_file_items: List[FileItem],
+    filesystem: AbstractFileSystem,
+    config: FilesystemConfiguration,
+    load_content: bool,
+) -> None:
     for item in all_file_items:
         assert isinstance(item["file_name"], str)
         assert item["file_url"].endswith(item["file_name"])
@@ -30,6 +35,7 @@ def assert_sample_files(all_file_items: List[FileItem], filesystem: AbstractFile
             # parse csv
             with file_dict.open(mode="rt") as f:
                 from csv import DictReader
+
                 elements = list(DictReader(f))
                 assert len(elements) > 0
         if item["mime_type"] == "application/parquet":
@@ -45,14 +51,14 @@ def assert_sample_files(all_file_items: List[FileItem], filesystem: AbstractFile
 
     assert len(all_file_items) == 10
     assert set([item["file_name"] for item in all_file_items]) == {
-        'csv/freshman_kgs.csv',
-        'csv/freshman_lbs.csv',
-        'csv/mlb_players.csv',
-        'csv/mlb_teams_2012.csv',
-        'jsonl/mlb_players.jsonl',
-        'met_csv/A801/A881_20230920.csv',
-        'met_csv/A803/A803_20230919.csv',
-        'met_csv/A803/A803_20230920.csv',
-        'parquet/mlb_players.parquet',
-        'sample.txt'
+        "csv/freshman_kgs.csv",
+        "csv/freshman_lbs.csv",
+        "csv/mlb_players.csv",
+        "csv/mlb_teams_2012.csv",
+        "jsonl/mlb_players.jsonl",
+        "met_csv/A801/A881_20230920.csv",
+        "met_csv/A803/A803_20230919.csv",
+        "met_csv/A803/A803_20230920.csv",
+        "parquet/mlb_players.parquet",
+        "sample.txt",
     }

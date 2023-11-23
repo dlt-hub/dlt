@@ -10,6 +10,7 @@ from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.destination import TLoaderFileFormat, ALL_SUPPORTED_FILE_FORMATS
 from dlt.common.exceptions import TerminalValueError
 
+
 class TParsedNormalizeFileName(NamedTuple):
     schema_name: str
     table_name: str
@@ -18,13 +19,20 @@ class TParsedNormalizeFileName(NamedTuple):
 
 
 class NormalizeStorage(VersionedStorage):
-
     STORAGE_VERSION: ClassVar[str] = "1.0.0"
-    EXTRACTED_FOLDER: ClassVar[str] = "extracted"  # folder within the volume where extracted files to be normalized are stored
+    EXTRACTED_FOLDER: ClassVar[str] = (
+        "extracted"  # folder within the volume where extracted files to be normalized are stored
+    )
 
     @with_config(spec=NormalizeStorageConfiguration, sections=(known_sections.NORMALIZE,))
-    def __init__(self, is_owner: bool, config: NormalizeStorageConfiguration = config.value) -> None:
-        super().__init__(NormalizeStorage.STORAGE_VERSION, is_owner, FileStorage(config.normalize_volume_path, "t", makedirs=is_owner))
+    def __init__(
+        self, is_owner: bool, config: NormalizeStorageConfiguration = config.value
+    ) -> None:
+        super().__init__(
+            NormalizeStorage.STORAGE_VERSION,
+            is_owner,
+            FileStorage(config.normalize_volume_path, "t", makedirs=is_owner),
+        )
         self.config = config
         if is_owner:
             self.initialize_storage()

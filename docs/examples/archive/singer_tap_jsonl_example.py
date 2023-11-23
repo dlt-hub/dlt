@@ -7,7 +7,7 @@ from docs.examples.sources.jsonl import jsonl_file
 
 
 # load hubspot schema stub - it converts all field names with `timestamp` into timestamp type
-schema = SchemaStorage.load_schema_file("docs/examples/schemas/", "hubspot", ("yaml", ))
+schema = SchemaStorage.load_schema_file("docs/examples/schemas/", "hubspot", ("yaml",))
 
 p = dlt.pipeline(destination="postgres", full_refresh=True)
 # now load a pipeline created from jsonl resource that feeds messages into singer tap transformer

@@ -15,6 +15,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.pipeline.utils import assert_load_info
 from .utils import assert_class, drop_active_pipeline_data
 
+
 @pytest.fixture(autouse=True)
 def drop_weaviate_schema() -> Iterator[None]:
     yield
@@ -74,6 +75,7 @@ def test_basic_state_and_schema() -> None:
         assert schema
         state = client.get_stored_state("test_pipeline_append")
         assert state
+
 
 def test_pipeline_append() -> None:
     generator_instance1 = sequence_generator()
@@ -149,7 +151,6 @@ def test_explicit_append() -> None:
 
 
 def test_pipeline_replace() -> None:
-
     generator_instance1 = sequence_generator()
     generator_instance2 = sequence_generator()
 
@@ -196,16 +197,14 @@ def test_pipeline_merge() -> None:
             "doc_id": 1,
             "title": "The Shawshank Redemption",
             "description": (
-                "Two imprisoned men find redemption through acts "
-                "of decency over the years."
+                "Two imprisoned men find redemption through acts of decency over the years."
             ),
         },
         {
             "doc_id": 2,
             "title": "The Godfather",
             "description": (
-                "A crime dynasty's aging patriarch transfers "
-                "control to his reluctant son."
+                "A crime dynasty's aging patriarch transfers control to his reluctant son."
             ),
         },
         {
@@ -310,20 +309,39 @@ def test_merge_github_nested() -> None:
     p = dlt.pipeline(destination="weaviate", dataset_name="github1", full_refresh=True)
     assert p.dataset_name.startswith("github1_202")
 
-    with open("tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8") as f:
+    with open(
+        "tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
+    ) as f:
         data = json.load(f)
 
     info = p.run(
-        weaviate_adapter(data[:17], vectorize=["title", "body"], tokenization={"user__login": "lowercase"}),
+        weaviate_adapter(
+            data[:17], vectorize=["title", "body"], tokenization={"user__login": "lowercase"}
+        ),
         table_name="issues",
         write_disposition="merge",
-        primary_key="id"
+        primary_key="id",
     )
     assert_load_info(info)
     # assert if schema contains tables with right names
-    assert set(p.default_schema.tables.keys()) == {'DltVersion', 'DltLoads', 'Issues', 'DltPipelineState', 'Issues__Labels', 'Issues__Assignees'}
-    assert set([t["name"] for t in p.default_schema.data_tables()]) == {'Issues', 'Issues__Labels', 'Issues__Assignees'}
-    assert set([t["name"] for t in p.default_schema.dlt_tables()]) == {'DltVersion', 'DltLoads', 'DltPipelineState'}
+    assert set(p.default_schema.tables.keys()) == {
+        "DltVersion",
+        "DltLoads",
+        "Issues",
+        "DltPipelineState",
+        "Issues__Labels",
+        "Issues__Assignees",
+    }
+    assert set([t["name"] for t in p.default_schema.data_tables()]) == {
+        "Issues",
+        "Issues__Labels",
+        "Issues__Assignees",
+    }
+    assert set([t["name"] for t in p.default_schema.dlt_tables()]) == {
+        "DltVersion",
+        "DltLoads",
+        "DltPipelineState",
+    }
     issues = p.default_schema.tables["Issues"]
     # make sure that both "id" column and "primary_key" were changed to __id
     assert issues["columns"]["__id"]["primary_key"] is True
@@ -369,7 +387,11 @@ def test_vectorize_property_without_data() -> None:
     # here we increase the abuse and try to vectorize a `Value` field, where in the data there's `value`
     # in standard naming convention this results in property conflict
     with pytest.raises(PipelineStepFailed) as pipe_ex:
-        p.run(weaviate_adapter(["a", "b", "c"], vectorize="vAlue"), primary_key="vAlue", columns={"vAlue": {"data_type": "text"}})
+        p.run(
+            weaviate_adapter(["a", "b", "c"], vectorize="vAlue"),
+            primary_key="vAlue",
+            columns={"vAlue": {"data_type": "text"}},
+        )
     assert isinstance(pipe_ex.value.__context__, PropertyNameConflict)
 
     # set the naming convention to case insensitive
@@ -377,7 +399,11 @@ def test_vectorize_property_without_data() -> None:
     dlt.config["schema.naming"] = "dlt.destinations.impl.weaviate.ci_naming"
     # create new schema with changed naming convention
     p = p.drop()
-    info = p.run(weaviate_adapter(["there are", "no stop", "words in here"], vectorize="vAlue"), primary_key="vALue", columns={"vAlue": {"data_type": "text"}})
+    info = p.run(
+        weaviate_adapter(["there are", "no stop", "words in here"], vectorize="vAlue"),
+        primary_key="vALue",
+        columns={"vAlue": {"data_type": "text"}},
+    )
     # dataset in load info is empty
     assert_load_info(info)
     # print(p.default_schema.to_pretty_yaml())

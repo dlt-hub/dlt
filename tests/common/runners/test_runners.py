@@ -10,7 +10,12 @@ from dlt.common.runners import pool_runner as runner
 from dlt.common.runtime import initialize_runtime
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
 
-from tests.common.runners.utils import _TestRunnableWorkerMethod, _TestRunnableWorker, ALL_METHODS, mp_method_auto
+from tests.common.runners.utils import (
+    _TestRunnableWorkerMethod,
+    _TestRunnableWorker,
+    ALL_METHODS,
+    mp_method_auto,
+)
 from tests.utils import init_test_logging
 
 
@@ -42,6 +47,7 @@ def logger_autouse() -> None:
 
 
 _counter = 0
+
 
 @pytest.fixture(autouse=True)
 def default_args() -> None:
@@ -117,15 +123,12 @@ def test_single_non_idle_run() -> None:
 
 def test_runnable_with_runner() -> None:
     r = _TestRunnableWorkerMethod(4)
-    runs_count = runner.run_pool(
-        configure(ThreadPoolConfiguration),
-        r
-    )
+    runs_count = runner.run_pool(configure(ThreadPoolConfiguration), r)
     assert runs_count == 1
     assert [v[0] for v in r.rv] == list(range(4))
 
 
-@pytest.mark.parametrize('method', ALL_METHODS)
+@pytest.mark.parametrize("method", ALL_METHODS)
 def test_pool_runner_process_methods(method) -> None:
     multiprocessing.set_start_method(method, force=True)
     r = _TestRunnableWorker(4)
@@ -133,9 +136,6 @@ def test_pool_runner_process_methods(method) -> None:
     C = resolve_configuration(RunConfiguration())
     initialize_runtime(C)
 
-    runs_count = runner.run_pool(
-        configure(ProcessPoolConfiguration),
-        r
-    )
+    runs_count = runner.run_pool(configure(ProcessPoolConfiguration), r)
     assert runs_count == 1
     assert [v[0] for v in r.rv] == list(range(4))

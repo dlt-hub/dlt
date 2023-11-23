@@ -13,7 +13,9 @@ class DataItemStorage(ABC):
         self.buffered_writers: Dict[str, BufferedDataWriter[DataWriter]] = {}
         super().__init__(*args)
 
-    def get_writer(self, load_id: str, schema_name: str, table_name: str) -> BufferedDataWriter[DataWriter]:
+    def get_writer(
+        self, load_id: str, schema_name: str, table_name: str
+    ) -> BufferedDataWriter[DataWriter]:
         # unique writer id
         writer_id = f"{load_id}.{schema_name}.{table_name}"
         writer = self.buffered_writers.get(writer_id, None)
@@ -24,12 +26,21 @@ class DataItemStorage(ABC):
             self.buffered_writers[writer_id] = writer
         return writer
 
-    def write_data_item(self, load_id: str, schema_name: str, table_name: str, item: TDataItems, columns: TTableSchemaColumns) -> int:
+    def write_data_item(
+        self,
+        load_id: str,
+        schema_name: str,
+        table_name: str,
+        item: TDataItems,
+        columns: TTableSchemaColumns,
+    ) -> int:
         writer = self.get_writer(load_id, schema_name, table_name)
         # write item(s)
         return writer.write_data_item(item, columns)
 
-    def write_empty_file(self, load_id: str, schema_name: str, table_name: str, columns: TTableSchemaColumns) -> None:
+    def write_empty_file(
+        self, load_id: str, schema_name: str, table_name: str, columns: TTableSchemaColumns
+    ) -> None:
         writer = self.get_writer(load_id, schema_name, table_name)
         writer.write_empty_file(columns)
 
@@ -37,7 +48,10 @@ class DataItemStorage(ABC):
         # flush and close all files
         for name, writer in self.buffered_writers.items():
             if name.startswith(extract_id):
-                logger.debug(f"Closing writer for {name} with file {writer._file} and actual name {writer._file_name}")
+                logger.debug(
+                    f"Closing writer for {name} with file {writer._file} and actual name"
+                    f" {writer._file_name}"
+                )
                 writer.close()
 
     def closed_files(self) -> List[str]:

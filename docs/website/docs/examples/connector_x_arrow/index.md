@@ -42,20 +42,18 @@ import dlt
 from dlt.sources.credentials import ConnectionStringCredentials
 
 def read_sql_x(
-    conn_str: ConnectionStringCredentials = dlt.secrets.value,
-    query: str = dlt.config.value
+    conn_str: ConnectionStringCredentials = dlt.secrets.value, query: str = dlt.config.value
 ):
-    yield cx.read_sql(conn_str.to_native_representation(), query, return_type="arrow2", protocol="binary")
+    yield cx.read_sql(
+        conn_str.to_native_representation(), query, return_type="arrow2", protocol="binary"
+    )
 
 # create genome resource with merge on `upid` primary key
 genome = dlt.resource(
-    name="genome",
-    write_disposition="merge",
-    primary_key="upid",
-    standalone=True
+    name="genome", write_disposition="merge", primary_key="upid", standalone=True
 )(read_sql_x)(
     "mysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam",  # type: ignore[arg-type]
-    "SELECT * FROM genome ORDER BY created LIMIT 1000"
+    "SELECT * FROM genome ORDER BY created LIMIT 1000",
 )
 # add incremental on created at
 genome.apply_hints(incremental=dlt.sources.incremental("created"))

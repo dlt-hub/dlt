@@ -5,6 +5,7 @@ from dlt.extract import DltResource, resource as make_resource
 
 VECTORIZE_HINT = "x-qdrant-embed"
 
+
 def qdrant_adapter(
     data: Any,
     embed: TColumnNames = None,
@@ -47,8 +48,7 @@ def qdrant_adapter(
             embed = [embed]
         if not isinstance(embed, list):
             raise ValueError(
-                "embed must be a list of column names or a single "
-                "column name as a string"
+                "embed must be a list of column names or a single column name as a string"
             )
 
         for column_name in embed:
@@ -58,8 +58,7 @@ def qdrant_adapter(
             }
 
     if not column_hints:
-        raise ValueError(
-            "A value for 'embed' must be specified.")
+        raise ValueError("A value for 'embed' must be specified.")
     else:
         resource.apply_hints(columns=column_hints)
 

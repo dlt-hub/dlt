@@ -4,7 +4,11 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.runners.configuration import PoolRunnerConfiguration, TPoolType
-from dlt.common.storages import LoadStorageConfiguration, NormalizeStorageConfiguration, SchemaStorageConfiguration
+from dlt.common.storages import (
+    LoadStorageConfiguration,
+    NormalizeStorageConfiguration,
+    SchemaStorageConfiguration,
+)
 
 
 @configspec
@@ -15,8 +19,8 @@ class ItemsNormalizerConfiguration(BaseConfiguration):
     """When true, items to be normalized will have `_dlt_load_id` column added with the current load ID."""
 
     if TYPE_CHECKING:
-        def __init__(self, add_dlt_id: bool = None, add_dlt_load_id: bool = None) -> None:
-            ...
+
+        def __init__(self, add_dlt_id: bool = None, add_dlt_load_id: bool = None) -> None: ...
 
 
 @configspec
@@ -27,20 +31,24 @@ class NormalizeConfiguration(PoolRunnerConfiguration):
     _normalize_storage_config: NormalizeStorageConfiguration
     _load_storage_config: LoadStorageConfiguration
 
-    json_normalizer: ItemsNormalizerConfiguration = ItemsNormalizerConfiguration(add_dlt_id=True, add_dlt_load_id=True)
+    json_normalizer: ItemsNormalizerConfiguration = ItemsNormalizerConfiguration(
+        add_dlt_id=True, add_dlt_load_id=True
+    )
 
-    parquet_normalizer: ItemsNormalizerConfiguration = ItemsNormalizerConfiguration(add_dlt_id=False, add_dlt_load_id=False)
+    parquet_normalizer: ItemsNormalizerConfiguration = ItemsNormalizerConfiguration(
+        add_dlt_id=False, add_dlt_load_id=False
+    )
 
     def on_resolved(self) -> None:
         self.pool_type = "none" if self.workers == 1 else "process"
 
     if TYPE_CHECKING:
+
         def __init__(
             self,
             pool_type: TPoolType = "process",
             workers: int = None,
             _schema_storage_config: SchemaStorageConfiguration = None,
             _normalize_storage_config: NormalizeStorageConfiguration = None,
-            _load_storage_config: LoadStorageConfiguration = None
-        ) -> None:
-            ...
+            _load_storage_config: LoadStorageConfiguration = None,
+        ) -> None: ...

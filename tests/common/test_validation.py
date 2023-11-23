@@ -11,11 +11,12 @@ from dlt.common.typing import DictStrStr, StrStr
 from dlt.common.validation import validate_dict, validate_dict_ignoring_xkeys
 
 
-
 TLiteral = Literal["uno", "dos", "tres"]
+
 
 class TDict(TypedDict):
     field: TLiteral
+
 
 class TTestRecord(TypedDict):
     f_bool: bool
@@ -38,28 +39,12 @@ class TTestRecord(TypedDict):
     f_optional_union: Optional[Union[TLiteral, TDict]]
 
 
-TEST_COL: TColumnSchema = {
-        "name": "col1",
-        "data_type": "bigint",
-        "nullable": False
-    }
+TEST_COL: TColumnSchema = {"name": "col1", "data_type": "bigint", "nullable": False}
 
 TEST_COL_LIST: List[TColumnSchema] = [
-    {
-        "name": "col1",
-        "data_type": "bigint",
-        "nullable": False
-    },
-    {
-        "name": "col2",
-        "data_type": "double",
-        "nullable": False
-    },
-    {
-        "name": "col3",
-        "data_type": "bool",
-        "nullable": False
-    }
+    {"name": "col1", "data_type": "bigint", "nullable": False},
+    {"name": "col2", "data_type": "double", "nullable": False},
+    {"name": "col3", "data_type": "bool", "nullable": False},
 ]
 
 TEST_DOC: TTestRecord = {
@@ -72,7 +57,7 @@ TEST_DOC: TTestRecord = {
     "f_seq_simple": ["x", "y"],
     "f_seq_optional_str": ["opt1", "opt2"],
     "f_seq_of_optional_int": [1, 2, 3],
-    "f_list_of_dict":  TEST_COL_LIST,
+    "f_list_of_dict": TEST_COL_LIST,
     "f_dict_simple": {"col1": "map_me"},
     "f_map_simple": {"col1": "map_me"},
     "f_map_of_dict": {"col1": deepcopy(TEST_COL)},
@@ -80,8 +65,9 @@ TEST_DOC: TTestRecord = {
     "f_literal": "uno",
     "f_literal_optional": "dos",
     "f_seq_literal": ["uno", "dos", "tres"],
-    "f_optional_union": {"field": "uno"}
+    "f_optional_union": {"field": "uno"},
 }
+
 
 @pytest.fixture
 def test_doc() -> TTestRecord:
@@ -89,7 +75,9 @@ def test_doc() -> TTestRecord:
 
 
 def test_validate_schema_cases() -> None:
-    with open("tests/common/cases/schemas/eth/ethereum_schema_v8.yml", mode="r", encoding="utf-8") as f:
+    with open(
+        "tests/common/cases/schemas/eth/ethereum_schema_v8.yml", mode="r", encoding="utf-8"
+    ) as f:
         schema_dict: TStoredSchema = yaml.safe_load(f)
 
     validate_dict_ignoring_xkeys(
@@ -243,7 +231,7 @@ def test_nested_union(test_doc: TTestRecord) -> None:
     with pytest.raises(DictValidationException) as e:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_optional_union"
-    assert e.value.value == {'field': 'not valid'}
+    assert e.value.value == {"field": "not valid"}
 
     test_doc["f_optional_union"] = "dos"
     validate_dict(TTestRecord, test_doc, ".")

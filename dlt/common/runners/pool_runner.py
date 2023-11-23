@@ -43,12 +43,11 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
                 max_workers=config.workers,
                 initializer=init.initialize_runtime,
                 initargs=(init._RUN_CONFIGURATION,),
-                mp_context=multiprocessing.get_context()
-                )
+                mp_context=multiprocessing.get_context(),
+            )
         else:
             return ProcessPoolExecutor(
-                max_workers=config.workers,
-                mp_context=multiprocessing.get_context()
+                max_workers=config.workers, mp_context=multiprocessing.get_context()
             )
     elif config.pool_type == "thread":
         return ThreadPoolExecutor(max_workers=config.workers)
@@ -56,10 +55,15 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
     return NullExecutor()
 
 
-def run_pool(config: PoolRunnerConfiguration, run_f: Union[Runnable[TExecutor], Callable[[TExecutor], TRunMetrics]]) -> int:
+def run_pool(
+    config: PoolRunnerConfiguration,
+    run_f: Union[Runnable[TExecutor], Callable[[TExecutor], TRunMetrics]],
+) -> int:
     # validate the run function
     if not isinstance(run_f, Runnable) and not callable(run_f):
-        raise ValueError(run_f, "Pool runner entry point must be a function f(pool: TPool) or Runnable")
+        raise ValueError(
+            run_f, "Pool runner entry point must be a function f(pool: TPool) or Runnable"
+        )
 
     # start pool
     pool = create_pool(config)

@@ -160,7 +160,6 @@ def get_details(item_id):
     # just return the results, if you yield, generator will be evaluated in main thread
     return {"row": item_id}
 
-
 # evaluate the pipeline and print all the items
 # resources are iterators and they are evaluated in the same way in the pipeline.run
 print(list(list_items(0, 10) | get_details))
@@ -197,7 +196,6 @@ async def a_get_details(item_id):
     print(f"item_id {item_id} in thread {currentThread().name}")
     # just return the results, if you yield, generator will be evaluated in main thread
     return {"row": item_id}
-
 
 print(list(list_items(0, 10) | a_get_details))
 ```
@@ -306,7 +304,10 @@ def read_table(limit):
     rows = iter(range(limit))
     while item_slice := list(islice(rows, 1000)):
         now = pendulum.now().isoformat()
-        yield [{"row": _id, "description": "this is row with id {_id}", "timestamp": now} for _id in item_slice]
+        yield [
+            {"row": _id, "description": "this is row with id {_id}", "timestamp": now}
+            for _id in item_slice
+        ]
 
 # this prevents process pool to run the initialization code again
 if __name__ == "__main__" or "PYTEST_CURRENT_TEST" in os.environ:

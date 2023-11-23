@@ -2,6 +2,7 @@ import abc
 from typing import Any, Generic, Type, Generator, Tuple, Protocol, TYPE_CHECKING, TypeVar
 
 from dlt.common.typing import DictStrAny, TDataItem, StrAny
+
 if TYPE_CHECKING:
     from dlt.common.schema import Schema
 else:
@@ -15,14 +16,16 @@ TNormalizedRowIterator = Generator[Tuple[Tuple[str, str], StrAny], bool, None]
 # type var for data item normalizer config
 TNormalizerConfig = TypeVar("TNormalizerConfig", bound=Any)
 
-class DataItemNormalizer(abc.ABC, Generic[TNormalizerConfig]):
 
+class DataItemNormalizer(abc.ABC, Generic[TNormalizerConfig]):
     @abc.abstractmethod
     def __init__(self, schema: Schema) -> None:
         pass
 
     @abc.abstractmethod
-    def normalize_data_item(self, item: TDataItem, load_id: str, table_name: str) -> TNormalizedRowIterator:
+    def normalize_data_item(
+        self, item: TDataItem, load_id: str, table_name: str
+    ) -> TNormalizedRowIterator:
         pass
 
     @abc.abstractmethod

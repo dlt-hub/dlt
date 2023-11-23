@@ -18,13 +18,27 @@ from tests.utils import preserve_environ
 from tests.cases import arrow_table_all_data_types, TArrowFormat
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_staging_configs=True, all_staging_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, default_staging_configs=True, all_staging_configs=True
+    ),
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
-def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destination_config: DestinationTestConfiguration) -> None:
-    os.environ['NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID'] = "True"
-    os.environ['NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID'] = "True"
-    include_time = destination_config.destination not in ("athena", "redshift")  # athena/redshift can't load TIME columns from parquet
-    item, records = arrow_table_all_data_types(item_type, include_json=False, include_time=include_time)
+def test_load_item(
+    item_type: Literal["pandas", "table", "record_batch"],
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
+    include_time = destination_config.destination not in (
+        "athena",
+        "redshift",
+    )  # athena/redshift can't load TIME columns from parquet
+    item, records = arrow_table_all_data_types(
+        item_type, include_json=False, include_time=include_time
+    )
 
     pipeline = destination_config.setup_pipeline("arrow_" + uniq_id())
 
@@ -54,7 +68,6 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
             if isinstance(row[i], memoryview):
                 row[i] = row[i].tobytes()
 
-
     if destination_config.destination == "redshift":
         # Binary columns are hex formatted in results
         for record in records:
@@ -71,7 +84,9 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
     for row in expected:
         for i in range(len(row)):
             if isinstance(row[i], datetime):
-                row[i] = reduce_pendulum_datetime_precision(row[i], pipeline.destination.capabilities().timestamp_precision)
+                row[i] = reduce_pendulum_datetime_precision(
+                    row[i], pipeline.destination.capabilities().timestamp_precision
+                )
 
     load_id = load_info.loads_ids[0]
 
@@ -88,9 +103,20 @@ def test_load_item(item_type: Literal["pandas", "table", "record_batch"], destin
 
 
 @pytest.mark.no_load  # Skips drop_pipeline fixture since we don't do any loading
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True, default_staging_configs=True, all_staging_configs=True, default_vector_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        default_staging_configs=True,
+        all_staging_configs=True,
+        default_vector_configs=True,
+    ),
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize("item_type", ["table", "pandas", "record_batch"])
-def test_parquet_column_names_are_normalized(item_type: TArrowFormat, destination_config: DestinationTestConfiguration) -> None:
+def test_parquet_column_names_are_normalized(
+    item_type: TArrowFormat, destination_config: DestinationTestConfiguration
+) -> None:
     """Test normalizing of parquet columns in all destinations"""
     # Create df with column names with inconsistent naming conventions
     df = pd.DataFrame(
@@ -102,7 +128,7 @@ def test_parquet_column_names_are_normalized(item_type: TArrowFormat, destinatio
             "e-MAIL",
             " pHone Number",
             "ADDRESS",
-            "CreatedAt"
+            "CreatedAt",
         ],
     )
 
@@ -122,19 +148,22 @@ def test_parquet_column_names_are_normalized(item_type: TArrowFormat, destinatio
 
     # Find the extracted file
     norm_storage = pipeline._get_normalize_storage()
-    extract_files = [fn for fn in norm_storage.list_files_to_normalize_sorted() if fn.endswith(".parquet")]
+    extract_files = [
+        fn for fn in norm_storage.list_files_to_normalize_sorted() if fn.endswith(".parquet")
+    ]
     assert len(extract_files) == 1
 
     # Normalized column names according to schema naming convention
-    expected_column_names = [pipeline.default_schema.naming.normalize_path(col) for col in df.columns]
+    expected_column_names = [
+        pipeline.default_schema.naming.normalize_path(col) for col in df.columns
+    ]
     new_table_name = pipeline.default_schema.naming.normalize_table_identifier("some_data")
     schema_columns = pipeline.default_schema.get_table_columns(new_table_name)
 
     # Schema columns are normalized
-    assert [c['name'] for c in schema_columns.values()] == expected_column_names
+    assert [c["name"] for c in schema_columns.values()] == expected_column_names
 
-
-    with norm_storage.storage.open_file(extract_files[0], 'rb') as f:
+    with norm_storage.storage.open_file(extract_files[0], "rb") as f:
         result_tbl = pa.parquet.read_table(f)
 
         # Parquet schema is written with normalized column names

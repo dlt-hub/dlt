@@ -3,6 +3,7 @@ from typing import List
 
 DLT_MARKER = "@@@DLT_"
 
+
 def parse_toml_file(filename: str) -> None:
     # test toml file by going snippet by snippet
     with open(filename, "r", encoding="utf-8") as f:
@@ -17,7 +18,9 @@ def parse_toml_file(filename: str) -> None:
                 try:
                     tomlkit.loads(toml_snippet)
                 except Exception as e:
-                    print(f"Error while testing snippet bewteen: {current_marker} and {line.strip()}")
+                    print(
+                        f"Error while testing snippet bewteen: {current_marker} and {line.strip()}"
+                    )
                     raise e
                 current_lines = []
                 current_marker = line.strip()

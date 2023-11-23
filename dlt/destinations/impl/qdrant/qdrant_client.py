@@ -19,6 +19,7 @@ from qdrant_client import QdrantClient as QC, models
 from qdrant_client.qdrant_fastembed import uuid
 from qdrant_client.http.exceptions import UnexpectedResponse
 
+
 class LoadQdrantJob(LoadJob):
     def __init__(
         self,
@@ -32,8 +33,7 @@ class LoadQdrantJob(LoadJob):
         super().__init__(file_name)
         self.db_client = db_client
         self.collection_name = collection_name
-        self.embedding_fields = get_columns_names_with_prop(
-            table_schema, VECTORIZE_HINT)
+        self.embedding_fields = get_columns_names_with_prop(table_schema, VECTORIZE_HINT)
         self.unique_identifiers = self._list_unique_identifiers(table_schema)
         self.config = client_config
 
@@ -42,17 +42,24 @@ class LoadQdrantJob(LoadJob):
 
             for line in f:
                 data = json.loads(line)
-                point_id = self._generate_uuid(
-                    data, self.unique_identifiers, self.collection_name) if self.unique_identifiers else uuid.uuid4()
+                point_id = (
+                    self._generate_uuid(data, self.unique_identifiers, self.collection_name)
+                    if self.unique_identifiers
+                    else uuid.uuid4()
+                )
                 embedding_doc = self._get_embedding_doc(data)
                 payloads.append(data)
                 ids.append(point_id)
                 docs.append(embedding_doc)
 
-            embedding_model = db_client._get_or_init_model(
-                db_client.embedding_model_name)
-            embeddings = list(embedding_model.embed(
-                docs, batch_size=self.config.embedding_batch_size, parallel=self.config.embedding_parallelism))
+            embedding_model = db_client._get_or_init_model(db_client.embedding_model_name)
+            embeddings = list(
+                embedding_model.embed(
+                    docs,
+                    batch_size=self.config.embedding_batch_size,
+                    parallel=self.config.embedding_parallelism,
+                )
+            )
             vector_name = db_client.get_vector_field_name()
             embeddings = [{vector_name: embedding.tolist()} for embedding in embeddings]
             assert len(embeddings) == len(payloads) == len(ids)
@@ -81,13 +88,14 @@ class LoadQdrantJob(LoadJob):
             Sequence[str]: A list of unique column identifiers.
         """
         if table_schema.get("write_disposition") == "merge":
-            primary_keys = get_columns_names_with_prop(
-                table_schema, "primary_key")
+            primary_keys = get_columns_names_with_prop(table_schema, "primary_key")
             if primary_keys:
                 return primary_keys
         return get_columns_names_with_prop(table_schema, "unique")
 
-    def _upload_data(self, ids: Iterable[Any], vectors: Iterable[Any], payloads: Iterable[Any]) -> None:
+    def _upload_data(
+        self, ids: Iterable[Any], vectors: Iterable[Any], payloads: Iterable[Any]
+    ) -> None:
         """Uploads data to a Qdrant instance in a batch. Supports retries and parallelism.
 
         Args:
@@ -96,7 +104,14 @@ class LoadQdrantJob(LoadJob):
             payloads (Iterable[Any]): Payloads to be uploaded to the collection
         """
         self.db_client.upload_collection(
-            self.collection_name, ids=ids, payload=payloads, vectors=vectors, parallel=self.config.upload_parallelism, batch_size=self.config.upload_batch_size, max_retries=self.config.upload_max_retries)
+            self.collection_name,
+            ids=ids,
+            payload=payloads,
+            vectors=vectors,
+            parallel=self.config.upload_parallelism,
+            batch_size=self.config.upload_batch_size,
+            max_retries=self.config.upload_max_retries,
+        )
 
     def _generate_uuid(
         self, data: Dict[str, Any], unique_identifiers: Sequence[str], collection_name: str
@@ -120,12 +135,19 @@ class LoadQdrantJob(LoadJob):
     def exception(self) -> str:
         raise NotImplementedError()
 
+
 class QdrantClient(JobClientBase, WithStateSync):
-    """Qdrant Destination Handler
-    """
+    """Qdrant Destination Handler"""
+
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
     state_properties: ClassVar[List[str]] = [
-        "version", "engine_version", "pipeline_name", "state", "created_at", "_dlt_load_id"]
+        "version",
+        "engine_version",
+        "pipeline_name",
+        "state",
+        "created_at",
+        "_dlt_load_id",
+    ]
 
     def __init__(self, schema: Schema, config: QdrantClientConfiguration) -> None:
         super().__init__(schema, config)
@@ -167,11 +189,13 @@ class QdrantClient(JobClientBase, WithStateSync):
             str: The dataset name and table name concatenated with a separator if dataset name is present.
         """
         dataset_separator = self.config.dataset_separator
-        return f"{self.dataset_name}{dataset_separator}{table_name}" if self.dataset_name else table_name
+        return (
+            f"{self.dataset_name}{dataset_separator}{table_name}"
+            if self.dataset_name
+            else table_name
+        )
 
-    def _create_collection(
-        self, full_collection_name: str
-    ) -> None:
+    def _create_collection(self, full_collection_name: str) -> None:
         """Creates a collection in Qdrant.
 
         Args:
@@ -188,7 +212,8 @@ class QdrantClient(JobClientBase, WithStateSync):
         vectors_config = self.db_client.get_fastembed_vector_params()
 
         self.db_client.create_collection(
-            collection_name=full_collection_name, vectors_config=vectors_config)
+            collection_name=full_collection_name, vectors_config=vectors_config
+        )
 
     def _create_point(self, obj: Dict[str, Any], collection_name: str) -> None:
         """Inserts a point into a Qdrant collection without a vector.
@@ -197,12 +222,16 @@ class QdrantClient(JobClientBase, WithStateSync):
             obj (Dict[str, Any]): The arbitrary data to be inserted as payload.
             collection_name (str): The name of the collection to insert the point into.
         """
-        self.db_client.upsert(collection_name, points=[
-            models.PointStruct(
-                id=str(uuid.uuid4()),
-                payload=obj,
-                vector={},
-            )])
+        self.db_client.upsert(
+            collection_name,
+            points=[
+                models.PointStruct(
+                    id=str(uuid.uuid4()),
+                    payload=obj,
+                    vector={},
+                )
+            ],
+        )
 
     def drop_storage(self) -> None:
         """Drop the dataset from the Qdrant instance.
@@ -213,8 +242,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         If dataset name was not provided, it deletes all the tables in the current schema
         """
         collections = self.db_client.get_collections().collections
-        collection_name_list = [collection.name
-                           for collection in collections]
+        collection_name_list = [collection.name for collection in collections]
 
         if self.dataset_name:
             prefix = f"{self.dataset_name}{self.config.dataset_separator}"
@@ -234,8 +262,7 @@ class QdrantClient(JobClientBase, WithStateSync):
             self._create_sentinel_collection()
         elif truncate_tables:
             for table_name in truncate_tables:
-                qualified_table_name = self._make_qualified_collection_name(
-                    table_name=table_name)
+                qualified_table_name = self._make_qualified_collection_name(table_name=table_name)
                 if self._collection_exists(qualified_table_name):
                     continue
 
@@ -257,48 +284,64 @@ class QdrantClient(JobClientBase, WithStateSync):
         self, only_tables: Iterable[str] = None, expected_update: TSchemaTables = None
     ) -> Optional[TSchemaTables]:
         applied_update: TSchemaTables = {}
-        schema_info = self.get_stored_schema_by_hash(
-                self.schema.stored_version_hash)
+        schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is None:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} "
-                f"not found in the storage. upgrading"
+                "not found in the storage. upgrading"
             )
             self._execute_schema_update(only_tables)
         else:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} "
                 f"inserted at {schema_info.inserted_at} found "
-                f"in storage, no upgrade required"
+                "in storage, no upgrade required"
             )
         return applied_update
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage
-           By finding a load id that was completed
+        By finding a load id that was completed
         """
         limit = 10
         offset = None
         while True:
             try:
                 scroll_table_name = self._make_qualified_collection_name(
-                    self.schema.state_table_name)
-                state_records, offset = self.db_client.scroll(scroll_table_name, with_payload=self.state_properties, scroll_filter=models.Filter(must=[
-                    models.FieldCondition(
-                        key="pipeline_name", match=models.MatchValue(value=pipeline_name))
-                ]), limit=limit, offset=offset)
+                    self.schema.state_table_name
+                )
+                state_records, offset = self.db_client.scroll(
+                    scroll_table_name,
+                    with_payload=self.state_properties,
+                    scroll_filter=models.Filter(
+                        must=[
+                            models.FieldCondition(
+                                key="pipeline_name", match=models.MatchValue(value=pipeline_name)
+                            )
+                        ]
+                    ),
+                    limit=limit,
+                    offset=offset,
+                )
                 if len(state_records) == 0:
                     return None
                 for state_record in state_records:
                     state = state_record.payload
                     load_id = state["_dlt_load_id"]
                     scroll_table_name = self._make_qualified_collection_name(
-                        self.schema.loads_table_name)
-                    load_records = self.db_client.count(scroll_table_name, exact=True, count_filter=models.Filter(
-                        must=[models.FieldCondition(
-                            key="load_id", match=models.MatchValue(value=load_id)
-                        )]
-                    ))
+                        self.schema.loads_table_name
+                    )
+                    load_records = self.db_client.count(
+                        scroll_table_name,
+                        exact=True,
+                        count_filter=models.Filter(
+                            must=[
+                                models.FieldCondition(
+                                    key="load_id", match=models.MatchValue(value=load_id)
+                                )
+                            ]
+                        ),
+                    )
                     if load_records.count > 0:
                         state["dlt_load_id"] = state.pop("_dlt_load_id")
                         return StateInfo(**state)
@@ -308,14 +351,20 @@ class QdrantClient(JobClientBase, WithStateSync):
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""
         try:
-            scroll_table_name = self._make_qualified_collection_name(
-                self.schema.version_table_name)
-            response = self.db_client.scroll(scroll_table_name, with_payload=True, scroll_filter=models.Filter(
-                must=[models.FieldCondition(
-                    key="schema_name",
-                    match=models.MatchValue(value=self.schema.name),
-                )]
-            ), limit=1)
+            scroll_table_name = self._make_qualified_collection_name(self.schema.version_table_name)
+            response = self.db_client.scroll(
+                scroll_table_name,
+                with_payload=True,
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="schema_name",
+                            match=models.MatchValue(value=self.schema.name),
+                        )
+                    ]
+                ),
+                limit=1,
+            )
             record = response[0][0].payload
             return StorageSchemaInfo(**record)
         except Exception:
@@ -323,23 +372,25 @@ class QdrantClient(JobClientBase, WithStateSync):
 
     def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
         try:
-            scroll_table_name = self._make_qualified_collection_name(
-                self.schema.version_table_name)
-            response = self.db_client.scroll(scroll_table_name, with_payload=True, scroll_filter=models.Filter(
-                must=[
-                    models.FieldCondition(
-                        key="version_hash", match=models.MatchValue(value=schema_hash))
-                ]
-
-            ), limit=1)
+            scroll_table_name = self._make_qualified_collection_name(self.schema.version_table_name)
+            response = self.db_client.scroll(
+                scroll_table_name,
+                with_payload=True,
+                scroll_filter=models.Filter(
+                    must=[
+                        models.FieldCondition(
+                            key="version_hash", match=models.MatchValue(value=schema_hash)
+                        )
+                    ]
+                ),
+                limit=1,
+            )
             record = response[0][0].payload
             return StorageSchemaInfo(**record)
         except Exception:
             return None
 
-    def start_file_load(
-        self, table: TTableSchema, file_path: str, load_id: str
-    ) -> LoadJob:
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         return LoadQdrantJob(
             table,
             file_path,
@@ -358,8 +409,7 @@ class QdrantClient(JobClientBase, WithStateSync):
             "status": 0,
             "inserted_at": str(pendulum.now()),
         }
-        loads_table_name = self._make_qualified_collection_name(
-            self.schema.loads_table_name)
+        loads_table_name = self._make_qualified_collection_name(self.schema.loads_table_name)
         self._create_point(properties, loads_table_name)
 
     def __enter__(self) -> "QdrantClient":
@@ -383,8 +433,7 @@ class QdrantClient(JobClientBase, WithStateSync):
             "inserted_at": str(pendulum.now()),
             "schema": schema_str,
         }
-        version_table_name = self._make_qualified_collection_name(
-            self.schema.version_table_name)
+        version_table_name = self._make_qualified_collection_name(self.schema.version_table_name)
         self._create_point(properties, version_table_name)
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
@@ -399,8 +448,11 @@ class QdrantClient(JobClientBase, WithStateSync):
 
     def _collection_exists(self, table_name: str, qualify_table_name: bool = True) -> bool:
         try:
-            table_name = self._make_qualified_collection_name(
-                table_name) if qualify_table_name else table_name
+            table_name = (
+                self._make_qualified_collection_name(table_name)
+                if qualify_table_name
+                else table_name
+            )
             self.db_client.get_collection(table_name)
             return True
         except UnexpectedResponse as e:
