@@ -38,7 +38,7 @@
   --ifm-active-toc-link-color:#4C4898;
   --docsearch-highlight-color:#191937 !important;
   --docsearch-hit-color: #191937 !important;
-
+  --ifm-footer-background-color: #E4E8F0;
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
@@ -69,7 +69,7 @@
   --docsearch-hit-background: #191937 !important;
   --docsearch-hit-color: #ffffff !important;
   --ifm-color-primary-light:#f3ff36;
-
+  --ifm-footer-background-color: #191937;
 }
 
 body {
@@ -678,6 +678,24 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>a
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:hover:nth-child(8)>div>a::before,
 html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[aria-expanded="true"]::before {
   background-image: url(../../static/img/Reference-Active-1.svg);
+}
+
+/* Devel / Stable switch */
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>a svg {
+  display: none;
+}
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>a {
+  flex: none;
+}
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(9) {
+  margin-top:30px;
+  padding-top: 10px;
+  justify-content: center;
+  border-top: 1px solid;
+  border-color: var(--ifm-footer-background-color);
 }
 
 
