@@ -6,7 +6,6 @@ from dlt.common import sleep
 from dlt.common.typing import StrAny, TDataItems
 from dlt.sources.helpers.requests import client
 
-
 @dlt.source
 def chess(
     chess_url: str = dlt.config.value,
@@ -60,7 +59,6 @@ from dlt.pipeline.helpers import retry_load
 
 MAX_PLAYERS = 5
 
-
 def load_data_with_retry(pipeline, data):
     try:
         for attempt in Retrying(
@@ -70,7 +68,9 @@ def load_data_with_retry(pipeline, data):
             reraise=True,
         ):
             with attempt:
-                logger.info(f"Running the pipeline, attempt={attempt.retry_state.attempt_number}")
+                logger.info(
+                    f"Running the pipeline, attempt={attempt.retry_state.attempt_number}"
+                )
                 load_info = pipeline.run(data)
                 logger.info(str(load_info))
 
@@ -92,7 +92,9 @@ def load_data_with_retry(pipeline, data):
     # print the information on the first load package and all jobs inside
     logger.info(f"First load package info: {load_info.load_packages[0]}")
     # print the information on the first completed job in first load package
-    logger.info(f"First completed job info: {load_info.load_packages[0].jobs['completed_jobs'][0]}")
+    logger.info(
+        f"First completed job info: {load_info.load_packages[0].jobs['completed_jobs'][0]}"
+    )
 
     # check for schema updates:
     schema_updates = [p.schema_update for p in load_info.load_packages]
