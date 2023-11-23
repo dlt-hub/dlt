@@ -210,7 +210,7 @@ You can pass destination credentials and ignore the default lookup:
 pipeline = dlt.pipeline(destination="postgres", credentials=dlt.secrets["postgres_dsn"])
 ```
 
-:::Note
+:::note
 **dlt.config** and **dlt.secrets** can be also used as setters. For example:
 ```python
 dlt.config["sheet_id"] = "23029402349032049"
