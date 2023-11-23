@@ -13,9 +13,5 @@ class PoolRunnerConfiguration(BaseConfiguration):
     run_sleep: float = 0.1  # how long to sleep between runs with workload, seconds
 
     if TYPE_CHECKING:
-        def __init__(
-            self,
-            pool_type: TPoolType = None,
-            workers: int = None
-        ) -> None:
-            ...
+
+        def __init__(self, pool_type: TPoolType = None, workers: int = None) -> None: ...

@@ -43,7 +43,7 @@ def is_iso_date(t: Type[Any], v: Any) -> Optional[TDataType]:
     if not v:
         return None
     # don't cast iso timestamps as dates
-    if is_iso_timestamp(t,v):
+    if is_iso_timestamp(t, v):
         return None
     # strict autodetection of iso timestamps
     try:

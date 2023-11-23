@@ -7,7 +7,10 @@ from dlt.common import logger
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
-from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration, DestinationClientStagingConfiguration
+from dlt.common.destination.reference import (
+    DestinationClientDwhWithStagingConfiguration,
+    DestinationClientStagingConfiguration,
+)
 from dlt.common.typing import TSecretValue
 
 DUCK_DB_NAME = "%s.duckdb"
@@ -59,6 +62,7 @@ class DuckDbBaseCredentials(ConnectionStringCredentials):
         try:
             # check if database was passed as explicit connection
             import duckdb
+
             if isinstance(native_value, duckdb.DuckDBPyConnection):
                 self._conn = native_value
                 self._conn_owner = False
@@ -134,7 +138,9 @@ class DuckDbCredentials(DuckDbBaseCredentials):
         if context.is_active():
             # pipeline is active, get the working directory
             return os.path.join(context.pipeline().working_dir, rel_path)
-        raise RuntimeError("Attempting to use special duckdb database :pipeline: outside of pipeline context.")
+        raise RuntimeError(
+            "Attempting to use special duckdb database :pipeline: outside of pipeline context."
+        )
 
     def _path_to_pipeline(self, abspath: str) -> None:
         from dlt.common.configuration.container import Container
@@ -171,7 +177,11 @@ class DuckDbCredentials(DuckDbBaseCredentials):
                 pipeline_path = pipeline.get_local_state_val(LOCAL_STATE_KEY)
                 # make sure that path exists
                 if not os.path.exists(pipeline_path):
-                    logger.warning(f"Duckdb attached to pipeline {pipeline.pipeline_name} in path {os.path.relpath(pipeline_path)} was deleted. Attaching to duckdb database '{default_path}' in current folder.")
+                    logger.warning(
+                        f"Duckdb attached to pipeline {pipeline.pipeline_name} in path"
+                        f" {os.path.relpath(pipeline_path)} was deleted. Attaching to duckdb"
+                        f" database '{default_path}' in current folder."
+                    )
                 else:
                     return pipeline_path, False
             except KeyError:
@@ -189,7 +199,9 @@ class DuckDbClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_name: Final[str] = "duckdb"  # type: ignore
     credentials: DuckDbCredentials
 
-    create_indexes: bool = False  # should unique indexes be created, this slows loading down massively
+    create_indexes: bool = (
+        False  # should unique indexes be created, this slows loading down massively
+    )
 
     if TYPE_CHECKING:
         try:
@@ -204,6 +216,5 @@ class DuckDbClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             create_indexes: bool = False,
-            staging_config: Optional[DestinationClientStagingConfiguration] = None
-        ) -> None:
-            ...
+            staging_config: Optional[DestinationClientStagingConfiguration] = None,
+        ) -> None: ...

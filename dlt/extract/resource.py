@@ -1,25 +1,56 @@
 from copy import deepcopy
 import inspect
-from typing import AsyncIterable, AsyncIterator, ClassVar, Callable, Iterable, Iterator, Union, Any, Optional
+from typing import (
+    AsyncIterable,
+    AsyncIterator,
+    ClassVar,
+    Callable,
+    Iterable,
+    Iterator,
+    Union,
+    Any,
+    Optional,
+)
 
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.typing import AnyFun, DictStrAny, StrAny, TDataItem, TDataItems, NoneType
 from dlt.common.configuration.container import Container
-from dlt.common.pipeline import PipelineContext, StateInjectableContext, resource_state, pipeline_state
+from dlt.common.pipeline import (
+    PipelineContext,
+    StateInjectableContext,
+    resource_state,
+    pipeline_state,
+)
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
 
-from dlt.extract.typing import (DataItemWithMeta, ItemTransformFunc, ItemTransformFunctionWithMeta, TableNameMeta,
-                                FilterItem, MapItem, YieldMapItem, ValidateItem)
+from dlt.extract.typing import (
+    DataItemWithMeta,
+    ItemTransformFunc,
+    ItemTransformFunctionWithMeta,
+    TableNameMeta,
+    FilterItem,
+    MapItem,
+    YieldMapItem,
+    ValidateItem,
+)
 from dlt.extract.pipe import Pipe, ManagedPipeIterator, TPipeStep
 from dlt.extract.hints import DltResourceHints, TTableSchemaTemplate
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
-    InvalidTransformerDataTypeGeneratorFunctionRequired, InvalidParentResourceDataType, InvalidParentResourceIsAFunction,
-    InvalidResourceDataType, InvalidResourceDataTypeIsNone, InvalidTransformerGeneratorFunction,
-    InvalidResourceDataTypeAsync, InvalidResourceDataTypeBasic,
-    InvalidResourceDataTypeMultiplePipes, ParametrizedResourceUnbound, ResourceNameMissing, ResourceNotATransformer
+    InvalidTransformerDataTypeGeneratorFunctionRequired,
+    InvalidParentResourceDataType,
+    InvalidParentResourceIsAFunction,
+    InvalidResourceDataType,
+    InvalidResourceDataTypeIsNone,
+    InvalidTransformerGeneratorFunction,
+    InvalidResourceDataTypeAsync,
+    InvalidResourceDataTypeBasic,
+    InvalidResourceDataTypeMultiplePipes,
+    ParametrizedResourceUnbound,
+    ResourceNameMissing,
+    ResourceNotATransformer,
 )
 from dlt.extract.wrappers import wrap_additional_type
 
@@ -31,6 +62,7 @@ def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
 
 class DltResource(Iterable[TDataItem], DltResourceHints):
     """Implements dlt resource. Contains a data pipe that wraps a generating item and table schema that can be adjusted"""
+
     Empty: ClassVar["DltResource"] = None
     source_name: str
     """Name of the source that contains this instance of the source, set when added to DltResourcesDict"""
@@ -44,7 +76,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         selected: bool,
         incremental: IncrementalResourceWrapper = None,
         section: str = None,
-        args_bound: bool = False
+        args_bound: bool = False,
     ) -> None:
         self.section = section
         self.selected = selected
@@ -65,7 +97,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         table_schema_template: TTableSchemaTemplate = None,
         selected: bool = True,
         data_from: Union["DltResource", Pipe] = None,
-        incremental: IncrementalResourceWrapper = None
+        incremental: IncrementalResourceWrapper = None,
     ) -> "DltResource":
         if data is None:
             raise InvalidResourceDataTypeIsNone(name, data, NoneType)  # type: ignore
@@ -74,7 +106,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             return data
 
         if isinstance(data, Pipe):
-            return cls(data, table_schema_template, selected, incremental=incremental, section=section)
+            return cls(
+                data, table_schema_template, selected, incremental=incremental, section=section
+            )
 
         if callable(data):
             name = name or get_callable_name(data)
@@ -105,10 +139,19 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         # create resource from iterator, iterable or generator function
         if isinstance(data, (Iterable, Iterator)) or callable(data):
             pipe = Pipe.from_data(name, data, parent=parent_pipe)
-            return cls(pipe, table_schema_template, selected, incremental=incremental, section=section, args_bound=not callable(data))
+            return cls(
+                pipe,
+                table_schema_template,
+                selected,
+                incremental=incremental,
+                section=section,
+                args_bound=not callable(data),
+            )
         else:
             # some other data type that is not supported
-            raise InvalidResourceDataType(name, data, type(data), f"The data type of supplied type is {type(data).__name__}")
+            raise InvalidResourceDataType(
+                name, data, type(data), f"The data type of supplied type is {type(data).__name__}"
+            )
 
     @property
     def name(self) -> str:
@@ -165,7 +208,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if self.is_transformer:
             DltResource._ensure_valid_transformer_resource(self.name, self._pipe.gen)
         else:
-            raise ResourceNotATransformer(self.name, "Cannot pipe data into resource that is not a transformer.")
+            raise ResourceNotATransformer(
+                self.name, "Cannot pipe data into resource that is not a transformer."
+            )
         parent_pipe = self._get_parent_pipe(self.name, data_from)
         self._pipe.parent = parent_pipe
 
@@ -177,8 +222,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def select_tables(self, *table_names: Iterable[str]) -> "DltResource":
         """For resources that dynamically dispatch data to several tables allows to select tables that will receive data, effectively filtering out other data items.
 
-            Both `with_table_name` marker and data-based (function) table name hints are supported.
+        Both `with_table_name` marker and data-based (function) table name hints are supported.
         """
+
         def _filter(item: TDataItem, meta: Any = None) -> bool:
             is_in_meta = isinstance(meta, TableNameMeta) and meta.table_name in table_names
             is_in_dyn = self._table_name_hint_fun and self._table_name_hint_fun(item) in table_names
@@ -188,7 +234,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self.add_filter(_filter)
         return self
 
-    def add_map(self, item_map: ItemTransformFunc[TDataItem], insert_at: int = None) -> "DltResource":  # noqa: A003
+    def add_map(
+        self, item_map: ItemTransformFunc[TDataItem], insert_at: int = None
+    ) -> "DltResource":  # noqa: A003
         """Adds mapping function defined in `item_map` to the resource pipe at position `inserted_at`
 
         `item_map` receives single data items, `dlt` will enumerate any lists of data items automatically
@@ -206,7 +254,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.insert_step(MapItem(item_map), insert_at)
         return self
 
-    def add_yield_map(self, item_map: ItemTransformFunc[Iterator[TDataItem]], insert_at: int = None) -> "DltResource":  # noqa: A003
+    def add_yield_map(
+        self, item_map: ItemTransformFunc[Iterator[TDataItem]], insert_at: int = None
+    ) -> "DltResource":  # noqa: A003
         """Adds generating function defined in `item_map` to the resource pipe at position `inserted_at`
 
         `item_map` receives single data items, `dlt` will enumerate any lists of data items automatically. It may yield 0 or more data items and be used to
@@ -225,7 +275,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.insert_step(YieldMapItem(item_map), insert_at)
         return self
 
-    def add_filter(self, item_filter: ItemTransformFunc[bool], insert_at: int = None) -> "DltResource":  # noqa: A003
+    def add_filter(
+        self, item_filter: ItemTransformFunc[bool], insert_at: int = None
+    ) -> "DltResource":  # noqa: A003
         """Adds filter defined in `item_filter` to the resource pipe at position `inserted_at`
 
         `item_filter` receives single data items, `dlt` will enumerate any lists of data items automatically
@@ -253,6 +305,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         Returns:
             "DltResource": returns self
         """
+
         def _gen_wrap(gen: TPipeStep) -> TPipeStep:
             """Wrap a generator to take the first `max_items` records"""
             nonlocal max_items
@@ -269,12 +322,15 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 if inspect.isgenerator(gen):
                     gen.close()
             return
+
         # transformers should be limited by their input, so we only limit non-transformers
         if not self.is_transformer:
             self._pipe.replace_gen(_gen_wrap(self._pipe.gen))
         return self
 
-    def add_step(self, item_transform: ItemTransformFunctionWithMeta[TDataItems], insert_at: int = None) -> "DltResource":  # noqa: A003
+    def add_step(
+        self, item_transform: ItemTransformFunctionWithMeta[TDataItems], insert_at: int = None
+    ) -> "DltResource":  # noqa: A003
         if insert_at is None:
             self._pipe.append_step(item_transform)
         else:
@@ -298,8 +354,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             if primary_key is not None:
                 incremental.primary_key = primary_key
 
-        if table_schema_template.get('validator') is not None:
-            self.validator = table_schema_template['validator']
+        if table_schema_template.get("validator") is not None:
+            self.validator = table_schema_template["validator"]
 
     def bind(self, *args: Any, **kwargs: Any) -> "DltResource":
         """Binds the parametrized resource to passed arguments. Modifies resource pipe in place. Does not evaluate generators or iterators."""
@@ -364,7 +420,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def __iter__(self) -> Iterator[TDataItem]:
         """Opens iterator that yields the data items from the resources in the same order as in Pipeline class.
 
-            A read-only state is provided, initialized from active pipeline state. The state is discarded after the iterator is closed.
+        A read-only state is provided, initialized from active pipeline state. The state is discarded after the iterator is closed.
         """
         # use the same state dict when opening iterator and when iterator is iterated
         container = Container()
@@ -380,7 +436,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         _iter = map(lambda item: item.item, pipe_iterator)
         return flatten_list_or_items(_iter)
 
-    def _set_explicit_args(self, f: AnyFun, sig: inspect.Signature = None, *args: Any, **kwargs: Any) -> None:
+    def _set_explicit_args(
+        self, f: AnyFun, sig: inspect.Signature = None, *args: Any, **kwargs: Any
+    ) -> None:
         try:
             sig = sig or inspect.signature(f)
             self._explicit_args = sig.bind_partial(*args, **kwargs).arguments
@@ -388,8 +446,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             pass
 
     def _clone(self, new_name: str = None, with_parent: bool = False) -> "DltResource":
-        """Creates a deep copy of a current resource, optionally renaming the resource. The clone will not be part of the source
-        """
+        """Creates a deep copy of a current resource, optionally renaming the resource. The clone will not be part of the source"""
         pipe = self._pipe
         if self._pipe and not self._pipe.is_empty:
             pipe = pipe._clone(new_name=new_name, with_parent=with_parent)
@@ -398,7 +455,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             pipe,
             deepcopy(self._table_schema_template),
             selected=self.selected,
-            section=self.section
+            section=self.section,
         )
 
     def _get_config_section_context(self) -> ConfigSectionContext:
@@ -419,8 +476,12 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             pipeline_name=pipeline_name,
             # do not emit middle config section to not overwrite the resource section
             # only sources emit middle config section
-            sections=(known_sections.SOURCES, "", self.source_name or default_schema_name or self.name),
-            source_state_key=self.source_name or default_schema_name or self.section or uniq_id()
+            sections=(
+                known_sections.SOURCES,
+                "",
+                self.source_name or default_schema_name or self.name,
+            ),
+            source_state_key=self.source_name or default_schema_name or self.section or uniq_id(),
         )
 
     def __str__(self) -> str:
@@ -433,14 +494,24 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             info += ":"
 
         if self.is_transformer:
-            info += f"\nThis resource is a transformer and takes data items from {self._pipe.parent.name}"
+            info += (
+                "\nThis resource is a transformer and takes data items from"
+                f" {self._pipe.parent.name}"
+            )
         else:
             if self._pipe.is_data_bound:
                 if self.requires_args:
                     head_sig = inspect.signature(self._pipe.gen)  # type: ignore
-                    info += f"\nThis resource is parametrized and takes the following arguments {head_sig}. You must call this resource before loading."
+                    info += (
+                        "\nThis resource is parametrized and takes the following arguments"
+                        f" {head_sig}. You must call this resource before loading."
+                    )
                 else:
-                    info += "\nIf you want to see the data items in the resource you must iterate it or convert to list ie. list(resource). Note that, like any iterator, you can iterate the resource only once."
+                    info += (
+                        "\nIf you want to see the data items in the resource you must iterate it or"
+                        " convert to list ie. list(resource). Note that, like any iterator, you can"
+                        " iterate the resource only once."
+                    )
             else:
                 info += "\nThis resource is not bound to the data"
         info += f"\nInstance: info: (data pipe id:{id(self._pipe)}) at {id(self)}"
@@ -452,7 +523,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if callable(data):
             valid_code = DltResource.validate_transformer_generator_function(data)
             if valid_code != 0:
-                raise InvalidTransformerGeneratorFunction(name, get_callable_name(data), inspect.signature(data), valid_code)
+                raise InvalidTransformerGeneratorFunction(
+                    name, get_callable_name(data), inspect.signature(data), valid_code
+                )
         else:
             raise InvalidTransformerDataTypeGeneratorFunctionRequired(name, data, type(data))
 

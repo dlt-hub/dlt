@@ -4,11 +4,21 @@ from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence, List
 import snowflake.connector as snowflake_lib
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
-from dlt.destinations.sql_client import DBApiCursorImpl, SqlClientBase, raise_database_error, raise_open_connection_error
+from dlt.destinations.exceptions import (
+    DatabaseTerminalException,
+    DatabaseTransientException,
+    DatabaseUndefinedRelation,
+)
+from dlt.destinations.sql_client import (
+    DBApiCursorImpl,
+    SqlClientBase,
+    raise_database_error,
+    raise_open_connection_error,
+)
 from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials
 from dlt.destinations.impl.snowflake import capabilities
+
 
 class SnowflakeCursorImpl(DBApiCursorImpl):
     native_cursor: snowflake_lib.cursor.SnowflakeCursor  # type: ignore[assignment]
@@ -20,7 +30,6 @@ class SnowflakeCursorImpl(DBApiCursorImpl):
 
 
 class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTransaction):
-
     dbapi: ClassVar[DBApi] = snowflake_lib
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
@@ -36,8 +45,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         if "timezone" not in conn_params:
             conn_params["timezone"] = "UTC"
         self._conn = snowflake_lib.connect(
-            schema=self.fully_qualified_dataset_name(),
-            **conn_params
+            schema=self.fully_qualified_dataset_name(), **conn_params
         )
         return self._conn
 
@@ -77,7 +85,9 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
         with suppress(DatabaseUndefinedRelation):
             super().drop_tables(*tables)
 
-    def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+    def execute_sql(
+        self, sql: AnyStr, *args: Any, **kwargs: Any
+    ) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as curr:
             if curr.description is None:
                 return None
@@ -115,7 +125,7 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
         if isinstance(ex, snowflake_lib.errors.ProgrammingError):
-            if ex.sqlstate == 'P0000' and ex.errno == 100132:
+            if ex.sqlstate == "P0000" and ex.errno == 100132:
                 # Error in a multi statement execution. These don't show the original error codes
                 msg = str(ex)
                 if "NULL result in a non-nullable column" in msg:
@@ -124,11 +134,11 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
                     return DatabaseUndefinedRelation(ex)
                 else:
                     return DatabaseTransientException(ex)
-            if ex.sqlstate in {'42S02', '02000'}:
+            if ex.sqlstate in {"42S02", "02000"}:
                 return DatabaseUndefinedRelation(ex)
-            elif ex.sqlstate == '22023':  # Adding non-nullable no-default column
+            elif ex.sqlstate == "22023":  # Adding non-nullable no-default column
                 return DatabaseTerminalException(ex)
-            elif ex.sqlstate == '42000' and ex.errno == 904:  # Invalid identifier
+            elif ex.sqlstate == "42000" and ex.errno == 904:  # Invalid identifier
                 return DatabaseTerminalException(ex)
             elif ex.sqlstate == "22000":
                 return DatabaseTerminalException(ex)
@@ -152,7 +162,9 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
             return ex
 
     @staticmethod
-    def _maybe_make_terminal_exception_from_data_error(snowflake_ex: snowflake_lib.DatabaseError) -> Optional[Exception]:
+    def _maybe_make_terminal_exception_from_data_error(
+        snowflake_ex: snowflake_lib.DatabaseError,
+    ) -> Optional[Exception]:
         return None
 
     @staticmethod

@@ -97,7 +97,7 @@ def pipeline(
     full_refresh: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> Pipeline:
     ensure_correct_pipeline_kwargs(pipeline, **kwargs)
     # call without arguments returns current pipeline
@@ -120,7 +120,11 @@ def pipeline(
         pipelines_dir = get_dlt_pipelines_dir()
 
     destination = Destination.from_reference(destination or kwargs["destination_name"])
-    staging = Destination.from_reference(staging or kwargs.get("staging_name", None)) if staging is not None else None
+    staging = (
+        Destination.from_reference(staging or kwargs.get("staging_name", None))
+        if staging is not None
+        else None
+    )
 
     progress = collector_from_name(progress)
     # create new pipeline instance
@@ -138,7 +142,8 @@ def pipeline(
         progress,
         False,
         last_config(**kwargs),
-        kwargs["runtime"])
+        kwargs["runtime"],
+    )
     # set it as current pipeline
     p.activate()
     return p
@@ -152,7 +157,7 @@ def attach(
     full_refresh: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
-    **kwargs: Any
+    **kwargs: Any,
 ) -> Pipeline:
     """Attaches to the working folder of `pipeline_name` in `pipelines_dir` or in default directory. Requires that valid pipeline state exists in working folder."""
     ensure_correct_pipeline_kwargs(attach, **kwargs)
@@ -161,7 +166,22 @@ def attach(
         pipelines_dir = get_dlt_pipelines_dir()
     progress = collector_from_name(progress)
     # create new pipeline instance
-    p = Pipeline(pipeline_name, pipelines_dir, pipeline_salt, None, None, None, credentials, None, None, full_refresh, progress, True, last_config(**kwargs), kwargs["runtime"])
+    p = Pipeline(
+        pipeline_name,
+        pipelines_dir,
+        pipeline_salt,
+        None,
+        None,
+        None,
+        credentials,
+        None,
+        None,
+        full_refresh,
+        progress,
+        True,
+        last_config(**kwargs),
+        kwargs["runtime"],
+    )
     # set it as current pipeline
     p.activate()
     return p
@@ -241,11 +261,13 @@ def run(
         columns=columns,
         schema=schema,
         loader_file_format=loader_file_format,
-        schema_contract=schema_contract
+        schema_contract=schema_contract,
     )
+
 
 # plug default tracking module
 from dlt.pipeline import trace, track
+
 trace.TRACKING_MODULE = track
 
 # setup default pipeline in the container

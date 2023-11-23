@@ -27,14 +27,16 @@ def _default_profile_name(credentials: DestinationClientDwhConfiguration) -> str
     if isinstance(credentials.credentials, CredentialsWithDefault):
         if credentials.credentials.has_default_credentials():
             profile_name += "_default"
-    elif profile_name == 'snowflake':
-        if getattr(credentials.credentials, 'private_key', None):
+    elif profile_name == "snowflake":
+        if getattr(credentials.credentials, "private_key", None):
             # snowflake with private key is a separate profile
-            profile_name += '_pkey'
+            profile_name += "_pkey"
     return profile_name
 
 
-def _create_dbt_deps(destination_names: List[str], dbt_version: str = DEFAULT_DBT_VERSION) -> List[str]:
+def _create_dbt_deps(
+    destination_names: List[str], dbt_version: str = DEFAULT_DBT_VERSION
+) -> List[str]:
     if dbt_version:
         # if parses as version use "==" operator
         with contextlib.suppress(ValueError):
@@ -56,19 +58,24 @@ def _create_dbt_deps(destination_names: List[str], dbt_version: str = DEFAULT_DB
     additional_deps: List[str] = []
     if "duckdb" in destination_names or "motherduck" in destination_names:
         from importlib.metadata import version as pkg_version
+
         # force locally installed duckdb
         additional_deps = ["duckdb" + "==" + pkg_version("duckdb")]
 
     return all_packages + additional_deps + [dlt_requirement]
 
 
-def restore_venv(venv_dir: str, destination_names: List[str], dbt_version: str = DEFAULT_DBT_VERSION) -> Venv:
+def restore_venv(
+    venv_dir: str, destination_names: List[str], dbt_version: str = DEFAULT_DBT_VERSION
+) -> Venv:
     venv = Venv.restore(venv_dir)
     venv.add_dependencies(_create_dbt_deps(destination_names, dbt_version))
     return venv
 
 
-def create_venv(venv_dir: str, destination_names: List[str], dbt_version: str = DEFAULT_DBT_VERSION) -> Venv:
+def create_venv(
+    venv_dir: str, destination_names: List[str], dbt_version: str = DEFAULT_DBT_VERSION
+) -> Venv:
     return Venv.create(venv_dir, _create_dbt_deps(destination_names, dbt_version))
 
 
@@ -79,7 +86,7 @@ def package_runner(
     package_location: str,
     package_repository_branch: str = None,
     package_repository_ssh_key: TSecretValue = TSecretValue(""),  # noqa
-    auto_full_refresh_when_out_of_sync: bool = None
+    auto_full_refresh_when_out_of_sync: bool = None,
 ) -> DBTPackageRunner:
     default_profile_name = _default_profile_name(destination_configuration)
     return create_runner(
@@ -90,5 +97,5 @@ def package_runner(
         package_repository_branch=package_repository_branch,
         package_repository_ssh_key=package_repository_ssh_key,
         package_profile_name=default_profile_name,
-        auto_full_refresh_when_out_of_sync=auto_full_refresh_when_out_of_sync
+        auto_full_refresh_when_out_of_sync=auto_full_refresh_when_out_of_sync,
     )

@@ -15,7 +15,9 @@ _SLEEPING_CAT_SPLIT = re.compile("[^.^_]+")
 
 
 def _get_spec_name_from_f(f: AnyFun) -> str:
-    func_name = get_callable_name(f, "__qualname__").replace("<locals>.", "")  # func qual name contains position in the module, separated by dots
+    func_name = get_callable_name(f, "__qualname__").replace(
+        "<locals>.", ""
+    )  # func qual name contains position in the module, separated by dots
 
     def _first_up(s: str) -> str:
         return s[0].upper() + s[1:]
@@ -23,7 +25,9 @@ def _get_spec_name_from_f(f: AnyFun) -> str:
     return "".join(map(_first_up, _SLEEPING_CAT_SPLIT.findall(func_name))) + "Configuration"
 
 
-def spec_from_signature(f: AnyFun, sig: Signature, include_defaults: bool = True) -> Type[BaseConfiguration]:
+def spec_from_signature(
+    f: AnyFun, sig: Signature, include_defaults: bool = True
+) -> Type[BaseConfiguration]:
     name = _get_spec_name_from_f(f)
     module = inspect.getmodule(f)
 
@@ -60,7 +64,10 @@ def spec_from_signature(f: AnyFun, sig: Signature, include_defaults: bool = True
 
     for p in sig.parameters.values():
         # skip *args and **kwargs, skip typical method params
-        if p.kind not in (Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL) and p.name not in ["self", "cls"]:
+        if p.kind not in (Parameter.VAR_KEYWORD, Parameter.VAR_POSITIONAL) and p.name not in [
+            "self",
+            "cls",
+        ]:
             field_type = AnyType if p.annotation == Parameter.empty else p.annotation
             # only valid hints and parameters with defaults are eligible
             if is_valid_hint(field_type) and p.default != Parameter.empty:

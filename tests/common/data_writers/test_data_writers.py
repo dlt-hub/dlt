@@ -4,10 +4,22 @@ from typing import Iterator
 
 from dlt.common import pendulum, json
 from dlt.common.typing import AnyFun
+
 # from dlt.destinations.postgres import capabilities
 from dlt.destinations.impl.redshift import capabilities as redshift_caps
-from dlt.common.data_writers.escape import escape_redshift_identifier, escape_bigquery_identifier, escape_redshift_literal, escape_postgres_literal, escape_duckdb_literal
-from dlt.common.data_writers.writers import DataWriter, InsertValuesWriter, JsonlWriter, ParquetDataWriter
+from dlt.common.data_writers.escape import (
+    escape_redshift_identifier,
+    escape_bigquery_identifier,
+    escape_redshift_literal,
+    escape_postgres_literal,
+    escape_duckdb_literal,
+)
+from dlt.common.data_writers.writers import (
+    DataWriter,
+    InsertValuesWriter,
+    JsonlWriter,
+    ParquetDataWriter,
+)
 
 from tests.common.utils import load_json_case, row_to_column_schemas
 
@@ -20,6 +32,7 @@ class _StringIOWriter(DataWriter):
 
 class _BytesIOWriter(DataWriter):
     _f: io.BytesIO
+
 
 @pytest.fixture
 def insert_writer() -> Iterator[DataWriter]:
@@ -48,7 +61,7 @@ def test_simple_jsonl_writer(jsonl_writer: _BytesIOWriter) -> None:
     jsonl_writer.write_all(None, rows)
     # remove b'' at the end
     lines = jsonl_writer._f.getvalue().split(b"\n")
-    assert lines[-1] == b''
+    assert lines[-1] == b""
     assert len(lines) == 3
 
 
@@ -93,13 +106,22 @@ def test_string_literal_escape() -> None:
     assert escape_redshift_literal(", NULL'); DROP TABLE --") == "', NULL''); DROP TABLE --'"
     assert escape_redshift_literal(", NULL');\n DROP TABLE --") == "', NULL'');\\n DROP TABLE --'"
     assert escape_redshift_literal(", NULL);\n DROP TABLE --") == "', NULL);\\n DROP TABLE --'"
-    assert escape_redshift_literal(", NULL);\\n DROP TABLE --\\") == "', NULL);\\\\n DROP TABLE --\\\\'"
+    assert (
+        escape_redshift_literal(", NULL);\\n DROP TABLE --\\")
+        == "', NULL);\\\\n DROP TABLE --\\\\'"
+    )
     # assert escape_redshift_literal(b'hello_word') == "\\x68656c6c6f5f776f7264"
 
 
 @pytest.mark.parametrize("escaper", ALL_LITERAL_ESCAPE)
 def test_string_complex_escape(escaper: AnyFun) -> None:
-    doc = {"complex":[1,2,3,"a"], "link": "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\0xA \0x0 \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"}
+    doc = {
+        "complex": [1, 2, 3, "a"],
+        "link": (
+            "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\0xA \0x0"
+            " \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"
+        ),
+    }
     escaped = escaper(doc)
     # should be same as string escape
     if escaper == escape_redshift_literal:
@@ -109,16 +131,28 @@ def test_string_complex_escape(escaper: AnyFun) -> None:
 
 
 def test_identifier_escape() -> None:
-    assert escape_redshift_identifier(", NULL'); DROP TABLE\" -\\-") == '", NULL\'); DROP TABLE"" -\\\\-"'
+    assert (
+        escape_redshift_identifier(", NULL'); DROP TABLE\" -\\-")
+        == '", NULL\'); DROP TABLE"" -\\\\-"'
+    )
 
 
 def test_identifier_escape_bigquery() -> None:
-    assert escape_bigquery_identifier(", NULL'); DROP TABLE\"` -\\-") == '`, NULL\'); DROP TABLE"\\` -\\\\-`'
+    assert (
+        escape_bigquery_identifier(", NULL'); DROP TABLE\"` -\\-")
+        == "`, NULL'); DROP TABLE\"\\` -\\\\-`"
+    )
 
 
 def test_string_literal_escape_unicode() -> None:
     # test on some unicode characters
     assert escape_redshift_literal(", NULL);\n DROP TABLE --") == "', NULL);\\n DROP TABLE --'"
-    assert escape_redshift_literal("イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム") == "'イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム'"
-    assert escape_redshift_identifier("ąćł\"") == '"ąćł"""'
-    assert escape_redshift_identifier("イロハニホヘト チリヌルヲ \"ワカヨタレソ ツネナラム") == '"イロハニホヘト チリヌルヲ ""ワカヨタレソ ツネナラム"'
+    assert (
+        escape_redshift_literal("イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム")
+        == "'イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム'"
+    )
+    assert escape_redshift_identifier('ąćł"') == '"ąćł"""'
+    assert (
+        escape_redshift_identifier('イロハニホヘト チリヌルヲ "ワカヨタレソ ツネナラム')
+        == '"イロハニホヘト チリヌルヲ ""ワカヨタレソ ツネナラム"'
+    )

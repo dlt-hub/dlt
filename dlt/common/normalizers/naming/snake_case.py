@@ -6,7 +6,6 @@ from dlt.common.normalizers.naming.naming import NamingConvention as BaseNamingC
 
 
 class NamingConvention(BaseNamingConvention):
-
     _RE_UNDERSCORES = re.compile("__+")
     _RE_LEADING_DIGITS = re.compile(r"^\d+")
     # _RE_ENDING_UNDERSCORES = re.compile(r"_+$")
@@ -41,16 +40,14 @@ class NamingConvention(BaseNamingConvention):
 
         # shorten identifier
         return NamingConvention.shorten_identifier(
-            NamingConvention._to_snake_case(normalized_ident),
-            identifier,
-            max_length
+            NamingConvention._to_snake_case(normalized_ident), identifier, max_length
         )
 
     @classmethod
     def _to_snake_case(cls, identifier: str) -> str:
         # then convert to snake case
-        identifier = cls._SNAKE_CASE_BREAK_1.sub(r'\1_\2', identifier)
-        identifier = cls._SNAKE_CASE_BREAK_2.sub(r'\1_\2', identifier).lower()
+        identifier = cls._SNAKE_CASE_BREAK_1.sub(r"\1_\2", identifier)
+        identifier = cls._SNAKE_CASE_BREAK_2.sub(r"\1_\2", identifier).lower()
 
         # leading digits will be prefixed (if regex is defined)
         if cls._RE_LEADING_DIGITS and cls._RE_LEADING_DIGITS.match(identifier):

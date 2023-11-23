@@ -5,7 +5,12 @@ from typing import Sequence, Tuple
 
 from dlt.common import sleep, json, pendulum
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.storages.load_storage import LoadPackageInfo, LoadStorage, ParsedLoadJobFileName, TJobState
+from dlt.common.storages.load_storage import (
+    LoadPackageInfo,
+    LoadStorage,
+    ParsedLoadJobFileName,
+    TJobState,
+)
 from dlt.common.configuration import resolve_configuration
 from dlt.common.storages import LoadStorageConfiguration
 from dlt.common.storages.exceptions import LoadPackageNotFound, NoMigrationPathException
@@ -34,9 +39,15 @@ def test_complete_successful_package(storage: LoadStorage) -> None:
     assert not storage.storage.has_folder(storage.get_normalized_package_path(load_id))
     # has package
     assert storage.storage.has_folder(storage.get_completed_package_path(load_id))
-    assert storage.storage.has_file(os.path.join(storage.get_completed_package_path(load_id), LoadStorage.PACKAGE_COMPLETED_FILE_NAME))
+    assert storage.storage.has_file(
+        os.path.join(
+            storage.get_completed_package_path(load_id), LoadStorage.PACKAGE_COMPLETED_FILE_NAME
+        )
+    )
     # but completed packages are deleted
-    assert not storage.storage.has_folder(storage._get_job_folder_completed_path(load_id, "completed_jobs"))
+    assert not storage.storage.has_folder(
+        storage._get_job_folder_completed_path(load_id, "completed_jobs")
+    )
     assert_package_info(storage, load_id, "loaded", "completed_jobs", jobs_count=0)
     # delete completed package
     storage.delete_completed_package(load_id)
@@ -50,9 +61,15 @@ def test_complete_successful_package(storage: LoadStorage) -> None:
     assert not storage.storage.has_folder(storage.get_normalized_package_path(load_id))
     # has load preserved
     assert storage.storage.has_folder(storage.get_completed_package_path(load_id))
-    assert storage.storage.has_file(os.path.join(storage.get_completed_package_path(load_id), LoadStorage.PACKAGE_COMPLETED_FILE_NAME))
+    assert storage.storage.has_file(
+        os.path.join(
+            storage.get_completed_package_path(load_id), LoadStorage.PACKAGE_COMPLETED_FILE_NAME
+        )
+    )
     # has completed loads
-    assert storage.storage.has_folder(storage._get_job_folder_completed_path(load_id, "completed_jobs"))
+    assert storage.storage.has_folder(
+        storage._get_job_folder_completed_path(load_id, "completed_jobs")
+    )
     storage.delete_completed_package(load_id)
     assert not storage.storage.has_folder(storage.get_completed_package_path(load_id))
 
@@ -64,7 +81,9 @@ def test_wipe_normalized_packages(storage: LoadStorage) -> None:
 
 
 def test_is_partially_loaded(storage: LoadStorage) -> None:
-    load_id, file_name = start_loading_file(storage, [{"content": "a"}, {"content": "b"}], start_job=False)
+    load_id, file_name = start_loading_file(
+        storage, [{"content": "a"}, {"content": "b"}], start_job=False
+    )
     info = storage.get_load_package_info(load_id)
     # all jobs are new
     assert LoadStorage.is_package_partially_loaded(info) is False
@@ -101,7 +120,9 @@ def test_complete_package_failed_jobs(storage: LoadStorage) -> None:
     # present in completed loads folder
     assert storage.storage.has_folder(storage.get_completed_package_path(load_id))
     # has completed loads
-    assert storage.storage.has_folder(storage._get_job_folder_completed_path(load_id, "completed_jobs"))
+    assert storage.storage.has_folder(
+        storage._get_job_folder_completed_path(load_id, "completed_jobs")
+    )
     assert_package_info(storage, load_id, "loaded", "failed_jobs")
 
     # get failed jobs info
@@ -132,7 +153,9 @@ def test_abort_package(storage: LoadStorage) -> None:
     storage.fail_job(load_id, file_name, "EXCEPTION")
     assert_package_info(storage, load_id, "normalized", "failed_jobs")
     storage.complete_load_package(load_id, True)
-    assert storage.storage.has_folder(storage._get_job_folder_completed_path(load_id, "completed_jobs"))
+    assert storage.storage.has_folder(
+        storage._get_job_folder_completed_path(load_id, "completed_jobs")
+    )
     assert_package_info(storage, load_id, "aborted", "failed_jobs")
 
 
@@ -143,8 +166,10 @@ def test_save_load_schema(storage: LoadStorage) -> None:
 
     storage.create_temp_load_package("copy")
     saved_file_name = storage.save_temp_schema(schema, "copy")
-    assert saved_file_name.endswith(os.path.join(storage.storage.storage_path, "copy", LoadStorage.SCHEMA_FILE_NAME))
-    assert storage.storage.has_file(os.path.join("copy",LoadStorage.SCHEMA_FILE_NAME))
+    assert saved_file_name.endswith(
+        os.path.join(storage.storage.storage_path, "copy", LoadStorage.SCHEMA_FILE_NAME)
+    )
+    assert storage.storage.has_file(os.path.join("copy", LoadStorage.SCHEMA_FILE_NAME))
     schema_copy = storage.load_temp_schema("copy")
     assert schema.stored_version == schema_copy.stored_version
 
@@ -218,7 +243,9 @@ def test_process_schema_update(storage: LoadStorage) -> None:
         storage.commit_schema_update(load_id, applied_update)
     assert storage.begin_schema_update(load_id) is None
     # processed file exists
-    applied_update_path = os.path.join(storage.get_normalized_package_path(load_id), LoadStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME)
+    applied_update_path = os.path.join(
+        storage.get_normalized_package_path(load_id), LoadStorage.APPLIED_SCHEMA_UPDATES_FILE_NAME
+    )
     assert storage.storage.has_file(applied_update_path) is True
     assert json.loads(storage.storage.load(applied_update_path)) == applied_update
     # verify info package
@@ -260,7 +287,9 @@ def test_unknown_migration_path() -> None:
         LoadStorage(False, "jsonl", LoadStorage.ALL_SUPPORTED_FILE_FORMATS)
 
 
-def start_loading_file(s: LoadStorage, content: Sequence[StrAny], start_job: bool = True) -> Tuple[str, str]:
+def start_loading_file(
+    s: LoadStorage, content: Sequence[StrAny], start_job: bool = True
+) -> Tuple[str, str]:
     load_id = uniq_id()
     s.create_temp_load_package(load_id)
     # write test file
@@ -276,7 +305,13 @@ def start_loading_file(s: LoadStorage, content: Sequence[StrAny], start_job: boo
     return load_id, file_name
 
 
-def assert_package_info(storage: LoadStorage, load_id: str, package_state: str, job_state: TJobState, jobs_count: int = 1) -> LoadPackageInfo:
+def assert_package_info(
+    storage: LoadStorage,
+    load_id: str,
+    package_state: str,
+    job_state: TJobState,
+    jobs_count: int = 1,
+) -> LoadPackageInfo:
     package_info = storage.get_load_package_info(load_id)
     # make sure it is serializable
     json.dumps(package_info)

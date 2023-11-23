@@ -15,7 +15,7 @@ from dlt.common.arithmetics import Decimal
 _impl_name = "simplejson"
 
 
-def dump(obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty:bool = False) -> None:
+def dump(obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty: bool = False) -> None:
     if pretty:
         indent = 2
     else:
@@ -28,13 +28,13 @@ def dump(obj: Any, fp: IO[bytes], sort_keys: bool = False, pretty:bool = False) 
         default=custom_encode,
         encoding=None,
         ensure_ascii=False,
-        separators=(',', ':'),
+        separators=(",", ":"),
         sort_keys=sort_keys,
-        indent=indent
+        indent=indent,
     )
 
 
-def typed_dump(obj: Any, fp: IO[bytes], pretty:bool = False) -> None:
+def typed_dump(obj: Any, fp: IO[bytes], pretty: bool = False) -> None:
     if pretty:
         indent = 2
     else:
@@ -47,9 +47,10 @@ def typed_dump(obj: Any, fp: IO[bytes], pretty:bool = False) -> None:
         default=custom_pua_encode,
         encoding=None,
         ensure_ascii=False,
-        separators=(',', ':'),
-        indent=indent
+        separators=(",", ":"),
+        indent=indent,
     )
+
 
 def typed_dumps(obj: Any, sort_keys: bool = False, pretty: bool = False) -> str:
     indent = 2 if pretty else None
@@ -59,8 +60,8 @@ def typed_dumps(obj: Any, sort_keys: bool = False, pretty: bool = False) -> str:
         default=custom_pua_encode,
         encoding=None,
         ensure_ascii=False,
-        separators=(',', ':'),
-        indent=indent
+        separators=(",", ":"),
+        indent=indent,
     )
 
 
@@ -69,14 +70,14 @@ def typed_loads(s: str) -> Any:
 
 
 def typed_dumpb(obj: Any, sort_keys: bool = False, pretty: bool = False) -> bytes:
-    return typed_dumps(obj, sort_keys, pretty).encode('utf-8')
+    return typed_dumps(obj, sort_keys, pretty).encode("utf-8")
 
 
 def typed_loadb(s: Union[bytes, bytearray, memoryview]) -> Any:
     return custom_pua_decode_nested(loadb(s))
 
 
-def dumps(obj: Any, sort_keys: bool = False, pretty:bool = False) -> str:
+def dumps(obj: Any, sort_keys: bool = False, pretty: bool = False) -> str:
     if pretty:
         indent = 2
     else:
@@ -87,13 +88,13 @@ def dumps(obj: Any, sort_keys: bool = False, pretty:bool = False) -> str:
         default=custom_encode,
         encoding=None,
         ensure_ascii=False,
-        separators=(',', ':'),
+        separators=(",", ":"),
         sort_keys=sort_keys,
-        indent=indent
+        indent=indent,
     )
 
 
-def dumpb(obj: Any, sort_keys: bool = False, pretty:bool = False) -> bytes:
+def dumpb(obj: Any, sort_keys: bool = False, pretty: bool = False) -> bytes:
     return dumps(obj, sort_keys, pretty).encode("utf-8")
 
 

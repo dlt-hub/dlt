@@ -10,7 +10,10 @@ from dlt.common.typing import AnyType, TAny
 from dlt.common.data_types import coerce_value, py_type_to_sc_type
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.exceptions import ConfigValueCannotBeCoercedException, LookupTrace
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, is_base_configuration_inner_hint
+from dlt.common.configuration.specs.base_configuration import (
+    BaseConfiguration,
+    is_base_configuration_inner_hint,
+)
 
 
 class ResolvedValueTrace(NamedTuple):
@@ -111,40 +114,56 @@ def auto_cast(value: str) -> Any:
     return value
 
 
-
-def log_traces(config: Optional[BaseConfiguration], key: str, hint: Type[Any], value: Any, default_value: Any, traces: Sequence[LookupTrace]) -> None:
+def log_traces(
+    config: Optional[BaseConfiguration],
+    key: str,
+    hint: Type[Any],
+    value: Any,
+    default_value: Any,
+    traces: Sequence[LookupTrace],
+) -> None:
     from dlt.common import logger
 
     # if logger.is_logging() and logger.log_level() == "DEBUG" and config:
     #     logger.debug(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
-        # print(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
-        # for tr in traces:
-        #     # print(str(tr))
-        #     logger.debug(str(tr))
+    # print(f"Field {key} with type {hint} in {type(config).__name__} {'NOT RESOLVED' if value is None else 'RESOLVED'}")
+    # for tr in traces:
+    #     # print(str(tr))
+    #     logger.debug(str(tr))
     # store all traces with resolved values
     resolved_trace = next((trace for trace in traces if trace.value is not None), None)
     if resolved_trace is not None:
         path = f'{".".join(resolved_trace.sections)}.{key}'
-        _RESOLVED_TRACES[path] = ResolvedValueTrace(key, resolved_trace.value, default_value, hint, resolved_trace.sections, resolved_trace.provider, config)
+        _RESOLVED_TRACES[path] = ResolvedValueTrace(
+            key,
+            resolved_trace.value,
+            default_value,
+            hint,
+            resolved_trace.sections,
+            resolved_trace.provider,
+            config,
+        )
 
 
 def get_resolved_traces() -> Dict[str, ResolvedValueTrace]:
     return _RESOLVED_TRACES
 
 
-def add_config_to_env(config: BaseConfiguration, sections: Tuple[str, ...] = ()) ->  None:
+def add_config_to_env(config: BaseConfiguration, sections: Tuple[str, ...] = ()) -> None:
     """Writes values in configuration back into environment using the naming convention of EnvironProvider. Will descend recursively if embedded BaseConfiguration instances are found"""
     if config.__section__:
-        sections += (config.__section__, )
+        sections += (config.__section__,)
     return add_config_dict_to_env(dict(config), sections, overwrite_keys=True)
 
 
-def add_config_dict_to_env(dict_: Mapping[str, Any], sections: Tuple[str, ...] = (), overwrite_keys: bool = False) -> None:
+def add_config_dict_to_env(
+    dict_: Mapping[str, Any], sections: Tuple[str, ...] = (), overwrite_keys: bool = False
+) -> None:
     """Writes values in dict_ back into environment using the naming convention of EnvironProvider. Applies `sections` if specified. Does not overwrite existing keys by default"""
     for k, v in dict_.items():
         if isinstance(v, BaseConfiguration):
             if not v.__section__:
-                embedded_sections = sections + (k, )
+                embedded_sections = sections + (k,)
             else:
                 embedded_sections = sections
             add_config_to_env(v, embedded_sections)

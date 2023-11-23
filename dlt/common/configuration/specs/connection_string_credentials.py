@@ -24,9 +24,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
         try:
             url = make_url(native_value)
             # update only values that are not None
-            self.update(
-                {k: v for k,v in url._asdict().items() if v is not None}
-            )
+            self.update({k: v for k, v in url._asdict().items() if v is not None})
             if self.query is not None:
                 self.query = dict(self.query)
         except Exception:
@@ -40,7 +38,15 @@ class ConnectionStringCredentials(CredentialsConfiguration):
         return self.to_url().render_as_string(hide_password=False)
 
     def to_url(self) -> URL:
-        return URL.create(self.drivername, self.username, self.password, self.host, self.port, self.database, self.query)
+        return URL.create(
+            self.drivername,
+            self.username,
+            self.password,
+            self.host,
+            self.port,
+            self.database,
+            self.query,
+        )
 
     def __str__(self) -> str:
         return self.to_url().render_as_string(hide_password=True)

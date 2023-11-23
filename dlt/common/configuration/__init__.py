@@ -7,7 +7,7 @@ from .exceptions import (
     ConfigFieldMissingException,
     ConfigValueCannotBeCoercedException,
     ConfigFileNotFoundException,
-    ConfigurationValueError
+    ConfigurationValueError,
 )
 
 

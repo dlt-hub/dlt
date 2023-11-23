@@ -7,6 +7,7 @@ from dlt.version import DLT_PKG_NAME
 
 class SourceRequirements:
     """Helper class to parse and manipulate entries in source's requirements.txt"""
+
     dlt_requirement: Requirement
     """Final dlt requirement that may be updated with destination extras"""
     dlt_requirement_base: Requirement

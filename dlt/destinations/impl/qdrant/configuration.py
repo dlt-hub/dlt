@@ -1,7 +1,10 @@
 from typing import Optional, Final
 
 from dlt.common.configuration import configspec
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, CredentialsConfiguration
+from dlt.common.configuration.specs.base_configuration import (
+    BaseConfiguration,
+    CredentialsConfiguration,
+)
 from dlt.common.destination.reference import DestinationClientDwhConfiguration
 
 

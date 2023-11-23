@@ -9,9 +9,9 @@ or with the use of environment variables
 """
 
 # 1. configuration: name your dataset, table, pass credentials
-dataset_name = 'dlt_quickstart'
-pipeline_name = 'dlt_quickstart'
-table_name = 'my_json_doc'
+dataset_name = "dlt_quickstart"
+pipeline_name = "dlt_quickstart"
+table_name = "my_json_doc"
 
 gcp_credentials_json = {
     "type": "service_account",
@@ -24,7 +24,14 @@ db_dsn = "postgres://loader:loader@localhost:5432/dlt_data"
 destination_name = "duckdb"
 if destination_name == "bigquery":
     # we do not want to have this key verbatim in repo so we decode it here
-    gcp_credentials_json["private_key"] = bytes([_a ^ _b for _a, _b in zip(base64.b64decode(gcp_credentials_json["private_key"]), b"quickstart-sv"*150)]).decode("utf-8")
+    gcp_credentials_json["private_key"] = bytes(
+        [
+            _a ^ _b
+            for _a, _b in zip(
+                base64.b64decode(gcp_credentials_json["private_key"]), b"quickstart-sv" * 150
+            )
+        ]
+    ).decode("utf-8")
     credentials: Any = gcp_credentials_json
 elif destination_name == "redshift":
     credentials = db_dsn
@@ -41,20 +48,26 @@ pipeline = dlt.pipeline(
     dataset_name=dataset_name,
     credentials=credentials,
     export_schema_path=export_schema_path,
-    full_refresh=True
+    full_refresh=True,
 )
 
 
 # 3. Pass the data to the pipeline and give it a table name. Optionally normalize and handle schema.
 
-rows = [{"name": "Ana", "age": 30, "id": 456, "children": [{"name": "Bill", "id": 625},
-                                                           {"name": "Elli", "id": 591}
-                                                           ]},
-
-        {"name": "Bob", "age": 30, "id": 455, "children": [{"name": "Bill", "id": 625},
-                                                           {"name": "Dave", "id": 621}
-                                                           ]}
-        ]
+rows = [
+    {
+        "name": "Ana",
+        "age": 30,
+        "id": 456,
+        "children": [{"name": "Bill", "id": 625}, {"name": "Elli", "id": 591}],
+    },
+    {
+        "name": "Bob",
+        "age": 30,
+        "id": 455,
+        "children": [{"name": "Bill", "id": 625}, {"name": "Dave", "id": 621}],
+    },
+]
 
 load_info = pipeline.run(rows, table_name=table_name, write_disposition="replace")
 

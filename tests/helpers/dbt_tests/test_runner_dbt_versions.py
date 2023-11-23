@@ -18,9 +18,20 @@ from dlt.destinations.impl.postgres.postgres import PostgresClient
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
 from dlt.helpers.dbt.exceptions import PrerequisitesException, DBTProcessingError
-from dlt.helpers.dbt import package_runner, create_venv, _create_dbt_deps, _default_profile_name, DEFAULT_DBT_VERSION
+from dlt.helpers.dbt import (
+    package_runner,
+    create_venv,
+    _create_dbt_deps,
+    _default_profile_name,
+    DEFAULT_DBT_VERSION,
+)
 
-from tests.helpers.dbt_tests.utils import JAFFLE_SHOP_REPO, assert_jaffle_completed, clone_jaffle_repo, find_run_result
+from tests.helpers.dbt_tests.utils import (
+    JAFFLE_SHOP_REPO,
+    assert_jaffle_completed,
+    clone_jaffle_repo,
+    find_run_result,
+)
 
 from tests.utils import test_storage, preserve_environ
 from tests.load.utils import yield_client_with_storage, cm_yield_client_with_storage
@@ -40,13 +51,13 @@ PACKAGE_PARAMS = [
     ("postgres", None),
     ("snowflake", "1.4.0"),
     ("snowflake", "1.5.2"),
-    ("snowflake", None)
+    ("snowflake", None),
 ]
 PACKAGE_IDS = [
-    f"{destination}-venv-{version}"
-    if version else f"{destination}-local"
+    f"{destination}-venv-{version}" if version else f"{destination}-local"
     for destination, version in PACKAGE_PARAMS
 ]
+
 
 @pytest.fixture(scope="module", params=PACKAGE_PARAMS, ids=PACKAGE_IDS)
 def dbt_package_f(request: Any) -> Iterator[Tuple[str, AnyFun]]:
@@ -89,7 +100,10 @@ def test_dbt_configuration() -> None:
     # check names normalized
     C: DBTRunnerConfiguration = resolve_configuration(
         DBTRunnerConfiguration(),
-        explicit_value={"package_repository_ssh_key": "---NO NEWLINE---", "package_location": "/var/local"}
+        explicit_value={
+            "package_repository_ssh_key": "---NO NEWLINE---",
+            "package_location": "/var/local",
+        },
     )
     assert C.package_repository_ssh_key == "---NO NEWLINE---\n"
     assert C.package_additional_vars is None
@@ -98,7 +112,11 @@ def test_dbt_configuration() -> None:
 
     C = resolve_configuration(
         DBTRunnerConfiguration(),
-        explicit_value={"package_repository_ssh_key": "---WITH NEWLINE---\n", "package_location": "/var/local", "package_additional_vars": {"a": 1}}
+        explicit_value={
+            "package_repository_ssh_key": "---WITH NEWLINE---\n",
+            "package_location": "/var/local",
+            "package_additional_vars": {"a": 1},
+        },
     )
     assert C.package_repository_ssh_key == "---WITH NEWLINE---\n"
     assert C.package_additional_vars == {"a": 1}
@@ -108,9 +126,9 @@ def test_dbt_run_exception_pickle() -> None:
     obj = decode_obj(
         encode_obj(
             DBTProcessingError("test", "A", "B"),  # type: ignore[arg-type]
-            ignore_pickle_errors=False
+            ignore_pickle_errors=False,
         ),
-        ignore_pickle_errors=False
+        ignore_pickle_errors=False,
     )
     assert obj.command == "test"
     assert obj.run_results == "A"
@@ -119,12 +137,21 @@ def test_dbt_run_exception_pickle() -> None:
 
 
 def test_runner_setup(client: PostgresClient, test_storage: FileStorage) -> None:
-    add_vars = {"source_dataset_name": "overwritten", "destination_dataset_name": "destination", "schema_name": "this_Schema"}
+    add_vars = {
+        "source_dataset_name": "overwritten",
+        "destination_dataset_name": "destination",
+        "schema_name": "this_Schema",
+    }
     os.environ["DBT_PACKAGE_RUNNER__PACKAGE_ADDITIONAL_VARS"] = json.dumps(add_vars)
     os.environ["AUTO_FULL_REFRESH_WHEN_OUT_OF_SYNC"] = "False"
     os.environ["DBT_PACKAGE_RUNNER__RUNTIME__LOG_LEVEL"] = "CRITICAL"
     test_storage.create_folder("jaffle")
-    r = package_runner(Venv.restore_current(), client.config, test_storage.make_full_path("jaffle"), JAFFLE_SHOP_REPO)
+    r = package_runner(
+        Venv.restore_current(),
+        client.config,
+        test_storage.make_full_path("jaffle"),
+        JAFFLE_SHOP_REPO,
+    )
     # runner settings
     assert r.credentials is client.config
     assert r.working_dir == test_storage.make_full_path("jaffle")
@@ -140,55 +167,76 @@ def test_runner_setup(client: PostgresClient, test_storage: FileStorage) -> None
     assert r.config.runtime.log_level == "CRITICAL"
     assert r.config.auto_full_refresh_when_out_of_sync is False
 
-    assert r._get_package_vars() == {"source_dataset_name": client.config.dataset_name, "destination_dataset_name": "destination", "schema_name": "this_Schema"}
-    assert r._get_package_vars(destination_dataset_name="dest_test_123") == {"source_dataset_name": client.config.dataset_name, "destination_dataset_name": "dest_test_123", "schema_name": "this_Schema"}
+    assert r._get_package_vars() == {
+        "source_dataset_name": client.config.dataset_name,
+        "destination_dataset_name": "destination",
+        "schema_name": "this_Schema",
+    }
+    assert r._get_package_vars(destination_dataset_name="dest_test_123") == {
+        "source_dataset_name": client.config.dataset_name,
+        "destination_dataset_name": "dest_test_123",
+        "schema_name": "this_Schema",
+    }
     assert r._get_package_vars(additional_vars={"add": 1, "schema_name": "ovr"}) == {
-            "source_dataset_name": client.config.dataset_name,
-            "destination_dataset_name": "destination", "schema_name": "ovr",
-            "add": 1
-        }
+        "source_dataset_name": client.config.dataset_name,
+        "destination_dataset_name": "destination",
+        "schema_name": "ovr",
+        "add": 1,
+    }
 
 
-def test_runner_dbt_destinations(test_storage: FileStorage, dbt_package_f: Tuple[str, AnyFun]) -> None:
+def test_runner_dbt_destinations(
+    test_storage: FileStorage, dbt_package_f: Tuple[str, AnyFun]
+) -> None:
     destination_name, dbt_func = dbt_package_f
     with cm_yield_client_with_storage(destination_name) as client:
-        jaffle_base_dir = 'jaffle_' + destination_name
+        jaffle_base_dir = "jaffle_" + destination_name
         test_storage.create_folder(jaffle_base_dir)
         results = dbt_func(
             client.config, test_storage.make_full_path(jaffle_base_dir), JAFFLE_SHOP_REPO
         ).run_all(["--fail-fast", "--full-refresh"])
-        assert_jaffle_completed(test_storage, results, destination_name, jaffle_dir=jaffle_base_dir + '/jaffle_shop')
+        assert_jaffle_completed(
+            test_storage, results, destination_name, jaffle_dir=jaffle_base_dir + "/jaffle_shop"
+        )
 
 
-def test_run_jaffle_from_folder_incremental(test_storage: FileStorage, dbt_package_f: Tuple[str, AnyFun]) -> None:
+def test_run_jaffle_from_folder_incremental(
+    test_storage: FileStorage, dbt_package_f: Tuple[str, AnyFun]
+) -> None:
     destination_name, dbt_func = dbt_package_f
     with cm_yield_client_with_storage(destination_name) as client:
         repo_path = clone_jaffle_repo(test_storage)
         # copy model with error into package to force run error in model
-        shutil.copy("./tests/helpers/dbt_tests/cases/jaffle_customers_incremental.sql", os.path.join(repo_path, "models", "customers.sql"))
+        shutil.copy(
+            "./tests/helpers/dbt_tests/cases/jaffle_customers_incremental.sql",
+            os.path.join(repo_path, "models", "customers.sql"),
+        )
         results = dbt_func(client.config, None, repo_path).run_all(run_params=None)
         assert_jaffle_completed(test_storage, results, destination_name, jaffle_dir="jaffle_shop")
         results = dbt_func(client.config, None, repo_path).run_all()
         # out of 100 records 0 was inserted
         customers = find_run_result(results, "customers")
-        assert customers.message in JAFFLE_MESSAGES_INCREMENTAL[destination_name]['customers']
+        assert customers.message in JAFFLE_MESSAGES_INCREMENTAL[destination_name]["customers"]
         # change the column name. that will force dbt to fail (on_schema_change='fail'). the runner should do a full refresh
-        shutil.copy("./tests/helpers/dbt_tests/cases/jaffle_customers_incremental_new_column.sql", os.path.join(repo_path, "models", "customers.sql"))
+        shutil.copy(
+            "./tests/helpers/dbt_tests/cases/jaffle_customers_incremental_new_column.sql",
+            os.path.join(repo_path, "models", "customers.sql"),
+        )
         results = dbt_func(client.config, None, repo_path).run_all(run_params=None)
         assert_jaffle_completed(test_storage, results, destination_name, jaffle_dir="jaffle_shop")
 
 
-def test_run_jaffle_fail_prerequisites(test_storage: FileStorage, dbt_package_f: Tuple[str, AnyFun]) -> None:
+def test_run_jaffle_fail_prerequisites(
+    test_storage: FileStorage, dbt_package_f: Tuple[str, AnyFun]
+) -> None:
     destination_name, dbt_func = dbt_package_f
     with cm_yield_client_with_storage(destination_name) as client:
         test_storage.create_folder("jaffle")
         # we run all the tests before tables are materialized
         with pytest.raises(PrerequisitesException) as pr_exc:
             dbt_func(
-                    client.config,
-                    test_storage.make_full_path("jaffle"),
-                    JAFFLE_SHOP_REPO
-                ).run_all(["--fail-fast", "--full-refresh"], source_tests_selector="*")
+                client.config, test_storage.make_full_path("jaffle"), JAFFLE_SHOP_REPO
+            ).run_all(["--fail-fast", "--full-refresh"], source_tests_selector="*")
         proc_err = pr_exc.value.args[0]
         assert isinstance(proc_err, DBTProcessingError)
         customers = find_run_result(proc_err.run_results, "unique_customers_customer_id")
@@ -197,23 +245,32 @@ def test_run_jaffle_fail_prerequisites(test_storage: FileStorage, dbt_package_f:
         assert all(r.status == "error" for r in proc_err.run_results)
 
 
-def test_run_jaffle_invalid_run_args(test_storage: FileStorage, dbt_package_f: Tuple[str, AnyFun]) -> None:
+def test_run_jaffle_invalid_run_args(
+    test_storage: FileStorage, dbt_package_f: Tuple[str, AnyFun]
+) -> None:
     destination_name, dbt_func = dbt_package_f
     with cm_yield_client_with_storage(destination_name) as client:
         test_storage.create_folder("jaffle")
         # we run all the tests before tables are materialized
         with pytest.raises(DBTProcessingError) as pr_exc:
-            dbt_func(client.config, test_storage.make_full_path("jaffle"), JAFFLE_SHOP_REPO).run_all(["--wrong_flag"])
+            dbt_func(
+                client.config, test_storage.make_full_path("jaffle"), JAFFLE_SHOP_REPO
+            ).run_all(["--wrong_flag"])
         # dbt < 1.5 raises systemexit, dbt >= 1.5 just returns success False
         assert isinstance(pr_exc.value.dbt_results, SystemExit) or pr_exc.value.dbt_results is None
 
 
-def test_run_jaffle_failed_run(test_storage: FileStorage, dbt_package_f: Tuple[str, AnyFun]) -> None:
+def test_run_jaffle_failed_run(
+    test_storage: FileStorage, dbt_package_f: Tuple[str, AnyFun]
+) -> None:
     destination_name, dbt_func = dbt_package_f
     with cm_yield_client_with_storage(destination_name) as client:
         repo_path = clone_jaffle_repo(test_storage)
         # copy model with error into package to force run error in model
-        shutil.copy("./tests/helpers/dbt_tests/cases/jaffle_customers_with_error.sql", os.path.join(repo_path, "models", "customers.sql"))
+        shutil.copy(
+            "./tests/helpers/dbt_tests/cases/jaffle_customers_with_error.sql",
+            os.path.join(repo_path, "models", "customers.sql"),
+        )
         with pytest.raises(DBTProcessingError) as pr_exc:
             dbt_func(client.config, None, repo_path).run_all(run_params=None)
         assert len(pr_exc.value.run_results) == 5
@@ -222,11 +279,9 @@ def test_run_jaffle_failed_run(test_storage: FileStorage, dbt_package_f: Tuple[s
 
 
 JAFFLE_MESSAGES_INCREMENTAL: Dict[str, Any] = {
-    'snowflake': {
+    "snowflake": {
         # Different message per version
-        'customers': ('SUCCESS 1', 'SUCCESS 100'),
+        "customers": ("SUCCESS 1", "SUCCESS 100"),
     },
-    'postgres': {
-        'customers': ("INSERT 0 100", )
-    }
+    "postgres": {"customers": ("INSERT 0 100",)},
 }

@@ -1,7 +1,7 @@
 from utils import parse_toml_file
 
-def parallel_config_snippet() -> None:
 
+def parallel_config_snippet() -> None:
     # @@@DLT_SNIPPET_START parallel_config
     import os
     import dlt
@@ -13,7 +13,10 @@ def parallel_config_snippet() -> None:
         rows = iter(range(limit))
         while item_slice := list(islice(rows, 1000)):
             now = pendulum.now().isoformat()
-            yield [{"row": _id, "description": "this is row with id {_id}", "timestamp": now} for _id in item_slice]
+            yield [
+                {"row": _id, "description": "this is row with id {_id}", "timestamp": now}
+                for _id in item_slice
+            ]
 
     # this prevents process pool to run the initialization code again
     if __name__ == "__main__" or "PYTEST_CURRENT_TEST" in os.environ:
@@ -55,7 +58,6 @@ def parallel_extract_callables_snippet() -> None:
         # just return the results, if you yield, generator will be evaluated in main thread
         return {"row": item_id}
 
-
     # evaluate the pipeline and print all the items
     # resources are iterators and they are evaluated in the same way in the pipeline.run
     print(list(list_items(0, 10) | get_details))
@@ -72,7 +74,6 @@ def parallel_extract_callables_snippet() -> None:
         # just return the results, if you yield, generator will be evaluated in main thread
         return {"row": item_id}
 
-
     print(list(list_items(0, 10) | a_get_details))
     # @@@DLT_SNIPPET_END parallel_extract_awaitables
 
@@ -88,6 +89,7 @@ def performance_chunking_snippet() -> None:
     def database_cursor():
         # here we yield each row returned from database separately
         yield from get_rows(10000)
+
     # @@@DLT_SNIPPET_END performance_chunking
 
     # @@@DLT_SNIPPET_START performance_chunking_chunk
@@ -100,6 +102,7 @@ def performance_chunking_snippet() -> None:
         while item_slice := list(islice(rows, 1000)):
             print(f"got chunk of length {len(item_slice)}")
             yield item_slice
+
     # @@@DLT_SNIPPET_END performance_chunking_chunk
 
     assert len(list(database_cursor())) == 10000
@@ -108,6 +111,3 @@ def performance_chunking_snippet() -> None:
 
 def test_toml_snippets() -> None:
     parse_toml_file("./toml-snippets.toml")
-
-
-

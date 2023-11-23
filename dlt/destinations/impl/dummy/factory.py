@@ -2,7 +2,10 @@ import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
-from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration, DummyClientCredentials
+from dlt.destinations.impl.dummy.configuration import (
+    DummyClientConfiguration,
+    DummyClientCredentials,
+)
 from dlt.destinations.impl.dummy import capabilities
 
 if t.TYPE_CHECKING:
@@ -10,7 +13,6 @@ if t.TYPE_CHECKING:
 
 
 class dummy(Destination[DummyClientConfiguration, "DummyClient"]):
-
     spec = DummyClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:

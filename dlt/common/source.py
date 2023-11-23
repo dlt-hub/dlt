@@ -10,6 +10,7 @@ from dlt.common.utils import get_callable_name
 
 class SourceInfo(NamedTuple):
     """Runtime information on the source/resource"""
+
     SPEC: Type[BaseConfiguration]
     f: AnyFun
     module: ModuleType

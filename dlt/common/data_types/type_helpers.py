@@ -10,7 +10,12 @@ from dlt.common.json import custom_pua_remove
 from dlt.common.json._simplejson import custom_encode as json_custom_encode
 from dlt.common.arithmetics import InvalidOperation
 from dlt.common.data_types.typing import TDataType
-from dlt.common.time import ensure_pendulum_datetime, parse_iso_like_datetime, ensure_pendulum_date, ensure_pendulum_time
+from dlt.common.time import (
+    ensure_pendulum_datetime,
+    parse_iso_like_datetime,
+    ensure_pendulum_date,
+    ensure_pendulum_time,
+)
 from dlt.common.utils import map_nested_in_place, str2bool
 
 
@@ -93,7 +98,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
             return map_nested_in_place(custom_pua_remove, value)
         # Make sure we use enum value instead of the object itself
         # This check is faster than `isinstance(value, Enum)` for non-enum types
-        if hasattr(value, 'value'):
+        if hasattr(value, "value"):
             if to_type == "text":
                 return str(value.value)
             elif to_type == "bigint":
@@ -120,7 +125,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
             except binascii.Error:
                 raise ValueError(value)
         if from_type == "bigint":
-            return value.to_bytes((value.bit_length() + 7) // 8, 'little')
+            return value.to_bytes((value.bit_length() + 7) // 8, "little")
 
     if to_type == "bigint":
         if from_type in ["wei", "decimal", "double"]:

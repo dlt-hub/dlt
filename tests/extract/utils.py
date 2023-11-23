@@ -10,9 +10,16 @@ from dlt.extract.typing import ItemTransform
 from tests.utils import TDataItemFormat
 
 
-def expect_extracted_file(storage: ExtractorStorage, schema_name: str, table_name: str, content: str) -> None:
+def expect_extracted_file(
+    storage: ExtractorStorage, schema_name: str, table_name: str, content: str
+) -> None:
     files = storage.list_files_to_normalize_sorted()
-    gen = (file for file in files if storage.get_schema_name(file) == schema_name and storage.parse_normalize_file_name(file).table_name == table_name)
+    gen = (
+        file
+        for file in files
+        if storage.get_schema_name(file) == schema_name
+        and storage.parse_normalize_file_name(file).table_name == table_name
+    )
     file = next(gen, None)
     if file is None:
         raise FileNotFoundError(storage.build_extracted_file_stem(schema_name, table_name, "***"))
@@ -29,11 +36,11 @@ def expect_extracted_file(storage: ExtractorStorage, schema_name: str, table_nam
 
 
 class AssertItems(ItemTransform[TDataItem]):
-     def __init__(self, expected_items: Any, item_type: TDataItemFormat = "json") -> None:
-         self.expected_items = expected_items
-         self.item_type = item_type
+    def __init__(self, expected_items: Any, item_type: TDataItemFormat = "json") -> None:
+        self.expected_items = expected_items
+        self.item_type = item_type
 
-     def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
+    def __call__(self, item: TDataItems, meta: Any = None) -> Optional[TDataItems]:
         assert data_item_to_list(self.item_type, item) == self.expected_items
         return item
 

@@ -1,7 +1,13 @@
 import os
 from tempfile import gettempdir
 from typing import Any, Callable, List, Literal, Optional, Sequence, Tuple
-from tenacity import retry_if_exception, wait_exponential, stop_after_attempt, Retrying, RetryCallState
+from tenacity import (
+    retry_if_exception,
+    wait_exponential,
+    stop_after_attempt,
+    Retrying,
+    RetryCallState,
+)
 
 from dlt.common import pendulum
 from dlt.common.exceptions import MissingDependencyException
@@ -33,7 +39,9 @@ from dlt.pipeline.typing import TPipelineStep
 
 
 DEFAULT_RETRY_NO_RETRY = Retrying(stop=stop_after_attempt(1), reraise=True)
-DEFAULT_RETRY_BACKOFF = Retrying(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1.5, min=4, max=10), reraise=True)
+DEFAULT_RETRY_BACKOFF = Retrying(
+    stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1.5, min=4, max=10), reraise=True
+)
 
 
 class PipelineTasksGroup(TaskGroup):
@@ -50,13 +58,13 @@ class PipelineTasksGroup(TaskGroup):
         log_progress_period: float = 30.0,
         buffer_max_items: int = 1000,
         retry_policy: Retrying = DEFAULT_RETRY_NO_RETRY,
-        retry_pipeline_steps: Sequence[TPipelineStep] = ("load", ),
+        retry_pipeline_steps: Sequence[TPipelineStep] = ("load",),
         fail_task_if_any_job_failed: bool = True,
         abort_task_if_any_job_failed: bool = False,
         wipe_local_data: bool = True,
         save_load_info: bool = False,
         save_trace_info: bool = False,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> None:
         """Creates a task group to which you can add pipeline runs
 
@@ -103,7 +111,7 @@ class PipelineTasksGroup(TaskGroup):
         self.save_trace_info = save_trace_info
 
         # reload providers so config.toml in dags folder is included
-        dags_folder = conf.get('core', 'dags_folder')
+        dags_folder = conf.get("core", "dags_folder")
 
         # set the dlt project folder to dags
         os.environ["DLT_PROJECT_DIR"] = dags_folder
@@ -129,7 +137,7 @@ class PipelineTasksGroup(TaskGroup):
         decompose: Literal["none", "serialize"] = "none",
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
-        **kwargs: Any
+        **kwargs: Any,
     ) -> List[PythonOperator]:
         """Creates a task or a group of tasks to run `data` with `pipeline`
 
@@ -153,7 +161,10 @@ class PipelineTasksGroup(TaskGroup):
 
         # make sure that pipeline was created after dag was initialized
         if not pipeline.pipelines_dir.startswith(os.environ["DLT_DATA_DIR"]):
-            raise ValueError("Please create your Pipeline instance after AirflowTasks are created. The dlt pipelines directory is not set correctly")
+            raise ValueError(
+                "Please create your Pipeline instance after AirflowTasks are created. The dlt"
+                " pipelines directory is not set correctly"
+            )
 
         def task_name(pipeline: Pipeline, data: Any) -> str:
             task_name = pipeline.pipeline_name
@@ -165,11 +176,9 @@ class PipelineTasksGroup(TaskGroup):
             return task_name
 
         with self:
-
             # use factory function to make test, in order to parametrize it. passing arguments to task function (_run) is serializing them and
             # running template engine on them
             def make_task(pipeline: Pipeline, data: Any) -> PythonOperator:
-
                 def _run() -> None:
                     # activate pipeline
                     pipeline.activate()
@@ -182,7 +191,10 @@ class PipelineTasksGroup(TaskGroup):
                         logger.LOGGER = ti.log
 
                     # set global number of buffered items
-                    if dlt.config.get("data_writer.buffer_max_items") is None and self.buffer_max_items > 0:
+                    if (
+                        dlt.config.get("data_writer.buffer_max_items") is None
+                        and self.buffer_max_items > 0
+                    ):
                         dlt.config["data_writer.buffer_max_items"] = self.buffer_max_items
                         logger.info(f"Set data_writer.buffer_max_items to {self.buffer_max_items}")
 
@@ -192,24 +204,36 @@ class PipelineTasksGroup(TaskGroup):
                         logger.info("Set load.abort_task_if_any_job_failed to True")
 
                     if self.log_progress_period > 0 and task_pipeline.collector == NULL_COLLECTOR:
-                        task_pipeline.collector = log(log_period=self.log_progress_period, logger=logger.LOGGER)
+                        task_pipeline.collector = log(
+                            log_period=self.log_progress_period, logger=logger.LOGGER
+                        )
                         logger.info(f"Enabled log progress with period {self.log_progress_period}")
 
                     logger.info(f"Pipeline data in {task_pipeline.working_dir}")
 
                     def log_after_attempt(retry_state: RetryCallState) -> None:
                         if not retry_state.retry_object.stop(retry_state):
-                            logger.error("Retrying pipeline run due to exception: %s", retry_state.outcome.exception())
+                            logger.error(
+                                "Retrying pipeline run due to exception: %s",
+                                retry_state.outcome.exception(),
+                            )
 
                     try:
                         # retry with given policy on selected pipeline steps
                         for attempt in self.retry_policy.copy(
-                            retry=retry_if_exception(retry_load(retry_on_pipeline_steps=self.retry_pipeline_steps)),
-                            after=log_after_attempt
+                            retry=retry_if_exception(
+                                retry_load(retry_on_pipeline_steps=self.retry_pipeline_steps)
+                            ),
+                            after=log_after_attempt,
                         ):
                             with attempt:
-                                logger.info("Running the pipeline, attempt=%s" % attempt.retry_state.attempt_number)
-                                load_info = task_pipeline.run(data, table_name=table_name, write_disposition=write_disposition)
+                                logger.info(
+                                    "Running the pipeline, attempt=%s"
+                                    % attempt.retry_state.attempt_number
+                                )
+                                load_info = task_pipeline.run(
+                                    data, table_name=table_name, write_disposition=write_disposition
+                                )
                                 logger.info(str(load_info))
                                 # save load and trace
                                 if self.save_load_info:
@@ -217,7 +241,9 @@ class PipelineTasksGroup(TaskGroup):
                                     task_pipeline.run([load_info], table_name="_load_info")
                                 if self.save_trace_info:
                                     logger.info("Saving the trace in the destination")
-                                    task_pipeline.run([task_pipeline.last_trace], table_name="_trace")
+                                    task_pipeline.run(
+                                        [task_pipeline.last_trace], table_name="_trace"
+                                    )
                                 # raise on failed jobs if requested
                                 if self.fail_task_if_any_job_failed:
                                     load_info.raise_on_failed_jobs()
@@ -228,9 +254,7 @@ class PipelineTasksGroup(TaskGroup):
                             task_pipeline._wipe_working_folder()
 
                 return PythonOperator(
-                    task_id=task_name(pipeline, data),
-                    python_callable=_run,
-                    **kwargs
+                    task_id=task_name(pipeline, data), python_callable=_run, **kwargs
                 )
 
             if decompose == "none":
@@ -263,6 +287,7 @@ def airflow_get_execution_dates() -> Tuple[pendulum.DateTime, Optional[pendulum.
     # prefer logging to task logger
     try:
         from airflow.operators.python import get_current_context  # noqa
+
         context = get_current_context()
         return context["data_interval_start"], context["data_interval_end"]
     except Exception:

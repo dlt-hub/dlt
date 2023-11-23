@@ -10,26 +10,28 @@ from dlt.common.normalizers.naming import snake_case
 from dlt.common.normalizers.naming import direct
 from dlt.common.normalizers.naming.exceptions import InvalidNamingModule, UnknownNamingModule
 
-from tests.common.normalizers.custom_normalizers import DataItemNormalizer as CustomRelationalNormalizer
+from tests.common.normalizers.custom_normalizers import (
+    DataItemNormalizer as CustomRelationalNormalizer,
+)
 from tests.utils import preserve_environ
 
 
 def test_default_normalizers() -> None:
     config = explicit_normalizers()
-    assert config['names'] is None
-    assert config['json'] is None
+    assert config["names"] is None
+    assert config["json"] is None
 
     # pass explicit
     config = explicit_normalizers("direct", {"module": "custom"})
-    assert config['names'] == "direct"
-    assert config['json'] == {"module": "custom"}
+    assert config["names"] == "direct"
+    assert config["json"] == {"module": "custom"}
 
     # use environ
     os.environ["SCHEMA__NAMING"] = "direct"
     os.environ["SCHEMA__JSON_NORMALIZER"] = '{"module": "custom"}'
     config = explicit_normalizers()
-    assert config['names'] == "direct"
-    assert config['json'] == {"module": "custom"}
+    assert config["names"] == "direct"
+    assert config["json"] == {"module": "custom"}
 
 
 def test_default_normalizers_with_caps() -> None:
@@ -38,8 +40,7 @@ def test_default_normalizers_with_caps() -> None:
     destination_caps.naming_convention = "direct"
     with Container().injectable_context(destination_caps):
         config = explicit_normalizers()
-        assert config['names'] == "direct"
-
+        assert config["names"] == "direct"
 
 
 def test_import_normalizers() -> None:
@@ -52,7 +53,9 @@ def test_import_normalizers() -> None:
     assert config["json"] == {"module": "dlt.common.normalizers.json.relational"}
 
     os.environ["SCHEMA__NAMING"] = "direct"
-    os.environ["SCHEMA__JSON_NORMALIZER"] = '{"module": "tests.common.normalizers.custom_normalizers"}'
+    os.environ["SCHEMA__JSON_NORMALIZER"] = (
+        '{"module": "tests.common.normalizers.custom_normalizers"}'
+    )
     config, naming, json_normalizer = import_normalizers(explicit_normalizers())
     assert config["names"] == "direct"
     assert config["json"] == {"module": "tests.common.normalizers.custom_normalizers"}

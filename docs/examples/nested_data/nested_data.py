@@ -13,6 +13,7 @@ from dlt.common.utils import map_nested_in_place
 
 CHUNK_SIZE = 10000
 
+
 # You can limit how deep dlt goes when generating child tables.
 # By default, the library will descend and generate child tables
 # for all nested lists, without a limit.
@@ -81,6 +82,7 @@ class CollectionLoader:
         while docs_slice := list(islice(cursor, CHUNK_SIZE)):
             yield map_nested_in_place(convert_mongo_objs, docs_slice)
 
+
 def convert_mongo_objs(value: Any) -> Any:
     if isinstance(value, (ObjectId, Decimal128)):
         return str(value)
@@ -98,9 +100,7 @@ if __name__ == "__main__":
         destination="duckdb",
         dataset_name="unpacked_data",
     )
-    source_data = mongodb_collection(
-        collection="movies", write_disposition="replace"
-    )
+    source_data = mongodb_collection(collection="movies", write_disposition="replace")
     load_info = pipeline.run(source_data)
     print(load_info)
 
@@ -114,9 +114,7 @@ if __name__ == "__main__":
         destination="duckdb",
         dataset_name="not_unpacked_data",
     )
-    source_data = mongodb_collection(
-        collection="movies", write_disposition="replace"
-    )
+    source_data = mongodb_collection(collection="movies", write_disposition="replace")
     source_data.max_table_nesting = 0
     load_info = pipeline.run(source_data)
     print(load_info)
@@ -130,9 +128,7 @@ if __name__ == "__main__":
         destination="duckdb",
         dataset_name="unpacked_data_without_cast",
     )
-    source_data = mongodb_collection(
-        collection="movies", write_disposition="replace"
-    )
+    source_data = mongodb_collection(collection="movies", write_disposition="replace")
     source_data.movies.apply_hints(columns={"cast": {"data_type": "complex"}})
     load_info = pipeline.run(source_data)
     print(load_info)
