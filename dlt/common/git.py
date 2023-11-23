@@ -15,6 +15,7 @@ if TYPE_CHECKING:
 else:
     Repo = Any
 
+
 @contextmanager
 def git_custom_key_command(private_key: Optional[str]) -> Iterator[str]:
     if private_key:
@@ -24,7 +25,9 @@ def git_custom_key_command(private_key: Optional[str]) -> Iterator[str]:
         try:
             # permissions so SSH does not complain
             os.chmod(key_file, 0o600)
-            yield 'ssh -o "StrictHostKeyChecking accept-new" -i "%s"' % key_file.replace("\\", "\\\\")
+            yield 'ssh -o "StrictHostKeyChecking accept-new" -i "%s"' % key_file.replace(
+                "\\", "\\\\"
+            )
         finally:
             os.remove(key_file)
     else:
@@ -46,6 +49,7 @@ def is_dirty(repo: Repo) -> bool:
     status: str = repo.git.status("--short")
     return len(status.strip()) > 0
 
+
 # def is_dirty(repo: Repo) -> bool:
 #     # get branch status
 #     status: str = repo.git.status("--short", "--branch")
@@ -53,7 +57,9 @@ def is_dirty(repo: Repo) -> bool:
 #     return len(status.splitlines()) > 1
 
 
-def ensure_remote_head(repo_path: str, branch: Optional[str] = None, with_git_command: Optional[str] = None) -> None:
+def ensure_remote_head(
+    repo_path: str, branch: Optional[str] = None, with_git_command: Optional[str] = None
+) -> None:
     from git import Repo, RepositoryDirtyError
 
     # update remotes and check if heads are same. ignores locally modified files
@@ -70,7 +76,12 @@ def ensure_remote_head(repo_path: str, branch: Optional[str] = None, with_git_co
                 raise RepositoryDirtyError(repo, status)
 
 
-def clone_repo(repository_url: str, clone_path: str, branch: Optional[str] = None, with_git_command: Optional[str] = None) -> Repo:
+def clone_repo(
+    repository_url: str,
+    clone_path: str,
+    branch: Optional[str] = None,
+    with_git_command: Optional[str] = None,
+) -> Repo:
     from git import Repo
 
     repo = Repo.clone_from(repository_url, clone_path, env=dict(GIT_SSH_COMMAND=with_git_command))
@@ -79,7 +90,13 @@ def clone_repo(repository_url: str, clone_path: str, branch: Optional[str] = Non
     return repo
 
 
-def force_clone_repo(repo_url: str, repo_storage: FileStorage, repo_name: str, branch: Optional[str] = None, with_git_command: Optional[str] = None) -> None:
+def force_clone_repo(
+    repo_url: str,
+    repo_storage: FileStorage,
+    repo_name: str,
+    branch: Optional[str] = None,
+    with_git_command: Optional[str] = None,
+) -> None:
     """Deletes the working directory repo_storage.root/repo_name and clones the `repo_url` into it. Will checkout `branch` if provided"""
     try:
         # delete repo folder
@@ -89,7 +106,7 @@ def force_clone_repo(repo_url: str, repo_storage: FileStorage, repo_name: str, b
             repo_url,
             repo_storage.make_full_path(repo_name),
             branch=branch,
-            with_git_command=with_git_command
+            with_git_command=with_git_command,
         ).close()
     except Exception:
         # delete folder so we start clean next time
@@ -98,7 +115,12 @@ def force_clone_repo(repo_url: str, repo_storage: FileStorage, repo_name: str, b
         raise
 
 
-def get_fresh_repo_files(repo_location: str, working_dir: str = None, branch: Optional[str] = None, with_git_command: Optional[str] = None) -> FileStorage:
+def get_fresh_repo_files(
+    repo_location: str,
+    working_dir: str = None,
+    branch: Optional[str] = None,
+    with_git_command: Optional[str] = None,
+) -> FileStorage:
     """Returns a file storage leading to the newest repository files. If `repo_location` is url, file will be checked out into `working_dir/repo_name`"""
     from git import GitError
 
@@ -113,7 +135,13 @@ def get_fresh_repo_files(repo_location: str, working_dir: str = None, branch: Op
         try:
             ensure_remote_head(repo_path, branch=branch, with_git_command=with_git_command)
         except GitError:
-            force_clone_repo(repo_location, FileStorage(working_dir, makedirs=True), repo_name, branch=branch, with_git_command=with_git_command)
+            force_clone_repo(
+                repo_location,
+                FileStorage(working_dir, makedirs=True),
+                repo_name,
+                branch=branch,
+                with_git_command=with_git_command,
+            )
         return FileStorage(repo_path)
 
 

@@ -10,7 +10,6 @@ if t.TYPE_CHECKING:
 
 
 class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
-
     spec = AthenaClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:

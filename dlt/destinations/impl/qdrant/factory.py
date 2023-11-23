@@ -10,7 +10,6 @@ if t.TYPE_CHECKING:
 
 
 class qdrant(Destination[QdrantClientConfiguration, "QdrantClient"]):
-
     spec = QdrantClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:

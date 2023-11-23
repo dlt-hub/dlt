@@ -15,8 +15,8 @@ DLT_SECRETS_VALUE = "secrets.value"
 DLT_CONFIG_VALUE = "config.value"
 TConfigAny = TypeVar("TConfigAny", bound=Any)
 
-class _Accessor(abc.ABC):
 
+class _Accessor(abc.ABC):
     def __getitem__(self, field: str) -> Any:
         value, traces = self._get_value(field)
         if value is None:
@@ -100,7 +100,11 @@ class _ConfigAccessor(_Accessor):
     @property
     def writable_provider(self) -> ConfigProvider:
         """find first writable provider that does not support secrets - should be config.toml"""
-        return next(p for p in self._get_providers_from_context() if p.is_writable and not p.supports_secrets)
+        return next(
+            p
+            for p in self._get_providers_from_context()
+            if p.is_writable and not p.supports_secrets
+        )
 
     value: ClassVar[None] = ConfigValue
     "A placeholder that tells dlt to replace it with actual config value during the call to a source or resource decorated function."
@@ -121,7 +125,9 @@ class _SecretsAccessor(_Accessor):
     @property
     def writable_provider(self) -> ConfigProvider:
         """find first writable provider that supports secrets - should be secrets.toml"""
-        return next(p for p in self._get_providers_from_context() if p.is_writable and p.supports_secrets)
+        return next(
+            p for p in self._get_providers_from_context() if p.is_writable and p.supports_secrets
+        )
 
     value: ClassVar[None] = ConfigValue
     "A placeholder that tells dlt to replace it with actual secret during the call to a source or resource decorated function."

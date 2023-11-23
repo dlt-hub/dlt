@@ -10,7 +10,6 @@ if t.TYPE_CHECKING:
 
 
 class mssql(Destination[MsSqlClientConfiguration, "MsSqlClient"]):
-
     spec = MsSqlClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:

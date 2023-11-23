@@ -27,10 +27,16 @@ def dbt_venv() -> Iterator[Venv]:
         yield venv
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
-def test_run_jaffle_package(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
+@pytest.mark.parametrize(
+    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+)
+def test_run_jaffle_package(
+    destination_config: DestinationTestConfiguration, dbt_venv: Venv
+) -> None:
     if destination_config.destination == "athena":
-        pytest.skip("dbt-athena requires database to be created and we don't do it in case of Jaffle")
+        pytest.skip(
+            "dbt-athena requires database to be created and we don't do it in case of Jaffle"
+        )
     pipeline = destination_config.setup_pipeline("jaffle_jaffle", full_refresh=True)
     # get runner, pass the env from fixture
     dbt = dlt.dbt.package(pipeline, "https://github.com/dbt-labs/jaffle_shop.git", venv=dbt_venv)
@@ -55,16 +61,21 @@ def test_run_jaffle_package(destination_config: DestinationTestConfiguration, db
     assert len(orders) == 99
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
+@pytest.mark.parametrize(
+    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+)
 def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
     from docs.examples.chess.chess import chess
+
     if not destination_config.supports_dbt:
         pytest.skip("dbt is not supported for this destination configuration")
 
     # provide chess url via environ
     os.environ["CHESS_URL"] = "https://api.chess.com/pub/"
 
-    pipeline = destination_config.setup_pipeline("chess_games", dataset_name="chess_dbt_test", full_refresh=True)
+    pipeline = destination_config.setup_pipeline(
+        "chess_games", dataset_name="chess_dbt_test", full_refresh=True
+    )
     assert pipeline.default_schema_name is None
     # get the runner for the "dbt_transform" package
     transforms = dlt.dbt.package(pipeline, "docs/examples/chess/dbt_transform", venv=dbt_venv)
@@ -81,29 +92,44 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
     transforms.run_all(source_tests_selector="source:*")
     # run all the tests
     transforms.test()
-    load_ids = select_data(pipeline, "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status")
+    load_ids = select_data(
+        pipeline, "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status"
+    )
     assert len(load_ids) == 2
-    view_player_games = select_data(pipeline, "SELECT * FROM view_player_games ORDER BY username, uuid")
+    view_player_games = select_data(
+        pipeline, "SELECT * FROM view_player_games ORDER BY username, uuid"
+    )
     assert len(view_player_games) > 0
     # run again
     transforms.run()
     # no new load ids - no new data in view table
-    new_load_ids = select_data(pipeline, "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status")
-    new_view_player_games = select_data(pipeline, "SELECT * FROM view_player_games ORDER BY username, uuid")
+    new_load_ids = select_data(
+        pipeline, "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status"
+    )
+    new_view_player_games = select_data(
+        pipeline, "SELECT * FROM view_player_games ORDER BY username, uuid"
+    )
     assert load_ids == new_load_ids
     assert view_player_games == new_view_player_games
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name)
-def test_run_chess_dbt_to_other_dataset(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
+@pytest.mark.parametrize(
+    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+)
+def test_run_chess_dbt_to_other_dataset(
+    destination_config: DestinationTestConfiguration, dbt_venv: Venv
+) -> None:
     from docs.examples.chess.chess import chess
+
     if not destination_config.supports_dbt:
         pytest.skip("dbt is not supported for this destination configuration")
 
     # provide chess url via environ
     os.environ["CHESS_URL"] = "https://api.chess.com/pub/"
 
-    pipeline = destination_config.setup_pipeline("chess_games", dataset_name="chess_dbt_test", full_refresh=True)
+    pipeline = destination_config.setup_pipeline(
+        "chess_games", dataset_name="chess_dbt_test", full_refresh=True
+    )
     # load each schema in separate dataset
     pipeline.config.use_single_dataset = False
     # assert pipeline.default_schema_name is None
@@ -126,12 +152,18 @@ def test_run_chess_dbt_to_other_dataset(destination_config: DestinationTestConfi
     # run tests on destination dataset where transformations actually are
     transforms.test(destination_dataset_name=info.dataset_name + "_" + test_suffix)
     # get load ids from the source dataset
-    load_ids = select_data(pipeline, "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status")
+    load_ids = select_data(
+        pipeline, "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status"
+    )
     assert len(load_ids) == 1
     # status is 0, no more entries
     assert load_ids[0][2] == 0
     # get from destination dataset
-    load_ids = select_data(pipeline, "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status", schema_name=test_suffix)
+    load_ids = select_data(
+        pipeline,
+        "SELECT load_id, schema_name, status FROM _dlt_loads ORDER BY status",
+        schema_name=test_suffix,
+    )
     # TODO: the package is not finished, both results should be here
     assert len(load_ids) == 1
     # status is 1, no more entries

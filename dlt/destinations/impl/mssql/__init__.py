@@ -19,7 +19,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.max_column_identifier_length = 128
     caps.max_query_length = 4 * 1024 * 64 * 1024
     caps.is_max_query_length_in_bytes = True
-    caps.max_text_data_type_length = 2 ** 30 - 1
+    caps.max_text_data_type_length = 2**30 - 1
     caps.is_max_text_data_type_length_in_bytes = False
     caps.supports_ddl_transactions = True
     caps.max_rows_per_insert = 1000

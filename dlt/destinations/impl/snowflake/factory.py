@@ -1,6 +1,9 @@
 import typing as t
 
-from dlt.destinations.impl.snowflake.configuration import SnowflakeCredentials, SnowflakeClientConfiguration
+from dlt.destinations.impl.snowflake.configuration import (
+    SnowflakeCredentials,
+    SnowflakeClientConfiguration,
+)
 from dlt.destinations.impl.snowflake import capabilities
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
@@ -9,7 +12,6 @@ if t.TYPE_CHECKING:
 
 
 class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
-
     spec = SnowflakeClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:
@@ -38,4 +40,9 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             stage_name: Name of an existing stage to use for loading data. Default uses implicit stage per table
             keep_staged_files: Whether to delete or keep staged files after loading
         """
-        super().__init__(credentials=credentials, stage_name=stage_name, keep_staged_files=keep_staged_files, **kwargs)
+        super().__init__(
+            credentials=credentials,
+            stage_name=stage_name,
+            keep_staged_files=keep_staged_files,
+            **kwargs,
+        )

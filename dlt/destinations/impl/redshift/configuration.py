@@ -4,7 +4,10 @@ from dlt.common.typing import TSecretValue
 from dlt.common.configuration import configspec
 from dlt.common.utils import digest128
 
-from dlt.destinations.impl.postgres.configuration import PostgresCredentials, PostgresClientConfiguration
+from dlt.destinations.impl.postgres.configuration import (
+    PostgresCredentials,
+    PostgresClientConfiguration,
+)
 
 
 @configspec

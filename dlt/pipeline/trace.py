@@ -3,14 +3,20 @@ import pickle
 import datetime  # noqa: 251
 import dataclasses
 from collections.abc import Sequence as C_Sequence
-from typing import Any, List,  NamedTuple, Optional, Protocol, Sequence
+from typing import Any, List, NamedTuple, Optional, Protocol, Sequence
 import humanize
 
 from dlt.common import pendulum
 from dlt.common.runtime.logger import suppress_and_warn
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.utils import _RESOLVED_TRACES
-from dlt.common.pipeline import ExtractDataInfo, ExtractInfo, LoadInfo, NormalizeInfo, SupportsPipeline
+from dlt.common.pipeline import (
+    ExtractDataInfo,
+    ExtractInfo,
+    LoadInfo,
+    NormalizeInfo,
+    SupportsPipeline,
+)
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
 
@@ -22,9 +28,11 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 TRACE_ENGINE_VERSION = 1
 TRACE_FILE_NAME = "trace.pickle"
 
+
 # @dataclasses.dataclass(init=True)
 class SerializableResolvedValueTrace(NamedTuple):
     """Information on resolved secret and config values"""
+
     key: str
     value: Any
     default_value: Any
@@ -35,7 +43,7 @@ class SerializableResolvedValueTrace(NamedTuple):
 
     def asdict(self) -> StrAny:
         """A dictionary representation that is safe to load."""
-        return {k:v for k,v in self._asdict().items() if k not in ("value", "default_value")}
+        return {k: v for k, v in self._asdict().items() if k not in ("value", "default_value")}
 
     def asstr(self, verbosity: int = 0) -> str:
         return f"{self.key}->{self.value} in {'.'.join(self.sections)} by {self.provider_name}"
@@ -79,6 +87,7 @@ class _PipelineStepTrace:
 
 class PipelineStepTrace(_PipelineStepTrace):
     """Trace of particular pipeline step, contains timing information, the step outcome info or exception in case of failing step with custom asdict()"""
+
     def asdict(self) -> DictStrAny:
         """A dictionary representation of PipelineStepTrace that can be loaded with `dlt`"""
         d = dataclasses.asdict(self)
@@ -91,6 +100,7 @@ class PipelineStepTrace(_PipelineStepTrace):
 @dataclasses.dataclass(init=True)
 class PipelineTrace:
     """Pipeline runtime trace containing data on "extract", "normalize" and "load" steps and resolved config and secret values."""
+
     transaction_id: str
     started_at: datetime.datetime
     steps: List[PipelineStepTrace]
@@ -108,7 +118,10 @@ class PipelineTrace:
             elapsed_str = humanize.precisedelta(elapsed)
         else:
             elapsed_str = "---"
-        msg = f"Run started at {self.started_at} and {completed_str} in {elapsed_str} with {len(self.steps)} steps."
+        msg = (
+            f"Run started at {self.started_at} and {completed_str} in {elapsed_str} with"
+            f" {len(self.steps)} steps."
+        )
         if verbosity > 0 and len(self.resolved_config_values) > 0:
             msg += "\nFollowing config and secret values were resolved:\n"
             msg += "\n".join([s.asstr(verbosity) for s in self.resolved_config_values])
@@ -149,17 +162,23 @@ class PipelineTrace:
 
 
 class SupportsTracking(Protocol):
-    def on_start_trace(self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
-        ...
+    def on_start_trace(
+        self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+    ) -> None: ...
 
-    def on_start_trace_step(self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
-        ...
+    def on_start_trace_step(
+        self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+    ) -> None: ...
 
-    def on_end_trace_step(self, trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any) -> None:
-        ...
+    def on_end_trace_step(
+        self,
+        trace: PipelineTrace,
+        step: PipelineStepTrace,
+        pipeline: SupportsPipeline,
+        step_info: Any,
+    ) -> None: ...
 
-    def on_end_trace(self, trace: PipelineTrace, pipeline: SupportsPipeline) -> None:
-        ...
+    def on_end_trace(self, trace: PipelineTrace, pipeline: SupportsPipeline) -> None: ...
 
 
 # plug in your own tracking module here
@@ -174,14 +193,18 @@ def start_trace(step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineTrac
     return trace
 
 
-def start_trace_step(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineStepTrace:
+def start_trace_step(
+    trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+) -> PipelineStepTrace:
     trace_step = PipelineStepTrace(uniq_id(), step, pendulum.now())
     with suppress_and_warn():
         TRACKING_MODULE.on_start_trace_step(trace, step, pipeline)
     return trace_step
 
 
-def end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any) -> None:
+def end_trace_step(
+    trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any
+) -> None:
     # saves runtime trace of the pipeline
     if isinstance(step_info, PipelineStepFailed):
         step_exception = str(step_info)
@@ -199,15 +222,18 @@ def end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: Supp
     step.step_exception = step_exception
     step.step_info = step_info
 
-    resolved_values = map(lambda v: SerializableResolvedValueTrace(
+    resolved_values = map(
+        lambda v: SerializableResolvedValueTrace(
             v.key,
             v.value,
             v.default_value,
             is_secret_hint(v.hint),
             v.sections,
             v.provider_name,
-            str(type(v.config).__qualname__)
-        ) , _RESOLVED_TRACES.values())
+            str(type(v.config).__qualname__),
+        ),
+        _RESOLVED_TRACES.values(),
+    )
 
     trace.resolved_config_values = list(resolved_values)
     trace.steps.append(step)
@@ -259,17 +285,16 @@ def describe_extract_data(data: Any) -> List[ExtractDataInfo]:
     def add_item(item: Any) -> bool:
         if isinstance(item, (DltResource, DltSource)):
             # record names of sources/resources
-            data_info.append({
-                "name": item.name,
-                "data_type": "resource" if isinstance(item, DltResource) else "source"
-            })
+            data_info.append(
+                {
+                    "name": item.name,
+                    "data_type": "resource" if isinstance(item, DltResource) else "source",
+                }
+            )
             return False
         else:
             # anything else
-            data_info.append({
-                "name": "",
-                "data_type": type(item).__name__
-            })
+            data_info.append({"name": "", "data_type": type(item).__name__})
             return True
 
     item: Any = data

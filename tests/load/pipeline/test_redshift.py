@@ -9,7 +9,11 @@ from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.pipeline.utils import assert_load_info
 
 
-@pytest.mark.parametrize("destination_config", destinations_configs(all_staging_configs=True, subset=["redshift"]), ids=lambda x: x.name)
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["redshift"]),
+    ids=lambda x: x.name,
+)
 def test_redshift_blocks_time_column(destination_config: DestinationTestConfiguration) -> None:
     pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
 
@@ -19,7 +23,7 @@ def test_redshift_blocks_time_column(destination_config: DestinationTestConfigur
     @dlt.resource(table_name="data_types", write_disposition="append", columns=column_schemas)
     def my_resource() -> Iterator[Any]:
         nonlocal data_types
-        yield [data_types]*10
+        yield [data_types] * 10
 
     @dlt.source(max_table_nesting=0)
     def my_source() -> Any:
@@ -29,4 +33,7 @@ def test_redshift_blocks_time_column(destination_config: DestinationTestConfigur
 
     assert info.has_failed_jobs
 
-    assert "Redshift cannot load TIME columns from" in info.load_packages[0].jobs['failed_jobs'][0].failed_message
+    assert (
+        "Redshift cannot load TIME columns from"
+        in info.load_packages[0].jobs["failed_jobs"][0].failed_message
+    )

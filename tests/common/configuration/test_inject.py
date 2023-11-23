@@ -9,7 +9,11 @@ from dlt.common.configuration.inject import get_fun_spec, last_config, with_conf
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.providers.toml import SECRETS_TOML
 from dlt.common.configuration.resolve import inject_section
-from dlt.common.configuration.specs import BaseConfiguration, GcpServiceAccountCredentialsWithoutDefaults, ConnectionStringCredentials
+from dlt.common.configuration.specs import (
+    BaseConfiguration,
+    GcpServiceAccountCredentialsWithoutDefaults,
+    ConnectionStringCredentials,
+)
 from dlt.common.configuration.specs.base_configuration import is_secret_hint
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
@@ -21,7 +25,6 @@ from tests.common.configuration.utils import environment, toml_providers
 
 
 def test_arguments_are_explicit(environment: Any) -> None:
-
     @with_config
     def f_var(user=dlt.config.value, path=dlt.config.value):
         # explicit args "survive" the injection: they have precedence over env
@@ -43,7 +46,6 @@ def test_arguments_are_explicit(environment: Any) -> None:
 
 
 def test_default_values_are_resolved(environment: Any) -> None:
-
     @with_config
     def f_var(user=dlt.config.value, path="a/b/c"):
         assert user == "env user"
@@ -54,7 +56,6 @@ def test_default_values_are_resolved(environment: Any) -> None:
 
 
 def test_arguments_dlt_literal_defaults_are_required(environment: Any) -> None:
-
     @with_config
     def f_config(user=dlt.config.value):
         assert user is not None
@@ -84,7 +85,6 @@ def test_arguments_dlt_literal_defaults_are_required(environment: Any) -> None:
 
 
 def test_inject_from_argument_section(toml_providers: ConfigProvidersContext) -> None:
-
     # `gcp_storage` is a key in `secrets.toml` and the default `credentials` section of GcpServiceAccountCredentialsWithoutDefaults must be replaced with it
 
     @with_config
@@ -96,11 +96,12 @@ def test_inject_from_argument_section(toml_providers: ConfigProvidersContext) ->
 
 
 def test_inject_secret_value_secret_type(environment: Any) -> None:
-
     @with_config
-    def f_custom_secret_type(_dict: Dict[str, Any] = dlt.secrets.value, _int: int = dlt.secrets.value, **kwargs: Any):
+    def f_custom_secret_type(
+        _dict: Dict[str, Any] = dlt.secrets.value, _int: int = dlt.secrets.value, **kwargs: Any
+    ):
         # secret values were coerced into types
-        assert _dict == {"a":1}
+        assert _dict == {"a": 1}
         assert _int == 1234
         cfg = last_config(**kwargs)
         spec: Type[BaseConfiguration] = cfg.__class__
@@ -158,23 +159,24 @@ def test_inject_with_sections() -> None:
 
 
 def test_inject_with_sections_and_sections_context() -> None:
-
     @with_config
     def no_sections(value=dlt.config.value):
         return value
 
-    @with_config(sections=("test", ))
+    @with_config(sections=("test",))
     def test_sections(value=dlt.config.value):
         return value
 
     # a section context that prefers existing context
-    @with_config(sections=("test", ), sections_merge_style=ConfigSectionContext.prefer_existing)
+    @with_config(sections=("test",), sections_merge_style=ConfigSectionContext.prefer_existing)
     def test_sections_pref_existing(value=dlt.config.value):
         return value
 
-
     # a section that wants context like dlt resource
-    @with_config(sections=("test", "module", "name"), sections_merge_style=ConfigSectionContext.resource_merge_style)
+    @with_config(
+        sections=("test", "module", "name"),
+        sections_merge_style=ConfigSectionContext.resource_merge_style,
+    )
     def test_sections_like_resource(value=dlt.config.value):
         return value
 
@@ -189,7 +191,7 @@ def test_inject_with_sections_and_sections_context() -> None:
     assert test_sections_pref_existing() == "test_section"
     assert test_sections_like_resource() == "test_section"
 
-    with inject_section(ConfigSectionContext(sections=("injected", ))):
+    with inject_section(ConfigSectionContext(sections=("injected",))):
         # the "injected" section is applied to "no_section" func that has no sections
         assert no_sections() == "injected_section"
         # but not to "test" - it won't be overridden by section context
@@ -198,7 +200,9 @@ def test_inject_with_sections_and_sections_context() -> None:
         # this one explicitly prefers existing context
         assert test_sections_pref_existing() == "injected_section"
 
-    with inject_section(ConfigSectionContext(sections=("test", "existing_module", "existing_name"))):
+    with inject_section(
+        ConfigSectionContext(sections=("test", "existing_module", "existing_name"))
+    ):
         assert test_sections_like_resource() == "resource_style_injected"
 
 
@@ -256,10 +260,13 @@ def test_initial_spec_from_arg_with_spec_type() -> None:
     pass
 
 
-def test_use_most_specific_union_type(environment: Any, toml_providers: ConfigProvidersContext) -> None:
-
+def test_use_most_specific_union_type(
+    environment: Any, toml_providers: ConfigProvidersContext
+) -> None:
     @with_config
-    def postgres_union(local_credentials: Union[ConnectionStringCredentials, str, StrAny] = dlt.secrets.value):
+    def postgres_union(
+        local_credentials: Union[ConnectionStringCredentials, str, StrAny] = dlt.secrets.value
+    ):
         return local_credentials
 
     @with_config
@@ -267,7 +274,13 @@ def test_use_most_specific_union_type(environment: Any, toml_providers: ConfigPr
         return local_credentials
 
     conn_str = "postgres://loader:loader@localhost:5432/dlt_data"
-    conn_dict = {"host": "localhost", "database": "dlt_test", "username": "loader", "password": "loader", "drivername": "postgresql"}
+    conn_dict = {
+        "host": "localhost",
+        "database": "dlt_test",
+        "username": "loader",
+        "password": "loader",
+        "drivername": "postgresql",
+    }
     conn_cred = ConnectionStringCredentials()
     conn_cred.parse_native_representation(conn_str)
 
@@ -313,7 +326,6 @@ def test_use_most_specific_union_type(environment: Any, toml_providers: ConfigPr
 
 
 def test_auto_derived_spec_type_name() -> None:
-
     class AutoNameTest:
         @with_config
         def __init__(self, pos_par=dlt.secrets.value, /, kw_par=None) -> None:
@@ -334,7 +346,10 @@ def test_auto_derived_spec_type_name() -> None:
             pass
 
     # name is composed via __qualname__ of func
-    assert _get_spec_name_from_f(AutoNameTest.__init__) == "TestAutoDerivedSpecTypeNameAutoNameTestInitConfiguration"
+    assert (
+        _get_spec_name_from_f(AutoNameTest.__init__)
+        == "TestAutoDerivedSpecTypeNameAutoNameTestInitConfiguration"
+    )
     # synthesized spec present in current module
     assert "TestAutoDerivedSpecTypeNameAutoNameTestInitConfiguration" in globals()
     # instantiate

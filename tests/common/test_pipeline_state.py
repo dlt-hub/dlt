@@ -11,7 +11,7 @@ def test_delete_source_state_keys() -> None:
         "a": {"b": {"c": 1}},
         "x": {"y": {"c": 2}},
         "y": {"x": {"a": 3}},
-        "resources": {"some_data": {"incremental": {"last_value": 123}}}
+        "resources": {"some_data": {"incremental": {"last_value": 123}}},
     }
 
     state = deepcopy(_fake_source_state)
@@ -54,12 +54,12 @@ def test_get_matching_resources() -> None:
 
     # with state argument
     results = ps._get_matching_resources(pattern, _fake_source_state)
-    assert sorted(results) == ['events_a', 'events_b']
+    assert sorted(results) == ["events_a", "events_b"]
 
     # with state context
     with mock.patch.object(ps, "source_state", autospec=True, return_value=_fake_source_state):
         results = ps._get_matching_resources(pattern, _fake_source_state)
-        assert sorted(results) == ['events_a', 'events_b']
+        assert sorted(results) == ["events_a", "events_b"]
 
     # no resources key
     results = ps._get_matching_resources(pattern, {})

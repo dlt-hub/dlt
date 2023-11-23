@@ -31,7 +31,9 @@ _SEGMENT_CONTEXT: DictStrAny = None
 
 
 def init_segment(config: RunConfiguration) -> None:
-    assert config.dlthub_telemetry_segment_write_key, "dlthub_telemetry_segment_write_key not present in RunConfiguration"
+    assert (
+        config.dlthub_telemetry_segment_write_key
+    ), "dlthub_telemetry_segment_write_key not present in RunConfiguration"
 
     # create thread pool to send telemetry to segment
     global _THREAD_POOL, _WRITE_KEY, _SESSION
@@ -51,11 +53,7 @@ def disable_segment() -> None:
     _at_exit_cleanup()
 
 
-def track(
-    event_category: TEventCategory,
-    event_name: str,
-    properties: DictStrAny
-) -> None:
+def track(event_category: TEventCategory, event_name: str, properties: DictStrAny) -> None:
     """Tracks a telemetry event.
 
     The segment event name will be created as "{event_category}_{event_name}
@@ -68,10 +66,7 @@ def track(
     if properties is None:
         properties = {}
 
-    properties.update({
-        "event_category": event_category,
-        "event_name": event_name
-    })
+    properties.update({"event_category": event_category, "event_name": event_name})
 
     try:
         _send_event(f"{event_category}_{event_name}", properties, _default_context_fields())
@@ -127,11 +122,7 @@ def get_anonymous_id() -> str:
     return anonymous_id
 
 
-def _segment_request_payload(
-    event_name: str,
-    properties: StrAny,
-    context: StrAny
-) -> DictStrAny:
+def _segment_request_payload(event_name: str, properties: StrAny, context: StrAny) -> DictStrAny:
     """Compose a valid payload for the segment API.
 
     Args:
@@ -167,7 +158,7 @@ def _default_context_fields() -> DictStrAny:
             "python": sys.version.split(" ")[0],
             "library": {"name": DLT_PKG_NAME, "version": __version__},
             "cpu": multiprocessing.cpu_count(),
-            "exec_info": exec_info_names()
+            "exec_info": exec_info_names(),
         }
 
     # avoid returning the cached dict --> caller could modify the dictionary...
@@ -176,11 +167,7 @@ def _default_context_fields() -> DictStrAny:
     return _SEGMENT_CONTEXT.copy()
 
 
-def _send_event(
-    event_name: str,
-    properties: StrAny,
-    context: StrAny
-) -> None:
+def _send_event(event_name: str, properties: StrAny, context: StrAny) -> None:
     """Report the contents segment of an event to the /track Segment endpoint.
 
     Args:
@@ -205,7 +192,9 @@ def _send_event(
     def _future_send() -> None:
         # import time
         # start_ts = time.time()
-        resp = _SESSION.post(_SEGMENT_ENDPOINT, headers=headers, json=payload, timeout=_SEGMENT_REQUEST_TIMEOUT)
+        resp = _SESSION.post(
+            _SEGMENT_ENDPOINT, headers=headers, json=payload, timeout=_SEGMENT_REQUEST_TIMEOUT
+        )
         # print(f"SENDING TO Segment done {resp.status_code} {time.time() - start_ts} {base64.b64decode(_WRITE_KEY)}")
         # handle different failure cases
         if resp.status_code != 200:
@@ -216,8 +205,6 @@ def _send_event(
         else:
             data = resp.json()
             if not data.get("success"):
-                logger.debug(
-                    f"Segment telemetry request returned a failure. Response: {data}"
-                )
+                logger.debug(f"Segment telemetry request returned a failure. Response: {data}")
 
     _THREAD_POOL.submit(_future_send)

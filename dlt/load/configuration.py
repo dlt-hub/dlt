@@ -20,11 +20,11 @@ class LoaderConfiguration(PoolRunnerConfiguration):
         self.pool_type = "none" if self.workers == 1 else "thread"
 
     if TYPE_CHECKING:
+
         def __init__(
             self,
             pool_type: TPoolType = "thread",
             workers: int = None,
             raise_on_failed_jobs: bool = False,
-            _load_storage_config: LoadStorageConfiguration = None
-        ) -> None:
-            ...
+            _load_storage_config: LoadStorageConfiguration = None,
+        ) -> None: ...

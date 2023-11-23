@@ -4,7 +4,7 @@ from psycopg2.errors import InsufficientPrivilege, InternalError_, SyntaxError
 
 CONNECTION_STRING = ""
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     # connect
     connection = psycopg2.connect(CONNECTION_STRING)
     connection.set_isolation_level(0)

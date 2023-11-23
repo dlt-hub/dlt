@@ -15,6 +15,7 @@ class MissingUnpickledType:
 
 class SynthesizingUnpickler(pickle.Unpickler):
     """Unpickler that synthesizes missing types instead of raising"""
+
     def find_class(self, module: str, name: str) -> Any:
         if module not in sys.modules:
             module_obj = sys.modules[__name__]
@@ -24,7 +25,7 @@ class SynthesizingUnpickler(pickle.Unpickler):
             return getattr(module_obj, name)
         except Exception:
             # synthesize type
-            t = type(name, (MissingUnpickledType, ), {"__module__": module})
+            t = type(name, (MissingUnpickledType,), {"__module__": module})
             setattr(module_obj, name, t)
             return t
 

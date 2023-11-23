@@ -18,5 +18,5 @@ SIGNATURES = {
     ATTACH: inspect.signature(attach),
     RUN: inspect.signature(run),
     SOURCE: inspect.signature(source),
-    RESOURCE: inspect.signature(resource)
+    RESOURCE: inspect.signature(resource),
 }

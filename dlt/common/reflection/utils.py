@@ -68,12 +68,16 @@ def creates_func_def_name_node(func_def: ast.FunctionDef, source_lines: Sequence
     """Recreate function name as a ast.Name with known source code location"""
     func_name = ast.Name(func_def.name)
     func_name.lineno = func_name.end_lineno = func_def.lineno
-    func_name.col_offset = source_lines[func_name.lineno - 1].index(func_def.name)  # find where function name starts
+    func_name.col_offset = source_lines[func_name.lineno - 1].index(
+        func_def.name
+    )  # find where function name starts
     func_name.end_col_offset = func_name.col_offset + len(func_def.name)
     return func_name
 
 
-def rewrite_python_script(source_script_lines: List[str], transformed_nodes: List[Tuple[ast.AST, ast.AST]]) -> List[str]:
+def rewrite_python_script(
+    source_script_lines: List[str], transformed_nodes: List[Tuple[ast.AST, ast.AST]]
+) -> List[str]:
     """Replaces all the nodes present in `transformed_nodes` in the `script_lines`. The `transformed_nodes` is a tuple where the first element
     is must be a node with full location information created out of `script_lines`"""
     script_lines: List[str] = []
@@ -87,12 +91,12 @@ def rewrite_python_script(source_script_lines: List[str], transformed_nodes: Lis
             if last_offset >= 0:
                 script_lines.append(source_script_lines[last_line][last_offset:])
             # add all new lines from previous line to current
-            script_lines.extend(source_script_lines[last_line+1:node.lineno-1])
+            script_lines.extend(source_script_lines[last_line + 1 : node.lineno - 1])
             # add trailing characters until node in current line starts
-            script_lines.append(source_script_lines[node.lineno-1][:node.col_offset])
+            script_lines.append(source_script_lines[node.lineno - 1][: node.col_offset])
         elif last_offset >= 0:
             # no line change, add the characters from the end of previous node to the current
-            script_lines.append(source_script_lines[last_line][last_offset:node.col_offset])
+            script_lines.append(source_script_lines[last_line][last_offset : node.col_offset])
 
         # replace node value
         script_lines.append(astunparse.unparse(t_value).strip())
@@ -102,7 +106,7 @@ def rewrite_python_script(source_script_lines: List[str], transformed_nodes: Lis
     # add all that was missing
     if last_offset >= 0:
         script_lines.append(source_script_lines[last_line][last_offset:])
-    script_lines.extend(source_script_lines[last_line+1:])
+    script_lines.extend(source_script_lines[last_line + 1 :])
     return script_lines
 
 

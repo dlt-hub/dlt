@@ -30,7 +30,12 @@ def test_main_telemetry_command(test_storage: FileStorage) -> None:
     glob_ctx = ConfigProvidersContext()
     glob_ctx.providers = _initial_providers()
 
-    with set_working_dir(test_storage.make_full_path("project")), Container().injectable_context(glob_ctx), patch("dlt.common.configuration.specs.config_providers_context.ConfigProvidersContext.initial_providers", _initial_providers):
+    with set_working_dir(test_storage.make_full_path("project")), Container().injectable_context(
+        glob_ctx
+    ), patch(
+        "dlt.common.configuration.specs.config_providers_context.ConfigProvidersContext.initial_providers",
+        _initial_providers,
+    ):
         # no config files: status is ON
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
             telemetry_status_command()
@@ -75,7 +80,6 @@ def test_main_telemetry_command(test_storage: FileStorage) -> None:
 
 
 def test_command_instrumentation() -> None:
-
     @track_command("instrument_ok", False, "in_ok_param", "in_ok_param_2")
     def instrument_ok(in_ok_param: str, in_ok_param_2: int) -> int:
         return 0
@@ -126,7 +130,15 @@ def test_command_instrumentation() -> None:
 
 
 def test_instrumentation_wrappers() -> None:
-    from dlt.cli._dlt import init_command_wrapper, list_verified_sources_command_wrapper, DEFAULT_VERIFIED_SOURCES_REPO, pipeline_command_wrapper, deploy_command_wrapper, COMMAND_DEPLOY_REPO_LOCATION, DeploymentMethods
+    from dlt.cli._dlt import (
+        init_command_wrapper,
+        list_verified_sources_command_wrapper,
+        DEFAULT_VERIFIED_SOURCES_REPO,
+        pipeline_command_wrapper,
+        deploy_command_wrapper,
+        COMMAND_DEPLOY_REPO_LOCATION,
+        DeploymentMethods,
+    )
     from dlt.common.exceptions import UnknownDestinationModule
 
     with patch("dlt.common.runtime.segment.before_send", _mock_before_send):
@@ -155,15 +167,21 @@ def test_instrumentation_wrappers() -> None:
         # assert msg["properties"]["operation"] == "list"
 
         SENT_ITEMS.clear()
-        deploy_command_wrapper("list.py", DeploymentMethods.github_actions.value, COMMAND_DEPLOY_REPO_LOCATION, schedule="* * * * *")
+        deploy_command_wrapper(
+            "list.py",
+            DeploymentMethods.github_actions.value,
+            COMMAND_DEPLOY_REPO_LOCATION,
+            schedule="* * * * *",
+        )
         msg = SENT_ITEMS[0]
         assert msg["event"] == "command_deploy"
         assert msg["properties"]["deployment_method"] == DeploymentMethods.github_actions.value
         assert msg["properties"]["success"] is False
 
 
-
 SENT_ITEMS = []
+
+
 def _mock_before_send(event: DictStrAny, _unused_hint: Any = None) -> DictStrAny:
     SENT_ITEMS.append(event)
     # do not send this
