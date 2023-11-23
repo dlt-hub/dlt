@@ -15,7 +15,7 @@ TRACE_URL_SUFFIX = "/trace"
 STATE_URL_SUFFIX = "/state"
 
 
-class TSchemaSyncPayload(TypedDict):
+class TPipelineSyncPayload(TypedDict):
     pipeline_name: str
     destination_name: str
     destination_displayable_credentials: str
@@ -64,7 +64,7 @@ def _sync_schemas_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) 
     if not load_info:
         return
 
-    payload = TSchemaSyncPayload(
+    payload = TPipelineSyncPayload(
         pipeline_name=pipeline.pipeline_name,
         destination_name=load_info.destination_name,
         destination_displayable_credentials=load_info.destination_displayable_credentials,
@@ -109,11 +109,10 @@ def on_end_trace_step(
     step_info: Any,
     send_state: bool,
 ) -> None:
-    pass
+    if send_state:
+        # also sync schemas to dlthub
+        _sync_schemas_to_platform(trace, pipeline)
 
 
 def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool) -> None:
     _send_trace_to_platform(trace, pipeline)
-    if send_state:
-        # also sync schemas to dlthub
-        _sync_schemas_to_platform(trace, pipeline)

@@ -433,7 +433,7 @@ class Pipeline(SupportsPipeline):
                     self, "normalize", n_ex, normalize.get_normalize_info()
                 ) from n_ex
 
-    @with_runtime_trace()
+    @with_runtime_trace(send_state=True)
     @with_schemas_sync
     @with_state_sync()
     @with_config_section((known_sections.LOAD,))
@@ -486,7 +486,7 @@ class Pipeline(SupportsPipeline):
         except Exception as l_ex:
             raise PipelineStepFailed(self, "load", l_ex, self._get_load_info(load)) from l_ex
 
-    @with_runtime_trace(send_state=True)
+    @with_runtime_trace()
     @with_config_section(("run",))
     def run(
         self,
