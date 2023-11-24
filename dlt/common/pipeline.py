@@ -15,6 +15,7 @@ from typing import (
     TYPE_CHECKING,
     Tuple,
     TypedDict,
+    Mapping,
 )
 from typing_extensions import NotRequired
 
@@ -72,7 +73,7 @@ class NormalizeInfo(NamedTuple):
         """A dictionary representation of NormalizeInfo that can be loaded with `dlt`"""
         d = self._asdict()
         # list representation creates a nice table
-        d["row_counts"] = [(k, v) for k, v in self.row_counts.items()]
+        d["row_counts"] = [{"table_name": k, "count": v} for k, v in self.row_counts.items()]
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
@@ -226,6 +227,10 @@ class SupportsPipeline(Protocol):
     @property
     def state(self) -> TPipelineState:
         """Returns dictionary with pipeline state"""
+
+    @property
+    def schemas(self) -> Mapping[str, Schema]:
+        """Mapping of all pipeline schemas"""
 
     def set_local_state_val(self, key: str, value: Any) -> None:
         """Sets value in local state. Local state is not synchronized with destination."""

@@ -16,6 +16,7 @@ from typing import (
     cast,
     get_type_hints,
     ContextManager,
+    Mapping,
 )
 
 from dlt import version
@@ -167,51 +168,54 @@ def with_schemas_sync(f: TFun) -> TFun:
     return _wrap  # type: ignore
 
 
-def with_runtime_trace(f: TFun) -> TFun:
-    @wraps(f)
-    def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-        trace: PipelineTrace = self._trace
-        trace_step: PipelineStepTrace = None
-        step_info: Any = None
-        is_new_trace = self._trace is None and self.config.enable_runtime_trace
+def with_runtime_trace(send_state: bool = False) -> Callable[[TFun], TFun]:
+    def decorator(f: TFun) -> TFun:
+        @wraps(f)
+        def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
+            trace: PipelineTrace = self._trace
+            trace_step: PipelineStepTrace = None
+            step_info: Any = None
+            is_new_trace = self._trace is None and self.config.enable_runtime_trace
 
-        # create a new trace if we enter a traced function and there's no current trace
-        if is_new_trace:
-            self._trace = trace = start_trace(cast(TPipelineStep, f.__name__), self)
+            # create a new trace if we enter a traced function and there's no current trace
+            if is_new_trace:
+                self._trace = trace = start_trace(cast(TPipelineStep, f.__name__), self)
 
-        try:
-            # start a trace step for wrapped function
-            if trace:
-                trace_step = start_trace_step(trace, cast(TPipelineStep, f.__name__), self)
-
-            step_info = f(self, *args, **kwargs)
-            return step_info
-        except Exception as ex:
-            step_info = ex  # step info is an exception
-            raise
-        finally:
             try:
-                if trace_step:
-                    # if there was a step, finish it
-                    end_trace_step(self._trace, trace_step, self, step_info)
-                if is_new_trace:
-                    assert (
-                        trace is self._trace
-                    ), f"Messed up trace reference {id(self._trace)} vs {id(trace)}"
-                    end_trace(trace, self, self._pipeline_storage.storage_path)
-            finally:
-                # always end trace
-                if is_new_trace:
-                    assert (
-                        self._trace == trace
-                    ), f"Messed up trace reference {id(self._trace)} vs {id(trace)}"
-                    # if we end new trace that had only 1 step, add it to previous trace
-                    # this way we combine several separate calls to extract, normalize, load as single trace
-                    # the trace of "run" has many steps and will not be merged
-                    self._last_trace = merge_traces(self._last_trace, trace)
-                    self._trace = None
+                # start a trace step for wrapped function
+                if trace:
+                    trace_step = start_trace_step(trace, cast(TPipelineStep, f.__name__), self)
 
-    return _wrap  # type: ignore
+                step_info = f(self, *args, **kwargs)
+                return step_info
+            except Exception as ex:
+                step_info = ex  # step info is an exception
+                raise
+            finally:
+                try:
+                    if trace_step:
+                        # if there was a step, finish it
+                        end_trace_step(self._trace, trace_step, self, step_info, send_state)
+                    if is_new_trace:
+                        assert (
+                            trace is self._trace
+                        ), f"Messed up trace reference {id(self._trace)} vs {id(trace)}"
+                        end_trace(trace, self, self._pipeline_storage.storage_path, send_state)
+                finally:
+                    # always end trace
+                    if is_new_trace:
+                        assert (
+                            self._trace == trace
+                        ), f"Messed up trace reference {id(self._trace)} vs {id(trace)}"
+                        # if we end new trace that had only 1 step, add it to previous trace
+                        # this way we combine several separate calls to extract, normalize, load as single trace
+                        # the trace of "run" has many steps and will not be merged
+                        self._last_trace = merge_traces(self._last_trace, trace)
+                        self._trace = None
+
+        return _wrap  # type: ignore
+
+    return decorator
 
 
 def with_config_section(sections: Tuple[str, ...]) -> Callable[[TFun], TFun]:
@@ -335,7 +339,7 @@ class Pipeline(SupportsPipeline):
             self.runtime_config,
         )
 
-    @with_runtime_trace
+    @with_runtime_trace()
     @with_schemas_sync  # this must precede with_state_sync
     @with_state_sync(may_extract_state=True)
     @with_config_section((known_sections.EXTRACT,))
@@ -388,7 +392,7 @@ class Pipeline(SupportsPipeline):
                 self, "extract", exc, ExtractInfo(describe_extract_data(data))
             ) from exc
 
-    @with_runtime_trace
+    @with_runtime_trace()
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
     def normalize(
@@ -429,7 +433,7 @@ class Pipeline(SupportsPipeline):
                     self, "normalize", n_ex, normalize.get_normalize_info()
                 ) from n_ex
 
-    @with_runtime_trace
+    @with_runtime_trace(send_state=True)
     @with_schemas_sync
     @with_state_sync()
     @with_config_section((known_sections.LOAD,))
@@ -482,7 +486,7 @@ class Pipeline(SupportsPipeline):
         except Exception as l_ex:
             raise PipelineStepFailed(self, "load", l_ex, self._get_load_info(load)) from l_ex
 
-    @with_runtime_trace
+    @with_runtime_trace()
     @with_config_section(("run",))
     def run(
         self,
