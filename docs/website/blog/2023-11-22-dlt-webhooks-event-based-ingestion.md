@@ -1,12 +1,12 @@
 ---
 slug: dlt-webhooks-on-cloud-functions-for-event-capture 
 title: "Deploy Google Cloud Functions as webhooks to capture event-based data from GitHub, Slack, or Hubspot"
-image:  https://d1ice69yfovmhk.cloudfront.net/images/2023-11-16-dlt-webhooks/webhook_blog_image.jpeg
+image:  https://dlt-static.s3.eu-central-1.amazonaws.com/images/webhook_blog_image.jpeg
 authors:
   name: Aman Gupta
   title: Junior Data Engineer
   url: https://github.com/dat-a-man
-  image_url: https://iili.io/JnB7vEl.md.png
+  image_url: https://dlt-static.s3.eu-central-1.amazonaws.com/images/aman.png
 tags: [data ingestion, python sdk, ETL, python data pipelines, Open Source, Developer Tools]
 ---
 
@@ -29,7 +29,7 @@ approach is event-triggered and can include actions like:
 These actions initiate a webhook that sends a POST request to trigger a DLT pipeline for event
 ingestion. The data is then loaded into BigQuery.
 
-![pictorial_demonstration](https://d1ice69yfovmhk.cloudfront.net/images/2023-11-16-dlt-webhooks/webhook_blog_image.jpeg)
+![pictorial_demonstration](https://dlt-static.s3.eu-central-1.amazonaws.com/images/webhook_blog_image.jpeg)
 
 This setup enables real-time alerts or event storage for later use. For example, let’s say you want
 to alert every time something happens - you’d want to be able to capture an event being sent to you
