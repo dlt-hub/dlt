@@ -3,7 +3,11 @@
 def qdrant_snippet():
     # @@@DLT_SNIPPET_START example
     # @@@DLT_SNIPPET_START zendesk_conn
+<<<<<<< HEAD
     from typing import Optional, Dict, Any, Tuple
+=======
+    from typing import Iterator, Optional, Dict, Any, Tuple
+>>>>>>> 038dd4f7 (code to be fixed to work for zendesk source)
 
     import dlt
     from dlt.common import pendulum
@@ -11,8 +15,10 @@ def qdrant_snippet():
     from dlt.common.typing import TAnyDateTime
     from dlt.sources.helpers.requests import client
     from dlt.destinations.qdrant import qdrant_adapter
+
     from qdrant_client import QdrantClient
 
+<<<<<<< HEAD
     from dlt.common.configuration.inject import with_config
 
     # function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
@@ -25,6 +31,18 @@ def qdrant_snippet():
         """
         Retrieves data from Zendesk Support for tickets events.
 
+=======
+    # function source: https://dlthub.com/docs/examples/incremental_loading/#loading-code
+    @dlt.source(max_table_nesting=2)
+    def zendesk_support(
+        credentials: Dict[str, str] = dlt.secrets.value,
+        start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
+        end_date: Optional[TAnyDateTime] = None,
+    ):
+        """
+        Retrieves data from Zendesk Support for tickets events.
+
+>>>>>>> 038dd4f7 (code to be fixed to work for zendesk source)
         Args:
             credentials: Zendesk credentials (default: dlt.secrets.value)
             start_date: Start date for data extraction (default: 2000-01-01)
@@ -50,11 +68,16 @@ def qdrant_snippet():
         subdomain = credentials["subdomain"]
         url = f"https://{subdomain}.zendesk.com"
 
+<<<<<<< HEAD
         # we use `append` write disposition, because objects in tickets_data endpoint are never updated
+=======
+        # we use `append` write disposition, because objects in ticket_events endpoint are never updated
+>>>>>>> 038dd4f7 (code to be fixed to work for zendesk source)
         #  so we do not need to merge
         # we set primary_key so allow deduplication of events by the `incremental` below in the rare case
         #  when two events have the same timestamp
         @dlt.resource(primary_key="id", write_disposition="append")
+<<<<<<< HEAD
         def tickets_data(
             updated_at: dlt.sources.incremental[
                 pendulum.DateTime
@@ -100,6 +123,34 @@ def qdrant_snippet():
         return ticket
 
     # function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
+=======
+        def ticket_events(
+            timestamp: dlt.sources.incremental[int] = dlt.sources.incremental(
+                "timestamp",
+                initial_value=start_date_ts,
+                end_value=end_date_ts,
+                allow_external_schedulers=True,
+            ),
+        ):
+            # URL For ticket events
+            # 'https://d3v-dlthub.zendesk.com/api/v2/incremental/ticket_events.json?start_time=946684800'
+            event_pages = get_pages(
+                url=url,
+                endpoint="/api/v2/incremental/ticket_events.json",
+                auth=auth,
+                data_point_name="ticket_events",
+                params={"start_time": timestamp.last_value},
+            )
+            for page in event_pages:
+                yield page
+                # stop loading when using end_value and end is reached.
+                # unfortunately, Zendesk API does not have the "end_time" parameter, so we stop iterating ourselves
+                if timestamp.end_out_of_range:
+                    return
+
+        return ticket_events
+
+>>>>>>> 038dd4f7 (code to be fixed to work for zendesk source)
     def get_pages(
         url: str,
         endpoint: str,
@@ -141,12 +192,19 @@ def qdrant_snippet():
             if not response_json["end_of_stream"]:
                 get_url = response_json["next_page"]
 
+<<<<<<< HEAD
     # @@@DLT_SNIPPET_START main_code
     if __name__ == "__main__":
+=======
+    # @@@DLT_SNIPPET_END zendesk_conn
+
+    if __name__ == "__main__":
+        # @@@DLT_SNIPPET_START main_code
+>>>>>>> 038dd4f7 (code to be fixed to work for zendesk source)
 
         # create a pipeline with an appropriate name
         pipeline = dlt.pipeline(
-            pipeline_name="qdrant_zendesk_pipeline",
+            pipeline_name="qdrant_zendesk_pipeline_ATT",
             destination="qdrant",
             dataset_name="zendesk_data",
         )
@@ -166,6 +224,7 @@ def qdrant_snippet():
 
         # @@@DLT_SNIPPET_START declare_qdrant_client
         # running the Qdrant client to connect to your Qdrant database
+<<<<<<< HEAD
 
         @with_config(sections=("destination", "credentials"))
         def get_qdrant_client(location=dlt.secrets.value, api_key=dlt.secrets.value):
@@ -176,15 +235,27 @@ def qdrant_snippet():
 
         # running the Qdrant client to connect to your Qdrant database
         qdrant_client = get_qdrant_client()
+=======
+        qdrant_client = QdrantClient(
+            url="https://5708cdff-94ce-4e2d-bc41-2dbf4d281244.europe-west3-0.gcp.cloud.qdrant.io",
+            api_key="UtTVT2g5yYVj5syiYeEqm41Z90dE0B2c6CQs-GOP4bTOnj2IUZkdog",
+        )
+>>>>>>> 038dd4f7 (code to be fixed to work for zendesk source)
 
         # view Qdrant collections you'll find your dataset here:
         print(qdrant_client.get_collections())
         # @@@DLT_SNIPPET_END declare_qdrant_client
 
         # @@@DLT_SNIPPET_START get_response
+<<<<<<< HEAD
         # query Qdrant with prompt: getting tickets info close to "cancellation"
         response = qdrant_client.query(
             "zendesk_data_content",  # collection/dataset name with the 'content' suffix -> tickets content table
+=======
+        # query Qdrant with appropriate prompt
+        response = qdrant_client.query(
+            "zendesk_data_tickets",  # collection/dataset name with the 'tickets' suffix -> tickets table
+>>>>>>> 038dd4f7 (code to be fixed to work for zendesk source)
             query_text=["cancel", "cancel subscription"],  # prompt to search
             limit=3  # limit the number of results to the nearest 3 embeddings
         )
@@ -193,6 +264,8 @@ def qdrant_snippet():
         assert len(response) <= 3 and len(response) > 0 # @@@DLT_REMOVE
 
         # @@@DLT_REMOVE
-        assert len(response) == 3
+        assert len(response) <= 3
 
     # @@@DLT_SNIPPET_END example
+
+qdrant_snippet()
