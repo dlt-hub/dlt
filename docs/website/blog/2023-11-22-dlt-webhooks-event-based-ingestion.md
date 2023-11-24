@@ -264,4 +264,4 @@ Setting up a webhook is straightforward.
 
 Using dlt with schema evolution, we can accept the events without worrying about their schema.
 However, for events with custom schemas or vulnerable to bad data quality or abuse, consider using
-dlt’s data contracts. ("dlt data contracts" --> coming soon! )
+dlt’s data contracts.
