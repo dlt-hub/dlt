@@ -332,14 +332,16 @@ class Normalize(Runnable[Executor]):
         # schema is updated, save it to schema volume
         self.schema_storage.save_schema(schema)
         # save schema to temp load folder
-        self.load_storage.save_temp_schema(schema, load_id)
+        self.load_storage.new_packages.save_schema(load_id, schema)
         # save schema updates even if empty
-        self.load_storage.save_temp_schema_updates(load_id, merge_schema_updates(schema_updates))
+        self.load_storage.new_packages.save_schema_updates(
+            load_id, merge_schema_updates(schema_updates)
+        )
         # files must be renamed and deleted together so do not attempt that when process is about to be terminated
         signals.raise_if_signalled()
         logger.info("Committing storage, do not kill this process")
         # rename temp folder to processing
-        self.load_storage.commit_temp_load_package(load_id)
+        self.load_storage.commit_new_load_package(load_id)
         # delete item files to complete commit
         self.normalize_storage.delete_extracted_files(files)
         # log and update metrics
@@ -349,7 +351,7 @@ class Normalize(Runnable[Executor]):
     def spool_schema_files(self, load_id: str, schema_name: str, files: Sequence[str]) -> str:
         # normalized files will go here before being atomically renamed
 
-        self.load_storage.create_temp_load_package(load_id)
+        self.load_storage.new_packages.create_package(load_id)
         logger.info(f"Created temp load folder {load_id} on loading volume")
         try:
             # process parallel
@@ -360,7 +362,7 @@ class Normalize(Runnable[Executor]):
                 f"Parallel schema update conflict, switching to single thread ({str(exc)}"
             )
             # start from scratch
-            self.load_storage.create_temp_load_package(load_id)
+            self.load_storage.new_packages.create_package(load_id)
             self.spool_files(schema_name, load_id, self.map_single, files)
 
         return load_id

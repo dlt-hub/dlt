@@ -49,7 +49,6 @@ from dlt.common.schema.typing import (
     TSchemaContract,
 )
 from dlt.common.schema.utils import normalize_schema_name
-from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
 from dlt.common.typing import TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
@@ -61,6 +60,9 @@ from dlt.common.storages import (
     NormalizeStorageConfiguration,
     SchemaStorageConfiguration,
     LoadStorageConfiguration,
+    PackageStorage,
+    LoadJobInfo,
+    LoadPackageInfo,
 )
 from dlt.common.destination import DestinationCapabilitiesContext, TDestination
 from dlt.common.destination.reference import (
@@ -360,7 +362,7 @@ class Pipeline(SupportsPipeline):
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         # create extract storage to which all the sources will be extracted
         storage = ExtractorStorage(self._normalize_storage_config)
-        extract_ids: List[str] = []
+        load_ids: List[str] = []
         try:
             with self._maybe_destination_capabilities():
                 # extract all sources
@@ -377,13 +379,13 @@ class Pipeline(SupportsPipeline):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
                     # TODO: merge infos for all the sources
-                    extract_ids.append(
+                    load_ids.append(
                         self._extract_source(storage, source, max_parallel_items, workers)
                     )
                 # commit extract ids
                 # TODO: if we fail here we should probably wipe out the whole extract folder
-                for extract_id in extract_ids:
-                    storage.commit_extract_files(extract_id)
+                for load_id in load_ids:
+                    storage.commit_extract_files(load_id)
 
                 return ExtractInfo(describe_extract_data(data))
         except Exception as exc:
@@ -447,7 +449,7 @@ class Pipeline(SupportsPipeline):
         raise_on_failed_jobs: bool = False,
     ) -> LoadInfo:
         """Loads the packages prepared by `normalize` method into the `dataset_name` at `destination`, using provided `credentials`"""
-        # set destination and default dataset if provided
+        # set destination and default dataset if provided (this is the reason we have state sync here)
         self._set_destinations(destination, None)
         self._set_dataset_name(dataset_name)
 
@@ -783,7 +785,7 @@ class Pipeline(SupportsPipeline):
 
     def list_completed_load_packages(self) -> Sequence[str]:
         """Returns a list of all load package ids that are completely loaded"""
-        return self._get_load_storage().list_completed_packages()
+        return self._get_load_storage().list_loaded_packages()
 
     def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
         """Returns information on normalized/completed package with given load_id, all jobs and their statuses."""
@@ -799,7 +801,7 @@ class Pipeline(SupportsPipeline):
         load_storage = self._get_load_storage()
         for load_id in load_storage.list_normalized_packages():
             package_info = load_storage.get_load_package_info(load_id)
-            if LoadStorage.is_package_partially_loaded(package_info) and not with_partial_loads:
+            if PackageStorage.is_package_partially_loaded(package_info) and not with_partial_loads:
                 continue
             package_path = load_storage.get_normalized_package_path(load_id)
             load_storage.storage.delete_folder(package_path, recursively=True)
@@ -1067,9 +1069,7 @@ class Pipeline(SupportsPipeline):
             source.schema = pipeline_schema
 
         # extract into pipeline schema
-        extract_id = extract_with_schema(
-            storage, source, self.collector, max_parallel_items, workers
-        )
+        load_id = extract_with_schema(storage, source, self.collector, max_parallel_items, workers)
 
         # save import with fully discovered schema
         self._schema_storage.save_import_schema_if_not_exists(source.schema)
@@ -1082,7 +1082,7 @@ class Pipeline(SupportsPipeline):
             # this performs additional validations as schema contains the naming module
             self._set_default_schema_name(source.schema)
 
-        return extract_id
+        return load_id
 
     def _get_destination_client_initial_config(
         self, destination: TDestination = None, credentials: Any = None, as_staging: bool = False
@@ -1538,8 +1538,8 @@ class Pipeline(SupportsPipeline):
         # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
         state_source = DltSource(self.default_schema, self.pipeline_name, [state_resource(state)])
         storage = ExtractorStorage(self._normalize_storage_config)
-        extract_id = extract_with_schema(storage, state_source, _NULL_COLLECTOR, 1, 1)
-        storage.commit_extract_files(extract_id)
+        load_id = extract_with_schema(storage, state_source, _NULL_COLLECTOR, 1, 1)
+        storage.commit_extract_files(load_id)
         return state
 
     def __getstate__(self) -> Any:

@@ -17,15 +17,15 @@ def test_extract_select_tables() -> None:
         schema = source.discover_schema()
 
         storage = ExtractorStorage(NormalizeStorageConfiguration())
-        extract_id = storage.create_extract_id()
-        extract(extract_id, source, storage)
+        load_id = storage.create_load_package(schema)
+        extract(load_id, source, storage)
         # odd and even tables must be in the source schema
         assert len(source.schema.data_tables(include_incomplete=True)) == 2
         assert "odd_table" in source.schema._schema_tables
         assert "even_table" in source.schema._schema_tables
         # you must commit the files
         assert len(storage.list_files_to_normalize_sorted()) == 0
-        storage.commit_extract_files(extract_id)
+        storage.commit_extract_files(load_id)
         # check resulting files
         assert len(storage.list_files_to_normalize_sorted()) == 2
         expect_extracted_file(storage, "selectables", "odd_table", json.dumps([1, 3, 5, 7, 9]))
@@ -38,11 +38,11 @@ def test_extract_select_tables() -> None:
         source = DltSource(dlt.Schema("selectables"), "module", [resource])
         source = source.with_resources(resource.name)
         source.selected_resources[resource.name].bind(10).select_tables("odd_table")
-        extract_id = storage.create_extract_id()
-        extract(extract_id, source, storage)
+        load_id = storage.create_load_package(schema)
+        extract(load_id, source, storage)
         assert len(source.schema.data_tables(include_incomplete=True)) == 1
         assert "odd_table" in source.schema._schema_tables
-        storage.commit_extract_files(extract_id)
+        storage.commit_extract_files(load_id)
         assert len(storage.list_files_to_normalize_sorted()) == 1
         expect_extracted_file(storage, "selectables", "odd_table", json.dumps([1, 3, 5, 7, 9]))
 
@@ -82,8 +82,8 @@ def test_extract_shared_pipe():
         dlt.Schema("selectables"), "module", [input_r, input_r.with_name("gen_clone")]
     )
     storage = ExtractorStorage(NormalizeStorageConfiguration())
-    extract_id = storage.create_extract_id()
-    extract(extract_id, source, storage)
+    load_id = storage.create_load_package(source.discover_schema())
+    extract(load_id, source, storage)
     # both tables got generated
     assert "input_gen" in source.schema._schema_tables
     assert "gen_clone" in source.schema._schema_tables
@@ -103,8 +103,8 @@ def test_extract_renamed_clone_and_parent():
         dlt.Schema("selectables"), "module", [input_r, (input_r | input_tx).with_name("tx_clone")]
     )
     storage = ExtractorStorage(NormalizeStorageConfiguration())
-    extract_id = storage.create_extract_id()
-    extract(extract_id, source, storage)
+    load_id = storage.create_load_package(source.discover_schema())
+    extract(load_id, source, storage)
     assert "input_gen" in source.schema._schema_tables
     assert "tx_clone" in source.schema._schema_tables
     # mind that pipe name of the evaluated parent will have different name than the resource

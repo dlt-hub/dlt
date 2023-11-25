@@ -45,7 +45,7 @@ class Extractor:
     @with_config(spec=ExtractorConfiguration)
     def __init__(
         self,
-        extract_id: str,
+        load_id: str,
         storage: ExtractorStorage,
         schema: Schema,
         resources_with_items: Set[str],
@@ -57,7 +57,7 @@ class Extractor:
         self.naming = schema.naming
         self.collector = collector
         self.resources_with_items = resources_with_items
-        self.extract_id = extract_id
+        self.load_id = load_id
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
         self._filtered_tables: Set[str] = set()
         self._filtered_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
@@ -94,7 +94,7 @@ class Extractor:
 
     def write_empty_file(self, table_name: str) -> None:
         table_name = self.naming.normalize_table_identifier(table_name)
-        self.storage.write_empty_file(self.extract_id, self.schema.name, table_name, None)
+        self.storage.write_empty_file(self.load_id, self.schema.name, table_name, None)
 
     def _get_static_table_name(self, resource: DltResource, meta: Any) -> Optional[str]:
         if resource._table_name_hint_fun:
@@ -116,7 +116,7 @@ class Extractor:
         columns: TTableSchemaColumns = None,
     ) -> None:
         new_rows_count = self.storage.write_data_item(
-            self.extract_id, self.schema.name, table_name, items, columns
+            self.load_id, self.schema.name, table_name, items, columns
         )
         self.collector.update(table_name, inc=new_rows_count)
         self.resources_with_items.add(resource_name)

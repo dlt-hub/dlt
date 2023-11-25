@@ -9,7 +9,7 @@ from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import group_tables_by_resource, remove_defaults
-from dlt.common.storages import FileStorage, LoadStorage
+from dlt.common.storages import FileStorage, PackageStorage
 from dlt.pipeline.helpers import DropCommand
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
@@ -88,7 +88,7 @@ def pipeline_command(
                 fmt.echo(load_id)
             # load first (oldest) package
             first_package_info = p.get_load_package_info(norm_packages[0])
-            if LoadStorage.is_package_partially_loaded(first_package_info):
+            if PackageStorage.is_package_partially_loaded(first_package_info):
                 fmt.warning(
                     "This package is partially loaded. Data in the destination may be modified."
                 )

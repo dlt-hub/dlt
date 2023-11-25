@@ -11,7 +11,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny
 from dlt.common.data_types import TDataType
-from dlt.common.storages import NormalizeStorage, LoadStorage
+from dlt.common.storages import NormalizeStorage, LoadStorage, ParsedLoadJobFileName, PackageStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.configuration.container import Container
 
@@ -295,7 +295,7 @@ def test_normalize_many_schemas(
     schemas = []
     # load all schemas
     for load_id in loads:
-        schema = rasa_normalize.load_storage.load_package_schema(load_id)
+        schema = rasa_normalize.load_storage.normalized_packages.load_schema(load_id)
         schemas.append(schema.name)
         # expect event tables
         if schema.name == "event":
@@ -318,7 +318,7 @@ def test_normalize_typed_json(
     loads = raw_normalize.load_storage.list_normalized_packages()
     assert len(loads) == 1
     # load all schemas
-    schema = raw_normalize.load_storage.load_package_schema(loads[0])
+    schema = raw_normalize.load_storage.normalized_packages.load_schema(loads[0])
     assert schema.name == "special"
     # named as schema - default fallback
     table = schema.get_table_columns("special", include_incomplete=True)
@@ -488,10 +488,10 @@ def extract_items(
     normalize_storage: NormalizeStorage, items: Sequence[StrAny], schema_name: str, table_name: str
 ) -> None:
     extractor = ExtractorStorage(normalize_storage.config)
-    extract_id = extractor.create_extract_id()
-    extractor.write_data_item("puae-jsonl", extract_id, schema_name, table_name, items, None)
-    extractor.close_writers(extract_id)
-    extractor.commit_extract_files(extract_id)
+    load_id = extractor.create_load_package(Schema(schema_name))
+    extractor.write_data_item("puae-jsonl", load_id, schema_name, table_name, items, None)
+    extractor.close_writers(load_id)
+    extractor.commit_extract_files(load_id)
 
 
 def normalize_event_user(
@@ -509,7 +509,7 @@ def extract_and_normalize_cases(normalize: Normalize, cases: Sequence[str]) -> s
 
 def normalize_pending(normalize: Normalize, schema_name: str = "event") -> str:
     load_id = uniq_id()
-    normalize.load_storage.create_temp_load_package(load_id)
+    normalize.load_storage.new_packages.create_package(load_id)
     # pool not required for map_single
     files = normalize.normalize_storage.list_files_to_normalize_sorted()
     # create schema if it does not exist
@@ -533,7 +533,7 @@ def expect_load_package(
     full_schema_update: bool = True,
 ) -> Tuple[List[str], Dict[str, List[str]]]:
     # normalize tables as paths (original json is snake case so we may do it without real lineage info)
-    schema = load_storage.load_package_schema(load_id)
+    schema = load_storage.normalized_packages.load_schema(load_id)
     # we are still in destination caps context so schema contains length
     assert schema.naming.max_length > 0
     expected_tables = [
@@ -543,14 +543,21 @@ def expect_load_package(
 
     # find jobs and processed files
     files = load_storage.list_new_jobs(load_id)
-    files_tables = [load_storage.parse_job_file_name(file).table_name for file in files]
+    files_tables = [ParsedLoadJobFileName.parse(file).table_name for file in files]
     assert set(files_tables) == set(expected_tables)
     ofl: Dict[str, List[str]] = {}
     for expected_table in expected_tables:
         # find all files for particular table, ignoring file id
-        file_mask = load_storage.build_job_file_name(expected_table, "*", validate_components=False)
+        file_mask = PackageStorage.build_job_file_name(
+            expected_table,
+            "*",
+            validate_components=False,
+            loader_file_format=load_storage.loader_file_format,
+        )
         # files are in normalized/<load_id>/new_jobs
-        file_path = load_storage._get_job_file_path(load_id, "new_jobs", file_mask)
+        file_path = load_storage.normalized_packages.get_job_file_path(
+            load_id, "new_jobs", file_mask
+        )
         candidates = [f for f in files if fnmatch(f, file_path)]
         # assert len(candidates) == 1
         ofl[expected_table] = candidates
@@ -568,7 +575,7 @@ def get_line_from_file(
 ) -> Tuple[str, int]:
     lines = []
     for file in loaded_files:
-        with load_storage.storage.open_file(file) as f:
+        with load_storage.normalized_packages.storage.open_file(file) as f:
             lines.extend(f.readlines())
     return lines[return_line], len(lines)
 
@@ -576,6 +583,6 @@ def get_line_from_file(
 def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) -> None:
     # load generated schema
     loads = load_storage.list_normalized_packages()
-    event_schema = load_storage.load_package_schema(loads[0])
+    event_schema = load_storage.normalized_packages.load_schema(loads[0])
     # in raw normalize timestamp column must not be coerced to timestamp
     assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type

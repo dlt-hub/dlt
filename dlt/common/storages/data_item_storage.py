@@ -44,10 +44,10 @@ class DataItemStorage(ABC):
         writer = self.get_writer(load_id, schema_name, table_name)
         writer.write_empty_file(columns)
 
-    def close_writers(self, extract_id: str) -> None:
+    def close_writers(self, load_id: str) -> None:
         # flush and close all files
         for name, writer in self.buffered_writers.items():
-            if name.startswith(extract_id):
+            if name.startswith(load_id):
                 logger.debug(
                     f"Closing writer for {name} with file {writer._file} and actual name"
                     f" {writer._file_name}"
@@ -63,5 +63,5 @@ class DataItemStorage(ABC):
 
     @abstractmethod
     def _get_data_item_path_template(self, load_id: str, schema_name: str, table_name: str) -> str:
-        # note: use %s for file id to create required template format
+        """Returns a file template for item writer. note: use %s for file id to create required template format"""
         pass
