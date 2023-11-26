@@ -6,6 +6,12 @@ keywords: [airtable api, airtable verified source, airtable]
 
 # Airtable
 
+:::info Need help deploying these sources, or figuring out how to run them in your data stack?
+
+[Join our Slack community](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
+
 [Airtable](https://www.airtable.com/) is a cloud-based platform that merges spreadsheet and database functionalities for easy
 data management and collaboration.
 
