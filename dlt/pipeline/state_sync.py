@@ -96,13 +96,15 @@ def migrate_state(
     if from_engine == 1 and to_engine > 1:
         state["_local"] = {}
         from_engine = 2
-    if from_engine == 2 and to_engine > 3:
+    if from_engine == 2 and to_engine > 2:
         state["destination_type"] = state.get("destination", None)
         state["destination_name"] = state.get("destination", None)
-        del state["destination"]
+        if "destination" in state:
+            del state["destination"]
         state["staging_type"] = state.get("staging", None)
         state["staging_name"] = state.get("staging", None)
-        del state["staging"]
+        if "staging" in state:
+            del state["staging"]
         from_engine = 3
 
     # check state engine

@@ -30,7 +30,7 @@ def test_import_all_destinations() -> None:
         assert dest.destination_type == dest_type
         assert dest.destination_name == dest_type + "_name"
         assert dest.config_params["environment"] == "production"
-        assert dest.config_params["name"] == dest_type + "_name"
+        assert dest.config_params["destination_name"] == dest_type + "_name"
         dest.spec()
         assert isinstance(dest.capabilities(), DestinationCapabilitiesContext)
 

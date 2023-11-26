@@ -1517,15 +1517,17 @@ class Pipeline(SupportsPipeline):
             if prop in state["_local"] and not prop.startswith("_"):
                 setattr(self, prop, state["_local"][prop])  # type: ignore
         self._set_destinations(
-            destination=state["destination_type"],
-            destination_name=state["destination_name"],
-            staging=state["staging_type"],
-            staging_name=state["staging_name"],
+            destination=state.get("destination_type"),
+            destination_name=state.get("destination_name"),
+            staging=state.get("staging_type"),
+            staging_name=state.get("staging_name"),
         )
 
     def _props_to_state(self, state: TPipelineState) -> None:
         """Write pipeline props to `state`"""
         for prop in Pipeline.STATE_PROPS:
+            if prop in ["destination_type", "destination_name", "staging_type", "staging_name"]:
+                continue
             if not prop.startswith("_"):
                 state[prop] = getattr(self, prop)  # type: ignore
         for prop in Pipeline.LOCAL_STATE_PROPS:
