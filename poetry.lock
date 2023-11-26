@@ -3780,6 +3780,20 @@ files = [
 ]
 
 [[package]]
+name = "hyperscript"
+version = "0.0.1"
+description = "HyperText with Python"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "hyperscript-0.0.1-py3-none-any.whl", hash = "sha256:fff92ff7dcf2af519b66e9b80f40442e2855f3e3b9eb05b39b17a8b1050bac95"},
+    {file = "hyperscript-0.0.1.tar.gz", hash = "sha256:728d49132fc3660cb11552b9e6db9ee5cf02bb8d734397ea336af06c0d9ee1b9"},
+]
+
+[package.extras]
+lint = ["black", "pylint"]
+
+[[package]]
 name = "idna"
 version = "3.6"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -7943,13 +7957,13 @@ typing-extensions = ">=3.0.0"
 
 [[package]]
 name = "types-awscrt"
-version = "0.19.13"
+version = "0.19.17"
 description = "Type annotations and code completion for awscrt"
 optional = false
 python-versions = ">=3.7,<4.0"
 files = [
-    {file = "types_awscrt-0.19.13-py3-none-any.whl", hash = "sha256:3ab5f3636e72318683b2026aadd0a751f673efbafea707940ee2e968e7bafcc7"},
-    {file = "types_awscrt-0.19.13.tar.gz", hash = "sha256:3747ab27193414de3b202952b746224981f9f23f72b1016c7124a137bac00f7b"},
+    {file = "types_awscrt-0.19.17-py3-none-any.whl", hash = "sha256:e677de979521f39b59a10e4f4464d395b970cb6812913efaee6eec689f454a81"},
+    {file = "types_awscrt-0.19.17.tar.gz", hash = "sha256:047e30ac6156b6c25e0937ab2d45c9d6ace854021604da35d45fa832115adf82"},
 ]
 
 [[package]]
@@ -8303,13 +8317,13 @@ watchdog = ["watchdog (>=2.3)"]
 
 [[package]]
 name = "wheel"
-version = "0.41.3"
+version = "0.42.0"
 description = "A built-package format for Python"
 optional = false
 python-versions = ">=3.7"
 files = [
-    {file = "wheel-0.41.3-py3-none-any.whl", hash = "sha256:488609bc63a29322326e05560731bf7bfea8e48ad646e1f5e40d366607de0942"},
-    {file = "wheel-0.41.3.tar.gz", hash = "sha256:4d4987ce51a49370ea65c0bfd2234e8ce80a12780820d9dc462597a6e60d0841"},
+    {file = "wheel-0.42.0-py3-none-any.whl", hash = "sha256:177f9c9b0d45c47873b619f5b650346d632cdc35fb5e4d25058e09c9e581433d"},
+    {file = "wheel-0.42.0.tar.gz", hash = "sha256:c45be39f7882c9d34243236f2d63cbd58039e360f85d0913425fbd7ceea617a8"},
 ]
 
 [package.extras]
@@ -8569,4 +8583,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "5121a04bbffc3ea9ac1d54006a79d218e4c10e3251419dd774bfa1d2b8eeee84"
+content-hash = "dd27837aa996cab22f245bbfbb5b4d9a559b22c960b002439d29092c02812f09"

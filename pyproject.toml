@@ -78,6 +78,7 @@ adlfs = {version = ">=2022.4.0", optional = true}
 pyodbc = {version = "^4.0.39", optional = true}
 qdrant-client = {version = "^1.6.4", optional = true, extras = ["fastembed"]}
 ipython = "7.34.0"
+hyperscript = "^0.0.1"
 
 
 [tool.poetry.extras]
