@@ -9,14 +9,28 @@ from IPython.core.magic import (
     magics_class, register_line_magic,
 )
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
-from _dlt import telemetry_change_status_command_wrapper, init_command_wrapper, on_exception, deploy_command_wrapper, pipeline_command_wrapper, schema_command_wrapper
-from .deploy_command import COMMAND_DEPLOY_REPO_LOCATION, DLT_DEPLOY_DOCS_URL
-from .init_command import DEFAULT_VERIFIED_SOURCES_REPO, DLT_INIT_DOCS_URL
-from .pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
 
+
+# from dlt.cli._dlt import telemetry_change_status_command_wrapper, init_command_wrapper, on_exception
+# from .deploy_command import COMMAND_DEPLOY_REPO_LOCATION, DLT_DEPLOY_DOCS_URL
+from dlt.cli.init_command import init_command
+# from .pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
+# from dlt.cli.init_command import init_command
 import typing as t
 from hyperscript import h
 import os
+import traceback
+
+import click
+
+DEBUG_FLAG = False
+
+DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
+DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
+
+
+
+
 @magics_class
 class DltMagics(Magics):
 
@@ -41,6 +55,29 @@ class DltMagics(Magics):
             )
         )
         return HTML(msg)
+
+    def on_exception(self, ex: Exception, info: str) -> None:
+        msg = str(
+            h(
+                "div",
+                h(
+                    "span",
+                    str(ex),
+                    {"style": {"color": "red", "font-weight": "bold"}},
+                ),
+                h(
+                    "span",
+                    " Please refer to %s for further assistance" % fmt.bold(info)
+                ),
+            )
+        )
+        display(HTML(msg))
+
+        if DEBUG_FLAG:
+            # Display the full traceback in a preformatted style
+            traceback_html = h("pre", traceback.format_exc(), {"style": {"color": "gray"}})
+            display(HTML(str(traceback_html)))
+            raise ex
 
 
     @magic_arguments()
@@ -80,7 +117,7 @@ class DltMagics(Magics):
         """
         args = parse_argstring(self.init, line)
         try:
-            init_command_wrapper(
+            init_command(
                 source_name=args.source,
                 destination_name=args.destination,
                 use_generic_template=args.generic,
@@ -91,7 +128,7 @@ class DltMagics(Magics):
 
 
         except Exception as ex:
-            on_exception(ex, DLT_INIT_DOCS_URL)
+            self.on_exception(ex, DLT_INIT_DOCS_URL)
             return -1
     @magic_arguments()
     @argument('--pipeline_script_path', type=str, help="Path to a pipeline script")
@@ -114,7 +151,7 @@ class DltMagics(Magics):
             )
             return self.display(self.success_message({"green-bold": "DLT project deployed."}))
         except Exception as ex:
-            on_exception(ex, DLT_DEPLOY_DOCS_URL)
+            self.on_exception(ex, DLT_DEPLOY_DOCS_URL)
             return -1
     @magic_arguments()
     @argument('--operation', type=str, help="Operation to perform on the pipeline")
@@ -138,7 +175,7 @@ class DltMagics(Magics):
             )
             return self.display(self.success_message({"green-bold": "DLT pipeline created."}))
         except Exception as ex:
-            on_exception(ex, DLT_PIPELINE_COMMAND_DOCS_URL)
+            self.on_exception(ex, DLT_PIPELINE_COMMAND_DOCS_URL)
             return -2
     @magic_arguments()
     @argument('--file_path', type=str, help="Schema file name, in yaml or json format")
@@ -159,7 +196,7 @@ class DltMagics(Magics):
             )
             return self.display(self.success_message({"green-bold": "DLT schema created."}))
         except Exception as ex:
-            on_exception(ex, "Schema Documentation URL")  # Replace with actual URL
+            self.on_exception(ex, "Schema Documentation URL")  # Replace with actual URL
             return -1
     @line_magic
     @register_line_magic
