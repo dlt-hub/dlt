@@ -21,7 +21,7 @@ try:
     def _add_sentry_tags(span: Span, pipeline: SupportsPipeline) -> None:
         span.set_tag("pipeline_name", pipeline.pipeline_name)
         if pipeline.destination:
-            span.set_tag("destination", pipeline.destination.name)
+            span.set_tag("destination", pipeline.destination.destination_name)
         if pipeline.dataset_name:
             span.set_tag("dataset_name", pipeline.dataset_name)
 
@@ -92,7 +92,7 @@ def on_end_trace_step(
     props = {
         "elapsed": (step.finished_at - trace.started_at).total_seconds(),
         "success": step.step_exception is None,
-        "destination_type": pipeline.destination.name if pipeline.destination else None,
+        "destination_type": pipeline.destination.destination_type if pipeline.destination else None,
         "pipeline_name_hash": digest128(pipeline.pipeline_name),
         "dataset_name_hash": digest128(pipeline.dataset_name) if pipeline.dataset_name else None,
         "default_schema_name_hash": (

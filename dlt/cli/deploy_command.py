@@ -273,7 +273,7 @@ class AirflowDeployment(BaseDeployment):
     def _generate_workflow(self, *args: Optional[Any]) -> None:
         self.deployment_method = DeploymentMethods.airflow_composer.value
 
-        req_dep = f"{DLT_PKG_NAME}[{Destination.to_name(self.state['destination'])}]"
+        req_dep = f"{DLT_PKG_NAME}[{Destination.to_name(self.state['destination_type'])}]"
         req_dep_line = f"{req_dep}>={pkg_version(DLT_PKG_NAME)}"
 
         self.artifacts["requirements_txt"] = req_dep_line

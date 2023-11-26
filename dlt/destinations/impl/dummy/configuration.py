@@ -35,8 +35,6 @@ class DummyClientConfiguration(DestinationClientConfiguration):
             self,
             *,
             credentials: Optional[CredentialsConfiguration] = None,
-            name: str = None,
-            environment: str = None,
             loader_file_format: TLoaderFileFormat = None,
             fail_schema_update: bool = None,
             fail_prob: float = None,
@@ -45,4 +43,6 @@ class DummyClientConfiguration(DestinationClientConfiguration):
             exception_prob: float = None,
             timeout: float = None,
             fail_in_init: bool = None,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...

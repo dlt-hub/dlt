@@ -19,7 +19,7 @@ from dlt.common.utils import compressed_b64decode, compressed_b64encode
 
 
 # allows to upgrade state when restored with a new version of state logic/schema
-STATE_ENGINE_VERSION = 2
+STATE_ENGINE_VERSION = 3
 
 # state table columns
 STATE_TABLE_COLUMNS: TTableSchemaColumns = {
@@ -96,6 +96,14 @@ def migrate_state(
     if from_engine == 1 and to_engine > 1:
         state["_local"] = {}
         from_engine = 2
+    if from_engine == 2 and to_engine > 3:
+        state["destination_type"] = state.get("destination", None)
+        state["destination_name"] = state.get("destination", None)
+        del state["destination"]
+        state["staging_type"] = state.get("staging", None)
+        state["staging_name"] = state.get("staging", None)
+        del state["staging"]
+        from_engine = 3
 
     # check state engine
     state["_state_engine_version"] = from_engine

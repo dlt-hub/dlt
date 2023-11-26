@@ -25,9 +25,9 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, Destinat
             self,
             *,
             credentials: Optional[Any] = None,
-            name: str = None,
-            environment: str = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             bucket_url: str = None,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...

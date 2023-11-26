@@ -71,7 +71,7 @@ def drop_active_pipeline_data() -> None:
 def _is_filesystem(p: dlt.Pipeline) -> bool:
     if not p.destination:
         return False
-    return p.destination.name == "filesystem"
+    return p.destination.destination_name == "filesystem"
 
 
 def assert_table(

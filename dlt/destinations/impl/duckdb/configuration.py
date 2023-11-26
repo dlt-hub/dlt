@@ -213,10 +213,10 @@ class DuckDbClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             self,
             *,
             credentials: Union[DuckDbCredentials, str, DuckDBPyConnection] = None,
-            name: str = None,
-            environment: str = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             create_indexes: bool = False,
             staging_config: Optional[DestinationClientStagingConfiguration] = None,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...

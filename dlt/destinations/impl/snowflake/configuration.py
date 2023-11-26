@@ -139,10 +139,10 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
             *,
             destination_type: str = None,
             credentials: SnowflakeCredentials = None,
-            name: str = None,
-            environment: str = None,
             dataset_name: str = None,
             default_schema_name: str = None,
             stage_name: str = None,
             keep_staged_files: bool = True,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...

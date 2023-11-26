@@ -86,7 +86,7 @@ def test_run_full_refresh_default_dataset() -> None:
     p = dlt.pipeline(full_refresh=True, destination="dummy")
     assert p.dataset_name is None
     # simulate set new dataset
-    p._set_destinations("filesystem", None)
+    p._set_destinations("filesystem")
     assert p.dataset_name is None
     p._set_dataset_name(None)
     # full refresh is still observed
@@ -176,7 +176,7 @@ def test_configured_destination(environment) -> None:
 
     p = dlt.pipeline()
     assert p.destination is not None
-    assert p.destination.name.endswith("postgres")
+    assert p.destination.destination_name.endswith("postgres")
     assert p.pipeline_name == "postgres_pipe"
 
 

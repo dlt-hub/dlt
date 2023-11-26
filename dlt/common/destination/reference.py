@@ -1,24 +1,20 @@
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 from importlib import import_module
-from types import TracebackType, ModuleType
+from types import TracebackType
 from typing import (
     ClassVar,
-    Final,
     Optional,
     NamedTuple,
     Literal,
     Sequence,
     Iterable,
     Type,
-    Protocol,
     Union,
     TYPE_CHECKING,
-    cast,
     List,
     ContextManager,
     Dict,
     Any,
-    Callable,
     TypeVar,
     Generic,
     Final,
@@ -75,9 +71,11 @@ class StateInfo(NamedTuple):
 
 @configspec
 class DestinationClientConfiguration(BaseConfiguration):
-    destination_type: str = None  # which destination to load data to
+    destination_type: Final[str] = None  # which destination to load data to
     credentials: Optional[CredentialsConfiguration]
-    name: Optional[str] = None  # name of the destination, if not set, destination_type is used
+    destination_name: Optional[str] = (
+        None  # name of the destination, if not set, destination_type is used
+    )
     environment: Optional[str] = None
 
     def fingerprint(self) -> str:
@@ -88,14 +86,16 @@ class DestinationClientConfiguration(BaseConfiguration):
         """Return displayable destination location"""
         return str(self.credentials)
 
+    def on_resolved(self) -> None:
+        self.destination_name = self.destination_name or self.destination_type
+
     if TYPE_CHECKING:
 
         def __init__(
             self,
             *,
-            destination_type: str = None,
             credentials: Optional[CredentialsConfiguration] = None,
-            name: str = None,
+            destination_name: str = None,
             environment: str = None,
         ) -> None: ...
 
@@ -137,12 +137,11 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
         def __init__(
             self,
             *,
-            destination_type: str = None,
             credentials: Optional[CredentialsConfiguration] = None,
-            name: str = None,
-            environment: str = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...
 
 
@@ -163,15 +162,14 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
         def __init__(
             self,
             *,
-            destination_type: str = None,
             credentials: Union[AwsCredentialsWithoutDefaults, GcpCredentials] = None,
-            name: str = None,
-            environment: str = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             as_staging: bool = False,
             bucket_url: str = None,
             layout: str = None,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...
 
 
@@ -186,13 +184,12 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
         def __init__(
             self,
             *,
-            destination_type: str = None,
             credentials: Optional[CredentialsConfiguration] = None,
-            name: str = None,
-            environment: str = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             staging_config: Optional[DestinationClientStagingConfiguration] = None,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...
 
 
@@ -453,9 +450,9 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         ...
 
     @property
-    def name(self) -> str:
+    def destination_name(self) -> str:
         """The destination name will either be explicitely set while creating the destination or will be taken from the type"""
-        return self.config_params.get("name") or self.destination_type
+        return self.config_params.get("destination_name") or self.destination_type
 
     @property
     def destination_type(self) -> str:
@@ -471,11 +468,10 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         """Get a fully resolved destination config from the initial config"""
         config = resolve_configuration(
             initial_config,
-            sections=(known_sections.DESTINATION, self.name),
+            sections=(known_sections.DESTINATION, self.destination_name),
             # Already populated values will supersede resolved env config
             explicit_value=self.config_params,
         )
-        config.name = self.name
         return config
 
     @staticmethod
@@ -484,19 +480,22 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             raise InvalidDestinationReference(ref)
         if isinstance(ref, str):
             return ref.rsplit(".", 1)[-1]
-        return ref.name
+        return ref.destination_name
 
     @staticmethod
     def from_reference(
         ref: TDestinationReferenceArg,
         credentials: Optional[CredentialsConfiguration] = None,
-        name: Optional[str] = None,
+        destination_name: Optional[str] = None,
         environment: Optional[str] = None,
         **kwargs: Any,
     ) -> Optional["Destination[DestinationClientConfiguration, JobClientBase]"]:
         """Instantiate destination from str reference.
         The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`)
         """
+        # if we only get a name but no ref, we assume that the name is the destination_type
+        if ref is None and destination_name is not None:
+            ref = destination_name
         if ref is None:
             return None
         if isinstance(ref, Destination):
@@ -522,8 +521,8 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             raise UnknownDestinationModule(ref) from e
         if credentials:
             kwargs["credentials"] = credentials
-        if name:
-            kwargs["name"] = name
+        if destination_name:
+            kwargs["destination_name"] = destination_name
         if environment:
             kwargs["environment"] = environment
         try:

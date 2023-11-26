@@ -27,10 +27,10 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
     def __init__(
         self,
         credentials: t.Union[RedshiftCredentials, t.Dict[str, t.Any], str] = None,
-        name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
         create_indexes: bool = True,
         staging_iam_role: t.Optional[str] = None,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Redshift destination to use in a pipeline.
@@ -46,9 +46,9 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
         """
         super().__init__(
             credentials=credentials,
-            name=name,
-            environment=environment,
             create_indexes=create_indexes,
             staging_iam_role=staging_iam_role,
+            destination_name=destination_name,
+            environment=environment,
             **kwargs,
         )

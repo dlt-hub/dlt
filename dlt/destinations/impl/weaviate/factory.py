@@ -27,10 +27,10 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
     def __init__(
         self,
         credentials: t.Union[WeaviateCredentials, t.Dict[str, t.Any]] = None,
-        name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
         vectorizer: str = None,
         module_config: t.Dict[str, t.Dict[str, str]] = None,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Weaviate destination to use in a pipeline.
@@ -45,9 +45,9 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
         """
         super().__init__(
             credentials=credentials,
-            name=name,
-            environment=environment,
             vectorizer=vectorizer,
             module_config=module_config,
+            destination_name=destination_name,
+            environment=environment,
             **kwargs,
         )

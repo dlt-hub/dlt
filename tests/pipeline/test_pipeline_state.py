@@ -43,17 +43,17 @@ def test_restore_state_props() -> None:
     p.extract(some_data())
     state = p.state
     assert state["dataset_name"] == "the_dataset"
-    assert state["destination"].endswith("redshift")
-    assert state["staging"].endswith("filesystem")
+    assert state["destination_type"].endswith("redshift")
+    assert state["staging_type"].endswith("filesystem")
 
     p = dlt.pipeline(pipeline_name="restore_state_props")
     state = p.state
     assert state["dataset_name"] == "the_dataset"
-    assert state["destination"].endswith("redshift")
-    assert state["staging"].endswith("filesystem")
+    assert state["destination_type"].endswith("redshift")
+    assert state["staging_type"].endswith("filesystem")
     # also instances are restored
-    assert p.destination.name.endswith("redshift")
-    assert p.staging.name.endswith("filesystem")
+    assert p.destination.destination_name.endswith("redshift")
+    assert p.staging.destination_name.endswith("filesystem")
 
 
 def test_managed_state() -> None:

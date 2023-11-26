@@ -24,9 +24,9 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlClient"]):
     def __init__(
         self,
         credentials: t.Union[MsSqlCredentials, t.Dict[str, t.Any], str] = None,
-        name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
         create_indexes: bool = True,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the MsSql destination to use in a pipeline.
@@ -41,8 +41,8 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlClient"]):
         """
         super().__init__(
             credentials=credentials,
-            name=name,
-            environment=environment,
             create_indexes=create_indexes,
+            destination_name=destination_name,
+            environment=environment,
             **kwargs,
         )

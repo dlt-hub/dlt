@@ -27,9 +27,9 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
     def __init__(
         self,
         credentials: t.Union[PostgresCredentials, t.Dict[str, t.Any], str] = None,
-        name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
         create_indexes: bool = True,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Postgres destination to use in a pipeline.
@@ -44,8 +44,8 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         """
         super().__init__(
             credentials=credentials,
-            name=name,
-            environment=environment,
             create_indexes=create_indexes,
+            destination_name=destination_name,
+            environment=environment,
             **kwargs,
         )

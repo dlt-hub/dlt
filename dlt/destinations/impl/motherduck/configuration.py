@@ -76,11 +76,11 @@ class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration
             self,
             *,
             credentials: Optional[MotherDuckCredentials] = None,
-            name: str = None,
-            environment: str = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             create_indexes: Optional[bool] = None,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...
 
 

@@ -52,11 +52,10 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         def __init__(
             self,
             *,
-            destination_type: str = None,
             credentials: PostgresCredentials = None,
-            name: str = None,
-            environment: str = None,
             dataset_name: str = None,
             default_schema_name: str = None,
             create_indexes: bool = True,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...

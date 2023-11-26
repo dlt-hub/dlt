@@ -25,11 +25,11 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         self,
         query_result_bucket: t.Optional[str] = None,
         credentials: t.Union[AwsCredentials, t.Dict[str, t.Any], t.Any] = None,
-        name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
         athena_work_group: t.Optional[str] = None,
         aws_data_catalog: t.Optional[str] = "awsdatacatalog",
         force_iceberg: bool = False,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Athena destination to use in a pipeline.
@@ -47,10 +47,10 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         super().__init__(
             query_result_bucket=query_result_bucket,
             credentials=credentials,
-            name=name,
-            environment=environment,
             athena_work_group=athena_work_group,
             aws_data_catalog=aws_data_catalog,
             force_iceberg=force_iceberg,
+            destination_name=destination_name,
+            environment=environment,
             **kwargs,
         )

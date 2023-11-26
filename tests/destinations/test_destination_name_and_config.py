@@ -8,7 +8,7 @@ def test_default_name_to_type() -> None:
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duck)
     load_info = p.run([1, 2, 3], table_name="table", dataset_name="dataset")
 
-    assert p.destination.name == "duckdb"
+    assert p.destination.destination_name == "duckdb"
     assert p.destination.destination_type == "duckdb"
     assert load_info.destination_name == "duckdb"
     assert load_info.destination_type == "duckdb"
@@ -20,7 +20,7 @@ def test_set_name_and_environment() -> None:
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duck)
     load_info = p.run([1, 2, 3], table_name="table", dataset_name="dataset")
 
-    assert p.destination.name == "duck1"
+    assert p.destination.destination_name == "duck1"
     assert p.destination.destination_type == "duckdb"
     assert load_info.destination_name == "duck1"
     assert load_info.destination_type == "duckdb"

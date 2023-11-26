@@ -25,7 +25,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         self,
         bucket_url: str = None,
         credentials: t.Union[FileSystemCredentials, t.Dict[str, t.Any], t.Any] = None,
-        name: t.Optional[str] = None,
+        destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
@@ -51,7 +51,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         super().__init__(
             bucket_url=bucket_url,
             credentials=credentials,
-            name=name,
+            destination_name=destination_name,
             environment=environment,
             **kwargs,
         )

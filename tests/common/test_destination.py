@@ -28,7 +28,7 @@ def test_import_all_destinations() -> None:
     for dest_type in ACTIVE_DESTINATIONS:
         dest = Destination.from_reference(dest_type, None, dest_type + "_name", "production")
         assert dest.destination_type == dest_type
-        assert dest.name == dest_type + "_name"
+        assert dest.destination_name == dest_type + "_name"
         assert dest.config_params["environment"] == "production"
         assert dest.config_params["name"] == dest_type + "_name"
         dest.spec()

@@ -26,9 +26,9 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
         credentials: t.Union[
             DuckDbCredentials, t.Dict[str, t.Any], str, "DuckDBPyConnection"
         ] = None,
-        name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
         create_indexes: bool = False,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the DuckDB destination to use in a pipeline.
@@ -43,8 +43,8 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
         """
         super().__init__(
             credentials=credentials,
-            name=name,
-            environment=environment,
             create_indexes=create_indexes,
+            destination_name=destination_name,
+            environment=environment,
             **kwargs,
         )
