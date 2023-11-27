@@ -10,7 +10,7 @@ from dlt.common import json
 from dlt.common.pipeline import TPipelineState
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import STATE_TABLE_NAME, TTableSchemaColumns
-from dlt.common.destination.reference import JobClientBase, WithStateSync
+from dlt.common.destination.reference import JobClientBase, WithStateSync, Destination
 
 from dlt.extract import DltResource
 
@@ -98,11 +98,17 @@ def migrate_state(
         from_engine = 2
     if from_engine == 2 and to_engine > 2:
         state["destination_type"] = state.get("destination", None)
-        state["destination_name"] = state.get("destination", None)
+        state["destination_name"] = (
+            Destination.to_name(state.get("destination", None))
+            if state.get("destination", None)
+            else None
+        )
         if "destination" in state:
             del state["destination"]
         state["staging_type"] = state.get("staging", None)
-        state["staging_name"] = state.get("staging", None)
+        state["staging_name"] = (
+            Destination.to_name(state.get("staging", None)) if state.get("staging", None) else None
+        )
         if "staging" in state:
             del state["staging"]
         from_engine = 3

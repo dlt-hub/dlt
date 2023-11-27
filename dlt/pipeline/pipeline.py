@@ -232,7 +232,8 @@ def with_config_section(sections: Tuple[str, ...]) -> Callable[[TFun], TFun]:
 class Pipeline(SupportsPipeline):
     STATE_FILE: ClassVar[str] = "state.json"
     STATE_PROPS: ClassVar[List[str]] = list(
-        set(get_type_hints(TPipelineState).keys()) - {"sources"}
+        set(get_type_hints(TPipelineState).keys())
+        - {"sources", "destination_type", "destination_name", "staging_type", "staging_name"}
     )
     LOCAL_STATE_PROPS: ClassVar[List[str]] = list(get_type_hints(TPipelineLocalState).keys())
     DEFAULT_DATASET_SUFFIX: ClassVar[str] = "_dataset"
@@ -251,7 +252,7 @@ class Pipeline(SupportsPipeline):
     """A working directory of the pipeline"""
     destination: TDestination = None
     staging: TDestination = None
-    """The destination reference which is ModuleType. `destination.destination_name` returns the name string"""
+    """The destination reference which is the Destination Class. `destination.destination_name` returns the name string"""
     dataset_name: str = None
     """Name of the dataset to which pipeline will be loaded to"""
     credentials: Any = None
@@ -1415,18 +1416,18 @@ class Pipeline(SupportsPipeline):
                     if state is None:
                         logger.info(
                             "The state was not found in the destination"
-                            f" {self.destination.destination_name}:{dataset_name}"
+                            f" {self.destination.destination_description}:{dataset_name}"
                         )
                     else:
                         logger.info(
                             "The state was restored from the destination"
-                            f" {self.destination.destination_name}:{dataset_name}"
+                            f" {self.destination.destination_description}:{dataset_name}"
                         )
                 else:
                     state = None
                     logger.info(
                         "Destination does not support metadata storage"
-                        f" {self.destination.destination_name}:{dataset_name}"
+                        f" {self.destination.destination_description}:{dataset_name}"
                     )
             return state
         finally:
@@ -1509,8 +1510,6 @@ class Pipeline(SupportsPipeline):
     def _state_to_props(self, state: TPipelineState) -> None:
         """Write `state` to pipeline props."""
         for prop in Pipeline.STATE_PROPS:
-            if prop in ["destination_type", "destination_name", "staging_type", "staging_name"]:
-                continue
             if prop in state and not prop.startswith("_"):
                 setattr(self, prop, state[prop])  # type: ignore
         for prop in Pipeline.LOCAL_STATE_PROPS:
@@ -1526,8 +1525,6 @@ class Pipeline(SupportsPipeline):
     def _props_to_state(self, state: TPipelineState) -> None:
         """Write pipeline props to `state`"""
         for prop in Pipeline.STATE_PROPS:
-            if prop in ["destination_type", "destination_name", "staging_type", "staging_name"]:
-                continue
             if not prop.startswith("_"):
                 state[prop] = getattr(self, prop)  # type: ignore
         for prop in Pipeline.LOCAL_STATE_PROPS:

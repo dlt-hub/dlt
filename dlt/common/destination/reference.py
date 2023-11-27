@@ -452,11 +452,19 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     @property
     def destination_name(self) -> str:
         """The destination name will either be explicitely set while creating the destination or will be taken from the type"""
-        return self.config_params.get("destination_name") or self.destination_type
+        return self.config_params.get("destination_name") or self.to_name(self.destination_type)
 
     @property
     def destination_type(self) -> str:
-        return self.__class__.__name__
+        full_path = self.__class__.__module__ + "." + self.__class__.__qualname__
+        # the next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>
+        name = self.to_name(full_path)
+        full_path = full_path.replace(f"dlt.destinations.impl.{name}.factory.", "dlt.destinations.")
+        return full_path
+
+    @property
+    def destination_description(self) -> str:
+        return f"{self.destination_name}({self.destination_type})"
 
     @property
     @abstractmethod

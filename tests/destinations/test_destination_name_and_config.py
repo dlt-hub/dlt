@@ -63,3 +63,15 @@ def test_config_respects_name() -> None:
         assert client.config.environment == "production"
         assert client.config.dataset_name == "production_dataset"  # type: ignore
     assert load_info.environment == "production"
+
+
+def test_pipeline_config() -> None:
+    os.environ["DESTINATION_TYPE"] = "redshift"
+    p = dlt.pipeline()
+    assert p.config.destination_type == "redshift"
+    assert p.destination.destination_name == "redshift"
+
+    os.environ["DESTINATION_TYPE"] = "duckdb"
+    p = dlt.pipeline()
+    assert p.config.destination_type == "duckdb"
+    assert p.destination.destination_name == "duckdb"

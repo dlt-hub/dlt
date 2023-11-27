@@ -491,7 +491,7 @@ def test_migrate_state(test_storage: FileStorage) -> None:
     assert "_local" in state
 
     # check destination migration
-    assert state["destination_name"] == "dlt.destinations.postgres"
+    assert state["destination_name"] == "postgres"
     assert state["destination_type"] == "dlt.destinations.postgres"
     assert "destination" not in state
 
