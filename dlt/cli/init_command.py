@@ -27,6 +27,7 @@ from dlt.cli.config_toml_writer import WritableConfigValue, write_values
 from dlt.cli.pipeline_files import VerifiedSourceFiles, TVerifiedSourceFileEntry, TVerifiedSourceFileIndex
 from dlt.cli.exceptions import CliCommandException
 from dlt.cli.requirements import SourceRequirements
+from ..common.runtime.exec_info import is_notebook
 
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
@@ -108,6 +109,13 @@ def _list_verified_sources(repo_location: str, branch: str = None) -> Dict[str, 
             fmt.warning(f"Verified source {source_name} not available: {ex}")
 
     return sources
+
+def _create_visible_symlink(original_dir, symlink_dir):
+    if not os.path.exists(original_dir):
+        os.makedirs(original_dir)
+    if not os.path.exists(symlink_dir):
+        os.symlink(original_dir, symlink_dir)
+        print(f"Created a visible symlink: {symlink_dir} -> {original_dir}")
 
 
 def _welcome_message(source_name: str, destination_name: str, source_files: VerifiedSourceFiles, dependency_system: str, is_new_source: bool) -> None:
@@ -239,9 +247,12 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
         msg = f"This pipeline requires a newer version of dlt than your installed version ({source_files.requirements.current_dlt_version()}). " \
             f"Pipeline requires '{source_files.requirements.dlt_requirement_base}'"
         fmt.warning(msg)
-        if not fmt.confirm("Would you like to continue anyway? (you can update dlt after this step)", default=True):
-            fmt.echo(f'You can update dlt with: pip3 install -U "{source_files.requirements.dlt_requirement_base}"')
-            return
+        if is_notebook():
+            pass
+        else:
+            if not fmt.confirm("Would you like to continue anyway? (you can update dlt after this step)", default=True):
+                fmt.echo(f'You can update dlt with: pip3 install -U "{source_files.requirements.dlt_requirement_base}"')
+                return
 
     # read module source and parse it
     visitor = utils.parse_init_script("init", source_files.storage.load(source_files.pipeline_script), source_files.pipeline_script)
@@ -310,8 +321,11 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
             fmt.echo("Cloning and configuring a verified source %s (%s)" % (fmt.bold(source_name), source_files.doc))
             if use_generic_template:
                 fmt.warning("--generic parameter is meaningless if verified source is found")
-        if not fmt.confirm("Do you want to proceed?", default=True):
-            raise CliCommandException("init", "Aborted")
+        if is_notebook():
+            pass
+        else:
+            if not fmt.confirm("Do you want to proceed?", default=True):
+                raise CliCommandException("init", "Aborted")
 
     dependency_system = _get_dependency_system(dest_storage)
     _welcome_message(source_name, destination_name, source_files, dependency_system, is_new_source)
@@ -360,3 +374,6 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
     if dependency_system is None:
         requirements_txt = "\n".join(source_files.requirements.compiled())
         dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
+
+    if is_notebook():
+        _create_visible_symlink('.dlt', '_dlt')

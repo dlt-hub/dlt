@@ -119,7 +119,7 @@ class DltMagics(Magics):
     @argument('--destination_name', type=str, help="Name of a destination, e.g., bigquery or redshift.")
     @argument('--repo_location', type=str, help="Advanced. Uses a specific url or local path to verified sources repository.")
     @argument('--use_generic_template', action='store_true', help="Use a generic template with all the dlt loading code present.")
-    @argument('--branch', action='store_true', help="Use a default branch for the source.")
+    @argument('--branch', type=str,default=None,  help="Use a default branch for the source.")
     @register_line_magic
     @line_magic
     def init(self, line):
@@ -127,23 +127,23 @@ class DltMagics(Magics):
         A DLT line magic command for initializing a DLT project.
         """
         args = parse_argstring(self.init, line)
-        try:
-            from dlt.cli._dlt import init_command_wrapper
-            fmt.echo("got here")
-            init_command_wrapper(
-                source_name=args.source_name,
-                destination_name=args.destination_name,
-                use_generic_template=args.use_generic_template,
-                repo_location=args.repo_location if args.location is not None else DEFAULT_VERIFIED_SOURCES_REPO,
-                branch=args.branch
-            )
-            fmt.echo("got here")
-            return self.display(self.success_message({"green-bold": "DLT project initialized successfully."}))
+        # try:
+        from dlt.cli._dlt import init_command_wrapper
+        fmt.echo("got here" + str(args.source_name))
+        init_command_wrapper(
+            source_name=args.source_name,
+            destination_name=args.destination_name,
+            use_generic_template=args.use_generic_template,
+            repo_location=args.repo_location if args.repo_location is not None else DEFAULT_VERIFIED_SOURCES_REPO,
+            branch=args.branch if args.branch is not None else None
+        )
+        fmt.echo("got here")
+        return self.display(self.success_message({"green-bold": "DLT project initialized successfully."}))
 
 
-        except Exception as ex:
-            self.on_exception(ex, DLT_INIT_DOCS_URL)
-            return -1
+        # except Exception as ex:
+        #     self.on_exception(ex, DLT_INIT_DOCS_URL)
+        #     return -1
     @magic_arguments()
     @argument('--pipeline_script_path', type=str, help="Path to a pipeline script")
     @argument('--deployment_method', type=str, help="Deployment method")
