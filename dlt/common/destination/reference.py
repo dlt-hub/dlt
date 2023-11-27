@@ -499,6 +499,11 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         if ref is None:
             return None
         if isinstance(ref, Destination):
+            if credentials or destination_name or environment:
+                logger.warning(
+                    "Cannot override credentials, destination_name or environment when passing a"
+                    " Destination instance, these values will be ignored."
+                )
             return ref
         if not isinstance(ref, str):
             raise InvalidDestinationReference(ref)

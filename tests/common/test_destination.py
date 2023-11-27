@@ -4,7 +4,6 @@ from dlt.common.destination.reference import DestinationClientDwhConfiguration, 
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.exceptions import InvalidDestinationReference, UnknownDestinationModule
 from dlt.common.schema import Schema
-from dlt.common.schema.exceptions import InvalidDatasetName
 
 from tests.utils import ACTIVE_DESTINATIONS
 
@@ -33,6 +32,45 @@ def test_import_all_destinations() -> None:
         assert dest.config_params["destination_name"] == dest_type + "_name"
         dest.spec()
         assert isinstance(dest.capabilities(), DestinationCapabilitiesContext)
+
+
+def test_import_destination_config() -> None:
+    duck_destination = "duckdb"
+
+    # importing destination by type will work
+    dest = Destination.from_reference(ref=duck_destination, environment="stage")
+    assert dest.destination_type == duck_destination
+    assert dest.config_params["environment"] == "stage"
+    config = dest.configuration(dest.spec(dataset_name="dataset"))  # type: ignore
+    assert config.destination_type == duck_destination
+    assert config.destination_name == duck_destination
+    assert config.environment == "stage"
+
+    # importing destination by will work
+    dest = Destination.from_reference(
+        ref=None, destination_name=duck_destination, environment="production"
+    )
+    assert dest.destination_type == duck_destination
+    assert dest.config_params["environment"] == "production"
+    config = dest.configuration(dest.spec(dataset_name="dataset"))  # type: ignore
+    assert config.destination_type == duck_destination
+    assert config.destination_name == duck_destination
+    assert config.environment == "production"
+
+    # importing with different name will propagate name
+    dest = Destination.from_reference(
+        ref=duck_destination, destination_name="my_destination", environment="devel"
+    )
+    assert dest.destination_type == duck_destination
+    assert dest.config_params["environment"] == "devel"
+    config = dest.configuration(dest.spec(dataset_name="dataset"))  # type: ignore
+    assert config.destination_type == duck_destination
+    assert config.destination_name == "my_destination"
+    assert config.environment == "devel"
+
+    # incorrect name will fail with correct error
+    with pytest.raises(UnknownDestinationModule):
+        Destination.from_reference(ref=None, destination_name="balh")
 
 
 def test_normalize_dataset_name() -> None:
