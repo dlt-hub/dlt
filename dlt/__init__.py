@@ -33,6 +33,7 @@ from dlt.pipeline import pipeline as _pipeline, run, attach, Pipeline, dbt, curr
 from dlt.pipeline import progress
 from dlt.cli import echo as fmt
 from dlt.cli.magics import check_notebook_runtime
+from dlt import cli
 
 pipeline = _pipeline
 current = _current
@@ -68,4 +69,5 @@ __all__ = [
     "TSecretValue",
     "TCredentials",
     "sources",
+    "cli"
 ]

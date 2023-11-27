@@ -1,5 +1,12 @@
 from argparse import ArgumentParser
 
+# from dlt.cli._dlt import telemetry_change_status_command_wrapper, init_command_wrapper, on_exception
+# from .deploy_command import COMMAND_DEPLOY_REPO_LOCATION, DLT_DEPLOY_DOCS_URL
+
+# from dlt.cli._dlt import init_command_wrapper
+# from .pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
+# from dlt.cli.init_command import init_command
+
 from IPython.core.display import HTML, display
 from IPython.core.magic import (
     Magics,
@@ -11,11 +18,10 @@ from IPython.core.magic import (
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 
 
-# from dlt.cli._dlt import telemetry_change_status_command_wrapper, init_command_wrapper, on_exception
-# from .deploy_command import COMMAND_DEPLOY_REPO_LOCATION, DLT_DEPLOY_DOCS_URL
-from dlt.cli.init_command import init_command
-# from .pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
-# from dlt.cli.init_command import init_command
+from ..common.runtime.exec_info import is_notebook
+from dlt.cli import echo as fmt
+
+
 import typing as t
 from hyperscript import h
 import os
@@ -93,37 +99,45 @@ class DltMagics(Magics):
         """
         args = parse_argstring(self.settings, line)
         global DEBUG_FLAG
+        try:
+            from dlt.cli._dlt import telemetry_change_status_command_wrapper
+            if args.enable_telemetry:
+                telemetry_change_status_command_wrapper(True)
+            if args.disable_telemetry:
+                telemetry_change_status_command_wrapper(False)
+            if args.non_interactive:
+                fmt.ALWAYS_CHOOSE_DEFAULT = True
+            if args.debug:
+                DEBUG_FLAG = True
+            return "Settings updated"
+        except:
+            pass
 
-        if args.enable_telemetry:
-            telemetry_change_status_command_wrapper(True)
-        if args.disable_telemetry:
-            telemetry_change_status_command_wrapper(False)
-        if args.non_interactive:
-            fmt.ALWAYS_CHOOSE_DEFAULT = True
-        if args.debug:
-            DEBUG_FLAG = True
-        return "Settings updated"
+
     @magic_arguments()
-    @argument('--source', type=str, help="Name of data source for which to create a pipeline.")
-    @argument('--destination', type=str, help="Name of a destination, e.g., bigquery or redshift.")
-    @argument('--location', type=str, help="Advanced. Uses a specific url or local path to verified sources repository.")
-    @argument('--generic', action='store_true', help="Use a generic template with all the dlt loading code present.")
+    @argument('--source_name', type=str, help="Name of data source for which to create a pipeline.")
+    @argument('--destination_name', type=str, help="Name of a destination, e.g., bigquery or redshift.")
+    @argument('--repo_location', type=str, help="Advanced. Uses a specific url or local path to verified sources repository.")
+    @argument('--use_generic_template', action='store_true', help="Use a generic template with all the dlt loading code present.")
     @argument('--branch', action='store_true', help="Use a default branch for the source.")
-    @line_magic
     @register_line_magic
+    @line_magic
     def init(self, line):
         """
         A DLT line magic command for initializing a DLT project.
         """
         args = parse_argstring(self.init, line)
         try:
-            init_command(
-                source_name=args.source,
-                destination_name=args.destination,
-                use_generic_template=args.generic,
-                repo_location=args.location if args.location is not None else DEFAULT_VERIFIED_SOURCES_REPO,
+            from dlt.cli._dlt import init_command_wrapper
+            fmt.echo("got here")
+            init_command_wrapper(
+                source_name=args.source_name,
+                destination_name=args.destination_name,
+                use_generic_template=args.use_generic_template,
+                repo_location=args.repo_location if args.location is not None else DEFAULT_VERIFIED_SOURCES_REPO,
                 branch=args.branch
             )
+            fmt.echo("got here")
             return self.display(self.success_message({"green-bold": "DLT project initialized successfully."}))
 
 
@@ -143,6 +157,8 @@ class DltMagics(Magics):
         """
         args = parse_argstring(self.deploy, line)
         try:
+            from dlt.cli._dlt import deploy_command_wrapper
+            from .deploy_command import DLT_DEPLOY_DOCS_URL, COMMAND_DEPLOY_REPO_LOCATION
             deploy_command_wrapper(
                 pipeline_script_path=args.pipeline_script_path,
                 deployment_method=args.deployment_method,
@@ -166,6 +182,7 @@ class DltMagics(Magics):
         """
         args = parse_argstring(self.pipeline, line)
         try:
+            from dlt.cli._dlt import pipeline_command_wrapper, DLT_PIPELINE_COMMAND_DOCS_URL
             pipeline_command_wrapper(
                 operation=args.operation,
                 pipeline_name=args.pipeline_name,
@@ -189,6 +206,7 @@ class DltMagics(Magics):
         """
         args = parse_argstring(self.schema, line)
         try:
+            from dlt.cli._dlt import schema_command_wrapper
             schema_command_wrapper(
                 file_path=args.file_path,
                 format_=args.format,
@@ -200,7 +218,7 @@ class DltMagics(Magics):
             return -1
     @line_magic
     @register_line_magic
-    def dlt_version(self):
+    def dlt_version(self, line=None):
         """
         A DLT line magic command to display version information.
         """
@@ -222,14 +240,9 @@ class DltMagics(Magics):
         # args = parser.parse_args(line.split())
         return line[::-1]
 
-
-
-
-
-
 def register_magics() -> None:
     from dlt.cli import echo as fmt
-    fmt.echo("got here")
+
     try:
         fmt.echo("got here2")
         shell = get_ipython()  # type: ignore
@@ -241,10 +254,6 @@ def register_magics() -> None:
         pass
 
 
-
-from ..common.runtime.exec_info import is_notebook
-from dlt.cli import echo as fmt
-
 def check_notebook_runtime():
     fmt.echo("Checking if notebook")
     if is_notebook():
@@ -253,3 +262,9 @@ def check_notebook_runtime():
             register_magics()
         except ImportError:
             pass
+
+
+
+#
+# if __name__ == "__main__":
+#     exit(main())

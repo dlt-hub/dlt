@@ -17,8 +17,11 @@ fmt.echo("got here234234")
 
 
 # Example of running a magic command
-oo = shell.run_line_magic('init',"--source_name='chess' --destination_name='duckdb' --use_generic_template=True --repo_location='https://github.com/dlt-hub/verified-sources'" )
+#oo = shell.run_line_magic('init',"--source_name='chess' --destination_name='duckdb' --use_generic_template --repo_location='https://github.com/dlt-hub/verified-sources'" )
 
-print(oo)
+#print(oo)
+
+ff = shell.run_line_magic('dlt_version', '')
+print(ff)
 
 #init_command(source_name='chess', destination_name='duckdb', use_generic_template=True, repo_location='https://github.com/dlt-hub/verified-sources')
