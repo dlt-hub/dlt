@@ -1,5 +1,5 @@
 import binascii
-from typing import Any, Optional, cast
+from typing import Any, Optional, Tuple, cast
 import binascii
 
 import pendulum
@@ -7,7 +7,7 @@ import pendulum
 import dlt
 
 from dlt.common import json
-from dlt.common.pipeline import TPipelineState
+from dlt.common.pipeline import TPipelineLocalState, TPipelineState
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import STATE_TABLE_NAME, TTableSchemaColumns
 from dlt.common.destination.reference import JobClientBase, WithStateSync
@@ -52,11 +52,30 @@ def decompress_state(state_str: str) -> DictStrAny:
         return json.typed_loadb(state_bytes)  # type: ignore[no-any-return]
 
 
+def create_state_save(backup_state: TPipelineState, state: TPipelineState) -> Tuple[bool, TPipelineState, TPipelineLocalState]:
+    # do not compare local states
+    local_state = state.pop("_local")
+    backup_state.pop("_local")
+
+    # check if any state element was changed
+    merged_state = merge_state_if_changed(backup_state, state)
+    # extract state only when there's change in the state or state was not yet extracted AND we actually want to do it
+    should_extract_state = merged_state is not None or "_last_extracted_at" not in local_state
+    if should_extract_state:
+        # print(f'EXTRACT STATE merged: {bool(merged_state)} extracted timestamp NOT in {"_last_extracted_at" not in local_state}')
+        # mark state as extracted
+        local_state["_last_extracted_at"] = pendulum.now()
+
+
+    merged_state = merged_state or state
+    return should_extract_state, merged_state, local_state
+
+
 def merge_state_if_changed(
     old_state: TPipelineState, new_state: TPipelineState, increase_version: bool = True
 ) -> Optional[TPipelineState]:
-    # we may want to compare hashes like we do with schemas
-    if json.dumps(old_state, sort_keys=True) == json.dumps(new_state, sort_keys=True):
+    """Merge `new_state` into `old_state` if they differ. Otherwise returns None"""
+    if json.dumpb(old_state, sort_keys=True) == json.dumpb(new_state, sort_keys=True):
         return None
     # TODO: we should probably update smarter ie. recursively
     old_state.update(new_state)

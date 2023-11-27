@@ -49,7 +49,7 @@ from dlt.common.schema.typing import (
     TSchemaContract,
 )
 from dlt.common.schema.utils import normalize_schema_name
-from dlt.common.typing import TFun, TSecretValue, is_optional_type
+from dlt.common.typing import DictStrStr, TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,
@@ -125,6 +125,7 @@ from dlt.pipeline.trace import (
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import (
     STATE_ENGINE_VERSION,
+    create_state_save,
     load_state_from_destination,
     merge_state_if_changed,
     migrate_state,
@@ -362,7 +363,7 @@ class Pipeline(SupportsPipeline):
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         # create extract storage to which all the sources will be extracted
         storage = ExtractorStorage(self._normalize_storage_config)
-        load_ids: List[str] = []
+        load_ids: DictStrStr = {}
         try:
             with self._maybe_destination_capabilities():
                 # extract all sources
@@ -379,14 +380,26 @@ class Pipeline(SupportsPipeline):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
                     # TODO: merge infos for all the sources
-                    load_ids.append(
-                        self._extract_source(storage, source, max_parallel_items, workers)
+                    load_id, schema_name = self._extract_source(storage, source, max_parallel_items, workers)
+                    load_ids[load_id] = schema_name
+                # extract state
+                if self.config.restore_from_destination:
+                    should_extract, merged_state, local_state = create_state_save(
+                        self._get_state(),
+                        self._props_to_state(self._container[StateInjectableContext].state)
                     )
-                # commit extract ids
-                # TODO: if we fail here we should probably wipe out the whole extract folder
-                for load_id in load_ids:
-                    storage.commit_extract_files(load_id)
+                    if should_extract:
+                        load_id, schema_name = self._extract_source(storage, self._data_to_sources(state_resource(merged_state))[0], 1, 1)
+                        load_ids[load_id] = schema_name
+                    merged_state["_local"] = local_state
+                    self._container[StateInjectableContext].state["_local"] = local_state
 
+                # commit load packages
+                # TODO: if we fail here we should probably wipe out the whole extract folder
+                for load_id, schema_name in load_ids.items():
+                    storage.commit_new_load_package(load_id, self.schemas[schema_name])
+                # all load ids got processed, cleanup empty folder
+                storage.delete_empty_extract_folder()
                 return ExtractInfo(describe_extract_data(data))
         except Exception as exc:
             # TODO: provide metrics from extractor
@@ -799,15 +812,15 @@ class Pipeline(SupportsPipeline):
         """Deletes all extracted and normalized packages, including those that are partially loaded by default"""
         # delete normalized packages
         load_storage = self._get_load_storage()
-        for load_id in load_storage.list_normalized_packages():
-            package_info = load_storage.get_load_package_info(load_id)
+        for load_id in load_storage.normalized_packages.list_packages():
+            package_info = load_storage.normalized_packages.get_load_package_info(load_id)
             if PackageStorage.is_package_partially_loaded(package_info) and not with_partial_loads:
                 continue
-            package_path = load_storage.get_normalized_package_path(load_id)
-            load_storage.storage.delete_folder(package_path, recursively=True)
+            load_storage.normalized_packages.delete_package(load_id)
         # delete extracted files
         normalize_storage = self._get_normalize_storage()
-        normalize_storage.delete_extracted_files(normalize_storage.list_files_to_normalize_sorted())
+        for load_id in normalize_storage.extracted_packages.list_packages():
+            normalize_storage.extracted_packages.delete_package(load_id)
 
     @with_schemas_sync
     def sync_schema(self, schema_name: str = None, credentials: Any = None) -> TSchemaTables:
@@ -977,7 +990,7 @@ class Pipeline(SupportsPipeline):
     def _data_to_sources(
         self,
         data: Any,
-        schema: Schema,
+        schema: Schema = None,
         table_name: str = None,
         parent_table_name: str = None,
         write_disposition: TWriteDisposition = None,
@@ -1057,7 +1070,7 @@ class Pipeline(SupportsPipeline):
 
     def _extract_source(
         self, storage: ExtractorStorage, source: DltSource, max_parallel_items: int, workers: int
-    ) -> str:
+    ) -> Tuple[str, str]:
         # discover the existing pipeline schema
         if source.schema.name in self.schemas:
             # use clone until extraction complete
@@ -1082,7 +1095,7 @@ class Pipeline(SupportsPipeline):
             # this performs additional validations as schema contains the naming module
             self._set_default_schema_name(source.schema)
 
-        return load_id
+        return load_id, source.schema.name
 
     def _get_destination_client_initial_config(
         self, destination: TDestination = None, credentials: Any = None, as_staging: bool = False
@@ -1479,25 +1492,12 @@ class Pipeline(SupportsPipeline):
         else:
             self._props_to_state(state)
 
-            backup_state = self._get_state()
-            # do not compare local states
-            local_state = state.pop("_local")
-            backup_state.pop("_local")
-
-            # check if any state element was changed
-            merged_state = merge_state_if_changed(backup_state, state)
-            # extract state only when there's change in the state or state was not yet extracted AND we actually want to do it
-            if (merged_state or "_last_extracted_at" not in local_state) and extract_state:
-                # print(f'EXTRACT STATE merged: {bool(merged_state)} extracted timestamp in {"_last_extracted_at" not in local_state}')
-                merged_state = self._extract_state(merged_state or state)
-                local_state["_last_extracted_at"] = pendulum.now()
-
+            should_extract, merged_state, local_state = create_state_save(self._get_state(), state)
             # if state is modified and is not being extracted, mark it to be extracted next time
-            if not extract_state and merged_state:
+            if not extract_state and should_extract:
                 local_state.pop("_last_extracted_at", None)
 
             # always save state locally as local_state is not compared
-            merged_state = merged_state or state
             merged_state["_local"] = local_state
             self._save_state(merged_state)
 
@@ -1512,8 +1512,8 @@ class Pipeline(SupportsPipeline):
         if "destination" in state:
             self._set_destinations(self.destination, self.staging if "staging" in state else None)
 
-    def _props_to_state(self, state: TPipelineState) -> None:
-        """Write pipeline props to `state`"""
+    def _props_to_state(self, state: TPipelineState) -> TPipelineState:
+        """Write pipeline props to `state`, returns it for chaining"""
         for prop in Pipeline.STATE_PROPS:
             if not prop.startswith("_"):
                 state[prop] = getattr(self, prop)  # type: ignore
@@ -1525,6 +1525,7 @@ class Pipeline(SupportsPipeline):
         if self.staging:
             state["staging"] = self.staging.name
         state["schema_names"] = self._list_schemas_sorted()
+        return state
 
     def _list_schemas_sorted(self) -> List[str]:
         """Lists schema names sorted to have deterministic state"""
@@ -1532,15 +1533,6 @@ class Pipeline(SupportsPipeline):
 
     def _save_state(self, state: TPipelineState) -> None:
         self._pipeline_storage.save(Pipeline.STATE_FILE, json_encode_state(state))
-
-    def _extract_state(self, state: TPipelineState) -> TPipelineState:
-        # this will extract the state into current load package and update the schema with the _dlt_pipeline_state table
-        # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
-        state_source = DltSource(self.default_schema, self.pipeline_name, [state_resource(state)])
-        storage = ExtractorStorage(self._normalize_storage_config)
-        load_id = extract_with_schema(storage, state_source, _NULL_COLLECTOR, 1, 1)
-        storage.commit_extract_files(load_id)
-        return state
 
     def __getstate__(self) -> Any:
         # pickle only the SupportsPipeline protocol fields
