@@ -10,7 +10,7 @@ authors:
 tags: [dlt, dbt, Data Lineage]
 ---
 :::info
-TL;DR: In this blog post, we'll create a data lineage view for our ingested data by utlizing the `dlt` load_info.
+TL;DR: In this blog, we'll create a data lineage view for our ingested data by utlizing the `dlt` load_info.
 :::
 
 ## Why data lineage is important ?
@@ -19,7 +19,7 @@ Data lineage is an important tool in an arsenal of a data engineer. It showcases
 
 As data engineers, data lineage enables us to trace and troubleshoot the datapoints we offer to our stakeholders. It is also an important tool that can be used to meet regulation regarding privacy. Moreover, it can help us evaluate how any changes upstream in a pipeline effects the  downstream source. There are many types of data lineage, the most commonly used types are the following:
 
-- Table lineage shows us the raw data sources that are used to form a new table. Table lineage tracks the flow of data, showing how data moves forward through various processes and transformations.
+- Table lineage, it shows the raw data sources that are used to form a new table. It tracks the flow of data, showing how data moves forward through various processes and transformations.
 - Row lineage reveals the data flow at a more granular level. It refers to tracking and understanding of individual rows of data as they move through various stages in a data processing pipeline. It is a subset of table lineage that focuses specifically on the journey of individual records or rows rather than the entire dataset.
 - Column lineage specifically focuses on tracking and documenting the flow and transformation of individual columns or fields within different tables and views in the data.
 
@@ -68,7 +68,7 @@ pip install -r requirements.txt
 ```
 
 ## Loading the data
-As a first step, we will load the sales data from skate shops online and physical store and into BigQuery. In addition to the sales data we will also ingest the dlt load_info into BigQuery. This will help us track changes in our pipeline.
+As a first step, we will load the sales data from skate shops online and physical store into BigQuery. In addition to the sales data, we will also ingest the dlt load_info into BigQuery. This will help us track changes in our pipeline.
 
 ### Step 2: Adding the dlt pipeline code
 
@@ -99,7 +99,7 @@ class Data_Pipeline:
 
 Any changes in the underlying data are captured by the dlt load_info. To showcase this we will filter the data to remove the **Branch** and **Tags** columns from Store and Shopify data respectively and run the pipeline. Later, we will add back the columns and rerun the pipeline. These new columns added will be recorded in the load_info packages. 
 
-We add the load_info back to BigQuery to use in our Dashboard. The Dashboard will provide an overview of the schema changes each time the pipeline is executed and also track the row level lineage for any new table that we create.
+We will add the load_info back to BigQuery to use in our Dashboard. The Dashboard will provide an overview data lineage for our ingested data.
 
 ```python
 if __name__ == "__main__":
