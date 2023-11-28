@@ -322,7 +322,16 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
             if use_generic_template:
                 fmt.warning("--generic parameter is meaningless if verified source is found")
         if is_notebook():
-            pass
+            from dlt.cli.echo import notebook_confirm
+            notebook_confirm("Do you want to proceed?", default=True)
+            from dlt.cli.echo import IPYTHON_NOTEBOOK_USER_RESPONSE
+            if IPYTHON_NOTEBOOK_USER_RESPONSE =='Yes':
+                pass
+
+            elif IPYTHON_NOTEBOOK_USER_RESPONSE =='No':
+                raise CliCommandException("init", "Aborted")
+            elif IPYTHON_NOTEBOOK_USER_RESPONSE == None:
+                fmt.warning("Please provide an answer")
         else:
             if not fmt.confirm("Do you want to proceed?", default=True):
                 raise CliCommandException("init", "Aborted")
