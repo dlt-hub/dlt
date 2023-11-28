@@ -14,11 +14,11 @@ class AirflowSecretsTomlProvider(VaultTomlProvider):
 
     def _look_vault(self, full_key: str, hint: type) -> str:
         """Get Airflow Variable with given `full_key`, return None if not found"""
+        pass
+        # from airflow.models import Variable
 
-        from airflow.models import Variable
-
-        with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            return Variable.get(full_key, default_var=None)  # type: ignore
+        # with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
+        #    return Variable.get(full_key, default_var=None)  # type: ignore
 
     @property
     def supports_secrets(self) -> bool:

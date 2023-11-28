@@ -1,6 +1,7 @@
 import dlt
 import os
 from dlt.destinations import duckdb
+from dlt.common.utils import uniq_id
 
 
 def test_default_name_to_type() -> None:
@@ -67,11 +68,30 @@ def test_config_respects_name() -> None:
 
 def test_pipeline_config() -> None:
     os.environ["DESTINATION_TYPE"] = "redshift"
-    p = dlt.pipeline()
+    p = dlt.pipeline(pipeline_name=uniq_id())
     assert p.config.destination_type == "redshift"
     assert p.destination.destination_name == "redshift"
+    assert p.destination.destination_type == "dlt.destinations.redshift"
+    assert p.staging is None
 
-    os.environ["DESTINATION_TYPE"] = "duckdb"
-    p = dlt.pipeline()
-    assert p.config.destination_type == "duckdb"
+    del os.environ["DESTINATION_TYPE"]
+    os.environ["DESTINATION_NAME"] = "duckdb"
+    p = dlt.pipeline(pipeline_name=uniq_id())
     assert p.destination.destination_name == "duckdb"
+    assert p.destination.destination_type == "dlt.destinations.duckdb"
+    assert p.staging is None
+
+    os.environ["DESTINATION_TYPE"] = "bigquery"
+    os.environ["DESTINATION_NAME"] = "my_dest"
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    assert p.destination.destination_name == "my_dest"
+    assert p.destination.destination_type == "dlt.destinations.bigquery"
+    assert p.staging is None
+
+    os.environ["STAGING_TYPE"] = "filesystem"
+    os.environ["STAGING_NAME"] = "my_staging"
+    p = dlt.pipeline(pipeline_name=uniq_id())
+    assert p.destination.destination_name == "my_dest"
+    assert p.destination.destination_type == "dlt.destinations.bigquery"
+    assert p.staging.destination_type == "dlt.destinations.filesystem"
+    assert p.staging.destination_name == "my_staging"
