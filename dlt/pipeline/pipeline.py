@@ -125,9 +125,8 @@ from dlt.pipeline.trace import (
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import (
     STATE_ENGINE_VERSION,
-    create_state_save,
+    bump_version_if_modified,
     load_state_from_destination,
-    merge_state_if_changed,
     migrate_state,
     state_resource,
     json_encode_state,
@@ -380,20 +379,19 @@ class Pipeline(SupportsPipeline):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
                     # TODO: merge infos for all the sources
-                    load_id, schema_name = self._extract_source(storage, source, max_parallel_items, workers)
+                    load_id, schema_name = self._extract_source(
+                        storage, source, max_parallel_items, workers
+                    )
                     load_ids[load_id] = schema_name
                 # extract state
                 if self.config.restore_from_destination:
-                    should_extract, merged_state, local_state = create_state_save(
-                        self._get_state(),
-                        self._props_to_state(self._container[StateInjectableContext].state)
+                    # this will modify the state in the container so state manager will not extract the state
+                    load_id, schema_name = self._bump_version_and_extract_state(
+                        self._container[StateInjectableContext].state, True, storage
                     )
-                    if should_extract:
-                        load_id, schema_name = self._extract_source(storage, self._data_to_sources(state_resource(merged_state))[0], 1, 1)
+                    # returns load_id only if state got extracted
+                    if load_id:
                         load_ids[load_id] = schema_name
-                    merged_state["_local"] = local_state
-                    self._container[StateInjectableContext].state["_local"] = local_state
-
                 # commit load packages
                 # TODO: if we fail here we should probably wipe out the whole extract folder
                 for load_id, schema_name in load_ids.items():
@@ -642,8 +640,7 @@ class Pipeline(SupportsPipeline):
         self._set_dataset_name(dataset_name)
 
         state = self._get_state()
-        local_state = state.pop("_local")
-        merged_state: TPipelineState = None
+        state_changed = False
         try:
             try:
                 restored_schemas: Sequence[Schema] = None
@@ -651,13 +648,11 @@ class Pipeline(SupportsPipeline):
 
                 # if remote state is newer or same
                 # print(f'REMOTE STATE: {(remote_state or {}).get("_state_version")} >= {state["_state_version"]}')
+                # TODO: check if remote_state["_state_version"] is not in 10 recent version. then we know remote is newer.
                 if remote_state and remote_state["_state_version"] >= state["_state_version"]:
-                    # compare changes and updates local state
-                    merged_state = merge_state_if_changed(
-                        state, remote_state, increase_version=False
-                    )
+                    state_changed = remote_state["_version_hash"] != state.get("_version_hash")
                     # print(f"MERGED STATE: {bool(merged_state)}")
-                    if merged_state:
+                    if state_changed:
                         # see if state didn't change the pipeline name
                         if state["pipeline_name"] != remote_state["pipeline_name"]:
                             raise CannotRestorePipelineException(
@@ -668,7 +663,7 @@ class Pipeline(SupportsPipeline):
                             )
                         # if state was modified force get all schemas
                         restored_schemas = self._get_schemas_from_destination(
-                            merged_state["schema_names"], always_download=True
+                            remote_state["schema_names"], always_download=True
                         )
                         # TODO: we should probably wipe out pipeline here
 
@@ -678,12 +673,15 @@ class Pipeline(SupportsPipeline):
                         state["schema_names"], always_download=False
                     )
                 # commit all the changes locally
-                if merged_state:
+                if state_changed:
+                    # use remote state as state
+                    remote_state["_local"] = state["_local"]
+                    state = remote_state
                     # set the pipeline props from merged state
-                    state["_local"] = local_state
+                    self._state_to_props(state)
                     # add that the state is already extracted
+                    state["_local"]["_last_extracted_hash"] = state["_version_hash"]
                     state["_local"]["_last_extracted_at"] = pendulum.now()
-                    self._state_to_props(merged_state)
                     # on merge schemas are replaced so we delete all old versions
                     self._schema_storage.clear_storage()
                 for schema in restored_schemas:
@@ -713,10 +711,8 @@ class Pipeline(SupportsPipeline):
                         )
 
             # write the state back
-            state = merged_state or state
-            if "_local" not in state:
-                state["_local"] = local_state
             self._props_to_state(state)
+            bump_version_if_modified(state)
             self._save_state(state)
         except Exception as ex:
             raise PipelineStepFailed(self, "run", ex, None) from ex
@@ -1388,11 +1384,14 @@ class Pipeline(SupportsPipeline):
                 self.pipeline_name, state, state["_state_engine_version"], STATE_ENGINE_VERSION
             )
         except FileNotFoundError:
+            # do not set the state hash, this will happen on first merge
             return {
                 "_state_version": 0,
                 "_state_engine_version": STATE_ENGINE_VERSION,
                 "_local": {"first_run": True},
             }
+            # state["_version_hash"] = generate_version_hash(state)
+            # return state
 
     def _optional_sql_job_client(self, schema_name: str) -> Optional[SqlJobClientBase]:
         try:
@@ -1434,7 +1433,7 @@ class Pipeline(SupportsPipeline):
                 else:
                     state = None
                     logger.info(
-                        "Destination does not support metadata storage"
+                        "Destination does not support state sync"
                         f" {self.destination.name}:{dataset_name}"
                     )
             return state
@@ -1490,16 +1489,10 @@ class Pipeline(SupportsPipeline):
             # raise original exception
             raise
         else:
-            self._props_to_state(state)
-
-            should_extract, merged_state, local_state = create_state_save(self._get_state(), state)
-            # if state is modified and is not being extracted, mark it to be extracted next time
-            if not extract_state and should_extract:
-                local_state.pop("_last_extracted_at", None)
-
-            # always save state locally as local_state is not compared
-            merged_state["_local"] = local_state
-            self._save_state(merged_state)
+            # this modifies state in place
+            self._bump_version_and_extract_state(state, extract_state)
+            # so we save modified state here
+            self._save_state(state)
 
     def _state_to_props(self, state: TPipelineState) -> None:
         """Write `state` to pipeline props."""
@@ -1526,6 +1519,31 @@ class Pipeline(SupportsPipeline):
             state["staging"] = self.staging.name
         state["schema_names"] = self._list_schemas_sorted()
         return state
+
+    def _bump_version_and_extract_state(
+        self, state: TPipelineState, extract_state: bool, storage: ExtractorStorage = None
+    ) -> Tuple[str, str]:
+        """Merges existing state into `state` and extracts state using `storage` if extract_state is True.
+
+        Storage will be created on demand. In that case the extracted package will be immediately committed.
+        """
+        _, hash_, _ = bump_version_if_modified(self._props_to_state(state))
+        should_extract = hash_ != state["_local"].get("_last_extracted_hash")
+        load_id: str = None
+        schema_name: str = None
+        if should_extract and extract_state:
+            storage_ = storage or ExtractorStorage(self._normalize_storage_config)
+            load_id, schema_name = self._extract_source(
+                storage_, self._data_to_sources(state_resource(state))[0], 1, 1
+            )
+            state["_local"]["_last_extracted_at"] = pendulum.now()
+            state["_local"]["_last_extracted_hash"] = hash_
+            # commit only if we created storage
+            if not storage:
+                storage_.commit_new_load_package(load_id, self.schemas[schema_name])
+                storage_.delete_empty_extract_folder()
+        # if state is modified and is not being extracted, mark it to be extracted next time
+        return load_id, schema_name
 
     def _list_schemas_sorted(self) -> List[str]:
         """Lists schema names sorted to have deterministic state"""

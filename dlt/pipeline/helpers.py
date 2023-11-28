@@ -226,6 +226,7 @@ class DropCommand:
             self.pipeline._get_load_storage().wipe_normalized_packages()
             with self.pipeline.managed_state() as state:
                 state["_local"].pop("_last_extracted_at", None)
+                state["_local"].pop("_last_extracted_hash", None)
             raise
 
 
