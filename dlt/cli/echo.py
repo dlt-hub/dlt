@@ -46,6 +46,32 @@ def note(msg: str) -> None:
     click.secho("NOTE: " + msg, fg="green")
 
 
+global IPYTHON_NOTEBOOK_USER_RESPONSE
+
+def notebook_confirm(text: str, default: Optional[bool] = None) -> bool:
+    import ipywidgets as widgets
+    from IPython.display import display
+    global IPYTHON_NOTEBOOK_USER_RESPONSE
+
+    def on_yes_clicked(b):
+        global IPYTHON_NOTEBOOK_USER_RESPONSE
+        IPYTHON_NOTEBOOK_USER_RESPONSE = "Yes"
+        print("You answered Yes.")  # Optional feedback
+
+    def on_no_clicked(b):
+        global IPYTHON_NOTEBOOK_USER_RESPONSE
+        IPYTHON_NOTEBOOK_USER_RESPONSE = "No"
+        print("You answered No.")  # Optional feedback
+
+    label = widgets.Label(text)
+    yes_button = widgets.Button(description='Yes')
+    no_button = widgets.Button(description='No')
+    yes_button.on_click(on_yes_clicked)
+    no_button.on_click(on_no_clicked)
+    display(label, yes_button, no_button)
+
+
+
 def confirm(text: str, default: Optional[bool] = None) -> bool:
     if ALWAYS_CHOOSE_VALUE:
         return bool(ALWAYS_CHOOSE_VALUE)
