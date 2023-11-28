@@ -62,8 +62,14 @@ def is_github_actions() -> bool:
 
 def is_notebook() -> bool:
     try:
-        return bool(str(get_ipython()))  # type: ignore
+        # Import get_ipython from IPython
+        from IPython import get_ipython
+        # Get the class name of the current IPython instance
+        shell = get_ipython().__class__.__name__
+        # Check if the shell is a Jupyter notebook (ZMQInteractiveShell) and return as boolean
+        return shell == 'ZMQInteractiveShell'
     except NameError:
+        # Return False if get_ipython() is not available, indicating a non-IPython environment
         return False
 
 
