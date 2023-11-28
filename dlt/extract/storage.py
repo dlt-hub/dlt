@@ -3,7 +3,6 @@ from typing import Dict
 
 from dlt.common import pendulum
 from dlt.common.data_writers import TLoaderFileFormat
-from dlt.common.typing import TDataItems
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.storages import (
@@ -13,6 +12,8 @@ from dlt.common.storages import (
     FileStorage,
     PackageStorage,
 )
+from dlt.common.typing import TDataItems
+from dlt.common.time import precise_time
 from dlt.common.utils import uniq_id
 
 
@@ -72,7 +73,7 @@ class ExtractorStorage(NormalizeStorage):
                     break
                 load_id = None
         if not load_id:
-            load_id = str(pendulum.now().timestamp())
+            load_id = str(precise_time())
             self.new_packages.create_package(load_id)
         # always save schema
         self.new_packages.save_schema(load_id, schema)
@@ -97,7 +98,6 @@ class ExtractorStorage(NormalizeStorage):
     def delete_empty_extract_folder(self) -> None:
         """Deletes temporary extract folder if empty"""
         self.storage.delete_folder(self.new_packages_folder, recursively=False)
-
 
     def write_data_item(
         self,
