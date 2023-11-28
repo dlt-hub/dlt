@@ -347,10 +347,15 @@ class DltSource(Iterable[TDataItem]):
         with inject_section(self._get_config_section_context()):
             return source_state()
 
-    def clone(self) -> "DltSource":
-        """Creates a deep copy of the source where copies of schema, resources and pipes are created"""
+    def clone(self, with_name: str = None) -> "DltSource":
+        """Creates a deep copy of the source where copies of schema, resources and pipes are created.
+
+        If `with_name` is provided, a schema is cloned with a changed name
+        """
         # mind that resources and pipes are cloned when added to the DltResourcesDict in the source constructor
-        return DltSource(self.schema.clone(), self.section, list(self._resources.values()))
+        return DltSource(
+            self.schema.clone(with_name=with_name), self.section, list(self._resources.values())
+        )
 
     def __iter__(self) -> Iterator[TDataItem]:
         """Opens iterator that yields the data items from all the resources within the source in the same order as in Pipeline class.

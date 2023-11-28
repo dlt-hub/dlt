@@ -16,7 +16,6 @@ from typing import (
     cast,
     get_type_hints,
     ContextManager,
-    Mapping,
 )
 
 from dlt import version
@@ -49,6 +48,7 @@ from dlt.common.schema.typing import (
     TSchemaContract,
 )
 from dlt.common.schema.utils import normalize_schema_name
+from dlt.common.storages.exceptions import LoadPackageNotFound
 from dlt.common.typing import DictStrStr, TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
@@ -90,6 +90,7 @@ from dlt.common.pipeline import (
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
 from dlt.common.data_writers import TLoaderFileFormat
+from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import SourceExhausted
@@ -132,7 +133,7 @@ from dlt.pipeline.state_sync import (
     json_encode_state,
     json_decode_state,
 )
-from dlt.pipeline.deprecations import credentials_argument_deprecated
+from dlt.pipeline.warnings import credentials_argument_deprecated
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -590,7 +591,7 @@ class Pipeline(SupportsPipeline):
             self._state_restored = True
 
         # normalize and load pending data
-        if self.list_extracted_resources():
+        if self.list_extracted_load_packages():
             self.normalize(loader_file_format=loader_file_format)
         if self.list_normalized_load_packages():
             # if there were any pending loads, load them and **exit**
@@ -752,7 +753,7 @@ class Pipeline(SupportsPipeline):
         return (
             not self.first_run
             or bool(self.schema_names)
-            or len(self.list_extracted_resources()) > 0
+            or len(self.list_extracted_load_packages()) > 0
             or len(self.list_normalized_load_packages()) > 0
         )
 
@@ -761,7 +762,7 @@ class Pipeline(SupportsPipeline):
         """Tells if the pipeline contains any extracted files or pending load packages"""
         return (
             len(self.list_normalized_load_packages()) > 0
-            or len(self.list_extracted_resources()) > 0
+            or len(self.list_extracted_load_packages()) > 0
         )
 
     @property
@@ -784,9 +785,18 @@ class Pipeline(SupportsPipeline):
             return self._last_trace
         return load_trace(self.working_dir)
 
+    @deprecated(
+        "Please use list_extracted_load_packages instead. Flat extracted storage format got dropped"
+        " in dlt 0.4.0",
+        category=Dlt04DeprecationWarning,
+    )
     def list_extracted_resources(self) -> Sequence[str]:
         """Returns a list of all the files with extracted resources that will be normalized."""
         return self._get_normalize_storage().list_files_to_normalize_sorted()
+
+    def list_extracted_load_packages(self) -> Sequence[str]:
+        """Returns a list of all load packages ids that are or will be normalized."""
+        return self._get_normalize_storage().extracted_packages.list_packages()
 
     def list_normalized_load_packages(self) -> Sequence[str]:
         """Returns a list of all load packages ids that are or will be loaded."""
@@ -797,8 +807,11 @@ class Pipeline(SupportsPipeline):
         return self._get_load_storage().list_loaded_packages()
 
     def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
-        """Returns information on normalized/completed package with given load_id, all jobs and their statuses."""
-        return self._get_load_storage().get_load_package_info(load_id)
+        """Returns information on extracted/normalized/completed package with given load_id, all jobs and their statuses."""
+        try:
+            return self._get_load_storage().get_load_package_info(load_id)
+        except LoadPackageNotFound:
+            return self._get_normalize_storage().extracted_packages.get_load_package_info(load_id)
 
     def list_failed_jobs_in_package(self, load_id: str) -> Sequence[LoadJobInfo]:
         """List all failed jobs and associated error messages for a specified `load_id`"""

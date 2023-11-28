@@ -72,16 +72,18 @@ def pipeline_command(
             return  # No need to sync again
 
     def _display_pending_packages() -> Tuple[Sequence[str], Sequence[str]]:
-        extracted_files = p.list_extracted_resources()
-        if extracted_files:
+        extracted_packages = p.list_extracted_load_packages()
+        if extracted_packages:
             fmt.echo(
-                "Has %s extracted files ready to be normalized"
-                % fmt.bold(str(len(extracted_files)))
+                "Has %s extracted packages ready to be normalized with following load ids:"
+                % fmt.bold(str(len(extracted_packages)))
             )
+            for load_id in extracted_packages:
+                fmt.echo(load_id)
         norm_packages = p.list_normalized_load_packages()
         if norm_packages:
             fmt.echo(
-                "Has %s load packages ready to be loaded with following load ids:"
+                "Has %s normalized packages ready to be loaded with following load ids:"
                 % fmt.bold(str(len(norm_packages)))
             )
             for load_id in norm_packages:
@@ -93,7 +95,7 @@ def pipeline_command(
                     "This package is partially loaded. Data in the destination may be modified."
                 )
             fmt.echo()
-        return extracted_files, norm_packages
+        return extracted_packages, norm_packages
 
     fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
 
@@ -209,8 +211,8 @@ def pipeline_command(
                 fmt.echo("No failed jobs found")
 
     if operation == "drop-pending-packages":
-        extracted_files, norm_packages = _display_pending_packages()
-        if len(extracted_files) == 0 and len(norm_packages) == 0:
+        extracted_packages, norm_packages = _display_pending_packages()
+        if len(extracted_packages) == 0 and len(norm_packages) == 0:
             fmt.echo("No pending packages found")
         if fmt.confirm("Delete the above packages?", default=False):
             p.drop_pending_packages(with_partial_loads=True)
@@ -230,7 +232,9 @@ def pipeline_command(
     if operation == "load-package":
         load_id = command_kwargs.get("load_id")
         if not load_id:
-            packages = sorted(p.list_normalized_load_packages())
+            packages = sorted(p.list_extracted_load_packages())
+            if not packages:
+                packages = sorted(p.list_normalized_load_packages())
             if not packages:
                 packages = sorted(p.list_completed_load_packages())
             if not packages:

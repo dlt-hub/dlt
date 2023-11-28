@@ -163,7 +163,7 @@ def test_parquet_column_names_are_normalized(
     # Schema columns are normalized
     assert [c["name"] for c in schema_columns.values()] == expected_column_names
 
-    with norm_storage.storage.open_file(extract_files[0], "rb") as f:
+    with norm_storage.extracted_packages.storage.open_file(extract_files[0], "rb") as f:
         result_tbl = pa.parquet.read_table(f)
 
         # Parquet schema is written with normalized column names

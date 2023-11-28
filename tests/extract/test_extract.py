@@ -28,9 +28,8 @@ def test_storage_reuse_package() -> None:
     assert load_id_4 != load_id_3
 
     # this will fail - not all extracts committed
-    with pytest.raises(OSError) as os_ex:
+    with pytest.raises(OSError):
         storage.delete_empty_extract_folder()
-    assert os_ex.value.errno == 39  # directory not empty
     # commit the rest
     storage.commit_new_load_package(load_id_2, dlt.Schema("second"))
     storage.commit_new_load_package(load_id_3, dlt.Schema("first"))

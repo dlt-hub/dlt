@@ -13,7 +13,7 @@ from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
-from dlt.pipeline.deprecations import credentials_argument_deprecated
+from dlt.pipeline.warnings import credentials_argument_deprecated
 
 
 @overload
