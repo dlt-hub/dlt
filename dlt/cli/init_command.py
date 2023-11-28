@@ -2,7 +2,7 @@ import os
 import ast
 import shutil
 from types import ModuleType
-from typing import Dict, List, Sequence, Tuple
+from typing import Dict, List, Sequence, Tuple, Optional
 from importlib.metadata import version as pkg_version
 
 from dlt.common import git
@@ -248,6 +248,7 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
             f"Pipeline requires '{source_files.requirements.dlt_requirement_base}'"
         fmt.warning(msg)
         if is_notebook():
+            fmt.warning("Automatically proceeding with init in notebook mode.")
             pass
         else:
             if not fmt.confirm("Would you like to continue anyway? (you can update dlt after this step)", default=True):
@@ -322,16 +323,7 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
             if use_generic_template:
                 fmt.warning("--generic parameter is meaningless if verified source is found")
         if is_notebook():
-            from dlt.cli.echo import notebook_confirm
-            notebook_confirm("Do you want to proceed?", default=True)
-            from dlt.cli.echo import IPYTHON_NOTEBOOK_USER_RESPONSE
-            if IPYTHON_NOTEBOOK_USER_RESPONSE =='Yes':
-                pass
-
-            elif IPYTHON_NOTEBOOK_USER_RESPONSE =='No':
-                raise CliCommandException("init", "Aborted")
-            elif IPYTHON_NOTEBOOK_USER_RESPONSE == None:
-                fmt.warning("Please provide an answer")
+            fmt.warning("Automatically proceeding with init in notebook mode.")
         else:
             if not fmt.confirm("Do you want to proceed?", default=True):
                 raise CliCommandException("init", "Aborted")

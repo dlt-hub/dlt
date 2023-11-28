@@ -62,7 +62,7 @@ class DltMagics(Magics):
         )
         return HTML(msg)
 
-    def on_exception(self, ex: Exception, info: str) -> None:
+    def on_exception(self, ex: str, info: str) -> None:
         msg = str(
             h(
                 "div",
@@ -127,23 +127,24 @@ class DltMagics(Magics):
         A DLT line magic command for initializing a DLT project.
         """
         args = parse_argstring(self.init, line)
-        # try:
-        from dlt.cli._dlt import init_command_wrapper
-        fmt.echo("got here" + str(args.source_name))
-        init_command_wrapper(
-            source_name=args.source_name,
-            destination_name=args.destination_name,
-            use_generic_template=args.use_generic_template,
-            repo_location=args.repo_location if args.repo_location is not None else DEFAULT_VERIFIED_SOURCES_REPO,
-            branch=args.branch if args.branch is not None else None
-        )
-        fmt.echo("got here")
-        return self.display(self.success_message({"green-bold": "DLT project initialized successfully."}))
+        try:
+            from dlt.cli._dlt import init_command_wrapper
 
+            out = init_command_wrapper(
+                source_name=args.source_name,
+                destination_name=args.destination_name,
+                use_generic_template=args.use_generic_template,
+                repo_location=args.repo_location if args.repo_location is not None else DEFAULT_VERIFIED_SOURCES_REPO,
+                branch=args.branch if args.branch is not None else None
+            )
+            if out == -1:
+                return self.display(self.on_exception("Failure due to...", "Default value for init is 'No' for safety reasons."))
+            else:
+                return self.display(self.success_message({"green-bold": "DLT project initialized successfully."}))
+        except Exception as ex:
+            self.on_exception(ex, DLT_INIT_DOCS_URL)
+            return -1
 
-        # except Exception as ex:
-        #     self.on_exception(ex, DLT_INIT_DOCS_URL)
-        #     return -1
     @magic_arguments()
     @argument('--pipeline_script_path', type=str, help="Path to a pipeline script")
     @argument('--deployment_method', type=str, help="Deployment method")
@@ -263,8 +264,3 @@ def check_notebook_runtime():
         except ImportError:
             pass
 
-
-
-#
-# if __name__ == "__main__":
-#     exit(main())

@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.3.25"
+version = "0.3.25post1"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -80,6 +80,7 @@ qdrant-client = {version = "^1.6.4", optional = true, extras = ["fastembed"]}
 ipython = "7.34.0"
 hyperscript = "^0.0.1"
 ipywidgets = "^8.1.1"
+jupyter = "^1.0.0"
 
 
 [tool.poetry.extras]

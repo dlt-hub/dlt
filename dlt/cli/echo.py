@@ -46,12 +46,12 @@ def note(msg: str) -> None:
     click.secho("NOTE: " + msg, fg="green")
 
 
-global IPYTHON_NOTEBOOK_USER_RESPONSE
+
 
 def notebook_confirm(text: str, default: Optional[bool] = None) -> bool:
     import ipywidgets as widgets
     from IPython.display import display
-    global IPYTHON_NOTEBOOK_USER_RESPONSE
+
 
     def on_yes_clicked(b):
         global IPYTHON_NOTEBOOK_USER_RESPONSE
@@ -69,6 +69,8 @@ def notebook_confirm(text: str, default: Optional[bool] = None) -> bool:
     yes_button.on_click(on_yes_clicked)
     no_button.on_click(on_no_clicked)
     display(label, yes_button, no_button)
+
+
 
 
 

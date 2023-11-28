@@ -17,6 +17,7 @@ from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvider
 from dlt.common.git import get_origin, get_repo, Repo
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
+from dlt.common.runtime.exec_info import is_notebook
 from dlt.common.typing import StrAny
 from dlt.common.reflection.utils import evaluate_node_literal
 from dlt.common.pipeline import LoadInfo, TPipelineState, get_dlt_repos_dir
@@ -217,8 +218,12 @@ def parse_pipeline_info(visitor: PipelineScriptVisitor) -> List[Tuple[str, Optio
                 if f_r_value is None:
                     fmt.warning(f"The value of `full_refresh` in call to `dlt.pipeline` cannot be determined from {unparse(f_r_node).strip()}. We assume that you know what you are doing :)")
                 if f_r_value is True:
-                    if fmt.confirm("The value of 'full_refresh' is set to True. Do you want to abort to set it to False?", default=True):
-                        raise CliCommandException("deploy", "Please set the full_refresh to False")
+                    if is_notebook():
+                        fmt.echo("Automatically proceeding in the notebook")
+                        pass
+                    else:
+                        if fmt.confirm("The value of 'full_refresh' is set to True. Do you want to abort to set it to False?", default=True):
+                            raise CliCommandException("deploy", "Please set the full_refresh to False")
 
             p_d_node = call_args.arguments.get("pipelines_dir")
             if p_d_node:
@@ -323,8 +328,12 @@ def ask_files_overwrite(files: Sequence[str]) -> None:
     existing = [file for file in files if os.path.exists(file)]
     if existing:
         fmt.echo("Following files will be overwritten: %s" % fmt.bold(str(existing)))
-        if not fmt.confirm("Do you want to continue?", default=False):
-            raise CliCommandException("init", "Aborted")
+        if is_notebook():
+            fmt.echo("Automatically proceeding in the notebook")
+            pass
+        else:
+            if not fmt.confirm("Do you want to continue?", default=False):
+                raise CliCommandException("init", "Aborted")
 
 
 class PipelineWasNotRun(CliCommandException):
