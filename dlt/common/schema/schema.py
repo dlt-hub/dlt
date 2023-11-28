@@ -588,7 +588,7 @@ class Schema:
         return utils.bump_version_if_modified(self.to_dict())[1]
 
     @property
-    def previous_hashes(self) -> List[str]:
+    def previous_hashes(self) -> Sequence[str]:
         """Current version hash of the schema, recomputed from the actual content"""
         return utils.bump_version_if_modified(self.to_dict())[3]
 

@@ -43,6 +43,22 @@ class WrongStorageVersionException(StorageException):
         )
 
 
+class StorageMigrationError(StorageException):
+    def __init__(
+        self,
+        storage_path: str,
+        from_version: semver.VersionInfo,
+        target_version: semver.VersionInfo,
+        info: str,
+    ) -> None:
+        self.storage_path = storage_path
+        self.from_version = from_version
+        self.target_version = target_version
+        super().__init__(
+            f"Storage {storage_path} with target v {target_version} at {from_version}: " + info
+        )
+
+
 class LoadStorageException(StorageException):
     pass
 

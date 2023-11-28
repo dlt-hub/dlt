@@ -1,9 +1,10 @@
-from typing import Dict, Any, List, Generic
+from pathlib import Path
+from typing import Dict, Any, List, Sequence
 from abc import ABC, abstractmethod
 
 from dlt.common import logger
 from dlt.common.schema import TTableSchemaColumns
-from dlt.common.typing import TDataItems
+from dlt.common.typing import StrAny, TDataItems
 from dlt.common.data_writers import TLoaderFileFormat, BufferedDataWriter, DataWriter
 
 
@@ -47,7 +48,7 @@ class DataItemStorage(ABC):
     def close_writers(self, load_id: str) -> None:
         # flush and close all files
         for name, writer in self.buffered_writers.items():
-            if name.startswith(load_id):
+            if name.startswith(load_id) and not writer.closed:
                 logger.debug(
                     f"Closing writer for {name} with file {writer._file} and actual name"
                     f" {writer._file_name}"
@@ -60,6 +61,27 @@ class DataItemStorage(ABC):
             files.extend(writer.closed_files)
 
         return files
+
+    def _write_temp_job_file(
+        self,
+        load_id: str,
+        table_name: str,
+        table: TTableSchemaColumns,
+        file_id: str,
+        rows: Sequence[StrAny],
+    ) -> str:
+        """Writes new file into new packages "new_jobs". Intended for testing"""
+        file_name = (
+            self._get_data_item_path_template(load_id, None, table_name) % file_id
+            + "."
+            + self.loader_file_format
+        )
+        format_spec = DataWriter.data_format_from_file_format(self.loader_file_format)
+        mode = "wb" if format_spec.is_binary_format else "w"
+        with self.storage.open_file(file_name, mode=mode) as f:  # type: ignore[attr-defined]
+            writer = DataWriter.from_file_format(self.loader_file_format, f)
+            writer.write_all(table, rows)
+        return Path(file_name).name
 
     @abstractmethod
     def _get_data_item_path_template(self, load_id: str, schema_name: str, table_name: str) -> str:

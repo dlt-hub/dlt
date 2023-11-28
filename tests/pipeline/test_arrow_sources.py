@@ -49,7 +49,7 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
 
     assert len(extract_files) == 1
 
-    with norm_storage.storage.open_file(extract_files[0], "rb") as f:
+    with norm_storage.extracted_packages.storage.open_file(extract_files[0], "rb") as f:
         extracted_bytes = f.read()
 
     info = pipeline.normalize()

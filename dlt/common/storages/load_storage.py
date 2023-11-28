@@ -1,40 +1,25 @@
-import contextlib
-import os
 from os.path import join
-from pathlib import Path
-from pendulum.datetime import DateTime
-from typing import (
-    Dict,
-    Iterable,
-    List,
-    Optional,
-    Sequence,
-)
+from typing import Iterable, Optional, Sequence
 
-from dlt.common import json, pendulum
+from dlt.common import json
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.inject import with_config
-from dlt.common.typing import DictStrAny, StrAny
-from dlt.common.storages.file_storage import FileStorage
-from dlt.common.data_writers import DataWriter
 from dlt.common.destination import ALL_SUPPORTED_FILE_FORMATS, TLoaderFileFormat
 from dlt.common.configuration.accessors import config
 from dlt.common.exceptions import TerminalValueError
-from dlt.common.schema import Schema, TSchemaTables, TTableSchemaColumns
+from dlt.common.schema import TSchemaTables
+from dlt.common.storages.file_storage import FileStorage
 from dlt.common.storages.configuration import LoadStorageConfiguration
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.storages.data_item_storage import DataItemStorage
 from dlt.common.storages.load_package import (
-    WORKING_FOLDERS,
     LoadJobInfo,
     LoadPackageInfo,
     PackageStorage,
     ParsedLoadJobFileName,
     TJobState,
-    TLoadPackageState,
 )
 from dlt.common.storages.exceptions import JobWithUnsupportedWriterException, LoadPackageNotFound
-from dlt.common.utils import flatten_list_or_items
 
 
 class LoadStorage(DataItemStorage, VersionedStorage):
@@ -107,27 +92,6 @@ class LoadStorage(DataItemStorage, VersionedStorage):
             raise JobWithUnsupportedWriterException(load_id, self.supported_file_formats, wrong_job)
         return new_jobs
 
-    # def load_package_schema(self, load_id: str) -> Schema:
-    #     # load schema from a load package to be processed
-    #     schema_path = join(self.get_normalized_package_path(load_id), LoadPackageInfo.SCHEMA_FILE_NAME)
-    #     return self._load_schema(schema_path)
-
-    # def load_temp_schema(self, load_id: str) -> Schema:
-    #     # load schema from a temporary load package
-    #     schema_path = join(load_id, LoadPackageInfo.SCHEMA_FILE_NAME)
-    #     return self._load_schema(schema_path)
-
-    # def save_temp_schema(self, schema: Schema, load_id: str) -> str:
-    #     # save a schema to a temporary load package
-    #     dump = json.dumps(schema.to_dict())
-    #     return self.storage.save(join(load_id, LoadPackageInfo.SCHEMA_FILE_NAME), dump)
-
-    # def save_temp_schema_updates(self, load_id: str, schema_update: TSchemaTables) -> None:
-    #     with self.storage.open_file(
-    #         join(load_id, LoadStorage.SCHEMA_UPDATES_FILE_NAME), mode="wb"
-    #     ) as f:
-    #         json.dump(schema_update, f)
-
     def commit_new_load_package(self, load_id: str) -> None:
         self.storage.rename_tree(
             self.get_new_package_path(load_id), self.get_normalized_package_path(load_id)
@@ -140,11 +104,6 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def list_loaded_packages(self) -> Sequence[str]:
         """List packages that are completely loaded"""
         return self.loaded_packages.list_packages()
-
-    # def list_completed_failed_jobs(self, load_id: str) -> Sequence[str]:
-    #     return self.storage.list_folder_files(
-    #         self._get_job_folder_completed_path(load_id, LoadPackageInfo.FAILED_JOBS_FOLDER)
-    #     )
 
     def list_failed_jobs_in_loaded_package(self, load_id: str) -> Sequence[LoadJobInfo]:
         """List all failed jobs and associated error messages for a completed load package with `load_id`"""
@@ -214,52 +173,9 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def get_loaded_package_path(self, load_id: str) -> str:
         return join(LoadStorage.LOADED_FOLDER, self.loaded_packages.get_package_path(load_id))
 
-    # def _save_schema(self, schema: Schema, load_id: str) -> str:
-    #     dump = json.dumps(schema.to_dict())
-    #     schema_path = join(self.get_normalized_package_path(load_id), LoadPackageInfo.SCHEMA_FILE_NAME)
-    #     return self.storage.save(schema_path, dump)
-
-    # def _load_schema(self, schema_path: str) -> Schema:
-    #     stored_schema: DictStrAny = json.loads(self.storage.load(schema_path))
-    #     return Schema.from_dict(stored_schema)
-
-    # def _get_job_folder_completed_path(self, load_id: str, folder: TJobState) -> str:
-    #     return join(self.get_completed_package_path(load_id), folder)
-
     def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
         """Gets information on normalized OR loaded package with given load_id, all jobs and their statuses."""
         try:
             return self.loaded_packages.get_load_package_info(load_id)
         except LoadPackageNotFound:
             return self.normalized_packages.get_load_package_info(load_id)
-
-    def _write_temp_job_file(
-        self,
-        load_id: str,
-        table_name: str,
-        table: TTableSchemaColumns,
-        file_id: str,
-        rows: Sequence[StrAny],
-    ) -> str:
-        file_name = (
-            self._get_data_item_path_template(load_id, None, table_name) % file_id
-            + "."
-            + self.loader_file_format
-        )
-        format_spec = DataWriter.data_format_from_file_format(self.loader_file_format)
-        mode = "wb" if format_spec.is_binary_format else "w"
-        with self.storage.open_file(file_name, mode=mode) as f:
-            writer = DataWriter.from_file_format(self.loader_file_format, f)
-            writer.write_all(table, rows)
-        return Path(file_name).name
-
-    # @staticmethod
-    # def parse_job_file_name(file_name: str) -> ParsedLoadJobFileName:
-    #     p = Path(file_name)
-    #     parts = p.name.split(".")
-    #     # verify we know the extension
-    #     ext: TLoaderFileFormat = parts[-1]  # type: ignore
-    #     if ext not in LoadStorage.ALL_SUPPORTED_FILE_FORMATS:
-    #         raise TerminalValueError(ext)
-
-    #     return ParsedLoadJobFileName.parse(file_name)

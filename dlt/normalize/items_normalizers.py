@@ -6,7 +6,13 @@ from dlt.common import json, logger
 from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
-from dlt.common.storages import NormalizeStorage, LoadStorage, FileStorage, PackageStorage
+from dlt.common.storages import (
+    NormalizeStorage,
+    LoadStorage,
+    FileStorage,
+    PackageStorage,
+    ParsedLoadJobFileName,
+)
 from dlt.common.typing import DictStrAny, TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.utils import TRowCount, merge_row_count, increase_row_count
@@ -191,7 +197,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
     ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
         schema_updates: List[TSchemaUpdate] = []
         row_counts: TRowCount = {}
-        with self.normalize_storage.storage.open_file(extracted_items_file, "rb") as f:
+        with self.normalize_storage.extracted_packages.storage.open_file(
+            extracted_items_file, "rb"
+        ) as f:
             # enumerate jsonl file line by line
             items_count = 0
             line: bytes
@@ -266,7 +274,9 @@ class ParquetItemsNormalizer(ItemsNormalizer):
 
         items_count = 0
         as_py = self.load_storage.loader_file_format != "arrow"
-        with self.normalize_storage.storage.open_file(extracted_items_file, "rb") as f:
+        with self.normalize_storage.extracted_packages.storage.open_file(
+            extracted_items_file, "rb"
+        ) as f:
             for batch in pyarrow.pq_stream_with_new_columns(
                 f, new_columns, row_groups_per_read=self.REWRITE_ROW_GROUPS
             ):
@@ -324,10 +334,12 @@ class ParquetItemsNormalizer(ItemsNormalizer):
 
         from dlt.common.libs.pyarrow import get_row_count
 
-        with self.normalize_storage.storage.open_file(extracted_items_file, "rb") as f:
+        with self.normalize_storage.extracted_packages.storage.open_file(
+            extracted_items_file, "rb"
+        ) as f:
             items_count = get_row_count(f)
 
-        parts = NormalizeStorage.parse_normalize_file_name(extracted_items_file)
+        parts = ParsedLoadJobFileName.parse(extracted_items_file)
         new_file_name = PackageStorage.build_job_file_name(
             parts.table_name, parts.file_id, loader_file_format=self.load_storage.loader_file_format
         )
@@ -337,6 +349,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             )
         )
         FileStorage.link_hard_with_fallback(
-            self.normalize_storage.storage.make_full_path(extracted_items_file), target_file_path
+            self.normalize_storage.extracted_packages.storage.make_full_path(extracted_items_file),
+            target_file_path,
         )
         return base_schema_update, items_count, {root_table_name: items_count}

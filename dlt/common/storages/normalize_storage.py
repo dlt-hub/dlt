@@ -1,25 +1,22 @@
-from typing import ClassVar, Sequence, NamedTuple, Union
-from itertools import groupby
-from pathlib import Path
+import os
+import glob
+import semver
+from typing import ClassVar, Sequence
+
+from semver import VersionInfo
 
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
-from dlt.common.storages.file_storage import FileStorage
-from dlt.common.storages.configuration import NormalizeStorageConfiguration
+from dlt.common.storages.exceptions import StorageMigrationError
 from dlt.common.storages.versioned_storage import VersionedStorage
-from dlt.common.destination import TLoaderFileFormat, ALL_SUPPORTED_FILE_FORMATS
-from dlt.common.exceptions import TerminalValueError
-
-
-class TParsedNormalizeFileName(NamedTuple):
-    schema_name: str
-    table_name: str
-    file_id: str
-    file_format: TLoaderFileFormat
+from dlt.common.storages.file_storage import FileStorage
+from dlt.common.storages.load_package import PackageStorage
+from dlt.common.storages.configuration import NormalizeStorageConfiguration
+from dlt.common.utils import set_working_dir
 
 
 class NormalizeStorage(VersionedStorage):
-    STORAGE_VERSION: ClassVar[str] = "1.0.0"
+    STORAGE_VERSION: ClassVar[str] = "1.0.1"
     EXTRACTED_FOLDER: ClassVar[str] = (
         "extracted"  # folder within the volume where extracted files to be normalized are stored
     )
@@ -36,35 +33,39 @@ class NormalizeStorage(VersionedStorage):
         self.config = config
         if is_owner:
             self.initialize_storage()
+        self.extracted_packages = PackageStorage(
+            FileStorage(os.path.join(self.storage.storage_path, NormalizeStorage.EXTRACTED_FOLDER)),
+            "extracted",
+        )
 
     def initialize_storage(self) -> None:
         self.storage.create_folder(NormalizeStorage.EXTRACTED_FOLDER, exists_ok=True)
 
     def list_files_to_normalize_sorted(self) -> Sequence[str]:
-        return sorted(self.storage.list_folder_files(NormalizeStorage.EXTRACTED_FOLDER))
+        """Gets all data files in extracted packages storage. This method is compatible with current and all past storages"""
+        root_dir = os.path.join(self.storage.storage_path, NormalizeStorage.EXTRACTED_FOLDER)
+        with set_working_dir(root_dir):
+            files = glob.glob("**/*", recursive=True)
+            # return all files that are not schema files
+            return sorted(
+                [
+                    file
+                    for file in files
+                    if not file.endswith(PackageStorage.SCHEMA_FILE_NAME) and os.path.isfile(file)
+                ]
+            )
 
-    def group_by_schema(self, files: Sequence[str]) -> "groupby[str, str]":
-        return groupby(files, NormalizeStorage.get_schema_name)
-
-    @staticmethod
-    def get_schema_name(file_name: str) -> str:
-        return NormalizeStorage.parse_normalize_file_name(file_name).schema_name
-
-    @staticmethod
-    def build_extracted_file_stem(schema_name: str, table_name: str, file_id: str) -> str:
-        # builds file name with the extracted data to be passed to normalize
-        return f"{schema_name}.{table_name}.{file_id}"
-
-    @staticmethod
-    def parse_normalize_file_name(file_name: str) -> TParsedNormalizeFileName:
-        # parse extracted file name and returns (events found, load id, schema_name)
-        file_name_p: Path = Path(file_name)
-        parts = file_name_p.name.split(".")
-        ext = parts[-1]
-        if ext not in ALL_SUPPORTED_FILE_FORMATS:
-            raise TerminalValueError(f"File format {ext} not supported. Filename: {file_name}")
-        return TParsedNormalizeFileName(*parts)  # type: ignore[arg-type]
-
-    def delete_extracted_files(self, files: Sequence[str]) -> None:
-        for file_name in files:
-            self.storage.delete(file_name)
+    def migrate_storage(self, from_version: VersionInfo, to_version: VersionInfo) -> None:
+        if from_version == "1.0.0" and from_version < to_version:
+            # get files in storage
+            if len(self.list_files_to_normalize_sorted()) > 0:
+                raise StorageMigrationError(
+                    self.storage.storage_path,
+                    from_version,
+                    to_version,
+                    f"There are extract files in {NormalizeStorage.EXTRACTED_FOLDER} folder."
+                    " Storage will not migrate automatically duo to possible data loss. Delete the"
+                    " files or normalize it with dlt 0.3.x",
+                )
+            from_version = semver.VersionInfo.parse("1.0.1")
+            self._save_version(from_version)

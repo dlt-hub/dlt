@@ -23,7 +23,7 @@ from dlt.common.data_writers.writers import DataWriter
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
 from dlt.common.storages import FileStorage
 from dlt.common.storages.exceptions import LoadPackageNotFound
 from dlt.common.typing import DictStrAny, StrAny
@@ -161,7 +161,6 @@ class PackageStorage:
     COMPLETED_JOBS_FOLDER: ClassVar[TJobState] = "completed_jobs"
 
     SCHEMA_FILE_NAME: ClassVar[str] = "schema.json"
-
     SCHEMA_UPDATES_FILE_NAME = (  # updates to the tables in schema created by normalizer
         "schema_updates.json"
     )
@@ -173,6 +172,7 @@ class PackageStorage:
     )
 
     def __init__(self, storage: FileStorage, initial_state: TLoadPackageState) -> None:
+        """Creates storage that manages load packages with root at `storage` and initial package state `initial_state`"""
         self.storage = storage
         self.initial_state = initial_state
 
@@ -304,9 +304,6 @@ class PackageStorage:
     #
 
     def create_package(self, load_id: str) -> None:
-        # delete previous version
-        if self.storage.has_folder(load_id):
-            self.storage.delete_folder(load_id, recursively=True)
         self.storage.create_folder(load_id)
         # create processing directories
         self.storage.create_folder(os.path.join(load_id, PackageStorage.NEW_JOBS_FOLDER))
@@ -342,9 +339,12 @@ class PackageStorage:
         self.storage.delete_folder(package_path, recursively=True)
 
     def load_schema(self, load_id: str) -> Schema:
-        # load schema from a temporary load package
-        schema_path = os.path.join(load_id, PackageStorage.SCHEMA_FILE_NAME)
-        return self._load_schema(schema_path)
+        return Schema.from_dict(self._load_schema(load_id))
+
+    def schema_name(self, load_id: str) -> str:
+        """Gets schema name associated with the package"""
+        schema_dict: TStoredSchema = self._load_schema(load_id)  # type: ignore[assignment]
+        return schema_dict["name"]
 
     def save_schema(self, load_id: str, schema: Schema) -> str:
         # save a schema to a temporary load package
@@ -385,7 +385,7 @@ class PackageStorage:
         )
         if self.storage.has_file(applied_schema_update_file):
             applied_update = json.loads(self.storage.load(applied_schema_update_file))
-        schema = self._load_schema(os.path.join(package_path, PackageStorage.SCHEMA_FILE_NAME))
+        schema = Schema.from_dict(self._load_schema(load_id))
 
         # read jobs with all statuses
         all_jobs: Dict[TJobState, List[LoadJobInfo]] = {}
@@ -442,9 +442,9 @@ class PackageStorage:
         # print(f"{join(load_path, source_folder, file_name)} -> {dest_path}")
         return self.storage.make_full_path(dest_path)
 
-    def _load_schema(self, schema_path: str) -> Schema:
-        stored_schema: DictStrAny = json.loads(self.storage.load(schema_path))
-        return Schema.from_dict(stored_schema)
+    def _load_schema(self, load_id: str) -> DictStrAny:
+        schema_path = os.path.join(load_id, PackageStorage.SCHEMA_FILE_NAME)
+        return json.loads(self.storage.load(schema_path))  # type: ignore[no-any-return]
 
     @staticmethod
     def build_job_file_name(
@@ -456,7 +456,6 @@ class PackageStorage:
     ) -> str:
         if validate_components:
             FileStorage.validate_file_name_component(table_name)
-            # FileStorage.validate_file_name_component(file_id)
         fn = f"{table_name}.{file_id}.{int(retry_count)}"
         if loader_file_format:
             format_spec = DataWriter.data_format_from_file_format(loader_file_format)

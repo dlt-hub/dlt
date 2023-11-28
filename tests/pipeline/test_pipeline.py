@@ -392,7 +392,7 @@ def test_restore_state_on_dummy() -> None:
     assert p.first_run is False
     # no effect
     p.sync_destination()
-    assert p.state["_state_version"] == 2
+    assert p.state["_state_version"] == 1
 
     # wipe out storage
     p._wipe_working_folder()
@@ -400,7 +400,7 @@ def test_restore_state_on_dummy() -> None:
     assert p.first_run is True
     p.sync_destination()
     assert p.first_run is True
-    assert p.state["_state_version"] == 1
+    assert p.state["_state_version"] == 0
 
 
 def test_first_run_flag() -> None:
@@ -571,7 +571,7 @@ def test_run_with_table_name_exceeding_path_length() -> None:
 
     # we must fix that
     with pytest.raises(PipelineStepFailed) as sf_ex:
-        p.extract([1, 2, 3], table_name="TABLE_" + "a" * 230)
+        p.extract([1, 2, 3], table_name="TABLE_" + "a" * 267)
     assert isinstance(sf_ex.value.__context__, OSError)
 
 

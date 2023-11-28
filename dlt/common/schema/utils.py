@@ -7,12 +7,12 @@ from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optio
 
 from dlt.common import json
 from dlt.common.data_types import TDataType
-from dlt.common.exceptions import DictValidationException, MissingDependencyException
+from dlt.common.exceptions import DictValidationException
 from dlt.common.normalizers import explicit_normalizers
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCase
-from dlt.common.typing import DictStrAny, REPattern, is_dict_generic_type
-from dlt.common.validation import TCustomValidator, validate_dict, validate_dict_ignoring_xkeys
+from dlt.common.typing import DictStrAny, REPattern
+from dlt.common.validation import TCustomValidator, validate_dict_ignoring_xkeys
 from dlt.common.schema import detections
 from dlt.common.schema.typing import (
     COLUMN_HINTS,
@@ -37,7 +37,6 @@ from dlt.common.schema.typing import (
     TTypeDetections,
     TWriteDisposition,
     TSchemaContract,
-    TSchemaContractDict,
 )
 from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
@@ -168,8 +167,8 @@ def add_column_defaults(column: TColumnSchemaBase) -> TColumnSchema:
 #     return copy(column)  # type: ignore
 
 
-def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, str, List[str]]:
-    """Bumps the `stored_schema` version and version hash if content modified, returns (new version, new hash, old hash) tuple"""
+def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, str, Sequence[str]]:
+    """Bumps the `stored_schema` version and version hash if content modified, returns (new version, new hash, old hash, 10 last hashes) tuple"""
     hash_ = generate_version_hash(stored_schema)
     previous_hash = stored_schema.get("version_hash")
     if not previous_hash:
@@ -188,14 +187,14 @@ def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, st
 
 def generate_version_hash(stored_schema: TStoredSchema) -> str:
     # generates hash out of stored schema content, excluding the hash itself and version
-    schema_copy = deepcopy(stored_schema)
+    schema_copy = copy(stored_schema)
     schema_copy.pop("version")
     schema_copy.pop("version_hash", None)
     schema_copy.pop("imported_version_hash", None)
     schema_copy.pop("previous_hashes", None)
     # ignore order of elements when computing the hash
-    content = json.dumps(schema_copy, sort_keys=True)
-    h = hashlib.sha3_256(content.encode("utf-8"))
+    content = json.dumpb(schema_copy, sort_keys=True)
+    h = hashlib.sha3_256(content)
     # additionally check column order
     table_names = sorted((schema_copy.get("tables") or {}).keys())
     if table_names:

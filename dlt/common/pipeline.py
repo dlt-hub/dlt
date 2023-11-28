@@ -176,7 +176,9 @@ class TPipelineLocalState(TypedDict, total=False):
     first_run: bool
     """Indicates a first run of the pipeline, where run ends with successful loading of data"""
     _last_extracted_at: datetime.datetime
-    """Timestamp indicating when the state was synced with the destination. Lack of timestamp means not synced state."""
+    """Timestamp indicating when the state was synced with the destination."""
+    _last_extracted_hash: str
+    """Hash of state that was recently synced with destination"""
 
 
 class TPipelineState(TypedDict, total=False):
@@ -193,6 +195,7 @@ class TPipelineState(TypedDict, total=False):
 
     # properties starting with _ are not automatically applied to pipeline object when state is restored
     _state_version: int
+    _version_hash: str
     _state_engine_version: int
     _local: TPipelineLocalState
     """A section of state that is not synchronized with the destination and does not participate in change merging and version control"""
