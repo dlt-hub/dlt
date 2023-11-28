@@ -18,7 +18,7 @@ from IPython.core.magic import (
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 
 
-from ..common.runtime.exec_info import is_notebook
+from ..common.runtime.exec_info import is_notebook, is_ipython
 from dlt.cli import echo as fmt
 
 
@@ -255,8 +255,8 @@ def register_magics() -> None:
 
 
 def check_notebook_runtime():
-    fmt.echo("Checking if notebook")
-    if is_notebook():
+    fmt.echo("Checking if ipython")
+    if is_ipython():
         try:
             fmt.echo("Registering magics")
             register_magics()

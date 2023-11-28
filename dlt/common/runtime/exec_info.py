@@ -73,6 +73,12 @@ def is_notebook() -> bool:
         return False
 
 
+def is_ipython() -> bool:
+    try:
+        return bool(str(get_ipython()))  # type: ignore
+    except NameError:
+        return False
+
 def is_colab() -> bool:
     try:
         return "COLAB_RELEASE_TAG" in os.environ or "google.colab" in str(get_ipython())  # type: ignore
