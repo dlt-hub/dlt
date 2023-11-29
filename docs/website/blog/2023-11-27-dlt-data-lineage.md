@@ -49,9 +49,11 @@ pip install dbt-bigquery
 
 As we will be ingesting data into BigQuery we first need to create service account credentials for BigQuery. You can find more info on setting up a service account in the `dlt` [docs](https://dlthub.com/docs/dlt-ecosystem/destinations/bigquery).
 
-We will be using CSV files as our data sources for this demo. We are using some test Shopify data and [Kaggle Supermarket](https://www.kaggle.com/datasets/aungpyaeap/supermarket-sales) dataset as our sources.
+We use the following CSV files as our data sources for this demo: 
+- Test Shopify data 
+- [Kaggle Supermarket](https://www.kaggle.com/datasets/aungpyaeap/supermarket-sales) dataset.
 
- `dlt` provides [verified Shopify source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/shopify) to directly extract data from the Shopify API.
+`dlt` provides [verified Shopify source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/shopify) to directly extract data from the Shopify API.
 
 ### Step 1: Initialize a dlt pipeline
 
@@ -68,7 +70,7 @@ pip install -r requirements.txt
 ```
 
 ## Loading the data
-As a first step, we will load the sales data from skate shops online and physical store into BigQuery. In addition to the sales data, we will also ingest the dlt **load_info** into BigQuery. This will help us track changes in our pipeline.
+As a first step, we will load the sales data from the online and physical store of the skate shop into BigQuery. In addition to the sales data, we will also ingest the dlt **load_info** into BigQuery. This will help us track changes in our pipeline.
 
 ### Step 2: Adding the dlt pipeline code
 
@@ -216,7 +218,7 @@ where financial_status = 'paid'
 
 In the query, we join the sales information for each source with its dlt **load_info**. This will help us keep track of the number of rows added with each pipeline run. The `schema_name` identifies the source that populated the table and helps establish the table lineage. While the `_dlt_load_id` identifies the pipeline run that populated the each row and helps establish row level lineage. The sources are combined to create a **fact_sales** table by doing a union over both sources. 
 
-Next, we define the **`schema_change.sql`** model to capture the changes in the table schema using following query:
+Next, we define the `schema_change.sql` model to capture the changes in the table schema using following query:
 
 ```sql
 {{ config(materialized='table') }}
