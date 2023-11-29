@@ -721,8 +721,11 @@ def test_replace_resets_state(item_type: TDataItemFormat) -> None:
         yield from source_items
 
     info = p.run(standalone_some_data(item_type, now))
+    print(p.last_trace.last_normalize_info)
     assert len(info.loads_ids) == 1
     info = p.run(standalone_some_data(item_type, now))
+    print(p.last_trace.last_normalize_info)
+    print(info)
     assert len(info.loads_ids) == 0
     info = p.run(standalone_some_data(item_type, now), write_disposition="replace")
     assert len(info.loads_ids) == 1

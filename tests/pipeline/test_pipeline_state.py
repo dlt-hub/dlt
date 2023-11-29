@@ -13,7 +13,7 @@ from dlt.common.utils import uniq_id
 
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.state_sync import migrate_state, STATE_ENGINE_VERSION
+from dlt.pipeline.state_sync import generate_version_hash, migrate_state, STATE_ENGINE_VERSION
 
 from tests.utils import test_storage
 from tests.pipeline.utils import json_case_path, load_json_case
@@ -484,6 +484,8 @@ def test_migrate_state(test_storage: FileStorage) -> None:
     )
     assert state["_state_engine_version"] == STATE_ENGINE_VERSION
     assert "_local" in state
+    assert "_version_hash" in state
+    assert state["_version_hash"] == generate_version_hash(state)
 
     with pytest.raises(PipelineStateEngineNoUpgradePathException) as py_ex:
         state_v1 = load_json_case("state/state.v1")
@@ -503,3 +505,6 @@ def test_migrate_state(test_storage: FileStorage) -> None:
     p = dlt.attach(pipeline_name="debug_pipeline", pipelines_dir=test_storage.storage_path)
     assert p.dataset_name == "debug_pipeline_data"
     assert p.default_schema_name == "example_source"
+    state = p.state
+    print(state)
+    assert state["_version_hash"] == generate_version_hash(state)

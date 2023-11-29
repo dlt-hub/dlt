@@ -13,12 +13,13 @@ def github():
         primary_key="id",
         merge_key=("node_id", "url"),
     )
-    def load_issues():
+    def load_issues(created_at=dlt.sources.incremental[str]("created_at")):  # noqa: B008
         # we should be in TEST_STORAGE folder
         with open(
             "../tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
         ) as f:
-            yield from json.load(f)
+            issues = sorted(json.load(f), key=lambda x: x["created_at"])
+            yield from issues
 
     return load_issues
 

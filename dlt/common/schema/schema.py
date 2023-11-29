@@ -588,7 +588,7 @@ class Schema:
         return utils.bump_version_if_modified(self.to_dict())[1]
 
     @property
-    def previous_hashes(self) -> List[str]:
+    def previous_hashes(self) -> Sequence[str]:
         """Current version hash of the schema, recomputed from the actual content"""
         return utils.bump_version_if_modified(self.to_dict())[3]
 
@@ -618,9 +618,15 @@ class Schema:
         d = self.to_dict(remove_defaults=remove_defaults)
         return yaml.dump(d, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
-    def clone(self, update_normalizers: bool = False) -> "Schema":
-        """Make a deep copy of the schema, possibly updating normalizers and identifiers in the schema if `update_normalizers` is True"""
+    def clone(self, with_name: str = None, update_normalizers: bool = False) -> "Schema":
+        """Make a deep copy of the schema, optionally changing the name, and updating normalizers and identifiers in the schema if `update_normalizers` is True
+
+        Note that changing of name will break the previous version chain
+        """
         d = deepcopy(self.to_dict())
+        if with_name is not None:
+            d["name"] = with_name
+            d["previous_hashes"] = []
         schema = Schema.from_dict(d)  # type: ignore
         # update normalizers and possibly all schema identifiers
         if update_normalizers:

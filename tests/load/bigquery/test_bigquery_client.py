@@ -62,7 +62,6 @@ def test_service_credentials_with_default(environment: Any) -> None:
     gcpc = GcpServiceAccountCredentials()
     gcpc.parse_native_representation(services_str)
     # check if credentials can be created
-    assert gcpc.to_service_account_credentials() is not None
     assert gcpc.to_native_credentials() is not None
 
     # reset failed default credentials timeout so we resolve below
@@ -75,7 +74,7 @@ def test_service_credentials_with_default(environment: Any) -> None:
         # project id recovered from credentials
         assert gcpc.project_id == "level-dragon-333019"
         # check if credentials can be created
-        assert gcpc.to_service_account_credentials() is not None
+        assert gcpc.to_native_credentials() is not None
         # the default credentials are available
         assert gcpc.has_default_credentials() is True
         assert gcpc.default_credentials() is not None

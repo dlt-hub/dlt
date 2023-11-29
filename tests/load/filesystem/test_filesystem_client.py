@@ -4,7 +4,7 @@ import os
 import pytest
 
 from dlt.common.utils import digest128, uniq_id
-from dlt.common.storages import LoadStorage, FileStorage
+from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
 from dlt.destinations.impl.filesystem.filesystem import (
     LoadFilesystemJob,
@@ -71,7 +71,7 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
         assert jobs
         for job in jobs:
             assert job.state() == "completed"
-            job_info = LoadStorage.parse_job_file_name(job.file_name())
+            job_info = ParsedLoadJobFileName.parse(job.file_name())
             destination_path = posixpath.join(
                 dataset_path,
                 layout.format(

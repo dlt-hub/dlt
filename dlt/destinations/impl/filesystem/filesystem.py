@@ -7,7 +7,7 @@ from contextlib import contextmanager
 
 from dlt.common import logger
 from dlt.common.schema import Schema, TSchemaTables, TTableSchema
-from dlt.common.storages import FileStorage, LoadStorage, fsspec_from_config
+from dlt.common.storages import FileStorage, ParsedLoadJobFileName, fsspec_from_config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     NewLoadJob,
@@ -48,14 +48,13 @@ class LoadFilesystemJob(LoadJob):
             config.layout, file_name, schema_name, load_id
         )
         item = self.make_remote_path()
-        logger.info("PUT file {item}")
         fs_client.put_file(local_path, item)
 
     @staticmethod
     def make_destination_filename(
         layout: str, file_name: str, schema_name: str, load_id: str
     ) -> str:
-        job_info = LoadStorage.parse_job_file_name(file_name)
+        job_info = ParsedLoadJobFileName.parse(file_name)
         return path_utils.create_path(
             layout,
             schema_name=schema_name,
@@ -146,7 +145,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
                 logger.info(f"Will truncate tables in {truncate_dir}")
                 try:
                     all_files = self.fs_client.ls(truncate_dir, detail=False, refresh=True)
-                    logger.info(f"Found {len(all_files)} CANDIDATE files in {truncate_dir}")
+                    # logger.info(f"Found {len(all_files)} CANDIDATE files in {truncate_dir}")
                     # print(f"in truncate dir {truncate_dir}: {all_files}")
                     for item in all_files:
                         # check every file against all the prefixes

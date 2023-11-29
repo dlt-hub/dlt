@@ -20,7 +20,7 @@ from dlt.extract.extractors import JsonLExtractor, ArrowExtractor, Extractor
 
 
 def extract(
-    extract_id: str,
+    load_id: str,
     source: DltSource,
     storage: ExtractorStorage,
     collector: Collector = NULL_COLLECTOR,
@@ -33,10 +33,10 @@ def extract(
     resources_with_items: Set[str] = set()
     extractors: Dict[TLoaderFileFormat, Extractor] = {
         "puae-jsonl": JsonLExtractor(
-            extract_id, storage, schema, resources_with_items, collector=collector
+            load_id, storage, schema, resources_with_items, collector=collector
         ),
         "arrow": ArrowExtractor(
-            extract_id, storage, schema, resources_with_items, collector=collector
+            load_id, storage, schema, resources_with_items, collector=collector
         ),
     }
     last_item_format: Optional[TLoaderFileFormat] = None
@@ -86,7 +86,7 @@ def extract(
                 collector.update("Resources", left_gens)
 
         # flush all buffered writers
-        storage.close_writers(extract_id)
+        storage.close_writers(load_id)
 
 
 def extract_with_schema(
@@ -96,8 +96,8 @@ def extract_with_schema(
     max_parallel_items: int,
     workers: int,
 ) -> str:
-    # generate extract_id to be able to commit all the sources together later
-    extract_id = storage.create_extract_id()
+    # generate load package to be able to commit all the sources together later
+    load_id = storage.create_load_package(source.discover_schema())
     with Container().injectable_context(SourceSchemaInjectableContext(source.schema)):
         # inject the config section with the current source name
         with inject_section(
@@ -112,7 +112,7 @@ def extract_with_schema(
                     if resource.write_disposition == "replace":
                         reset_resource_state(resource.name)
             extract(
-                extract_id,
+                load_id,
                 source,
                 storage,
                 collector,
@@ -120,4 +120,4 @@ def extract_with_schema(
                 workers=workers,
             )
 
-    return extract_id
+    return load_id

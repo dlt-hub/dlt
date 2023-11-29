@@ -49,7 +49,7 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
 
     assert len(extract_files) == 1
 
-    with norm_storage.storage.open_file(extract_files[0], "rb") as f:
+    with norm_storage.extracted_packages.storage.open_file(extract_files[0], "rb") as f:
         extracted_bytes = f.read()
 
     info = pipeline.normalize()
@@ -58,9 +58,9 @@ def test_extract_and_normalize(item_type: TArrowFormat, is_list: bool):
 
     load_id = pipeline.list_normalized_load_packages()[0]
     storage = pipeline._get_load_storage()
-    jobs = storage.list_new_jobs(load_id)
+    jobs = storage.normalized_packages.list_new_jobs(load_id)
     job = [j for j in jobs if "some_data" in j][0]
-    with storage.storage.open_file(job, "rb") as f:
+    with storage.normalized_packages.storage.open_file(job, "rb") as f:
         normalized_bytes = f.read()
 
         # Normalized is linked/copied exactly and should be the same as the extracted file
@@ -127,9 +127,9 @@ def test_normalize_jsonl(item_type: TArrowFormat, is_list: bool):
 
     load_id = pipeline.list_normalized_load_packages()[0]
     storage = pipeline._get_load_storage()
-    jobs = storage.list_new_jobs(load_id)
+    jobs = storage.normalized_packages.list_new_jobs(load_id)
     job = [j for j in jobs if "some_data" in j][0]
-    with storage.storage.open_file(job, "r") as f:
+    with storage.normalized_packages.storage.open_file(job, "r") as f:
         result = [json.loads(line) for line in f]
         for row in result:
             row["decimal"] = Decimal(row["decimal"])
@@ -273,9 +273,9 @@ def test_normalize_with_dlt_columns(item_type: TArrowFormat):
 
     load_id = pipeline.list_normalized_load_packages()[0]
     storage = pipeline._get_load_storage()
-    jobs = storage.list_new_jobs(load_id)
+    jobs = storage.normalized_packages.list_new_jobs(load_id)
     job = [j for j in jobs if "some_data" in j][0]
-    with storage.storage.open_file(job, "rb") as f:
+    with storage.normalized_packages.storage.open_file(job, "rb") as f:
         tbl = pa.parquet.read_table(f)
 
         assert len(tbl) == 5432

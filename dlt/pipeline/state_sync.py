@@ -1,25 +1,25 @@
+import base64
 import binascii
-from typing import Any, Optional, cast
-import binascii
-
+from copy import copy
+import hashlib
+from typing import Any, Optional, Tuple, cast
 import pendulum
 
 import dlt
-
 from dlt.common import json
-from dlt.common.pipeline import TPipelineState
+from dlt.common.pipeline import TPipelineLocalState, TPipelineState
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import STATE_TABLE_NAME, TTableSchemaColumns
-from dlt.common.destination.reference import JobClientBase, WithStateSync
+from dlt.common.destination.reference import WithStateSync
+from dlt.common.utils import compressed_b64decode, compressed_b64encode
 
 from dlt.extract import DltResource
 
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException
-from dlt.common.utils import compressed_b64decode, compressed_b64encode
 
 
 # allows to upgrade state when restored with a new version of state logic/schema
-STATE_ENGINE_VERSION = 2
+STATE_ENGINE_VERSION = 3
 
 # state table columns
 STATE_TABLE_COLUMNS: TTableSchemaColumns = {
@@ -28,6 +28,11 @@ STATE_TABLE_COLUMNS: TTableSchemaColumns = {
     "pipeline_name": {"name": "pipeline_name", "data_type": "text", "nullable": False},
     "state": {"name": "state", "data_type": "text", "nullable": False},
     "created_at": {"name": "created_at", "data_type": "timestamp", "nullable": False},
+    "version_hash": {
+        "name": "version_hash",
+        "data_type": "text",
+        "nullable": True,
+    },  # set to nullable so we can migrate existing tables
 }
 
 
@@ -52,20 +57,35 @@ def decompress_state(state_str: str) -> DictStrAny:
         return json.typed_loadb(state_bytes)  # type: ignore[no-any-return]
 
 
-def merge_state_if_changed(
-    old_state: TPipelineState, new_state: TPipelineState, increase_version: bool = True
-) -> Optional[TPipelineState]:
-    # we may want to compare hashes like we do with schemas
-    if json.dumps(old_state, sort_keys=True) == json.dumps(new_state, sort_keys=True):
-        return None
-    # TODO: we should probably update smarter ie. recursively
-    old_state.update(new_state)
-    if increase_version:
-        old_state["_state_version"] += 1
-    return old_state
+def generate_version_hash(state: TPipelineState) -> str:
+    # generates hash out of stored schema content, excluding hash itself, version and local state
+    state_copy = copy(state)
+    state_copy.pop("_state_version", None)
+    state_copy.pop("_state_engine_version", None)
+    state_copy.pop("_version_hash", None)
+    state_copy.pop("_local", None)
+    content = json.typed_dumpb(state_copy, sort_keys=True)
+    h = hashlib.sha3_256(content)
+    return base64.b64encode(h.digest()).decode("ascii")
+
+
+def bump_version_if_modified(state: TPipelineState) -> Tuple[int, str, str]:
+    """Bumps the `state` version and version hash if content modified, returns (new version, new hash, old hash) tuple"""
+    hash_ = generate_version_hash(state)
+    previous_hash = state.get("_version_hash")
+    if not previous_hash:
+        # if hash was not set, set it without bumping the version, that's initial schema
+        pass
+    elif hash_ != previous_hash:
+        state["_state_version"] += 1
+
+    state["_version_hash"] = hash_
+    return state["_state_version"], hash_, previous_hash
 
 
 def state_resource(state: TPipelineState) -> DltResource:
+    state = copy(state)
+    state.pop("_local")
     state_str = compress_state(state)
     state_doc = {
         "version": state["_state_version"],
@@ -73,6 +93,7 @@ def state_resource(state: TPipelineState) -> DltResource:
         "pipeline_name": state["pipeline_name"],
         "state": state_str,
         "created_at": pendulum.now(),
+        "version_hash": state["_version_hash"],
     }
     return dlt.resource(
         [state_doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS
@@ -96,6 +117,10 @@ def migrate_state(
     if from_engine == 1 and to_engine > 1:
         state["_local"] = {}
         from_engine = 2
+    if from_engine == 2 and to_engine > 2:
+        # you may want to recompute hash
+        state["_version_hash"] = generate_version_hash(state)  # type: ignore[arg-type]
+        from_engine = 3
 
     # check state engine
     state["_state_engine_version"] = from_engine

@@ -47,9 +47,9 @@ giturlparse = ">=0.10.0"
 orjson = {version = ">=3.6.7", markers="platform_python_implementation != 'PyPy'"}
 tenacity = ">=8.0.2"
 jsonpath-ng = ">=1.5.3"
-deprecated = ">=1.2.9"
 fsspec = ">=2022.4.0"
 packaging = ">=21.1"
+win-precise-time = {version = ">=1.4.2", markers="os_name == 'nt'"}
 
 psycopg2-binary = {version = ">=2.9.1", optional = true}
 # use this dependency as the current version of psycopg2cffi does not have sql module

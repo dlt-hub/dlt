@@ -1,5 +1,4 @@
 import gzip
-from functools import reduce
 from typing import List, IO, Any, Optional, Type, TypeVar, Generic
 
 from dlt.common.utils import uniq_id
@@ -75,7 +74,9 @@ class BufferedDataWriter(Generic[TWriter]):
             raise InvalidFileNameTemplateException(file_name_template)
 
     def write_data_item(self, item: TDataItems, columns: TTableSchemaColumns) -> int:
-        self._ensure_open()
+        if self._closed:
+            self._rotate_file()
+            self._closed = False
         # rotate file if columns changed and writer does not allow for that
         # as the only allowed change is to add new column (no updates/deletes), we detect the change by comparing lengths
         if (
@@ -175,6 +176,7 @@ class BufferedDataWriter(Generic[TWriter]):
             self.closed_files.append(self._file_name)
             self._writer = None
             self._file = None
+            self._file_name = None
 
     def _ensure_open(self) -> None:
         if self._closed:
