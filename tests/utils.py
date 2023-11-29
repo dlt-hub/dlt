@@ -225,19 +225,21 @@ def skip_if_not_active(destination: str) -> None:
 
 
 def is_running_in_github_fork() -> bool:
-    event_path = os.environ["GITHUB_EVENT_PATH"]
+    event_path = os.environ.get("GITHUB_EVENT_PATH")
+    is_pull_request_from_fork = False
 
-    # Extract necessary information from the GitHub Actions event payload
-    with open(event_path, encoding="utf-8") as f:
-        event_data = dlt.common.json.load(f)
+    if event_path:
+        # Extract necessary information from the GitHub Actions event payload
+        with open(event_path, encoding="utf-8") as f:
+            event_data = dlt.common.json.load(f)
 
-    # Check if the pull request is from a fork
-    is_pull_request_from_fork = (
-        event_data.get("pull_request", {})
-        .get("head", {})
-        .get("repo", {})
-        .get("fork", False)
-    )
+        # Check if the pull request is from a fork
+        is_pull_request_from_fork = (
+            event_data.get("pull_request", {})
+            .get("head", {})
+            .get("repo", {})
+            .get("fork", False)
+        )
 
     return is_pull_request_from_fork
 
