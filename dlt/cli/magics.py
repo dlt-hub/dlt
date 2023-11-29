@@ -148,7 +148,7 @@ class DltMagics(Magics):
             else:
                 return self.display(self.success_message({"green-bold": "DLT project initialized successfully."}))
         except Exception as ex:
-            self.on_exception(ex, DLT_INIT_DOCS_URL)
+            self.on_exception(str(ex), DLT_INIT_DOCS_URL)
             return -1
 
     @magic_arguments()
@@ -204,7 +204,7 @@ class DltMagics(Magics):
             return self.display(self.success_message({"green-bold": "DLT deploy magic ran successfully."}))
         except Exception as ex:
 
-            self.on_exception(ex, DLT_DEPLOY_DOCS_URL)
+            self.on_exception(str(ex), DLT_DEPLOY_DOCS_URL)
             return -1
     @magic_arguments()
     @argument('--operation', type=str,default=None,  help="Operation to perform on the pipeline")
@@ -230,7 +230,7 @@ class DltMagics(Magics):
 
             )
         except Exception as ex:
-            self.on_exception(ex, DLT_PIPELINE_COMMAND_DOCS_URL)
+            self.on_exception(str(ex), DLT_PIPELINE_COMMAND_DOCS_URL)
             return -2
     @magic_arguments()
     @argument('--file_path', type=str, help="Schema file name, in yaml or json format")
@@ -252,7 +252,7 @@ class DltMagics(Magics):
             )
             return self.display(self.success_message({"green-bold": "DLT schema magic ran successfully."}))
         except Exception as ex:
-            self.on_exception(ex, "Schema Documentation URL")  # Replace with actual URL
+            self.on_exception(str(ex), "Schema Documentation URL")  # Replace with actual URL
             return -1
     @line_magic
     @register_line_magic
