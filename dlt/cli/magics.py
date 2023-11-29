@@ -62,7 +62,7 @@ class DltMagics(Magics):
         )
         return HTML(msg)
 
-    def on_exception(self, ex: str, info: str) -> None:
+    def on_exception(self, ex: str, info: str) -> str:
         msg = str(
             h(
                 "div",
@@ -93,7 +93,7 @@ class DltMagics(Magics):
     @argument('--debug', action='store_true', help="Displays full stack traces on exceptions.")
     @line_magic
     @register_line_magic
-    def settings(self, line):
+    def settings(self, line:str)->str:
         """
         A DLT line magic command to set global settings like telemetry, debug mode, etc.
         """
@@ -122,7 +122,7 @@ class DltMagics(Magics):
     @argument('--branch', type=str,default=None,  help="Use a default branch for the source.")
     @register_line_magic
     @line_magic
-    def init(self, line):
+    def init(self, line:str) -> str:
         """
         A DLT line magic command for initializing a DLT project.
         """
@@ -155,7 +155,7 @@ class DltMagics(Magics):
     @argument('--run_manually', type=bool, default=False, help="Run manually on Git (optional)")
     @register_line_magic
     @line_magic
-    def deploy(self, line):
+    def deploy(self, line:str) ->str :
         """
         A DLT line magic command for deploying a pipeline.
         """
@@ -207,7 +207,7 @@ class DltMagics(Magics):
     @argument('--verbosity', type=int, default=0,  help="Verbosity level")
     @line_magic
     @register_line_magic
-    def pipeline(self, line):
+    def pipeline(self, line:str)->str:
         """
         A DLT line magic command for pipeline operations.
         """
@@ -232,7 +232,7 @@ class DltMagics(Magics):
     @argument('--remove_defaults', type=str, help="Remove defaults")
     @line_magic
     @register_line_magic
-    def schema(self, line):
+    def schema(self, line:str)->str:
         """
         A DLT line magic command for handling schemas.
         """
@@ -250,7 +250,7 @@ class DltMagics(Magics):
             return -1
     @line_magic
     @register_line_magic
-    def dlt_version(self, line=None):
+    def dlt_version(self, line:str=None)->str:
         """
         A DLT line magic command to display version information.
         """
@@ -272,7 +272,7 @@ def register_magics() -> None:
         pass
 
 
-def check_notebook_runtime():
+def check_notebook_runtime() -> None:
     fmt.echo("Checking if ipython")
     if is_ipython():
         try:
