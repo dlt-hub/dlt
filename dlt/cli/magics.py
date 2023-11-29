@@ -41,11 +41,15 @@ DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
 class DltMagics(Magics):
 
     @property
-    def display(self) -> t.Callable:
+    def display(self) -> t.Callable[..., t.Any]:
         if os.getenv("DATABRICKS_RUNTIME_VERSION"):
-            # Use Databricks' special display instead of the normal IPython display
-            return self._shell.user_ns["display"]
-        return display
+            # Assume Databricks' 'display' is a callable with an unknown signature
+            databricks_display = self._shell.user_ns.get("display")
+            if callable(databricks_display):
+                return databricks_display
+            else:
+                raise RuntimeError("Expected a callable for Databricks' display, got something else.")
+        return display  # Assuming 'display' is a predefined callable
 
     def success_message(self, messages: t.Dict[str, str]) -> HTML:
         unstyled = messages.get("unstyled")
@@ -77,13 +81,15 @@ class DltMagics(Magics):
                 ),
             )
         )
-        display(HTML(msg))
+        out = display(HTML(msg))
 
         if DEBUG_FLAG:
             # Display the full traceback in a preformatted style
             traceback_html = h("pre", traceback.format_exc(), {"style": {"color": "gray"}})
             display(HTML(str(traceback_html)))
             raise ex
+
+        return out
 
 
     @magic_arguments()
@@ -122,7 +128,7 @@ class DltMagics(Magics):
     @argument('--branch', type=str,default=None,  help="Use a default branch for the source.")
     @register_line_magic
     @line_magic
-    def init(self, line:str) -> str:
+    def init(self, line:str) -> t.Any:
         """
         A DLT line magic command for initializing a DLT project.
         """
@@ -155,7 +161,7 @@ class DltMagics(Magics):
     @argument('--run_manually', type=bool, default=False, help="Run manually on Git (optional)")
     @register_line_magic
     @line_magic
-    def deploy(self, line:str) ->str :
+    def deploy(self, line:str) ->t.Any :
         """
         A DLT line magic command for deploying a pipeline.
         """
@@ -207,7 +213,7 @@ class DltMagics(Magics):
     @argument('--verbosity', type=int, default=0,  help="Verbosity level")
     @line_magic
     @register_line_magic
-    def pipeline(self, line:str)->str:
+    def pipeline(self, line:str)->t.Any:
         """
         A DLT line magic command for pipeline operations.
         """
@@ -232,7 +238,7 @@ class DltMagics(Magics):
     @argument('--remove_defaults', type=str, help="Remove defaults")
     @line_magic
     @register_line_magic
-    def schema(self, line:str)->str:
+    def schema(self, line:str)->t.Any:
         """
         A DLT line magic command for handling schemas.
         """
@@ -250,7 +256,7 @@ class DltMagics(Magics):
             return -1
     @line_magic
     @register_line_magic
-    def dlt_version(self, line:str=None)->str:
+    def dlt_version(self, line:str=None)->t.Any:
         """
         A DLT line magic command to display version information.
         """
