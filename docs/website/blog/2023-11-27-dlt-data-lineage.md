@@ -10,10 +10,10 @@ authors:
 tags: [dlt, dbt, Data Lineage]
 ---
 :::info
-TL;DR: In this blog, we'll create a data lineage view for our ingested data by utlizing the `dlt` load_info.
+TL;DR: In this blog, we'll create a data lineage view for our ingested data by utlizing the `dlt` **load_info**.
 :::
 
-## Why data lineage is important ?
+## Why data lineage is important?
 
 Data lineage is an important tool in an arsenal of a data engineer. It showcases the journey of data from its source to its destination. It captures all the pitstops made and can help identify issues in the data pipelines by offering a birds eye view of the data.
 
@@ -24,21 +24,21 @@ As data engineers, data lineage enables us to trace and troubleshoot the datapoi
 - Column lineage specifically focuses on tracking and documenting the flow and transformation of individual columns or fields within different tables and views in the data.
 
 
-## Project Overview:
+## Project Overview
 
-In this demo, we will showcase how you can leverage the `dlt` pipeline **[load_info](https://dlthub.com/docs/running-in-production/running#inspect-and-save-the-load-info-and-trace)** to create table, row and column lineage for your data. The code for the demo is available on [GitHub](https://github.com/dlt-hub/demo-data-lineage).
+In this demo, we showcase how you can leverage the `dlt` pipeline **[load_info](https://dlthub.com/docs/running-in-production/running#inspect-and-save-the-load-info-and-trace)** to create table, row and column lineage for your data. The code for the demo is available on [GitHub](https://github.com/dlt-hub/demo-data-lineage).
 
-The `dlt` load_info encapsulates useful information pertaining the loaded data. It contains the pipeline, dataset name, the destination information and list of loaded packages among other elements. Within the load_info packages, you will find a list of all tables and columns created at the destination during loading of the data. It can be used to display all the schema changes that occur during data ingestion and implement data lineage.
+The `dlt` **load_info** encapsulates useful information pertaining the loaded data. It contains the pipeline, dataset name, the destination information and list of loaded packages among other elements. Within the **load_info** packages, you will find a list of all tables and columns created at the destination during loading of the data. It can be used to display all the schema changes that occur during data ingestion and implement data lineage.
 
 We will work with the example of a skate shop that runs an online shop using Shopify, in addition to its physical stores. The data from both sources is extracted using `dlt` and loaded into BigQuery.
 
 ![Data Lineage Overview](https://d1ice69yfovmhk.cloudfront.net/images/data_lineage_overview.jpeg)
 
-In order to run analytics workloads, we will create a transformed **fact_sales** table using dbt and the extracted raw data. The fact_sales table can be used to answer all the sales related queries for the business. 
+In order to run analytics workloads, we will create a transformed **fact_sales** table using dbt and the extracted raw data. The **fact_sales** table can be used to answer all the sales related queries for the business. 
 
-The load_info produced by `dlt` for both pipelines is also populated into BigQuery. We will use this information to create a Dashboard in Metabase that shows the data lineage for the fact_sales table.
+The **load_info** produced by `dlt` for both pipelines is also populated into BigQuery. We will use this information to create a Dashboard in Metabase that shows the data lineage for the **fact_sales** table.
 
-## Implementing Data Lineage:
+## Implementing Data Lineage
 
 To get started install `dlt` and dbt:
 
@@ -68,7 +68,7 @@ pip install -r requirements.txt
 ```
 
 ## Loading the data
-As a first step, we will load the sales data from skate shops online and physical store into BigQuery. In addition to the sales data, we will also ingest the dlt load_info into BigQuery. This will help us track changes in our pipeline.
+As a first step, we will load the sales data from skate shops online and physical store into BigQuery. In addition to the sales data, we will also ingest the dlt **load_info** into BigQuery. This will help us track changes in our pipeline.
 
 ### Step 2: Adding the dlt pipeline code
 
@@ -87,7 +87,9 @@ class Data_Pipeline:
     def run_pipeline(self, data, table_name, write_disposition):
         # Configure the pipeline with your destination details
         pipeline = dlt.pipeline(
-            pipeline_name=self.pipeline_name, destination=self.destination, dataset_name=self.dataset_name
+            pipeline_name=self.pipeline_name, 
+            destination=self.destination, 
+            dataset_name=self.dataset_name
         )
         # Run the pipeline with the provided data
         load_info = pipeline.run(data, table_name=table_name, write_disposition=write_disposition)
@@ -97,9 +99,9 @@ class Data_Pipeline:
         return load_info
 ```
 
-Any changes in the underlying data are captured by the dlt load_info. To showcase this we will filter the data to remove the **Branch** and **Tags** columns from Store and Shopify data respectively and run the pipeline. Later, we will add back the columns and rerun the pipeline. These new columns added will be recorded in the load_info packages. 
+Any changes in the underlying data are captured by the dlt **load_info**. To showcase this we will filter the data to remove the **Branch** and **Tags** columns from Store and Shopify data respectively and run the pipeline. Later, we will add back the columns and rerun the pipeline. These new columns added will be recorded in the **load_info** packages. 
 
-We will add the load_info back to BigQuery to use in our Dashboard. The Dashboard will provide an overview data lineage for our ingested data.
+We will add the **load_info** back to BigQuery to use in our Dashboard. The Dashboard will provide an overview data lineage for our ingested data.
 
 ```python
 if __name__ == "__main__":
@@ -108,20 +110,46 @@ if __name__ == "__main__":
     data_shopify = pd.read_csv(FILEPATH_SHOPIFY)
 
     #filtering some data. 
-    select_c_data_store = data_store.loc[:, data_store.columns.difference(['Branch'])]
-    select_c_data_shopify = data_shopify.loc[:, data_shopify.columns.difference(['Tags'])]
+    select_c_data_store = data_store.loc[
+        :, data_store.columns.difference(['Branch'])]
+    select_c_data_shopify = data_shopify.loc[
+        :, data_shopify.columns.difference(['Tags'])]
 
-    pipeline_store = Data_Pipeline(pipeline_name='pipeline_store', destination='bigquery', dataset_name='sales_store')
-    pipeline_shopify = Data_Pipeline(pipeline_name='pipeline_shopify', destination='bigquery', dataset_name='sales_shopify')
+    pipeline_store = Data_Pipeline(
+        pipeline_name='pipeline_store', 
+        destination='bigquery', 
+        dataset_name='sales_store'
+        )
+    pipeline_shopify = Data_Pipeline(
+        pipeline_name='pipeline_shopify', 
+        destination='bigquery', 
+        dataset_name='sales_shopify'
+        )
 
-		load_a = pipeline_store.run_pipeline(data=select_c_data_store, table_name='sales_info', write_disposition='replace')
-    load_b = pipeline_shopify.run_pipeline(data=select_c_data_shopify, table_name='sales_info', write_disposition='replace')
+	load_a = pipeline_store.run_pipeline(
+        data=select_c_data_store, 
+        table_name='sales_info', 
+        write_disposition='replace'
+        )
+    load_b = pipeline_shopify.run_pipeline(
+        data=select_c_data_shopify, 
+        table_name='sales_info', 
+        write_disposition='replace'
+        )
 
-    pipeline_store.run_pipeline(data=load_a.load_packages, table_name="load_info", write_disposition="append")
-    pipeline_shopify.run_pipeline(data=load_b.load_packages, table_name='load_info', write_disposition="append")
+    pipeline_store.run_pipeline(
+        data=load_a.load_packages, 
+        table_name="load_info", 
+        write_disposition="append"
+        )
+    pipeline_shopify.run_pipeline(
+        data=load_b.load_packages, 
+        table_name='load_info', 
+        write_disposition="append"
+        )
 ```
 
-### Step 3: Run the dlt pipeline.
+### Step 3: Run the dlt pipeline
 
 To run the pipeline execute the following command:
 
@@ -186,7 +214,7 @@ on  info._dlt_load_id = loads.load_id
 where financial_status = 'paid'
 ```
 
-In the query, we join the sales information for each source with its dlt load_info. This will help us keep track of the number of rows added with each pipeline run. The `schema_name` identifies the source that populated the table and helps establish the table lineage. While the `_dlt_load_id` identifies the pipeline run that populated the each row and helps establish row level lineage. The sources are combined to create a **fact_sales** table by doing a union over both sources. 
+In the query, we join the sales information for each source with its dlt **load_info**. This will help us keep track of the number of rows added with each pipeline run. The `schema_name` identifies the source that populated the table and helps establish the table lineage. While the `_dlt_load_id` identifies the pipeline run that populated the each row and helps establish row level lineage. The sources are combined to create a **fact_sales** table by doing a union over both sources. 
 
 Next, we define the **`schema_change.sql`** model to capture the changes in the table schema using following query:
 
@@ -202,28 +230,34 @@ select *
 from {{source('shopify', 'load_info__tables__columns')}}
 ```
 
-In the query, we combine the load_info for both sources by doing a union over the sources. The resulting **schema_change** table contains records of the column changes that occur on each pipeline run. This will help us track the column lineage and will be used to create our Data Lineage Dashboard.
+In the query, we combine the **load_info** for both sources by doing a union over the sources. The resulting **schema_change** table contains records of the column changes that occur on each pipeline run. This will help us track the column lineage and will be used to create our Data Lineage Dashboard.
 
 ### Step 5: Run the dbt package
 
 In the `data_lineage.py` add the the code to run the dbt package using `dlt`.
 
 ```python
-pipeline_transform = dlt.pipeline(pipeline_name='pipeline_transform', destination='bigquery', dataset_name='sales_transform')
+pipeline_transform = dlt.pipeline(
+    pipeline_name='pipeline_transform', 
+    destination='bigquery', 
+    dataset_name='sales_transform'
+    )
 
-    venv = Venv.restore_current()
-    here = os.path.dirname(os.path.realpath(__file__))
+venv = Venv.restore_current()
+here = os.path.dirname(os.path.realpath(__file__))
 
-    dbt = dlt.dbt.package(
-        pipeline_transform, 
-        os.path.join(here, "sales_dbt/"),
-        venv=venv
-        )
+dbt = dlt.dbt.package(
+    pipeline_transform, 
+    os.path.join(here, "sales_dbt/"),
+    venv=venv
+    )
 
-    models = dbt.run_all()
+models = dbt.run_all()
 
-    for m in models:
-            print(f"Model {m.model_name} materialized in {m.time} with status {m.status} and message {m.message}")
+for m in models:
+        print(
+            f"Model {m.model_name} materialized in {m.time} - " 
+            f"Status {m.status} and message {m.message}")
 ```
 
 Next, run the pipeline using the following command:
@@ -238,11 +272,11 @@ Once the pipeline is run a new dataset called **sales_transform** will be create
 
 To access the BigQuery data in Metabase we need to connect BigQuery to Metabase. Follow the Metabase [docs](https://www.metabase.com/docs/latest/databases/connections/bigquery) to connect BigQuery to Metabase.
 
-Once BigQuery is connected with Metabase use the SQL Editor to create the the first table. The **Data Load Overview** table gives an overview of the dlt pipelines that populated the **fact_sales** table. It shows the pipeline names and the number of rows loaded into the **fact_sales** table by each pipeline.
+Once BigQuery is connected with Metabase use the SQL Editor to create the first table. The **Data Load Overview** table gives an overview of the dlt pipelines that populated the **fact_sales** table. It shows the pipeline names and the number of rows loaded into the **fact_sales** table by each pipeline.
 
 ![Metabase Report](https://d1ice69yfovmhk.cloudfront.net/images/data_lineage_metabase_report.png)
 
-This can be used to track the rows loaded by each pipeline. An upper and lower threshold can be set and when our pipelines add rows above or below the threshold that can act as our canary in a the coal mine .
+This can be used to track the rows loaded by each pipeline. An upper and lower threshold can be set and when our pipelines add rows above or below the threshold that can act as our canary in a the coal mine.
 
 Next, we will visualize the **fact_sales** and the **schema_changes** as a table and add the `dlt_load_id` as a filter. The resulting Data Lineage Dashboard will give us an overview of the table, row and column level lineage for our data.
 
@@ -252,8 +286,8 @@ When we filter by the **dlt_load_id** the dashboard will filter for the specific
 
 When we ran the pipeline initially we filtered out the **Tags** column and later reintroduced it and ran the pipeline again. The **Updated Columns** shows that the Tags column was added to the Fact Sales table with the new pipeline run.
 
-## Conclusion:
+## Conclusion
 
-Data lineage provides an overview of the data journey from the source to destination. It is an important tool that can help troubleshoot pipeline. dlt load_info provides an alternative solution to visualizing data lineage by tracking changes in the underlying data.
+Data lineage provides an overview of the data journey from the source to destination. It is an important tool that can help troubleshoot pipeline. dlt **load_info** provides an alternative solution to visualizing data lineage by tracking changes in the underlying data.
 
 Although `dlt` currently does not support data flow diagrams, it tracks changes in the data schema that can be used to create dashboards that provides an overview of table, row and column lineage for the loaded data.
