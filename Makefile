@@ -48,15 +48,15 @@ dev: has-poetry
 
 lint:
 	./check-package.sh
-	poetry run black ./ --diff --exclude=".*syntax_error.py|\.venv.*"
-	# poetry run isort ./ --diff
 	poetry run mypy --config-file mypy.ini dlt tests
 	poetry run flake8 --max-line-length=200 dlt
 	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
 	# $(MAKE) lint-security
+	poetry run black dlt tests docs --diff --exclude=".*syntax_error.py|\.venv.*"
+	# poetry run isort ./ --diff
 
 format:
-	poetry run black ./ --exclude=".*syntax_error.py|\.venv.*"
+	poetry run black dlt tests docs --exclude=".*syntax_error.py|\.venv.*"
 	# poetry run isort ./
 
 test-and-lint-snippets:
