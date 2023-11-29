@@ -20,11 +20,30 @@ In an IPython notebook, you can use the `%init` magic command to execute the `dl
 
 ```
 
+## `%deploy`
+
+Deploy a DLT pipeline to a destination.
+
+```ipython
+
+%deploy --pipeline_script_path <path> --deployment_method <git-actions> --repo_location <repo location> --branch <branch> --schedule <5 minutes, 15 minutes, 30 minutes, 45 minutes or hour> --run_on_push <> --run_on_schedule <True/False> --run_on_manual <True/False>
+
+```
+
 ## `%pipeline`
 
 In an IPython notebook, you can use the `%init` magic command to execute the `dlt init` command. This command sets up a new DLT pipeline script that transfers data from a `source` to a `destination`.
 
 ```ipython
-%init --source <source>  --destionation <destination>
+%pipeline --operation <operation>  -- <destination>
 
 ```
+
+## `%dlt_version`
+
+Check the DLT version.
+
+```ipython
+%dlt_version
+```
+

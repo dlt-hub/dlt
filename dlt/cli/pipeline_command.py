@@ -21,6 +21,7 @@ DLT_PIPELINE_COMMAND_DOCS_URL = "https://dlthub.com/docs/reference/command-line-
 
 def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, dataset_name: str = None, destination: TDestinationReferenceArg = None, **command_kwargs: Any) -> None:
     if operation == "list":
+        fmt.echo("Pipeline name = %s" % fmt.bold(pipeline_name))
         pipelines_dir = pipelines_dir or get_dlt_pipelines_dir()
         storage = FileStorage(pipelines_dir)
         dirs = storage.list_folder_dirs(".", to_root=False)

@@ -33,7 +33,7 @@ DEBUG_FLAG = False
 
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
-
+DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
 
 
 
@@ -149,9 +149,12 @@ class DltMagics(Magics):
     @argument('--pipeline_script_path', type=str, help="Path to a pipeline script")
     @argument('--deployment_method', type=str, help="Deployment method")
     @argument('--repo_location', type=str, help="Repository location")
-    @argument('--branch', type=str, help="Deployment method")
-    @line_magic
+    @argument('--branch', type=str, help="Git branch")
+    @argument('--schedule', type=str, default=None, help="Schedule for the deployment (optional)")
+    @argument('--run_on_push', type=bool, default=False, help="Run on push to Git (optional)")
+    @argument('--run_manually', type=bool, default=False, help="Run manually on Git (optional)")
     @register_line_magic
+    @line_magic
     def deploy(self, line):
         """
         A DLT line magic command for deploying a pipeline.
@@ -159,20 +162,47 @@ class DltMagics(Magics):
         args = parse_argstring(self.deploy, line)
         try:
             from dlt.cli._dlt import deploy_command_wrapper
-            from .deploy_command import DLT_DEPLOY_DOCS_URL, COMMAND_DEPLOY_REPO_LOCATION
+            from dlt.cli.deploy_command import PipelineWasNotRun, DLT_DEPLOY_DOCS_URL, DeploymentMethods, COMMAND_DEPLOY_REPO_LOCATION, SecretFormats
+            def words_to_cron(description):
+                mapping = {
+                    "5 minutes": "*/5 * * * *",
+                    "15 minutes": "*/15 * * * *",
+                    "30 minutes": "*/30 * * * *",
+                    "45 minutes": "*/45 * * * *",
+                    "hour": "0 * * * *",
+                    # Add more mappings as needed
+                }
+                cron_expression = mapping.get(description.lower())
+                if cron_expression:
+                    return cron_expression
+                else:
+                    return "Invalid description"
+
+            # Initialize an empty kwargs dictionary
+            kwargs = {}
+
+            if args.schedule is not None:
+                kwargs['schedule'] = words_to_cron(args.schedule)
+            if args.run_on_push is not None:
+                kwargs['run_on_push'] = args.run_on_push
+            if args.run_manually is not None:
+                kwargs['run_manually'] = args.run_manually
+
             deploy_command_wrapper(
                 pipeline_script_path=args.pipeline_script_path,
                 deployment_method=args.deployment_method,
                 repo_location=args.repo_location if args.repo_location is not None else COMMAND_DEPLOY_REPO_LOCATION,
-                branch=args.branch
+                branch=args.branch,
+                **kwargs
             )
-            return self.display(self.success_message({"green-bold": "DLT project deployed."}))
+            return self.display(self.success_message({"green-bold": "DLT deploy magic ran successfully."}))
         except Exception as ex:
+
             self.on_exception(ex, DLT_DEPLOY_DOCS_URL)
             return -1
     @magic_arguments()
     @argument('--operation', type=str,default=None,  help="Operation to perform on the pipeline")
-    @argument('--pipeline_name', type=str, default="", help="Name of the pipeline")
+    @argument('--pipeline_name', type=str, default=None, help="Name of the pipeline")
     @argument('--pipelines_dir', type=str, default=None,  help="Directory of the pipeline")
     @argument('--verbosity', type=int, default=0,  help="Verbosity level")
     @line_magic
@@ -182,7 +212,8 @@ class DltMagics(Magics):
         A DLT line magic command for pipeline operations.
         """
         args = parse_argstring(self.pipeline, line)
-        fmt.echo("What is the pipelines dir? " + str(args.pipeline_name))
+        if args.operation == 'list-pipelines':
+            args.operation = 'list'
         try:
             from dlt.cli._dlt import pipeline_command_wrapper, DLT_PIPELINE_COMMAND_DOCS_URL
             pipeline_command_wrapper(
@@ -213,7 +244,7 @@ class DltMagics(Magics):
                 format_=args.format,
                 remove_defaults=args.remove_defaults
             )
-            return self.display(self.success_message({"green-bold": "DLT schema created."}))
+            return self.display(self.success_message({"green-bold": "DLT schema magic ran successfully."}))
         except Exception as ex:
             self.on_exception(ex, "Schema Documentation URL")  # Replace with actual URL
             return -1
@@ -226,20 +257,6 @@ class DltMagics(Magics):
         from dlt.version import __version__
         return f"{self.__class__.__name__} version: {__version__}"
 
-    @magic_arguments()
-    @argument("--line", "-s", type=str, help="String to reverse.")
-    @register_line_magic
-    @line_magic
-    def reverse(self, line=None):
-        """
-        A simple IPython line magic command that reverses the input string.
-        """
-        # parser = ArgumentParser()
-        # parser.add_argument("--line", "-s", type=str, help="Start date to render.")
-        #
-        # # Parse the arguments
-        # args = parser.parse_args(line.split())
-        return line[::-1]
 
 def register_magics() -> None:
     from dlt.cli import echo as fmt
@@ -249,8 +266,8 @@ def register_magics() -> None:
         shell = get_ipython()  # type: ignore
         shell.register_magics(DltMagics)
 
-        line_magics = shell.magics_manager.magics['line']
-        fmt.echo("Registered Line Magics:" + str(line_magics))
+        # line_magics = shell.magics_manager.magics['line']
+        # fmt.echo("Registered Line Magics:" + str(line_magics))
     except NameError:
         pass
 
