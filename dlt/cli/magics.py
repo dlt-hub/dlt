@@ -7,15 +7,15 @@ from argparse import ArgumentParser
 # from .pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
 # from dlt.cli.init_command import init_command
 
-from IPython.core.display import HTML, display
+from IPython.core.display import HTML, display # type: ignore
 from IPython.core.magic import (
-    Magics,
-    cell_magic,
-    line_cell_magic,
-    line_magic,
-    magics_class, register_line_magic,
+    Magics, # type: ignore
+    cell_magic, # type: ignore
+    line_cell_magic, # type: ignore
+    line_magic, # type: ignore
+    magics_class, register_line_magic, # type: ignore
 )
-from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
+from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring # type: ignore
 
 
 from ..common.runtime.exec_info import is_notebook, is_ipython
@@ -66,7 +66,7 @@ class DltMagics(Magics):
         )
         return HTML(msg)
 
-    def on_exception(self, ex: str, info: str) -> str:
+    def on_exception(self, ex: str, info: str) -> t.Any:
         msg = str(
             h(
                 "div",
