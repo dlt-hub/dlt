@@ -169,7 +169,7 @@ class DltMagics(Magics):
         try:
             from dlt.cli._dlt import deploy_command_wrapper
             from dlt.cli.deploy_command import PipelineWasNotRun, DLT_DEPLOY_DOCS_URL, DeploymentMethods, COMMAND_DEPLOY_REPO_LOCATION, SecretFormats
-            def words_to_cron(description):
+            def words_to_cron(description: str)->str:
                 mapping = {
                     "5 minutes": "*/5 * * * *",
                     "15 minutes": "*/15 * * * *",
