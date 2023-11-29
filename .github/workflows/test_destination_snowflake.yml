@@ -26,6 +26,7 @@ env:
 
   ACTIVE_DESTINATIONS: "[\"snowflake\"]"
   ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
+  RUNTIME__DLTHUB_DSN: ${{ secrets.DLTHUB_DSN }}
 
 jobs:
   get_docs_changes:
