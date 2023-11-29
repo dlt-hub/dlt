@@ -268,7 +268,6 @@ def register_magics() -> None:
     from dlt.cli import echo as fmt
 
     try:
-        fmt.echo("got here2")
         shell = get_ipython()  # type: ignore
         shell.register_magics(DltMagics)
 
