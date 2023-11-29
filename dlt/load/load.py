@@ -462,7 +462,11 @@ class Load(Runnable[Executor]):
                 )
 
                 # init staging client
-                if self.staging_destination and isinstance(job_client, SupportsStagingDestination):
+                if self.staging_destination:
+                    assert isinstance(job_client, SupportsStagingDestination), (
+                        f"Job client for destination {self.destination.destination_type} does not"
+                        " implement SupportsStagingDestination"
+                    )
                     with self.get_staging_destination_client(schema) as staging_client:
                         self._init_client(
                             staging_client,
@@ -574,12 +578,12 @@ class Load(Runnable[Executor]):
 
         return LoadInfo(
             pipeline,
-            self.initial_client_config.destination_type,
+            Destination.normalize_type(self.initial_client_config.destination_type),
             str(self.initial_client_config),
             self.initial_client_config.destination_name,
             self.initial_client_config.environment,
             (
-                self.initial_staging_client_config.destination_type
+                Destination.normalize_type(self.initial_staging_client_config.destination_type)
                 if self.initial_staging_client_config
                 else None
             ),

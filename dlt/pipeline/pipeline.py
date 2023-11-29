@@ -304,12 +304,11 @@ class Pipeline(SupportsPipeline):
         self._init_working_dir(pipeline_name, pipelines_dir)
 
         with self.managed_state() as state:
-            # set the pipeline properties from state
-            self._state_to_props(state)
-
-            # we overwrite the state with the values from init
             # changing the destination could be dangerous if pipeline has pending load packages
             self._set_destinations(destination=destination, staging=staging)
+            # set the pipeline properties from state, destination and staging will not be set
+            self._state_to_props(state)
+            # we overwrite the state with the values from init
             self._set_dataset_name(dataset_name)
             self.credentials = credentials
             self._configure(import_schema_path, export_schema_path, must_attach_to_local_pipeline)
@@ -1239,13 +1238,12 @@ class Pipeline(SupportsPipeline):
             staging_name = "filesystem"
 
         if staging:
-            # staging_module = DestinationReference.from_name(staging)
             staging_module = Destination.from_reference(staging, destination_name=staging_name)
             if staging_module and not issubclass(
                 staging_module.spec, DestinationClientStagingConfiguration
             ):
                 raise DestinationNoStagingMode(staging_module.destination_name)
-            self.staging = staging_module or self.staging
+            self.staging = staging_module
 
         with self._maybe_destination_capabilities():
             # default normalizers must match the destination
@@ -1426,7 +1424,7 @@ class Pipeline(SupportsPipeline):
                 else:
                     state = None
                     logger.info(
-                        "Destination does not support metadata storage"
+                        "Destination does not support restoring of pipeline state"
                         f" {self.destination.destination_description}:{dataset_name}"
                     )
             return state
@@ -1446,7 +1444,7 @@ class Pipeline(SupportsPipeline):
                 with self._get_destination_clients(schema)[0] as job_client:
                     if not isinstance(job_client, WithStateSync):
                         logger.info(
-                            "Destination does not support metadata storage"
+                            "Destination does not support restoring of pipeline state"
                             f" {self.destination.destination_name}"
                         )
                         return restored_schemas
@@ -1515,12 +1513,31 @@ class Pipeline(SupportsPipeline):
         for prop in Pipeline.LOCAL_STATE_PROPS:
             if prop in state["_local"] and not prop.startswith("_"):
                 setattr(self, prop, state["_local"][prop])  # type: ignore
-        self._set_destinations(
-            destination=state.get("destination_type"),
-            destination_name=state.get("destination_name"),
-            staging=state.get("staging_type"),
-            staging_name=state.get("staging_name"),
-        )
+        # staging and destination are taken from state only if not yet set in the pipeline
+        if not self.destination:
+            self._set_destinations(
+                destination=state.get("destination_type"),
+                destination_name=state.get("destination_name"),
+                staging=state.get("staging_type"),
+                staging_name=state.get("staging_name"),
+            )
+        else:
+            # issue warnings that state destination/staging got ignored
+            state_destination = state.get("destination_type")
+            if state_destination:
+                if self.destination.destination_type != state_destination:
+                    logger.warning(
+                        f"The destination {state_destination}:{state.get('destination_name')} in"
+                        " state differs from destination"
+                        f" {self.destination.destination_type}:{self.destination.destination_name} in"
+                        " pipeline and will be ignored"
+                    )
+                    state_staging = state.get("staging_type")
+                    if state_staging:
+                        logger.warning(
+                            "The state staging destination"
+                            f" {state_staging}:{state.get('staging_name')} is ignored"
+                        )
 
     def _props_to_state(self, state: TPipelineState) -> None:
         """Write pipeline props to `state`"""

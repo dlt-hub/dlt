@@ -11,6 +11,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJob,
     NewLoadJob,
+    SupportsStagingDestination,
     TLoadJobState,
     LoadJob,
     JobClientBase,
@@ -81,7 +82,7 @@ class LoadDummyJob(LoadJob, FollowupJob):
 JOBS: Dict[str, LoadDummyJob] = {}
 
 
-class DummyClient(JobClientBase):
+class DummyClient(JobClientBase, SupportsStagingDestination):
     """dummy client storing jobs in memory"""
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()

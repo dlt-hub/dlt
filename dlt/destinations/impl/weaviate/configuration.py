@@ -25,8 +25,8 @@ class WeaviateCredentials(CredentialsConfiguration):
 @configspec
 class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     destination_type: Final[str] = "weaviate"  # type: ignore
-    # make it optional do empty dataset is allowed
-    dataset_name: Optional[str] = None
+    # make it optional so empty dataset is allowed
+    dataset_name: Final[Optional[str]] = None  # type: ignore[misc]
 
     batch_size: int = 100
     batch_workers: int = 1

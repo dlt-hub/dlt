@@ -515,13 +515,31 @@ def test_migrate_state(test_storage: FileStorage) -> None:
     assert p.default_schema_name == "example_source"
 
     # specifically check destination v2 to v3 migration
-    state_v2 = {"destination": "redshift", "staging": "filesystem", "_state_engine_version": 2}
+    state_v2 = {
+        "destination": "dlt.destinations.redshift",
+        "staging": "dlt.destinations.filesystem",
+        "_state_engine_version": 2,
+    }
     migrate_state(
         "test_pipeline", state_v2, state_v2["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
     )
     assert state_v2["destination_name"] == "redshift"
-    assert state_v2["destination_type"] == "redshift"
+    assert state_v2["destination_type"] == "dlt.destinations.redshift"
     assert "destination" not in state_v2
     assert state_v2["staging_name"] == "filesystem"
-    assert state_v2["staging_type"] == "filesystem"
+    assert state_v2["staging_type"] == "dlt.destinations.filesystem"
     assert "staging" not in state_v2
+
+    state_v2 = {"destination": None, "staging": None, "_state_engine_version": 2}
+    migrate_state(
+        "test_pipeline", state_v2, state_v2["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
+    )
+    assert state_v2["destination_name"] is None
+    assert state_v2["staging_name"] is None
+
+    state_v2 = {"_state_engine_version": 2}
+    migrate_state(
+        "test_pipeline", state_v2, state_v2["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
+    )
+    assert state_v2["destination_name"] is None
+    assert state_v2["staging_name"] is None

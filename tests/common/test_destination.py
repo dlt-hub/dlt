@@ -22,6 +22,16 @@ def test_invalid_destination_reference() -> None:
         Destination.from_reference("tests.load.cases.fake_destination.not_a_destination")
 
 
+def test_custom_destination_module() -> None:
+    destination = Destination.from_reference(
+        "tests.common.cases.destinations.null", destination_name="null-test"
+    )
+    assert destination.destination_name == "null-test"
+    assert (
+        destination.destination_type == "tests.common.cases.destinations.null.null"
+    )  # a full type name
+
+
 def test_import_module_by_path() -> None:
     # importing works directly from dlt destinations
     dest = Destination.from_reference("dlt.destinations.postgres")

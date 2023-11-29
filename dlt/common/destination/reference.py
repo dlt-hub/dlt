@@ -104,7 +104,7 @@ class DestinationClientConfiguration(BaseConfiguration):
 class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """Configuration of a destination that supports datasets/schemas"""
 
-    dataset_name: str = None
+    dataset_name: Final[str] = None  # dataset must be final so it is not configurable
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
     default_schema_name: Optional[str] = None
     """name of default schema to be used to name effective dataset to load data to"""
@@ -451,16 +451,13 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     @property
     def destination_name(self) -> str:
-        """The destination name will either be explicitely set while creating the destination or will be taken from the type"""
+        """The destination name will either be explicitly set while creating the destination or will be taken from the type"""
         return self.config_params.get("destination_name") or self.to_name(self.destination_type)
 
     @property
     def destination_type(self) -> str:
         full_path = self.__class__.__module__ + "." + self.__class__.__qualname__
-        # the next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>
-        name = self.to_name(full_path)
-        full_path = full_path.replace(f"dlt.destinations.impl.{name}.factory.", "dlt.destinations.")
-        return full_path
+        return Destination.normalize_type(full_path)
 
     @property
     def destination_description(self) -> str:
@@ -491,6 +488,18 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         return ref.destination_name
 
     @staticmethod
+    def normalize_type(destination_type: str) -> str:
+        """Normalizes destination type string into a canonical form. Assumes that type names without dots correspond to build in destinations."""
+        if "." not in destination_type:
+            destination_type = "dlt.destinations." + destination_type
+        # the next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>
+        name = Destination.to_name(destination_type)
+        destination_type = destination_type.replace(
+            f"dlt.destinations.impl.{name}.factory.", "dlt.destinations."
+        )
+        return destination_type
+
+    @staticmethod
     def from_reference(
         ref: TDestinationReferenceArg,
         credentials: Optional[CredentialsConfiguration] = None,
@@ -516,13 +525,8 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         if not isinstance(ref, str):
             raise InvalidDestinationReference(ref)
         try:
-            if "." in ref:
-                module_path, attr_name = ref.rsplit(".", 1)
-                dest_module = import_module(module_path)
-            else:
-                from dlt import destinations as dest_module
-
-                attr_name = ref
+            module_path, attr_name = Destination.normalize_type(ref).rsplit(".", 1)
+            dest_module = import_module(module_path)
         except ModuleNotFoundError as e:
             raise UnknownDestinationModule(ref) from e
 
