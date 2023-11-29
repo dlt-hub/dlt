@@ -255,6 +255,7 @@ const sidebars = {
         require("./docs/api_reference/sidebar.json"),
         'reference/installation',
         'reference/command-line-interface',
+        'reference/notebook-magic',
         'reference/telemetry',
         'general-usage/glossary',
       ],

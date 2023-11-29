@@ -171,10 +171,10 @@ class DltMagics(Magics):
             self.on_exception(ex, DLT_DEPLOY_DOCS_URL)
             return -1
     @magic_arguments()
-    @argument('--operation', type=str, help="Operation to perform on the pipeline")
-    @argument('--pipeline_name', type=str, help="Name of the pipeline")
-    @argument('--pipelines_dir', type=str, help="Directory of the pipeline")
-    @argument('--verbosity', type=str, help="Verbosity level")
+    @argument('--operation', type=str,default=None,  help="Operation to perform on the pipeline")
+    @argument('--pipeline_name', type=str, default="", help="Name of the pipeline")
+    @argument('--pipelines_dir', type=str, default=None,  help="Directory of the pipeline")
+    @argument('--verbosity', type=int, default=0,  help="Verbosity level")
     @line_magic
     @register_line_magic
     def pipeline(self, line):
@@ -182,16 +182,16 @@ class DltMagics(Magics):
         A DLT line magic command for pipeline operations.
         """
         args = parse_argstring(self.pipeline, line)
+        fmt.echo("What is the pipelines dir? " + str(args.pipeline_name))
         try:
             from dlt.cli._dlt import pipeline_command_wrapper, DLT_PIPELINE_COMMAND_DOCS_URL
             pipeline_command_wrapper(
                 operation=args.operation,
                 pipeline_name=args.pipeline_name,
-                pipelines_dir=args.pipeline_dir,
+                pipelines_dir=args.pipelines_dir,
                 verbosity=args.verbosity
 
             )
-            return self.display(self.success_message({"green-bold": "DLT pipeline created."}))
         except Exception as ex:
             self.on_exception(ex, DLT_PIPELINE_COMMAND_DOCS_URL)
             return -2
