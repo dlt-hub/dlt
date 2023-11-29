@@ -167,7 +167,7 @@ class LoadInfo(NamedTuple):
             failed_jobs = load_package.jobs["failed_jobs"]
             if len(failed_jobs):
                 raise DestinationHasFailedJobs(
-                    self.destination_type, load_package.load_id, failed_jobs
+                    self.destination_name, load_package.load_id, failed_jobs
                 )
 
     def __str__(self) -> str:
