@@ -45,6 +45,7 @@ from dlt.destinations.qdrant import qdrant_adapter
 from qdrant_client import QdrantClient
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 from dlt.common.configuration.inject import with_config
 
 # function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
@@ -59,6 +60,24 @@ def zendesk_support(
 
 =======
 # function source: https://dlthub.com/docs/examples/incremental_loading/#loading-code
+=======
+from dlt.common.configuration.inject import with_config
+
+# helper function to fix the datetime format
+def _parse_date_or_none(value: Optional[str]) -> Optional[pendulum.DateTime]:
+    if not value:
+        return None
+    return ensure_pendulum_datetime(value)
+
+# modify dates to return datetime objects instead
+def _fix_date(ticket):
+    ticket["updated_at"] = _parse_date_or_none(ticket["updated_at"])
+    ticket["created_at"] = _parse_date_or_none(ticket["created_at"])
+    ticket["due_at"] = _parse_date_or_none(ticket["due_at"])
+    return ticket
+
+# function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
+>>>>>>> 96641692 (fixed code and qdrant creds)
 @dlt.source(max_table_nesting=2)
 def zendesk_support(
     credentials: Dict[str, str] = dlt.secrets.value,
@@ -169,38 +188,47 @@ if __name__ == "__main__":
     subdomain = credentials["subdomain"]
     url = f"https://{subdomain}.zendesk.com"
 
-    # we use `append` write disposition, because objects in ticket_events endpoint are never updated
+    # we use `append` write disposition, because objects in tickets_data endpoint are never updated
     #  so we do not need to merge
     # we set primary_key so allow deduplication of events by the `incremental` below in the rare case
     #  when two events have the same timestamp
     @dlt.resource(primary_key="id", write_disposition="append")
-    def ticket_events(
-        timestamp: dlt.sources.incremental[int] = dlt.sources.incremental(
-            "timestamp",
-            initial_value=start_date_ts,
-            end_value=end_date_ts,
+    def tickets_data(
+        updated_at: dlt.sources.incremental[
+            pendulum.DateTime
+        ] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=start_date_obj,
+            end_value=end_date_obj,
             allow_external_schedulers=True,
-        ),
+        )
     ):
         # URL For ticket events
-        # 'https://d3v-dlthub.zendesk.com/api/v2/incremental/ticket_events.json?start_time=946684800'
+        # 'https://d3v-dlthub.zendesk.com/api/v2/incremental/tickets_data.json?start_time=946684800'
         event_pages = get_pages(
             url=url,
-            endpoint="/api/v2/incremental/ticket_events.json",
+            endpoint="/api/v2/incremental/tickets",
             auth=auth,
+<<<<<<< HEAD
             data_point_name="ticket_events",
             params={"start_time": timestamp.last_value},
 >>>>>>> 038dd4f7 (code to be fixed to work for zendesk source)
+=======
+            data_point_name="tickets",
+            params={"start_time": updated_at.last_value.int_timestamp},
+>>>>>>> 96641692 (fixed code and qdrant creds)
         )
         for page in event_pages:
-            yield page
+            yield ([_fix_date(ticket) for ticket in page])
+
             # stop loading when using end_value and end is reached.
             # unfortunately, Zendesk API does not have the "end_time" parameter, so we stop iterating ourselves
-            if timestamp.end_out_of_range:
+            if updated_at.end_out_of_range:
                 return
 
-    return ticket_events
+    return tickets_data
 
+# function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
 def get_pages(
     url: str,
     endpoint: str,
@@ -276,7 +304,10 @@ print(load_info)
 ```py
 # running the Qdrant client to connect to your Qdrant database
 <<<<<<< HEAD
+<<<<<<< HEAD
 
+=======
+>>>>>>> 96641692 (fixed code and qdrant creds)
 @with_config(sections=("destination", "credentials"))
 def get_qdrant_client(location=dlt.secrets.value, api_key=dlt.secrets.value):
     return QdrantClient(
@@ -286,12 +317,15 @@ def get_qdrant_client(location=dlt.secrets.value, api_key=dlt.secrets.value):
 
 # running the Qdrant client to connect to your Qdrant database
 qdrant_client = get_qdrant_client()
+<<<<<<< HEAD
 =======
 qdrant_client = QdrantClient(
     url="https://your-qdrant-url",
     api_key="your-qdrant-api-key",
 )
 >>>>>>> 038dd4f7 (code to be fixed to work for zendesk source)
+=======
+>>>>>>> 96641692 (fixed code and qdrant creds)
 
 # view Qdrant collections you'll find your dataset here:
 print(qdrant_client.get_collections())
@@ -301,6 +335,7 @@ print(qdrant_client.get_collections())
 <!--@@@DLT_SNIPPET_START ./code/qdrant-snippets.py::get_response-->
 ```py
 <<<<<<< HEAD
+<<<<<<< HEAD
 # query Qdrant with prompt: getting tickets info close to "cancellation"
 response = qdrant_client.query(
     "zendesk_data_content",  # collection/dataset name with the 'content' suffix -> tickets content table
@@ -309,6 +344,11 @@ response = qdrant_client.query(
 response = qdrant_client.query(
     "zendesk_data_tickets",  # collection/dataset name with the 'tickets' suffix -> tickets table
 >>>>>>> 038dd4f7 (code to be fixed to work for zendesk source)
+=======
+# query Qdrant with prompt: getting tickets info close to "cancellation"
+response = qdrant_client.query(
+    "zendesk_data_content",  # collection/dataset name with the 'content' suffix -> tickets content table
+>>>>>>> 96641692 (fixed code and qdrant creds)
     query_text=["cancel", "cancel subscription"],  # prompt to search
     limit=3  # limit the number of results to the nearest 3 embeddings
 )
