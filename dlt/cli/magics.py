@@ -9,12 +9,12 @@ from argparse import ArgumentParser
 
 from IPython.core.display import HTML, display # type: ignore
 from IPython.core.magic import (
-    Magics, # type: ignore
-    cell_magic, # type: ignore
-    line_cell_magic, # type: ignore
-    line_magic, # type: ignore
-    magics_class, register_line_magic, # type: ignore
-)
+    Magics,
+    cell_magic,
+    line_cell_magic,
+    line_magic,
+    magics_class, register_line_magic,
+) # type: ignore
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring # type: ignore
 
 
@@ -22,8 +22,8 @@ from ..common.runtime.exec_info import is_notebook, is_ipython
 from dlt.cli import echo as fmt
 
 
-import typing as t
-from hyperscript import h
+import typing as t  # type: ignore
+from hyperscript import h  # type: ignore
 import os
 import traceback
 
@@ -41,7 +41,7 @@ DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
 class DltMagics(Magics):
 
     @property
-    def display(self) -> t.Callable[..., t.Any]:
+    def display(self) ->  t.Any:
         if os.getenv("DATABRICKS_RUNTIME_VERSION"):
             # Assume Databricks' 'display' is a callable with an unknown signature
             databricks_display = self._shell.user_ns.get("display")
@@ -117,7 +117,7 @@ class DltMagics(Magics):
                 DEBUG_FLAG = True
             return "Settings updated"
         except:
-            pass
+            return "Settings update failed"
 
 
     @magic_arguments()
