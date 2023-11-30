@@ -540,16 +540,33 @@ def test_migrate_state(test_storage: FileStorage) -> None:
     assert state_v3["staging_type"] == "dlt.destinations.filesystem"
     assert "staging" not in state_v3
 
+    state_v3 = {
+        "destination": "dlt.destinations.redshift",
+        "_state_engine_version": 3,
+    }
+    migrate_state(
+        "test_pipeline", state_v3, state_v3["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
+    )
+    assert state_v3["destination_name"] == "redshift"
+    assert state_v3["destination_type"] == "dlt.destinations.redshift"
+    assert "destination" not in state_v3
+    assert "staging_name" not in state_v3
+    assert "staging_type" not in state_v3
+
     state_v3 = {"destination": None, "staging": None, "_state_engine_version": 3}
     migrate_state(
         "test_pipeline", state_v3, state_v3["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
     )
-    assert state_v3["destination_name"] is None
-    assert state_v3["staging_name"] is None
+    assert "destination_name" not in state_v3
+    assert "destination_type" not in state_v3
+    assert "staging_name" not in state_v3
+    assert "staging_type" not in state_v3
 
     state_v3 = {"_state_engine_version": 2}
     migrate_state(
         "test_pipeline", state_v3, state_v3["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
     )
-    assert state_v3["destination_name"] is None
-    assert state_v3["staging_name"] is None
+    assert "destination_name" not in state_v3
+    assert "destination_type" not in state_v3
+    assert "staging_name" not in state_v3
+    assert "staging_type" not in state_v3

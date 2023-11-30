@@ -1,3 +1,4 @@
+import os
 import pytest
 import posixpath
 
@@ -12,7 +13,7 @@ from tests.utils import TEST_STORAGE_ROOT
 
 
 def test_default_name_to_type() -> None:
-    duck = duckdb(credentials="quack.duckdb")
+    duck = duckdb(credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"))
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duck)
     load_info = p.run([1, 2, 3], table_name="table", dataset_name="dataset")
 
@@ -24,7 +25,11 @@ def test_default_name_to_type() -> None:
 
 
 def test_set_name_and_environment() -> None:
-    duck = duckdb(credentials="quack.duckdb", destination_name="duck1", environment="production")
+    duck = duckdb(
+        credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"),
+        destination_name="duck1",
+        environment="production",
+    )
     p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duck)
     assert (
         p.destination.destination_type == "dlt.destinations.duckdb" == p.state["destination_type"]
@@ -120,36 +125,40 @@ def test_preserve_destination_instance() -> None:
 
 def test_config_respects_dataset_name(environment: DictStrStr) -> None:
     environment["DESTINATION__ENVIRONMENT"] = "devel"
-    environment["DESTINATION__DATASET_NAME"] = "devel_dataset"
+    environment["QUACK_PIPELINE_DEVEL__DATASET_NAME"] = "devel_dataset"
 
     environment["DESTINATION__DUCK1__ENVIRONMENT"] = "staging"
-    environment["DESTINATION__DUCK1__DATASET_NAME"] = "staging_dataset"
+    environment["QUACK_PIPELINE_STAGING__DATASET_NAME"] = "staging_dataset"
 
     environment["DESTINATION__DUCK2__ENVIRONMENT"] = "production"
-    environment["DESTINATION__DUCK2__DATASET_NAME"] = "production_dataset"
+    environment["QUACK_PIPELINE_PRODUCTION__DATASET_NAME"] = "production_dataset"
 
     # default will pick from global destination settings
-    duck = duckdb(credentials="quack.duckdb")
-    p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duck)
-    load_info = p.run([1, 2, 3], table_name="table", dataset_name="dataset")
+    duck = duckdb(credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"))
+    p = dlt.pipeline(pipeline_name="quack_pipeline_devel", destination=duck)
+    load_info = p.run([1, 2, 3], table_name="table")
     with p.destination_client() as client:
         assert client.config.environment == "devel"
         assert client.config.dataset_name == "devel_dataset"  # type: ignore
     assert load_info.environment == "devel"
 
     # duck1 will be staging
-    duck = duckdb(credentials="quack.duckdb", destination_name="duck1")
-    p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duck)
-    load_info = p.run([1, 2, 3], table_name="table", dataset_name="dataset")
+    duck = duckdb(
+        credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"), destination_name="duck1"
+    )
+    p = dlt.pipeline(pipeline_name="quack_pipeline_staging", destination=duck)
+    load_info = p.run([1, 2, 3], table_name="table")
     with p.destination_client() as client:
         assert client.config.environment == "staging"
         assert client.config.dataset_name == "staging_dataset"  # type: ignore
     assert load_info.environment == "staging"
 
     # duck2 will be production
-    duck = duckdb(credentials="quack.duckdb", destination_name="duck2")
-    p = dlt.pipeline(pipeline_name="quack_pipeline", destination=duck)
-    load_info = p.run([1, 2, 3], table_name="table", dataset_name="dataset")
+    duck = duckdb(
+        credentials=os.path.join(TEST_STORAGE_ROOT, "quack.duckdb"), destination_name="duck2"
+    )
+    p = dlt.pipeline(pipeline_name="quack_pipeline_production", destination=duck)
+    load_info = p.run([1, 2, 3], table_name="table")
     with p.destination_client() as client:
         assert client.config.environment == "production"
         assert client.config.dataset_name == "production_dataset"  # type: ignore
@@ -188,8 +197,8 @@ def test_pipeline_config(environment: DictStrStr) -> None:
 
 
 def test_destination_config_in_name(environment: DictStrStr) -> None:
-    environment["DESTINATION_TYPE"] = "redshift"
-    environment["DESTINATION_NAME"] = "redshift-prod"
+    environment["DESTINATION_TYPE"] = "filesystem"
+    environment["DESTINATION_NAME"] = "filesystem-prod"
 
     p = dlt.pipeline(pipeline_name="p_" + uniq_id())
 
@@ -197,7 +206,7 @@ def test_destination_config_in_name(environment: DictStrStr) -> None:
     with pytest.raises(ConfigFieldMissingException):
         p.destination_client()
 
-    environment["DESTINATION__REDSHIFT-PROD__CREDENTIALS"] = (
-        "redshift://loader:loader@localhost:5432/dlt_data"
+    environment["DESTINATION__FILESYSTEM-PROD__BUCKET_URL"] = "file://" + posixpath.abspath(
+        TEST_STORAGE_ROOT
     )
-    p.destination_client()
+    assert p.destination_client().fs_path.endswith(TEST_STORAGE_ROOT)  # type: ignore[attr-defined]

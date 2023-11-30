@@ -2,12 +2,12 @@ import base64
 import binascii
 from copy import copy
 import hashlib
-from typing import Any, Optional, Tuple, cast
+from typing import Tuple, cast
 import pendulum
 
 import dlt
 from dlt.common import json
-from dlt.common.pipeline import TPipelineLocalState, TPipelineState
+from dlt.common.pipeline import TPipelineState
 from dlt.common.typing import DictStrAny
 from dlt.common.schema.typing import STATE_TABLE_NAME, TTableSchemaColumns
 from dlt.common.destination.reference import WithStateSync, Destination
@@ -106,6 +106,7 @@ def load_state_from_destination(pipeline_name: str, client: WithStateSync) -> TP
     if not state:
         return None
     s = decompress_state(state.state)
+    print(f"BEFORE M {s}")
     return migrate_state(pipeline_name, s, s["_state_engine_version"], STATE_ENGINE_VERSION)
 
 
@@ -122,27 +123,20 @@ def migrate_state(
         state["_version_hash"] = generate_version_hash(state)  # type: ignore[arg-type]
         from_engine = 3
     if from_engine == 3 and to_engine > 3:
-        state["destination_type"] = state.get("destination", None)
-        state["destination_name"] = (
-            Destination.to_name(state.get("destination", None))
-            if state.get("destination", None)
-            else None
-        )
-        if "destination" in state:
+        if state.get("destination"):
+            state["destination_type"] = state["destination"]
+            state["destination_name"] = Destination.to_name(state["destination"])
             del state["destination"]
-        state["staging_type"] = state.get("staging", None)
-        state["staging_name"] = (
-            Destination.to_name(state.get("staging", None)) if state.get("staging", None) else None
-        )
-        if "staging" in state:
+        if state.get("staging"):
+            state["staging_type"] = state["staging"]
+            state["staging_name"] = Destination.to_name(state["staging"])
             del state["staging"]
         from_engine = 4
 
     # check state engine
-    state["_state_engine_version"] = from_engine
     if from_engine != to_engine:
         raise PipelineStateEngineNoUpgradePathException(
             pipeline_name, state["_state_engine_version"], from_engine, to_engine
         )
-
+    state["_state_engine_version"] = from_engine
     return cast(TPipelineState, state)

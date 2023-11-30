@@ -28,7 +28,6 @@ from dlt.common.configuration.specs.config_providers_context import ConfigProvid
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.utils import log_traces, deserialize_value
 from dlt.common.configuration.exceptions import (
-    FinalConfigFieldException,
     LookupTrace,
     ConfigFieldMissingException,
     ConfigurationWrongTypeException,
@@ -258,9 +257,9 @@ def _resolve_config_fields(
             unresolved_fields[key] = traces
         # set resolved value in config
         if default_value != current_value:
-            if is_final_type(hint):
-                raise FinalConfigFieldException(type(config).__name__, key)
-            setattr(config, key, current_value)
+            if not is_final_type(hint):
+                # ignore final types
+                setattr(config, key, current_value)
 
     # Check for dynamic hint resolvers which have no corresponding fields
     unmatched_hint_resolvers: List[str] = []
