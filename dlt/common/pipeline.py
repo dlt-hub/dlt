@@ -15,6 +15,7 @@ from typing import (
     TYPE_CHECKING,
     Tuple,
     TypedDict,
+    Mapping,
 )
 from typing_extensions import NotRequired
 
@@ -72,7 +73,7 @@ class NormalizeInfo(NamedTuple):
         """A dictionary representation of NormalizeInfo that can be loaded with `dlt`"""
         d = self._asdict()
         # list representation creates a nice table
-        d["row_counts"] = [(k, v) for k, v in self.row_counts.items()]
+        d["row_counts"] = [{"table_name": k, "count": v} for k, v in self.row_counts.items()]
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
@@ -178,7 +179,9 @@ class TPipelineLocalState(TypedDict, total=False):
     first_run: bool
     """Indicates a first run of the pipeline, where run ends with successful loading of data"""
     _last_extracted_at: datetime.datetime
-    """Timestamp indicating when the state was synced with the destination. Lack of timestamp means not synced state."""
+    """Timestamp indicating when the state was synced with the destination."""
+    _last_extracted_hash: str
+    """Hash of state that was recently synced with destination"""
 
 
 class TPipelineState(TypedDict, total=False):
@@ -197,6 +200,7 @@ class TPipelineState(TypedDict, total=False):
 
     # properties starting with _ are not automatically applied to pipeline object when state is restored
     _state_version: int
+    _version_hash: str
     _state_engine_version: int
     _local: TPipelineLocalState
     """A section of state that is not synchronized with the destination and does not participate in change merging and version control"""
@@ -231,6 +235,10 @@ class SupportsPipeline(Protocol):
     @property
     def state(self) -> TPipelineState:
         """Returns dictionary with pipeline state"""
+
+    @property
+    def schemas(self) -> Mapping[str, Schema]:
+        """Mapping of all pipeline schemas"""
 
     def set_local_state_val(self, key: str, value: Any) -> None:
         """Sets value in local state. Local state is not synchronized with destination."""

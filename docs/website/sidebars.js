@@ -106,7 +106,7 @@ const sidebars = {
         'general-usage/incremental-loading',
         'general-usage/full-loading',
         'general-usage/schema',
-        'general-usage/data-contracts',
+        'general-usage/schema-contracts',
         {
           type: 'category',
           label: 'Configuration',
@@ -267,5 +267,22 @@ const sidebars = {
     // }
   ]
 };
+
+// on the master branch link to devel and vice versa
+if (process.env.IS_MASTER_BRANCH) {
+  sidebars.tutorialSidebar.push(    {
+    type: 'link',
+    label: 'Switch to Devel Docs',
+    href: 'https://dlthub.com/devel/intro',
+    className: 'learn-more-link',
+  })
+} else {
+  sidebars.tutorialSidebar.push(    {
+    type: 'link',
+    label: 'Switch to Stable Docs',
+    href: 'https://dlthub.com/docs/intro',
+    className: 'learn-more-link',
+  })
+}
 
 module.exports = sidebars;

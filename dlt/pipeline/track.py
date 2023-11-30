@@ -79,7 +79,11 @@ def on_start_trace_step(
 
 
 def on_end_trace_step(
-    trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any
+    trace: PipelineTrace,
+    step: PipelineStepTrace,
+    pipeline: SupportsPipeline,
+    step_info: Any,
+    send_state: bool,
 ) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"---END SENTRY SPAN {trace.transaction_id}:{step.span_id}: {step} SCOPE: {Hub.current.scope}")
@@ -111,7 +115,7 @@ def on_end_trace_step(
     dlthub_telemetry_track("pipeline", step.step, props)
 
 
-def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline) -> None:
+def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"---END SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}")
         with contextlib.suppress(Exception):

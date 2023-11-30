@@ -8,6 +8,7 @@ import humanize
 
 from dlt.common import pendulum
 from dlt.common.runtime.logger import suppress_and_warn
+from dlt.common.runtime.exec_info import TExecutionContext, get_execution_context
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.utils import _RESOLVED_TRACES
 from dlt.common.pipeline import (
@@ -102,6 +103,8 @@ class PipelineTrace:
     """Pipeline runtime trace containing data on "extract", "normalize" and "load" steps and resolved config and secret values."""
 
     transaction_id: str
+    pipeline_name: str
+    execution_context: TExecutionContext
     started_at: datetime.datetime
     steps: List[PipelineStepTrace]
     """A list of steps in the trace"""
@@ -135,6 +138,10 @@ class PipelineTrace:
             if step.step == step_name:
                 return step
         return None
+
+    def asdict(self) -> DictStrAny:
+        """A dictionary representation of PipelineTrace that can be loaded with `dlt`"""
+        return dataclasses.asdict(self)
 
     @property
     def last_extract_info(self) -> ExtractInfo:
@@ -176,20 +183,25 @@ class SupportsTracking(Protocol):
         step: PipelineStepTrace,
         pipeline: SupportsPipeline,
         step_info: Any,
+        send_state: bool,
     ) -> None: ...
 
-    def on_end_trace(self, trace: PipelineTrace, pipeline: SupportsPipeline) -> None: ...
+    def on_end_trace(
+        self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
+    ) -> None: ...
 
 
-# plug in your own tracking module here
-# TODO: that probably should be a list of modules / classes with all of them called
-TRACKING_MODULE: SupportsTracking = None
+# plug in your own tracking modules here
+TRACKING_MODULES: List[SupportsTracking] = None
 
 
 def start_trace(step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineTrace:
-    trace = PipelineTrace(uniq_id(), pendulum.now(), steps=[])
-    with suppress_and_warn():
-        TRACKING_MODULE.on_start_trace(trace, step, pipeline)
+    trace = PipelineTrace(
+        uniq_id(), pipeline.pipeline_name, get_execution_context(), pendulum.now(), steps=[]
+    )
+    for module in TRACKING_MODULES:
+        with suppress_and_warn():
+            module.on_start_trace(trace, step, pipeline)
     return trace
 
 
@@ -197,13 +209,18 @@ def start_trace_step(
     trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
 ) -> PipelineStepTrace:
     trace_step = PipelineStepTrace(uniq_id(), step, pendulum.now())
-    with suppress_and_warn():
-        TRACKING_MODULE.on_start_trace_step(trace, step, pipeline)
+    for module in TRACKING_MODULES:
+        with suppress_and_warn():
+            module.on_start_trace_step(trace, step, pipeline)
     return trace_step
 
 
 def end_trace_step(
-    trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any
+    trace: PipelineTrace,
+    step: PipelineStepTrace,
+    pipeline: SupportsPipeline,
+    step_info: Any,
+    send_state: bool,
 ) -> None:
     # saves runtime trace of the pipeline
     if isinstance(step_info, PipelineStepFailed):
@@ -237,16 +254,20 @@ def end_trace_step(
 
     trace.resolved_config_values = list(resolved_values)
     trace.steps.append(step)
-    with suppress_and_warn():
-        TRACKING_MODULE.on_end_trace_step(trace, step, pipeline, step_info)
+    for module in TRACKING_MODULES:
+        with suppress_and_warn():
+            module.on_end_trace_step(trace, step, pipeline, step_info, send_state)
 
 
-def end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, trace_path: str) -> None:
+def end_trace(
+    trace: PipelineTrace, pipeline: SupportsPipeline, trace_path: str, send_state: bool
+) -> None:
     trace.finished_at = pendulum.now()
     if trace_path:
         save_trace(trace_path, trace)
-    with suppress_and_warn():
-        TRACKING_MODULE.on_end_trace(trace, pipeline)
+    for module in TRACKING_MODULES:
+        with suppress_and_warn():
+            module.on_end_trace(trace, pipeline, send_state)
 
 
 def merge_traces(last_trace: PipelineTrace, new_trace: PipelineTrace) -> PipelineTrace:

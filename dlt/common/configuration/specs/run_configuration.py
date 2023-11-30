@@ -29,6 +29,8 @@ class RunConfiguration(BaseConfiguration):
     request_max_retry_delay: float = 300
     """Maximum delay between http request retries"""
     config_files_storage_path: str = "/run/config/"
+    """Platform connection"""
+    dlthub_dsn: Optional[TSecretStrValue] = None
 
     __section__ = "runtime"
 

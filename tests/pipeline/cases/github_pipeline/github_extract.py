@@ -15,5 +15,3 @@ if __name__ == "__main__":
         github_source.add_limit(limit)
     info = p.extract(github_source)
     print(info)
-    # normalize - don't load
-    p.normalize()

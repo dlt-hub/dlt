@@ -172,7 +172,7 @@ def test_default_validation(yield_list: bool) -> None:
     assert val_ex.table_name == "some_data"
     assert val_ex.column_name == "('items', 1, 'a')" if yield_list else "('a',)"
     assert val_ex.data_item == {"a": "not_int", "b": "x"}
-    assert val_ex.contract_entity == "data_type"
+    assert val_ex.schema_entity == "data_type"
 
     # fail in pipeline
     @dlt.resource(columns=SimpleModel)
@@ -191,7 +191,7 @@ def test_default_validation(yield_list: bool) -> None:
     assert isinstance(py_ex.value.__cause__.__cause__, DataValidationError)
     val_ex = py_ex.value.__cause__.__cause__
     assert val_ex.table_name == "some_data_extra"
-    assert val_ex.contract_entity == "data_type"  # extra field is the cause
+    assert val_ex.schema_entity == "data_type"  # extra field is the cause
     assert val_ex.data_item == {"a": "not_int", "b": "x"}
 
 

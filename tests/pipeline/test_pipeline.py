@@ -415,7 +415,7 @@ def test_restore_state_on_dummy() -> None:
     assert p.first_run is False
     # no effect
     p.sync_destination()
-    assert p.state["_state_version"] == 2
+    assert p.state["_state_version"] == 1
 
     # wipe out storage
     p._wipe_working_folder()
@@ -423,7 +423,7 @@ def test_restore_state_on_dummy() -> None:
     assert p.first_run is True
     p.sync_destination()
     assert p.first_run is True
-    assert p.state["_state_version"] == 1
+    assert p.state["_state_version"] == 0
 
 
 def test_first_run_flag() -> None:
@@ -440,7 +440,7 @@ def test_first_run_flag() -> None:
     # attach again
     p = dlt.attach(pipeline_name=pipeline_name)
     assert p.first_run is True
-    assert len(p.list_extracted_resources()) > 0
+    assert len(p.list_extracted_load_packages()) > 0
     p.normalize()
     assert len(p.list_normalized_load_packages()) > 0
     assert p.first_run is True
@@ -594,7 +594,7 @@ def test_run_with_table_name_exceeding_path_length() -> None:
 
     # we must fix that
     with pytest.raises(PipelineStepFailed) as sf_ex:
-        p.extract([1, 2, 3], table_name="TABLE_" + "a" * 230)
+        p.extract([1, 2, 3], table_name="TABLE_" + "a" * 267)
     assert isinstance(sf_ex.value.__context__, OSError)
 
 
@@ -1324,6 +1324,39 @@ def test_resource_state_name_not_normalized() -> None:
         state = load_state_from_destination(pipeline.pipeline_name, client)
         assert "airtable_emojis" in state["sources"]
         assert state["sources"]["airtable_emojis"]["resources"] == {"🦚Peacock": {"🦚🦚🦚": "🦚"}}
+
+
+def test_pipeline_list_packages() -> None:
+    pipeline = dlt.pipeline(pipeline_name="emojis", destination="dummy")
+    pipeline.extract(airtable_emojis())
+    load_ids = pipeline.list_extracted_load_packages()
+    assert len(load_ids) == 1
+    # two new packages: for emojis schema and emojis_2
+    pipeline.extract(
+        [airtable_emojis(), airtable_emojis(), airtable_emojis().clone(with_name="emojis_2")]
+    )
+    load_ids = pipeline.list_extracted_load_packages()
+    assert len(load_ids) == 3
+    extracted_package = pipeline.get_load_package_info(load_ids[0])
+    assert extracted_package.state == "extracted"
+    # same load id continues till the end
+    pipeline.normalize()
+    load_ids_n = pipeline.list_normalized_load_packages()
+    assert load_ids == load_ids_n
+    normalized_package = pipeline.get_load_package_info(load_ids[0])
+    # same number of new jobs
+    assert normalized_package.state == "normalized"
+    assert len(normalized_package.jobs["new_jobs"]) == len(extracted_package.jobs["new_jobs"])
+    # load all 3 packages and fail all jobs in them
+    os.environ["FAIL_PROB"] = "1.0"
+    pipeline.load()
+    load_ids_l = pipeline.list_completed_load_packages()
+    assert load_ids == load_ids_l
+    loaded_package = pipeline.get_load_package_info(load_ids[0])
+    assert len(loaded_package.jobs["failed_jobs"]) == len(extracted_package.jobs["new_jobs"])
+    assert loaded_package.state == "loaded"
+    failed_jobs = pipeline.list_failed_jobs_in_package(load_ids[0])
+    assert len(loaded_package.jobs["failed_jobs"]) == len(failed_jobs)
 
 
 def test_remove_pending_packages() -> None:

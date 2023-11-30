@@ -38,7 +38,7 @@
   --ifm-active-toc-link-color:#4C4898;
   --docsearch-highlight-color:#191937 !important;
   --docsearch-hit-color: #191937 !important;
-
+  --ifm-footer-background-color: #E4E8F0;
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
@@ -69,7 +69,7 @@
   --docsearch-hit-background: #191937 !important;
   --docsearch-hit-color: #ffffff !important;
   --ifm-color-primary-light:#f3ff36;
-
+  --ifm-footer-background-color: #191937;
 }
 
 body {
@@ -358,6 +358,21 @@ html[data-theme='dark'] .footer__item a:hover{
   display: none;
 }
 
+.version-navbar>svg {
+  display: none;
+}
+
+.switch-navbar>svg {
+  display: none;
+}
+
+.version-navbar {
+  pointer-events: none;
+  background: var(--ifm-color-primary-light);
+  border-radius: 16px;
+  color: var(--docsearch-text-color);
+  margin-right: 16px;
+}
 
 .github-navbar:hover,
 .slack-navbar:hover ,.navbar__items.navbar__items--right  .clean-btn:hover {
@@ -665,6 +680,24 @@ html[data-theme='dark'] .theme-doc-sidebar-menu.menu__list>li:nth-child(8)>div>[
   background-image: url(../../static/img/Reference-Active-1.svg);
 }
 
+/* Devel / Stable switch */
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>a svg {
+  display: none;
+}
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(9)>a {
+  flex: none;
+}
+
+.theme-doc-sidebar-menu.menu__list>li:nth-child(9) {
+  margin-top:30px;
+  padding-top: 10px;
+  justify-content: center;
+  border-top: 1px solid;
+  border-color: var(--ifm-footer-background-color);
+}
+
 
 /* responsive css :start */
 
@@ -741,7 +774,7 @@ html[data-theme='dark'] .overlayButton:hover {
   left:0px;
   top: 50%;
   transform: translateY(-50%);
-  background-color: var(--ifm-background-color); ;
+  background-color: var(--ifm-background-color);
   z-index: 1002;
   left: calc(50% - 350px);
   padding: 30px;

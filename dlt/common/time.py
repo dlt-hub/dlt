@@ -1,5 +1,5 @@
 import contextlib
-from typing import Any, Optional, Union, overload, TypeVar  # noqa
+from typing import Any, Optional, Union, overload, TypeVar, Callable  # noqa
 import datetime  # noqa: I251
 
 from dlt.common.pendulum import pendulum, timedelta
@@ -11,6 +11,18 @@ from pendulum.tz import UTC
 PAST_TIMESTAMP: float = 0.0
 FUTURE_TIMESTAMP: float = 9999999999.0
 DAY_DURATION_SEC: float = 24 * 60 * 60.0
+
+precise_time: Callable[[], float] = None
+"""A precise timer using win_precise_time library on windows and time.time on other systems"""
+
+try:
+    import win_precise_time as wpt
+
+    precise_time = wpt.time
+except ImportError:
+    from time import time as _built_in_time
+
+    precise_time = _built_in_time
 
 
 def timestamp_within(

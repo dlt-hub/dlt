@@ -174,7 +174,7 @@ def test_new_tables(
     )
     assert table_counts.get("new_items", 0) == (10 if contract_setting in ["evolve"] else 0)
     # delete extracted files if left after exception
-    pipeline._get_normalize_storage().delete_extracted_files(pipeline.list_extracted_resources())
+    pipeline.drop_pending_packages()
 
     # NOTE: arrow / pandas do not support variants and subtables so we must skip
     if item_format == "json":
@@ -226,7 +226,7 @@ def test_new_columns(
     with raises_frozen_exception(contract_setting == "freeze"):
         run_resource(pipeline, items_with_new_column, full_settings, item_format, duplicates=2)
     # delete extracted files if left after exception
-    pipeline._get_normalize_storage().delete_extracted_files(pipeline.list_extracted_resources())
+    pipeline.drop_pending_packages()
 
     if contract_setting == "evolve":
         assert NEW_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]

@@ -48,8 +48,8 @@ from dlt.common.schema.typing import (
     TSchemaContract,
 )
 from dlt.common.schema.utils import normalize_schema_name
-from dlt.common.storages.load_storage import LoadJobInfo, LoadPackageInfo
-from dlt.common.typing import TFun, TSecretValue, is_optional_type
+from dlt.common.storages.exceptions import LoadPackageNotFound
+from dlt.common.typing import DictStrStr, TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,
@@ -60,6 +60,9 @@ from dlt.common.storages import (
     NormalizeStorageConfiguration,
     SchemaStorageConfiguration,
     LoadStorageConfiguration,
+    PackageStorage,
+    LoadJobInfo,
+    LoadPackageInfo,
 )
 from dlt.common.destination import DestinationCapabilitiesContext, TDestination
 from dlt.common.destination.reference import (
@@ -87,6 +90,7 @@ from dlt.common.pipeline import (
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
 from dlt.common.data_writers import TLoaderFileFormat
+from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
 
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import SourceExhausted
@@ -122,14 +126,14 @@ from dlt.pipeline.trace import (
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import (
     STATE_ENGINE_VERSION,
+    bump_version_if_modified,
     load_state_from_destination,
-    merge_state_if_changed,
     migrate_state,
     state_resource,
     json_encode_state,
     json_decode_state,
 )
-from dlt.pipeline.deprecations import credentials_argument_deprecated
+from dlt.pipeline.warnings import credentials_argument_deprecated
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -167,51 +171,54 @@ def with_schemas_sync(f: TFun) -> TFun:
     return _wrap  # type: ignore
 
 
-def with_runtime_trace(f: TFun) -> TFun:
-    @wraps(f)
-    def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-        trace: PipelineTrace = self._trace
-        trace_step: PipelineStepTrace = None
-        step_info: Any = None
-        is_new_trace = self._trace is None and self.config.enable_runtime_trace
+def with_runtime_trace(send_state: bool = False) -> Callable[[TFun], TFun]:
+    def decorator(f: TFun) -> TFun:
+        @wraps(f)
+        def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
+            trace: PipelineTrace = self._trace
+            trace_step: PipelineStepTrace = None
+            step_info: Any = None
+            is_new_trace = self._trace is None and self.config.enable_runtime_trace
 
-        # create a new trace if we enter a traced function and there's no current trace
-        if is_new_trace:
-            self._trace = trace = start_trace(cast(TPipelineStep, f.__name__), self)
+            # create a new trace if we enter a traced function and there's no current trace
+            if is_new_trace:
+                self._trace = trace = start_trace(cast(TPipelineStep, f.__name__), self)
 
-        try:
-            # start a trace step for wrapped function
-            if trace:
-                trace_step = start_trace_step(trace, cast(TPipelineStep, f.__name__), self)
-
-            step_info = f(self, *args, **kwargs)
-            return step_info
-        except Exception as ex:
-            step_info = ex  # step info is an exception
-            raise
-        finally:
             try:
-                if trace_step:
-                    # if there was a step, finish it
-                    end_trace_step(self._trace, trace_step, self, step_info)
-                if is_new_trace:
-                    assert (
-                        trace is self._trace
-                    ), f"Messed up trace reference {id(self._trace)} vs {id(trace)}"
-                    end_trace(trace, self, self._pipeline_storage.storage_path)
-            finally:
-                # always end trace
-                if is_new_trace:
-                    assert (
-                        self._trace == trace
-                    ), f"Messed up trace reference {id(self._trace)} vs {id(trace)}"
-                    # if we end new trace that had only 1 step, add it to previous trace
-                    # this way we combine several separate calls to extract, normalize, load as single trace
-                    # the trace of "run" has many steps and will not be merged
-                    self._last_trace = merge_traces(self._last_trace, trace)
-                    self._trace = None
+                # start a trace step for wrapped function
+                if trace:
+                    trace_step = start_trace_step(trace, cast(TPipelineStep, f.__name__), self)
 
-    return _wrap  # type: ignore
+                step_info = f(self, *args, **kwargs)
+                return step_info
+            except Exception as ex:
+                step_info = ex  # step info is an exception
+                raise
+            finally:
+                try:
+                    if trace_step:
+                        # if there was a step, finish it
+                        end_trace_step(self._trace, trace_step, self, step_info, send_state)
+                    if is_new_trace:
+                        assert (
+                            trace is self._trace
+                        ), f"Messed up trace reference {id(self._trace)} vs {id(trace)}"
+                        end_trace(trace, self, self._pipeline_storage.storage_path, send_state)
+                finally:
+                    # always end trace
+                    if is_new_trace:
+                        assert (
+                            self._trace == trace
+                        ), f"Messed up trace reference {id(self._trace)} vs {id(trace)}"
+                        # if we end new trace that had only 1 step, add it to previous trace
+                        # this way we combine several separate calls to extract, normalize, load as single trace
+                        # the trace of "run" has many steps and will not be merged
+                        self._last_trace = merge_traces(self._last_trace, trace)
+                        self._trace = None
+
+        return _wrap  # type: ignore
+
+    return decorator
 
 
 def with_config_section(sections: Tuple[str, ...]) -> Callable[[TFun], TFun]:
@@ -335,7 +342,7 @@ class Pipeline(SupportsPipeline):
             self.runtime_config,
         )
 
-    @with_runtime_trace
+    @with_runtime_trace()
     @with_schemas_sync  # this must precede with_state_sync
     @with_state_sync(may_extract_state=True)
     @with_config_section((known_sections.EXTRACT,))
@@ -356,7 +363,7 @@ class Pipeline(SupportsPipeline):
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         # create extract storage to which all the sources will be extracted
         storage = ExtractorStorage(self._normalize_storage_config)
-        extract_ids: List[str] = []
+        load_ids: DictStrStr = {}
         try:
             with self._maybe_destination_capabilities():
                 # extract all sources
@@ -373,14 +380,25 @@ class Pipeline(SupportsPipeline):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
                     # TODO: merge infos for all the sources
-                    extract_ids.append(
-                        self._extract_source(storage, source, max_parallel_items, workers)
+                    load_id, schema_name = self._extract_source(
+                        storage, source, max_parallel_items, workers
                     )
-                # commit extract ids
+                    load_ids[load_id] = schema_name
+                # extract state
+                if self.config.restore_from_destination:
+                    # this will modify the state in the container so state manager will not extract the state
+                    load_id, schema_name = self._bump_version_and_extract_state(
+                        self._container[StateInjectableContext].state, True, storage
+                    )
+                    # returns load_id only if state got extracted
+                    if load_id:
+                        load_ids[load_id] = schema_name
+                # commit load packages
                 # TODO: if we fail here we should probably wipe out the whole extract folder
-                for extract_id in extract_ids:
-                    storage.commit_extract_files(extract_id)
-
+                for load_id, schema_name in load_ids.items():
+                    storage.commit_new_load_package(load_id, self.schemas[schema_name])
+                # all load ids got processed, cleanup empty folder
+                storage.delete_empty_extract_folder()
                 return ExtractInfo(describe_extract_data(data))
         except Exception as exc:
             # TODO: provide metrics from extractor
@@ -388,7 +406,7 @@ class Pipeline(SupportsPipeline):
                 self, "extract", exc, ExtractInfo(describe_extract_data(data))
             ) from exc
 
-    @with_runtime_trace
+    @with_runtime_trace()
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
     def normalize(
@@ -429,7 +447,7 @@ class Pipeline(SupportsPipeline):
                     self, "normalize", n_ex, normalize.get_normalize_info()
                 ) from n_ex
 
-    @with_runtime_trace
+    @with_runtime_trace(send_state=True)
     @with_schemas_sync
     @with_state_sync()
     @with_config_section((known_sections.LOAD,))
@@ -443,8 +461,8 @@ class Pipeline(SupportsPipeline):
         raise_on_failed_jobs: bool = False,
     ) -> LoadInfo:
         """Loads the packages prepared by `normalize` method into the `dataset_name` at `destination`, using provided `credentials`"""
-        # set destination and default dataset if provided
-        self._set_destinations(destination)
+        # set destination and default dataset if provided (this is the reason we have state sync here)
+        self._set_destinations(destination, None)
         self._set_dataset_name(dataset_name)
 
         credentials_argument_deprecated("pipeline.load", credentials, destination)
@@ -482,7 +500,7 @@ class Pipeline(SupportsPipeline):
         except Exception as l_ex:
             raise PipelineStepFailed(self, "load", l_ex, self._get_load_info(load)) from l_ex
 
-    @with_runtime_trace
+    @with_runtime_trace()
     @with_config_section(("run",))
     def run(
         self,
@@ -573,7 +591,7 @@ class Pipeline(SupportsPipeline):
             self._state_restored = True
 
         # normalize and load pending data
-        if self.list_extracted_resources():
+        if self.list_extracted_load_packages():
             self.normalize(loader_file_format=loader_file_format)
         if self.list_normalized_load_packages():
             # if there were any pending loads, load them and **exit**
@@ -623,8 +641,7 @@ class Pipeline(SupportsPipeline):
         self._set_dataset_name(dataset_name)
 
         state = self._get_state()
-        local_state = state.pop("_local")
-        merged_state: TPipelineState = None
+        state_changed = False
         try:
             try:
                 restored_schemas: Sequence[Schema] = None
@@ -632,13 +649,11 @@ class Pipeline(SupportsPipeline):
 
                 # if remote state is newer or same
                 # print(f'REMOTE STATE: {(remote_state or {}).get("_state_version")} >= {state["_state_version"]}')
+                # TODO: check if remote_state["_state_version"] is not in 10 recent version. then we know remote is newer.
                 if remote_state and remote_state["_state_version"] >= state["_state_version"]:
-                    # compare changes and updates local state
-                    merged_state = merge_state_if_changed(
-                        state, remote_state, increase_version=False
-                    )
+                    state_changed = remote_state["_version_hash"] != state.get("_version_hash")
                     # print(f"MERGED STATE: {bool(merged_state)}")
-                    if merged_state:
+                    if state_changed:
                         # see if state didn't change the pipeline name
                         if state["pipeline_name"] != remote_state["pipeline_name"]:
                             raise CannotRestorePipelineException(
@@ -649,7 +664,7 @@ class Pipeline(SupportsPipeline):
                             )
                         # if state was modified force get all schemas
                         restored_schemas = self._get_schemas_from_destination(
-                            merged_state["schema_names"], always_download=True
+                            remote_state["schema_names"], always_download=True
                         )
                         # TODO: we should probably wipe out pipeline here
 
@@ -659,12 +674,15 @@ class Pipeline(SupportsPipeline):
                         state["schema_names"], always_download=False
                     )
                 # commit all the changes locally
-                if merged_state:
+                if state_changed:
+                    # use remote state as state
+                    remote_state["_local"] = state["_local"]
+                    state = remote_state
                     # set the pipeline props from merged state
-                    state["_local"] = local_state
+                    self._state_to_props(state)
                     # add that the state is already extracted
+                    state["_local"]["_last_extracted_hash"] = state["_version_hash"]
                     state["_local"]["_last_extracted_at"] = pendulum.now()
-                    self._state_to_props(merged_state)
                     # on merge schemas are replaced so we delete all old versions
                     self._schema_storage.clear_storage()
                 for schema in restored_schemas:
@@ -694,10 +712,8 @@ class Pipeline(SupportsPipeline):
                         )
 
             # write the state back
-            state = merged_state or state
-            if "_local" not in state:
-                state["_local"] = local_state
             self._props_to_state(state)
+            bump_version_if_modified(state)
             self._save_state(state)
         except Exception as ex:
             raise PipelineStepFailed(self, "run", ex, None) from ex
@@ -737,7 +753,7 @@ class Pipeline(SupportsPipeline):
         return (
             not self.first_run
             or bool(self.schema_names)
-            or len(self.list_extracted_resources()) > 0
+            or len(self.list_extracted_load_packages()) > 0
             or len(self.list_normalized_load_packages()) > 0
         )
 
@@ -746,7 +762,7 @@ class Pipeline(SupportsPipeline):
         """Tells if the pipeline contains any extracted files or pending load packages"""
         return (
             len(self.list_normalized_load_packages()) > 0
-            or len(self.list_extracted_resources()) > 0
+            or len(self.list_extracted_load_packages()) > 0
         )
 
     @property
@@ -769,9 +785,18 @@ class Pipeline(SupportsPipeline):
             return self._last_trace
         return load_trace(self.working_dir)
 
+    @deprecated(
+        "Please use list_extracted_load_packages instead. Flat extracted storage format got dropped"
+        " in dlt 0.4.0",
+        category=Dlt04DeprecationWarning,
+    )
     def list_extracted_resources(self) -> Sequence[str]:
         """Returns a list of all the files with extracted resources that will be normalized."""
         return self._get_normalize_storage().list_files_to_normalize_sorted()
+
+    def list_extracted_load_packages(self) -> Sequence[str]:
+        """Returns a list of all load packages ids that are or will be normalized."""
+        return self._get_normalize_storage().extracted_packages.list_packages()
 
     def list_normalized_load_packages(self) -> Sequence[str]:
         """Returns a list of all load packages ids that are or will be loaded."""
@@ -779,11 +804,14 @@ class Pipeline(SupportsPipeline):
 
     def list_completed_load_packages(self) -> Sequence[str]:
         """Returns a list of all load package ids that are completely loaded"""
-        return self._get_load_storage().list_completed_packages()
+        return self._get_load_storage().list_loaded_packages()
 
     def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
-        """Returns information on normalized/completed package with given load_id, all jobs and their statuses."""
-        return self._get_load_storage().get_load_package_info(load_id)
+        """Returns information on extracted/normalized/completed package with given load_id, all jobs and their statuses."""
+        try:
+            return self._get_load_storage().get_load_package_info(load_id)
+        except LoadPackageNotFound:
+            return self._get_normalize_storage().extracted_packages.get_load_package_info(load_id)
 
     def list_failed_jobs_in_package(self, load_id: str) -> Sequence[LoadJobInfo]:
         """List all failed jobs and associated error messages for a specified `load_id`"""
@@ -793,15 +821,15 @@ class Pipeline(SupportsPipeline):
         """Deletes all extracted and normalized packages, including those that are partially loaded by default"""
         # delete normalized packages
         load_storage = self._get_load_storage()
-        for load_id in load_storage.list_normalized_packages():
-            package_info = load_storage.get_load_package_info(load_id)
-            if LoadStorage.is_package_partially_loaded(package_info) and not with_partial_loads:
+        for load_id in load_storage.normalized_packages.list_packages():
+            package_info = load_storage.normalized_packages.get_load_package_info(load_id)
+            if PackageStorage.is_package_partially_loaded(package_info) and not with_partial_loads:
                 continue
-            package_path = load_storage.get_normalized_package_path(load_id)
-            load_storage.storage.delete_folder(package_path, recursively=True)
+            load_storage.normalized_packages.delete_package(load_id)
         # delete extracted files
         normalize_storage = self._get_normalize_storage()
-        normalize_storage.delete_extracted_files(normalize_storage.list_files_to_normalize_sorted())
+        for load_id in normalize_storage.extracted_packages.list_packages():
+            normalize_storage.extracted_packages.delete_package(load_id)
 
     @with_schemas_sync
     def sync_schema(self, schema_name: str = None, credentials: Any = None) -> TSchemaTables:
@@ -971,7 +999,7 @@ class Pipeline(SupportsPipeline):
     def _data_to_sources(
         self,
         data: Any,
-        schema: Schema,
+        schema: Schema = None,
         table_name: str = None,
         parent_table_name: str = None,
         write_disposition: TWriteDisposition = None,
@@ -1051,7 +1079,7 @@ class Pipeline(SupportsPipeline):
 
     def _extract_source(
         self, storage: ExtractorStorage, source: DltSource, max_parallel_items: int, workers: int
-    ) -> str:
+    ) -> Tuple[str, str]:
         # discover the existing pipeline schema
         if source.schema.name in self.schemas:
             # use clone until extraction complete
@@ -1063,9 +1091,7 @@ class Pipeline(SupportsPipeline):
             source.schema = pipeline_schema
 
         # extract into pipeline schema
-        extract_id = extract_with_schema(
-            storage, source, self.collector, max_parallel_items, workers
-        )
+        load_id = extract_with_schema(storage, source, self.collector, max_parallel_items, workers)
 
         # save import with fully discovered schema
         self._schema_storage.save_import_schema_if_not_exists(source.schema)
@@ -1078,7 +1104,7 @@ class Pipeline(SupportsPipeline):
             # this performs additional validations as schema contains the naming module
             self._set_default_schema_name(source.schema)
 
-        return extract_id
+        return load_id, source.schema.name
 
     def _get_destination_client_initial_config(
         self, destination: TDestination = None, credentials: Any = None, as_staging: bool = False
@@ -1378,11 +1404,14 @@ class Pipeline(SupportsPipeline):
                 self.pipeline_name, state, state["_state_engine_version"], STATE_ENGINE_VERSION
             )
         except FileNotFoundError:
+            # do not set the state hash, this will happen on first merge
             return {
                 "_state_version": 0,
                 "_state_engine_version": STATE_ENGINE_VERSION,
                 "_local": {"first_run": True},
             }
+            # state["_version_hash"] = generate_version_hash(state)
+            # return state
 
     def _optional_sql_job_client(self, schema_name: str) -> Optional[SqlJobClientBase]:
         try:
@@ -1424,7 +1453,7 @@ class Pipeline(SupportsPipeline):
                 else:
                     state = None
                     logger.info(
-                        "Destination does not support restoring of pipeline state"
+                        "Destination does not support state sync"
                         f" {self.destination.destination_description}:{dataset_name}"
                     )
             return state
@@ -1481,29 +1510,10 @@ class Pipeline(SupportsPipeline):
             # raise original exception
             raise
         else:
-            self._props_to_state(state)
-
-            backup_state = self._get_state()
-            # do not compare local states
-            local_state = state.pop("_local")
-            backup_state.pop("_local")
-
-            # check if any state element was changed
-            merged_state = merge_state_if_changed(backup_state, state)
-            # extract state only when there's change in the state or state was not yet extracted AND we actually want to do it
-            if (merged_state or "_last_extracted_at" not in local_state) and extract_state:
-                # print(f'EXTRACT STATE merged: {bool(merged_state)} extracted timestamp in {"_last_extracted_at" not in local_state}')
-                merged_state = self._extract_state(merged_state or state)
-                local_state["_last_extracted_at"] = pendulum.now()
-
-            # if state is modified and is not being extracted, mark it to be extracted next time
-            if not extract_state and merged_state:
-                local_state.pop("_last_extracted_at", None)
-
-            # always save state locally as local_state is not compared
-            merged_state = merged_state or state
-            merged_state["_local"] = local_state
-            self._save_state(merged_state)
+            # this modifies state in place
+            self._bump_version_and_extract_state(state, extract_state)
+            # so we save modified state here
+            self._save_state(state)
 
     def _state_to_props(self, state: TPipelineState) -> None:
         """Write `state` to pipeline props."""
@@ -1539,8 +1549,8 @@ class Pipeline(SupportsPipeline):
                             f" {state_staging}:{state.get('staging_name')} is ignored"
                         )
 
-    def _props_to_state(self, state: TPipelineState) -> None:
-        """Write pipeline props to `state`"""
+    def _props_to_state(self, state: TPipelineState) -> TPipelineState:
+        """Write pipeline props to `state`, returns it for chaining"""
         for prop in Pipeline.STATE_PROPS:
             if not prop.startswith("_"):
                 state[prop] = getattr(self, prop)  # type: ignore
@@ -1554,6 +1564,32 @@ class Pipeline(SupportsPipeline):
             state["staging_type"] = self.staging.destination_type
             state["staging_name"] = self.staging.destination_name
         state["schema_names"] = self._list_schemas_sorted()
+        return state
+
+    def _bump_version_and_extract_state(
+        self, state: TPipelineState, extract_state: bool, storage: ExtractorStorage = None
+    ) -> Tuple[str, str]:
+        """Merges existing state into `state` and extracts state using `storage` if extract_state is True.
+
+        Storage will be created on demand. In that case the extracted package will be immediately committed.
+        """
+        _, hash_, _ = bump_version_if_modified(self._props_to_state(state))
+        should_extract = hash_ != state["_local"].get("_last_extracted_hash")
+        load_id: str = None
+        schema_name: str = None
+        if should_extract and extract_state:
+            storage_ = storage or ExtractorStorage(self._normalize_storage_config)
+            load_id, schema_name = self._extract_source(
+                storage_, self._data_to_sources(state_resource(state))[0], 1, 1
+            )
+            state["_local"]["_last_extracted_at"] = pendulum.now()
+            state["_local"]["_last_extracted_hash"] = hash_
+            # commit only if we created storage
+            if not storage:
+                storage_.commit_new_load_package(load_id, self.schemas[schema_name])
+                storage_.delete_empty_extract_folder()
+        # if state is modified and is not being extracted, mark it to be extracted next time
+        return load_id, schema_name
 
     def _list_schemas_sorted(self) -> List[str]:
         """Lists schema names sorted to have deterministic state"""
@@ -1561,15 +1597,6 @@ class Pipeline(SupportsPipeline):
 
     def _save_state(self, state: TPipelineState) -> None:
         self._pipeline_storage.save(Pipeline.STATE_FILE, json_encode_state(state))
-
-    def _extract_state(self, state: TPipelineState) -> TPipelineState:
-        # this will extract the state into current load package and update the schema with the _dlt_pipeline_state table
-        # note: the schema will be persisted because the schema saving decorator is over the state manager decorator for extract
-        state_source = DltSource(self.default_schema, self.pipeline_name, [state_resource(state)])
-        storage = ExtractorStorage(self._normalize_storage_config)
-        extract_id = extract_with_schema(storage, state_source, _NULL_COLLECTOR, 1, 1)
-        storage.commit_extract_files(extract_id)
-        return state
 
     def __getstate__(self) -> Any:
         # pickle only the SupportsPipeline protocol fields

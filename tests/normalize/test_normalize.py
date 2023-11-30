@@ -8,10 +8,11 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 from dlt.common import json
 from dlt.common.schema.schema import Schema
+from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny
 from dlt.common.data_types import TDataType
-from dlt.common.storages import NormalizeStorage, LoadStorage
+from dlt.common.storages import NormalizeStorage, LoadStorage, ParsedLoadJobFileName, PackageStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.configuration.container import Container
 
@@ -265,7 +266,7 @@ def test_normalize_raw_type_hints(
 def test_multiprocess_row_counting(
     caps: DestinationCapabilitiesContext, raw_normalize: Normalize
 ) -> None:
-    extract_cases(raw_normalize.normalize_storage, ["github.events.load_page_1_duck"])
+    extract_cases(raw_normalize, ["github.events.load_page_1_duck"])
     # use real process pool in tests
     with ProcessPoolExecutor(max_workers=4) as p:
         raw_normalize.run(p)
@@ -275,14 +276,19 @@ def test_multiprocess_row_counting(
 
 
 @pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
-def test_normalize_many_schemas(
+def test_normalize_many_packages(
     caps: DestinationCapabilitiesContext, rasa_normalize: Normalize
 ) -> None:
     extract_cases(
-        rasa_normalize.normalize_storage,
+        rasa_normalize,
         [
             "event.event.many_load_2",
             "event.event.user_load_1",
+        ],
+    )
+    extract_cases(
+        rasa_normalize,
+        [
             "ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2",
         ],
     )
@@ -295,7 +301,7 @@ def test_normalize_many_schemas(
     schemas = []
     # load all schemas
     for load_id in loads:
-        schema = rasa_normalize.load_storage.load_package_schema(load_id)
+        schema = rasa_normalize.load_storage.normalized_packages.load_schema(load_id)
         schemas.append(schema.name)
         # expect event tables
         if schema.name == "event":
@@ -312,13 +318,13 @@ def test_normalize_many_schemas(
 def test_normalize_typed_json(
     caps: DestinationCapabilitiesContext, raw_normalize: Normalize
 ) -> None:
-    extract_items(raw_normalize.normalize_storage, [JSON_TYPED_DICT], "special", "special")
+    extract_items(raw_normalize.normalize_storage, [JSON_TYPED_DICT], Schema("special"), "special")
     with ThreadPoolExecutor(max_workers=1) as pool:
         raw_normalize.run(pool)
     loads = raw_normalize.load_storage.list_normalized_packages()
     assert len(loads) == 1
     # load all schemas
-    schema = raw_normalize.load_storage.load_package_schema(loads[0])
+    schema = raw_normalize.load_storage.normalized_packages.load_schema(loads[0])
     assert schema.name == "special"
     # named as schema - default fallback
     table = schema.get_table_columns("special", include_incomplete=True)
@@ -330,24 +336,24 @@ def test_normalize_typed_json(
 @pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
 def test_schema_changes(caps: DestinationCapabilitiesContext, raw_normalize: Normalize) -> None:
     doc = {"str": "text", "int": 1}
-    extract_items(raw_normalize.normalize_storage, [doc], "evolution", "doc")
-    load_id = normalize_pending(raw_normalize, "evolution")
+    extract_items(raw_normalize.normalize_storage, [doc], Schema("evolution"), "doc")
+    load_id = normalize_pending(raw_normalize)
     _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc"])
     get_line_from_file(raw_normalize.load_storage, table_files["doc"], 0)
     assert len(table_files["doc"]) == 1
-    s: Schema = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "evolution")
-    doc_table = s.get_table("doc")
+    schema = raw_normalize.schema_storage.load_schema("evolution")
+    doc_table = schema.get_table("doc")
     assert "str" in doc_table["columns"]
     assert "int" in doc_table["columns"]
 
     # add column to doc in second step
     doc2 = {"str": "text", "int": 1, "bool": True}
-    extract_items(raw_normalize.normalize_storage, [doc, doc2, doc], "evolution", "doc")
-    load_id = normalize_pending(raw_normalize, "evolution")
+    extract_items(raw_normalize.normalize_storage, [doc, doc2, doc], schema, "doc")
+    load_id = normalize_pending(raw_normalize)
     _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc"])
     assert len(table_files["doc"]) == 1
-    s = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "evolution")
-    doc_table = s.get_table("doc")
+    schema = raw_normalize.schema_storage.load_schema("evolution")
+    doc_table = schema.get_table("doc")
     assert "bool" in doc_table["columns"]
 
     # add and change several tables in one step
@@ -355,19 +361,22 @@ def test_schema_changes(caps: DestinationCapabilitiesContext, raw_normalize: Nor
     doc_v = {"int": "hundred"}
     doc3_2v = {"comp": [doc2]}
     doc3_doc_v = {"comp": [doc_v]}
-    extract_items(raw_normalize.normalize_storage, [doc3, doc, doc_v], "evolution", "doc")
-    extract_items(raw_normalize.normalize_storage, [doc3_2v, doc3_doc_v], "evolution", "doc")
-    load_id = normalize_pending(raw_normalize, "evolution")
+    extract_items(
+        raw_normalize.normalize_storage, [doc3, doc, doc_v, doc3_2v, doc3_doc_v], schema, "doc"
+    )
+    # schema = raw_normalize.schema_storage.load_schema("evolution")
+    # extract_items(raw_normalize.normalize_storage, [doc3_2v, doc3_doc_v], schema, "doc")
+    load_id = normalize_pending(raw_normalize)
 
     _, table_files = expect_load_package(raw_normalize.load_storage, load_id, ["doc", "doc__comp"])
     assert len(table_files["doc"]) == 1
     assert len(table_files["doc__comp"]) == 1
-    s = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "evolution")
-    doc_table = s.get_table("doc")
+    schema = raw_normalize.schema_storage.load_schema("evolution")
+    doc_table = schema.get_table("doc")
     assert {"_dlt_load_id", "_dlt_id", "str", "int", "bool", "int__v_text"} == set(
         doc_table["columns"].keys()
     )
-    doc__comp_table = s.get_table("doc__comp")
+    doc__comp_table = schema.get_table("doc__comp")
     assert doc__comp_table["parent"] == "doc"
     assert {
         "_dlt_id",
@@ -400,7 +409,7 @@ def test_normalize_twice_with_flatten(
         assert "reactions__x1" in _schema.tables["issues"]["columns"]
         assert "reactions__1" not in _schema.tables["issues"]["columns"]
 
-    schema = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "github")
+    schema = raw_normalize.schema_storage.load_schema("github")
     assert_schema(schema)
 
     load_id = extract_and_normalize_cases(raw_normalize, ["github.issues.load_page_5_duck"])
@@ -414,7 +423,7 @@ def test_normalize_twice_with_flatten(
     _, lines = get_line_from_file(raw_normalize.load_storage, table_files["issues"], 0)
     # insert writer adds 2 lines
     assert lines in (100, 102)
-    schema = raw_normalize.load_or_create_schema(raw_normalize.schema_storage, "github")
+    schema = raw_normalize.schema_storage.load_schema("github")
     assert_schema(schema)
 
 
@@ -485,13 +494,14 @@ EXPECTED_USER_TABLES = [
 
 
 def extract_items(
-    normalize_storage: NormalizeStorage, items: Sequence[StrAny], schema_name: str, table_name: str
-) -> None:
+    normalize_storage: NormalizeStorage, items: Sequence[StrAny], schema: Schema, table_name: str
+) -> str:
     extractor = ExtractorStorage(normalize_storage.config)
-    extract_id = extractor.create_extract_id()
-    extractor.write_data_item("puae-jsonl", extract_id, schema_name, table_name, items, None)
-    extractor.close_writers(extract_id)
-    extractor.commit_extract_files(extract_id)
+    load_id = extractor.create_load_package(schema)
+    extractor.write_data_item("puae-jsonl", load_id, schema.name, table_name, items, None)
+    extractor.close_writers(load_id)
+    extractor.commit_new_load_package(load_id, schema)
+    return load_id
 
 
 def normalize_event_user(
@@ -503,27 +513,53 @@ def normalize_event_user(
 
 
 def extract_and_normalize_cases(normalize: Normalize, cases: Sequence[str]) -> str:
-    extract_cases(normalize.normalize_storage, cases)
+    extract_cases(normalize, cases)
     return normalize_pending(normalize)
 
 
-def normalize_pending(normalize: Normalize, schema_name: str = "event") -> str:
-    load_id = uniq_id()
-    normalize.load_storage.create_temp_load_package(load_id)
+def normalize_pending(normalize: Normalize) -> str:
     # pool not required for map_single
-    files = normalize.normalize_storage.list_files_to_normalize_sorted()
-    # create schema if it does not exist
-    for schema_name, files_in_schema in normalize.normalize_storage.group_by_schema(files):
-        normalize.spool_files(schema_name, load_id, normalize.map_single, list(files_in_schema))
+    load_ids = normalize.normalize_storage.extracted_packages.list_packages()
+    assert len(load_ids) == 1, "Only one package allowed or rewrite tests"
+    for load_id in load_ids:
+        normalize.load_storage.new_packages.create_package(load_id)
+        # read schema from package
+        schema = normalize.normalize_storage.extracted_packages.load_schema(load_id)
+        # get files
+        schema_files = normalize.normalize_storage.extracted_packages.list_new_jobs(load_id)
+        # normalize without pool
+        normalize.spool_files(load_id, schema, normalize.map_single, schema_files)
+
     return load_id
 
 
-def extract_cases(normalize_storage: NormalizeStorage, cases: Sequence[str]) -> None:
+def extract_cases(normalize: Normalize, cases: Sequence[str]) -> None:
+    items: List[StrAny] = []
     for case in cases:
-        schema_name, table_name, _, _ = NormalizeStorage.parse_normalize_file_name(case + ".jsonl")
+        # our cases have schema and table name encoded in file name
+        schema_name, table_name, _ = case.split(".", maxsplit=3)
         with open(json_case_path(case), "rb") as f:
-            items = json.load(f)
-        extract_items(normalize_storage, items, schema_name, table_name)
+            item = json.load(f)
+            if isinstance(item, list):
+                items.extend(item)
+            else:
+                items.append(item)
+    # we assume that all items belonged to a single schema
+    extract_items(
+        normalize.normalize_storage,
+        items,
+        load_or_create_schema(normalize, schema_name),
+        table_name,
+    )
+
+
+def load_or_create_schema(normalize: Normalize, schema_name: str) -> Schema:
+    try:
+        schema = normalize.schema_storage.load_schema(schema_name)
+        schema.update_normalizers()
+    except SchemaNotFoundError:
+        schema = Schema(schema_name)
+    return schema
 
 
 def expect_load_package(
@@ -533,7 +569,7 @@ def expect_load_package(
     full_schema_update: bool = True,
 ) -> Tuple[List[str], Dict[str, List[str]]]:
     # normalize tables as paths (original json is snake case so we may do it without real lineage info)
-    schema = load_storage.load_package_schema(load_id)
+    schema = load_storage.normalized_packages.load_schema(load_id)
     # we are still in destination caps context so schema contains length
     assert schema.naming.max_length > 0
     expected_tables = [
@@ -543,14 +579,21 @@ def expect_load_package(
 
     # find jobs and processed files
     files = load_storage.list_new_jobs(load_id)
-    files_tables = [load_storage.parse_job_file_name(file).table_name for file in files]
+    files_tables = [ParsedLoadJobFileName.parse(file).table_name for file in files]
     assert set(files_tables) == set(expected_tables)
     ofl: Dict[str, List[str]] = {}
     for expected_table in expected_tables:
         # find all files for particular table, ignoring file id
-        file_mask = load_storage.build_job_file_name(expected_table, "*", validate_components=False)
+        file_mask = PackageStorage.build_job_file_name(
+            expected_table,
+            "*",
+            validate_components=False,
+            loader_file_format=load_storage.loader_file_format,
+        )
         # files are in normalized/<load_id>/new_jobs
-        file_path = load_storage._get_job_file_path(load_id, "new_jobs", file_mask)
+        file_path = load_storage.normalized_packages.get_job_file_path(
+            load_id, "new_jobs", file_mask
+        )
         candidates = [f for f in files if fnmatch(f, file_path)]
         # assert len(candidates) == 1
         ofl[expected_table] = candidates
@@ -568,7 +611,7 @@ def get_line_from_file(
 ) -> Tuple[str, int]:
     lines = []
     for file in loaded_files:
-        with load_storage.storage.open_file(file) as f:
+        with load_storage.normalized_packages.storage.open_file(file) as f:
             lines.extend(f.readlines())
     return lines[return_line], len(lines)
 
@@ -576,6 +619,6 @@ def get_line_from_file(
 def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) -> None:
     # load generated schema
     loads = load_storage.list_normalized_packages()
-    event_schema = load_storage.load_package_schema(loads[0])
+    event_schema = load_storage.normalized_packages.load_schema(loads[0])
     # in raw normalize timestamp column must not be coerced to timestamp
     assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type

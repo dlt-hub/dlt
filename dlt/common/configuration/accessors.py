@@ -106,7 +106,7 @@ class _ConfigAccessor(_Accessor):
             if p.is_writable and not p.supports_secrets
         )
 
-    value: ClassVar[None] = ConfigValue
+    value: ClassVar[Any] = ConfigValue
     "A placeholder that tells dlt to replace it with actual config value during the call to a source or resource decorated function."
 
 
@@ -129,7 +129,7 @@ class _SecretsAccessor(_Accessor):
             p for p in self._get_providers_from_context() if p.is_writable and p.supports_secrets
         )
 
-    value: ClassVar[None] = ConfigValue
+    value: ClassVar[Any] = ConfigValue
     "A placeholder that tells dlt to replace it with actual secret during the call to a source or resource decorated function."
 
 

@@ -2,7 +2,7 @@ import os
 from typing import Callable, List, Dict, Sequence, Tuple, Set, Optional
 from concurrent.futures import Future, Executor
 
-from dlt.common import pendulum, json, logger, sleep
+from dlt.common import logger, sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.configuration.container import Container
@@ -12,13 +12,13 @@ from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TStoredSchema
 from dlt.common.schema.utils import merge_schema_updates
-from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages import (
     NormalizeStorage,
     SchemaStorage,
     LoadStorage,
     LoadStorageConfiguration,
     NormalizeStorageConfiguration,
+    ParsedLoadJobFileName,
 )
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
@@ -79,19 +79,6 @@ class Normalize(Runnable[Executor]):
             LoadStorage.ALL_SUPPORTED_FILE_FORMATS,
             config=self.config._load_storage_config,
         )
-
-    @staticmethod
-    def load_or_create_schema(schema_storage: SchemaStorage, schema_name: str) -> Schema:
-        try:
-            schema = schema_storage.load_schema(schema_name)
-            schema.update_normalizers()
-            logger.info(
-                f"Loaded schema with name {schema_name} with version {schema.stored_version}"
-            )
-        except SchemaNotFoundError:
-            schema = Schema(schema_name)
-            logger.info(f"Created new schema with name {schema_name}")
-        return schema
 
     @staticmethod
     def w_normalize_files(
@@ -162,9 +149,7 @@ class Normalize(Runnable[Executor]):
                 populated_root_tables: Set[str] = set()
                 for extracted_items_file in extracted_items_files:
                     line_no: int = 0
-                    parsed_file_name = NormalizeStorage.parse_normalize_file_name(
-                        extracted_items_file
-                    )
+                    parsed_file_name = ParsedLoadJobFileName.parse(extracted_items_file)
                     # normalize table name in case the normalization changed
                     # NOTE: this is the best we can do, until a full lineage information is in the schema
                     root_table_name = schema.naming.normalize_table_identifier(
@@ -318,50 +303,53 @@ class Normalize(Runnable[Executor]):
         return result[0], result[3]
 
     def spool_files(
-        self, schema_name: str, load_id: str, map_f: TMapFuncType, files: Sequence[str]
+        self, load_id: str, schema: Schema, map_f: TMapFuncType, files: Sequence[str]
     ) -> None:
-        schema = Normalize.load_or_create_schema(self.schema_storage, schema_name)
         # process files in parallel or in single thread, depending on map_f
         schema_updates, row_counts = map_f(schema, load_id, files)
         # remove normalizer specific info
         for table in schema.tables.values():
             table.pop("x-normalizer", None)  # type: ignore[typeddict-item]
         logger.info(
-            f"Saving schema {schema_name} with version {schema.version}, writing manifest files"
+            f"Saving schema {schema.name} with version {schema.stored_version}:{schema.version}"
         )
         # schema is updated, save it to schema volume
         self.schema_storage.save_schema(schema)
-        # save schema to temp load folder
-        self.load_storage.save_temp_schema(schema, load_id)
+        # save schema new package
+        self.load_storage.new_packages.save_schema(load_id, schema)
         # save schema updates even if empty
-        self.load_storage.save_temp_schema_updates(load_id, merge_schema_updates(schema_updates))
+        self.load_storage.new_packages.save_schema_updates(
+            load_id, merge_schema_updates(schema_updates)
+        )
         # files must be renamed and deleted together so do not attempt that when process is about to be terminated
         signals.raise_if_signalled()
         logger.info("Committing storage, do not kill this process")
         # rename temp folder to processing
-        self.load_storage.commit_temp_load_package(load_id)
+        self.load_storage.commit_new_load_package(load_id)
         # delete item files to complete commit
-        self.normalize_storage.delete_extracted_files(files)
+        self.normalize_storage.extracted_packages.delete_package(load_id)
         # log and update metrics
-        logger.info(f"Chunk {load_id} processed")
+        logger.info(f"Extracted package {load_id} processed")
         self._row_counts = row_counts
 
-    def spool_schema_files(self, load_id: str, schema_name: str, files: Sequence[str]) -> str:
+    def spool_schema_files(self, load_id: str, schema: Schema, files: Sequence[str]) -> str:
         # normalized files will go here before being atomically renamed
-
-        self.load_storage.create_temp_load_package(load_id)
-        logger.info(f"Created temp load folder {load_id} on loading volume")
+        self.load_storage.new_packages.create_package(load_id)
+        logger.info(f"Created new load package {load_id} on loading volume")
         try:
             # process parallel
-            self.spool_files(schema_name, load_id, self.map_parallel, files)
+            self.spool_files(
+                load_id, schema.clone(update_normalizers=True), self.map_parallel, files
+            )
         except CannotCoerceColumnException as exc:
             # schema conflicts resulting from parallel executing
             logger.warning(
                 f"Parallel schema update conflict, switching to single thread ({str(exc)}"
             )
             # start from scratch
-            self.load_storage.create_temp_load_package(load_id)
-            self.spool_files(schema_name, load_id, self.map_single, files)
+            self.load_storage.new_packages.delete_package(load_id)
+            self.load_storage.new_packages.create_package(load_id)
+            self.spool_files(load_id, schema.clone(update_normalizers=True), self.map_single, files)
 
         return load_id
 
@@ -370,24 +358,31 @@ class Normalize(Runnable[Executor]):
         self.pool = pool or NullExecutor()
         self._row_counts = {}
         logger.info("Running file normalizing")
-        # list files and group by schema name, list must be sorted for group by to actually work
-        files = self.normalize_storage.list_files_to_normalize_sorted()
-        logger.info(f"Found {len(files)} files")
-        if len(files) == 0:
+        # list all load packages in extracted folder
+        load_ids = self.normalize_storage.extracted_packages.list_packages()
+        logger.info(f"Found {len(load_ids)} load packages")
+        if len(load_ids) == 0:
             return TRunMetrics(True, 0)
-        # group files by schema
-        for schema_name, files_iter in self.normalize_storage.group_by_schema(files):
-            schema_files = list(files_iter)
-            load_id = str(pendulum.now().timestamp())
+        for load_id in load_ids:
+            # read schema from package
+            schema = self.normalize_storage.extracted_packages.load_schema(load_id)
+            # read all files to normalize placed as new jobs
+            schema_files = self.normalize_storage.extracted_packages.list_new_jobs(load_id)
             logger.info(
-                f"Found {len(schema_files)} files in schema {schema_name} load_id {load_id}"
+                f"Found {len(schema_files)} files in schema {schema.name} load_id {load_id}"
             )
-            with self.collector(f"Normalize {schema_name} in {load_id}"):
+            if len(schema_files) == 0:
+                # delete empty package
+                self.normalize_storage.extracted_packages.delete_package(load_id)
+                logger.dlt_version_info(f"Empty package {load_id} processed")
+                continue
+            with self.collector(f"Normalize {schema.name} in {load_id}"):
                 self.collector.update("Files", 0, len(schema_files))
                 self.collector.update("Items", 0)
-                self.spool_schema_files(load_id, schema_name, schema_files)
-        # return info on still pending files (if extractor saved something in the meantime)
-        return TRunMetrics(False, len(self.normalize_storage.list_files_to_normalize_sorted()))
+                self.spool_schema_files(load_id, schema, schema_files)
+
+        # return info on still pending packages (if extractor saved something in the meantime)
+        return TRunMetrics(False, len(self.normalize_storage.extracted_packages.list_packages()))
 
     def get_normalize_info(self) -> NormalizeInfo:
         return NormalizeInfo(row_counts=self._row_counts)

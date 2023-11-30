@@ -101,12 +101,17 @@ def test_default_pipeline_names(
         # set no dataset name -> if destination does not support it we revert to default
         p._set_dataset_name(None)
         assert p.dataset_name in possible_dataset_names
+    # the last package contains just the state (we added a new schema)
+    last_load_id = p.list_extracted_load_packages()[-1]
+    state_package = p.get_load_package_info(last_load_id)
+    assert len(state_package.jobs["new_jobs"]) == 1
+    assert state_package.schema_name == p.default_schema_name
     p.normalize()
     info = p.load(dataset_name="d" + uniq_id())
     print(p.dataset_name)
     assert info.pipeline is p
     # two packages in two different schemas were loaded
-    assert len(info.loads_ids) == 2
+    assert len(info.loads_ids) == 3
 
     # if loaded to single data, double the data was loaded to a single table because the schemas overlapped
     if use_single_dataset:
@@ -386,7 +391,7 @@ def test_pipeline_data_writer_compression(
     if disable_compression:
         for f in s.list_files_to_normalize_sorted():
             with pytest.raises(gzip.BadGzipFile):
-                gzip.open(s.storage.make_full_path(f), "rb").read()
+                gzip.open(s.extracted_packages.storage.make_full_path(f), "rb").read()
     p.normalize()
     info = p.load()
     assert_table(p, "data", data, info=info)

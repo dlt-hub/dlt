@@ -40,5 +40,5 @@ receiving rich information on executed pipelines, including encountered errors a
 
 ## Slack
 
-Read [here](/docs/running-in-production/running#using-slack-to-send-messages) about how to send
+Read [here](./running#using-slack-to-send-messages) about how to send
 messages to Slack.

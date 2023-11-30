@@ -23,9 +23,11 @@ def parallel_config_snippet() -> None:
         pipeline = dlt.pipeline("parallel_load", destination="duckdb", full_refresh=True)
         pipeline.extract(read_table(1000000))
 
+        load_id = pipeline.list_extracted_load_packages()[0]
+        extracted_package = pipeline.get_load_package_info(load_id)
         # we should have 11 files (10 pieces for `table` and 1 for state)
-        extracted_files = pipeline.list_extracted_resources()
-        print(extracted_files)
+        extracted_jobs = extracted_package.jobs["new_jobs"]
+        print([str(job.job_file_info) for job in extracted_jobs])
         # normalize and print counts
         print(pipeline.normalize(loader_file_format="jsonl"))
         # print jobs in load package (10 + 1 as above)
@@ -34,7 +36,7 @@ def parallel_config_snippet() -> None:
         print(pipeline.load())
         # @@@DLT_SNIPPET_END parallel_config
 
-        assert len(extracted_files) == 11
+        assert len(extracted_jobs) == 11
         loaded_package = pipeline.get_load_package_info(load_id)
         assert len(loaded_package.jobs["completed_jobs"]) == 11
 

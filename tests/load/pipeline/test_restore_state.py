@@ -65,6 +65,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         initial_state = p._get_state()
         # now add table to schema and sync
         initial_state["_local"]["_last_extracted_at"] = pendulum.now()
+        initial_state["_local"]["_last_extracted_hash"] = initial_state["_version_hash"]
         # add _dlt_id and _dlt_load_id
         resource = state_resource(initial_state)
         resource.apply_hints(
@@ -127,11 +128,11 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         assert local_state != new_local_state
         # version increased
         assert local_state["_state_version"] + 1 == new_local_state["_state_version"]
-        # last extracted timestamp not present
-        assert "_last_extracted_at" not in new_local_state_local
+        # last extracted hash does not match current version hash
+        assert new_local_state_local["_last_extracted_hash"] != new_local_state["_version_hash"]
 
         # use the state context manager again but do not change state
-        # because _last_extracted_at is not present, the version will not change but state will be extracted anyway
+        # because _last_extracted_hash is not present (or different), the version will not change but state will be extracted anyway
         with p.managed_state(extract_state=True):
             pass
         new_local_state_2 = p._get_state()
@@ -139,6 +140,8 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
         assert new_local_state == new_local_state_2
         # there's extraction timestamp
         assert "_last_extracted_at" in new_local_state_2_local
+        # and extract hash is == hash
+        assert new_local_state_2_local["_last_extracted_hash"] == new_local_state_2["_version_hash"]
         # but the version didn't change
         assert new_local_state["_state_version"] == new_local_state_2["_state_version"]
         p.normalize(loader_file_format=destination_config.file_format)

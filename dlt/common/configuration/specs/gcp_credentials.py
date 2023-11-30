@@ -1,6 +1,5 @@
 import sys
 from typing import Any, Final, List, Tuple, Union
-from deprecated import deprecated
 
 from dlt.common import json, pendulum
 from dlt.common.configuration.specs.api_credentials import OAuth2Credentials
@@ -89,13 +88,8 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials):
             # must end with new line, otherwise won't be parsed by Crypto
             self.private_key = TSecretValue(self.private_key + "\n")
 
-    @deprecated(reason="Use 'to_native_credentials' method instead")
-    def to_service_account_credentials(self) -> Any:
-        return self.to_native_credentials()
-
     def to_native_credentials(self) -> Any:
         """Returns google.oauth2.service_account.Credentials"""
-
         from google.oauth2.service_account import Credentials as ServiceAccountCredentials
 
         if isinstance(self.private_key, ServiceAccountCredentials):

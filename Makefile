@@ -51,12 +51,12 @@ lint:
 	poetry run mypy --config-file mypy.ini dlt tests
 	poetry run flake8 --max-line-length=200 dlt
 	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
-	# $(MAKE) lint-security
-	poetry run black dlt tests docs --diff --exclude=".*syntax_error.py|\.venv.*"
+	poetry run black dlt docs tests --diff --exclude=".*syntax_error.py|\.venv.*|_storage/.*"
 	# poetry run isort ./ --diff
+	# $(MAKE) lint-security
 
 format:
-	poetry run black dlt tests docs --exclude=".*syntax_error.py|\.venv.*"
+	poetry run black dlt docs tests --exclude=".*syntax_error.py|\.venv.*|_storage/.*"
 	# poetry run isort ./
 
 test-and-lint-snippets:

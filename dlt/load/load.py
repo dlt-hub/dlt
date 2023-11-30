@@ -132,7 +132,7 @@ class Load(Runnable[Executor]):
                 if is_staging_destination_job
                 else job_client
             ) as client:
-                job_info = self.load_storage.parse_job_file_name(file_path)
+                job_info = ParsedLoadJobFileName.parse(file_path)
                 if job_info.file_format not in self.load_storage.supported_file_formats:
                     raise LoadClientUnsupportedFileFormats(
                         job_info.file_format,
@@ -159,7 +159,9 @@ class Load(Runnable[Executor]):
 
                 with self.maybe_with_staging_dataset(client, use_staging_dataset):
                     job = client.start_file_load(
-                        table, self.load_storage.storage.make_full_path(file_path), load_id
+                        table,
+                        self.load_storage.normalized_packages.storage.make_full_path(file_path),
+                        load_id,
                     )
         except (DestinationTerminalException, TerminalValueError):
             # if job irreversibly cannot be started, mark it as failed
@@ -169,15 +171,11 @@ class Load(Runnable[Executor]):
             # return no job so file stays in new jobs (root) folder
             logger.exception(f"Temporary problem when adding job {file_path}")
             job = EmptyLoadJob.from_file_path(file_path, "retry", pretty_format_exception())
-        self.load_storage.start_job(load_id, job.file_name())
+        self.load_storage.normalized_packages.start_job(load_id, job.file_name())
         return job
 
     def spool_new_jobs(self, load_id: str, schema: Schema) -> Tuple[int, List[LoadJob]]:
-        # TODO: validate file type, combine files, finalize etc., this is client specific, jsonl for single table
-        # can just be combined, insert_values must be finalized and then combined
         # use thread based pool as jobs processing is mostly I/O and we do not want to pickle jobs
-        # TODO: combine files by providing a list of files pertaining to same table into job, so job must be
-        # extended to accept a list
         load_files = self.load_storage.list_new_jobs(load_id)[: self.config.workers]
         file_count = len(load_files)
         if file_count == 0:
@@ -197,7 +195,7 @@ class Load(Runnable[Executor]):
         jobs: List[LoadJob] = []
 
         # list all files that were started but not yet completed
-        started_jobs = self.load_storage.list_started_jobs(load_id)
+        started_jobs = self.load_storage.normalized_packages.list_started_jobs(load_id)
 
         logger.info(f"Found {len(started_jobs)} that are already started and should be continued")
         if len(started_jobs) == 0:
@@ -221,7 +219,7 @@ class Load(Runnable[Executor]):
 
     def get_new_jobs_info(self, load_id: str) -> List[ParsedLoadJobFileName]:
         return [
-            LoadStorage.parse_job_file_name(job_file)
+            ParsedLoadJobFileName.parse(job_file)
             for job_file in self.load_storage.list_new_jobs(load_id)
         ]
 
@@ -240,7 +238,9 @@ class Load(Runnable[Executor]):
         table_chain: List[TTableSchema] = []
         # make sure all the jobs for the table chain is completed
         for table in get_child_tables(schema.tables, top_merged_table["name"]):
-            table_jobs = self.load_storage.list_jobs_for_table(load_id, table["name"])
+            table_jobs = self.load_storage.normalized_packages.list_jobs_for_table(
+                load_id, table["name"]
+            )
             # all jobs must be completed in order for merge to be created
             if any(
                 job.state not in ("failed_jobs", "completed_jobs")
@@ -294,7 +294,9 @@ class Load(Runnable[Executor]):
             elif state == "failed":
                 # try to get exception message from job
                 failed_message = job.exception()
-                self.load_storage.fail_job(load_id, job.file_name(), failed_message)
+                self.load_storage.normalized_packages.fail_job(
+                    load_id, job.file_name(), failed_message
+                )
                 logger.error(
                     f"Job for {job.job_id()} failed terminally in load {load_id} with message"
                     f" {failed_message}"
@@ -303,7 +305,7 @@ class Load(Runnable[Executor]):
                 # try to get exception message from job
                 retry_message = job.exception()
                 # move back to new folder to try again
-                self.load_storage.retry_job(load_id, job.file_name())
+                self.load_storage.normalized_packages.retry_job(load_id, job.file_name())
                 logger.warning(
                     f"Job for {job.job_id()} retried in load {load_id} with message {retry_message}"
                 )
@@ -316,7 +318,7 @@ class Load(Runnable[Executor]):
                         "new_jobs" if followup_job.state() == "running" else "started_jobs"
                     )
                     # save all created jobs
-                    self.load_storage.add_new_job(
+                    self.load_storage.normalized_packages.import_job(
                         load_id, followup_job.new_file_path(), job_state=folder
                     )
                     logger.info(
@@ -328,7 +330,7 @@ class Load(Runnable[Executor]):
                         remaining_jobs.append(followup_job)
                 # move to completed folder after followup jobs are created
                 # in case of exception when creating followup job, the loader will retry operation and try to complete again
-                self.load_storage.complete_job(load_id, job.file_name())
+                self.load_storage.normalized_packages.complete_job(load_id, job.file_name())
                 logger.info(f"Job for {job.job_id()} completed in load {load_id}")
 
             if state in ["failed", "completed"]:
@@ -494,7 +496,7 @@ class Load(Runnable[Executor]):
             self.complete_package(load_id, schema, False)
             return
         # update counter we only care about the jobs that are scheduled to be loaded
-        package_info = self.load_storage.get_load_package_info(load_id)
+        package_info = self.load_storage.normalized_packages.get_load_package_info(load_id)
         total_jobs = reduce(lambda p, c: p + len(c), package_info.jobs.values(), 0)
         no_failed_jobs = len(package_info.jobs["failed_jobs"])
         no_completed_jobs = len(package_info.jobs["completed_jobs"]) + no_failed_jobs
@@ -509,7 +511,9 @@ class Load(Runnable[Executor]):
                 remaining_jobs = self.complete_jobs(load_id, jobs, schema)
                 if len(remaining_jobs) == 0:
                     # get package status
-                    package_info = self.load_storage.get_load_package_info(load_id)
+                    package_info = self.load_storage.normalized_packages.get_load_package_info(
+                        load_id
+                    )
                     # possibly raise on failed jobs
                     if self.config.raise_on_failed_jobs:
                         if package_info.jobs["failed_jobs"]:
@@ -554,7 +558,7 @@ class Load(Runnable[Executor]):
         # load the schema from the package
         load_id = loads[0]
         logger.info(f"Loading schema from load package in {load_id}")
-        schema = self.load_storage.load_package_schema(load_id)
+        schema = self.load_storage.normalized_packages.load_schema(load_id)
         logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
 
         # get top load id and mark as being processed

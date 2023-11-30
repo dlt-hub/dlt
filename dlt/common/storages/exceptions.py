@@ -1,7 +1,7 @@
 import semver
 from typing import Iterable
 
-from dlt.common.exceptions import DltException
+from dlt.common.exceptions import DltException, TerminalValueError
 from dlt.common.data_writers import TLoaderFileFormat
 
 
@@ -43,11 +43,27 @@ class WrongStorageVersionException(StorageException):
         )
 
 
+class StorageMigrationError(StorageException):
+    def __init__(
+        self,
+        storage_path: str,
+        from_version: semver.VersionInfo,
+        target_version: semver.VersionInfo,
+        info: str,
+    ) -> None:
+        self.storage_path = storage_path
+        self.from_version = from_version
+        self.target_version = target_version
+        super().__init__(
+            f"Storage {storage_path} with target v {target_version} at {from_version}: " + info
+        )
+
+
 class LoadStorageException(StorageException):
     pass
 
 
-class JobWithUnsupportedWriterException(LoadStorageException):
+class JobWithUnsupportedWriterException(LoadStorageException, TerminalValueError):
     def __init__(
         self, load_id: str, expected_file_formats: Iterable[TLoaderFileFormat], wrong_job: str
     ) -> None:

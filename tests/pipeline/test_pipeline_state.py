@@ -14,7 +14,7 @@ from dlt.common.destination.reference import Destination
 
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.state_sync import migrate_state, STATE_ENGINE_VERSION
+from dlt.pipeline.state_sync import generate_version_hash, migrate_state, STATE_ENGINE_VERSION
 
 from tests.utils import test_storage
 from tests.pipeline.utils import json_case_path, load_json_case
@@ -489,6 +489,8 @@ def test_migrate_state(test_storage: FileStorage) -> None:
     )
     assert state["_state_engine_version"] == STATE_ENGINE_VERSION
     assert "_local" in state
+    assert "_version_hash" in state
+    assert state["_version_hash"] == generate_version_hash(state)
 
     # check destination migration
     assert state["destination_name"] == "postgres"
@@ -513,33 +515,35 @@ def test_migrate_state(test_storage: FileStorage) -> None:
     p = dlt.attach(pipeline_name="debug_pipeline", pipelines_dir=test_storage.storage_path)
     assert p.dataset_name == "debug_pipeline_data"
     assert p.default_schema_name == "example_source"
+    state = p.state
+    assert state["_version_hash"] == generate_version_hash(state)
 
-    # specifically check destination v2 to v3 migration
-    state_v2 = {
+    # specifically check destination v3 to v4 migration
+    state_v3 = {
         "destination": "dlt.destinations.redshift",
         "staging": "dlt.destinations.filesystem",
-        "_state_engine_version": 2,
+        "_state_engine_version": 3,
     }
     migrate_state(
-        "test_pipeline", state_v2, state_v2["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
+        "test_pipeline", state_v3, state_v3["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
     )
-    assert state_v2["destination_name"] == "redshift"
-    assert state_v2["destination_type"] == "dlt.destinations.redshift"
-    assert "destination" not in state_v2
-    assert state_v2["staging_name"] == "filesystem"
-    assert state_v2["staging_type"] == "dlt.destinations.filesystem"
-    assert "staging" not in state_v2
+    assert state_v3["destination_name"] == "redshift"
+    assert state_v3["destination_type"] == "dlt.destinations.redshift"
+    assert "destination" not in state_v3
+    assert state_v3["staging_name"] == "filesystem"
+    assert state_v3["staging_type"] == "dlt.destinations.filesystem"
+    assert "staging" not in state_v3
 
-    state_v2 = {"destination": None, "staging": None, "_state_engine_version": 2}
+    state_v3 = {"destination": None, "staging": None, "_state_engine_version": 3}
     migrate_state(
-        "test_pipeline", state_v2, state_v2["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
+        "test_pipeline", state_v3, state_v3["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
     )
-    assert state_v2["destination_name"] is None
-    assert state_v2["staging_name"] is None
+    assert state_v3["destination_name"] is None
+    assert state_v3["staging_name"] is None
 
-    state_v2 = {"_state_engine_version": 2}
+    state_v3 = {"_state_engine_version": 2}
     migrate_state(
-        "test_pipeline", state_v2, state_v2["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
+        "test_pipeline", state_v3, state_v3["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
     )
-    assert state_v2["destination_name"] is None
-    assert state_v2["staging_name"] is None
+    assert state_v3["destination_name"] is None
+    assert state_v3["staging_name"] is None

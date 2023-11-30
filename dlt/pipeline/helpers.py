@@ -154,13 +154,18 @@ class DropCommand:
 
     def _drop_destination_tables(self) -> None:
         table_names = [tbl["name"] for tbl in self.tables_to_drop]
+        for table_name in table_names:
+            assert table_name not in self.schema._schema_tables, (
+                f"You are dropping table {table_name} in {self.schema.name} but it is still present"
+                " in the schema"
+            )
         with self.pipeline._sql_job_client(self.schema) as client:
-            client.drop_tables(*table_names)
+            client.drop_tables(*table_names, replace_schema=True)
             # also delete staging but ignore if staging does not exist
             if isinstance(client, WithStagingDataset):
                 with contextlib.suppress(DatabaseUndefinedRelation):
                     with client.with_staging_dataset():
-                        client.drop_tables(*table_names)
+                        client.drop_tables(*table_names, replace_schema=True)
 
     def _delete_pipeline_tables(self) -> None:
         for tbl in self.tables_to_drop:
@@ -213,19 +218,20 @@ class DropCommand:
         if self.drop_tables:
             self._delete_pipeline_tables()
             self._drop_destination_tables()
-        if self.drop_state:
-            self._drop_state_keys()
         if self.drop_tables:
             self.pipeline.schemas.save_schema(self.schema)
+        if self.drop_state:
+            self._drop_state_keys()
         # Send updated state to destination
         self.pipeline.normalize()
         try:
             self.pipeline.load(raise_on_failed_jobs=True)
         except Exception:
             # Clear extracted state on failure so command can run again
-            self.pipeline._get_load_storage().wipe_normalized_packages()
+            self.pipeline.drop_pending_packages()
             with self.pipeline.managed_state() as state:
                 state["_local"].pop("_last_extracted_at", None)
+                state["_local"].pop("_last_extracted_hash", None)
             raise
 
 

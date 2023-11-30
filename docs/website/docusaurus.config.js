@@ -1,5 +1,6 @@
 // @ts-check
 // Note: type annotations allow type checking and IDEs autocompletion
+require('dotenv').config()
 
 const lightCodeTheme = require('prism-react-renderer/themes/dracula');
 // const lightCodeTheme = require('prism-react-renderer/themes/github');
@@ -10,7 +11,7 @@ const config = {
   title: 'dlt Docs',
   tagline: 'data load tool',
   url: 'https://dlthub.com',
-  baseUrl: '/docs',
+  baseUrl: process.env.DOCUSAURUS_BASE_URL || '/docs',
   onBrokenLinks: 'throw',
   onBrokenMarkdownLinks: 'throw',
   favicon: 'img/favicon.ico',
@@ -28,6 +29,8 @@ const config = {
     defaultLocale: 'en',
     locales: ['en'],
   },
+
+
 
   presets: [
     [
@@ -77,6 +80,7 @@ const config = {
           href: 'https://dlthub.com'
         },
         items: [
+          { label: 'dlt ' + (process.env.IS_MASTER_BRANCH ? "stable ": "devel ") + (process.env.DOCUSAURUS_DLT_VERSION || "0.0.1"), position: 'left', href: 'https://github.com/dlt-hub/dlt', className: 'version-navbar'  },
           {
             type: 'doc',
             docId: 'intro',
@@ -183,5 +187,16 @@ const config = {
     },
   ],
 };
+
+if (!process.env.IS_MASTER_BRANCH && config.themeConfig) {
+  config.themeConfig.announcementBar = {
+    id: 'devel docs',
+    content:
+      'This is the development version of the dlt docs. <a target="_blank" rel="noopener noreferrer" href="https://dlthub.com/docs/intro">Go to the stable docs.</a>',
+    backgroundColor: '#4c4898',
+    textColor: '#fff',
+    isCloseable: false,
+  }
+}
 
 module.exports = config;

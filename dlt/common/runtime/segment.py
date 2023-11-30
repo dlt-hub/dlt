@@ -2,32 +2,31 @@
 
 # several code fragments come from https://github.com/RasaHQ/rasa/blob/main/rasa/telemetry.py
 import os
-import sys
-import multiprocessing
+
 import atexit
 import base64
 import requests
-import platform
 from concurrent.futures import ThreadPoolExecutor
 from typing import Literal, Optional
 from dlt.common.configuration.paths import get_dlt_data_dir
 
 from dlt.common.runtime import logger
+from dlt.common.managed_thread_pool import ManagedThreadPool
 
 from dlt.common.configuration.specs import RunConfiguration
-from dlt.common.runtime.exec_info import exec_info_names, in_continuous_integration
+from dlt.common.runtime.exec_info import get_execution_context, TExecutionContext
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
-from dlt.version import __version__, DLT_PKG_NAME
+from dlt.version import __version__
 
 TEventCategory = Literal["pipeline", "command", "helper"]
 
-_THREAD_POOL: ThreadPoolExecutor = None
+_THREAD_POOL: ManagedThreadPool = ManagedThreadPool(1)
 _SESSION: requests.Session = None
 _WRITE_KEY: str = None
 _SEGMENT_REQUEST_TIMEOUT = (1.0, 1.0)  # short connect & send timeouts
 _SEGMENT_ENDPOINT = "https://api.segment.io/v1/track"
-_SEGMENT_CONTEXT: DictStrAny = None
+_SEGMENT_CONTEXT: TExecutionContext = None
 
 
 def init_segment(config: RunConfiguration) -> None:
@@ -36,9 +35,8 @@ def init_segment(config: RunConfiguration) -> None:
     ), "dlthub_telemetry_segment_write_key not present in RunConfiguration"
 
     # create thread pool to send telemetry to segment
-    global _THREAD_POOL, _WRITE_KEY, _SESSION
-    if not _THREAD_POOL:
-        _THREAD_POOL = ThreadPoolExecutor(1)
+    global _WRITE_KEY, _SESSION
+    if not _SESSION:
         _SESSION = requests.Session()
         # flush pool on exit
         atexit.register(_at_exit_cleanup)
@@ -81,10 +79,9 @@ def before_send(event: DictStrAny) -> Optional[DictStrAny]:
 
 
 def _at_exit_cleanup() -> None:
-    global _THREAD_POOL, _SESSION, _WRITE_KEY, _SEGMENT_CONTEXT
-    if _THREAD_POOL:
-        _THREAD_POOL.shutdown(wait=True)
-        _THREAD_POOL = None
+    global _SESSION, _WRITE_KEY, _SEGMENT_CONTEXT
+    if _SESSION:
+        _THREAD_POOL.stop(True)
         _SESSION.close()
         _SESSION = None
         _WRITE_KEY = None
@@ -141,7 +138,7 @@ def _segment_request_payload(event_name: str, properties: StrAny, context: StrAn
     }
 
 
-def _default_context_fields() -> DictStrAny:
+def _default_context_fields() -> TExecutionContext:
     """Return a dictionary that contains the default context values.
 
     Return:
@@ -152,14 +149,7 @@ def _default_context_fields() -> DictStrAny:
     if not _SEGMENT_CONTEXT:
         # Make sure to update the example in docs/docs/telemetry/telemetry.mdx
         # if you change / add context
-        _SEGMENT_CONTEXT = {
-            "os": {"name": platform.system(), "version": platform.release()},
-            "ci_run": in_continuous_integration(),
-            "python": sys.version.split(" ")[0],
-            "library": {"name": DLT_PKG_NAME, "version": __version__},
-            "cpu": multiprocessing.cpu_count(),
-            "exec_info": exec_info_names(),
-        }
+        _SEGMENT_CONTEXT = get_execution_context()
 
     # avoid returning the cached dict --> caller could modify the dictionary...
     # usually we would use `lru_cache`, but that doesn't return a dict copy and
@@ -207,4 +197,4 @@ def _send_event(event_name: str, properties: StrAny, context: StrAny) -> None:
             if not data.get("success"):
                 logger.debug(f"Segment telemetry request returned a failure. Response: {data}")
 
-    _THREAD_POOL.submit(_future_send)
+    _THREAD_POOL.thread_pool.submit(_future_send)

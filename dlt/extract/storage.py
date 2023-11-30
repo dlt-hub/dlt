@@ -1,34 +1,36 @@
 import os
-from typing import ClassVar, Dict
+from typing import Dict
 
+from dlt.common import pendulum
 from dlt.common.data_writers import TLoaderFileFormat
-
-from dlt.common.utils import uniq_id
-from dlt.common.typing import TDataItems
+from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.storages import (
     NormalizeStorageConfiguration,
     NormalizeStorage,
     DataItemStorage,
     FileStorage,
+    PackageStorage,
 )
+from dlt.common.typing import TDataItems
+from dlt.common.time import precise_time
+from dlt.common.utils import uniq_id
 
 
 class ExtractorItemStorage(DataItemStorage):
     load_file_type: TLoaderFileFormat
 
-    def __init__(self, storage: FileStorage, extract_folder: str = "extract") -> None:
-        # data item storage with jsonl with pua encoding
+    def __init__(self, package_storage: PackageStorage) -> None:
+        """Data item storage using `storage` to manage load packages"""
         super().__init__(self.load_file_type)
-        self.extract_folder = extract_folder
-        self.storage = storage
+        self.package_storage = package_storage
 
-    def _get_data_item_path_template(self, load_id: str, schema_name: str, table_name: str) -> str:
-        template = NormalizeStorage.build_extracted_file_stem(schema_name, table_name, "%s")
-        return self.storage.make_full_path(os.path.join(self._get_extract_path(load_id), template))
-
-    def _get_extract_path(self, extract_id: str) -> str:
-        return os.path.join(self.extract_folder, extract_id)
+    def _get_data_item_path_template(self, load_id: str, _: str, table_name: str) -> str:
+        file_name = PackageStorage.build_job_file_name(table_name, "%s")
+        file_path = self.package_storage.get_job_file_path(
+            load_id, PackageStorage.NEW_JOBS_FOLDER, file_name
+        )
+        return self.package_storage.storage.make_full_path(file_path)
 
 
 class JsonLExtractorStorage(ExtractorItemStorage):
@@ -40,44 +42,62 @@ class ArrowExtractorStorage(ExtractorItemStorage):
 
 
 class ExtractorStorage(NormalizeStorage):
-    EXTRACT_FOLDER: ClassVar[str] = "extract"
-
     """Wrapper around multiple extractor storages with different file formats"""
 
     def __init__(self, C: NormalizeStorageConfiguration) -> None:
         super().__init__(True, C)
+        # always create new packages in an unique folder for each instance so
+        # extracts are isolated ie. if they fail
+        self.new_packages_folder = uniq_id(8)
+        self.storage.create_folder(self.new_packages_folder, exists_ok=True)
+        self.new_packages = PackageStorage(
+            FileStorage(os.path.join(self.storage.storage_path, self.new_packages_folder)), "new"
+        )
         self._item_storages: Dict[TLoaderFileFormat, ExtractorItemStorage] = {
-            "puae-jsonl": JsonLExtractorStorage(self.storage, extract_folder=self.EXTRACT_FOLDER),
-            "arrow": ArrowExtractorStorage(self.storage, extract_folder=self.EXTRACT_FOLDER),
+            "puae-jsonl": JsonLExtractorStorage(self.new_packages),
+            "arrow": ArrowExtractorStorage(self.new_packages),
         }
 
-    def _get_extract_path(self, extract_id: str) -> str:
-        return os.path.join(self.EXTRACT_FOLDER, extract_id)
+    def create_load_package(self, schema: Schema, reuse_exiting_package: bool = True) -> str:
+        """Creates a new load package for given `schema` or returns if such package already exists.
 
-    def create_extract_id(self) -> str:
-        extract_id = uniq_id()
-        self.storage.create_folder(self._get_extract_path(extract_id))
-        return extract_id
+        You can prevent reuse of the existing package by setting `reuse_exiting_package` to False
+        """
+        load_id: str = None
+        if reuse_exiting_package:
+            # look for existing package with the same schema name
+            # TODO: we may cache this mapping but fallback to files is required if pipeline restarts
+            load_ids = self.new_packages.list_packages()
+            for load_id in load_ids:
+                if self.new_packages.schema_name(load_id) == schema.name:
+                    break
+                load_id = None
+        if not load_id:
+            load_id = str(precise_time())
+            self.new_packages.create_package(load_id)
+        # always save schema
+        self.new_packages.save_schema(load_id, schema)
+        return load_id
 
     def get_storage(self, loader_file_format: TLoaderFileFormat) -> ExtractorItemStorage:
         return self._item_storages[loader_file_format]
 
-    def close_writers(self, extract_id: str) -> None:
+    def close_writers(self, load_id: str) -> None:
         for storage in self._item_storages.values():
-            storage.close_writers(extract_id)
+            storage.close_writers(load_id)
 
-    def commit_extract_files(self, extract_id: str, with_delete: bool = True) -> None:
-        extract_path = self._get_extract_path(extract_id)
-        for file in self.storage.list_folder_files(extract_path, to_root=False):
-            from_file = os.path.join(extract_path, file)
-            to_file = os.path.join(NormalizeStorage.EXTRACTED_FOLDER, file)
-            if with_delete:
-                self.storage.atomic_rename(from_file, to_file)
-            else:
-                # create hardlink which will act as a copy
-                self.storage.link_hard(from_file, to_file)
-        if with_delete:
-            self.storage.delete_folder(extract_path, recursively=True)
+    def commit_new_load_package(self, load_id: str, schema: Schema) -> None:
+        self.new_packages.save_schema(load_id, schema)
+        self.storage.rename_tree(
+            os.path.join(self.new_packages_folder, self.new_packages.get_package_path(load_id)),
+            os.path.join(
+                NormalizeStorage.EXTRACTED_FOLDER, self.new_packages.get_package_path(load_id)
+            ),
+        )
+
+    def delete_empty_extract_folder(self) -> None:
+        """Deletes temporary extract folder if empty"""
+        self.storage.delete_folder(self.new_packages_folder, recursively=False)
 
     def write_data_item(
         self,

@@ -93,5 +93,4 @@ We also see them.
 My observation is that if you write a lot of data into the database then close the connection and then open it again to write, there's a chance of such timeout. Possible **WAL** file is being written to the remote duckdb database.
 
 ### Invalid Input Error: Initialization function "motherduck_init" from file
-Use `duckdb 0.8.1`
-
+Use `duckdb 0.8.1` or above.
