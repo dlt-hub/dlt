@@ -277,11 +277,21 @@ def register_magics() -> None:
         pass
 
 
-def check_notebook_runtime() -> None:
-    fmt.echo("Checking if ipython")
+def register_notebook_magics() -> None:
+    """
+    Registers custom IPython magic commands for the notebook environment.
+
+    This function checks if the current environment is an IPython environment (like Jupyter notebooks).
+    If it is, it attempts to register custom magic commands. The registration process is wrapped
+    in a try-except block to gracefully handle cases where necessary dependencies for the magic
+    commands might not be present.
+
+    Raises:
+        ImportError: If there is an issue importing the required modules for the magic commands.
+                     The exception is silently passed, and the function does not perform any action.
+    """
     if is_ipython():
         try:
-            fmt.echo("Registering magics")
             register_magics()
         except ImportError:
             pass

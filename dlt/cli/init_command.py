@@ -6,7 +6,7 @@ from typing import Dict, List, Sequence, Tuple, Optional
 from importlib.metadata import version as pkg_version
 
 from dlt.common import git
-from dlt.common.configuration.paths import get_dlt_settings_dir, make_dlt_settings_path
+from dlt.common.configuration.paths import get_dlt_settings_dir, make_dlt_settings_path, create_symlink_to_dlt
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML, ConfigTomlProvider, SecretsTomlProvider
 from dlt.common.pipeline import get_dlt_repos_dir
@@ -109,13 +109,6 @@ def _list_verified_sources(repo_location: str, branch: str = None) -> Dict[str, 
             fmt.warning(f"Verified source {source_name} not available: {ex}")
 
     return sources
-
-def _create_visible_symlink(original_dir, symlink_dir):
-    if not os.path.exists(original_dir):
-        os.makedirs(original_dir)
-    if not os.path.exists(symlink_dir):
-        os.symlink(original_dir, symlink_dir)
-        print(f"Created a visible symlink: {symlink_dir} -> {original_dir}")
 
 
 def _welcome_message(source_name: str, destination_name: str, source_files: VerifiedSourceFiles, dependency_system: str, is_new_source: bool) -> None:
@@ -377,4 +370,4 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
         dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
 
     if is_notebook():
-        _create_visible_symlink('.dlt', '_dlt')
+        create_symlink_to_dlt( '_dlt')

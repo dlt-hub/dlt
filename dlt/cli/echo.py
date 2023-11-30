@@ -45,8 +45,6 @@ def warning(msg: str) -> None:
 def note(msg: str) -> None:
     click.secho("NOTE: " + msg, fg="green")
 
-
-
 def confirm(text: str, default: Optional[bool] = None) -> bool:
     if ALWAYS_CHOOSE_VALUE:
         return bool(ALWAYS_CHOOSE_VALUE)
