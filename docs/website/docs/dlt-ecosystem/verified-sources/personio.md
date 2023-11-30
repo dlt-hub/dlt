@@ -12,8 +12,8 @@ including recruitment, employee data management, and payroll, in one platform.
 Our Personio verified source loads data using Perosnio API to your preferred
 [destination](../destinations).
 
-:::tip You can check out our pipeline example
-[here](https://github.com/dlt-hub/verified-sources/blob/master/sources/personio_pipeline.py). 
+:::tip 
+You can check out our pipeline example [here](https://github.com/dlt-hub/verified-sources/blob/master/sources/personio_pipeline.py). 
 :::
 
 Resources that can be loaded using this verified source are:
@@ -170,8 +170,9 @@ verified source.
    )
    ```
 
-   :::note To read more about pipeline configuration, please refer to our
-   [documentation](../../general-usage/pipeline). :::
+   :::note 
+   To read more about pipeline configuration, please refer to our [documentation](../../general-usage/pipeline). 
+   :::
 
 1. To load employee data:
 
