@@ -17,7 +17,7 @@ from various and often messy data sources into well-structured, live datasets. I
 ```sh
 pip install dlt
 ```
-There's no need to start any backends or containers. Simply import `dlt` in a Python file or Notebook cell, and write a simple pipeline like this:
+There's no need to start any backends or containers. Simply import `dlt` in a Python file or Jupyter Notebook cell, and write a simple pipeline like this:
 
 <!--AUTO-GENERATED-CONTENT:END-->
 
@@ -69,11 +69,11 @@ external APIs, backends or containers, scales on micro and large infra alike.
 - User-friendly, declarative interface that removes knowledge obstacles for beginners
 while empowering senior professionals.
 
-## Getting hands-on with `dlt`
+## Getting started with `dlt`
 
 1. Play with the
 [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
-This is the simplest way to see `dlt` in action. You don't need GCP, just a regualr Google account.
+This is the simplest way to see `dlt` in action.
 2. Run [Getting Started snippets](getting-started.md) and load data from python objects, files, data frames, databases, APIs or PDFs into any [destination](dlt-ecosystem/destinations/).
 3. Read [Pipeline Tutorial](build-a-pipeline-tutorial.md) to start building E(t)LT pipelines from ready components.
 4. We have many interesting [walkthroughs](walkthroughs/) where you create, run, customize and deploy pipelines.
