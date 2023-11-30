@@ -6,7 +6,7 @@ from dlt.common.utils import set_working_dir
 from dlt.common.configuration.container import Container
 
 # patch which providers to enable
-from dlt.common.configuration.providers import  EnvironProvider, SecretsTomlProvider, ConfigTomlProvider
+from dlt.common.configuration.providers import EnvironProvider, SecretsTomlProvider, ConfigTomlProvider
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 
 
