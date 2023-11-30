@@ -69,8 +69,8 @@ For more information, read the
    # Put your secret values and credentials here
    # Note: Do not share this file and do not push it to GitHub!
    [sources.personio]
-   client_id = "papi-********-****-****-****-************" # please set me up!
-   client_secret = "papi-************************************************" # please set me up!
+   client_id = "papi-*****" # please set me up!
+   client_secret = "papi-*****" # please set me up!
    ```
 
 1. Replace the value of `client_id` and `client_secret` with the one that
