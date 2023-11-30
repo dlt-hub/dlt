@@ -136,7 +136,6 @@ def migrate_state(
         )
         if "staging" in state:
             del state["staging"]
-        state["_version_hash"] = generate_version_hash(state)  # type: ignore[arg-type]
         from_engine = 4
 
     # check state engine

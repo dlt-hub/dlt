@@ -483,14 +483,20 @@ def test_transform_function_state_write() -> None:
 
 
 def test_migrate_state(test_storage: FileStorage) -> None:
+    # test generation of version hash on migration to v3
+    state_v1 = load_json_case("state/state.v1")
+    state = migrate_state("test_pipeline", state_v1, state_v1["_state_engine_version"], 3)
+    assert state["_state_engine_version"] == 3
+    assert "_local" in state
+    assert "_version_hash" in state
+    assert state["_version_hash"] == generate_version_hash(state)
+
+    # full migration
     state_v1 = load_json_case("state/state.v1")
     state = migrate_state(
         "test_pipeline", state_v1, state_v1["_state_engine_version"], STATE_ENGINE_VERSION
     )
     assert state["_state_engine_version"] == STATE_ENGINE_VERSION
-    assert "_local" in state
-    assert "_version_hash" in state
-    assert state["_version_hash"] == generate_version_hash(state)
 
     # check destination migration
     assert state["destination_name"] == "postgres"
