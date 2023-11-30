@@ -29,10 +29,9 @@ else:
 
 from dlt.common.typing import (
     TAnyClass,
-    TSecretValue,
     extract_inner_type,
     is_optional_type,
-    is_union,
+    is_union_type,
 )
 from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.configuration.exceptions import (
@@ -60,20 +59,20 @@ def is_credentials_inner_hint(inner_hint: Type[Any]) -> bool:
 
 
 def get_config_if_union_hint(hint: Type[Any]) -> Type[Any]:
-    if is_union(hint):
+    if is_union_type(hint):
         return next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)
     return None
 
 
 def is_valid_hint(hint: Type[Any]) -> bool:
+    if get_origin(hint) is ClassVar:
+        # class vars are skipped by dataclass
+        return True
     hint = extract_inner_type(hint)
     hint = get_config_if_union_hint(hint) or hint
     hint = get_origin(hint) or hint
 
     if hint is Any:
-        return True
-    if hint is ClassVar:
-        # class vars are skipped by dataclass
         return True
     if is_base_configuration_inner_hint(hint):
         return True

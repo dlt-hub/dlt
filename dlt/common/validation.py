@@ -12,7 +12,6 @@ from dlt.common.typing import (
     is_list_generic_type,
     is_dict_generic_type,
     _TypedDict,
-    is_union,
 )
 
 

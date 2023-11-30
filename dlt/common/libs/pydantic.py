@@ -27,7 +27,7 @@ from dlt.common.typing import (
     extract_inner_type,
     is_list_generic_type,
     is_dict_generic_type,
-    is_union,
+    is_union_type,
 )
 
 try:
@@ -98,7 +98,7 @@ def pydantic_to_table_schema_columns(
             annotation = inner_annotation
         nullable = is_optional_type(annotation)
 
-        if is_union(annotation):
+        if is_union_type(annotation):
             inner_type = get_args(annotation)[0]
         else:
             inner_type = extract_inner_type(annotation)
@@ -213,7 +213,7 @@ def apply_schema_contract_to_model(
             except TypeError:
                 # this is Python3.8 fallback. it does not support indexers on types
                 return Dict[k_t, _process_annotation(v_t)]  # type: ignore
-        elif is_union(t_):
+        elif is_union_type(t_):
             u_t_s = tuple(_process_annotation(u_t) for u_t in extract_union_types(t_))
             return Union[u_t_s]  # type: ignore[return-value]
         elif inspect.isclass(t_) and issubclass(t_, BaseModel):

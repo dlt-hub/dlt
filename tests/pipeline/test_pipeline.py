@@ -190,13 +190,13 @@ def test_configured_destination_unknown_type(environment) -> None:
 
 
 def test_configured_destination_unknown_name(environment) -> None:
-    environment["DESTINATION_NAME"] = "postgres-prod"
-    environment["DESTINATION_TYPE"] = "postgres"
+    environment["DESTINATION_NAME"] = "filesystem-prod"
+    environment["DESTINATION_TYPE"] = "filesystem"
 
     p = dlt.pipeline()
     assert p.destination is not None
-    assert p.destination.destination_type == "dlt.destinations.postgres"
-    assert p.destination.destination_name == "postgres-prod"
+    assert p.destination.destination_type == "dlt.destinations.filesystem"
+    assert p.destination.destination_name == "filesystem-prod"
 
     # we do not have config for postgres-prod so getting destination client must fail
     with pytest.raises(ConfigFieldMissingException):
