@@ -462,7 +462,7 @@ class Pipeline(SupportsPipeline):
     ) -> LoadInfo:
         """Loads the packages prepared by `normalize` method into the `dataset_name` at `destination`, using provided `credentials`"""
         # set destination and default dataset if provided (this is the reason we have state sync here)
-        self._set_destinations(destination, None)
+        self._set_destinations(destination=destination, staging=None)
         self._set_dataset_name(dataset_name)
 
         credentials_argument_deprecated("pipeline.load", credentials, destination)
