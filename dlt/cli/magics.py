@@ -151,61 +151,61 @@ class DltMagics(Magics):
             self.on_exception(str(ex), DLT_INIT_DOCS_URL)
             return -1
 
-    @magic_arguments()
-    @argument('--pipeline_script_path', type=str, help="Path to a pipeline script")
-    @argument('--deployment_method', type=str, help="Deployment method")
-    @argument('--repo_location', type=str, help="Repository location")
-    @argument('--branch', type=str, help="Git branch")
-    @argument('--schedule', type=str, default=None, help="Schedule for the deployment (optional)")
-    @argument('--run_on_push', type=bool, default=False, help="Run on push to Git (optional)")
-    @argument('--run_manually', type=bool, default=False, help="Run manually on Git (optional)")
-    @register_line_magic
-    @line_magic
-    def deploy(self, line:str) ->t.Any :
-        """
-        A DLT line magic command for deploying a pipeline.
-        """
-        args = parse_argstring(self.deploy, line)
-        try:
-            from dlt.cli._dlt import deploy_command_wrapper
-            from dlt.cli.deploy_command import PipelineWasNotRun, DLT_DEPLOY_DOCS_URL, DeploymentMethods, COMMAND_DEPLOY_REPO_LOCATION, SecretFormats
-            def words_to_cron(description: str)->str:
-                mapping = {
-                    "5 minutes": "*/5 * * * *",
-                    "15 minutes": "*/15 * * * *",
-                    "30 minutes": "*/30 * * * *",
-                    "45 minutes": "*/45 * * * *",
-                    "hour": "0 * * * *",
-                    # Add more mappings as needed
-                }
-                cron_expression = mapping.get(description.lower())
-                if cron_expression:
-                    return cron_expression
-                else:
-                    return "Invalid description"
-
-            # Initialize an empty kwargs dictionary
-            kwargs = {}
-
-            if args.schedule is not None:
-                kwargs['schedule'] = words_to_cron(args.schedule)
-            if args.run_on_push is not None:
-                kwargs['run_on_push'] = args.run_on_push
-            if args.run_manually is not None:
-                kwargs['run_manually'] = args.run_manually
-
-            deploy_command_wrapper(
-                pipeline_script_path=args.pipeline_script_path,
-                deployment_method=args.deployment_method,
-                repo_location=args.repo_location if args.repo_location is not None else COMMAND_DEPLOY_REPO_LOCATION,
-                branch=args.branch,
-                **kwargs
-            )
-            return self.display(self.success_message({"green-bold": "DLT deploy magic ran successfully."}))
-        except Exception as ex:
-
-            self.on_exception(str(ex), DLT_DEPLOY_DOCS_URL)
-            return -1
+    # @magic_arguments()
+    # @argument('--pipeline_script_path', type=str, help="Path to a pipeline script")
+    # @argument('--deployment_method', type=str, help="Deployment method")
+    # @argument('--repo_location', type=str, help="Repository location")
+    # @argument('--branch', type=str, help="Git branch")
+    # @argument('--schedule', type=str, default=None, help="Schedule for the deployment (optional)")
+    # @argument('--run_on_push', type=bool, default=False, help="Run on push to Git (optional)")
+    # @argument('--run_manually', type=bool, default=False, help="Run manually on Git (optional)")
+    # @register_line_magic
+    # @line_magic
+    # def deploy(self, line:str) ->t.Any :
+    #     """
+    #     A DLT line magic command for deploying a pipeline.
+    #     """
+    #     args = parse_argstring(self.deploy, line)
+    #     try:
+    #         from dlt.cli._dlt import deploy_command_wrapper
+    #         from dlt.cli.deploy_command import PipelineWasNotRun, DLT_DEPLOY_DOCS_URL, DeploymentMethods, COMMAND_DEPLOY_REPO_LOCATION, SecretFormats
+    #         def words_to_cron(description: str)->str:
+    #             mapping = {
+    #                 "5 minutes": "*/5 * * * *",
+    #                 "15 minutes": "*/15 * * * *",
+    #                 "30 minutes": "*/30 * * * *",
+    #                 "45 minutes": "*/45 * * * *",
+    #                 "hour": "0 * * * *",
+    #                 # Add more mappings as needed
+    #             }
+    #             cron_expression = mapping.get(description.lower())
+    #             if cron_expression:
+    #                 return cron_expression
+    #             else:
+    #                 return "Invalid description"
+    #
+    #         # Initialize an empty kwargs dictionary
+    #         kwargs = {}
+    #
+    #         if args.schedule is not None:
+    #             kwargs['schedule'] = words_to_cron(args.schedule)
+    #         if args.run_on_push is not None:
+    #             kwargs['run_on_push'] = args.run_on_push
+    #         if args.run_manually is not None:
+    #             kwargs['run_manually'] = args.run_manually
+    #
+    #         deploy_command_wrapper(
+    #             pipeline_script_path=args.pipeline_script_path,
+    #             deployment_method=args.deployment_method,
+    #             repo_location=args.repo_location if args.repo_location is not None else COMMAND_DEPLOY_REPO_LOCATION,
+    #             branch=args.branch,
+    #             **kwargs
+    #         )
+    #         return self.display(self.success_message({"green-bold": "DLT deploy magic ran successfully."}))
+    #     except Exception as ex:
+    #
+    #         self.on_exception(str(ex), DLT_DEPLOY_DOCS_URL)
+    #         return -1
     @magic_arguments()
     @argument('--operation', type=str,default=None,  help="Operation to perform on the pipeline")
     @argument('--pipeline_name', type=str, default=None, help="Name of the pipeline")
