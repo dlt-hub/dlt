@@ -109,9 +109,12 @@ def test_preserve_destination_instance() -> None:
     assert p.staging.destination_name == "local_fs" == p.state["staging_name"]
     assert p.staging.destination_type == "dlt.destinations.filesystem" == p.state["staging_type"]
 
+    # config args should not contain self
+    assert "self" not in p.destination.config_params
+
     # this information was lost and is not present in the config/secrets when pipeline is restored
-    assert p.destination.config_params["environment"] is None
-    assert p.staging.config_params["environment"] is None
+    assert "environment" not in p.destination.config_params
+    assert "environment" not in p.staging.config_params
     # for that reason dest client cannot be instantiated
     with pytest.raises(ConfigFieldMissingException):
         p.destination_client()

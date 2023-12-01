@@ -432,7 +432,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         # Create initial unresolved destination config
         # Argument defaults are filtered out here because we only want arguments passed explicitly
         # to supersede config from the environment or pipeline args
-        sig = inspect.signature(self.__class__)
+        sig = inspect.signature(self.__class__.__init__)
         params = sig.parameters
         self.config_params = {
             k: v for k, v in kwargs.items() if k not in params or v != params[k].default
