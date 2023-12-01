@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING, Optional, Final
 
 from dlt.common.configuration import configspec
 from dlt.common.destination import TLoaderFileFormat
@@ -16,7 +16,7 @@ class DummyClientCredentials(CredentialsConfiguration):
 
 @configspec
 class DummyClientConfiguration(DestinationClientConfiguration):
-    destination_name: str = "dummy"
+    destination_type: Final[str] = "dummy"  # type: ignore
     loader_file_format: TLoaderFileFormat = "jsonl"
     fail_schema_update: bool = False
     fail_prob: float = 0.0
@@ -33,7 +33,7 @@ class DummyClientConfiguration(DestinationClientConfiguration):
 
         def __init__(
             self,
-            destination_name: str = None,
+            *,
             credentials: Optional[CredentialsConfiguration] = None,
             loader_file_format: TLoaderFileFormat = None,
             fail_schema_update: bool = None,
@@ -43,4 +43,6 @@ class DummyClientConfiguration(DestinationClientConfiguration):
             exception_prob: float = None,
             timeout: float = None,
             fail_in_init: bool = None,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...

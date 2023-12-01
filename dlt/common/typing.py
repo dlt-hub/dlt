@@ -4,7 +4,9 @@ import inspect
 import os
 from re import Pattern as _REPattern
 from typing import (
+    ForwardRef,
     Callable,
+    ClassVar,
     Dict,
     Any,
     Final,
@@ -25,7 +27,7 @@ from typing import (
     get_origin,
     IO,
 )
-from typing_extensions import TypeAlias, ParamSpec, Concatenate
+from typing_extensions import TypeAlias, ParamSpec, Concatenate, Annotated
 
 from dlt.common.pendulum import timedelta, pendulum
 
@@ -92,12 +94,30 @@ class SupportsHumanize(Protocol):
         ...
 
 
-def is_union_type(t: Type[Any]) -> bool:
-    return get_origin(t) is Union
+def extract_type_if_modifier(t: Type[Any]) -> Type[Any]:
+    if get_origin(t) in (Final, ClassVar, Annotated):
+        t = get_args(t)[0]
+        if m_t := extract_type_if_modifier(t):
+            return m_t
+        else:
+            return t
+    return None
+
+
+def is_union_type(hint: Type[Any]) -> bool:
+    if get_origin(hint) is Union:
+        return True
+    if hint := extract_type_if_modifier(hint):
+        return is_union_type(hint)
+    return False
 
 
 def is_optional_type(t: Type[Any]) -> bool:
-    return get_origin(t) is Union and type(None) in get_args(t)
+    if get_origin(t) is Union:
+        return type(None) in get_args(t)
+    if t := extract_type_if_modifier(t):
+        return is_optional_type(t)
+    return False
 
 
 def is_final_type(t: Type[Any]) -> bool:
@@ -111,19 +131,27 @@ def extract_union_types(t: Type[Any], no_none: bool = False) -> List[Any]:
 
 
 def is_literal_type(hint: Type[Any]) -> bool:
-    return get_origin(hint) is Literal
-
-
-def is_union(hint: Type[Any]) -> bool:
-    return get_origin(hint) is Union
+    if get_origin(hint) is Literal:
+        return True
+    if hint := extract_type_if_modifier(hint):
+        return is_literal_type(hint)
+    return False
 
 
 def is_newtype_type(t: Type[Any]) -> bool:
-    return hasattr(t, "__supertype__")
+    if hasattr(t, "__supertype__"):
+        return True
+    if t := extract_type_if_modifier(t):
+        return is_newtype_type(t)
+    return False
 
 
 def is_typeddict(t: Type[Any]) -> bool:
-    return isinstance(t, _TypedDict)
+    if isinstance(t, _TypedDict):
+        return True
+    if t := extract_type_if_modifier(t):
+        return is_typeddict(t)
+    return False
 
 
 def is_list_generic_type(t: Type[Any]) -> bool:
@@ -150,12 +178,13 @@ def extract_inner_type(hint: Type[Any], preserve_new_types: bool = False) -> Typ
     Returns:
         Type[Any]: Inner type if hint was Literal, Optional or NewType, otherwise hint
     """
+    if maybe_modified := extract_type_if_modifier(hint):
+        return extract_inner_type(maybe_modified, preserve_new_types)
+    if is_optional_type(hint):
+        return extract_inner_type(get_args(hint)[0], preserve_new_types)
     if is_literal_type(hint):
         # assume that all literals are of the same type
-        return extract_inner_type(type(get_args(hint)[0]), preserve_new_types)
-    if is_optional_type(hint) or is_final_type(hint):
-        # extract specialization type and call recursively
-        return extract_inner_type(get_args(hint)[0], preserve_new_types)
+        return type(get_args(hint)[0])
     if is_newtype_type(hint) and not preserve_new_types:
         # descend into supertypes of NewType
         return extract_inner_type(hint.__supertype__, preserve_new_types)

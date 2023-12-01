@@ -152,7 +152,7 @@ def test_instrumentation_wrappers() -> None:
         msg = SENT_ITEMS[0]
         assert msg["event"] == "command_init"
         assert msg["properties"]["source_name"] == "instrumented_source"
-        assert msg["properties"]["destination_name"] == "<UNK>"
+        assert msg["properties"]["destination_type"] == "<UNK>"
         assert msg["properties"]["success"] is False
 
         SENT_ITEMS.clear()

@@ -93,8 +93,11 @@ class LoadInfo(NamedTuple):
     """A tuple holding the information on recently loaded packages. Returned by pipeline `run` and `load` methods"""
 
     pipeline: "SupportsPipeline"
-    destination_name: str
+    destination_type: str
     destination_displayable_credentials: str
+    destination_name: str
+    environment: str
+    staging_type: str
     staging_name: str
     staging_displayable_credentials: str
     destination_fingerprint: str
@@ -190,8 +193,10 @@ class TPipelineState(TypedDict, total=False):
     """Name of the first schema added to the pipeline to which all the resources without schemas will be added"""
     schema_names: Optional[List[str]]
     """All the schemas present within the pipeline working directory"""
-    destination: Optional[str]
-    staging: Optional[str]
+    destination_name: Optional[str]
+    destination_type: Optional[str]
+    staging_name: Optional[str]
+    staging_type: Optional[str]
 
     # properties starting with _ are not automatically applied to pipeline object when state is restored
     _state_version: int

@@ -25,6 +25,14 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         self,
         credentials: t.Optional[GcpServiceAccountCredentials] = None,
         location: t.Optional[str] = None,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
-        super().__init__(credentials=credentials, location=location, **kwargs)
+        super().__init__(
+            credentials=credentials,
+            location=location,
+            destination_name=destination_name,
+            environment=environment,
+            **kwargs,
+        )

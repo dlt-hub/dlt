@@ -50,16 +50,16 @@ def on_exception(ex: Exception, info: str) -> None:
         raise ex
 
 
-@utils.track_command("init", False, "source_name", "destination_name")
+@utils.track_command("init", False, "source_name", "destination_type")
 def init_command_wrapper(
     source_name: str,
-    destination_name: str,
+    destination_type: str,
     use_generic_template: bool,
     repo_location: str,
     branch: str,
 ) -> int:
     try:
-        init_command(source_name, destination_name, use_generic_template, repo_location, branch)
+        init_command(source_name, destination_type, use_generic_template, repo_location, branch)
     except Exception as ex:
         on_exception(ex, DLT_INIT_DOCS_URL)
         return -1

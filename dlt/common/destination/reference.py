@@ -1,26 +1,23 @@
-from abc import ABC, abstractmethod, abstractproperty
+from abc import ABC, abstractmethod
 from importlib import import_module
-from types import TracebackType, ModuleType
+from types import TracebackType
 from typing import (
     ClassVar,
-    Final,
     Optional,
     NamedTuple,
     Literal,
     Sequence,
     Iterable,
     Type,
-    Protocol,
     Union,
     TYPE_CHECKING,
-    cast,
     List,
     ContextManager,
     Dict,
     Any,
-    Callable,
     TypeVar,
     Generic,
+    Final,
 )
 from contextlib import contextmanager
 import datetime  # noqa: 251
@@ -74,8 +71,12 @@ class StateInfo(NamedTuple):
 
 @configspec
 class DestinationClientConfiguration(BaseConfiguration):
-    destination_name: str = None  # which destination to load data to
+    destination_type: Final[str] = None  # which destination to load data to
     credentials: Optional[CredentialsConfiguration]
+    destination_name: Optional[str] = (
+        None  # name of the destination, if not set, destination_type is used
+    )
+    environment: Optional[str] = None
 
     def fingerprint(self) -> str:
         """Returns a destination fingerprint which is a hash of selected configuration fields. ie. host in case of connection string"""
@@ -85,12 +86,17 @@ class DestinationClientConfiguration(BaseConfiguration):
         """Return displayable destination location"""
         return str(self.credentials)
 
+    def on_resolved(self) -> None:
+        self.destination_name = self.destination_name or self.destination_type
+
     if TYPE_CHECKING:
 
         def __init__(
             self,
-            destination_name: str = None,
+            *,
             credentials: Optional[CredentialsConfiguration] = None,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...
 
 
@@ -98,7 +104,7 @@ class DestinationClientConfiguration(BaseConfiguration):
 class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """Configuration of a destination that supports datasets/schemas"""
 
-    dataset_name: Final[str] = None
+    dataset_name: Final[str] = None  # dataset must be final so it is not configurable
     """dataset name in the destination to load data to, for schemas that are not default schema, it is used as dataset prefix"""
     default_schema_name: Optional[str] = None
     """name of default schema to be used to name effective dataset to load data to"""
@@ -130,10 +136,12 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
 
         def __init__(
             self,
-            destination_name: str = None,
+            *,
             credentials: Optional[CredentialsConfiguration] = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...
 
 
@@ -153,13 +161,15 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
 
         def __init__(
             self,
-            destination_name: str = None,
+            *,
             credentials: Union[AwsCredentialsWithoutDefaults, GcpCredentials] = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             as_staging: bool = False,
             bucket_url: str = None,
             layout: str = None,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...
 
 
@@ -173,11 +183,13 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
 
         def __init__(
             self,
-            destination_name: str = None,
+            *,
             credentials: Optional[CredentialsConfiguration] = None,
             dataset_name: str = None,
             default_schema_name: Optional[str] = None,
             staging_config: Optional[DestinationClientStagingConfiguration] = None,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...
 
 
@@ -327,7 +339,7 @@ class JobClientBase(ABC):
             table_name = table["name"]
             if len(table_name) > self.capabilities.max_identifier_length:
                 raise IdentifierTooLongException(
-                    self.config.destination_name,
+                    self.config.destination_type,
                     "table",
                     table_name,
                     self.capabilities.max_identifier_length,
@@ -335,7 +347,7 @@ class JobClientBase(ABC):
             for column_name, column in dict(table["columns"]).items():
                 if len(column_name) > self.capabilities.max_column_identifier_length:
                     raise IdentifierTooLongException(
-                        self.config.destination_name,
+                        self.config.destination_type,
                         "column",
                         f"{table_name}.{column_name}",
                         self.capabilities.max_column_identifier_length,
@@ -420,7 +432,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         # Create initial unresolved destination config
         # Argument defaults are filtered out here because we only want arguments passed explicitly
         # to supersede config from the environment or pipeline args
-        sig = inspect.signature(self.__class__)
+        sig = inspect.signature(self.__class__.__init__)
         params = sig.parameters
         self.config_params = {
             k: v for k, v in kwargs.items() if k not in params or v != params[k].default
@@ -438,8 +450,18 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         ...
 
     @property
-    def name(self) -> str:
-        return self.__class__.__name__
+    def destination_name(self) -> str:
+        """The destination name will either be explicitly set while creating the destination or will be taken from the type"""
+        return self.config_params.get("destination_name") or self.to_name(self.destination_type)
+
+    @property
+    def destination_type(self) -> str:
+        full_path = self.__class__.__module__ + "." + self.__class__.__qualname__
+        return Destination.normalize_type(full_path)
+
+    @property
+    def destination_description(self) -> str:
+        return f"{self.destination_name}({self.destination_type})"
 
     @property
     @abstractmethod
@@ -449,12 +471,13 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     def configuration(self, initial_config: TDestinationConfig) -> TDestinationConfig:
         """Get a fully resolved destination config from the initial config"""
-        return resolve_configuration(
+        config = resolve_configuration(
             initial_config,
-            sections=(known_sections.DESTINATION, self.name),
+            sections=(known_sections.DESTINATION, self.destination_name),
             # Already populated values will supersede resolved env config
             explicit_value=self.config_params,
         )
+        return config
 
     @staticmethod
     def to_name(ref: TDestinationReferenceArg) -> str:
@@ -462,31 +485,48 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             raise InvalidDestinationReference(ref)
         if isinstance(ref, str):
             return ref.rsplit(".", 1)[-1]
-        return ref.name
+        return ref.destination_name
+
+    @staticmethod
+    def normalize_type(destination_type: str) -> str:
+        """Normalizes destination type string into a canonical form. Assumes that type names without dots correspond to build in destinations."""
+        if "." not in destination_type:
+            destination_type = "dlt.destinations." + destination_type
+        # the next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>
+        name = Destination.to_name(destination_type)
+        destination_type = destination_type.replace(
+            f"dlt.destinations.impl.{name}.factory.", "dlt.destinations."
+        )
+        return destination_type
 
     @staticmethod
     def from_reference(
         ref: TDestinationReferenceArg,
         credentials: Optional[CredentialsConfiguration] = None,
+        destination_name: Optional[str] = None,
+        environment: Optional[str] = None,
         **kwargs: Any,
     ) -> Optional["Destination[DestinationClientConfiguration, JobClientBase]"]:
         """Instantiate destination from str reference.
         The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`)
         """
+        # if we only get a name but no ref, we assume that the name is the destination_type
+        if ref is None and destination_name is not None:
+            ref = destination_name
         if ref is None:
             return None
         if isinstance(ref, Destination):
+            if credentials or destination_name or environment:
+                logger.warning(
+                    "Cannot override credentials, destination_name or environment when passing a"
+                    " Destination instance, these values will be ignored."
+                )
             return ref
         if not isinstance(ref, str):
             raise InvalidDestinationReference(ref)
         try:
-            if "." in ref:
-                module_path, attr_name = ref.rsplit(".", 1)
-                dest_module = import_module(module_path)
-            else:
-                from dlt import destinations as dest_module
-
-                attr_name = ref
+            module_path, attr_name = Destination.normalize_type(ref).rsplit(".", 1)
+            dest_module = import_module(module_path)
         except ModuleNotFoundError as e:
             raise UnknownDestinationModule(ref) from e
 
@@ -498,6 +538,10 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             raise UnknownDestinationModule(ref) from e
         if credentials:
             kwargs["credentials"] = credentials
+        if destination_name:
+            kwargs["destination_name"] = destination_name
+        if environment:
+            kwargs["environment"] = environment
         try:
             dest = factory(**kwargs)
             dest.spec

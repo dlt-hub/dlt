@@ -358,9 +358,12 @@ def test_raises_on_final_value_change(environment: Any) -> None:
     # config providers are ignored for final fields
     assert c.pipeline_name == "comp"
 
-    environment["PIPELINE_NAME"] = "comp"
-    assert dict(c) == {"pipeline_name": "comp"}
-    resolve.resolve_configuration(FinalConfiguration())
+    @configspec
+    class FinalConfiguration2(BaseConfiguration):
+        pipeline_name: Final[str] = None
+
+    c2 = resolve.resolve_configuration(FinalConfiguration2())
+    assert dict(c2) == {"pipeline_name": None}
 
 
 def test_explicit_native_always_skips_resolve(environment: Any) -> None:

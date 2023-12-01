@@ -47,12 +47,12 @@ class QdrantClientOptions(BaseConfiguration):
 
 @configspec
 class QdrantClientConfiguration(DestinationClientDwhConfiguration):
-    destination_name: Final[str] = "qdrant"  # type: ignore
+    destination_type: Final[str] = "qdrant"  # type: ignore
     # character for the dataset separator
     dataset_separator: str = "_"
 
-    # make it optional do empty dataset is allowed
-    dataset_name: Optional[str] = None  # type: ignore
+    # make it optional so empty dataset is allowed
+    dataset_name: Final[Optional[str]] = None  # type: ignore[misc]
 
     # Batch size for generating embeddings
     embedding_batch_size: int = 32

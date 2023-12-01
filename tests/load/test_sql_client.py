@@ -250,10 +250,10 @@ def test_execute_query(client: SqlJobClientBase) -> None:
     "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
 )
 def test_execute_df(client: SqlJobClientBase) -> None:
-    if client.config.destination_name == "bigquery":
+    if client.config.destination_type == "bigquery":
         chunk_size = 50
         total_records = 80
-    elif client.config.destination_name == "mssql":
+    elif client.config.destination_type == "mssql":
         chunk_size = 700
         total_records = 1000
     else:
@@ -497,7 +497,7 @@ def test_transaction_isolation(client: SqlJobClientBase) -> None:
 def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
     if client.capabilities.max_identifier_length >= 65536:
         pytest.skip(
-            f"destination {client.config.destination_name} has no table name length restriction"
+            f"destination {client.config.destination_type} has no table name length restriction"
         )
     table_name = (
         8
@@ -516,7 +516,7 @@ def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
     # BQ is failing on the HTTP protocol level
 
     # exists, _ = client.get_storage_table(long_table_name)
-    # assert exists is (client.config.destination_name == "postgres")
+    # assert exists is (client.config.destination_type == "postgres")
     # exists, table_def = client.get_storage_table(long_table_name[:client.capabilities.max_identifier_length])
     # assert exists is True
 
@@ -527,7 +527,7 @@ def test_max_table_identifier_length(client: SqlJobClientBase) -> None:
 def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
     if client.capabilities.max_column_identifier_length >= 65536:
         pytest.skip(
-            f"destination {client.config.destination_name} has no column name length restriction"
+            f"destination {client.config.destination_type} has no column name length restriction"
         )
     table_name = "prospects_external_data__data365_member__member"
     column_name = (
@@ -603,7 +603,7 @@ def prepare_temp_table(client: SqlJobClientBase) -> str:
     table_name = f"tmp_{uniq_suffix}"
     iceberg_table_suffix = ""
     coltype = "numeric"
-    if client.config.destination_name == "athena":
+    if client.config.destination_type == "athena":
         iceberg_table_suffix = (
             f"LOCATION '{AWS_BUCKET}/ci/{table_name}' TBLPROPERTIES ('table_type'='ICEBERG',"
             " 'format'='parquet');"

@@ -10,7 +10,7 @@ from dlt.common.typing import (
     get_all_types_of_class_in_union,
     is_final_type,
     is_optional_type,
-    is_union,
+    is_union_type,
 )
 
 from dlt.common.configuration.specs.base_configuration import (
@@ -28,7 +28,6 @@ from dlt.common.configuration.specs.config_providers_context import ConfigProvid
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.utils import log_traces, deserialize_value
 from dlt.common.configuration.exceptions import (
-    FinalConfigFieldException,
     LookupTrace,
     ConfigFieldMissingException,
     ConfigurationWrongTypeException,
@@ -71,7 +70,7 @@ def initialize_credentials(hint: Any, initial_value: Any) -> CredentialsConfigur
     or a dictionary corresponding to credential's fields. In case of union of credentials, the first configuration in the union fully resolved by
     initial value will be instantiated."""
     # use passed credentials as initial value. initial value may resolve credentials
-    if is_union(hint):
+    if is_union_type(hint):
         specs_in_union = get_all_types_of_class_in_union(hint, CredentialsConfiguration)
         assert len(specs_in_union) > 0
         first_credentials: CredentialsConfiguration = None
@@ -203,7 +202,7 @@ def _resolve_config_fields(
         # if hint is union of configurations, any of them must be resolved
         specs_in_union: List[Type[BaseConfiguration]] = []
         current_value = None
-        if is_union(hint):
+        if is_union_type(hint):
             # if union contains a type of explicit value which is not a valid hint, return it as current value
             if (
                 explicit_value
@@ -258,9 +257,9 @@ def _resolve_config_fields(
             unresolved_fields[key] = traces
         # set resolved value in config
         if default_value != current_value:
-            if is_final_type(hint):
-                raise FinalConfigFieldException(type(config).__name__, key)
-            setattr(config, key, current_value)
+            if not is_final_type(hint):
+                # ignore final types
+                setattr(config, key, current_value)
 
     # Check for dynamic hint resolvers which have no corresponding fields
     unmatched_hint_resolvers: List[str] = []

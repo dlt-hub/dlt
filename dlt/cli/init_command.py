@@ -144,7 +144,7 @@ def _list_verified_sources(
 
 def _welcome_message(
     source_name: str,
-    destination_name: str,
+    destination_type: str,
     source_files: VerifiedSourceFiles,
     dependency_system: str,
     is_new_source: bool,
@@ -171,7 +171,7 @@ def _welcome_message(
     if is_new_source:
         fmt.echo(
             "* Add credentials for %s and other secrets in %s"
-            % (fmt.bold(destination_name), fmt.bold(make_dlt_settings_path(SECRETS_TOML)))
+            % (fmt.bold(destination_type), fmt.bold(make_dlt_settings_path(SECRETS_TOML)))
         )
 
     if dependency_system:
@@ -181,7 +181,7 @@ def _welcome_message(
             fmt.echo("  " + fmt.bold(dep))
         fmt.echo(
             "  If the dlt dependency is already added, make sure you install the extra for %s to it"
-            % fmt.bold(destination_name)
+            % fmt.bold(destination_type)
         )
         if dependency_system == utils.REQUIREMENTS_TXT:
             qs = "' '"
@@ -191,7 +191,7 @@ def _welcome_message(
             )
         elif dependency_system == utils.PYPROJECT_TOML:
             fmt.echo("  If you are using poetry you may issue the following command:")
-            fmt.echo(fmt.bold("  poetry add %s -E %s" % (DLT_PKG_NAME, destination_name)))
+            fmt.echo(fmt.bold("  poetry add %s -E %s" % (DLT_PKG_NAME, destination_type)))
         fmt.echo()
     else:
         fmt.echo(
@@ -224,13 +224,13 @@ def list_verified_sources_command(repo_location: str, branch: str = None) -> Non
 
 def init_command(
     source_name: str,
-    destination_name: str,
+    destination_type: str,
     use_generic_template: bool,
     repo_location: str,
     branch: str = None,
 ) -> None:
     # try to import the destination and get config spec
-    destination_reference = Destination.from_reference(destination_name)
+    destination_reference = Destination.from_reference(destination_type)
     destination_spec = destination_reference.spec
 
     fmt.echo("Looking up the init scripts in %s..." % fmt.bold(repo_location))
@@ -316,7 +316,7 @@ def init_command(
     )
 
     # add dlt extras line to requirements
-    source_files.requirements.update_dlt_extras(destination_name)
+    source_files.requirements.update_dlt_extras(destination_type)
 
     # Check compatibility with installed dlt
     if not source_files.requirements.is_installed_dlt_compatible():
@@ -359,7 +359,7 @@ def init_command(
     transformed_nodes = source_detection.find_call_arguments_to_replace(
         visitor,
         [
-            ("destination", destination_name),
+            ("destination", destination_type),
             ("pipeline_name", source_name),
             ("dataset_name", source_name + "_data"),
         ],
@@ -379,7 +379,7 @@ def init_command(
         transformed_nodes = source_detection.find_call_arguments_to_replace(
             visitor,
             [
-                ("destination", destination_name),
+                ("destination", destination_type),
                 ("pipeline_name", source_name),
                 ("dataset_name", source_name + "_data"),
             ],
@@ -406,7 +406,7 @@ def init_command(
     else:
         # replace only destination for existing pipelines
         transformed_nodes = source_detection.find_call_arguments_to_replace(
-            visitor, [("destination", destination_name)], source_files.pipeline_script
+            visitor, [("destination", destination_type)], source_files.pipeline_script
         )
         # pipeline sources are in module with name starting from {pipeline_name}
         # for verified pipelines place in the specific source section
@@ -422,8 +422,8 @@ def init_command(
         )
 
     # add destination spec to required secrets
-    required_secrets["destinations:" + destination_name] = WritableConfigValue(
-        destination_name, destination_spec, None, ("destination",)
+    required_secrets["destinations:" + destination_type] = WritableConfigValue(
+        destination_type, destination_spec, None, ("destination",)
     )
     # add the global telemetry to required config
     required_config["runtime.dlthub_telemetry"] = WritableConfigValue(
@@ -454,7 +454,7 @@ def init_command(
             raise CliCommandException("init", "Aborted")
 
     dependency_system = _get_dependency_system(dest_storage)
-    _welcome_message(source_name, destination_name, source_files, dependency_system, is_new_source)
+    _welcome_message(source_name, destination_type, source_files, dependency_system, is_new_source)
 
     # copy files at the very end
     for file_name in source_files.files:

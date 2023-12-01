@@ -1,4 +1,4 @@
-from typing import Any, ClassVar, Final, List
+from typing import Any, ClassVar, Final, List, TYPE_CHECKING, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
@@ -57,7 +57,7 @@ class MotherDuckCredentials(DuckDbBaseCredentials):
 
 @configspec
 class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_name: Final[str] = "motherduck"  # type: ignore
+    destination_type: Final[str] = "motherduck"  # type: ignore
     credentials: MotherDuckCredentials
 
     create_indexes: bool = (
@@ -69,6 +69,19 @@ class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration
         if self.credentials and self.credentials.password:
             return digest128(self.credentials.password)
         return ""
+
+    if TYPE_CHECKING:
+
+        def __init__(
+            self,
+            *,
+            credentials: Optional[MotherDuckCredentials] = None,
+            dataset_name: str = None,
+            default_schema_name: Optional[str] = None,
+            create_indexes: Optional[bool] = None,
+            destination_name: str = None,
+            environment: str = None,
+        ) -> None: ...
 
 
 class MotherduckLocalVersionNotSupported(DestinationTerminalException):

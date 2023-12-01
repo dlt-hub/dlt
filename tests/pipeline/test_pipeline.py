@@ -9,6 +9,7 @@ import pytest
 import dlt
 from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.configuration.specs.gcp_credentials import GcpOAuthCredentials
@@ -86,7 +87,7 @@ def test_run_full_refresh_default_dataset() -> None:
     p = dlt.pipeline(full_refresh=True, destination="dummy")
     assert p.dataset_name is None
     # simulate set new dataset
-    p._set_destinations("filesystem", None)
+    p._set_destinations("filesystem")
     assert p.dataset_name is None
     p._set_dataset_name(None)
     # full refresh is still observed
@@ -167,17 +168,39 @@ def test_pipeline_context() -> None:
 
 def test_import_unknown_destination() -> None:
     with pytest.raises(UnknownDestinationModule):
-        dlt.pipeline(destination="!")
+        dlt.pipeline(destination="dlt.destinations.unknown")
 
 
-def test_configured_destination(environment) -> None:
-    environment["DESTINATION_NAME"] = "postgres"
+def test_configured_destination_type(environment) -> None:
+    environment["DESTINATION_TYPE"] = "dlt.destinations.postgres"
     environment["PIPELINE_NAME"] = "postgres_pipe"
 
     p = dlt.pipeline()
     assert p.destination is not None
-    assert p.destination.name.endswith("postgres")
+    assert p.destination.destination_type == "dlt.destinations.postgres"
+    assert p.destination.destination_name == "postgres"
     assert p.pipeline_name == "postgres_pipe"
+
+
+def test_configured_destination_unknown_type(environment) -> None:
+    environment["DESTINATION_TYPE"] = "dlt.destinations.unknown"
+
+    with pytest.raises(UnknownDestinationModule):
+        dlt.pipeline()
+
+
+def test_configured_destination_unknown_name(environment) -> None:
+    environment["DESTINATION_NAME"] = "filesystem-prod"
+    environment["DESTINATION_TYPE"] = "filesystem"
+
+    p = dlt.pipeline()
+    assert p.destination is not None
+    assert p.destination.destination_type == "dlt.destinations.filesystem"
+    assert p.destination.destination_name == "filesystem-prod"
+
+    # we do not have config for postgres-prod so getting destination client must fail
+    with pytest.raises(ConfigFieldMissingException):
+        p.destination_client()
 
 
 def test_deterministic_salt(environment) -> None:

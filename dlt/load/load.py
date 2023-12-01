@@ -392,19 +392,19 @@ class Load(Runnable[Executor]):
     ) -> TSchemaTables:
         staging_text = "for staging dataset" if staging_info else ""
         logger.info(
-            f"Client for {job_client.config.destination_name} will start initialize storage"
+            f"Client for {job_client.config.destination_type} will start initialize storage"
             f" {staging_text}"
         )
         job_client.initialize_storage()
         logger.info(
-            f"Client for {job_client.config.destination_name} will update schema to package schema"
+            f"Client for {job_client.config.destination_type} will update schema to package schema"
             f" {staging_text}"
         )
         applied_update = job_client.update_stored_schema(
             only_tables=update_tables, expected_update=expected_update
         )
         logger.info(
-            f"Client for {job_client.config.destination_name} will truncate tables {staging_text}"
+            f"Client for {job_client.config.destination_type} will truncate tables {staging_text}"
         )
         job_client.initialize_storage(truncate_tables=truncate_tables)
         return applied_update
@@ -464,7 +464,11 @@ class Load(Runnable[Executor]):
                 )
 
                 # init staging client
-                if self.staging_destination and isinstance(job_client, SupportsStagingDestination):
+                if self.staging_destination:
+                    assert isinstance(job_client, SupportsStagingDestination), (
+                        f"Job client for destination {self.destination.destination_type} does not"
+                        " implement SupportsStagingDestination"
+                    )
                     with self.get_staging_destination_client(schema) as staging_client:
                         self._init_client(
                             staging_client,
@@ -578,8 +582,15 @@ class Load(Runnable[Executor]):
 
         return LoadInfo(
             pipeline,
-            self.initial_client_config.destination_name,
+            Destination.normalize_type(self.initial_client_config.destination_type),
             str(self.initial_client_config),
+            self.initial_client_config.destination_name,
+            self.initial_client_config.environment,
+            (
+                Destination.normalize_type(self.initial_staging_client_config.destination_type)
+                if self.initial_staging_client_config
+                else None
+            ),
             (
                 self.initial_staging_client_config.destination_name
                 if self.initial_staging_client_config

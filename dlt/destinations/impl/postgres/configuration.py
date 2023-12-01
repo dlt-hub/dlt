@@ -36,7 +36,7 @@ class PostgresCredentials(ConnectionStringCredentials):
 
 @configspec
 class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_name: Final[str] = "postgres"  # type: ignore
+    destination_type: Final[str] = "postgres"  # type: ignore
     credentials: PostgresCredentials
 
     create_indexes: bool = True
@@ -51,9 +51,11 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
         def __init__(
             self,
-            destination_name: str = None,
+            *,
             credentials: PostgresCredentials = None,
             dataset_name: str = None,
             default_schema_name: str = None,
             create_indexes: bool = True,
+            destination_name: str = None,
+            environment: str = None,
         ) -> None: ...

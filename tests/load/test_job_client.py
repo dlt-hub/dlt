@@ -379,13 +379,13 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
         # print(c["data_type"])
         assert c["name"] == expected_c["name"]
         # athena does not know wei data type and has no JSON type, time is not supported with parquet tables
-        if client.config.destination_name == "athena" and c["data_type"] in (
+        if client.config.destination_type == "athena" and c["data_type"] in (
             "wei",
             "complex",
             "time",
         ):
             continue
-        if client.config.destination_name == "mssql" and c["data_type"] in ("wei", "complex"):
+        if client.config.destination_type == "mssql" and c["data_type"] in ("wei", "complex"):
             continue
         assert c["data_type"] == expected_c["data_type"]
 

@@ -1,4 +1,4 @@
-from typing import Final, ClassVar, Any, List, Optional
+from typing import Final, ClassVar, Any, List, Optional, TYPE_CHECKING
 from sqlalchemy.engine import URL
 
 from dlt.common.configuration import configspec
@@ -73,7 +73,7 @@ class MsSqlCredentials(ConnectionStringCredentials):
 
 @configspec
 class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_name: Final[str] = "mssql"  # type: ignore
+    destination_type: Final[str] = "mssql"  # type: ignore
     credentials: MsSqlCredentials
 
     create_indexes: bool = False
@@ -83,3 +83,16 @@ class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
+
+    if TYPE_CHECKING:
+
+        def __init__(
+            self,
+            *,
+            credentials: Optional[MsSqlCredentials] = None,
+            dataset_name: str = None,
+            default_schema_name: Optional[str] = None,
+            create_indexes: Optional[bool] = None,
+            destination_name: str = None,
+            environment: str = None,
+        ) -> None: ...

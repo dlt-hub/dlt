@@ -28,6 +28,8 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         self,
         credentials: t.Union[PostgresCredentials, t.Dict[str, t.Any], str] = None,
         create_indexes: bool = True,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Postgres destination to use in a pipeline.
@@ -40,4 +42,10 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
             create_indexes: Should unique indexes be created
             **kwargs: Additional arguments passed to the destination config
         """
-        super().__init__(credentials=credentials, create_indexes=create_indexes, **kwargs)
+        super().__init__(
+            credentials=credentials,
+            create_indexes=create_indexes,
+            destination_name=destination_name,
+            environment=environment,
+            **kwargs,
+        )

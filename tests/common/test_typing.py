@@ -1,4 +1,6 @@
 from typing import (
+    ClassVar,
+    Final,
     List,
     Literal,
     Mapping,
@@ -65,12 +67,14 @@ def test_is_dict_generic_type() -> None:
 
 def test_is_literal() -> None:
     assert is_literal_type(TTestLi) is True  # type: ignore[arg-type]
+    assert is_literal_type(Final[TTestLi]) is True  # type: ignore[arg-type]
     assert is_literal_type("a") is False  # type: ignore[arg-type]
     assert is_literal_type(List[str]) is False
 
 
 def test_optional() -> None:
     assert is_optional_type(TOptionalLi) is True  # type: ignore[arg-type]
+    assert is_optional_type(ClassVar[TOptionalLi]) is True  # type: ignore[arg-type]
     assert is_optional_type(TOptionalTyDi) is True  # type: ignore[arg-type]
     assert is_optional_type(TTestTyDi) is False
     assert extract_union_types(TOptionalLi) == [TTestLi, type(None)]  # type: ignore[arg-type]
@@ -91,6 +95,7 @@ def test_union_types() -> None:
 def test_is_newtype() -> None:
     NT1 = NewType("NT1", str)
     assert is_newtype_type(NT1) is True
+    assert is_newtype_type(ClassVar[NT1]) is True  # type: ignore[arg-type]
     assert is_newtype_type(TypeVar("TV1", bound=str)) is False  # type: ignore[arg-type]
     assert is_newtype_type(1) is False  # type: ignore[arg-type]
 

@@ -567,13 +567,7 @@ def assert_common_files(
         # destination is there
         assert secrets.get_value(destination_name, type, None, "destination") is not None
     # certain values are never there
-    for not_there in [
-        "dataset_name",
-        "destination_name",
-        "default_schema_name",
-        "as_staging",
-        "staging_config",
-    ]:
+    for not_there in ["destination_name", "default_schema_name", "as_staging", "staging_config"]:
         assert secrets.get_value(not_there, type, None, "destination", destination_name)[0] is None
 
     return visitor, secrets

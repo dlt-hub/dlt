@@ -28,6 +28,8 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         credentials: t.Union[SnowflakeCredentials, t.Dict[str, t.Any], str] = None,
         stage_name: t.Optional[str] = None,
         keep_staged_files: bool = True,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Snowflake destination to use in a pipeline.
@@ -44,5 +46,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             credentials=credentials,
             stage_name=stage_name,
             keep_staged_files=keep_staged_files,
+            destination_name=destination_name,
+            environment=environment,
             **kwargs,
         )

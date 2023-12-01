@@ -1,4 +1,4 @@
-from typing import Dict, Literal, Optional, Final
+from typing import Dict, Literal, Optional, Final, TYPE_CHECKING
 from dataclasses import field
 from urllib.parse import urlparse
 
@@ -24,9 +24,9 @@ class WeaviateCredentials(CredentialsConfiguration):
 
 @configspec
 class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
-    destination_name: Final[str] = "weaviate"  # type: ignore
-    # make it optional do empty dataset is allowed
-    dataset_name: Optional[str] = None  # type: ignore
+    destination_type: Final[str] = "weaviate"  # type: ignore
+    # make it optional so empty dataset is allowed
+    dataset_name: Optional[str] = None  # type: ignore[misc]
 
     batch_size: int = 100
     batch_workers: int = 1
@@ -58,3 +58,26 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
             hostname = urlparse(self.credentials.url).hostname
             return digest128(hostname)
         return ""
+
+    if TYPE_CHECKING:
+
+        def __init__(
+            self,
+            *,
+            destination_type: str = None,
+            credentials: WeaviateCredentials = None,
+            name: str = None,
+            environment: str = None,
+            dataset_name: str = None,
+            default_schema_name: str = None,
+            batch_size: int = None,
+            batch_workers: int = None,
+            batch_consistency: TWeaviateBatchConsistency = None,
+            batch_retries: int = None,
+            conn_timeout: float = None,
+            read_timeout: float = None,
+            startup_period: int = None,
+            dataset_separator: str = None,
+            vectorizer: str = None,
+            module_config: Dict[str, Dict[str, str]] = None,
+        ) -> None: ...

@@ -28,6 +28,8 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         athena_work_group: t.Optional[str] = None,
         aws_data_catalog: t.Optional[str] = "awsdatacatalog",
         force_iceberg: bool = False,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Athena destination to use in a pipeline.
@@ -48,5 +50,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
             athena_work_group=athena_work_group,
             aws_data_catalog=aws_data_catalog,
             force_iceberg=force_iceberg,
+            destination_name=destination_name,
+            environment=environment,
             **kwargs,
         )

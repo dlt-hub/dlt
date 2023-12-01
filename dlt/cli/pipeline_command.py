@@ -282,7 +282,7 @@ def pipeline_command(
 
         fmt.echo(
             "About to drop the following data in dataset %s in destination %s:"
-            % (fmt.bold(drop.info["dataset_name"]), fmt.bold(p.destination.name))
+            % (fmt.bold(drop.info["dataset_name"]), fmt.bold(p.destination.destination_name))
         )
         fmt.echo("%s: %s" % (fmt.style("Selected schema", fg="green"), drop.info["schema_name"]))
         fmt.echo(

@@ -29,6 +29,8 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
         credentials: t.Union[WeaviateCredentials, t.Dict[str, t.Any]] = None,
         vectorizer: str = None,
         module_config: t.Dict[str, t.Dict[str, str]] = None,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
         **kwargs: t.Any,
     ) -> None:
         """Configure the Weaviate destination to use in a pipeline.
@@ -42,5 +44,10 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
             **kwargs: Additional arguments forwarded to the destination config
         """
         super().__init__(
-            credentials=credentials, vectorizer=vectorizer, module_config=module_config, **kwargs
+            credentials=credentials,
+            vectorizer=vectorizer,
+            module_config=module_config,
+            destination_name=destination_name,
+            environment=environment,
+            **kwargs,
         )
