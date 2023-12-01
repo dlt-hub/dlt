@@ -10,7 +10,7 @@ authors:
 tags: [Kestra, Automation, dlt, Orchestration, Slack, BigQuery, OpenAI]
 ---
 ---
-# THE PROBLEM
+## THE PROBLEM
 
 There are two types of people: those who hoard thousands of unread emails in their inbox and those who open them immediately to avoid the ominous red notification. But one thing unites us all: everyone hates emails. The reasons are clear:
 
@@ -23,7 +23,7 @@ So, this post will explore a possible remedy to the whole email issue involving 
 
 ---
 
-# THE SOLUTION
+## THE SOLUTION
 
 Don't worry; it's nothing overly complex, but it does involve some cool tools that everyone could benefit from.
 
@@ -43,7 +43,7 @@ Wanna jump to the [GitHub repo](https://github.com/dlt-hub/dlt-kestra-demo)?
 
 ---
 
-# HOW IT WORKS
+## HOW IT WORKS
 
 To lay it all out clearly: Everything's automated in **`Kestra`**, with hassle-free data loading thanks to **`dlt`**, and the analytical thinking handled by OpenAI. Here's a diagram to help you understand the general outline of the entire process. 
 
@@ -51,7 +51,7 @@ To lay it all out clearly: Everything's automated in **`Kestra`**, with hassle-f
 
 Now, let's delve into specific parts of the implementation.
 
-## The environment:
+### The environment:
 
 >💡 The two flows in Kestra are set up in a very straightforward and intuitive manner. Simply follow the Prerequisites and Setup guidelines in the [repo](https://github.com/dlt-hub/dlt-kestra-demo). It should take no more than 15 minutes.
 
@@ -68,7 +68,7 @@ The great thing about **`Kestra`** is its ease of use - it's UI-based, declarati
 If you're already considering ways to use **`Kestra`** for your projects, consult their [documentation](https://kestra.io/docs) and the [plugin](https://kestra.io/plugins) pages for further insights.
 :::
 
-## The data loading part
+### The data loading part
 
 > 💡 This is entirely managed by **`dlt`** in just five lines of code.
 
@@ -105,7 +105,7 @@ In this setup ☝️, **`dlt`** loads all email data into the table “my_inbox�
 This implementation doesn't handle email attachments, but if you need to analyze, for instance, invoice PDFs from your inbox, you can read about how to automate this with **`dlt`** [here](https://dlthub.com/docs/blog/dlt-ops-startups).
 :::
 
-## The AI part
+### The AI part
 
 >💡 In this day and age, how can we not incorporate AI into everything? 😆
 
@@ -126,7 +126,7 @@ In my [subflow](https://github.com/dlt-hub/dlt-kestra-demo/blob/main/subflow.yml
 **`Kestra`** also includes Slack, as well as BigQuery plugins, which I used in my flows. Additionally, there is a wide variety of [other plugins](https://kestra.io/plugins) available.
 :::
 
-## The automation part
+### The automation part
 
 >💡 **`Kestra`** triggers are the ideal solution!
 
@@ -143,7 +143,7 @@ This configuration ensures that your flows are executed hourly on workdays from 
 
 ---
 
-# THE OUTCOME
+## THE OUTCOME
 
 A Slack assistant that delivers crisp inbox insights right at your fingertips:
 
@@ -161,7 +161,7 @@ In essence, using **`Kestra`** and **`dlt`** offers a trio of advantages for ref
 
 ---
 
-# HOW IT COULD WORK ELSEWHERE
+## HOW IT COULD WORK ELSEWHERE
 
 Basically, you can apply the architecture discussed in this post whenever you need to automate a business process!
 
