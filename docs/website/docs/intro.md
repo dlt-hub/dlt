@@ -52,9 +52,9 @@ Now **run** your Python file or Notebook cell.
 What that code does:
 
 1. Extracts data from a
-[source](general-usage/glossary.md#source) (here: **chess.com REST API**)
+[source](general-usage/glossary.md#source) (here: **chess.com REST API**).
 2. `dlt` inspects the data's structure to create a
-[schema](general-usage/glossary.md#schema)
+[schema](general-usage/glossary.md#schema).
 3. `dlt` structures, normalizes and verifies the data.
 4. `dlt` loads data into a [destination](general-usage/glossary.md#destination) (here: a **duckdb** database schema **player_data** and table name **player**).
 
