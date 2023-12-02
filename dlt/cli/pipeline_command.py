@@ -41,10 +41,6 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
         if operation not in {"sync", "drop"}:
             raise
         fmt.warning(str(e))
-        if is_notebook():
-            fmt.warning("Automatically proceeding without pipeline restoration in notebook mode.")
-            return
-
         if not fmt.confirm("Do you want to attempt to restore the pipeline state from destination?", default=False):
             return
         destination = destination or fmt.text_input(f"Enter destination name for pipeline {fmt.bold(pipeline_name)}")
@@ -167,30 +163,16 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
         extracted_files, norm_packages = _display_pending_packages()
         if len(extracted_files) == 0 and len(norm_packages) == 0:
             fmt.echo("No pending packages found")
-        if is_notebook():
-            fmt.warning("Automatically proceeding with package deletion in notebook mode.")
+        if fmt.confirm("Delete the above packages?", default=False):
             p.drop_pending_packages(with_partial_loads=True)
             fmt.echo("Pending packages deleted")
 
-        else:
-            if fmt.confirm("Delete the above packages?", default=False):
-                p.drop_pending_packages(with_partial_loads=True)
-                fmt.echo("Pending packages deleted")
-
     if operation == "sync":
-        if is_notebook():
-            fmt.warning("Automatically proceeding with: drop the local state of the pipeline")
+        if fmt.confirm("About to drop the local state of the pipeline and reset all the schemas. The destination state, data and schemas are left intact. Proceed?", default=False):
             fmt.echo("Dropping local state")
             p = p.drop()
             fmt.echo("Restoring from destination")
             p.sync_destination()
-        else:
-
-            if fmt.confirm("About to drop the local state of the pipeline and reset all the schemas. The destination state, data and schemas are left intact. Proceed?", default=False):
-                fmt.echo("Dropping local state")
-                p = p.drop()
-                fmt.echo("Restoring from destination")
-                p.sync_destination()
 
     if operation == "load-package":
         load_id = command_kwargs.get('load_id')
@@ -242,9 +224,6 @@ def pipeline_command(operation: str, pipeline_name: str, pipelines_dir: str, ver
         #     fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
         for warning in drop.info["warnings"]:
             fmt.warning(warning)
-        if is_notebook():
-            fmt.warning("Automatically proceeding with dropping the data in notebook mode.")
+
+        if fmt.confirm("Do you want to apply these changes?", default=False):
             drop()
-        else:
-            if fmt.confirm("Do you want to apply these changes?", default=False):
-                drop()

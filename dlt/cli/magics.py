@@ -12,8 +12,7 @@ from IPython.core.magic_arguments import argument, magic_arguments, parse_argstr
 
 
 from ..common.runtime.exec_info import is_notebook, is_ipython
-from dlt.cli import echo as fmt
-
+from dlt.cli import echo as fmt, echo
 
 import typing as t  # type: ignore
 from hyperscript import h  # type: ignore
@@ -128,18 +127,18 @@ class DltMagics(Magics):
         args = parse_argstring(self.init, line)
         try:
             from dlt.cli._dlt import init_command_wrapper
-
-            out = init_command_wrapper(
-                source_name=args.source_name,
-                destination_name=args.destination_name,
-                use_generic_template=args.use_generic_template,
-                repo_location=args.repo_location if args.repo_location is not None else DEFAULT_VERIFIED_SOURCES_REPO,
-                branch=args.branch if args.branch is not None else None
-            )
-            if out == -1:
-                return self.display(self.on_exception("Failure due to...", "Default value for init is 'No' for safety reasons."))
-            else:
-                return self.display(self.success_message({"green-bold": "DLT project initialized successfully."}))
+            with echo.always_choose(False, always_choose_value=True):
+                out = init_command_wrapper(
+                    source_name=args.source_name,
+                    destination_name=args.destination_name,
+                    use_generic_template=args.use_generic_template,
+                    repo_location=args.repo_location if args.repo_location is not None else DEFAULT_VERIFIED_SOURCES_REPO,
+                    branch=args.branch if args.branch is not None else None
+                )
+                if out == -1:
+                    return self.display(self.on_exception("Failure due to...", "Default value for init is 'No' for safety reasons."))
+                else:
+                    return self.display(self.success_message({"green-bold": "DLT project initialized successfully."}))
         except Exception as ex:
             self.on_exception(str(ex), DLT_INIT_DOCS_URL)
             return -1
@@ -215,13 +214,14 @@ class DltMagics(Magics):
             args.operation = 'list'
         try:
             from dlt.cli._dlt import pipeline_command_wrapper, DLT_PIPELINE_COMMAND_DOCS_URL
-            pipeline_command_wrapper(
-                operation=args.operation,
-                pipeline_name=args.pipeline_name,
-                pipelines_dir=args.pipelines_dir,
-                verbosity=args.verbosity
+            with echo.always_choose(False, always_choose_value=True):
+                pipeline_command_wrapper(
+                    operation=args.operation,
+                    pipeline_name=args.pipeline_name,
+                    pipelines_dir=args.pipelines_dir,
+                    verbosity=args.verbosity
 
-            )
+                )
         except Exception as ex:
             self.on_exception(str(ex), DLT_PIPELINE_COMMAND_DOCS_URL)
             return -2
@@ -238,12 +238,13 @@ class DltMagics(Magics):
         args = parse_argstring(self.schema, line)
         try:
             from dlt.cli._dlt import schema_command_wrapper
-            schema_command_wrapper(
-                file_path=args.file_path,
-                format_=args.format,
-                remove_defaults=args.remove_defaults
-            )
-            return self.display(self.success_message({"green-bold": "DLT schema magic ran successfully."}))
+            with echo.always_choose(False, always_choose_value=True):
+                schema_command_wrapper(
+                    file_path=args.file_path,
+                    format_=args.format,
+                    remove_defaults=args.remove_defaults
+                )
+                return self.display(self.success_message({"green-bold": "DLT schema magic ran successfully."}))
         except Exception as ex:
             self.on_exception(str(ex), "Schema Documentation URL")  # Replace with actual URL
             return -1

@@ -47,9 +47,11 @@ def note(msg: str) -> None:
 
 def confirm(text: str, default: Optional[bool] = None) -> bool:
     if ALWAYS_CHOOSE_VALUE:
+        warning("Automatically choosing {ALWAYS_CHOOSE_VALUE} for: {text}")
         return bool(ALWAYS_CHOOSE_VALUE)
     if ALWAYS_CHOOSE_DEFAULT:
-        assert default is not None
+        assert default is not None, "Default value must be provided when ALWAYS_CHOOSE_DEFAULT is enabled."
+        warning(f"Automatically choosing default ({default}) value for: {text}")
         return default
     return click.confirm(text, default=default)
 

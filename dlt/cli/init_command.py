@@ -240,13 +240,9 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
         msg = f"This pipeline requires a newer version of dlt than your installed version ({source_files.requirements.current_dlt_version()}). " \
             f"Pipeline requires '{source_files.requirements.dlt_requirement_base}'"
         fmt.warning(msg)
-        if is_notebook():
-            fmt.warning("Automatically proceeding with init in notebook mode.")
-            pass
-        else:
-            if not fmt.confirm("Would you like to continue anyway? (you can update dlt after this step)", default=True):
-                fmt.echo(f'You can update dlt with: pip3 install -U "{source_files.requirements.dlt_requirement_base}"')
-                return
+        if not fmt.confirm("Would you like to continue anyway? (you can update dlt after this step)", default=True):
+            fmt.echo(f'You can update dlt with: pip3 install -U "{source_files.requirements.dlt_requirement_base}"')
+            return
 
     # read module source and parse it
     visitor = utils.parse_init_script("init", source_files.storage.load(source_files.pipeline_script), source_files.pipeline_script)
@@ -315,11 +311,9 @@ def init_command(source_name: str, destination_name: str, use_generic_template: 
             fmt.echo("Cloning and configuring a verified source %s (%s)" % (fmt.bold(source_name), source_files.doc))
             if use_generic_template:
                 fmt.warning("--generic parameter is meaningless if verified source is found")
-        if is_notebook():
-            fmt.warning("Automatically proceeding with init in notebook mode.")
-        else:
-            if not fmt.confirm("Do you want to proceed?", default=True):
-                raise CliCommandException("init", "Aborted")
+
+        if not fmt.confirm("Do you want to proceed?", default=True):
+            raise CliCommandException("init", "Aborted")
 
     dependency_system = _get_dependency_system(dest_storage)
     _welcome_message(source_name, destination_name, source_files, dependency_system, is_new_source)
