@@ -11,7 +11,7 @@
 
   --ifm-navbar-background-color: #F7F9FC;
   --ifm-background-color: #F7F9FC;
-
+  
   --ifm-color-primary: #000000;
   --ifm-link-color: #191937;
   --ifm-color-primary-dark: #191937;
@@ -39,6 +39,8 @@
   --docsearch-highlight-color:#191937 !important;
   --docsearch-hit-color: #191937 !important;
   --ifm-footer-background-color: #E4E8F0;
+
+  --doc-sidebar-width: 325px !important;
 }
 
 /* For readability concerns, you should choose a lighter palette in dark mode. */
