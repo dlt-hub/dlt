@@ -53,7 +53,7 @@ def _get_user_home_dir() -> str:
     return os.path.expanduser("~")
 
 
-import os
+
 
 def create_symlink_to_dlt(symlink_dir):
     """
