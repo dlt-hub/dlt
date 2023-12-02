@@ -9,7 +9,7 @@ or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support
 Personio is a human resources management software that helps businesses streamline HR processes,
 including recruitment, employee data management, and payroll, in one platform.
 
-Our Personio verified source loads data using Perosnio API to your preferred
+Our [Personio verified](https://github.com/dlt-hub/verified-sources/blob/master/sources/personio) source loads data using Perosnio API to your preferred
 [destination](../destinations).
 
 :::tip 
@@ -28,12 +28,16 @@ Resources that can be loaded using this verified source are:
 
 ### Grab credentials
 
-To load data from Personio, you need to API credentials, `client_id` and `client_secret`:
+To load data from Personio, you need to obtain API credentials, `client_id` and `client_secret`:
 
 1. Sign in to your Personio account, and ensure that your user account has API access rights.
 1. Navigate to Settings > Integrations > API credentials.
 1. Click on "Generate new credentials."
 1. Assign necessary permissions to credentials, i.e. read access.
+
+:::info
+The Personio UI, which is described here, might change. The full guide is available at this [link.](https://developer.personio.de/docs#21-employee-attendance-and-absence-endpoints)
+:::
 
 ### Initialize the verified source
 
@@ -56,8 +60,7 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the
-[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
+For more information, read [add a verified source.](../../walkthroughs/add-a-verified-source)
 
 ### Add credentials
 
@@ -81,7 +84,7 @@ For more information, read the
    your chosen destination. This will ensure that your data is properly routed to its final
    destination.
 
-For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+For more information, read [credentials](../../general-usage/credentials).
 
 ## Run the pipeline
 
@@ -102,7 +105,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    For example, the `pipeline_name` for the above pipeline example is `personio`, you may also use
    any custom name instead.
 
-For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
+For more information, read [run a pipeline.](../../walkthroughs/run-a-pipeline)
 
 ## Sources and resources
 
@@ -111,8 +114,7 @@ For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs
 
 ### Source `personio_source`
 
-This function initializes class `PersonioAPI` in "personio/helpers.py" and returns data resources
-like "employees", "absences", and "attendances".
+This `dlt` source returns data resources like "employees", "absences", and "attendances".
 
 ```python
 @dlt.source(name="personio")
@@ -160,7 +162,7 @@ data from the Personio API to your preferred destination.
 If you wish to create your own pipelines, you can leverage source and resource methods from this
 verified source.
 
-1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
+1. Configure the [pipeline](../../general-usage/pipeline) by specifying the pipeline name, destination, and dataset as follows:
 
    ```python
    pipeline = dlt.pipeline(
@@ -169,10 +171,6 @@ verified source.
       dataset_name="personio_data"  # Use a custom name if desired
    )
    ```
-
-   :::note 
-   To read more about pipeline configuration, please refer to our [documentation](../../general-usage/pipeline). 
-   :::
 
 1. To load employee data:
 
@@ -184,6 +182,6 @@ verified source.
 1. To load data from all supported endpoints:
 
    ```python
-   load_data = personio_source().with_resources("employees", "absences", "attendances")
+   load_data = personio_source()
    print(pipeline.run(load_data))
    ```
