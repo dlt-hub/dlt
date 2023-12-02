@@ -74,10 +74,9 @@ def create_symlink_to_dlt(symlink_dir):
     Raises:
         OSError: If the symlink creation fails due to operating system-related errors.
     """
-    original_dir = ".dlt"
-    if not os.path.exists(original_dir):
-        os.makedirs(original_dir)
+    if not os.path.exists(DOT_DLT):
+        os.makedirs(DOT_DLT)
     if not os.path.exists(symlink_dir):
-        os.symlink(original_dir, symlink_dir)
-        print(f"Created a visible symlink: {symlink_dir} -> {original_dir}")
+        os.symlink(DOT_DLT, symlink_dir)
+        print(f"Created a visible symlink: {symlink_dir} -> {DOT_DLT}")
 
