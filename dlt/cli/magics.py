@@ -1,11 +1,4 @@
-from argparse import ArgumentParser
 
-# from dlt.cli._dlt import telemetry_change_status_command_wrapper, init_command_wrapper, on_exception
-# from .deploy_command import COMMAND_DEPLOY_REPO_LOCATION, DLT_DEPLOY_DOCS_URL
-
-# from dlt.cli._dlt import init_command_wrapper
-# from .pipeline_command import DLT_PIPELINE_COMMAND_DOCS_URL
-# from dlt.cli.init_command import init_command
 
 from IPython.core.display import HTML, display # type: ignore
 from IPython.core.magic import (
