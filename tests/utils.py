@@ -23,7 +23,7 @@ from dlt.common.schema import Schema
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import StrAny, TDataItem
 from dlt.common.utils import custom_environ, uniq_id
-from dlt.common.pipeline import PipelineContext
+from dlt.common.pipeline import PipelineContext, SupportsPipeline
 
 TEST_STORAGE_ROOT = "_storage"
 
@@ -95,6 +95,12 @@ class MockHttpResponse(Response):
     def raise_for_status(self) -> None:
         if self.status_code >= 300:
             raise requests.HTTPError(response=self)
+
+
+class MockPipeline(SupportsPipeline):
+    def __init__(self, pipeline_name: str, first_run: bool) -> None:
+        self.pipeline_name = pipeline_name
+        self.first_run = first_run
 
 
 def write_version(storage: FileStorage, version: str) -> None:
