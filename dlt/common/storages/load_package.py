@@ -26,7 +26,7 @@ from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
 from dlt.common.storages import FileStorage
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import DictStrAny, StrAny
+from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize
 from dlt.common.utils import flatten_list_or_items
 
 # folders to manage load jobs in a single load package
@@ -103,20 +103,31 @@ class LoadJobInfo(NamedTuple):
         return self.asstr(verbosity=0)
 
 
-class LoadPackageInfo(NamedTuple):
+class _LoadPackageInfo(NamedTuple):
     load_id: str
     package_path: str
     state: TLoadPackageState
-    schema_name: str
-    schema_hash: str
+    schema: Schema
     schema_update: TSchemaTables
     completed_at: datetime.datetime
     jobs: Dict[TJobState, List[LoadJobInfo]]
+
+
+class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
+    @property
+    def schema_name(self) -> str:
+        return self.schema.name
+
+    @property
+    def schema_hash(self) -> str:
+        return self.schema.stored_version_hash
 
     def asdict(self) -> DictStrAny:
         d = self._asdict()
         # job as list
         d["jobs"] = [job.asdict() for job in flatten_list_or_items(iter(self.jobs.values()))]  # type: ignore
+        d["schema_hash"] = self.schema_hash
+        d["schema_name"] = self.schema_name
         # flatten update into list of columns
         tables: List[DictStrAny] = deepcopy(list(self.schema_update.values()))  # type: ignore
         for table in tables:
@@ -131,8 +142,9 @@ class LoadPackageInfo(NamedTuple):
                 columns.append(column)
             table["columns"] = columns
         d.pop("schema_update")
+        d.pop("schema")
         d["tables"] = tables
-        d["schema_hash"] = self.schema_hash
+
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
@@ -402,8 +414,7 @@ class PackageStorage:
             load_id,
             self.storage.make_full_path(package_path),
             package_state,
-            schema.name,
-            schema.version_hash,
+            schema,
             applied_update,
             package_created_at,
             all_jobs,

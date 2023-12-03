@@ -1,3 +1,4 @@
+from abc import ABC, abstractmethod
 import os
 import datetime  # noqa: 251
 import humanize
@@ -7,6 +8,7 @@ from typing import (
     Callable,
     ClassVar,
     Dict,
+    Generic,
     List,
     NamedTuple,
     Optional,
@@ -14,12 +16,13 @@ from typing import (
     Sequence,
     TYPE_CHECKING,
     Tuple,
+    TypeVar,
     TypedDict,
     Mapping,
 )
 from typing_extensions import NotRequired
 
-from dlt.common import pendulum, logger
+from dlt.common import pendulum
 from dlt.common.configuration import configspec
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.container import Container
@@ -28,7 +31,7 @@ from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.common.configuration.specs import RunConfiguration
-from dlt.common.destination import Destination, TDestinationReferenceArg, TDestination
+from dlt.common.destination import TDestinationReferenceArg, TDestination
 from dlt.common.exceptions import (
     DestinationHasFailedJobs,
     PipelineStateNotAvailable,
@@ -39,9 +42,23 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnNames, TColumnSchema, TWriteDisposition, TSchemaContract
 from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_storage import LoadPackageInfo
-from dlt.common.typing import DictStrAny, REPattern
+from dlt.common.typing import DictStrAny, REPattern, SupportsHumanize
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
 from dlt.common.data_writers.writers import TLoaderFileFormat
+from dlt.common.utils import RowCounts, merge_row_counts
+
+
+class StepInfo(SupportsHumanize):
+    pipeline: "SupportsPipeline"
+    loads_ids: List[str]
+    """ids of the loaded packages"""
+    load_packages: List[LoadPackageInfo]
+    """Information on loaded packages"""
+    started_at: datetime.datetime
+    first_run: bool
+
+    def __str__(self) -> str:
+        return self.asstr(verbosity=0)
 
 
 class ExtractDataInfo(TypedDict):
@@ -49,31 +66,79 @@ class ExtractDataInfo(TypedDict):
     data_type: str
 
 
-class ExtractInfo(NamedTuple):
+class ExtractMetrics(TypedDict):
+    schema_name: str
+
+
+class _ExtractInfo(NamedTuple):
+    pipeline: "SupportsPipeline"
+    metrics: Dict[str, ExtractMetrics]
+    extract_data_info: List[ExtractDataInfo]
+    loads_ids: List[str]
+    """ids of the loaded packages"""
+    load_packages: List[LoadPackageInfo]
+    """Information on loaded packages"""
+    started_at: datetime.datetime
+    first_run: bool
+
+
+class ExtractInfo(StepInfo, _ExtractInfo):
     """A tuple holding information on extracted data items. Returned by pipeline `extract` method."""
 
-    extract_data_info: List[ExtractDataInfo]
-
     def asdict(self) -> DictStrAny:
-        return {}
+        """A dictionary representation of ExtractInfo that can be loaded with `dlt`"""
+        d = self._asdict()
+        d["pipeline"] = {"pipeline_name": self.pipeline.pipeline_name}
+        d["load_packages"] = [package.asdict() for package in self.load_packages]
+        d.pop("metrics")
+        d.pop("extract_data_info")
+        return d
 
     def asstr(self, verbosity: int = 0) -> str:
         return ""
 
-    def __str__(self) -> str:
-        return self.asstr(verbosity=0)
+
+class NormalizeMetrics(TypedDict):
+    row_counts: RowCounts
 
 
-class NormalizeInfo(NamedTuple):
+class _NormalizeInfo(NamedTuple):
+    pipeline: "SupportsPipeline"
+    metrics: Dict[str, NormalizeMetrics]
+    loads_ids: List[str]
+    """ids of the loaded packages"""
+    load_packages: List[LoadPackageInfo]
+    """Information on loaded packages"""
+    started_at: datetime.datetime
+    first_run: bool
+
+
+class NormalizeInfo(StepInfo, _NormalizeInfo):
     """A tuple holding information on normalized data items. Returned by pipeline `normalize` method."""
 
-    row_counts: Dict[str, int] = {}
+    @property
+    def row_counts(self) -> RowCounts:
+        if not self.metrics:
+            return {}
+        counts: RowCounts = {}
+        for metrics in self.metrics.values():
+            merge_row_counts(counts, metrics.get("row_counts", {}))
+        return counts
 
     def asdict(self) -> DictStrAny:
         """A dictionary representation of NormalizeInfo that can be loaded with `dlt`"""
         d = self._asdict()
+        d["pipeline"] = {"pipeline_name": self.pipeline.pipeline_name}
+        d["load_packages"] = [package.asdict() for package in self.load_packages]
         # list representation creates a nice table
-        d["row_counts"] = [{"table_name": k, "count": v} for k, v in self.row_counts.items()]
+        d["row_counts"] = []
+        for load_id, metrics in self.metrics.items():
+            d["row_counts"].extend(
+                [
+                    {"load_id": load_id, "table_name": k, "count": v}
+                    for k, v in metrics["row_counts"].items()
+                ]
+            )
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
@@ -85,13 +150,8 @@ class NormalizeInfo(NamedTuple):
             msg = "No data found to normalize"
         return msg
 
-    def __str__(self) -> str:
-        return self.asstr(verbosity=0)
 
-
-class LoadInfo(NamedTuple):
-    """A tuple holding the information on recently loaded packages. Returned by pipeline `run` and `load` methods"""
-
+class _LoadInfo(NamedTuple):
     pipeline: "SupportsPipeline"
     destination_type: str
     destination_displayable_credentials: str
@@ -108,6 +168,10 @@ class LoadInfo(NamedTuple):
     """Information on loaded packages"""
     started_at: datetime.datetime
     first_run: bool
+
+
+class LoadInfo(StepInfo, _LoadInfo):
+    """A tuple holding the information on recently loaded packages. Returned by pipeline `run` and `load` methods"""
 
     def asdict(self) -> DictStrAny:
         """A dictionary representation of LoadInfo that can be loaded with `dlt`"""
@@ -173,6 +237,46 @@ class LoadInfo(NamedTuple):
 
     def __str__(self) -> str:
         return self.asstr(verbosity=1)
+
+
+TStepMetrics = TypeVar("TStepMetrics")
+TStepInfo = TypeVar("TStepInfo", bound=StepInfo)
+
+
+class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
+    """Implemented by classes that generate StepInfo with metrics and package infos"""
+
+    _current_load_id: str
+    _load_id_metrics: Dict[str, TStepMetrics]
+    """Completed load ids metrics"""
+
+    def __init__(self) -> None:
+        self._load_id_metrics = {}
+
+    def _step_info_start_load_id(self, load_id: str) -> None:
+        self._current_load_id = load_id
+        self._load_id_metrics[load_id] = None
+
+    def _step_info_complete_load_id(self, load_id: str, metrics: TStepMetrics) -> None:
+        assert self._current_load_id == load_id, (
+            f"Current load id mismatch {self._current_load_id} != {load_id} when completing step"
+            " info"
+        )
+        self._load_id_metrics[load_id] = metrics
+        self._current_load_id = None
+
+    def _step_info_metrics(self, load_id: str) -> TStepMetrics:
+        return self._load_id_metrics[load_id]
+
+    @abstractmethod
+    def get_step_info(
+        self,
+        pipeline: "SupportsPipeline",
+        started_at: datetime.datetime = None,
+        completed_at: datetime.datetime = None,
+    ) -> TStepInfo:
+        """Returns and instance of StepInfo with metrics and package infos"""
+        pass
 
 
 class TPipelineLocalState(TypedDict, total=False):
@@ -281,6 +385,7 @@ class SupportsPipelineRun(Protocol):
         columns: Sequence[TColumnSchema] = None,
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
+        schema_contract: TSchemaContract = None,
     ) -> LoadInfo: ...
 
 
