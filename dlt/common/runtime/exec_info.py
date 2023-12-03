@@ -66,11 +66,19 @@ def is_notebook() -> bool:
         from IPython import get_ipython
         # Get the class name of the current IPython instance
         shell = get_ipython().__class__.__name__
-        # Check if the shell is a Jupyter notebook (ZMQInteractiveShell) and return as boolean
-        return shell == 'ZMQInteractiveShell'
+        # Check if the shell is a Jupyter notebook (ZMQInteractiveShell)
+        if shell == 'ZMQInteractiveShell':
+            return True
+        # Additionally, check for Databricks notebook environment
+        if 'dbutils' in globals():
+            return True
+        # If none of the above, it's not a notebook
+        return False
+
     except NameError:
         # Return False if get_ipython() is not available, indicating a non-IPython environment
         return False
+
 
 
 def is_ipython() -> bool:

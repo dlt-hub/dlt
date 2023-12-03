@@ -33,6 +33,7 @@ from dlt.pipeline import pipeline as _pipeline, run, attach, Pipeline, dbt, curr
 from dlt.pipeline import progress
 
 
+
 pipeline = _pipeline
 current = _current
 mark = _mark
@@ -48,7 +49,6 @@ try:
     register_notebook_magics()
 except:
     pass
-
 
 __all__ = [
     "__version__",
