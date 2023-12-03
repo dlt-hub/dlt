@@ -1,5 +1,4 @@
 import contextlib
-from copy import copy
 from functools import reduce
 import datetime  # noqa: 251
 from typing import Dict, List, Optional, Tuple, Set, Iterator, Iterable, Callable
@@ -9,10 +8,9 @@ import os
 from dlt.common import sleep, logger
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
-from dlt.common.pipeline import LoadInfo, SupportsPipeline
+from dlt.common.pipeline import LoadInfo, SupportsPipeline, WithStepInfo
 from dlt.common.schema.utils import get_child_tables, get_top_level_table
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
-from dlt.common.typing import StrAny
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.runtime.logger import pretty_format_exception
@@ -49,7 +47,7 @@ from dlt.load.exceptions import (
 )
 
 
-class Load(Runnable[Executor]):
+class Load(Runnable[Executor], WithStepInfo[str, LoadInfo]):
     pool: Executor
 
     @with_config(spec=LoaderConfiguration, sections=(known_sections.LOAD,))
@@ -72,8 +70,7 @@ class Load(Runnable[Executor]):
         self.staging_destination = staging_destination
         self.pool = NullExecutor()
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
-        self._processed_load_ids: Dict[str, str] = {}
-        """Load ids to dataset name"""
+        super().__init__()
 
     def create_storage(self, is_storage_owner: bool) -> LoadStorage:
         supported_file_formats = self.capabilities.supported_loader_file_formats
@@ -347,15 +344,10 @@ class Load(Runnable[Executor]):
         if not aborted:
             with self.get_destination_client(schema) as job_client:
                 job_client.complete_load(load_id)
-                # TODO: Load must provide a clear interface to get last loads and metrics
-                # TODO: get more info ie. was package aborted, schema name etc.
-                if isinstance(job_client.config, DestinationClientDwhConfiguration):
-                    self._processed_load_ids[load_id] = job_client.config.normalize_dataset_name(
-                        schema
-                    )
-                else:
-                    self._processed_load_ids[load_id] = None
         self.load_storage.complete_load_package(load_id, aborted)
+        # TODO: Load must provide a clear interface to get last loads and metrics
+        # TODO: get more info ie. was package aborted, schema name etc.
+        self._step_info_complete_load_id(load_id, metrics=None)
         logger.info(
             f"All jobs completed, archiving package {load_id} with aborted set to {aborted}"
         )
@@ -562,23 +554,31 @@ class Load(Runnable[Executor]):
         logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
 
         # get top load id and mark as being processed
-        # TODO: another place where tracing must be refactored
-        self._processed_load_ids[load_id] = None
         with self.collector(f"Load {schema.name} in {load_id}"):
+            self._step_info_start_load_id(load_id)
             self.load_single_package(load_id, schema)
 
         return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
 
-    def get_load_info(
-        self, pipeline: SupportsPipeline, started_at: datetime.datetime = None
+    def get_step_info(
+        self,
+        pipeline: SupportsPipeline,
+        started_at: datetime.datetime = None,
+        completed_at: datetime.datetime = None,
     ) -> LoadInfo:
         # TODO: LoadInfo should hold many datasets
-        load_ids = list(self._processed_load_ids.keys())
+        load_ids = list(self._load_id_metrics.keys())
         load_packages: List[LoadPackageInfo] = []
         # get load packages and dataset_name from the last package
         _dataset_name: str = None
-        for load_id, _dataset_name in self._processed_load_ids.items():
-            load_packages.append(self.load_storage.get_load_package_info(load_id))
+        for load_id in self._load_id_metrics.keys():
+            load_package = self.load_storage.get_load_package_info(load_id)
+            # TODO: each load id may have a separate dataset so construct a list of datasets here
+            if isinstance(self.initial_client_config, DestinationClientDwhConfiguration):
+                _dataset_name = self.initial_client_config.normalize_dataset_name(
+                    load_package.schema
+                )
+            load_packages.append(load_package)
 
         return LoadInfo(
             pipeline,
