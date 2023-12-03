@@ -1,4 +1,5 @@
 import os
+import datetime  # noqa: 251
 from typing import Callable, List, Dict, Sequence, Tuple, Set, Optional
 from concurrent.futures import Future, Executor
 
@@ -22,8 +23,16 @@ from dlt.common.storages import (
 )
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.schema.exceptions import CannotCoerceColumnException
-from dlt.common.pipeline import NormalizeInfo
-from dlt.common.utils import chunks, TRowCount, merge_row_count, increase_row_count
+from dlt.common.pipeline import (
+    NormalizeInfo,
+    NormalizeMetrics,
+    StepInfo,
+    SupportsPipeline,
+    WithStepInfo,
+)
+from dlt.common.storages.exceptions import LoadPackageNotFound
+from dlt.common.storages.load_package import LoadPackageInfo
+from dlt.common.utils import RowCounts, chunks, merge_row_counts, increase_row_count
 
 from dlt.normalize.configuration import NormalizeConfiguration
 from dlt.normalize.items_normalizers import (
@@ -33,16 +42,16 @@ from dlt.normalize.items_normalizers import (
 )
 
 # normalize worker wrapping function (map_parallel, map_single) return type
-TMapFuncRV = Tuple[Sequence[TSchemaUpdate], TRowCount]
+TMapFuncRV = Tuple[Sequence[TSchemaUpdate], RowCounts]
 # normalize worker wrapping function signature
 TMapFuncType = Callable[
     [Schema, str, Sequence[str]], TMapFuncRV
 ]  # input parameters: (schema name, load_id, list of files to process)
 # tuple returned by the worker
-TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str], TRowCount]
+TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str], RowCounts]
 
 
-class Normalize(Runnable[Executor]):
+class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo]):
     pool: Executor
 
     @with_config(spec=NormalizeConfiguration, sections=(known_sections.NORMALIZE,))
@@ -58,7 +67,6 @@ class Normalize(Runnable[Executor]):
         self.pool = NullExecutor()
         self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
-        self._row_counts: TRowCount = {}
 
         # setup storages
         self.create_storages()
@@ -66,6 +74,7 @@ class Normalize(Runnable[Executor]):
         self.schema_storage = schema_storage or SchemaStorage(
             self.config._schema_storage_config, makedirs=True
         )
+        super().__init__()
 
     def create_storages(self) -> None:
         # pass initial normalize storage config embedded in normalize config
@@ -92,7 +101,7 @@ class Normalize(Runnable[Executor]):
         destination_caps = config.destination_capabilities
         schema_updates: List[TSchemaUpdate] = []
         total_items = 0
-        row_counts: TRowCount = {}
+        row_counts: RowCounts = {}
         load_storages: Dict[TLoaderFileFormat, LoadStorage] = {}
 
         def _get_load_storage(file_format: TLoaderFileFormat) -> LoadStorage:
@@ -168,7 +177,7 @@ class Normalize(Runnable[Executor]):
                     )
                     schema_updates.extend(partial_updates)
                     total_items += items_count
-                    merge_row_count(row_counts, r_counts)
+                    merge_row_counts(row_counts, r_counts)
                     if items_count > 0:
                         populated_root_tables.add(root_table_name)
                         logger.debug(
@@ -238,7 +247,7 @@ class Normalize(Runnable[Executor]):
             )
             for files in chunk_files
         ]
-        row_counts: TRowCount = {}
+        row_counts: RowCounts = {}
 
         # return stats
         schema_updates: List[TSchemaUpdate] = []
@@ -266,7 +275,7 @@ class Normalize(Runnable[Executor]):
                         self.collector.update("Files", len(result[2]))
                         self.collector.update("Items", result[1])
                         # merge row counts
-                        merge_row_count(row_counts, result[3])
+                        merge_row_counts(row_counts, result[3])
                     except CannotCoerceColumnException as exc:
                         # schema conflicts resulting from parallel executing
                         logger.warning(
@@ -330,7 +339,7 @@ class Normalize(Runnable[Executor]):
         self.normalize_storage.extracted_packages.delete_package(load_id)
         # log and update metrics
         logger.info(f"Extracted package {load_id} processed")
-        self._row_counts = row_counts
+        self._step_info_complete_load_id(load_id, {"row_counts": row_counts})
 
     def spool_schema_files(self, load_id: str, schema: Schema, files: Sequence[str]) -> str:
         # normalized files will go here before being atomically renamed
@@ -356,7 +365,6 @@ class Normalize(Runnable[Executor]):
     def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # keep the pool in class instance
         self.pool = pool or NullExecutor()
-        self._row_counts = {}
         logger.info("Running file normalizing")
         # list all load packages in extracted folder
         load_ids = self.normalize_storage.extracted_packages.list_packages()
@@ -379,10 +387,32 @@ class Normalize(Runnable[Executor]):
             with self.collector(f"Normalize {schema.name} in {load_id}"):
                 self.collector.update("Files", 0, len(schema_files))
                 self.collector.update("Items", 0)
+                self._step_info_start_load_id(load_id)
                 self.spool_schema_files(load_id, schema, schema_files)
 
         # return info on still pending packages (if extractor saved something in the meantime)
         return TRunMetrics(False, len(self.normalize_storage.extracted_packages.list_packages()))
 
-    def get_normalize_info(self) -> NormalizeInfo:
-        return NormalizeInfo(row_counts=self._row_counts)
+    def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
+        """Returns information on extracted/normalized/completed package with given load_id, all jobs and their statuses."""
+        try:
+            return self.load_storage.get_load_package_info(load_id)
+        except LoadPackageNotFound:
+            return self.normalize_storage.extracted_packages.get_load_package_info(load_id)
+
+    def get_step_info(
+        self,
+        pipeline: SupportsPipeline,
+        started_at: datetime.datetime = None,
+        completed_at: datetime.datetime = None,
+    ) -> NormalizeInfo:
+        load_ids = list(self._load_id_metrics.keys())
+        load_packages: List[LoadPackageInfo] = []
+        metrics: Dict[str, NormalizeMetrics] = {}
+        for load_id in self._load_id_metrics.keys():
+            load_package = self.get_load_package_info(load_id)
+            load_packages.append(load_package)
+            metrics[load_id] = self._step_info_metrics(load_id)
+        return NormalizeInfo(
+            pipeline, metrics, load_ids, load_packages, started_at, pipeline.first_run
+        )

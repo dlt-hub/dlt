@@ -15,7 +15,7 @@ from dlt.common.storages import (
 )
 from dlt.common.typing import DictStrAny, TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
-from dlt.common.utils import TRowCount, merge_row_count, increase_row_count
+from dlt.common.utils import RowCounts, merge_row_counts, increase_row_count
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers.utils import generate_dlt_ids
 
@@ -47,7 +47,7 @@ class ItemsNormalizer:
     @abstractmethod
     def __call__(
         self, extracted_items_file: str, root_table_name: str
-    ) -> Tuple[List[TSchemaUpdate], int, TRowCount]: ...
+    ) -> Tuple[List[TSchemaUpdate], int, RowCounts]: ...
 
 
 class JsonLItemsNormalizer(ItemsNormalizer):
@@ -79,13 +79,13 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
     def _normalize_chunk(
         self, root_table_name: str, items: List[TDataItem], may_have_pua: bool
-    ) -> Tuple[TSchemaUpdate, int, TRowCount]:
+    ) -> Tuple[TSchemaUpdate, int, RowCounts]:
         column_schemas = self._column_schemas
         schema_update: TSchemaUpdate = {}
         schema = self.schema
         schema_name = schema.name
         items_count = 0
-        row_counts: TRowCount = {}
+        row_counts: RowCounts = {}
         normalize_data_fun = self.schema.normalize_data_item
 
         for item in items:
@@ -194,9 +194,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         self,
         extracted_items_file: str,
         root_table_name: str,
-    ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
+    ) -> Tuple[List[TSchemaUpdate], int, RowCounts]:
         schema_updates: List[TSchemaUpdate] = []
-        row_counts: TRowCount = {}
+        row_counts: RowCounts = {}
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
         ) as f:
@@ -209,7 +209,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     root_table_name, items, may_have_pua(line)
                 )
                 schema_updates.append(partial_update)
-                merge_row_count(row_counts, r_counts)
+                merge_row_counts(row_counts, r_counts)
                 logger.debug(
                     f"Processed {line_no} items from file {extracted_items_file}, items"
                     f" {items_count}"
@@ -320,7 +320,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
 
     def __call__(
         self, extracted_items_file: str, root_table_name: str
-    ) -> Tuple[List[TSchemaUpdate], int, TRowCount]:
+    ) -> Tuple[List[TSchemaUpdate], int, RowCounts]:
         base_schema_update = self._fix_schema_precisions(root_table_name)
 
         add_dlt_id = self.config.parquet_normalizer.add_dlt_id
