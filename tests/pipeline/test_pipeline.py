@@ -29,7 +29,7 @@ from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy
 from dlt.extract.exceptions import InvalidResourceDataTypeBasic, PipeGenInvalid, SourceExhausted
-from dlt.extract.extract import ExtractorStorage
+from dlt.extract.extract import ExtractStorage
 from dlt.extract import DltResource, DltSource
 from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import InvalidPipelineName, PipelineNotActive, PipelineStepFailed
@@ -342,7 +342,7 @@ def test_disable_enable_state_sync(environment: Any) -> None:
 
     s = DltSource(dlt.Schema("default"), "module", [dlt.resource(some_data())])
     dlt.pipeline().extract(s)
-    storage = ExtractorStorage(p._normalize_storage_config)
+    storage = ExtractStorage(p._normalize_storage_config)
     assert len(storage.list_files_to_normalize_sorted()) == 1
     expect_extracted_file(storage, "default", "some_data", json.dumps([1, 2, 3]))
     with pytest.raises(FileNotFoundError):
@@ -370,7 +370,7 @@ def test_extract_multiple_sources() -> None:
     p = dlt.pipeline(destination="dummy")
     p.config.restore_from_destination = False
     p.extract([s1, s2])
-    storage = ExtractorStorage(p._normalize_storage_config)
+    storage = ExtractStorage(p._normalize_storage_config)
     expect_extracted_file(storage, "default", "resource_1", json.dumps([1, 2, 3]))
     expect_extracted_file(storage, "default", "resource_2", json.dumps([3, 4, 5]))
     expect_extracted_file(storage, "default_2", "resource_3", json.dumps([6, 7, 8]))
@@ -636,7 +636,7 @@ def test_load_info_raise_on_failed_jobs() -> None:
     os.environ["RAISE_ON_FAILED_JOBS"] = "true"
     with pytest.raises(PipelineStepFailed) as py_ex_2:
         p.run([1, 2, 3], table_name="numbers")
-    load_info = py_ex_2.value.step_info
+    load_info = py_ex_2.value.step_info  # type: ignore[assignment]
     assert load_info.has_failed_jobs is True
     with pytest.raises(DestinationHasFailedJobs) as py_ex:
         load_info.raise_on_failed_jobs()

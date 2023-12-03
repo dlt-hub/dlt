@@ -2,7 +2,6 @@ import os
 import pickle
 import datetime  # noqa: 251
 import dataclasses
-from collections.abc import Sequence as C_Sequence
 from typing import Any, List, NamedTuple, Optional, Protocol, Sequence
 import humanize
 
@@ -12,16 +11,15 @@ from dlt.common.runtime.exec_info import TExecutionContext, get_execution_contex
 from dlt.common.configuration import is_secret_hint
 from dlt.common.configuration.utils import _RESOLVED_TRACES
 from dlt.common.pipeline import (
-    ExtractDataInfo,
     ExtractInfo,
     LoadInfo,
     NormalizeInfo,
+    StepInfo,
     SupportsPipeline,
 )
 from dlt.common.typing import DictStrAny, StrAny
 from dlt.common.utils import uniq_id
 
-from dlt.extract import DltResource, DltSource
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.exceptions import PipelineStepFailed
 
@@ -59,7 +57,7 @@ class _PipelineStepTrace:
     step: TPipelineStep
     started_at: datetime.datetime
     finished_at: datetime.datetime = None
-    step_info: Optional[Any] = None
+    step_info: Optional[StepInfo] = None
     """A step outcome info ie. LoadInfo"""
     step_exception: Optional[str] = None
     """For failing steps contains exception string"""
@@ -297,34 +295,3 @@ def load_trace(trace_path: str) -> PipelineTrace:
     except (AttributeError, FileNotFoundError):
         # on incompatible pickling / file not found return no trace
         return None
-
-
-def describe_extract_data(data: Any) -> List[ExtractDataInfo]:
-    """Extract source and resource names from data passed to extract"""
-    data_info: List[ExtractDataInfo] = []
-
-    def add_item(item: Any) -> bool:
-        if isinstance(item, (DltResource, DltSource)):
-            # record names of sources/resources
-            data_info.append(
-                {
-                    "name": item.name,
-                    "data_type": "resource" if isinstance(item, DltResource) else "source",
-                }
-            )
-            return False
-        else:
-            # anything else
-            data_info.append({"name": "", "data_type": type(item).__name__})
-            return True
-
-    item: Any = data
-    if isinstance(data, C_Sequence) and len(data) > 0:
-        for item in data:
-            # add_item returns True if non named item was returned. in that case we break
-            if add_item(item):
-                break
-        return data_info
-
-    add_item(item)
-    return data_info

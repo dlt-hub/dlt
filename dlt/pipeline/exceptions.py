@@ -1,6 +1,6 @@
 from typing import Any
 from dlt.common.exceptions import PipelineException
-from dlt.common.pipeline import SupportsPipeline
+from dlt.common.pipeline import StepInfo, SupportsPipeline
 from dlt.pipeline.typing import TPipelineStep
 
 
@@ -53,7 +53,7 @@ class PipelineStepFailed(PipelineException):
         pipeline: SupportsPipeline,
         step: TPipelineStep,
         exception: BaseException,
-        step_info: Any = None,
+        step_info: StepInfo = None,
     ) -> None:
         self.pipeline = pipeline
         self.step = step
