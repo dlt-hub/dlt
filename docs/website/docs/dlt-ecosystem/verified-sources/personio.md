@@ -1,3 +1,9 @@
+---
+title: Personio
+description: dlt verified source for Personio API
+keywords: [personio api, personio verified source, personio]
+---
+
 # Personio
 
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
