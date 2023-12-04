@@ -24,6 +24,7 @@ Note: All paths in this guide are relative to the `dlt` repository directory.
 - Use `# @@@DLT_REMOVE` to remove test code from final code example.
 - Test your snippets locally first with command:
     - `cd docs/website/docs/examples/<example-name>/code && pytest --ignore=node_modules -s -v`.
+- Add `@skipifgithubfork` decorator to your main snippet function, look [example](https://github.com/dlt-hub/dlt/blob/master/docs/website/docs/examples/chess_production/code/chess-snippets.py#L1-L4).
 
 ## Run npm start
 
