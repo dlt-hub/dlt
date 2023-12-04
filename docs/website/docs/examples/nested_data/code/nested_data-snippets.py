@@ -1,3 +1,7 @@
+from tests.utils import skipifgithubfork
+
+
+@skipifgithubfork
 def nested_data_snippet() -> None:
     # @@@DLT_SNIPPET_START example
     # @@@DLT_SNIPPET_START nested_data
