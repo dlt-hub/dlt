@@ -75,8 +75,9 @@ def is_notebook() -> bool:
         # If none of the above, it's not a notebook
         return False
 
-    except NameError:
-        # Return False if get_ipython() is not available, indicating a non-IPython environment
+    except (NameError, ModuleNotFoundError):
+        # Return False if get_ipython() is not available or IPython is not installed
+
         return False
 
 

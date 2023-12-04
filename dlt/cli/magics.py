@@ -11,7 +11,7 @@ from IPython.core.magic import (
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring # type: ignore
 
 
-from ..common.runtime.exec_info import is_notebook, is_ipython
+from dlt.common.runtime.exec_info import is_notebook, is_ipython
 from dlt.cli import echo as fmt, echo
 
 import typing as t  # type: ignore
