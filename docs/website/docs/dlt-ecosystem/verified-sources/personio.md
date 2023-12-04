@@ -18,8 +18,8 @@ including recruitment, employee data management, and payroll, in one platform.
 Our [Personio verified](https://github.com/dlt-hub/verified-sources/blob/master/sources/personio) source loads data using Perosnio API to your preferred
 [destination](../destinations).
 
-:::tip 
-You can check out our pipeline example [here](https://github.com/dlt-hub/verified-sources/blob/master/sources/personio_pipeline.py). 
+:::tip
+You can check out our pipeline example [here](https://github.com/dlt-hub/verified-sources/blob/master/sources/personio_pipeline.py).
 :::
 
 Resources that can be loaded using this verified source are:
@@ -66,7 +66,7 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read [add a verified source.](../../walkthroughs/add-a-verified-source)
+For more information, read [Add a verified source.](../../walkthroughs/add-a-verified-source)
 
 ### Add credentials
 
@@ -90,7 +90,7 @@ For more information, read [add a verified source.](../../walkthroughs/add-a-ver
    your chosen destination. This will ensure that your data is properly routed to its final
    destination.
 
-For more information, read [credentials](../../general-usage/credentials).
+For more information, read [Credentials](../../general-usage/credentials).
 
 ## Run the pipeline
 
@@ -111,7 +111,7 @@ For more information, read [credentials](../../general-usage/credentials).
    For example, the `pipeline_name` for the above pipeline example is `personio`, you may also use
    any custom name instead.
 
-For more information, read [run a pipeline.](../../walkthroughs/run-a-pipeline)
+For more information, read [Run a pipeline.](../../walkthroughs/run-a-pipeline)
 
 ## Sources and resources
 
@@ -143,14 +143,14 @@ This resource retrieves data on all the employees in a company.
 
 ```python
  @dlt.resource(primary_key="id", write_disposition="merge")
-    def employees(
-        updated_at: dlt.sources.incremental[
-            pendulum.DateTime
-        ] = dlt.sources.incremental(
-            "last_modified_at", initial_value=None, allow_external_schedulers=True
-        ),
-        items_per_page: int = items_per_page,
-    ) -> Iterable[TDataItem]:
+def employees(
+    updated_at: dlt.sources.incremental[
+        pendulum.DateTime
+    ] = dlt.sources.incremental(
+        "last_modified_at", initial_value=None, allow_external_schedulers=True
+    ),
+    items_per_page: int = items_per_page,
+) -> Iterable[TDataItem]:
 ```
 
 `updated_at`: The saved state of the last 'last_modified_at' value. It is used for
