@@ -1,6 +1,6 @@
 ---
 title: Command Line Interface for DLT in IPython Notebooks
-description:
+description: The dlt (Data Loading Tool) Command Line Interface (CLI) can be seamlessly integrated into IPython notebooks, enabling a more interactive and visual approach to managing and deploying data pipelines.
 keywords: [magics, notebook]
 ---
 
@@ -11,17 +11,6 @@ keywords: [magics, notebook]
 The dlt (Data Loading Tool) Command Line Interface (CLI) can be seamlessly integrated into IPython notebooks, enabling a more interactive and visual approach to managing and deploying data pipelines.
 
 Please note that every magic command run by default has --non-interactive flag set to True. This means that the pipeline will run without any prompts. If you want to run the pipeline with prompts, you can use command line arguments
-
-
-
-## `%init`
-
-In an IPython notebook, you can use the `%init` magic command to execute the `dlt init` command. This command sets up a new DLT pipeline script that transfers data from a `source` to a `destination`.
-
-```ipython
-%init --source pokemon  --destionation duckdb
-
-```
 
 ## `%pipeline`
 
@@ -38,7 +27,18 @@ Possible operations are:
   9. `drop`
   10. `schema`
 
-For more information on these commands check our [CLI documentation](https://docs.dataloadingtool.com/cli/).
+For more information on these commands check our [CLI documentation](command-line-interface)
+
+
+## `%init`
+
+In an IPython notebook, you can use the `%init` magic command to execute the `dlt init` command. This command sets up a new DLT pipeline script that transfers data from a `source` to a `destination`.
+
+```ipython
+%init --source pokemon  --destionation duckdb
+
+```
+
 
 
 ```ipython
