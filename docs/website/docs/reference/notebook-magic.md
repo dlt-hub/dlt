@@ -55,4 +55,3 @@ Check the DLT version.
 %dlt_version
 ```
 
-To check an example, please see [notebooks/dlt_version.ipynb](notebooks/dlt_version.ipynb).
