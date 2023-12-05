@@ -5,14 +5,18 @@ from itertools import zip_longest
 from dlt.common.storages import PackageStorage, ParsedLoadJobFileName
 from dlt.common.typing import TDataItem, TDataItems
 
-from dlt.extract.extract import ExtractorStorage
+from dlt.extract.extract import ExtractStorage
 from dlt.extract.typing import ItemTransform
 
 from tests.utils import TDataItemFormat
 
 
 def expect_extracted_file(
-    storage: ExtractorStorage, schema_name: str, table_name: str, content: str
+    storage: ExtractStorage,
+    schema_name: str,
+    table_name: str,
+    content: str,
+    expected_files: int = 1,
 ) -> None:
     load_ids = storage.extracted_packages.list_packages()
     gen = (
@@ -28,10 +32,12 @@ def expect_extracted_file(
             PackageStorage.build_job_file_name(table_name, schema_name, validate_components=False)
         )
     assert file is not None
-    # only one file expected
-    with pytest.raises(StopIteration):
-        next(gen)
-    # load file and parse line by line
+    # get remaining file names
+    remaining_files = list(gen)
+    assert (
+        len(remaining_files) + 1 == expected_files
+    ), f"Expected {expected_files} files for table {schema_name}:{table_name}"
+    # load first file and parse line by line
     file_content: str = storage.extracted_packages.storage.load(file)
     if content == "***":
         return

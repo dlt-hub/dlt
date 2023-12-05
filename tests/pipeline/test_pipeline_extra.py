@@ -14,7 +14,7 @@ from dlt.common.runtime.collector import (
     LogCollector,
     TqdmCollector,
 )
-from dlt.extract.storage import ExtractorStorage
+from dlt.extract.storage import ExtractStorage
 from dlt.extract.validation import PydanticValidator
 
 from dlt.pipeline import TCollectorArg
@@ -183,7 +183,7 @@ def test_extract_pydantic_models() -> None:
 
     pipeline.extract(users())
 
-    storage = ExtractorStorage(pipeline._normalize_storage_config)
+    storage = ExtractStorage(pipeline._normalize_storage_config)
     expect_extracted_file(
         storage,
         pipeline.default_schema_name,

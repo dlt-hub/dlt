@@ -8,11 +8,11 @@ from dlt.common.pipeline import reset_resource_state
 from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
 from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name
+
 from dlt.extract.exceptions import (
     InvalidResourceDataTypeFunctionNotAGenerator,
     InvalidStepFunctionArguments,
 )
-
 from dlt.extract.typing import TTableHintTemplate, TDataItem, TFunHintTemplate, SupportsPipe
 
 try:

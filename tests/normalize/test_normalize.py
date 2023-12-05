@@ -16,12 +16,13 @@ from dlt.common.storages import NormalizeStorage, LoadStorage, ParsedLoadJobFile
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.configuration.container import Container
 
-from dlt.extract.extract import ExtractorStorage
+from dlt.extract.extract import ExtractStorage
 from dlt.normalize import Normalize
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
 from tests.utils import (
     TEST_DICT_CONFIG_PROVIDER,
+    MockPipeline,
     assert_no_dict_key_starts_with,
     clean_test_storage,
     init_test_logging,
@@ -263,16 +264,20 @@ def test_normalize_raw_type_hints(
 
 
 @pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
-def test_multiprocess_row_counting(
+def test_multiprocessing_row_counting(
     caps: DestinationCapabilitiesContext, raw_normalize: Normalize
 ) -> None:
     extract_cases(raw_normalize, ["github.events.load_page_1_duck"])
     # use real process pool in tests
     with ProcessPoolExecutor(max_workers=4) as p:
         raw_normalize.run(p)
-
-    assert raw_normalize._row_counts["events"] == 100
-    assert raw_normalize._row_counts["events__payload__pull_request__requested_reviewers"] == 24
+    # get step info
+    step_info = raw_normalize.get_step_info(MockPipeline("multiprocessing_pipeline", True))  # type: ignore[abstract]
+    assert step_info.row_counts["events"] == 100
+    assert step_info.row_counts["events__payload__pull_request__requested_reviewers"] == 24
+    # check if single load id
+    assert len(step_info.loads_ids) == 1
+    assert step_info.metrics[step_info.loads_ids[0]]["row_counts"] == step_info.row_counts
 
 
 @pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)
@@ -496,7 +501,7 @@ EXPECTED_USER_TABLES = [
 def extract_items(
     normalize_storage: NormalizeStorage, items: Sequence[StrAny], schema: Schema, table_name: str
 ) -> str:
-    extractor = ExtractorStorage(normalize_storage.config)
+    extractor = ExtractStorage(normalize_storage.config)
     load_id = extractor.create_load_package(schema)
     extractor.write_data_item("puae-jsonl", load_id, schema.name, table_name, items, None)
     extractor.close_writers(load_id)
@@ -522,6 +527,7 @@ def normalize_pending(normalize: Normalize) -> str:
     load_ids = normalize.normalize_storage.extracted_packages.list_packages()
     assert len(load_ids) == 1, "Only one package allowed or rewrite tests"
     for load_id in load_ids:
+        normalize._step_info_start_load_id(load_id)
         normalize.load_storage.new_packages.create_package(load_id)
         # read schema from package
         schema = normalize.normalize_storage.extracted_packages.load_schema(load_id)

@@ -1,7 +1,6 @@
 import os
 from typing import Dict
 
-from dlt.common import pendulum
 from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
@@ -11,7 +10,9 @@ from dlt.common.storages import (
     DataItemStorage,
     FileStorage,
     PackageStorage,
+    LoadPackageInfo,
 )
+from dlt.common.storages.exceptions import LoadPackageNotFound
 from dlt.common.typing import TDataItems
 from dlt.common.time import precise_time
 from dlt.common.utils import uniq_id
@@ -41,11 +42,11 @@ class ArrowExtractorStorage(ExtractorItemStorage):
     load_file_type: TLoaderFileFormat = "arrow"
 
 
-class ExtractorStorage(NormalizeStorage):
+class ExtractStorage(NormalizeStorage):
     """Wrapper around multiple extractor storages with different file formats"""
 
-    def __init__(self, C: NormalizeStorageConfiguration) -> None:
-        super().__init__(True, C)
+    def __init__(self, config: NormalizeStorageConfiguration) -> None:
+        super().__init__(True, config)
         # always create new packages in an unique folder for each instance so
         # extracts are isolated ie. if they fail
         self.new_packages_folder = uniq_id(8)
@@ -98,6 +99,13 @@ class ExtractorStorage(NormalizeStorage):
     def delete_empty_extract_folder(self) -> None:
         """Deletes temporary extract folder if empty"""
         self.storage.delete_folder(self.new_packages_folder, recursively=False)
+
+    def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
+        """Returns information on temp and extracted packages"""
+        try:
+            return self.new_packages.get_load_package_info(load_id)
+        except LoadPackageNotFound:
+            return self.extracted_packages.get_load_package_info(load_id)
 
     def write_data_item(
         self,

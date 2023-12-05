@@ -16,7 +16,7 @@ from dlt.common.utils import (
     get_module_name,
     concat_strings_with_limit,
     increase_row_count,
-    merge_row_count,
+    merge_row_counts,
     extend_list_deduplicated,
 )
 
@@ -194,7 +194,7 @@ def test_merge_row_counts() -> None:
         "table2": 3,
     }
 
-    merge_row_count(
+    merge_row_counts(
         rc1,
         {
             "table2": 5,
@@ -202,7 +202,7 @@ def test_merge_row_counts() -> None:
         },
     )
     assert rc1 == {"table1": 3, "table2": 8, "table3": 20}
-    merge_row_count(rc1, {"table2": 5, "table3": 20, "table4": 2})
+    merge_row_counts(rc1, {"table2": 5, "table3": 20, "table4": 2})
     assert rc1 == {"table1": 3, "table2": 13, "table3": 40, "table4": 2}
 
 

@@ -21,7 +21,7 @@ from dlt.common.schema.typing import (
 
 from dlt.extract.resource import DltResource
 from dlt.extract.typing import TableNameMeta
-from dlt.extract.storage import ExtractorStorage, ExtractorItemStorage
+from dlt.extract.storage import ExtractStorage, ExtractorItemStorage
 
 try:
     from dlt.common.libs import pyarrow
@@ -46,7 +46,7 @@ class Extractor:
     def __init__(
         self,
         load_id: str,
-        storage: ExtractorStorage,
+        storage: ExtractStorage,
         schema: Schema,
         resources_with_items: Set[str],
         collector: Collector = NULL_COLLECTOR,

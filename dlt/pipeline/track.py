@@ -9,7 +9,6 @@ from dlt.common.runtime.exec_info import github_info
 from dlt.common.runtime.segment import track as dlthub_telemetry_track
 from dlt.common.runtime.slack import send_slack_message
 from dlt.common.pipeline import LoadInfo, ExtractInfo, SupportsPipeline
-from dlt.common.destination import Destination
 
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
@@ -105,7 +104,6 @@ def on_end_trace_step(
         ),
         "transaction_id": trace.transaction_id,
     }
-    # disable automatic slack messaging until we can configure messages themselves
     if step.step == "extract" and step_info:
         assert isinstance(step_info, ExtractInfo)
         props["extract_data"] = step_info.extract_data_info
