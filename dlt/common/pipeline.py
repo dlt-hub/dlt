@@ -252,6 +252,7 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
 
     def __init__(self) -> None:
         self._load_id_metrics = {}
+        self._current_load_id = None
 
     def _step_info_start_load_id(self, load_id: str) -> None:
         self._current_load_id = load_id

@@ -26,7 +26,6 @@ from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.pipeline import (
     NormalizeInfo,
     NormalizeMetrics,
-    StepInfo,
     SupportsPipeline,
     WithStepInfo,
 )
@@ -194,6 +193,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     columns = schema.get_table_columns(table_name)
                     load_storage.write_empty_file(load_id, schema.name, table_name, columns)
             except Exception:
+                # TODO: raise a wrapper exception with job_id, load_id, line_no and schema name
                 logger.exception(
                     f"Exception when processing file {extracted_items_file}, line {line_no}"
                 )
@@ -202,7 +202,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 load_storage.close_writers(load_id)
 
         logger.info(f"Processed total {total_items} items in {len(extracted_items_files)} files")
-
         return schema_updates, total_items, load_storage.closed_files(), row_counts
 
     def update_table(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
