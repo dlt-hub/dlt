@@ -69,7 +69,7 @@ For more information, read [Add a verified source.](../../walkthroughs/add-a-ver
 
    ```toml
    [sources.kinesis]
-   stream_name = "stream" # Stream name (Optional).
+   stream_name = "please set me up!" # Stream name (Optional).
    ```
 
 1. Replace the value of `aws_access_key_id` and `aws_secret_access_key` with the one that
