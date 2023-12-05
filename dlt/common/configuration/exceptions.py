@@ -1,5 +1,5 @@
 import os
-from typing import Any, Mapping, Type, Tuple, NamedTuple, Sequence
+from typing import Any, Dict, Mapping, Type, Tuple, NamedTuple, Sequence
 
 from dlt.common.exceptions import DltException, TerminalException
 from dlt.common.utils import main_module_file_path
@@ -78,6 +78,15 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
             " information\n"
         )
         return msg
+
+    def attrs(self) -> Dict[str, Any]:
+        attrs_ = super().attrs()
+        if "traces" in attrs_:
+            for _, traces in self.traces.items():
+                for idx, trace in enumerate(traces):
+                    # drop all values as they may contain secrets
+                    traces[idx] = trace._replace(value=None)  # type: ignore[index]
+        return attrs_
 
 
 class UnmatchedConfigHintResolversException(ConfigurationException):

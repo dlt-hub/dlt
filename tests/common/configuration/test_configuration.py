@@ -20,7 +20,7 @@ from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs.gcp_credentials import (
     GcpServiceAccountCredentialsWithoutDefaults,
 )
-from dlt.common.utils import custom_environ
+from dlt.common.utils import custom_environ, get_exception_trace, get_exception_trace_chain
 from dlt.common.typing import AnyType, DictStrAny, StrAny, TSecretValue, extract_inner_type
 from dlt.common.configuration.exceptions import (
     ConfigFieldMissingTypeHintException,
@@ -664,12 +664,24 @@ def test_raises_on_unresolved_field(environment: Any, env_provider: ConfigProvid
     # toml providers were empty and are not returned in trace
     # assert trace[1] == LookupTrace("secrets.toml", [], "NoneConfigVar", None)
     # assert trace[2] == LookupTrace("config.toml", [], "NoneConfigVar", None)
+    # check the exception trace
+    exception_traces = get_exception_trace_chain(cf_missing_exc.value)
+    assert len(exception_traces) == 1
+    exception_trace = exception_traces[0]
+    assert exception_trace["docstring"] == ConfigFieldMissingException.__doc__
+    # serialized traces
+    assert "NoneConfigVar" in exception_trace["exception_attrs"]["traces"]
+    assert exception_trace["exception_attrs"]["spec_name"] == "WrongConfiguration"
+    assert exception_trace["exception_attrs"]["fields"] == ["NoneConfigVar"]
 
 
 def test_raises_on_many_unresolved_fields(environment: Any, env_provider: ConfigProvider) -> None:
     # via make configuration
     with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
         resolve.resolve_configuration(CoercionTestConfiguration())
+    # check the exception trace
+    exception_trace = get_exception_trace(cf_missing_exc.value)
+
     assert cf_missing_exc.value.spec_name == "CoercionTestConfiguration"
     # get all fields that must be set
     val_fields = [
@@ -685,8 +697,23 @@ def test_raises_on_many_unresolved_fields(environment: Any, env_provider: Config
             environ_provider.EnvironProvider.get_key_name(exp_field),
             None,
         )
+        # field must be in exception trace
+        assert tr_field in exception_trace["exception_attrs"]["fields"]
+        assert tr_field in exception_trace["exception_attrs"]["traces"]
         # assert traces[tr_field][1] == LookupTrace("secrets.toml", [], toml.TomlFileProvider.get_key_name(exp_field), None)
         # assert traces[tr_field][2] == LookupTrace("config.toml", [], toml.TomlFileProvider.get_key_name(exp_field), None)
+
+
+def test_removes_trace_value_from_exception_trace_attrs(
+    environment: Any, env_provider: ConfigProvider
+) -> None:
+    with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
+        resolve.resolve_configuration(CoercionTestConfiguration())
+    cf_missing_exc.value.traces["str_val"][0] = cf_missing_exc.value.traces["str_val"][0]._replace(value="SECRET")  # type: ignore[index]
+    assert cf_missing_exc.value.traces["str_val"][0].value == "SECRET"
+    attrs_ = cf_missing_exc.value.attrs()
+    # values got cleared up
+    assert attrs_["traces"]["str_val"][0].value is None
 
 
 def test_accepts_optional_missing_fields(environment: Any) -> None:

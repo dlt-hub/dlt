@@ -8,6 +8,7 @@ from contextlib import contextmanager
 from functools import wraps
 from os import environ
 from types import ModuleType
+import traceback
 import zlib
 
 from typing import (
@@ -28,6 +29,7 @@ from typing import (
 )
 from collections.abc import Mapping as C_Mapping
 
+from dlt.common.exceptions import DltException, ExceptionTrace, TerminalException
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
 
 
@@ -510,3 +512,66 @@ def maybe_context(manager: ContextManager[TAny]) -> Iterator[TAny]:
 def without_none(d: Mapping[TKey, Optional[TValue]]) -> Mapping[TKey, TValue]:
     """Return a new dict with all `None` values removed"""
     return {k: v for k, v in d.items() if v is not None}
+
+
+def get_full_class_name(obj: Any) -> str:
+    cls = obj.__class__
+    module = cls.__module__
+    # exclude 'builtins' for built-in types.
+    if module is None or module == "builtins":
+        return cls.__name__  #  type: ignore[no-any-return]
+    return module + "." + cls.__name__  #  type: ignore[no-any-return]
+
+
+def get_exception_trace(exc: BaseException) -> ExceptionTrace:
+    """Get exception trace and additional information for DltException(s)"""
+    trace: ExceptionTrace = {"message": str(exc), "exception_type": get_full_class_name(exc)}
+    if exc.__traceback__:
+        tb_extract = traceback.extract_tb(exc.__traceback__)
+        trace["stack_trace"] = traceback.format_list(tb_extract)
+    trace["is_terminal"] = isinstance(exc, TerminalException)
+
+    # get attrs and other props
+    if isinstance(exc, DltException):
+        if exc.__doc__:
+            trace["docstring"] = exc.__doc__
+        attrs = exc.attrs()
+        str_attrs = {}
+        for k, v in attrs.items():
+            if v is None:
+                continue
+            try:
+                from dlt.common.json import json
+
+                # must be json serializable, other attrs are skipped
+                if not isinstance(v, str):
+                    json.dumps(v)
+                str_attrs[k] = v
+            except Exception:
+                continue
+            # extract special attrs
+            if k in ["load_id", "pipeline_name", "source_name", "resource_name", "job_id"]:
+                trace[k] = v  # type: ignore[literal-required]
+
+        trace["exception_attrs"] = str_attrs
+    return trace
+
+
+def get_exception_trace_chain(
+    exc: BaseException, traces: List[ExceptionTrace] = None, seen: Set[int] = None
+) -> List[ExceptionTrace]:
+    """Get traces for exception chain. The function will recursively visit all __cause__ and __context__ exceptions. The top level
+    exception trace is first on the list
+    """
+    traces = traces or []
+    seen = seen or set()
+    # prevent cycles
+    if id(exc) in seen:
+        return traces
+    seen.add(id(exc))
+    traces.append(get_exception_trace(exc))
+    if exc.__cause__:
+        return get_exception_trace_chain(exc.__cause__, traces, seen)
+    elif exc.__context__:
+        return get_exception_trace_chain(exc.__context__, traces, seen)
+    return traces

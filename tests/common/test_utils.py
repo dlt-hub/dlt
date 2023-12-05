@@ -3,6 +3,7 @@ import inspect
 import binascii
 import pytest
 from typing import Dict
+from dlt.common.exceptions import IdentifierTooLongException, PipelineException, TerminalValueError
 
 from dlt.common.runners import Venv
 from dlt.common.utils import (
@@ -18,6 +19,8 @@ from dlt.common.utils import (
     increase_row_count,
     merge_row_counts,
     extend_list_deduplicated,
+    get_exception_trace,
+    get_exception_trace_chain,
 )
 
 
@@ -224,3 +227,53 @@ def test_extend_list_deduplicated() -> None:
         "three",
     ]
     assert extend_list_deduplicated([], ["one", "two", "three"]) == ["one", "two", "three"]
+
+
+def test_exception_traces() -> None:
+    # bare exception without stack trace
+    trace = get_exception_trace(Exception("Message"))
+    assert trace["message"] == "Message"
+    assert trace["exception_type"] == "Exception"
+    assert "stack_trace" not in trace
+    assert trace["is_terminal"] is False
+
+    # dlt exception with traceback
+    try:
+        raise IdentifierTooLongException("postgres", "table", "too_long_table", 8)
+    except Exception as exc:
+        trace = get_exception_trace(exc)
+    assert trace["exception_type"] == "dlt.common.exceptions.IdentifierTooLongException"
+    assert isinstance(trace["stack_trace"], list)
+    assert trace["exception_attrs"] == {
+        "destination_name": "postgres",
+        "identifier_type": "table",
+        "identifier_name": "too_long_table",
+        "max_identifier_length": 8,
+    }
+    assert trace["is_terminal"] is True
+
+    # dlt exception with additional props
+    try:
+        raise PipelineException("test_pipeline", "Message")
+    except Exception as exc:
+        trace = get_exception_trace(exc)
+    assert trace["pipeline_name"] == "test_pipeline"
+
+
+def test_exception_trace_chain() -> None:
+    try:
+        raise TerminalValueError("Val")
+    except Exception:
+        try:
+            raise IdentifierTooLongException("postgres", "table", "too_long_table", 8)
+        except Exception as exc:
+            try:
+                # explicit cause
+                raise PipelineException("test_pipeline", "Message") from exc
+            except Exception as exc:
+                traces = get_exception_trace_chain(exc)
+    # outer exception first
+    assert len(traces) == 3
+    assert traces[0]["exception_type"] == "dlt.common.exceptions.PipelineException"
+    assert traces[1]["exception_type"] == "dlt.common.exceptions.IdentifierTooLongException"
+    assert traces[2]["exception_type"] == "dlt.common.exceptions.TerminalValueError"

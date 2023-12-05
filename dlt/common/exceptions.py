@@ -1,10 +1,41 @@
-from typing import Any, AnyStr, List, Sequence, Optional, Iterable
+from typing import Any, AnyStr, Dict, List, Sequence, Optional, Iterable, TypedDict
+
+
+class ExceptionTrace(TypedDict, total=False):
+    """Exception trace. NOTE: we intend to change it with an extended line by line trace with code snippets"""
+
+    message: str
+    exception_type: str
+    docstring: str
+    stack_trace: List[str]
+    is_terminal: bool
+    """Says if exception is terminal if happened to a job during load step"""
+    exception_attrs: Dict[str, Any]
+    """Public attributes of an exception deriving from DltException (not starting with _)"""
+    load_id: str
+    """Load id if found in exception attributes"""
+    pipeline_name: str
+    """Pipeline name if found in exception attributes or in the active pipeline (Container)"""
+    source_name: str
+    """Source name if found in exception attributes or in Container"""
+    resource_name: str
+    """Resource name if found in exception attributes"""
+    job_id: str
+    """Job id if found in exception attributes"""
 
 
 class DltException(Exception):
     def __reduce__(self) -> Any:
         """Enables exceptions with parametrized constructor to be pickled"""
         return type(self).__new__, (type(self), *self.args), self.__dict__
+
+    def attrs(self) -> Dict[str, Any]:
+        """Returns "public" attributes of the DltException"""
+        return {
+            k: v
+            for k, v in vars(self).items()
+            if not k.startswith("_") and not callable(v) and not hasattr(self.__class__, k)
+        }
 
 
 class UnsupportedProcessStartMethodException(DltException):
