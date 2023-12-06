@@ -1,6 +1,6 @@
 import os
 import datetime  # noqa: 251
-from typing import Callable, List, Dict, Sequence, Tuple, Set, Optional
+from typing import Callable, List, Dict, NamedTuple, Sequence, Tuple, Set, Optional
 from concurrent.futures import Future, Executor
 
 from dlt.common import logger, sleep
@@ -41,14 +41,18 @@ from dlt.normalize.items_normalizers import (
     ItemsNormalizer,
 )
 
-# normalize worker wrapping function (map_parallel, map_single) return type
-TMapFuncRV = Tuple[Sequence[TSchemaUpdate], RowCounts]
+
+class TWorkerRV(NamedTuple):
+    schema_updates: List[TSchemaUpdate]
+    total_items: int
+    file_metrics: List[DataWriterMetrics]
+    row_counts: RowCounts
+
+
 # normalize worker wrapping function signature
 TMapFuncType = Callable[
-    [Schema, str, Sequence[str]], TMapFuncRV
+    [Schema, str, Sequence[str]], TWorkerRV
 ]  # input parameters: (schema name, load_id, list of files to process)
-# tuple returned by the worker
-TWorkerRV = Tuple[List[TSchemaUpdate], int, List[str], RowCounts]
 
 
 class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo]):
@@ -183,7 +187,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                             continue
                         logger.debug(f"Writing empty job for table {table_name}")
                         columns = schema.get_table_columns(table_name)
-                        normalizer.load_storage.write_empty_file(
+                        normalizer.load_storage.write_empty_items_file(
                             load_id, schema.name, table_name, columns
                         )
             except Exception:
@@ -200,7 +204,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         writer_metrics: List[DataWriterMetrics] = []
         for normalizer in item_normalizers.values():
             writer_metrics.extend(normalizer.load_storage.closed_files())
-        return schema_updates, total_items, [m.file_path for m in writer_metrics], row_counts
+        return TWorkerRV(schema_updates, total_items, writer_metrics, row_counts)
 
     def update_table(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
         for schema_update in schema_updates:
@@ -229,7 +233,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             l_idx = idx + 1
         return chunk_files
 
-    def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
+    def map_parallel(self, schema: Schema, load_id: str, files: Sequence[str]) -> TWorkerRV:
         workers: int = getattr(self.pool, "_max_workers", 1)
         chunk_files = self.group_worker_files(files, workers)
         schema_dict: TStoredSchema = schema.to_dict()
@@ -244,11 +248,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             )
             for files in chunk_files
         ]
-        row_counts: RowCounts = {}
-
         # return stats
-        schema_updates: List[TSchemaUpdate] = []
-
+        summary = TWorkerRV([], 0, [], {})
         # push all tasks to queue
         tasks = [
             (self.pool.submit(Normalize.w_normalize_files, *params), params)
@@ -267,20 +268,20 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     try:
                         # gather schema from all manifests, validate consistency and combine
                         self.update_table(schema, result[0])
-                        schema_updates.extend(result[0])
+                        summary.schema_updates.extend(result.schema_updates)
                         # update metrics
-                        self.collector.update("Files", len(result[2]))
-                        self.collector.update("Items", result[1])
+                        self.collector.update("Files", len(result.file_metrics))
+                        self.collector.update("Items", result.total_items)
                         # merge row counts
-                        merge_row_counts(row_counts, result[3])
+                        merge_row_counts(summary.row_counts, result.row_counts)
                     except CannotCoerceColumnException as exc:
                         # schema conflicts resulting from parallel executing
                         logger.warning(
                             f"Parallel schema update conflict, retrying task ({str(exc)}"
                         )
                         # delete all files produced by the task
-                        for file in result[2]:
-                            os.remove(file)
+                        for metrics in result.file_metrics:
+                            os.remove(metrics.file_path)
                         # schedule the task again
                         schema_dict = schema.to_dict()
                         # TODO: it's time for a named tuple
@@ -292,9 +293,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     # remove finished tasks
                     tasks.remove(task)
 
-        return schema_updates, row_counts
+        return summary
 
-    def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> TMapFuncRV:
+    def map_single(self, schema: Schema, load_id: str, files: Sequence[str]) -> TWorkerRV:
         result = Normalize.w_normalize_files(
             self.config,
             self.normalize_storage.config,
@@ -303,16 +304,16 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             load_id,
             files,
         )
-        self.update_table(schema, result[0])
-        self.collector.update("Files", len(result[2]))
-        self.collector.update("Items", result[1])
-        return result[0], result[3]
+        self.update_table(schema, result.schema_updates)
+        self.collector.update("Files", len(result.file_metrics))
+        self.collector.update("Items", result.total_items)
+        return result
 
     def spool_files(
         self, load_id: str, schema: Schema, map_f: TMapFuncType, files: Sequence[str]
     ) -> None:
         # process files in parallel or in single thread, depending on map_f
-        schema_updates, row_counts = map_f(schema, load_id, files)
+        schema_updates, _, _, row_counts = map_f(schema, load_id, files)
         # remove normalizer specific info
         for table in schema.tables.values():
             table.pop("x-normalizer", None)  # type: ignore[typeddict-item]

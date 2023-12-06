@@ -92,9 +92,9 @@ class Extractor:
             # table has name or other hints depending on data items
             self._write_to_dynamic_table(resource, items)
 
-    def write_empty_file(self, table_name: str) -> None:
+    def write_empty_items_file(self, table_name: str) -> None:
         table_name = self.naming.normalize_table_identifier(table_name)
-        self.storage.write_empty_file(self.load_id, self.schema.name, table_name, None)
+        self.storage.write_empty_items_file(self.load_id, self.schema.name, table_name, None)
 
     def _get_static_table_name(self, resource: DltResource, meta: Any) -> Optional[str]:
         if resource._table_name_hint_fun:

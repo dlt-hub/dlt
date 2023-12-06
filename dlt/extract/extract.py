@@ -234,7 +234,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     for table in tables_by_resources[resource.name]:
                         # we only need to write empty files for the top tables
                         if not table.get("parent", None):
-                            extractors["puae-jsonl"].write_empty_file(table["name"])
+                            extractors["puae-jsonl"].write_empty_items_file(table["name"])
 
                 if left_gens > 0:
                     # go to 100%
