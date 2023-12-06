@@ -1,18 +1,16 @@
-import os
 from typing import List, Dict, Set, Tuple, Any
 from abc import abstractmethod
 
 from dlt.common import json, logger
+from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
 from dlt.common.storages import (
     NormalizeStorage,
     LoadStorage,
-    FileStorage,
-    PackageStorage,
-    ParsedLoadJobFileName,
 )
+from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny, TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.utils import RowCounts, merge_row_counts, increase_row_count
@@ -337,20 +335,19 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
         ) as f:
-            items_count = get_row_count(f)
+            file_metrics = DataWriterMetrics(extracted_items_file, get_row_count(f), f.tell())
 
         parts = ParsedLoadJobFileName.parse(extracted_items_file)
-        new_file_name = PackageStorage.build_job_file_name(
-            parts.table_name, parts.file_id, loader_file_format=self.load_storage.loader_file_format
-        )
-        target_file_path = self.load_storage.new_packages.storage.make_full_path(
-            self.load_storage.new_packages.get_job_file_path(
-                self.load_id, PackageStorage.NEW_JOBS_FOLDER, new_file_name
-            )
-        )
-        FileStorage.link_hard_with_fallback(
+        self.load_storage.import_items_file(
+            self.load_id,
+            self.schema.name,
+            parts.table_name,
             self.normalize_storage.extracted_packages.storage.make_full_path(extracted_items_file),
-            target_file_path,
+            file_metrics,
         )
-        # self.load_storage.closed_files
-        return base_schema_update, items_count, {root_table_name: items_count}
+
+        return (
+            base_schema_update,
+            file_metrics.items_count,
+            {root_table_name: file_metrics.items_count},
+        )

@@ -125,9 +125,19 @@ class BufferedDataWriter(Generic[TWriter]):
         return new_rows_count
 
     def write_empty_file(self, columns: TTableSchemaColumns) -> None:
+        """Writes empty file: only header and footer without actual items"""
         if columns is not None:
             self._current_columns = dict(columns)
         self._flush_items(allow_empty_file=True)
+
+    def import_file(self, file_path: str, metrics: DataWriterMetrics) -> None:
+        # TODO: we should separate file storage from other storages. this creates circular deps
+        from dlt.common.storages import FileStorage
+
+        self._rotate_file()
+        FileStorage.link_hard_with_fallback(file_path, self._file_name)
+        self.closed_files.append(metrics._replace(file_path=self._file_name))
+        self._file_name = None
 
     def close(self) -> None:
         self._ensure_open()
