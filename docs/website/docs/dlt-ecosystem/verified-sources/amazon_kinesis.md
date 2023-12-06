@@ -1,7 +1,7 @@
 ---
 title: Amazon Kinesis
 description: dlt verified source for Amazon Kinesis
-keywords: [amazon kinesis, amazon kinesis verified source]
+keywords: [amazon kinesis, verified source]
 ---
 
 # Amazon Kinesis
@@ -16,7 +16,8 @@ or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support
 service for real-time data streaming and analytics, enabling the processing and analysis of large
 streams of data in real time.
 
-Our AWS Kinesis verified source loads messages from Kinesis streams to your preferred
+Our AWS Kinesis [verified source](https://github.com/dlt-hub/verified-sources/tree/master/sources/kinesis)
+loads messages from Kinesis streams to your preferred
 [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/).
 
 Resources that can be loaded using this verified source are:
@@ -85,10 +86,10 @@ For more information, read [Add a verified source.](../../walkthroughs/add-a-ver
    [sources.kinesis.credentials]
    aws_access_key_id="AKIA********"
    aws_secret_access_key="K+o5mj********"
-   region_name="please set me up!" #aws region name
+   region_name="please set me up!" # aws region name
    ```
 
-1. Optionally, you can configure `stream_name`. Update ".dlt/config.toml":
+1. Optionally, you can configure `stream_name`. Update `.dlt/config.toml`:
 
    ```toml
    [sources.kinesis]
@@ -96,7 +97,7 @@ For more information, read [Add a verified source.](../../walkthroughs/add-a-ver
    ```
 
 1. Replace the value of `aws_access_key_id` and `aws_secret_access_key` with the one that
-   [you copied above](#grab-credentials). This will ensure that your data-verified source can access
+   [you copied above](#grab-credentials). This will ensure that the verified source can access
    your Kinesis resource securely.
 
 1. Next, follow the instructions in [Destinations](../destinations/duckdb) to add credentials for
@@ -161,7 +162,7 @@ def kinesis_stream(
 
 `credentials`: Credentials for Kinesis access. Uses secrets or local credentials if not provided.
 
-`last_msg`: Mapping from shard_id to message sequence for incremental loading.
+`last_msg`: Mapping from shard_id to a message sequence for incremental loading.
 
 `initial_at_timestamp`: Starting timestamp for AT_TIMESTAMP or LATEST iterator; defaults to 0.
 
@@ -173,24 +174,25 @@ def kinesis_stream(
 
 `chunk_size`: Records fetched per request; default is 1000.
 
-### How does it work ?
+### How does it work?
 
 You create a resource `kinesis_stream` by passing the stream name and a few other options. The
 resource will have the same name as the stream. When you iterate this resource (or pass it to
-pipeline.run records) it will query Kinesis for all the shards in the requested stream. For each
-shard it will create an iterator to read messages:
+`pipeline.run` records) it will query Kinesis for all the shards in the requested stream. For each
+ shard, it will create an iterator to read messages:
 
-1. If `initial_at_timestamp` is present, the resource will read all messages after this timestamp
-1. If `initial_at_timestamp` is 0, only the messages at the tip of the stream are read
-1. If no initial timestamp is provided, all messages will be retrieved (from the TRIM HORIZON)
+1. If `initial_at_timestamp` is present, the resource will read all messages after this timestamp.
+1. If `initial_at_timestamp` is 0, only the messages at the tip of the stream are read.
+1. If no initial timestamp is provided, all messages will be retrieved (from the TRIM HORIZON).
 
 The resource stores all message sequences per shard in the state. If you run the resource again, it
 will load messages incrementally:
 
-1. For all shards that had messages, only messages after last message are retrieved
-1. For shards that didn't have messages (or new shards), the last run time is used to get messages
+1. For all shards that had messages, only messages after the last message are retrieved.
+1. For shards that didn't have messages (or new shards), the last run time is used to get messages.
 
-Please check the kinesis_stream docstring for additional options ie. to limit number of messages
+Please check the `kinesis_stream` [docstring](https://github.com/dlt-hub/verified-sources/blob/master/sources/kinesis/__init__.py#L31-L46)
+for additional options, i.e. to limit the number of messages
 returned or to automatically parse JSON messages.
 
 ## Customization
@@ -205,23 +207,24 @@ verified source.
 
    ```python
    pipeline = dlt.pipeline(
-      pipeline_name="kinesis_pipeline",  # Use a custom name if desired
-      destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-      dataset_name="kinesis"  # Use a custom name if desired
+       pipeline_name="kinesis_pipeline",  # Use a custom name if desired
+       destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+       dataset_name="kinesis"  # Use a custom name if desired
    )
    ```
 
 1. To load messages from a stream from last one hour:
 
    ```python
-   # the resource below will take its name from the stream name, it can be used multiple times
-   # by default it assumes that Data is json and parses it, here we disable that to just get bytes in data elements of the message
-   dlt_ci_kinesis_stream = kinesis_stream(
-        "dlt_ci_kinesis_source",
-        parse_json=False,
-        initial_at_timestamp=pendulum.now().subtract(hours=1),
+   # the resource below will take its name from the stream name,
+   # it can be used multiple times by default it assumes that Data is json and parses it,
+   # here we disable that to just get bytes in data elements of the message
+   kinesis_stream_data = kinesis_stream(
+       "kinesis_source_name",
+       parse_json=False,
+       initial_at_timestamp=pendulum.now().subtract(hours=1),
    )
-   info = pipeline.run(dlt_ci_kinesis_stream)
+   info = pipeline.run(kinesis_stream_data)
    print(info)
    ```
 
@@ -229,54 +232,54 @@ verified source.
 
    ```python
    #running pipeline will get only new messages
-   info = pipeline.run(dlt_ci_kinesis_stream)
+   info = pipeline.run(kinesis_stream_data)
    message_counts = pipeline.last_trace.last_normalize_info.row_counts
-   if "dlt_ci_kinesis_source" not in message_counts:
-         print("No messages in kinesis")
+   if "kinesis_source_name" not in message_counts:
+       print("No messages in kinesis")
    else:
-         print(pipeline.last_trace.last_normalize_info)
+       print(pipeline.last_trace.last_normalize_info)
    ```
 
 1. To parse json with a simple decoder:
 
    ```python
    def _maybe_parse_json(item: TDataItem) -> TDataItem:
-        try:
-            item.update(json.loadb(item["data"]))
-        except Exception:
-            pass
-        return item
+       try:
+           item.update(json.loadb(item["data"]))
+       except Exception:
+           pass
+       return item
 
-   info = pipeline.run(dlt_ci_kinesis_stream.add_map(_maybe_parse_json))
+   info = pipeline.run(kinesis_stream_data.add_map(_maybe_parse_json))
    print(info)
    ```
 
-1. To read Kinesis messages and send them somewhere without using pipeline:
+1. To read Kinesis messages and send them somewhere without using a pipeline:
 
    ```python
    from dlt.common.configuration.container import Container
    from dlt.common.pipeline import StateInjectableContext
 
-   STATE_FILE = "dlt_ci_kinesis_source.state.json"
+   STATE_FILE = "kinesis_source_name.state.json"
 
    # load the state if it exists
    if os.path.exists(STATE_FILE):
-         with open(STATE_FILE, "rb") as f:
-             state = json.typed_loadb(f.read())
+       with open(STATE_FILE, "rb") as f:
+           state = json.typed_loadb(f.read())
    else:
-        # provide new state
-        state = {}
+       # provide new state
+       state = {}
 
    with Container().injectable_context(
-        StateInjectableContext(state=state)
+       StateInjectableContext(state=state)
    ) as managed_state:
-        # dlt resources/source is just an iterator
-        for message in dlt_ci_kinesis_stream:
-            # here you can send the message somewhere
-            print(message)
-            # save state after each message to have full transaction load
-            # dynamodb is also OK
-            with open(STATE_FILE, "wb") as f:
-                json.typed_dump(managed_state.state, f)
-            print(managed_state.state)
+       # dlt resources/source is just an iterator
+       for message in kinesis_stream_data:
+           # here you can send the message somewhere
+           print(message)
+           # save state after each message to have full transaction load
+           # dynamodb is also OK
+           with open(STATE_FILE, "wb") as f:
+               json.typed_dump(managed_state.state, f)
+           print(managed_state.state)
    ```
