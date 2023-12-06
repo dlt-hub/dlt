@@ -352,4 +352,5 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             self.normalize_storage.extracted_packages.storage.make_full_path(extracted_items_file),
             target_file_path,
         )
+        # self.load_storage.closed_files
         return base_schema_update, items_count, {root_table_name: items_count}

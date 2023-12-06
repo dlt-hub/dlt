@@ -7,6 +7,7 @@ from dlt.common import logger, sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.configuration.container import Container
+from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals
@@ -101,9 +102,10 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         schema_updates: List[TSchemaUpdate] = []
         total_items = 0
         row_counts: RowCounts = {}
-        load_storages: Dict[TLoaderFileFormat, LoadStorage] = {}
+        item_normalizers: Dict[TLoaderFileFormat, ItemsNormalizer] = {}
 
-        def _get_load_storage(file_format: TLoaderFileFormat) -> LoadStorage:
+        def _create_load_storage(file_format: TLoaderFileFormat) -> LoadStorage:
+            """Creates a load storage for particular file_format"""
             # TODO: capabilities.supported_*_formats can be None, it should have defaults
             supported_formats = destination_caps.supported_loader_file_formats or []
             if file_format == "parquet":
@@ -123,34 +125,21 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     destination_caps.preferred_loader_file_format
                     or destination_caps.preferred_staging_file_format
                 )
-            if storage := load_storages.get(file_format):
-                return storage
-            storage = load_storages[file_format] = LoadStorage(
-                False, file_format, supported_formats, loader_storage_config
-            )
-            return storage
+            return LoadStorage(False, file_format, supported_formats, loader_storage_config)
 
         # process all files with data items and write to buffered item storage
         with Container().injectable_context(destination_caps):
             schema = Schema.from_stored_schema(stored_schema)
-            load_storage = _get_load_storage(
-                destination_caps.preferred_loader_file_format
-            )  # Default load storage, used for empty tables when no data
             normalize_storage = NormalizeStorage(False, normalize_storage_config)
 
-            item_normalizers: Dict[TLoaderFileFormat, ItemsNormalizer] = {}
-
-            def _get_items_normalizer(
-                file_format: TLoaderFileFormat,
-            ) -> Tuple[ItemsNormalizer, LoadStorage]:
-                load_storage = _get_load_storage(file_format)
+            def _get_items_normalizer(file_format: TLoaderFileFormat) -> ItemsNormalizer:
                 if file_format in item_normalizers:
-                    return item_normalizers[file_format], load_storage
+                    return item_normalizers[file_format]
                 klass = ParquetItemsNormalizer if file_format == "parquet" else JsonLItemsNormalizer
                 norm = item_normalizers[file_format] = klass(
-                    load_storage, normalize_storage, schema, load_id, config
+                    _create_load_storage(file_format), normalize_storage, schema, load_id, config
                 )
-                return norm, load_storage
+                return norm
 
             try:
                 root_tables: Set[str] = set()
@@ -169,8 +158,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                         f" {load_id} with table name {root_table_name} and schema {schema.name}"
                     )
 
-                    file_format = parsed_file_name.file_format
-                    normalizer, load_storage = _get_items_normalizer(file_format)
+                    normalizer = _get_items_normalizer(parsed_file_name.file_format)
                     partial_updates, items_count, r_counts = normalizer(
                         extracted_items_file, root_table_name
                     )
@@ -186,12 +174,18 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     # make sure base tables are all covered
                     increase_row_count(row_counts, root_table_name, 0)
                 # write empty jobs for tables without items if table exists in schema
-                for table_name in root_tables - populated_root_tables:
-                    if table_name not in schema.tables:
-                        continue
-                    logger.debug(f"Writing empty job for table {table_name}")
-                    columns = schema.get_table_columns(table_name)
-                    load_storage.write_empty_file(load_id, schema.name, table_name, columns)
+                empty_tables = root_tables - populated_root_tables
+                if empty_tables:
+                    # get first normalizer created
+                    normalizer = list(item_normalizers.values())[0]
+                    for table_name in root_tables - populated_root_tables:
+                        if table_name not in schema.tables:
+                            continue
+                        logger.debug(f"Writing empty job for table {table_name}")
+                        columns = schema.get_table_columns(table_name)
+                        normalizer.load_storage.write_empty_file(
+                            load_id, schema.name, table_name, columns
+                        )
             except Exception:
                 # TODO: raise a wrapper exception with job_id, load_id, line_no and schema name
                 logger.exception(
@@ -199,10 +193,14 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 )
                 raise
             finally:
-                load_storage.close_writers(load_id)
+                for normalizer in item_normalizers.values():
+                    normalizer.load_storage.close_writers(load_id)
 
         logger.info(f"Processed total {total_items} items in {len(extracted_items_files)} files")
-        return schema_updates, total_items, load_storage.closed_files(), row_counts
+        writer_metrics: List[DataWriterMetrics] = []
+        for normalizer in item_normalizers.values():
+            writer_metrics.extend(normalizer.load_storage.closed_files())
+        return schema_updates, total_items, [m.file_path for m in writer_metrics], row_counts
 
     def update_table(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
         for schema_update in schema_updates:
