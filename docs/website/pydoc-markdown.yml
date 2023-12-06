@@ -19,7 +19,8 @@ renderer:
     classdef_with_decorators: true
     signature_with_decorators: true
     format_code: true
-#    source_linker:
-#      type: github
-#      repo: dlt-hub/dlt
-#      root: ..
+    source_linker:
+      type: github
+      repo: dlt-hub/dlt
+      root: ..
+      use_branch: true
