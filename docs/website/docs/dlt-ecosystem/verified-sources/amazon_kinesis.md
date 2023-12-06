@@ -17,7 +17,7 @@ service for real-time data streaming and analytics, enabling the processing and 
 streams of data in real time.
 
 Our AWS Kinesis verified source loads messages from Kinesis streams to your preferred
-[destination](https://dlthub.com/docs/dlt-ecosystem/destinations/). 
+[destination](https://dlthub.com/docs/dlt-ecosystem/destinations/).
 
 Resources that can be loaded using this verified source are:
 
@@ -26,8 +26,10 @@ Resources that can be loaded using this verified source are:
 | kinesis_stream   | Load messages from the specified stream                                                  |
 
 
-:::tip You can check out our pipeline example
-[here](https://github.com/dlt-hub/verified-sources/blob/master/sources/kinesis_pipeline.py). :::
+:::tip
+You can check out our pipeline example
+[here](https://github.com/dlt-hub/verified-sources/blob/master/sources/kinesis_pipeline.py).
+:::
 
 ## Setup Guide
 
@@ -43,8 +45,10 @@ as follows:
 1. Choose "Create Access Key".
 1. Download or copy the Access Key ID and Secret Access Key for future use.
 
-:::info The AWS UI, which is described here, might change. The full guide is available at this
-[link](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html). :::
+:::info
+The AWS UI, which is described here, might change. The full guide is available at this
+[link](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html).
+:::
 
 ### Initialize the verified source
 
