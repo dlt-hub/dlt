@@ -35,7 +35,6 @@ from dlt.common.destination import TDestinationReferenceArg, TDestination
 from dlt.common.exceptions import (
     DestinationHasFailedJobs,
     PipelineStateNotAvailable,
-    ResourceNameNotAvailable,
     SourceSectionNotAvailable,
 )
 from dlt.common.schema import Schema
@@ -90,6 +89,7 @@ class ExtractInfo(StepInfo, _ExtractInfo):
         d = self._asdict()
         d["pipeline"] = {"pipeline_name": self.pipeline.pipeline_name}
         d["load_packages"] = [package.asdict() for package in self.load_packages]
+        # TODO: transform and leave metrics when we have them implemented
         d.pop("metrics")
         d.pop("extract_data_info")
         return d
@@ -252,6 +252,7 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
 
     def __init__(self) -> None:
         self._load_id_metrics = {}
+        self._current_load_id = None
 
     def _step_info_start_load_id(self, load_id: str) -> None:
         self._current_load_id = load_id
@@ -267,6 +268,11 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
 
     def _step_info_metrics(self, load_id: str) -> TStepMetrics:
         return self._load_id_metrics[load_id]
+
+    @property
+    def current_load_id(self) -> str:
+        """Returns currently processing load id"""
+        return self._current_load_id
 
     @abstractmethod
     def get_step_info(
@@ -575,8 +581,6 @@ def resource_state(
     # backtrace to find the shallowest resource
     if not resource_name:
         resource_name = get_current_pipe_name()
-    if not resource_name:
-        raise ResourceNameNotAvailable()
     return state_.setdefault("resources", {}).setdefault(resource_name, {})  # type: ignore
 
 

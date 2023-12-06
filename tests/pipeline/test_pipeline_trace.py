@@ -415,7 +415,10 @@ def assert_trace_printable(trace: PipelineTrace) -> None:
     str(trace)
     trace.asstr(0)
     trace.asstr(1)
-    json.dumps(trace)
+    trace.asdict()
     with io.BytesIO() as b:
         json.typed_dump(trace, b)
         b.getvalue()
+    json.dumps(trace)
+    # assert trace_dict == json.loads(trace_str)
+    # print(trace_dict)

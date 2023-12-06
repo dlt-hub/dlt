@@ -197,17 +197,22 @@ def with_runtime_trace(send_state: bool = False) -> Callable[[TFun], TFun]:
                 try:
                     if trace_step:
                         # if there was a step, finish it
-                        end_trace_step(self._trace, trace_step, self, step_info, send_state)
+                        self._trace = end_trace_step(
+                            self._trace, trace_step, self, step_info, send_state
+                        )
                     if is_new_trace:
-                        assert (
-                            trace is self._trace
-                        ), f"Messed up trace reference {id(self._trace)} vs {id(trace)}"
-                        end_trace(trace, self, self._pipeline_storage.storage_path, send_state)
+                        assert trace.transaction_id == self._trace.transaction_id, (
+                            f"Messed up trace reference {self._trace.transaction_id} vs"
+                            f" {trace.transaction_id}"
+                        )
+                        trace = end_trace(
+                            trace, self, self._pipeline_storage.storage_path, send_state
+                        )
                 finally:
                     # always end trace
                     if is_new_trace:
                         assert (
-                            self._trace == trace
+                            self._trace.transaction_id == trace.transaction_id
                         ), f"Messed up trace reference {id(self._trace)} vs {id(trace)}"
                         # if we end new trace that had only 1 step, add it to previous trace
                         # this way we combine several separate calls to extract, normalize, load as single trace
@@ -392,7 +397,11 @@ class Pipeline(SupportsPipeline):
                 return self._get_step_info(extract_step)
         except Exception as exc:
             raise PipelineStepFailed(
-                self, "extract", exc, self._get_step_info(extract_step)
+                self,
+                "extract",
+                extract_step.current_load_id,
+                exc,
+                self._get_step_info(extract_step),
             ) from exc
 
     @with_runtime_trace()
@@ -433,7 +442,11 @@ class Pipeline(SupportsPipeline):
                 return self._get_step_info(normalize_step)
             except Exception as n_ex:
                 raise PipelineStepFailed(
-                    self, "normalize", n_ex, self._get_step_info(normalize_step)
+                    self,
+                    "normalize",
+                    normalize_step.current_load_id,
+                    n_ex,
+                    self._get_step_info(normalize_step),
                 ) from n_ex
 
     @with_runtime_trace(send_state=True)
@@ -471,7 +484,7 @@ class Pipeline(SupportsPipeline):
             raise_on_failed_jobs=raise_on_failed_jobs,
             _load_storage_config=self._load_storage_config,
         )
-        load = Load(
+        load_step: Load = Load(
             self.destination,
             staging_destination=self.staging,
             collector=self.collector,
@@ -482,12 +495,14 @@ class Pipeline(SupportsPipeline):
         )
         try:
             with signals.delayed_signals():
-                runner.run_pool(load.config, load)
-            info: LoadInfo = self._get_step_info(load)
+                runner.run_pool(load_step.config, load_step)
+            info: LoadInfo = self._get_step_info(load_step)
             self.first_run = False
             return info
         except Exception as l_ex:
-            raise PipelineStepFailed(self, "load", l_ex, self._get_step_info(load)) from l_ex
+            raise PipelineStepFailed(
+                self, "load", load_step.current_load_id, l_ex, self._get_step_info(load_step)
+            ) from l_ex
 
     @with_runtime_trace()
     @with_config_section(("run",))
@@ -705,7 +720,7 @@ class Pipeline(SupportsPipeline):
             bump_version_if_modified(state)
             self._save_state(state)
         except Exception as ex:
-            raise PipelineStepFailed(self, "run", ex, None) from ex
+            raise PipelineStepFailed(self, "sync", None, ex, None) from ex
 
     def activate(self) -> None:
         """Activates the pipeline

@@ -534,8 +534,13 @@ def test_pipeline_state_on_extract_exception() -> None:
         yield [6, 7, 8]
         raise NotImplementedError()
 
-    with pytest.raises(PipelineStepFailed):
+    with pytest.raises(PipelineStepFailed) as pip_ex:
         p.run([data_piece_1, data_piece_2], write_disposition="replace")
+    # male sure that exception has right step info
+    assert pip_ex.value.load_id in pip_ex.value.step_info.loads_ids
+    # print(pip_ex.value.load_id)
+    # print(pip_ex.value.step_info.asdict())
+    # print(p._last_trace.last_pipeline_step_trace("extract").exception_traces)
 
     # first run didn't really happen
     assert p.first_run is True

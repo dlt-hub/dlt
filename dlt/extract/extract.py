@@ -304,4 +304,3 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             started_at,
             pipeline.first_run,
         )
-        return ExtractInfo(None)

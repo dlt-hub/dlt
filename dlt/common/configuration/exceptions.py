@@ -1,5 +1,5 @@
 import os
-from typing import Any, Mapping, Type, Tuple, NamedTuple, Sequence
+from typing import Any, Dict, Mapping, Type, Tuple, NamedTuple, Sequence
 
 from dlt.common.exceptions import DltException, TerminalException
 from dlt.common.utils import main_module_file_path
@@ -60,24 +60,34 @@ class ConfigFieldMissingException(KeyError, ConfigurationException):
                 msg += f"\t\tIn {tr.provider} key {tr.key} was not found.\n"
         # check if entry point is run with path. this is common problem so warn the user
         main_path = main_module_file_path()
-        main_dir = os.path.dirname(main_path)
-        abs_main_dir = os.path.abspath(main_dir)
-        if abs_main_dir != os.getcwd():
-            # directory was specified
-            msg += (
-                "WARNING: dlt looks for .dlt folder in your current working directory and your cwd"
-                " (%s) is different from directory of your pipeline script (%s).\n"
-                % (os.getcwd(), abs_main_dir)
-            )
-            msg += (
-                "If you keep your secret files in the same folder as your pipeline script but run"
-                " your script from some other folder, secrets/configs will not be found\n"
-            )
+        if main_path:
+            main_dir = os.path.dirname(main_path)
+            abs_main_dir = os.path.abspath(main_dir)
+            if abs_main_dir != os.getcwd():
+                # directory was specified
+                msg += (
+                    "WARNING: dlt looks for .dlt folder in your current working directory and your"
+                    " cwd (%s) is different from directory of your pipeline script (%s).\n"
+                    % (os.getcwd(), abs_main_dir)
+                )
+                msg += (
+                    "If you keep your secret files in the same folder as your pipeline script but"
+                    " run your script from some other folder, secrets/configs will not be found\n"
+                )
         msg += (
             "Please refer to https://dlthub.com/docs/general-usage/credentials for more"
             " information\n"
         )
         return msg
+
+    def attrs(self) -> Dict[str, Any]:
+        attrs_ = super().attrs()
+        if "traces" in attrs_:
+            for _, traces in self.traces.items():
+                for idx, trace in enumerate(traces):
+                    # drop all values as they may contain secrets
+                    traces[idx] = trace._replace(value=None)  # type: ignore[index]
+        return attrs_
 
 
 class UnmatchedConfigHintResolversException(ConfigurationException):

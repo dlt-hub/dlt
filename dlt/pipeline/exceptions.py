@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Dict
 from dlt.common.exceptions import PipelineException
 from dlt.common.pipeline import StepInfo, SupportsPipeline
 from dlt.pipeline.typing import TPipelineStep
@@ -48,22 +48,36 @@ class SqlClientNotAvailable(PipelineException):
 
 
 class PipelineStepFailed(PipelineException):
+    """Raised by run, extract, normalize and load Pipeline methods."""
+
     def __init__(
         self,
         pipeline: SupportsPipeline,
         step: TPipelineStep,
+        load_id: str,
         exception: BaseException,
         step_info: StepInfo = None,
     ) -> None:
         self.pipeline = pipeline
         self.step = step
+        self.load_id = load_id
         self.exception = exception
         self.step_info = step_info
+
+        package_str = f" when processing package {load_id}" if load_id else ""
         super().__init__(
             pipeline.pipeline_name,
-            f"Pipeline execution failed at stage {step} with"
+            f"Pipeline execution failed at stage {step}{package_str} with"
             f" exception:\n\n{type(exception)}\n{exception}",
         )
+
+    def attrs(self) -> Dict[str, Any]:
+        # remove attr that should not be published
+        attrs_ = super().attrs()
+        attrs_.pop("pipeline")
+        attrs_.pop("exception")
+        attrs_.pop("step_info")
+        return attrs_
 
 
 class PipelineStateEngineNoUpgradePathException(PipelineException):

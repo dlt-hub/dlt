@@ -1,3 +1,5 @@
+import contextlib
+from copy import copy
 import os
 import pickle
 import datetime  # noqa: 251
@@ -5,20 +7,26 @@ import dataclasses
 from typing import Any, List, NamedTuple, Optional, Protocol, Sequence
 import humanize
 
-from dlt.common import pendulum
+from dlt.common import pendulum, json
+from dlt.common.configuration import is_secret_hint
+from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.configuration.utils import _RESOLVED_TRACES
+from dlt.common.configuration.container import Container
+from dlt.common.exceptions import ExceptionTrace, ResourceNameNotAvailable
 from dlt.common.runtime.logger import suppress_and_warn
 from dlt.common.runtime.exec_info import TExecutionContext, get_execution_context
-from dlt.common.configuration import is_secret_hint
-from dlt.common.configuration.utils import _RESOLVED_TRACES
 from dlt.common.pipeline import (
     ExtractInfo,
     LoadInfo,
     NormalizeInfo,
+    PipelineContext,
     StepInfo,
     SupportsPipeline,
 )
-from dlt.common.typing import DictStrAny, StrAny
-from dlt.common.utils import uniq_id
+from dlt.common.source import get_current_pipe_name
+from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize
+from dlt.common.utils import uniq_id, get_exception_trace_chain
 
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -51,8 +59,7 @@ class SerializableResolvedValueTrace(NamedTuple):
         return self.asstr(verbosity=0)
 
 
-@dataclasses.dataclass(init=True)
-class _PipelineStepTrace:
+class _PipelineStepTrace(NamedTuple):
     span_id: str
     step: TPipelineStep
     started_at: datetime.datetime
@@ -61,6 +68,12 @@ class _PipelineStepTrace:
     """A step outcome info ie. LoadInfo"""
     step_exception: Optional[str] = None
     """For failing steps contains exception string"""
+    exception_traces: List[ExceptionTrace] = None
+    """For failing steps contains traces of exception chain causing it"""
+
+
+class PipelineStepTrace(SupportsHumanize, _PipelineStepTrace):
+    """Trace of particular pipeline step, contains timing information, the step outcome info or exception in case of failing step with custom asdict()"""
 
     def asstr(self, verbosity: int = 0) -> str:
         completed_str = "FAILED" if self.step_exception else "COMPLETED"
@@ -80,24 +93,30 @@ class _PipelineStepTrace:
             msg += f"\nspan id: {self.span_id}"
         return msg
 
+    def asdict(self) -> DictStrAny:
+        """A dictionary representation of PipelineStepTrace that can be loaded with `dlt`"""
+        d = self._asdict()
+        if self.step_info:
+            # name property depending on step name - generates nicer data
+            d[f"{self.step}_info"] = d.pop("step_info")
+        # replace the attributes in exception traces with json dumps
+        if self.exception_traces:
+            # do not modify original traces
+            d["exception_traces"] = copy(d["exception_traces"])
+            traces: List[ExceptionTrace] = d["exception_traces"]
+            for idx in range(len(traces)):
+                if traces[idx].get("exception_attrs"):
+                    # trace: ExceptionTrace
+                    trace = traces[idx] = copy(traces[idx])
+                    trace["exception_attrs"] = str(trace["exception_attrs"])  # type: ignore[typeddict-item]
+
+        return d
+
     def __str__(self) -> str:
         return self.asstr(verbosity=0)
 
 
-class PipelineStepTrace(_PipelineStepTrace):
-    """Trace of particular pipeline step, contains timing information, the step outcome info or exception in case of failing step with custom asdict()"""
-
-    def asdict(self) -> DictStrAny:
-        """A dictionary representation of PipelineStepTrace that can be loaded with `dlt`"""
-        d = dataclasses.asdict(self)
-        if self.step_info:
-            # name property depending on step name - generates nicer data
-            d[f"{self.step}_info"] = d.pop("step_info")
-        return d
-
-
-@dataclasses.dataclass(init=True)
-class PipelineTrace:
+class _PipelineTrace(NamedTuple):
     """Pipeline runtime trace containing data on "extract", "normalize" and "load" steps and resolved config and secret values."""
 
     transaction_id: str
@@ -111,6 +130,8 @@ class PipelineTrace:
     """A list of resolved config values"""
     engine_version: int = TRACE_ENGINE_VERSION
 
+
+class PipelineTrace(SupportsHumanize, _PipelineTrace):
     def asstr(self, verbosity: int = 0) -> str:
         last_step = self.steps[-1]
         completed_str = "FAILED" if last_step.step_exception else "COMPLETED"
@@ -139,7 +160,9 @@ class PipelineTrace:
 
     def asdict(self) -> DictStrAny:
         """A dictionary representation of PipelineTrace that can be loaded with `dlt`"""
-        return dataclasses.asdict(self)
+        d = self._asdict()
+        d["steps"] = [step.asdict() for step in self.steps]
+        return d
 
     @property
     def last_extract_info(self) -> ExtractInfo:
@@ -195,7 +218,12 @@ TRACKING_MODULES: List[SupportsTracking] = None
 
 def start_trace(step: TPipelineStep, pipeline: SupportsPipeline) -> PipelineTrace:
     trace = PipelineTrace(
-        uniq_id(), pipeline.pipeline_name, get_execution_context(), pendulum.now(), steps=[]
+        uniq_id(),
+        pipeline.pipeline_name,
+        get_execution_context(),
+        pendulum.now(),
+        steps=[],
+        resolved_config_values=[],
     )
     for module in TRACKING_MODULES:
         with suppress_and_warn():
@@ -219,24 +247,29 @@ def end_trace_step(
     pipeline: SupportsPipeline,
     step_info: Any,
     send_state: bool,
-) -> None:
+) -> PipelineTrace:
     # saves runtime trace of the pipeline
     if isinstance(step_info, PipelineStepFailed):
+        exception_traces = get_exception_traces(step_info)
         step_exception = str(step_info)
         step_info = step_info.step_info
     elif isinstance(step_info, Exception):
+        exception_traces = get_exception_traces(step_info)
         step_exception = str(step_info)
         if step_info.__context__:
             step_exception += "caused by: " + str(step_info.__context__)
         step_info = None
     else:
         step_info = step_info
+        exception_traces = None
         step_exception = None
 
-    step.finished_at = pendulum.now()
-    step.step_exception = step_exception
-    step.step_info = step_info
-
+    step = step._replace(
+        finished_at=pendulum.now(),
+        step_exception=step_exception,
+        exception_traces=exception_traces,
+        step_info=step_info,
+    )
     resolved_values = map(
         lambda v: SerializableResolvedValueTrace(
             v.key,
@@ -250,22 +283,24 @@ def end_trace_step(
         _RESOLVED_TRACES.values(),
     )
 
-    trace.resolved_config_values = list(resolved_values)
+    trace.resolved_config_values[:] = list(resolved_values)
     trace.steps.append(step)
     for module in TRACKING_MODULES:
         with suppress_and_warn():
             module.on_end_trace_step(trace, step, pipeline, step_info, send_state)
+    return trace
 
 
 def end_trace(
     trace: PipelineTrace, pipeline: SupportsPipeline, trace_path: str, send_state: bool
-) -> None:
-    trace.finished_at = pendulum.now()
+) -> PipelineTrace:
+    trace = trace._replace(finished_at=pendulum.now())
     if trace_path:
         save_trace(trace_path, trace)
     for module in TRACKING_MODULES:
         with suppress_and_warn():
             module.on_end_trace(trace, pipeline, send_state)
+    return trace
 
 
 def merge_traces(last_trace: PipelineTrace, new_trace: PipelineTrace) -> PipelineTrace:
@@ -274,13 +309,12 @@ def merge_traces(last_trace: PipelineTrace, new_trace: PipelineTrace) -> Pipelin
         return new_trace
 
     last_trace.steps.extend(new_trace.steps)
-    # remember only last 100 steps
-    last_trace.steps = last_trace.steps[-100:]
-    # keep the finished up from previous trace
-    last_trace.finished_at = new_trace.finished_at
-    last_trace.resolved_config_values = new_trace.resolved_config_values
-
-    return last_trace
+    # remember only last 100 steps and keep the finished up from previous trace
+    return last_trace._replace(
+        steps=last_trace.steps[-100:],
+        finished_at=new_trace.finished_at,
+        resolved_config_values=new_trace.resolved_config_values,
+    )
 
 
 def save_trace(trace_path: str, trace: PipelineTrace) -> None:
@@ -295,3 +329,35 @@ def load_trace(trace_path: str) -> PipelineTrace:
     except (AttributeError, FileNotFoundError):
         # on incompatible pickling / file not found return no trace
         return None
+
+
+def get_exception_traces(exc: BaseException, container: Container = None) -> List[ExceptionTrace]:
+    """Gets exception trace chain and extend it with data available in Container context"""
+    traces = get_exception_trace_chain(exc)
+    container = container or Container()
+
+    # get resource name
+    resource_name: str = None
+    with contextlib.suppress(ResourceNameNotAvailable):
+        resource_name = get_current_pipe_name()
+    # get source name
+    source_name: str = None
+    with contextlib.suppress(ContextDefaultCannotBeCreated):
+        sections_context = container[ConfigSectionContext]
+        source_name = sections_context.source_state_key
+    # get pipeline name
+    proxy = container[PipelineContext]
+    if proxy.is_active():
+        pipeline_name = proxy.pipeline().pipeline_name
+    else:
+        pipeline_name = None
+
+    # apply context to trace
+    for trace in traces:
+        # only to dlt exceptions
+        if "exception_attrs" in trace:
+            trace.setdefault("resource_name", resource_name)
+            trace.setdefault("pipeline_name", pipeline_name)
+            trace.setdefault("source_name", source_name)
+
+    return traces
