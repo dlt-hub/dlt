@@ -119,7 +119,7 @@ def test_get_completed_table_chain_single_job_per_table() -> None:
                 load_id,
                 schema,
                 top_job_table,
-                "event_user.839c6e6b514e427687586ccc65bf133f.0.jsonl",
+                "event_user.839c6e6b514e427687586ccc65bf133f.jsonl",
             )
         )
         == 1

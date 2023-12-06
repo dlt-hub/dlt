@@ -93,7 +93,7 @@ def test_retry_job(load_storage: LoadStorage) -> None:
 
 
 def test_build_parse_job_path(load_storage: LoadStorage) -> None:
-    file_id = uniq_id(5)
+    file_id = ParsedLoadJobFileName.new_file_id()
     f_n_t = ParsedLoadJobFileName("test_table", file_id, 0, "jsonl")
     job_f_n = PackageStorage.build_job_file_name(
         f_n_t.table_name, file_id, 0, loader_file_format=load_storage.loader_file_format

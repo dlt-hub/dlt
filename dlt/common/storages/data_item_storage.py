@@ -3,9 +3,10 @@ from typing import Dict, Any, List, Sequence
 from abc import ABC, abstractmethod
 
 from dlt.common import logger
+from dlt.common.destination import TLoaderFileFormat
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.typing import StrAny, TDataItems
-from dlt.common.data_writers import TLoaderFileFormat, BufferedDataWriter, DataWriter
+from dlt.common.data_writers import BufferedDataWriter, DataWriter, DataWriterMetrics
 
 
 class DataItemStorage(ABC):
@@ -55,8 +56,8 @@ class DataItemStorage(ABC):
                 )
                 writer.close()
 
-    def closed_files(self) -> List[str]:
-        files: List[str] = []
+    def closed_files(self) -> List[DataWriterMetrics]:
+        files: List[DataWriterMetrics] = []
         for writer in self.buffered_writers.values():
             files.extend(writer.closed_files)
 

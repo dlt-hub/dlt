@@ -120,8 +120,8 @@ class BigQueryLoadJob(LoadJob, FollowupJob):
         else:
             return "running"
 
-    def job_id(self) -> str:
-        return BigQueryLoadJob.get_job_id_from_file_path(super().job_id())
+    def bigquery_job_id(self) -> str:
+        return BigQueryLoadJob.get_job_id_from_file_path(super().file_name())
 
     def exception(self) -> str:
         exception: str = json.dumps(

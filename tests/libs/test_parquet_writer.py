@@ -51,7 +51,7 @@ def test_parquet_writer_schema_evolution_with_big_buffer() -> None:
             {"col1": c1, "col2": c2, "col3": c3, "col4": c4},
         )
 
-    with open(writer.closed_files[0], "rb") as f:
+    with open(writer.closed_files[0].file_path, "rb") as f:
         table = pq.read_table(f)
         assert table.column("col1").to_pylist() == [1, 1]
         assert table.column("col2").to_pylist() == [2, 2]
@@ -78,11 +78,11 @@ def test_parquet_writer_schema_evolution_with_small_buffer() -> None:
 
     assert len(writer.closed_files) == 2
 
-    with open(writer.closed_files[0], "rb") as f:
+    with open(writer.closed_files[0].file_path, "rb") as f:
         table = pq.read_table(f)
         assert len(table.schema) == 3
 
-    with open(writer.closed_files[1], "rb") as f:
+    with open(writer.closed_files[1].file_path, "rb") as f:
         table = pq.read_table(f)
         assert len(table.schema) == 4
 
@@ -108,7 +108,7 @@ def test_parquet_writer_json_serialization() -> None:
             [{"col1": 1, "col2": 2, "col3": []}], {"col1": c1, "col2": c2, "col3": c3}
         )
 
-    with open(writer.closed_files[0], "rb") as f:
+    with open(writer.closed_files[0].file_path, "rb") as f:
         table = pq.read_table(f)
         assert table.column("col1").to_pylist() == [1, 1, 1, 1]
         assert table.column("col2").to_pylist() == [2, 2, 2, 2]
@@ -140,7 +140,7 @@ def test_parquet_writer_all_data_fields() -> None:
         microsecond=int(str(data["col11_precision"].microsecond)[:3] + "000")  # type: ignore[attr-defined]
     )
 
-    with open(writer.closed_files[0], "rb") as f:
+    with open(writer.closed_files[0].file_path, "rb") as f:
         table = pq.read_table(f)
         for key, value in data.items():
             # what we have is pandas Timezone which is naive
@@ -168,7 +168,7 @@ def test_parquet_writer_items_file_rotation() -> None:
             writer.write_data_item([{"col1": i}], columns)
 
     assert len(writer.closed_files) == 10
-    with open(writer.closed_files[4], "rb") as f:
+    with open(writer.closed_files[4].file_path, "rb") as f:
         table = pq.read_table(f)
         assert table.column("col1").to_pylist() == list(range(40, 50))
 
@@ -183,7 +183,7 @@ def test_parquet_writer_size_file_rotation() -> None:
             writer.write_data_item([{"col1": i}], columns)
 
     assert len(writer.closed_files) == 25
-    with open(writer.closed_files[4], "rb") as f:
+    with open(writer.closed_files[4].file_path, "rb") as f:
         table = pq.read_table(f)
         assert table.column("col1").to_pylist() == list(range(16, 20))
 

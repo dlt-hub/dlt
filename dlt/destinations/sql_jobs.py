@@ -37,7 +37,9 @@ class SqlBaseJob(NewLoadJobImpl):
         """
         params = cast(SqlJobParams, {**DEFAULTS, **(params or {})})  # type: ignore
         top_table = table_chain[0]
-        file_info = ParsedLoadJobFileName(top_table["name"], uniq_id()[:10], 0, "sql")
+        file_info = ParsedLoadJobFileName(
+            top_table["name"], ParsedLoadJobFileName.new_file_id(), 0, "sql"
+        )
         try:
             # Remove line breaks from multiline statements and write one SQL statement per line in output file
             # to support clients that need to execute one statement at a time (i.e. snowflake)
@@ -45,14 +47,14 @@ class SqlBaseJob(NewLoadJobImpl):
                 " ".join(stmt.splitlines())
                 for stmt in cls.generate_sql(table_chain, sql_client, params)
             ]
-            job = cls(file_info.job_id(), "running")
+            job = cls(file_info.file_name(), "running")
             job._save_text_file("\n".join(sql))
         except Exception:
             # return failed job
             tables_str = yaml.dump(
                 table_chain, allow_unicode=True, default_flow_style=False, sort_keys=False
             )
-            job = cls(file_info.job_id(), "failed", pretty_format_exception())
+            job = cls(file_info.file_name(), "failed", pretty_format_exception())
             job._save_text_file("\n".join([cls.failed_text, tables_str]))
         return job
 
