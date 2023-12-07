@@ -142,6 +142,7 @@ def qdrant_snippet():
                 get_url = response_json["next_page"]
 
     # @@@DLT_SNIPPET_START main_code
+    __name__ = "__main__"  # @@@DLT_REMOVE
     if __name__ == "__main__":
 
 
