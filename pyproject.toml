@@ -165,6 +165,8 @@ connectorx="0.3.1"
 dbt-core=">=1.2.0"
 dbt-duckdb=">=1.2.0"
 pymongo = ">=4.3.3"
+qdrant-client=">=1.6.9"
+fastembed=">=0.1.1"
 
 [build-system]
 requires = ["poetry-core>=1.0.8"]
