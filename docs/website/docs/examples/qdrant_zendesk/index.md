@@ -26,6 +26,13 @@ This article outlines a system to map vectorized ticket data from Zendesk to Qdr
 
 First, configure the destination credentials for [Qdrant](https://dlthub.com/docs/dlt-ecosystem/destinations/qdrant#setup-guide) and [Zendesk](https://dlthub.com/docs/walkthroughs/zendesk-weaviate#configuration) in `.dlt/secrets.toml`.
 
+Next, make sure you have the following dependencies installed:
+
+```commandline
+pip install qdrant-client>=1.6.9
+pip install fastembed>=0.1.1
+```
+
 ## Connect to Zendesk and load tickets data
 
 <!--@@@DLT_SNIPPET_START ./code/qdrant-snippets.py::zendesk_conn-->
