@@ -179,3 +179,4 @@ def incremental_snippet() -> None:
         data = chess(chess_url="https://api.chess.com/pub/", max_players=MAX_PLAYERS)
         load_data_with_retry(pipeline, data)
     # @@@DLT_SNIPPET_END markdown_pipeline
+    # @@@DLT_SNIPPET_END example
