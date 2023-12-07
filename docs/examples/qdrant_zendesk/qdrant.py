@@ -34,12 +34,6 @@ def zendesk_support(
     start_date_obj = ensure_pendulum_datetime(start_date)
     end_date_obj = ensure_pendulum_datetime(end_date) if end_date else None
 
-    # Convert Pendulum datetime objects to Unix timestamps
-    start_date_ts = start_date_obj.int_timestamp
-    end_date_ts: Optional[int] = None
-    if end_date_obj:
-        end_date_ts = end_date_obj.int_timestamp
-
     # Extract credentials from secrets dictionary
     auth = (credentials["email"], credentials["password"])
     subdomain = credentials["subdomain"]
