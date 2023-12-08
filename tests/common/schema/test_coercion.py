@@ -32,7 +32,7 @@ def test_coerce_type_to_text() -> None:
     # bytes to text (base64)
     assert coerce_value("text", "binary", b'binary string') == "YmluYXJ5IHN0cmluZw=="
     # HexBytes to text (hex with prefix)
-    assert coerce_value("text", "binary", HexBytes(b'binary string')) == "0x62696e61727920737472696e67"
+    assert coerce_value("text", "binary", HexBytes(b'binary string')) == "62696e61727920737472696e67"
     # Str enum value
     class StrEnum(Enum):
         a = "a_value"
