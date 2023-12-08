@@ -130,8 +130,6 @@ def get_pages(
             get_url = response_json["next_page"]
 
 if __name__ == "__main__":
-
-
     # create a pipeline with an appropriate name
     pipeline = dlt.pipeline(
         pipeline_name="qdrant_zendesk_pipeline",

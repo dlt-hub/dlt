@@ -1,5 +1,6 @@
 from tests.utils import skipifgithubfork
 
+__source_name__ = "zendesk"
 
 @skipifgithubfork
 def qdrant_snippet():

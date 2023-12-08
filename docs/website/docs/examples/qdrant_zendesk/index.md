@@ -118,8 +118,6 @@ def zendesk_support(
 <!--@@@DLT_SNIPPET_START ./code/qdrant-snippets.py::main_code-->
 ```py
 if __name__ == "__main__":
-
-
     # create a pipeline with an appropriate name
     pipeline = dlt.pipeline(
         pipeline_name="qdrant_zendesk_pipeline",
