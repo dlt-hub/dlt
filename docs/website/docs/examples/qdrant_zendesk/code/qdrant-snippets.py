@@ -1,5 +1,7 @@
+from tests.utils import skipifgithubfork
 
 
+@skipifgithubfork
 def qdrant_snippet():
     # @@@DLT_SNIPPET_START example
     # @@@DLT_SNIPPET_START zendesk_conn
