@@ -140,8 +140,6 @@ def qdrant_snippet():
     # @@@DLT_SNIPPET_START main_code
     __name__ = "__main__"  # @@@DLT_REMOVE
     if __name__ == "__main__":
-
-
         # create a pipeline with an appropriate name
         pipeline = dlt.pipeline(
             pipeline_name="qdrant_zendesk_pipeline",
