@@ -5,6 +5,7 @@ from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from typing_extensions import ParamSpec
 
 from dlt.common import logger, sleep
+from dlt.common.configuration.container import Container
 from dlt.common.runtime import init
 from dlt.common.runners.runnable import Runnable, TExecutor
 from dlt.common.runners.configuration import PoolRunnerConfiguration
@@ -50,7 +51,9 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
                 max_workers=config.workers, mp_context=multiprocessing.get_context()
             )
     elif config.pool_type == "thread":
-        return ThreadPoolExecutor(max_workers=config.workers)
+        return ThreadPoolExecutor(
+            max_workers=config.workers, thread_name_prefix=Container.thread_pool_prefix()
+        )
     # no pool - single threaded
     return NullExecutor()
 

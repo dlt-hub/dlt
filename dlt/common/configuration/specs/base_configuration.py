@@ -395,6 +395,8 @@ class ContainerInjectableContext(BaseConfiguration):
 
     can_create_default: ClassVar[bool] = True
     """If True, `Container` is allowed to create default context instance, if none exists"""
+    global_affinity: ClassVar[bool] = False
+    """If True, `Container` will create context that will be visible in any thread. If False, per thread context is created"""
 
     def add_extras(self) -> None:
         """Called right after context was added to the container. Benefits mostly the config provider injection context which adds extra providers using the initial ones."""
