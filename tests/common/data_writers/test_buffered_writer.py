@@ -55,6 +55,8 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
         assert writer._file is None
     # writer is closed and data was written
     assert len(writer.closed_files) == 1
+    assert writer.closed_files[0].items_count == 9
+    assert writer.closed_files[0].file_size > 0
     # check the content, mind that we swapped the columns
     with FileStorage.open_zipsafe_ro(writer.closed_files[0].file_path, "r", encoding="utf-8") as f:
         content = f.readlines()
@@ -111,6 +113,9 @@ def test_rotation_on_schema_change(disable_compression: bool) -> None:
     with FileStorage.open_zipsafe_ro(writer.closed_files[-1].file_path, "r", encoding="utf-8") as f:
         content = f.readlines()
     assert "(col3_value" in content[-1]
+    # check metrics
+    assert writer.closed_files[0].items_count == 11
+    assert writer.closed_files[1].items_count == 22
 
 
 @pytest.mark.parametrize(
@@ -168,3 +173,13 @@ def test_writer_optional_schema(disable_compression: bool) -> None:
     with get_writer(_format="jsonl", disable_compression=disable_compression) as writer:
         writer.write_data_item([{"col1": 1}], None)
         writer.write_data_item([{"col1": 1}], None)
+
+
+# @pytest.mark.parametrize(
+#     "disable_compression", [True, False], ids=["no_compression", "compression"]
+# )
+# def test_write_empty_file() -> None:
+#     pass
+
+
+# def test_import_file()
