@@ -5,8 +5,13 @@ keywords: [MotherDuck, duckdb, destination, data warehouse]
 ---
 
 # MotherDuck
-
 > 🧪 MotherDuck is still invitation only and intensively tested. Please see the limitations / problems at the end.
+
+## Install `dlt` with MotherDuck
+**To install the `DLT` library with MotherDuck dependencies:**
+```
+pip install dlt[motherduck]
+```
 
 :::tip
 Decrease the number of load workers to 3-5 depending on the quality of your internet connection if you see a lot of retries in your logs with various timeout, add the following to your `config.toml`:

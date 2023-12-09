@@ -4,6 +4,25 @@ Filesystem destination stores data in remote file systems and bucket storages li
 > 💡 Please read the notes on the layout of the data files. Currently we are getting feedback on it. Please join our slack (icon at the top of the page) and help us to find the optimal layout.
 
 ## Setup Guide
+
+## Install `dlt` with filesystem
+**To install the `DLT` library with filesystem dependencies:**
+```
+pip install dlt[filesystem]
+```
+This installs `s3fs` and `botocore` packages.
+
+:::caution
+
+You may also install the dependencies independently
+try
+```sh
+pip install dlt
+pip install s3fs
+```
+so pip does not fail on backtracking
+:::
+
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new dlt project as follows:
@@ -19,17 +38,6 @@ The command above creates sample `secrets.toml` and requirements file for AWS S3
 ```
 pip install -r requirements.txt
 ```
-or with `pip install dlt[filesystem]` which will install `s3fs` and `botocore` packages.
-:::caution
-
-You may also install the dependencies independently
-try
-```sh
-pip install dlt
-pip install s3fs
-```
-so pip does not fail on backtracking
-:::
 
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`, which looks like this:
 ```toml

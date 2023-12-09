@@ -6,6 +6,12 @@ keywords: [duckdb, destination, data warehouse]
 
 # DuckDB
 
+## Install `dlt` with DuckDB
+**To install the `DLT` library with DuckDB dependencies:**
+```
+pip install dlt[duckdb]
+```
+
 ## Setup Guide
 
 **1. Initialize a project with a pipeline that loads to DuckDB by running**
