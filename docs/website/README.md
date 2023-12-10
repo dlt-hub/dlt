@@ -7,7 +7,7 @@ Docusaurus consumes content from the `./docs` folder (at `./docs/website/docs` i
 
 - markdown files
 - code snippets
-- API documentation.
+- API documentation, which pydoc generates into `./docs/api_reference` when the Node package is run.
 
 On the production website the documentation appears at https://dlthub.com/docs and the default documentation page is https://dlthub.com/docs/intro.
 
