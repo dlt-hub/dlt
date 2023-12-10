@@ -1,5 +1,4 @@
 import inspect
-import threading
 from functools import wraps
 from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload
 from inspect import Signature, Parameter

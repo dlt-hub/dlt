@@ -2,6 +2,7 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
+import multiprocessing
 import os
 from time import sleep
 from typing import Any, Tuple, cast
@@ -28,6 +29,7 @@ from dlt.common.exceptions import (
 from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.utils import new_column, new_table
+from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
@@ -43,7 +45,12 @@ from tests.common.utils import TEST_SENTRY_DSN
 from tests.common.configuration.utils import environment
 from tests.utils import TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
-from tests.pipeline.utils import assert_load_info, airtable_emojis, many_delayed
+from tests.pipeline.utils import (
+    assert_load_info,
+    airtable_emojis,
+    load_data_table_counts,
+    many_delayed,
+)
 
 
 def test_default_pipeline() -> None:
@@ -1395,67 +1402,90 @@ def test_remove_pending_packages() -> None:
     assert pipeline.has_pending_data is False
 
 
-def test_parallel_threads_pipeline() -> None:
+@pytest.mark.parametrize("workers", (1, 4), ids=("1 norm worker", "4 norm workers"))
+def test_parallel_threads_pipeline(workers: int) -> None:
+    # critical section to control pipeline steps
     init_lock = threading.Lock()
     extract_ev = threading.Event()
-    sem = threading.Semaphore(0)
     normalize_ev = threading.Event()
     load_ev = threading.Event()
+    # control main thread
+    sem = threading.Semaphore(0)
 
-    def _run_pipeline(pipeline_name: str) -> Tuple[LoadInfo, PipelineContext]:
-        # rotate the files frequently so we have parallel normalize and load
-        os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "10"
-        os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "10"
+    # rotate the files frequently so we have parallel normalize and load
+    os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "10"
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "10"
 
-        @dlt.transformer(
-            name="github_repo_events",
-            write_disposition="append",
-            table_name=lambda i: i["type"],
-        )
-        def github_repo_events(page):
-            yield page
+    # force spawn process pool
+    os.environ["NORMALIZE__START_METHOD"] = "spawn"
 
-        @dlt.transformer
-        async def slow(item):
-            await asyncio.sleep(0.1)
-            return item
+    page_repeats = 1
 
-        @dlt.transformer
-        @dlt.defer
-        def slow_func(item):
-            sleep(0.1)
-            return item
+    # set the extra per pipeline
+    os.environ["PIPELINE_1__EXTRA"] = "CFG_P_1"
+    os.environ["PIPELINE_2__EXTRA"] = "CFG_P_2"
 
-        # @dlt.resource
-        # def slow():
-        #     for i in range(10):
-        #         yield slowly_rotate(i)
+    def _run_pipeline(pipeline_name: str) -> Tuple[LoadInfo, PipelineContext, DictStrAny]:
+        try:
 
-        # make sure that only one pipeline is created
-        with init_lock:
-            pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
-            context = Container()[PipelineContext]
-        sem.release()
+            @dlt.transformer(
+                name="github_repo_events",
+                write_disposition="append",
+                table_name=lambda i: i["type"],
+            )
+            def github_repo_events(page, extra):
+                # test setting the resource state
+                dlt.current.resource_state()["extra"] = extra
+                yield page
+
+            @dlt.transformer
+            async def slow(items):
+                await asyncio.sleep(0.1)
+                return items
+
+            @dlt.transformer
+            @dlt.defer
+            def slow_func(items, extra):
+                # sdd configurable extra to each element
+                sleep(0.1)
+                return map(lambda item: {**item, **{"extra": extra}}, items)
+
+            @dlt.source
+            def github(extra: str = dlt.config.value):
+                # generate github events, push them through futures and thread pools and then dispatch to separate tables
+                return (
+                    _get_shuffled_events(repeat=page_repeats)
+                    | slow
+                    | slow_func(extra)
+                    | github_repo_events(extra)
+                )
+
+            # make sure that only one pipeline is created
+            with init_lock:
+                pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+                context = Container()[PipelineContext]
+        finally:
+            sem.release()
         # start every step at the same moment to increase chances of any race conditions to happen
         extract_ev.wait()
         context_2 = Container()[PipelineContext]
         try:
-            # generate github events, push them through futures and thread pools and then dispatch to separate tables
-            pipeline.extract(_get_shuffled_events(repeat=2) | slow | slow_func | github_repo_events)
+            pipeline.extract(github())
         finally:
             sem.release()
         normalize_ev.wait()
         try:
-            pipeline.normalize(workers=4)
+            pipeline.normalize(workers=workers)
         finally:
             sem.release()
         load_ev.wait()
         info = pipeline.load()
 
-        # info = pipeline.run(slow())
+        # get counts in the thread
+        counts = load_data_table_counts(pipeline)
 
         assert context is context_2
-        return info, context
+        return info, context, counts
 
     with ThreadPoolExecutor(max_workers=4) as pool:
         f_1 = pool.submit(_run_pipeline, "pipeline_1")
@@ -1483,17 +1513,30 @@ def test_parallel_threads_pipeline() -> None:
             raise f_2.exception()
         load_ev.set()
 
-        info_1, context_1 = f_1.result()
-        info_2, context_2 = f_2.result()
+        info_1, context_1, counts_1 = f_1.result()
+        info_2, context_2, counts_2 = f_2.result()
 
     print("EXIT")
-    print(info_1)
-    print(info_2)
+    assert_load_info(info_1)
+    assert_load_info(info_2)
 
-    counts_1 = context_1.pipeline().last_trace.last_normalize_info  # type: ignore
-    assert counts_1.row_counts["push_event"] == 16
-    counts_2 = context_2.pipeline().last_trace.last_normalize_info  # type: ignore
-    assert counts_2.row_counts["push_event"] == 16
+    pipeline_1: dlt.Pipeline = context_1.pipeline()  # type: ignore
+    pipeline_2: dlt.Pipeline = context_2.pipeline()  # type: ignore
 
-    assert context_1.pipeline().pipeline_name == "pipeline_1"
-    assert context_2.pipeline().pipeline_name == "pipeline_2"
+    n_counts_1 = pipeline_1.last_trace.last_normalize_info
+    assert n_counts_1.row_counts["push_event"] == 8 * page_repeats == counts_1["push_event"]
+    n_counts_2 = pipeline_2.last_trace.last_normalize_info
+    assert n_counts_2.row_counts["push_event"] == 8 * page_repeats == counts_2["push_event"]
+
+    assert pipeline_1.pipeline_name == "pipeline_1"
+    assert pipeline_2.pipeline_name == "pipeline_2"
+
+    # check if resource state has extra
+    assert pipeline_1.state["sources"]["github"]["resources"]["github_repo_events"] == {
+        "extra": "CFG_P_1"
+    }
+    assert pipeline_2.state["sources"]["github"]["resources"]["github_repo_events"] == {
+        "extra": "CFG_P_2"
+    }
+
+    # make sure we can still access data

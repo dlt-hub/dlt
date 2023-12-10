@@ -157,12 +157,11 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                         parsed_file_name.table_name
                     )
                     root_tables.add(root_table_name)
+                    normalizer = _get_items_normalizer(parsed_file_name.file_format)
                     logger.debug(
                         f"Processing extracted items in {extracted_items_file} in load_id"
                         f" {load_id} with table name {root_table_name} and schema {schema.name}"
                     )
-
-                    normalizer = _get_items_normalizer(parsed_file_name.file_format)
                     partial_updates, items_count, r_counts = normalizer(
                         extracted_items_file, root_table_name
                     )
@@ -292,6 +291,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                         tasks.append((retry_pending, params))
                     # remove finished tasks
                     tasks.remove(task)
+                logger.debug(f"{len(tasks)} tasks still remaining for {load_id}...")
 
         return summary
 
@@ -380,7 +380,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             if len(schema_files) == 0:
                 # delete empty package
                 self.normalize_storage.extracted_packages.delete_package(load_id)
-                logger.dlt_version_info(f"Empty package {load_id} processed")
+                logger.info(f"Empty package {load_id} processed")
                 continue
             with self.collector(f"Normalize {schema.name} in {load_id}"):
                 self.collector.update("Files", 0, len(schema_files))

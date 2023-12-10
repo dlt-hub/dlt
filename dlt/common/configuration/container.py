@@ -91,6 +91,9 @@ class Container:
                 thread_id = int(m.group(1))
             else:
                 thread_id = threading.get_ident()
+            # return main context for main thread
+            if thread_id == Container._MAIN_THREAD_ID:
+                return self.main_context
             # we may add a new empty thread context so lock here
             with Container._LOCK:
                 context = self.thread_contexts.get(thread_id)
