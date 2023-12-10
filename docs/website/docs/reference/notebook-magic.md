@@ -12,6 +12,14 @@ The dlt (Data Loading Tool) Command Line Interface (CLI) can be seamlessly integ
 
 Please note that every magic command run by default has --non-interactive flag set to True. This means that the pipeline will run without any prompts. If you want to run the pipeline with prompts, you can use command line arguments
 
+## Installation
+
+You can install DLT and its notebook dependencies using pip:
+
+```bash
+pip install dlt[notebook]
+```
+
 ## `%pipeline`
 
 In an IPython notebook, you can use the `%pipeline` magic command to execute the `dlt pipeline` command. This command allows managing of pipelines.
