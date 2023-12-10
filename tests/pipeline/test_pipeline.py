@@ -2,7 +2,6 @@ import asyncio
 from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
-import multiprocessing
 import os
 from time import sleep
 from typing import Any, Tuple, cast
@@ -1403,7 +1402,7 @@ def test_remove_pending_packages() -> None:
 
 
 @pytest.mark.parametrize("workers", (1, 4), ids=("1 norm worker", "4 norm workers"))
-def test_parallel_threads_pipeline(workers: int) -> None:
+def test_parallel_pipelines_threads(workers: int) -> None:
     # critical section to control pipeline steps
     init_lock = threading.Lock()
     extract_ev = threading.Event()
@@ -1516,7 +1515,6 @@ def test_parallel_threads_pipeline(workers: int) -> None:
         info_1, context_1, counts_1 = f_1.result()
         info_2, context_2, counts_2 = f_2.result()
 
-    print("EXIT")
     assert_load_info(info_1)
     assert_load_info(info_2)
 
@@ -1540,3 +1538,58 @@ def test_parallel_threads_pipeline(workers: int) -> None:
     }
 
     # make sure we can still access data
+    pipeline_1.activate()  # activate pipeline to access inner duckdb
+    assert load_data_table_counts(pipeline_1) == counts_1
+    pipeline_2.activate()
+    assert load_data_table_counts(pipeline_2) == counts_2
+
+
+@pytest.mark.parametrize("workers", (1, 4), ids=("1 norm worker", "4 norm workers"))
+def test_parallel_pipelines_async(workers: int) -> None:
+    os.environ["NORMALIZE__WORKERS"] = str(workers)
+
+    # create both futures and thread parallel resources
+
+    def async_table():
+        async def _gen(idx):
+            await asyncio.sleep(0.1)
+            return {"async_gen": idx}
+
+        # just yield futures in a loop
+        for idx_ in range(10):
+            yield _gen(idx_)
+
+    def defer_table():
+        @dlt.defer
+        def _gen(idx):
+            sleep(0.1)
+            return {"thread_gen": idx}
+
+        # just yield futures in a loop
+        for idx_ in range(5):
+            yield _gen(idx_)
+
+    def _run_pipeline(pipeline, gen_) -> LoadInfo:
+        # run the pipeline in a thread, also instantiate generators here!
+        # Python does not let you use generators across instances
+        return pipeline.run(gen_())
+
+    # declare pipelines in main thread then run them "async"
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline_2 = dlt.pipeline("pipeline_2", destination="duckdb", full_refresh=True)
+
+    async def _run_async():
+        loop = asyncio.get_running_loop()
+        with ThreadPoolExecutor() as executor:
+            results = await asyncio.gather(
+                loop.run_in_executor(executor, _run_pipeline, pipeline_1, async_table),
+                loop.run_in_executor(executor, _run_pipeline, pipeline_2, defer_table),
+            )
+        assert_load_info(results[0])
+        assert_load_info(results[1])
+
+    asyncio.run(_run_async())
+    pipeline_1.activate()  # activate pipeline 1 to access inner duckdb
+    assert load_data_table_counts(pipeline_1) == {"async_table": 10}
+    pipeline_2.activate()  # activate pipeline 2 to access inner duckdb
+    assert load_data_table_counts(pipeline_2) == {"defer_table": 5}
