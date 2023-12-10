@@ -136,6 +136,7 @@ PROGRESS=log python pipeline_script.py
 ```
 
 ## Parallelism
+You can create pipelines that extract, normalize and load data in parallel.
 
 ### Extract
 You can extract data concurrently if you write your pipelines to yield callables or awaitables that can be then evaluated in a thread or futures pool respectively.
@@ -249,6 +250,17 @@ The default is to not parallelize normalization and to perform it in the main pr
 Normalization is CPU bound and can easily saturate all your cores. Never allow `dlt` to use all cores on your local machine.
 :::
 
+:::caution
+The default method of spawning a process pool on Linux is **fork**. If you are using threads in your code (or libraries that use threads),
+you should rather switch to **spawn**. Process forking does not respawn the threads and may destroy the critical sections in your code. Even logging
+with Python loggers from multiple threads may lock the `normalize` step. Here's how you switch to **spawn**:
+```toml
+[normalize]
+workers=3
+start_method="spawn"
+```
+:::
+
 ### Load
 The **load** stage uses a thread pool for parallelization. Loading is input/output bound. `dlt` avoids any processing of the content of the load package produced by the normalizer. By default loading happens in 20 threads, each loading a single file.
 
@@ -314,9 +326,11 @@ if __name__ == "__main__" or "PYTEST_CURRENT_TEST" in os.environ:
     pipeline = dlt.pipeline("parallel_load", destination="duckdb", full_refresh=True)
     pipeline.extract(read_table(1000000))
 
+    load_id = pipeline.list_extracted_load_packages()[0]
+    extracted_package = pipeline.get_load_package_info(load_id)
     # we should have 11 files (10 pieces for `table` and 1 for state)
-    extracted_files = pipeline.list_extracted_resources()
-    print(extracted_files)
+    extracted_jobs = extracted_package.jobs["new_jobs"]
+    print([str(job.job_file_info) for job in extracted_jobs])
     # normalize and print counts
     print(pipeline.normalize(loader_file_format="jsonl"))
     # print jobs in load package (10 + 1 as above)
@@ -359,6 +373,79 @@ the schema, that should be a problem though as long as your data does not create
 - State is per-pipeline. The pipeline identifier is the pipeline name. A single pipeline state
   should be accessed serially to avoid losing details on parallel runs.
 
+
+## Running several pipelines in parallel in single process
+You can run several pipeline instances in parallel from a single process by placing them in
+separate threads. The most straightforward way is to use `ThreadPoolExecutor` and `asyncio` to execute pipeline methods.
+
+<!--@@@DLT_SNIPPET_START ./performance_snippets/performance-snippets.py::parallel_pipelines-->
+```py
+import asyncio
+import dlt
+from time import sleep
+from concurrent.futures import ThreadPoolExecutor
+
+# create both futures and thread parallel resources
+
+def async_table():
+    async def _gen(idx):
+        await asyncio.sleep(0.1)
+        return {"async_gen": idx}
+
+    # just yield futures in a loop
+    for idx_ in range(10):
+        yield _gen(idx_)
+
+def defer_table():
+    @dlt.defer
+    def _gen(idx):
+        sleep(0.1)
+        return {"thread_gen": idx}
+
+    # just yield futures in a loop
+    for idx_ in range(5):
+        yield _gen(idx_)
+
+def _run_pipeline(pipeline, gen_):
+    # run the pipeline in a thread, also instantiate generators here!
+    # Python does not let you use generators across threads
+    return pipeline.run(gen_())
+
+# declare pipelines in main thread then run them "async"
+pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+pipeline_2 = dlt.pipeline("pipeline_2", destination="duckdb", full_refresh=True)
+
+async def _run_async():
+    loop = asyncio.get_running_loop()
+    # from Python 3.9 you do not need explicit pool. loop.to_thread will suffice
+    with ThreadPoolExecutor() as executor:
+        results = await asyncio.gather(
+            loop.run_in_executor(executor, _run_pipeline, pipeline_1, async_table),
+            loop.run_in_executor(executor, _run_pipeline, pipeline_2, defer_table),
+        )
+    # result contains two LoadInfo instances
+    results[0].raise_on_failed_jobs()
+    results[1].raise_on_failed_jobs()
+
+# load data
+asyncio.run(_run_async())
+# activate pipelines before they are used
+pipeline_1.activate()
+# assert load_data_table_counts(pipeline_1) == {"async_table": 10}
+pipeline_2.activate()
+# assert load_data_table_counts(pipeline_2) == {"defer_table": 5}
+```
+<!--@@@DLT_SNIPPET_END ./performance_snippets/performance-snippets.py::parallel_pipelines-->
+
+:::tip
+Please note the following:
+1. Do not run pipelines with the same name and working dir in parallel. State synchronization will not
+work in that case.
+2. When running in multiple threads and using [parallel normalize step](#normalize) , use **spawn**
+process start method.
+3. If you created the `Pipeline` object in the worker thread and you use it from another (ie. main thread)
+call `pipeline.activate()` to inject the right context into current thread.
+:::
 
 ## Resources extraction, `fifo` vs. `round robin`
 
