@@ -39,12 +39,13 @@ class NullExecutor(Executor):
 def create_pool(config: PoolRunnerConfiguration) -> Executor:
     if config.pool_type == "process":
         # if not fork method, provide initializer for logs and configuration
-        if multiprocessing.get_start_method() != "fork" and init._INITIALIZED:
+        start_method = config.start_method or multiprocessing.get_start_method()
+        if start_method != "fork" and init._INITIALIZED:
             return ProcessPoolExecutor(
                 max_workers=config.workers,
                 initializer=init.initialize_runtime,
                 initargs=(init._RUN_CONFIGURATION,),
-                mp_context=multiprocessing.get_context(),
+                mp_context=multiprocessing.get_context(method=start_method),
             )
         else:
             return ProcessPoolExecutor(
