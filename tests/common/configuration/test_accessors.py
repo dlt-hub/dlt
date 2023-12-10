@@ -189,7 +189,12 @@ def test_setter(toml_providers: ConfigProvidersContext, environment: Any) -> Non
     # mod the config and use it to resolve the configuration
     dlt.config["pool"] = {"pool_type": "process", "workers": 21}
     c = resolve_configuration(PoolRunnerConfiguration(), sections=("pool",))
-    assert dict(c) == {"pool_type": "process", "workers": 21, "run_sleep": 0.1}
+    assert dict(c) == {
+        "pool_type": "process",
+        "start_method": None,
+        "workers": 21,
+        "run_sleep": 0.1,
+    }
 
 
 def test_secrets_separation(toml_providers: ConfigProvidersContext) -> None:
