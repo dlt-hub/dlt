@@ -5,11 +5,12 @@ Filesystem destination stores data in remote file systems and bucket storages li
 
 ## Setup Guide
 
-## Install `dlt` with filesystem
-**To install the `DLT` library with filesystem dependencies:**
+## Install dlt with filesystem
+**To install the DLT library with filesystem dependencies:**
 ```
 pip install dlt[filesystem]
 ```
+
 This installs `s3fs` and `botocore` packages.
 
 :::caution

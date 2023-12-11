@@ -6,8 +6,8 @@ keywords: [postgres, destination, data warehouse]
 
 # Postgres
 
-## Install `dlt` with PostgreSQL
-**To install the `DLT` library with PostgreSQL dependencies:**
+## Install dlt with PostgreSQL
+**To install the DLT library with PostgreSQL dependencies:**
 ```
 pip install dlt[postgres]
 ```

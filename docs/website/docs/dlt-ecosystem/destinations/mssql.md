@@ -6,8 +6,8 @@ keywords: [mssql, sqlserver, destination, data warehouse]
 
 # Microsoft SQL Server
 
-## Install `dlt` with MS SQL
-**To install the `DLT` library with MS SQL dependencies:**
+## Install dlt with MS SQL
+**To install the DLT library with MS SQL dependencies:**
 ```
 pip install dlt[mssql]
 ```

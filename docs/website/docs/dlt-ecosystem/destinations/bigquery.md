@@ -6,8 +6,8 @@ keywords: [bigquery, destination, data warehouse]
 
 # Google BigQuery
 
-## Install `dlt` with BigQuery
-**To install the `DLT` library with BigQuery dependencies:**
+## Install dlt with BigQuery
+**To install the DLT library with BigQuery dependencies:**
 ```
 pip install dlt[bigquery]
 ```
