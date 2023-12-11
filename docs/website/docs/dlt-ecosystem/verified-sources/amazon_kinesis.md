@@ -195,12 +195,12 @@ Please check the `kinesis_stream` [docstring](https://github.com/dlt-hub/verifie
 for additional options, i.e. to limit the number of messages
 returned or to automatically parse JSON messages.
 
-### Kinesis Message Format:
+### Kinesis message format
 
-The "_kinesis" dictionary in the message stores the message envelope, including shard ID, sequence,
-partition key, etc. Message contains `_kinesis_msg_id` which is the primary key: a hash over
-(shard_id, message sequence). With "parse_json" set to True (default), the Data field is parsed;
-if False, data is returned in bytes.
+The `_kinesis` dictionary in the message stores the message envelope, including shard id, sequence,
+partition key, etc. The message contains `_kinesis_msg_id`, which is the primary key: a hash over
+(shard id + message sequence number). With `parse_json` set to True (default), the Data field is parsed;
+if False, `data` is returned as bytes.
 
 ## Customization
 
