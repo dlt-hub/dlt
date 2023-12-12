@@ -1,9 +1,4 @@
 
-# type: ignore
-from IPython.core.display import HTML, display # type: ignore
-from IPython.core.magic import ( Magics, cell_magic,line_cell_magic,line_magic, magics_class, register_line_magic,)
-from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
-
 
 from dlt.common.runtime.exec_info import is_notebook, is_ipython
 from dlt.cli import echo as fmt, echo
@@ -21,6 +16,29 @@ DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dl
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
 DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
 
+def register_notebook_magics() -> None:
+    """
+    Registers custom IPython magic commands for the notebook environment.
+
+    This function checks if the current environment is an IPython environment (like Jupyter notebooks).
+    If it is, it attempts to register custom magic commands. The registration process is wrapped
+    in a try-except block to gracefully handle cases where necessary dependencies for the magic
+    commands might not be present.
+
+    Raises:
+        ImportError: If there is an issue importing the required modules for the magic commands.
+                     The exception is silently passed, and the function does not perform any action.
+    """
+    if is_ipython():
+        try:
+            register_magics()
+        except ImportError:
+            pass
+
+# type: ignore
+from IPython.core.display import HTML, display # type: ignore
+from IPython.core.magic import ( Magics, cell_magic,line_cell_magic,line_magic, magics_class, register_line_magic,)
+from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 
 
 @magics_class
@@ -265,22 +283,4 @@ def register_magics() -> None:
         pass
 
 
-def register_notebook_magics() -> None:
-    """
-    Registers custom IPython magic commands for the notebook environment.
-
-    This function checks if the current environment is an IPython environment (like Jupyter notebooks).
-    If it is, it attempts to register custom magic commands. The registration process is wrapped
-    in a try-except block to gracefully handle cases where necessary dependencies for the magic
-    commands might not be present.
-
-    Raises:
-        ImportError: If there is an issue importing the required modules for the magic commands.
-                     The exception is silently passed, and the function does not perform any action.
-    """
-    if is_ipython():
-        try:
-            register_magics()
-        except ImportError:
-            pass
 
