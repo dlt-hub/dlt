@@ -60,7 +60,7 @@ def is_github_actions() -> bool:
     return "GITHUB_ACTIONS" in os.environ
 
 
-def is_notebook() -> bool:
+def is_notebook() -> bool: # type: ignore
     try:
         # Import get_ipython from IPython
         from IPython import get_ipython
