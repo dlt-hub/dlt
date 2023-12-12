@@ -25,7 +25,7 @@ def generate_rows():
 	for i in range(10):
 		yield {'id':i, 'example_string':'abc'}
 
-@dlt.sources
+@dlt.source
 def source_name():
     return generate_rows
 ```
