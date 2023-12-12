@@ -1,13 +1,7 @@
 
 
 from IPython.core.display import HTML, display # type: ignore
-from IPython.core.magic import (
-    Magics,
-    cell_magic,
-    line_cell_magic,
-    line_magic,
-    magics_class, register_line_magic,
-) # type: ignore
+from IPython.core.magic import ( Magics, cell_magic,line_cell_magic,line_magic, magics_class, register_line_magic,) # type: ignore
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring # type: ignore
 
 
