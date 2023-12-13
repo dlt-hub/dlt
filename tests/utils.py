@@ -249,6 +249,7 @@ def is_running_in_github_fork() -> bool:
     is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
     head_ref = os.environ.get("GITHUB_HEAD_REF", "")
     repo = os.environ.get("GITHUB_REPOSITORY", "")
+    raise ValueError(is_github_actions, head_ref, repo)
     return is_github_actions and ":" in head_ref and not head_ref.startswith(repo.split("/")[0])
 
 
