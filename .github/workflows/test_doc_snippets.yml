@@ -25,7 +25,7 @@ env:
   # Mongodb url for nested data example
   MONGODB_PIPELINE__SOURCES__CONNECTION_URL: ${{ secrets.MONGODB_PIPELINE__SOURCES__CONNECTION_URL }}
 
-  IS_FORK: ${{ github.event.pull_request.head.repo.fork }} == 'true'
+  IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
 jobs:
 
   run_lint:
