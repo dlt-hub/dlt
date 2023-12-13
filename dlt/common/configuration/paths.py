@@ -36,8 +36,8 @@ def get_dlt_data_dir() -> str:
     if "DLT_DATA_DIR" in os.environ:
         return os.environ["DLT_DATA_DIR"]
 
-    # getuid not available on Windows
-    if hasattr(os, "getuid") and os.geteuid() == 0:
+    # geteuid not available on Windows
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
         # we are root so use standard /var
         return os.path.join("/var", "dlt")
 
