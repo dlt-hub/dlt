@@ -246,10 +246,10 @@ def skip_if_not_active(destination: str) -> None:
 
 
 def is_running_in_github_fork() -> bool:
+    """Check if executed by GitHub Actions, in a repo fork."""
     is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
-    head_ref = os.environ.get("GITHUB_HEAD_REF", "")
-    repo = os.environ.get("GITHUB_REPOSITORY", "")
-    return is_github_actions and ":" in head_ref and not head_ref.startswith(repo.split("/")[0])
+    is_fork = os.environ.get("IS_FORK") == "true"  # custom var set by us in the workflow's YAML
+    return is_github_actions and is_fork
 
 
 skipifspawn = pytest.mark.skipif(

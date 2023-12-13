@@ -24,6 +24,8 @@ env:
   RUNTIME__SLACK_INCOMING_HOOK: ${{ secrets.RUNTIME__SLACK_INCOMING_HOOK }}
   # Mongodb url for nested data example
   MONGODB_PIPELINE__SOURCES__CONNECTION_URL: ${{ secrets.MONGODB_PIPELINE__SOURCES__CONNECTION_URL }}
+  # detect if the workflow is executed in a repo fork
+  IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
 jobs:
 
   run_lint:
