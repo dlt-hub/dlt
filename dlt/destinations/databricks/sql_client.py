@@ -67,21 +67,6 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
     def native_connection(self) -> "DatabricksSqlConnection":
         return self._conn
 
-    # def has_dataset(self) -> bool:
-    #     db_params = self.fully_qualified_dataset_name(escape=False).split(".", 2)
-
-    #     # Determine the base query based on the presence of a catalog in db_params
-    #     if len(db_params) == 2:
-    #         # Use catalog from db_params
-    #         query = "SELECT 1 FROM %s.`INFORMATION_SCHEMA`.`SCHEMATA` WHERE `schema_name` = %s"
-    #     else:
-    #         # Use system catalog
-    #         query = "SELECT 1 FROM `SYSTEM`.`INFORMATION_SCHEMA`.`SCHEMATA` WHERE `catalog_name` = %s AND `schema_name` = %s"
-
-    #     # Execute the query and check if any rows are returned
-    #     rows = self.execute_sql(query, *db_params)
-    #     return len(rows) > 0
-
     def drop_tables(self, *tables: str) -> None:
         # Tables are drop with `IF EXISTS`, but databricks raises when the schema doesn't exist.
         # Multi statement exec is safe and the error can be ignored since all tables are in the same schema.
@@ -96,12 +81,12 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
                 f = curr.fetchall()
                 return f
 
-    # def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
-    #     """
-    #     Executes several SQL fragments as efficiently as possible to prevent data copying. 
-    #     Default implementation just joins the strings and executes them together.
-    #     """
-    #     return [self.execute_sql(fragment, *args, **kwargs) for fragment in fragments]  # type: ignore
+    def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+        """
+        Executes several SQL fragments as efficiently as possible to prevent data copying.
+        Default implementation just joins the strings and executes them together.
+        """
+        return [self.execute_sql(fragment, *args, **kwargs) for fragment in fragments]  # type: ignore
 
     @contextmanager
     @raise_database_error
