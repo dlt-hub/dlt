@@ -24,6 +24,10 @@ env:
   RUNTIME__SLACK_INCOMING_HOOK: ${{ secrets.RUNTIME__SLACK_INCOMING_HOOK }}
   # Mongodb url for nested data example
   MONGODB_PIPELINE__SOURCES__CONNECTION_URL: ${{ secrets.MONGODB_PIPELINE__SOURCES__CONNECTION_URL }}
+  # Qdrant credentials
+  DESTINATION__QDRANT__CREDENTIALS__LOCATION: ${{ secrets.DESTINATION__QDRANT__CREDENTIALS__LOCATION }}
+  DESTINATION__QDRANT__CREDENTIALS__API_KEY: ${{ secrets.DESTINATION__QDRANT__CREDENTIALS__API_KEY }}
+
 jobs:
 
   run_lint:
@@ -59,7 +63,7 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E duckdb -E weaviate -E parquet --with docs --without airflow
+        run: poetry install --no-interaction -E duckdb -E weaviate -E parquet -E qdrant --with docs --without airflow
 
       - name: Run linter and tests
         run: make test-and-lint-snippets
