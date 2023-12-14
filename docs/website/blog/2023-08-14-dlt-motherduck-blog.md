@@ -4,7 +4,7 @@ title: "dlt-dbt-DuckDB-MotherDuck: My super simple and highly customizable appro
 image: /img/dlt-motherduck-logos.png
 authors:
   name: Rahul Joshi
-  title: Data Science Intern at dltHub
+  title: Developer Relations at dltHub
   url: https://github.com/rahuljo
   image_url: https://avatars.githubusercontent.com/u/28861929?v=4
 tags: [BigQuery, dbt, dlt, DuckDB, GitHub, Metabase, MotherDuck]
