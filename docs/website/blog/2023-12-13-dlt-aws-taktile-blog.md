@@ -1,7 +1,7 @@
 ---
 slug: dlt-aws-taktile-blog
 title: "Why Taktile runs dlt on AWS Lambda to process millions of daily tracking events"
-image: https://dlt-static.s3.eu-central-1.amazonaws.com/images/aws-taktile-blog-data-tools-workflow.png
+image: https://dlt-static.s3.eu-central-1.amazonaws.com/images/aws-taktile-blog-simon-meetup-image.jpg
 authors:
     name: Simon Bumm
     title: Data and Analytics Lead at Taktile
