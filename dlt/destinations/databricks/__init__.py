@@ -18,10 +18,10 @@ def _configure(config: DatabricksClientConfiguration = config.value) -> Databric
 
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
-    caps.preferred_loader_file_format = "jsonl"
-    caps.supported_loader_file_formats = ["jsonl", "parquet"]
-    caps.preferred_staging_file_format = "jsonl"
-    caps.supported_staging_file_formats = ["jsonl", "parquet"]
+    caps.preferred_loader_file_format = "parquet"
+    caps.supported_loader_file_formats = ["parquet", "jsonl"]
+    caps.preferred_staging_file_format = "parquet"
+    caps.supported_staging_file_formats = ["parquet", "jsonl"]
     caps.escape_identifier = escape_databricks_identifier
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
@@ -32,7 +32,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.max_text_data_type_length = 16 * 1024 * 1024
     caps.is_max_text_data_type_length_in_bytes = True
     caps.supports_ddl_transactions = False
-    caps.supports_truncate_command = False
+    caps.supports_truncate_command = True
     # caps.supports_transactions = False
     caps.alter_add_multi_column = True
     return caps
