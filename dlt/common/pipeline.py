@@ -400,12 +400,16 @@ class PipelineContext(ContainerInjectableContext):
     _deferred_pipeline: Callable[[], SupportsPipeline]
     _pipeline: SupportsPipeline
 
-    can_create_default: ClassVar[bool] = False
+    can_create_default: ClassVar[bool] = True
 
     def pipeline(self) -> SupportsPipeline:
         """Creates or returns exiting pipeline"""
         if not self._pipeline:
             # delayed pipeline creation
+            assert self._deferred_pipeline is not None, (
+                "Deferred pipeline creation function not provided to PipelineContext. Are you"
+                " calling dlt.pipeline() from another thread?"
+            )
             self.activate(self._deferred_pipeline())
         return self._pipeline
 
@@ -425,7 +429,7 @@ class PipelineContext(ContainerInjectableContext):
             self._pipeline._set_context(False)
         self._pipeline = None
 
-    def __init__(self, deferred_pipeline: Callable[..., SupportsPipeline]) -> None:
+    def __init__(self, deferred_pipeline: Callable[..., SupportsPipeline] = None) -> None:
         """Initialize the context with a function returning the Pipeline object to allow creation on first use"""
         self._deferred_pipeline = deferred_pipeline
 

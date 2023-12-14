@@ -1,6 +1,7 @@
 import contextlib
 import io
-from typing import List
+from typing import ClassVar, List
+
 from dlt.common.configuration.exceptions import DuplicateConfigProviderException
 from dlt.common.configuration.providers import (
     ConfigProvider,
@@ -33,6 +34,8 @@ class ConfigProvidersConfiguration(BaseConfiguration):
 @configspec
 class ConfigProvidersContext(ContainerInjectableContext):
     """Injectable list of providers used by the configuration `resolve` module"""
+
+    global_affinity: ClassVar[bool] = True
 
     providers: List[ConfigProvider]
     context_provider: ConfigProvider

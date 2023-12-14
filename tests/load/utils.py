@@ -358,8 +358,11 @@ def expect_load_file(
     status="completed",
 ) -> LoadJob:
     file_name = ParsedLoadJobFileName(
-        table_name, uniq_id(), 0, client.capabilities.preferred_loader_file_format
-    ).job_id()
+        table_name,
+        ParsedLoadJobFileName.new_file_id(),
+        0,
+        client.capabilities.preferred_loader_file_format,
+    ).file_name()
     file_storage.save(file_name, query.encode("utf-8"))
     table = client.get_load_table(table_name)
     job = client.start_file_load(table, file_storage.make_full_path(file_name), uniq_id())

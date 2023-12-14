@@ -111,5 +111,64 @@ def performance_chunking_snippet() -> None:
     assert len(list(database_cursor_chunked())) == 10000
 
 
+def parallel_pipelines_asyncio_snippet() -> None:
+    # @@@DLT_SNIPPET_START parallel_pipelines
+    import asyncio
+    import dlt
+    from time import sleep
+    from concurrent.futures import ThreadPoolExecutor
+
+    # create both futures and thread parallel resources
+
+    def async_table():
+        async def _gen(idx):
+            await asyncio.sleep(0.1)
+            return {"async_gen": idx}
+
+        # just yield futures in a loop
+        for idx_ in range(10):
+            yield _gen(idx_)
+
+    def defer_table():
+        @dlt.defer
+        def _gen(idx):
+            sleep(0.1)
+            return {"thread_gen": idx}
+
+        # just yield futures in a loop
+        for idx_ in range(5):
+            yield _gen(idx_)
+
+    def _run_pipeline(pipeline, gen_):
+        # run the pipeline in a thread, also instantiate generators here!
+        # Python does not let you use generators across threads
+        return pipeline.run(gen_())
+
+    # declare pipelines in main thread then run them "async"
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline_2 = dlt.pipeline("pipeline_2", destination="duckdb", full_refresh=True)
+
+    async def _run_async():
+        loop = asyncio.get_running_loop()
+        # from Python 3.9 you do not need explicit pool. loop.to_thread will suffice
+        with ThreadPoolExecutor() as executor:
+            results = await asyncio.gather(
+                loop.run_in_executor(executor, _run_pipeline, pipeline_1, async_table),
+                loop.run_in_executor(executor, _run_pipeline, pipeline_2, defer_table),
+            )
+        # result contains two LoadInfo instances
+        results[0].raise_on_failed_jobs()
+        results[1].raise_on_failed_jobs()
+
+    # load data
+    asyncio.run(_run_async())
+    # activate pipelines before they are used
+    pipeline_1.activate()
+    # assert load_data_table_counts(pipeline_1) == {"async_table": 10}
+    pipeline_2.activate()
+    # assert load_data_table_counts(pipeline_2) == {"defer_table": 5}
+    # @@@DLT_SNIPPET_END parallel_pipelines
+
+
 def test_toml_snippets() -> None:
     parse_toml_file("./toml-snippets.toml")

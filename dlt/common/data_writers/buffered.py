@@ -1,7 +1,6 @@
 import gzip
 from typing import List, IO, Any, Optional, Type, TypeVar, Generic
 
-from dlt.common.utils import uniq_id
 from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.data_writers.exceptions import (
@@ -9,14 +8,19 @@ from dlt.common.data_writers.exceptions import (
     DestinationCapabilitiesRequired,
     InvalidFileNameTemplateException,
 )
-from dlt.common.data_writers.writers import DataWriter
+from dlt.common.data_writers.writers import DataWriter, DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.configuration import with_config, known_sections, configspec
 from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
-
+from dlt.common.utils import uniq_id
 
 TWriter = TypeVar("TWriter", bound=DataWriter)
+
+
+def new_file_id() -> str:
+    """Creates new file id which is globally unique within table_name scope"""
+    return uniq_id(5)
 
 
 class BufferedDataWriter(Generic[TWriter]):
@@ -49,7 +53,7 @@ class BufferedDataWriter(Generic[TWriter]):
         self._caps = _caps
         # validate if template has correct placeholders
         self.file_name_template = file_name_template
-        self.closed_files: List[str] = []  # all fully processed files
+        self.closed_files: List[DataWriterMetrics] = []  # all fully processed files
         # buffered items must be less than max items in file
         self.buffer_max_items = min(buffer_max_items, file_max_items or buffer_max_items)
         self.file_max_bytes = file_max_bytes
@@ -121,9 +125,19 @@ class BufferedDataWriter(Generic[TWriter]):
         return new_rows_count
 
     def write_empty_file(self, columns: TTableSchemaColumns) -> None:
+        """Writes empty file: only header and footer without actual items"""
         if columns is not None:
             self._current_columns = dict(columns)
         self._flush_items(allow_empty_file=True)
+
+    def import_file(self, file_path: str, metrics: DataWriterMetrics) -> None:
+        # TODO: we should separate file storage from other storages. this creates circular deps
+        from dlt.common.storages import FileStorage
+
+        self._rotate_file()
+        FileStorage.link_hard_with_fallback(file_path, self._file_name)
+        self.closed_files.append(metrics._replace(file_path=self._file_name))
+        self._file_name = None
 
     def close(self) -> None:
         self._ensure_open()
@@ -143,7 +157,7 @@ class BufferedDataWriter(Generic[TWriter]):
     def _rotate_file(self) -> None:
         self._flush_and_close_file()
         self._file_name = (
-            self.file_name_template % uniq_id(5) + "." + self._file_format_spec.file_extension
+            self.file_name_template % new_file_id() + "." + self._file_format_spec.file_extension
         )
 
     def _flush_items(self, allow_empty_file: bool = False) -> None:
@@ -171,9 +185,12 @@ class BufferedDataWriter(Generic[TWriter]):
         if self._writer:
             # write the footer of a file
             self._writer.write_footer()
-            self._file.close()
+            self._file.flush()
             # add file written to the list so we can commit all the files later
-            self.closed_files.append(self._file_name)
+            self.closed_files.append(
+                DataWriterMetrics(self._file_name, self._writer.items_count, self._file.tell())
+            )
+            self._file.close()
             self._writer = None
             self._file = None
             self._file_name = None

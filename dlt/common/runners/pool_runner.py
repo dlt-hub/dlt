@@ -5,6 +5,7 @@ from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from typing_extensions import ParamSpec
 
 from dlt.common import logger, sleep
+from dlt.common.configuration.container import Container
 from dlt.common.runtime import init
 from dlt.common.runners.runnable import Runnable, TExecutor
 from dlt.common.runners.configuration import PoolRunnerConfiguration
@@ -38,19 +39,22 @@ class NullExecutor(Executor):
 def create_pool(config: PoolRunnerConfiguration) -> Executor:
     if config.pool_type == "process":
         # if not fork method, provide initializer for logs and configuration
-        if multiprocessing.get_start_method() != "fork" and init._INITIALIZED:
+        start_method = config.start_method or multiprocessing.get_start_method()
+        if start_method != "fork" and init._INITIALIZED:
             return ProcessPoolExecutor(
                 max_workers=config.workers,
                 initializer=init.initialize_runtime,
                 initargs=(init._RUN_CONFIGURATION,),
-                mp_context=multiprocessing.get_context(),
+                mp_context=multiprocessing.get_context(method=start_method),
             )
         else:
             return ProcessPoolExecutor(
                 max_workers=config.workers, mp_context=multiprocessing.get_context()
             )
     elif config.pool_type == "thread":
-        return ThreadPoolExecutor(max_workers=config.workers)
+        return ThreadPoolExecutor(
+            max_workers=config.workers, thread_name_prefix=Container.thread_pool_prefix()
+        )
     # no pool - single threaded
     return NullExecutor()
 

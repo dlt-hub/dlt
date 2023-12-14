@@ -371,7 +371,10 @@ def test_write_value(toml_providers: ConfigProvidersContext) -> None:
         pool = PoolRunnerConfiguration(pool_type="none", workers=10)
         provider.set_value("runner_config", dict(pool), "new_pipeline")
         # print(provider._toml["new_pipeline"]["runner_config"].as_string())
-        assert provider._toml["new_pipeline"]["runner_config"] == dict(pool)  # type: ignore[index]
+        expected_pool = dict(pool)
+        # None is removed
+        expected_pool.pop("start_method")
+        assert provider._toml["new_pipeline"]["runner_config"] == expected_pool  # type: ignore[index]
 
         # dict creates only shallow dict so embedded credentials will fail
         creds = WithCredentialsConfiguration()

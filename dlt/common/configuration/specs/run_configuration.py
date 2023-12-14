@@ -16,9 +16,7 @@ class RunConfiguration(BaseConfiguration):
     slack_incoming_hook: Optional[TSecretStrValue] = None
     dlthub_telemetry: bool = True  # enable or disable dlthub telemetry
     dlthub_telemetry_segment_write_key: str = "a1F2gc6cNYw2plyAt02sZouZcsRjG7TD"
-    log_format: str = (
-        "{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}"
-    )
+    log_format: str = "{asctime}|[{levelname:<21}]|{process}|{thread}|{name}|{filename}|{funcName}:{lineno}|{message}"
     log_level: str = "WARNING"
     request_timeout: float = 60
     """Timeout for http requests"""

@@ -1,7 +1,11 @@
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
 import os
-from typing import Any, Any, cast
+from time import sleep
+from typing import Any, Tuple, cast
+import threading
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 
 import pytest
@@ -21,9 +25,10 @@ from dlt.common.exceptions import (
     PipelineStateNotAvailable,
     UnknownDestinationModule,
 )
-from dlt.common.pipeline import PipelineContext
+from dlt.common.pipeline import LoadInfo, PipelineContext
 from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.utils import new_column, new_table
+from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
@@ -39,7 +44,12 @@ from tests.common.utils import TEST_SENTRY_DSN
 from tests.common.configuration.utils import environment
 from tests.utils import TEST_STORAGE_ROOT
 from tests.extract.utils import expect_extracted_file
-from tests.pipeline.utils import assert_load_info, airtable_emojis, many_delayed
+from tests.pipeline.utils import (
+    assert_load_info,
+    airtable_emojis,
+    load_data_table_counts,
+    many_delayed,
+)
 
 
 def test_default_pipeline() -> None:
@@ -809,12 +819,13 @@ def github_repo_events_table_meta(page):
 
 
 @dlt.resource
-def _get_shuffled_events():
-    with open(
-        "tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8"
-    ) as f:
-        issues = json.load(f)
-        yield issues
+def _get_shuffled_events(repeat: int = 1):
+    for _ in range(repeat):
+        with open(
+            "tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8"
+        ) as f:
+            issues = json.load(f)
+            yield issues
 
 
 @pytest.mark.parametrize("github_resource", (github_repo_events_table_meta, github_repo_events))
@@ -1388,3 +1399,197 @@ def test_remove_pending_packages() -> None:
     assert pipeline.has_pending_data
     pipeline.drop_pending_packages()
     assert pipeline.has_pending_data is False
+
+
+@pytest.mark.parametrize("workers", (1, 4), ids=("1 norm worker", "4 norm workers"))
+def test_parallel_pipelines_threads(workers: int) -> None:
+    # critical section to control pipeline steps
+    init_lock = threading.Lock()
+    extract_ev = threading.Event()
+    normalize_ev = threading.Event()
+    load_ev = threading.Event()
+    # control main thread
+    sem = threading.Semaphore(0)
+
+    # rotate the files frequently so we have parallel normalize and load
+    os.environ["DATA_WRITER__BUFFER_MAX_ITEMS"] = "10"
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "10"
+
+    # force spawn process pool
+    os.environ["NORMALIZE__START_METHOD"] = "spawn"
+
+    page_repeats = 1
+
+    # set the extra per pipeline
+    os.environ["PIPELINE_1__EXTRA"] = "CFG_P_1"
+    os.environ["PIPELINE_2__EXTRA"] = "CFG_P_2"
+
+    def _run_pipeline(pipeline_name: str) -> Tuple[LoadInfo, PipelineContext, DictStrAny]:
+        try:
+
+            @dlt.transformer(
+                name="github_repo_events",
+                write_disposition="append",
+                table_name=lambda i: i["type"],
+            )
+            def github_repo_events(page, extra):
+                # test setting the resource state
+                dlt.current.resource_state()["extra"] = extra
+                yield page
+
+            @dlt.transformer
+            async def slow(items):
+                await asyncio.sleep(0.1)
+                return items
+
+            @dlt.transformer
+            @dlt.defer
+            def slow_func(items, extra):
+                # sdd configurable extra to each element
+                sleep(0.1)
+                return map(lambda item: {**item, **{"extra": extra}}, items)
+
+            @dlt.source
+            def github(extra: str = dlt.config.value):
+                # generate github events, push them through futures and thread pools and then dispatch to separate tables
+                return (
+                    _get_shuffled_events(repeat=page_repeats)
+                    | slow
+                    | slow_func(extra)
+                    | github_repo_events(extra)
+                )
+
+            # make sure that only one pipeline is created
+            with init_lock:
+                pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+                context = Container()[PipelineContext]
+        finally:
+            sem.release()
+        # start every step at the same moment to increase chances of any race conditions to happen
+        extract_ev.wait()
+        context_2 = Container()[PipelineContext]
+        try:
+            pipeline.extract(github())
+        finally:
+            sem.release()
+        normalize_ev.wait()
+        try:
+            pipeline.normalize(workers=workers)
+        finally:
+            sem.release()
+        load_ev.wait()
+        info = pipeline.load()
+
+        # get counts in the thread
+        counts = load_data_table_counts(pipeline)
+
+        assert context is context_2
+        return info, context, counts
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        f_1 = pool.submit(_run_pipeline, "pipeline_1")
+        f_2 = pool.submit(_run_pipeline, "pipeline_2")
+
+        sem.acquire()
+        sem.acquire()
+        if f_1.done():
+            raise f_1.exception()
+        if f_2.done():
+            raise f_2.exception()
+        extract_ev.set()
+        sem.acquire()
+        sem.acquire()
+        if f_1.done():
+            raise f_1.exception()
+        if f_2.done():
+            raise f_2.exception()
+        normalize_ev.set()
+        sem.acquire()
+        sem.acquire()
+        if f_1.done():
+            raise f_1.exception()
+        if f_2.done():
+            raise f_2.exception()
+        load_ev.set()
+
+        info_1, context_1, counts_1 = f_1.result()
+        info_2, context_2, counts_2 = f_2.result()
+
+    assert_load_info(info_1)
+    assert_load_info(info_2)
+
+    pipeline_1: dlt.Pipeline = context_1.pipeline()  # type: ignore
+    pipeline_2: dlt.Pipeline = context_2.pipeline()  # type: ignore
+
+    n_counts_1 = pipeline_1.last_trace.last_normalize_info
+    assert n_counts_1.row_counts["push_event"] == 8 * page_repeats == counts_1["push_event"]
+    n_counts_2 = pipeline_2.last_trace.last_normalize_info
+    assert n_counts_2.row_counts["push_event"] == 8 * page_repeats == counts_2["push_event"]
+
+    assert pipeline_1.pipeline_name == "pipeline_1"
+    assert pipeline_2.pipeline_name == "pipeline_2"
+
+    # check if resource state has extra
+    assert pipeline_1.state["sources"]["github"]["resources"]["github_repo_events"] == {
+        "extra": "CFG_P_1"
+    }
+    assert pipeline_2.state["sources"]["github"]["resources"]["github_repo_events"] == {
+        "extra": "CFG_P_2"
+    }
+
+    # make sure we can still access data
+    pipeline_1.activate()  # activate pipeline to access inner duckdb
+    assert load_data_table_counts(pipeline_1) == counts_1
+    pipeline_2.activate()
+    assert load_data_table_counts(pipeline_2) == counts_2
+
+
+@pytest.mark.parametrize("workers", (1, 4), ids=("1 norm worker", "4 norm workers"))
+def test_parallel_pipelines_async(workers: int) -> None:
+    os.environ["NORMALIZE__WORKERS"] = str(workers)
+
+    # create both futures and thread parallel resources
+
+    def async_table():
+        async def _gen(idx):
+            await asyncio.sleep(0.1)
+            return {"async_gen": idx}
+
+        # just yield futures in a loop
+        for idx_ in range(10):
+            yield _gen(idx_)
+
+    def defer_table():
+        @dlt.defer
+        def _gen(idx):
+            sleep(0.1)
+            return {"thread_gen": idx}
+
+        # just yield futures in a loop
+        for idx_ in range(5):
+            yield _gen(idx_)
+
+    def _run_pipeline(pipeline, gen_) -> LoadInfo:
+        # run the pipeline in a thread, also instantiate generators here!
+        # Python does not let you use generators across instances
+        return pipeline.run(gen_())
+
+    # declare pipelines in main thread then run them "async"
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline_2 = dlt.pipeline("pipeline_2", destination="duckdb", full_refresh=True)
+
+    async def _run_async():
+        loop = asyncio.get_running_loop()
+        with ThreadPoolExecutor() as executor:
+            results = await asyncio.gather(
+                loop.run_in_executor(executor, _run_pipeline, pipeline_1, async_table),
+                loop.run_in_executor(executor, _run_pipeline, pipeline_2, defer_table),
+            )
+        assert_load_info(results[0])
+        assert_load_info(results[1])
+
+    asyncio.run(_run_async())
+    pipeline_1.activate()  # activate pipeline 1 to access inner duckdb
+    assert load_data_table_counts(pipeline_1) == {"async_table": 10}
+    pipeline_2.activate()  # activate pipeline 2 to access inner duckdb
+    assert load_data_table_counts(pipeline_2) == {"defer_table": 5}

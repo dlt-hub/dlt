@@ -227,7 +227,7 @@ class LoadJob:
         return self._file_name
 
     def job_id(self) -> str:
-        """The job id that is derived from the file name"""
+        """The job id that is derived from the file name and does not changes during job lifecycle"""
         return self._parsed_file_name.job_id()
 
     def job_file_info(self) -> ParsedLoadJobFileName:

@@ -19,7 +19,7 @@ from typing import (
 )
 
 from dlt.common import pendulum, json
-from dlt.common.data_writers.writers import DataWriter
+from dlt.common.data_writers import DataWriter, new_file_id
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaTables
@@ -36,13 +36,27 @@ TLoadPackageState = Literal["new", "extracted", "normalized", "loaded", "aborted
 
 
 class ParsedLoadJobFileName(NamedTuple):
+    """Represents a file name of a job in load package. The file name contains name of a table, number of times the job was retired, extension
+    and a 5 bytes random string to make job file name unique.
+    The job id does not contain retry count and is immutable during loading of the data
+    """
+
     table_name: str
     file_id: str
     retry_count: int
     file_format: TLoaderFileFormat
 
     def job_id(self) -> str:
+        """Unique identifier of the job"""
+        return f"{self.table_name}.{self.file_id}.{self.file_format}"
+
+    def file_name(self) -> str:
+        """A name of the file with the data to be loaded"""
         return f"{self.table_name}.{self.file_id}.{int(self.retry_count)}.{self.file_format}"
+
+    def with_retry(self) -> "ParsedLoadJobFileName":
+        """Returns a job with increased retry count"""
+        return self._replace(retry_count=self.retry_count + 1)
 
     @staticmethod
     def parse(file_name: str) -> "ParsedLoadJobFileName":
@@ -54,6 +68,10 @@ class ParsedLoadJobFileName(NamedTuple):
         return ParsedLoadJobFileName(
             parts[0], parts[1], int(parts[2]), cast(TLoaderFileFormat, parts[3])
         )
+
+    @staticmethod
+    def new_file_id() -> str:
+        return new_file_id()
 
     def __str__(self) -> str:
         return self.job_id()
@@ -288,19 +306,14 @@ class PackageStorage:
     def retry_job(self, load_id: str, file_name: str) -> str:
         # when retrying job we must increase the retry count
         source_fn = ParsedLoadJobFileName.parse(file_name)
-        dest_fn = ParsedLoadJobFileName(
-            source_fn.table_name,
-            source_fn.file_id,
-            source_fn.retry_count + 1,
-            source_fn.file_format,
-        )
+        dest_fn = source_fn.with_retry()
         # move it directly to new file name
         return self._move_job(
             load_id,
             PackageStorage.STARTED_JOBS_FOLDER,
             PackageStorage.NEW_JOBS_FOLDER,
             file_name,
-            dest_fn.job_id(),
+            dest_fn.file_name(),
         )
 
     def complete_job(self, load_id: str, file_name: str) -> str:

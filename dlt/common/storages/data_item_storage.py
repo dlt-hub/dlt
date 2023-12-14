@@ -3,9 +3,10 @@ from typing import Dict, Any, List, Sequence
 from abc import ABC, abstractmethod
 
 from dlt.common import logger
+from dlt.common.destination import TLoaderFileFormat
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.typing import StrAny, TDataItems
-from dlt.common.data_writers import TLoaderFileFormat, BufferedDataWriter, DataWriter
+from dlt.common.data_writers import BufferedDataWriter, DataWriter, DataWriterMetrics
 
 
 class DataItemStorage(ABC):
@@ -39,11 +40,24 @@ class DataItemStorage(ABC):
         # write item(s)
         return writer.write_data_item(item, columns)
 
-    def write_empty_file(
+    def write_empty_items_file(
         self, load_id: str, schema_name: str, table_name: str, columns: TTableSchemaColumns
     ) -> None:
+        """Writes empty file: only header and footer without actual items"""
         writer = self.get_writer(load_id, schema_name, table_name)
         writer.write_empty_file(columns)
+
+    def import_items_file(
+        self,
+        load_id: str,
+        schema_name: str,
+        table_name: str,
+        file_path: str,
+        metrics: DataWriterMetrics,
+    ) -> None:
+        """Imports external file from `file_path`. Requires external metrics to be passed as internal data writer is not used."""
+        writer = self.get_writer(load_id, schema_name, table_name)
+        writer.import_file(file_path, metrics)
 
     def close_writers(self, load_id: str) -> None:
         # flush and close all files
@@ -55,8 +69,8 @@ class DataItemStorage(ABC):
                 )
                 writer.close()
 
-    def closed_files(self) -> List[str]:
-        files: List[str] = []
+    def closed_files(self) -> List[DataWriterMetrics]:
+        files: List[DataWriterMetrics] = []
         for writer in self.buffered_writers.values():
             files.extend(writer.closed_files)
 

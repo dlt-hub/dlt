@@ -1,6 +1,6 @@
 import abc
 from dataclasses import dataclass
-from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union
+from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, NamedTuple
 
 from dlt.common import json
 from dlt.common.configuration import configspec, known_sections, with_config
@@ -21,6 +21,12 @@ class TFileFormatSpec:
     supports_schema_changes: bool
     requires_destination_capabilities: bool = False
     supports_compression: bool = False
+
+
+class DataWriterMetrics(NamedTuple):
+    file_path: str
+    items_count: int
+    file_size: int
 
 
 class DataWriter(abc.ABC):

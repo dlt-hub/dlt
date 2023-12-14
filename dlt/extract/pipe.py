@@ -725,7 +725,7 @@ class PipeIterator(Iterator[PipeItem]):
             target=start_background_loop,
             args=(self._async_pool,),
             daemon=True,
-            name="DltFuturesThread",
+            name=Container.thread_pool_prefix() + "futures",
         )
         self._async_pool_thread.start()
 
@@ -737,7 +737,9 @@ class PipeIterator(Iterator[PipeItem]):
         if self._thread_pool:
             return self._thread_pool
 
-        self._thread_pool = ThreadPoolExecutor(self.workers)
+        self._thread_pool = ThreadPoolExecutor(
+            self.workers, thread_name_prefix=Container.thread_pool_prefix() + "threads"
+        )
         return self._thread_pool
 
     def __enter__(self) -> "PipeIterator":

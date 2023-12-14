@@ -72,10 +72,14 @@ class BaseTomlProvider(ConfigProvider):
                 if k not in master:
                     master[k] = tomlkit.table()
                 master = master[k]  # type: ignore
-            if isinstance(value, dict) and isinstance(master.get(key), dict):
-                update_dict_nested(master[key], value)  # type: ignore
-            else:
-                master[key] = value
+            if isinstance(value, dict):
+                # remove none values, TODO: we need recursive None removal
+                value = {k: v for k, v in value.items() if v is not None}
+                # if target is also dict then merge recursively
+                if isinstance(master.get(key), dict):
+                    update_dict_nested(master[key], value)  # type: ignore
+                    return
+            master[key] = value
 
     @property
     def supports_sections(self) -> bool:
