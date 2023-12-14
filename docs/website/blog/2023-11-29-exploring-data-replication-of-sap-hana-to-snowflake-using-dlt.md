@@ -4,7 +4,7 @@ title: "Exploring data replication of SAP HANA to Snowflake using dlt"
 image: https://dlt-static.s3.eu-central-1.amazonaws.com/images/sap_snowflake_blog_data_link_image.png
 authors:
     name: Rahul Joshi
-    title: Data Science Intern at dltHub
+    title: Developer Relations at dltHub
     url: https://github.com/rahuljo
     image_url: https://avatars.githubusercontent.com/u/28861929?v=4
 tags: [SAP, SAP HANA, Snowflake, Cloud, ETL]
@@ -25,7 +25,7 @@ Unfortunately, this is not that simple. SAP does not integrate easily with non-S
 
 ## Creating a dlt integration  
   
-Our users have been asking for SAP HANA data, hence I decided to create a custom dlt integration to SAP’s in-memory data warehouse: SAP HANA. I chose SAP HANA since it’s an OLAP database, and our users have been specifically asking us for this connector. Plus, given its SQL backend and [Python API](https://developers.sap.com/tutorials/hana-clients-python.html), dlt should also have no problem connecting to it. 
+Our users have been asking for SAP HANA data, hence I decided to create a custom dlt integration to SAP’s in-memory data warehouse: SAP HANA. Given its SQL backend and [Python API](https://developers.sap.com/tutorials/hana-clients-python.html), I figured dlt should also have no problem connecting to it. 
 
 I then use this pipeline to load SAP HANA tables into Snowflake,  since Snowflake is cloud agnostic and can be run in different environments (such AWS, GCP, Azure, or any combination of the three). This is how I did it:  
   
