@@ -69,6 +69,7 @@ jobs:
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         # run: poetry install --no-interaction --all-extras --with airflow --with docs --with providers --with sentry-sdk --with pipeline
         run: make dev
+        shell: bash
 
       # - name: Install self
       #   run: poetry install --no-interaction
@@ -76,6 +77,7 @@ jobs:
 
       - name: Run lint
         run: make lint
+        shell: bash
 
       # - name: print envs
       #   run: |
