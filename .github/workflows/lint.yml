@@ -22,16 +22,13 @@ jobs:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         python-version: ["3.11.x"]
         # Test all python versions on ubuntu only
-        include:
-          - python-version: "3.8.x"
-            # os: "ubuntu-latest"
-            os: "windows-latest"
-          - python-version: "3.9.x"
-            # os: "ubuntu-latest"
-            os: "windows-latest"
-          - python-version: "3.10.x"
-            # os: "ubuntu-latest"
-            os: "windows-latest"
+        # include:
+        #   - python-version: "3.8.x"
+        #     os: "ubuntu-latest"
+        #   - python-version: "3.9.x"
+        #     os: "ubuntu-latest"
+        #   - python-version: "3.10.x"
+        #     os: "ubuntu-latest"
 
     defaults:
       run:
@@ -60,6 +57,9 @@ jobs:
           virtualenvs-create: true
           virtualenvs-in-project: true
           installer-parallel: true
+
+      - name: Check Poetry install     
+        run: poetry --version          
 
       - name: Load cached venv
         id: cached-poetry-dependencies
