@@ -71,8 +71,10 @@ jobs:
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         # run: poetry install --no-interaction --all-extras --with airflow --with docs --with providers --with sentry-sdk --with pipeline
-        run: make dev
-        shell: bash
+        run: |
+          poetry shell
+          make dev
+        # shell: bash
 
       # - name: Install self
       #   run: poetry install --no-interaction
