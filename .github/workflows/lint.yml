@@ -76,7 +76,7 @@ jobs:
           make --version
           echo $GITHUB_PATH
           make dev
-        # shell: bash
+        shell: pwsh
 
       # - name: Install self
       #   run: poetry install --no-interaction
