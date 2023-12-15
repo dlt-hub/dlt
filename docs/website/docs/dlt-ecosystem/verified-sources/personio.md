@@ -126,7 +126,7 @@ For more information, read [Run a pipeline.](../../walkthroughs/run-a-pipeline)
 
 ### Source `personio_source`
 
-This `dlt` source returns data resources like "employees", "absences", "absence_types", etc.
+This `dlt` source returns data resources like `employees`, `absences`, `absence_types`, etc.
 ```python
 @dlt.source(name="personio")
 def personio_source(
@@ -197,7 +197,7 @@ It is important to note that the data is loaded in `replace` mode where the exis
 completely replaced.
 
 In addition to the mentioned resource,
-there are three more resources "projects", "custom_reports_list" and "document_categories"
+there are three more resources `projects`, `custom_reports_list` and `document_categories`
 with similar behaviour.
 
 ### Resource-transformer `employees_absences_balance`
