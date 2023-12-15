@@ -72,7 +72,7 @@ jobs:
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         # run: poetry install --no-interaction --all-extras --with airflow --with docs --with providers --with sentry-sdk --with pipeline
         run: |
-          ls C:/Program Files/Git/usr/bin/
+          ls
           echo $SHELL
           echo 'all:;@echo $(SHELL)' | make -f-
           poetry --version
