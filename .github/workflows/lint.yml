@@ -22,13 +22,13 @@ jobs:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         python-version: ["3.11.x"]
         # Test all python versions on ubuntu only
-        include:
-          - python-version: "3.8.x"
-            os: "ubuntu-latest"
-          - python-version: "3.9.x"
-            os: "ubuntu-latest"
-          - python-version: "3.10.x"
-            os: "ubuntu-latest"
+        # include:
+        #   - python-version: "3.8.x"
+        #     os: "ubuntu-latest"
+        #   - python-version: "3.9.x"
+        #     os: "ubuntu-latest"
+        #   - python-version: "3.10.x"
+        #     os: "ubuntu-latest"
 
     defaults:
       run:
@@ -47,6 +47,10 @@ jobs:
         with:
           python-version: "3.10.x"
 
+      - name: Install make     
+        if: runner.os == 'Windows'
+        run: choco install make
+
       - name: Install Poetry
         uses: snok/install-poetry@v1
         with:
@@ -63,14 +67,12 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction --all-extras --with airflow --with docs --with providers --with sentry-sdk --with pipeline
+        # run: poetry install --no-interaction --all-extras --with airflow --with docs --with providers --with sentry-sdk --with pipeline
+        run: make dev
 
       # - name: Install self
       #   run: poetry install --no-interaction
 
-      - name: Install make     
-        if: runner.os == 'Windows'
-        run: choco install make
 
       - name: Run lint
         run: make lint
