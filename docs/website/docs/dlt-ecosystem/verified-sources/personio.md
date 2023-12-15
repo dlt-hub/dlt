@@ -24,11 +24,17 @@ You can check out our pipeline example [here](https://github.com/dlt-hub/verifie
 
 Resources that can be loaded using this verified source are:
 
-| Name        | Description                                                                              |
-|-------------|------------------------------------------------------------------------------------------|
-| employees   | Retrieves company employees details. (Employees list, absense_entitlement, cost_centers) |
-| absences    | Retrieves list of various types of employee absences                                     |
-| attendances | Retrieves attendance records for each employee                                           |
+| Name                       | Description                                                                       | Endpoint                                          |
+|----------------------------|-----------------------------------------------------------------------------------|---------------------------------------------------|
+| employees                  | Retrieves company employees details                                               | /company/employees                                |
+| absences                   | Retrieves absence periods for absences tracked in days                            | /company/time-offs                                |
+| absences_types             | Retrieves list of various types of employee absences                              | /company/time-off-types                           |
+| attendances                | Retrieves attendance records for each employee                                    | /company/attendances                              |
+| projects                   | Retrieves a list of all company projects                                          | /company/attendances/projects                     |
+| document_categories        | Retrieves all document categories of the company                                  | /company/document-categories                      |
+| employees_absences_balance | The transformer, retrieves the absence balance for a specific employee            | /company/employees/{employee_id}/absences/balance |
+| custom_reports_list        | Retrieves metadata about existing custom reports (name, report type, report date) | /company/custom-reports/reports                   |
+| custom_reports             | The transformer for custom reports                                                | /company/custom-reports/reports/{report_id}       |
 
 ## Setup Guide
 
@@ -120,8 +126,7 @@ For more information, read [Run a pipeline.](../../walkthroughs/run-a-pipeline)
 
 ### Source `personio_source`
 
-This `dlt` source returns data resources like "employees", "absences", and "attendances".
-
+This `dlt` source returns data resources like "employees", "absences", "absence_types", etc.
 ```python
 @dlt.source(name="personio")
 def personio_source(
@@ -129,6 +134,18 @@ def personio_source(
     client_secret: str = dlt.secrets.value,
     items_per_page: int = DEFAULT_ITEMS_PER_PAGE,
 ) -> Iterable[DltResource]:
+    ...
+    return (
+    employees,
+    absence_types,
+    absences,
+    attendances,
+    projects,
+    document_categories,
+    employees_absences_balance,
+    custom_reports_list,
+    custom_reports,
+)
 ```
 
 `client_id`: Generated ID for API access.
@@ -151,6 +168,7 @@ def employees(
     ),
     items_per_page: int = items_per_page,
 ) -> Iterable[TDataItem]:
+    ...
 ```
 
 `updated_at`: The saved state of the last 'last_modified_at' value. It is used for
@@ -158,8 +176,52 @@ def employees(
 
 `items_per_page`: Maximum number of items per page, defaults to 200.
 
+`allow_external_schedulers`: A boolean that, if True, permits [external schedulers](../../general-usage/incremental-loading#using-airflow-schedule-for-backfill-and-incremental-loading) to manage incremental loading.
+
+
 Like the `employees` resource discussed above, other resources `absences` and `attendances` load
-data from the Personio API to your preferred destination.
+data incrementally from the Personio API to your preferred destination.
+
+### Resource `absence_types`
+
+Simple resource, which retrieves a list of various types of employee absences.
+```python
+@dlt.resource(primary_key="id", write_disposition="replace")
+def absence_types(items_per_page: int = items_per_page) -> Iterable[TDataItem]:
+...
+```
+
+`items_per_page`: Maximum number of items per page, defaults to 200.
+
+It is important to note that the data is loaded in `replace` mode where the existing data is
+completely replaced.
+
+In addition to the mentioned resource,
+there are three more resources "projects", "custom_reports_list" and "document_categories"
+with similar behaviour.
+
+### Resource-transformer `employees_absences_balance`
+
+Besides of these source and resource functions, there are two transformer functions
+for endpoints like `/company/employees/{employee_id}/absences/balance` and `/company/custom-reports/reports/{report_id}`.
+The transformer functions transform or process data from resources.
+
+The transformer function `employees_absences_balance` process data from the `employees` resource.
+It fetches and returns a list of the absence balances for each employee.
+
+```python
+@dlt.transformer(
+    data_from=employees,
+    write_disposition="merge",
+    primary_key=["employee_id", "id"],
+)
+@dlt.defer
+def employees_absences_balance(employees_item: TDataItem) -> Iterable[TDataItem]:
+    ...
+```
+`employees_item`: The data item from the 'employees' resource.
+
+It uses `@dlt.defer` decorator to enable parallel run in thread pool.
 
 ## Customization
 
