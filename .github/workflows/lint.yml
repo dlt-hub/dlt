@@ -21,7 +21,7 @@ jobs:
       matrix:
         os: ["ubuntu-latest", "macos-latest", "windows-latest"]
         python-version: ["3.11.x"]
-        Test all python versions on ubuntu only
+        # Test all python versions on ubuntu only
         include:
           - python-version: "3.8.x"
             # os: "ubuntu-latest"
