@@ -6,7 +6,7 @@ authors:
     name: Simon Bumm
     title: Data and Analytics Lead at Taktile
     url: https://github.com/codingcyclist
-    image_url: https://avatars.githubusercontent.com/u/41942954?v=4
+    image_url: https://media.licdn.com/dms/image/C4E03AQHjlnKE9zCmXQ/profile-displayphoto-shrink_400_400/0/1650447289892?e=1707955200&v=beta&t=w9KR2GfXxjU4e3e2rL69wNr0ZwuD4YlPWDy1YOpjC2I
 tags: [AWS, AWS Lambda, Serverless Compute, Taktile]
 ---
 :::info
@@ -80,7 +80,6 @@ SAM is a lightweight Infrastructure-As-Code framework provided by AWS. Using SAM
               DLT_PROJECT_DIR: "/tmp" # the only writeable directory on a Lambda
               DLT_DATA_DIR: "/tmp" # the only writeable directory on a Lambda
               DLT_PIPELINE_DIR: "/tmp" # the only writeable directory on a Lambda
-              LOAD__WORKERS: 1 # AWS Lambda cannot do multiprocessing
           Policies:
             - Statement:
                 - Sid: AllowDLTSecretAccess
@@ -124,10 +123,9 @@ SAM is a lightweight Infrastructure-As-Code framework provided by AWS. Using SAM
 
 No worries, all caveats described below are already being taken care of in the sample repo: https://github.com/codingcyclist/dlt-aws-lambda. I still recommend you read through them to be aware of what’s going on.
 
-1. **Multiprocessing:** While AWS Lambda functions scale very flexibly by spawning multiple runners in parallel, each Lambda function only runs on a single process. By default, dlt will try to spawn multiple processes. To overwrite dlt’s default behavior, simply set the `LOAD__WORKERS` environment variable to `1`. Your data will still get loaded quickly as AWS spawns additional instances of your function when needed.
-2. **Local files:** When running a pipeline, dlt usually stores a schema and other local files under your users’ home directory. On AWS Lambda, however, `/tmp` is the only directory into which files can be written. Simply tell dlt to use `/tmp` instead of the home directory by setting the `DLT_PROJECT_DIR`, `DLT_DATA_DIR`, `DLT_PIPELINE_DIR` environment variables to `/tmp`.
-3. **Database Secrets:** dlt usually recommends providing database credentials via TOML files or environment variables. However, given that AWS Lambda does not support masking files or environment variables as secrets, I recommend you read database credentials from an external secret manager like AWS Secretsmanager (ASM).
-4. **Large dependencies:** Usually, the code for a Lambda function gets uploaded as a `.zip` archive that cannot be larger than 250 MB in total (uncompressed). Given that dbt has a ~400 MB memory footprint (including Snowflake dependencies), the dlt Lambda function needs to be deployed as a Docker image, which can be up to 10 GB in size.
+1. **Local files:** When running a pipeline, dlt usually stores a schema and other local files under your users’ home directory. On AWS Lambda, however, `/tmp` is the only directory into which files can be written. Simply tell dlt to use `/tmp` instead of the home directory by setting the `DLT_PROJECT_DIR`, `DLT_DATA_DIR`, `DLT_PIPELINE_DIR` environment variables to `/tmp`.
+2. **Database Secrets:** dlt usually recommends providing database credentials via TOML files or environment variables. However, given that AWS Lambda does not support masking files or environment variables as secrets, I recommend you read database credentials from an external secret manager like AWS Secretsmanager (ASM).
+3. **Large dependencies:** Usually, the code for a Lambda function gets uploaded as a `.zip` archive that cannot be larger than 250 MB in total (uncompressed). Given that dbt has a ~400 MB memory footprint (including Snowflake dependencies), the dlt Lambda function needs to be deployed as a Docker image, which can be up to 10 GB in size.
 
 ### dlt and AWS Lambda are a great foundation for building a production-grade instrumentation engine
 
