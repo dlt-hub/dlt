@@ -68,6 +68,10 @@ jobs:
       # - name: Install self
       #   run: poetry install --no-interaction
 
+      - name: Install make     
+        if: runner.os == 'Windows'
+        run: choco install make
+
       - name: Run lint
         run: make lint
 
