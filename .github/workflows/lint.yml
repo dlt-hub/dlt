@@ -29,6 +29,13 @@ jobs:
         #     os: "ubuntu-latest"
         #   - python-version: "3.10.x"
         #     os: "ubuntu-latest"
+        include:
+          - os: "windows-latest"
+            python-version: "3.8.x"
+          - os: "windows-latest"
+            python-version: "3.9.x"
+          - os: "windows-latest"            
+            python-version: "3.10.x"
 
     defaults:
       run:
@@ -72,14 +79,15 @@ jobs:
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         # run: poetry install --no-interaction --all-extras --with airflow --with docs --with providers --with sentry-sdk --with pipeline
         run: |
-          export PATH=$PATH:"C:/Program Files/Git/usr/bin"
-          echo $PATH
-          ls "C:/Program Files/Git/usr/bin"
-          echo $SHELL
-          echo 'all:;@echo $(SHELL)' | make -f-
-          poetry --version
-          make --version
-          echo $GITHUB_PATH
+          # export PATH=$PATH:"C:/Program Files/Git/usr/bin"
+          export PATH=$PATH:"/c/Program Files/usr/bin"
+          # echo $PATH
+          # ls "C:/Program Files/Git/usr/bin"
+          # echo $SHELL
+          # echo 'all:;@echo $(SHELL)' | make -f-
+          # poetry --version
+          # make --version
+          # echo $GITHUB_PATH
           make dev
 
       # - name: Install self
