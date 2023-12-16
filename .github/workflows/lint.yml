@@ -9,13 +9,13 @@ on:
   workflow_dispatch:
 
 jobs:
-  # get_docs_changes:
-  #   uses: ./.github/workflows/get_docs_changes.yml
+  get_docs_changes:
+    uses: ./.github/workflows/get_docs_changes.yml
 
   run_lint:
     name: Lint
-    # needs: get_docs_changes
-    # if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
+    needs: get_docs_changes
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'
     strategy:
       fail-fast: false
       matrix:
