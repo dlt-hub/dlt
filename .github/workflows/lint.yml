@@ -54,12 +54,12 @@ jobs:
       - name: Run make dev
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: |
-          export PATH=$PATH:"/c/Program Files/usr/bin"        
+          export PATH=$PATH:"/c/Program Files/usr/bin" # needed for Windows      
           make dev
 
       - name: Run make lint
         run: |
-          export PATH=$PATH:"/c/Program Files/usr/bin"        
+          export PATH=$PATH:"/c/Program Files/usr/bin" # needed for Windows        
           make lint
 
       # - name: print envs
