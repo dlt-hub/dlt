@@ -51,15 +51,16 @@ jobs:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}
 
-      - name: Extend path
-        run: echo "/c/Program Files/usr/bin" >> $GITHUB_PATH
-
       - name: Run make dev
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: make dev
+        run: |
+          export PATH=$PATH:"/c/Program Files/usr/bin"        
+          make dev
 
       - name: Run make lint
-        run: make lint
+        run: |
+          export PATH=$PATH:"/c/Program Files/usr/bin"        
+          make lint
 
       # - name: print envs
       #   run: |
