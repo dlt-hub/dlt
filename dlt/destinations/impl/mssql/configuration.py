@@ -10,6 +10,9 @@ from dlt.common.exceptions import SystemConfigurationException
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
 
 
+SUPPORTED_DRIVERS = ["ODBC Driver 18 for SQL Server", "ODBC Driver 17 for SQL Server"]
+
+
 @configspec
 class MsSqlCredentials(ConnectionStringCredentials):
     drivername: Final[str] = "mssql"  # type: ignore
@@ -24,6 +27,14 @@ class MsSqlCredentials(ConnectionStringCredentials):
     def parse_native_representation(self, native_value: Any) -> None:
         # TODO: Support ODBC connection string or sqlalchemy URL
         super().parse_native_representation(native_value)
+        if self.query is not None:
+            self.query = {k.lower(): v for k, v in self.query.items()}  # Make case-insensitive.
+        if "driver" in self.query and self.query.get("driver") not in SUPPORTED_DRIVERS:
+            raise SystemConfigurationException(
+                f"""The specified driver "{self.query.get('driver')}" is not supported."""
+                f" Choose one of the supported drivers: {', '.join(SUPPORTED_DRIVERS)}."
+            )
+        self.odbc_driver = self.query.get("driver", self.odbc_driver)
         self.connect_timeout = int(self.query.get("connect_timeout", self.connect_timeout))
         if not self.is_partial():
             self.resolve()
@@ -45,17 +56,16 @@ class MsSqlCredentials(ConnectionStringCredentials):
         if self.odbc_driver:
             return self.odbc_driver
         # Pick a default driver if available
-        supported_drivers = ["ODBC Driver 18 for SQL Server", "ODBC Driver 17 for SQL Server"]
         import pyodbc
 
         available_drivers = pyodbc.drivers()
-        for driver in supported_drivers:
+        for driver in SUPPORTED_DRIVERS:
             if driver in available_drivers:
                 return driver
         docs_url = "https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16"
         raise SystemConfigurationException(
             f"No supported ODBC driver found for MS SQL Server.  See {docs_url} for information on"
-            f" how to install the '{supported_drivers[0]}' on your platform."
+            f" how to install the '{SUPPORTED_DRIVERS[0]}' on your platform."
         )
 
     def to_odbc_dsn(self) -> str:
@@ -66,8 +76,8 @@ class MsSqlCredentials(ConnectionStringCredentials):
             "UID": self.username,
             "PWD": self.password,
         }
-        if self.query:
-            params.update(self.query)
+        if self.query is not None:
+            params.update({k.upper(): v for k, v in self.query.items()})
         return ";".join([f"{k}={v}" for k, v in params.items()])
 
 
