@@ -69,10 +69,11 @@ class DataItemStorage(ABC):
                 )
                 writer.close()
 
-    def closed_files(self) -> List[DataWriterMetrics]:
+    def closed_files(self, load_id: str) -> List[DataWriterMetrics]:
         files: List[DataWriterMetrics] = []
-        for writer in self.buffered_writers.values():
-            files.extend(writer.closed_files)
+        for name, writer in self.buffered_writers.items():
+            if name.startswith(load_id):
+                files.extend(writer.closed_files)
 
         return files
 

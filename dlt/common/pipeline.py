@@ -43,7 +43,7 @@ from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.typing import DictStrAny, REPattern, SupportsHumanize
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
-from dlt.common.data_writers.writers import TLoaderFileFormat
+from dlt.common.data_writers.writers import DataWriterMetrics, TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
 
 
@@ -67,11 +67,21 @@ class ExtractDataInfo(TypedDict):
 
 class ExtractMetrics(TypedDict):
     schema_name: str
+    job_metrics: Dict[str, DataWriterMetrics]
+    """Metrics collected per job during writing of job file"""
+    table_metrics: Dict[str, DataWriterMetrics]
+    """Job metrics aggregated by table"""
+    resource_metrics: Dict[str, DataWriterMetrics]
+    """Job metrics aggregated by resource"""
+    dag: List[Tuple[str, str]]
+    """A resource dag where elements of the list are graph edges"""
+    hints: Dict[str, Dict[str, Any]]
+    """Hints passed to the resources"""
 
 
 class _ExtractInfo(NamedTuple):
     pipeline: "SupportsPipeline"
-    metrics: Dict[str, ExtractMetrics]
+    metrics: Dict[str, List[ExtractMetrics]]
     extract_data_info: List[ExtractDataInfo]
     loads_ids: List[str]
     """ids of the loaded packages"""
@@ -90,7 +100,7 @@ class ExtractInfo(StepInfo, _ExtractInfo):
         d["pipeline"] = {"pipeline_name": self.pipeline.pipeline_name}
         d["load_packages"] = [package.asdict() for package in self.load_packages]
         # TODO: transform and leave metrics when we have them implemented
-        d.pop("metrics")
+        # d.pop("metrics")
         d.pop("extract_data_info")
         return d
 
@@ -104,7 +114,7 @@ class NormalizeMetrics(TypedDict):
 
 class _NormalizeInfo(NamedTuple):
     pipeline: "SupportsPipeline"
-    metrics: Dict[str, NormalizeMetrics]
+    metrics: Dict[str, List[NormalizeMetrics]]
     loads_ids: List[str]
     """ids of the loaded packages"""
     load_packages: List[LoadPackageInfo]
@@ -122,7 +132,8 @@ class NormalizeInfo(StepInfo, _NormalizeInfo):
             return {}
         counts: RowCounts = {}
         for metrics in self.metrics.values():
-            merge_row_counts(counts, metrics.get("row_counts", {}))
+            assert len(metrics) == 1, "Cannot deal with more than 1 normalize metric per load_id"
+            merge_row_counts(counts, metrics[0].get("row_counts", {}))
         return counts
 
     def asdict(self) -> DictStrAny:
@@ -133,10 +144,11 @@ class NormalizeInfo(StepInfo, _NormalizeInfo):
         # list representation creates a nice table
         d["row_counts"] = []
         for load_id, metrics in self.metrics.items():
+            assert len(metrics) == 1, "Cannot deal with more than 1 normalize metric per load_id"
             d["row_counts"].extend(
                 [
                     {"load_id": load_id, "table_name": k, "count": v}
-                    for k, v in metrics["row_counts"].items()
+                    for k, v in metrics[0]["row_counts"].items()
                 ]
             )
         return d
@@ -247,7 +259,7 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
     """Implemented by classes that generate StepInfo with metrics and package infos"""
 
     _current_load_id: str
-    _load_id_metrics: Dict[str, TStepMetrics]
+    _load_id_metrics: Dict[str, List[TStepMetrics]]
     """Completed load ids metrics"""
 
     def __init__(self) -> None:
@@ -256,17 +268,17 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
 
     def _step_info_start_load_id(self, load_id: str) -> None:
         self._current_load_id = load_id
-        self._load_id_metrics[load_id] = None
+        self._load_id_metrics[load_id] = []
 
     def _step_info_complete_load_id(self, load_id: str, metrics: TStepMetrics) -> None:
         assert self._current_load_id == load_id, (
             f"Current load id mismatch {self._current_load_id} != {load_id} when completing step"
             " info"
         )
-        self._load_id_metrics[load_id] = metrics
+        self._load_id_metrics[load_id].append(metrics)
         self._current_load_id = None
 
-    def _step_info_metrics(self, load_id: str) -> TStepMetrics:
+    def _step_info_metrics(self, load_id: str) -> List[TStepMetrics]:
         return self._load_id_metrics[load_id]
 
     @property

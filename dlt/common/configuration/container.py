@@ -18,10 +18,10 @@ class Container:
     Injection context is identified by its type and available via dict indexer. The common pattern is to instantiate default context value
     if it is not yet present in container.
 
-    By default, the context is thread-affine so it is visible only from the thread that originally set it. This behavior may be changed
+    By default, the context is thread-affine so it can be injected only n the thread that originally set it. This behavior may be changed
     in particular context type (spec).
 
-    The indexer is settable and allows to explicitly set the value. This is required by for context that needs to be explicitly instantiated.
+    The indexer is settable and allows to explicitly set the value. This is required by in any context that needs to be explicitly instantiated.
 
     The `injectable_context` allows to set a context with a `with` keyword and then restore the previous one after it gets out of scope.
 
@@ -107,11 +107,8 @@ class Container:
         Dict[Type[ContainerInjectableContext], ContainerInjectableContext],
         ContainerInjectableContext,
     ]:
-        # with Container._LOCK:
         context = self._thread_context(spec)
         item = context.get(spec)
-        # if item is None and not spec.thread_affinity and context is not self.main_context:
-        #     item = self.main_context.get(spec)
         return context, item
 
     def _thread_setitem(
@@ -120,11 +117,7 @@ class Container:
         spec: Type[ContainerInjectableContext],
         value: TConfiguration,
     ) -> None:
-        # with Container._LOCK:
         context[spec] = value
-        # set the global context if spec is not thread affine
-        # if not spec.thread_affinity and context is not self.main_context:
-        #     self.main_context[spec] = value
 
     def _thread_delitem(
         self,

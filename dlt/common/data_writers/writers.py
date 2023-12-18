@@ -1,6 +1,18 @@
 import abc
 from dataclasses import dataclass
-from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, NamedTuple
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    NamedTuple,
+    overload,
+)
 
 from dlt.common import json
 from dlt.common.configuration import configspec, known_sections, with_config
@@ -27,6 +39,18 @@ class DataWriterMetrics(NamedTuple):
     file_path: str
     items_count: int
     file_size: int
+
+    def __add__(self, other: Tuple[object, ...], /) -> Tuple[object, ...]:
+        if isinstance(other, DataWriterMetrics):
+            return DataWriterMetrics(
+                "",  # path is not known
+                self.items_count + other.items_count,
+                self.file_size + other.file_size,
+            )
+        return NotImplemented
+
+
+# DataWriterMetrics.EMPTY = DataWriterMetrics("", 0, 0)
 
 
 class DataWriter(abc.ABC):
