@@ -18,7 +18,8 @@ See instructions here to [install Microsoft ODBC Driver 18 for SQL Server on Win
 Following ODBC drivers are supported:
 * ODBC Driver 18 for SQL Server
 * ODBC Driver 17 for SQL Server
-[You configure driver name explicitly](#additional-destination-options) as well.
+
+[You can configure driver name explicitly](#additional-destination-options) as well.
 
 ### Create a pipeline
 
@@ -92,7 +93,14 @@ create_indexes=true
 You can explicitly set the ODBC driver name:
 ```toml
 [destination.mssql.credentials]
-odbc_driver="ODBC Driver 18 for SQL Server"
+driver="ODBC Driver 18 for SQL Server"
+```
+
+When using a SQLAlchemy connection string, replace spaces with `+`:
+
+```toml
+# keep it at the top of your toml file! before any section starts
+destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?driver=ODBC+Driver+18+for+SQL+Server"
 ```
 
 ### dbt support
