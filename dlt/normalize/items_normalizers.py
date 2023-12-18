@@ -15,6 +15,8 @@ from dlt.common.typing import DictStrAny, TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers.utils import generate_dlt_ids
+from dlt.common.plugins import PluginsContext
+from dlt.common.configuration.container import Container
 
 from dlt.normalize.configuration import NormalizeConfiguration
 
@@ -60,6 +62,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         self._filtered_tables_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
         # quick access to column schema for writers below
         self._column_schemas: Dict[str, TTableSchemaColumns] = {}
+        self._plugins = Container()[PluginsContext].plugins
 
     def _filter_columns(
         self, filtered_columns: Dict[str, TSchemaEvolutionMode], row: DictStrAny
@@ -94,10 +97,14 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     if table_name in self._filtered_tables:
                         # stop descending into further rows
                         should_descend = False
+                        for p in self._plugins:
+                            row = p.on_schema_contract_violation(table_name, row)
                         continue
 
                     # filter row, may eliminate some or all fields
                     row = schema.filter_row(table_name, row)
+                    for p in self._plugins:
+                        row = p.filter_row(table_name, row)
                     # do not process empty rows
                     if not row:
                         should_descend = False

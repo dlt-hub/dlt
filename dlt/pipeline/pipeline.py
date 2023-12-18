@@ -103,6 +103,7 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
+from dlt.common.plugins import PluginsContext
 
 from dlt.pipeline.configuration import PipelineConfiguration
 from dlt.pipeline.progress import _Collector, _NULL_COLLECTOR
@@ -170,6 +171,32 @@ def with_schemas_sync(f: TFun) -> TFun:
         return rv
 
     return _wrap  # type: ignore
+
+
+def with_plugins() -> Callable[[TFun], TFun]:
+    def decorator(f: TFun) -> TFun:
+        @wraps(f)
+        def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
+            # activate pipeline so right state is always provided
+
+            # setup plugins
+            plugins_context = PluginsContext() 
+            plugins_context.setup_plugins(self, f.__name__)
+
+            # inject plugins context
+            with self._container.injectable_context(plugins_context):
+                for p in plugins_context.plugins:
+                    p.on_step_start()
+                # run the function
+                result = f(self, *args, **kwargs)
+                for p in plugins_context.plugins:
+                    p.on_step_end()
+
+                return result
+
+        return _wrap  # type: ignore
+
+    return decorator
 
 
 def with_runtime_trace(send_state: bool = False) -> Callable[[TFun], TFun]:
@@ -350,6 +377,7 @@ class Pipeline(SupportsPipeline):
     @with_schemas_sync  # this must precede with_state_sync
     @with_state_sync(may_extract_state=True)
     @with_config_section((known_sections.EXTRACT,))
+    @with_plugins()
     def extract(
         self,
         data: Any,
@@ -411,6 +439,7 @@ class Pipeline(SupportsPipeline):
     @with_runtime_trace()
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
+    @with_plugins()
     def normalize(
         self, workers: int = 1, loader_file_format: TLoaderFileFormat = None
     ) -> NormalizeInfo:
@@ -458,6 +487,7 @@ class Pipeline(SupportsPipeline):
     @with_schemas_sync
     @with_state_sync()
     @with_config_section((known_sections.LOAD,))
+    @with_plugins()
     def load(
         self,
         destination: TDestinationReferenceArg = None,
@@ -512,6 +542,7 @@ class Pipeline(SupportsPipeline):
 
     @with_runtime_trace()
     @with_config_section(("run",))
+    @with_plugins()
     def run(
         self,
         data: Any = None,

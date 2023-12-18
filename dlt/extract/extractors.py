@@ -1,11 +1,12 @@
 from copy import copy
-from typing import Set, Dict, Any, Optional, Set
+from typing import Set, Dict, Any, Optional, Set, List
 
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import BaseConfiguration, configspec
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.configuration.container import Container
 
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.utils import update_dict_nested
@@ -22,6 +23,8 @@ from dlt.common.schema.typing import (
 from dlt.extract.resource import DltResource
 from dlt.extract.typing import TableNameMeta
 from dlt.extract.storage import ExtractStorage, ExtractorItemStorage
+
+from dlt.common.plugins import PluginsContext
 
 try:
     from dlt.common.libs import pyarrow
@@ -63,6 +66,7 @@ class Extractor:
         self._filtered_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
         self._storage = storage
         self._caps = _caps or DestinationCapabilitiesContext.generic_capabilities()
+        self._plugins = Container()[PluginsContext].plugins
 
     @property
     def storage(self) -> ExtractorItemStorage:
@@ -121,6 +125,8 @@ class Extractor:
         self.collector.update(table_name, inc=new_rows_count)
         if new_rows_count > 0:
             self.resources_with_items.add(resource_name)
+        for p in self._plugins:
+            p.on_extractor_item_written(items)
 
     def _write_to_dynamic_table(self, resource: DltResource, items: TDataItems) -> None:
         if not isinstance(items, list):
