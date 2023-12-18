@@ -202,7 +202,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         logger.info(f"Processed total {total_items} items in {len(extracted_items_files)} files")
         writer_metrics: List[DataWriterMetrics] = []
         for normalizer in item_normalizers.values():
-            writer_metrics.extend(normalizer.load_storage.closed_files())
+            writer_metrics.extend(normalizer.load_storage.closed_files(load_id))
         return TWorkerRV(schema_updates, total_items, writer_metrics, row_counts)
 
     def update_table(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
@@ -406,7 +406,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
     ) -> NormalizeInfo:
         load_ids = list(self._load_id_metrics.keys())
         load_packages: List[LoadPackageInfo] = []
-        metrics: Dict[str, NormalizeMetrics] = {}
+        metrics: Dict[str, List[NormalizeMetrics]] = {}
         for load_id in self._load_id_metrics.keys():
             load_package = self.get_load_package_info(load_id)
             load_packages.append(load_package)

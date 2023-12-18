@@ -8,6 +8,7 @@ from copy import copy
 from threading import Thread
 from typing import (
     Any,
+    AsyncIterator,
     Dict,
     Optional,
     Sequence,
@@ -640,7 +641,7 @@ class PipeIterator(Iterator[PipeItem]):
             # if we are at the end of the pipe then yield element
             if pipe_item.step == len(pipe_item.pipe) - 1:
                 # must be resolved
-                if isinstance(item, (Iterator, Awaitable)) or callable(item):
+                if isinstance(item, (Iterator, Awaitable, AsyncIterator)) or callable(item):
                     raise PipeItemProcessingError(
                         pipe_item.pipe.name,
                         f"Pipe item at step {pipe_item.step} was not fully evaluated and is of type"

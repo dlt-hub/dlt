@@ -1223,7 +1223,7 @@ def test_apply_hints() -> None:
         incremental=Incremental.EMPTY,
         schema_contract={},
     )
-    assert empty_r._table_schema_template == {
+    assert empty_r._hints == {
         "columns": {},
         "incremental": None,
         "validator": None,
