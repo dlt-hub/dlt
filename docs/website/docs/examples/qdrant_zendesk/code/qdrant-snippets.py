@@ -2,6 +2,7 @@ from tests.utils import skipifgithubfork
 
 __source_name__ = "zendesk"
 
+
 @skipifgithubfork
 def qdrant_snippet():
     # @@@DLT_SNIPPET_START example
@@ -22,7 +23,9 @@ def qdrant_snippet():
     @dlt.source(max_table_nesting=2)
     def zendesk_support(
         credentials: Dict[str, str] = dlt.secrets.value,
-        start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
+        start_date: Optional[TAnyDateTime] = pendulum.datetime(
+            year=2000, month=1, day=1
+        ),  # noqa: B008
         end_date: Optional[TAnyDateTime] = None,
     ):
         """
@@ -53,9 +56,7 @@ def qdrant_snippet():
         #  when two events have the same timestamp
         @dlt.resource(primary_key="id", write_disposition="append")
         def tickets_data(
-            updated_at: dlt.sources.incremental[
-                pendulum.DateTime
-            ] = dlt.sources.incremental(
+            updated_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
                 "updated_at",
                 initial_value=start_date_obj,
                 end_value=end_date_obj,
@@ -125,9 +126,7 @@ def qdrant_snippet():
         # make request and keep looping until there is no next page
         get_url = f"{url}{endpoint}"
         while get_url:
-            response = client.get(
-                get_url, headers=headers, auth=auth, params=params
-            )
+            response = client.get(get_url, headers=headers, auth=auth, params=params)
             response.raise_for_status()
             response_json = response.json()
             result = response_json[data_point_name]
@@ -152,7 +151,7 @@ def qdrant_snippet():
         load_info = pipeline.run(
             # here we use a special function to tell Qdrant which fields to embed
             qdrant_adapter(
-                zendesk_support(), # retrieve tickets data
+                zendesk_support(),  # retrieve tickets data
                 embed=["subject", "description"],
             )
         )
@@ -183,10 +182,10 @@ def qdrant_snippet():
         response = qdrant_client.query(
             "zendesk_data_content",  # collection/dataset name with the 'content' suffix -> tickets content table
             query_text=["cancel", "cancel subscription"],  # prompt to search
-            limit=3  # limit the number of results to the nearest 3 embeddings
+            limit=3,  # limit the number of results to the nearest 3 embeddings
         )
         # @@@DLT_SNIPPET_END get_response
 
-        assert len(response) <= 3 and len(response) > 0 # @@@DLT_REMOVE
+        assert len(response) <= 3 and len(response) > 0  # @@@DLT_REMOVE
 
     # @@@DLT_SNIPPET_END example

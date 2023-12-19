@@ -10,6 +10,7 @@ from qdrant_client import QdrantClient
 
 from dlt.common.configuration.inject import with_config
 
+
 # function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
 @dlt.source(max_table_nesting=2)
 def zendesk_support(
@@ -45,9 +46,7 @@ def zendesk_support(
     #  when two events have the same timestamp
     @dlt.resource(primary_key="id", write_disposition="append")
     def tickets_data(
-        updated_at: dlt.sources.incremental[
-            pendulum.DateTime
-        ] = dlt.sources.incremental(
+        updated_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
             "updated_at",
             initial_value=start_date_obj,
             end_value=end_date_obj,
@@ -80,12 +79,14 @@ def _parse_date_or_none(value: Optional[str]) -> Optional[pendulum.DateTime]:
         return None
     return ensure_pendulum_datetime(value)
 
+
 # modify dates to return datetime objects instead
 def _fix_date(ticket):
     ticket["updated_at"] = _parse_date_or_none(ticket["updated_at"])
     ticket["created_at"] = _parse_date_or_none(ticket["created_at"])
     ticket["due_at"] = _parse_date_or_none(ticket["due_at"])
     return ticket
+
 
 # function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
 def get_pages(
@@ -116,9 +117,7 @@ def get_pages(
     # make request and keep looping until there is no next page
     get_url = f"{url}{endpoint}"
     while get_url:
-        response = client.get(
-            get_url, headers=headers, auth=auth, params=params
-        )
+        response = client.get(get_url, headers=headers, auth=auth, params=params)
         response.raise_for_status()
         response_json = response.json()
         result = response_json[data_point_name]
@@ -128,6 +127,7 @@ def get_pages(
         # See https://developer.zendesk.com/api-reference/ticketing/ticket-management/incremental_exports/#json-format
         if not response_json["end_of_stream"]:
             get_url = response_json["next_page"]
+
 
 if __name__ == "__main__":
     # create a pipeline with an appropriate name
@@ -141,13 +141,12 @@ if __name__ == "__main__":
     load_info = pipeline.run(
         # here we use a special function to tell Qdrant which fields to embed
         qdrant_adapter(
-            zendesk_support(), # retrieve tickets data
+            zendesk_support(),  # retrieve tickets data
             embed=["subject", "description"],
         )
     )
 
     print(load_info)
-
 
     # running the Qdrant client to connect to your Qdrant database
 
@@ -168,5 +167,5 @@ if __name__ == "__main__":
     response = qdrant_client.query(
         "zendesk_data_content",  # collection/dataset name with the 'content' suffix -> tickets content table
         query_text=["cancel", "cancel subscription"],  # prompt to search
-        limit=3  # limit the number of results to the nearest 3 embeddings
+        limit=3,  # limit the number of results to the nearest 3 embeddings
     )

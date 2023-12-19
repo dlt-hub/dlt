@@ -56,9 +56,7 @@ EXCLUDED_DESTINATION_CONFIGURATIONS = set(
 
 
 # filter out active destinations for current tests
-ACTIVE_DESTINATIONS = set(
-    dlt.config.get("ACTIVE_DESTINATIONS", list) or IMPLEMENTED_DESTINATIONS
-)
+ACTIVE_DESTINATIONS = set(dlt.config.get("ACTIVE_DESTINATIONS", list) or IMPLEMENTED_DESTINATIONS)
 
 ACTIVE_SQL_DESTINATIONS = SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
 ACTIVE_NON_SQL_DESTINATIONS = NON_SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
@@ -67,20 +65,13 @@ ACTIVE_NON_SQL_DESTINATIONS = NON_SQL_DESTINATIONS.intersection(ACTIVE_DESTINATI
 assert len(ACTIVE_DESTINATIONS) >= 0, "No active destinations selected"
 
 for destination in NON_SQL_DESTINATIONS:
-    assert (
-        destination in IMPLEMENTED_DESTINATIONS
-    ), f"Unknown non sql destination {destination}"
+    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown non sql destination {destination}"
 
 for destination in SQL_DESTINATIONS:
-    assert (
-        destination in IMPLEMENTED_DESTINATIONS
-    ), f"Unknown sql destination {destination}"
+    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown sql destination {destination}"
 
 for destination in ACTIVE_DESTINATIONS:
-    assert (
-        destination in IMPLEMENTED_DESTINATIONS
-    ), f"Unknown active destination {destination}"
-
+    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown active destination {destination}"
 
 
 # possible TDataItem types
@@ -252,13 +243,9 @@ def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
 
 
 def skip_if_not_active(destination: str) -> None:
-    assert (
-        destination in IMPLEMENTED_DESTINATIONS
-    ), f"Unknown skipped destination {destination}"
+    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown skipped destination {destination}"
     if destination not in ACTIVE_DESTINATIONS:
-        pytest.skip(
-            f"{destination} not in ACTIVE_DESTINATIONS", allow_module_level=True
-        )
+        pytest.skip(f"{destination} not in ACTIVE_DESTINATIONS", allow_module_level=True)
 
 
 def is_running_in_github_fork() -> bool:
