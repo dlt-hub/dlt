@@ -12,8 +12,10 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
     BaseConfiguration,
 )
+from dlt.common.typing import DictStrAny
 from dlt.common.utils import digest128
 from dlt.common.configuration.exceptions import ConfigurationValueError
+
 
 TSchemaFileFormat = Literal["json", "yaml"]
 SchemaFileExtensions = get_args(TSchemaFileFormat)
@@ -30,7 +32,6 @@ class SchemaStorageConfiguration(BaseConfiguration):
     )
 
     if TYPE_CHECKING:
-
         def __init__(
             self,
             schema_volume_path: str = None,
@@ -44,7 +45,6 @@ class NormalizeStorageConfiguration(BaseConfiguration):
     normalize_volume_path: str = None  # path to volume where normalized loader files will be stored
 
     if TYPE_CHECKING:
-
         def __init__(self, normalize_volume_path: str = None) -> None: ...
 
 
@@ -58,7 +58,6 @@ class LoadStorageConfiguration(BaseConfiguration):
     )
 
     if TYPE_CHECKING:
-
         def __init__(
             self, load_volume_path: str = None, delete_completed_jobs: bool = None
         ) -> None: ...
@@ -94,6 +93,9 @@ class FilesystemConfiguration(BaseConfiguration):
     bucket_url: str = None
     # should be a union of all possible credentials as found in PROTOCOL_CREDENTIALS
     credentials: FileSystemCredentials
+    kwargs: Optional[DictStrAny] = None
+    client_kwargs: Optional[DictStrAny] = None
+
 
     @property
     def protocol(self) -> str:
@@ -104,6 +106,7 @@ class FilesystemConfiguration(BaseConfiguration):
             return "file"
         else:
             return url.scheme
+
 
     def on_resolved(self) -> None:
         url = urlparse(self.bucket_url)
@@ -117,14 +120,17 @@ class FilesystemConfiguration(BaseConfiguration):
             url = url._replace(scheme="file")
             self.bucket_url = url.geturl()
 
+
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         # use known credentials or empty credentials for unknown protocol
         return self.PROTOCOL_CREDENTIALS.get(self.protocol) or Optional[CredentialsConfiguration]  # type: ignore[return-value]
 
+
     def fingerprint(self) -> str:
         """Returns a fingerprint of bucket_url"""
         return digest128(self.bucket_url) if self.bucket_url else ""
+
 
     def __str__(self) -> str:
         """Return displayable destination location"""
@@ -137,6 +143,6 @@ class FilesystemConfiguration(BaseConfiguration):
             return url._replace(netloc=new_netloc).geturl()
         return self.bucket_url
 
-    if TYPE_CHECKING:
 
+    if TYPE_CHECKING:
         def __init__(self, bucket_url: str, credentials: FileSystemCredentials = None) -> None: ...

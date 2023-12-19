@@ -97,17 +97,17 @@ def test_filesystem_instance_from_s3_endpoint(environment: Dict[str, str]) -> No
 
 
 def test_filesystem_configuration_with_additional_arguments() -> None:
-    config = FilesystemConfiguration(bucket_url="az://root", additional_args={'use_ssl': True},
+    config = FilesystemConfiguration(bucket_url="az://root", kwargs={'use_ssl': True},
                                      client_kwargs={'verify': 'public.crt'})
     assert dict(config) == {"bucket_url": "az://root", "credentials": None,
-                            "additional_args": {'use_ssl': True}, "client_kwargs": {'verify': 'public.crt'}}
+                            "kwargs": {'use_ssl': True}, "client_kwargs": {'verify': 'public.crt'}}
 
 
 def test_filesystem_instance_from_s3_endpoint_with_additional_arguments(environment: Dict[str, str]) -> None:
     """Test that fsspec instance is correctly configured when using endpoint URL, along with additional arguments."""
     from s3fs import S3FileSystem
 
-    config = FilesystemConfiguration(bucket_url="s3://dummy-bucket", additional_args={'use_ssl': True},
+    config = FilesystemConfiguration(bucket_url="s3://dummy-bucket", kwargs={'use_ssl': True},
                                      client_kwargs={'verify': 'public.crt'})
     filesystem, bucket_name = fsspec_from_config(config)
 
