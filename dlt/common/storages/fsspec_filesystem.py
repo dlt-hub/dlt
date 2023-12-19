@@ -115,7 +115,6 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
 class FileItemDict(DictStrAny):
     """A FileItem dictionary with additional methods to get fsspec filesystem, open and read files."""
 
-
     def __init__(
         self,
         mapping: FileItem,
@@ -131,7 +130,6 @@ class FileItemDict(DictStrAny):
         self.credentials = credentials
         super().__init__(**mapping)
 
-
     @property
     def fsspec(self) -> AbstractFileSystem:
         """The filesystem client is based on the given credentials.
@@ -143,7 +141,6 @@ class FileItemDict(DictStrAny):
             return self.credentials
         else:
             return fsspec_filesystem(self["file_url"], self.credentials)[0]
-
 
     def open(self, mode: str = "rb", **kwargs: Any) -> IO[Any]:  # noqa: A003
         """Open the file as a fsspec file.
@@ -176,7 +173,6 @@ class FileItemDict(DictStrAny):
         else:
             opened_file = self.fsspec.open(self["file_url"], mode=mode, **kwargs)
         return opened_file
-
 
     def read_bytes(self) -> bytes:
         """Read the file content.
