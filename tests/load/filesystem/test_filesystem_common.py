@@ -30,7 +30,7 @@ def test_filesystem_configuration() -> None:
         == Union[AzureCredentialsWithoutDefaults, AzureCredentials]
     )
     # make sure that only bucket_url and credentials are there
-    assert dict(config) == {"bucket_url": "az://root", "credentials": None}
+    assert dict(config) == {"bucket_url": "az://root", "credentials": None, "client_kwargs": None, "kwargs": None}
 
 
 def test_filesystem_instance(all_buckets_env: str) -> None:
