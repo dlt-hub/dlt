@@ -149,6 +149,9 @@ class Extractor:
             items = self._compute_and_update_table(resource, table_name, items)
         if table_name not in self._filtered_tables:
             self._write_item(table_name, resource.name, items)
+        else:
+            # MARK: add contract violation hook here
+            pass
 
     def _compute_table(self, resource: DltResource, items: TDataItems) -> TTableSchema:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
@@ -256,6 +259,7 @@ class ArrowExtractor(Extractor):
             ]
             if removed_columns:
                 item = pyarrow.remove_columns(item, removed_columns)
+                # MARK: add contract violation hook here
 
         return item
 
