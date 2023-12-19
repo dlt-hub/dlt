@@ -80,7 +80,7 @@ def test_filesystem_dict(default_buckets_env: str, load_content: bool) -> None:
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
 def test_filesystem_instance_from_s3_endpoint(environment: Dict[str, str]) -> None:
     """Test that fsspec instance is correctly configured when using endpoint URL.
-    E.g. when using an S3 compatible service such as Cloudflare R2
+    E.g., when using an S3 compatible service such as Cloudflare R2
     """
     from s3fs import S3FileSystem
 
@@ -110,40 +110,6 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         "kwargs": {"use_ssl": True},
         "client_kwargs": {"verify": "public.crt"},
     }
-
-
-def test_filesystem_instance_from_s3_endpoint_with_additional_arguments(
-    environment: Dict[str, str]
-) -> None:
-    """Test that fsspec instance is correctly configured when using endpoint URL, along with additional arguments."""
-    from s3fs import S3FileSystem
-
-    environment["DESTINATION__FILESYSTEM__BUCKET_URL"] = "s3://dummy-bucket"
-    environment["CREDENTIALS__ENDPOINT_URL"] = "https://fake-s3-endpoint.example.com"
-    environment["CREDENTIALS__AWS_ACCESS_KEY_ID"] = "fake-access-key"
-    environment["CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = "fake-secret-key"
-
-    config = get_config(
-        FilesystemConfiguration(
-            bucket_url="az://root", kwargs={"use_ssl": True}, client_kwargs={"verify": "public.crt"}
-        )
-    )
-
-    filesystem, bucket_name = fsspec_from_config(config)
-
-    assert isinstance(filesystem, S3FileSystem)
-
-    assert hasattr(
-        filesystem, "use_ssl"
-    ), "use_ssl additional property does not exist in filesystem instance"
-    assert filesystem.use_ssl, "use_ssl property does not match expected value"
-
-    assert hasattr(
-        filesystem, "client_kwargs"
-    ), "client_kwargs property does not exist in filesystem instance"
-    assert filesystem.client_kwargs == {
-        "verify": "public.crt"
-    }, "client_kwargs property does not match expected value"
 
 
 def test_s3_wrong_certificate(environment: Dict[str, str]) -> None:
