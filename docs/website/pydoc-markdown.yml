@@ -22,4 +22,4 @@ renderer:
     source_linker:
       type: github
       repo: dlt-hub/dlt
-      root: ..
+      root: ../..

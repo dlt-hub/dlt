@@ -86,7 +86,7 @@ import duckdb
 pipeline = dlt.pipeline(destination="duckdb", dataset_name="github_reactions")
 with pipeline.sql_client() as client:
     conn = client.native_connection
-    rel = duckdb.sql('SELECT * FROM issues');
+    rel = conn.sql('SELECT * FROM issues');
     rel.limit(3).show()
 ```
 

@@ -10,7 +10,8 @@ import Header from '../_examples-header.md';
     intro="In this example, you will learn how to load a list of Pokemon from the PokeAPI and with the help of dlt transformers
     automatically query additional data per retrieved Pokemon. You will also learn how to harness parallelism with a thread pool."
     slug="transformer"
-    run_file="pokemon" />
+    run_file="pokemon"
+    destination="duckdb"/>
 
 
 ## Using transformers with the Pokemon API

@@ -6,6 +6,12 @@ keywords: [postgres, destination, data warehouse]
 
 # Postgres
 
+## Install dlt with PostgreSQL
+**To install the DLT library with PostgreSQL dependencies:**
+```
+pip install dlt[postgres]
+```
+
 ## Setup Guide
 
 **1. Initialize a project with a pipeline that loads to Postgres by running**

@@ -1,13 +1,13 @@
-import os
-import sys
 import multiprocessing
+import os
 import platform
-import requests
-import pytest
+import sys
 from os import environ
 from typing import Any, Iterable, Iterator, List, Literal, Union, get_args
 from unittest.mock import patch
 
+import pytest
+import requests
 from requests import Response
 
 import dlt
@@ -15,11 +15,14 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import DictionaryProvider
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs import RunConfiguration
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
+from dlt.common.configuration.specs.config_providers_context import (
+    ConfigProvidersContext,
+)
+from dlt.common.pipeline import PipelineContext
 from dlt.common.runtime.logger import init_logging
 from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
-from dlt.common.storages import FileStorage
 from dlt.common.schema import Schema
+from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.typing import StrAny, TDataItem
 from dlt.common.utils import custom_environ, uniq_id
@@ -53,7 +56,9 @@ EXCLUDED_DESTINATION_CONFIGURATIONS = set(
 
 
 # filter out active destinations for current tests
-ACTIVE_DESTINATIONS = set(dlt.config.get("ACTIVE_DESTINATIONS", list) or IMPLEMENTED_DESTINATIONS)
+ACTIVE_DESTINATIONS = set(
+    dlt.config.get("ACTIVE_DESTINATIONS", list) or IMPLEMENTED_DESTINATIONS
+)
 
 ACTIVE_SQL_DESTINATIONS = SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
 ACTIVE_NON_SQL_DESTINATIONS = NON_SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
@@ -62,13 +67,20 @@ ACTIVE_NON_SQL_DESTINATIONS = NON_SQL_DESTINATIONS.intersection(ACTIVE_DESTINATI
 assert len(ACTIVE_DESTINATIONS) >= 0, "No active destinations selected"
 
 for destination in NON_SQL_DESTINATIONS:
-    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown non sql destination {destination}"
+    assert (
+        destination in IMPLEMENTED_DESTINATIONS
+    ), f"Unknown non sql destination {destination}"
 
 for destination in SQL_DESTINATIONS:
-    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown sql destination {destination}"
+    assert (
+        destination in IMPLEMENTED_DESTINATIONS
+    ), f"Unknown sql destination {destination}"
 
 for destination in ACTIVE_DESTINATIONS:
-    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown active destination {destination}"
+    assert (
+        destination in IMPLEMENTED_DESTINATIONS
+    ), f"Unknown active destination {destination}"
+
 
 
 # possible TDataItem types
@@ -240,9 +252,13 @@ def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
 
 
 def skip_if_not_active(destination: str) -> None:
-    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown skipped destination {destination}"
+    assert (
+        destination in IMPLEMENTED_DESTINATIONS
+    ), f"Unknown skipped destination {destination}"
     if destination not in ACTIVE_DESTINATIONS:
-        pytest.skip(f"{destination} not in ACTIVE_DESTINATIONS", allow_module_level=True)
+        pytest.skip(
+            f"{destination} not in ACTIVE_DESTINATIONS", allow_module_level=True
+        )
 
 
 def is_running_in_github_fork() -> bool:
