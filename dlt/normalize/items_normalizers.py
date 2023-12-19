@@ -97,8 +97,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     if table_name in self._filtered_tables:
                         # stop descending into further rows
                         should_descend = False
-                        for p in self._plugins:
-                            row = p.on_schema_contract_violation(table_name, row)
+                        # MARK: add contract violation hook here
                         continue
 
                     # filter row, may eliminate some or all fields
@@ -108,6 +107,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     # do not process empty rows
                     if not row:
                         should_descend = False
+                        # MARK: add contract violation hook here
                         continue
 
                     # filter columns or full rows if schema contract said so
@@ -118,6 +118,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         # if whole row got dropped
                         if not row:
                             should_descend = False
+                            # MARK: add contract violation hook here
                             continue
 
                     # decode pua types
@@ -152,6 +153,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         if partial_table is None:
                             # discard migration and row
                             should_descend = False
+                            # MARK: add contract violation hook here
                             continue
                         # theres a new table or new columns in existing table
                         # update schema and save the change
@@ -168,6 +170,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             # do not continue if new filters skipped the full row
                             if not row:
                                 should_descend = False
+                                # MARK: add contract violation hook here
                                 continue
 
                     # get current columns schema
