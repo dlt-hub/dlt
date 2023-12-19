@@ -1,16 +1,15 @@
 import os
 import posixpath
 from typing import Union, Dict
+
 import pytest
-from dlt.common.configuration.inject import with_config
 
 from dlt.common import pendulum
+from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import AzureCredentials, AzureCredentialsWithoutDefaults
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import uniq_id
-
-from tests.utils import preserve_environ, autouse_test_storage
 from tests.common.configuration.utils import environment
 from tests.common.storages.utils import assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
@@ -107,8 +106,14 @@ def test_filesystem_instance_from_s3_endpoint_with_additional_arguments(environm
     """Test that fsspec instance is correctly configured when using endpoint URL, along with additional arguments."""
     from s3fs import S3FileSystem
 
-    config = FilesystemConfiguration(bucket_url="s3://dummy-bucket", kwargs={'use_ssl': True},
-                                     client_kwargs={'verify': 'public.crt'})
+    environment["DESTINATION__FILESYSTEM__BUCKET_URL"] = "s3://dummy-bucket"
+    environment["CREDENTIALS__ENDPOINT_URL"] = "https://fake-s3-endpoint.example.com"
+    environment["CREDENTIALS__AWS_ACCESS_KEY_ID"] = "fake-access-key"
+    environment["CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = "fake-secret-key"
+
+    config = get_config(FilesystemConfiguration(bucket_url="az://root", kwargs={'use_ssl': True},
+                                                client_kwargs={'verify': 'public.crt'}))
+
     filesystem, bucket_name = fsspec_from_config(config)
 
     assert isinstance(filesystem, S3FileSystem)

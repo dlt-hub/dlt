@@ -82,6 +82,15 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
     """
     proto = config.protocol
     fs_kwargs: DictStrAny = {}
+
+    if config.kwargs is not None:
+        fs_kwargs.update(config.kwargs)
+
+    if config.client_kwargs is not None:
+        fs_kwargs["client_kwargs"] = config.client_kwargs
+
+    fs_kwargs["use_listings_cache"] = False  # is this default necessary?
+
     if proto == "s3":
         fs_kwargs.update(cast(AwsCredentials, config.credentials).to_s3fs_credentials())
     elif proto in ["az", "abfs", "adl", "azure"]:
@@ -98,7 +107,6 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
             fs_kwargs["token"] = dict(config.credentials)
         fs_kwargs["project"] = config.credentials.project_id
     try:
-        fs_kwargs["use_listings_cache"] = False
         return url_to_fs(config.bucket_url, **fs_kwargs)
     except ModuleNotFoundError as e:
         raise MissingDependencyException("filesystem", [f"{version.DLT_PKG_NAME}[{proto}]"]) from e
@@ -106,6 +114,7 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
 
 class FileItemDict(DictStrAny):
     """A FileItem dictionary with additional methods to get fsspec filesystem, open and read files."""
+
 
     def __init__(
         self,
@@ -122,6 +131,7 @@ class FileItemDict(DictStrAny):
         self.credentials = credentials
         super().__init__(**mapping)
 
+
     @property
     def fsspec(self) -> AbstractFileSystem:
         """The filesystem client is based on the given credentials.
@@ -133,6 +143,7 @@ class FileItemDict(DictStrAny):
             return self.credentials
         else:
             return fsspec_filesystem(self["file_url"], self.credentials)[0]
+
 
     def open(self, mode: str = "rb", **kwargs: Any) -> IO[Any]:  # noqa: A003
         """Open the file as a fsspec file.
@@ -165,6 +176,7 @@ class FileItemDict(DictStrAny):
         else:
             opened_file = self.fsspec.open(self["file_url"], mode=mode, **kwargs)
         return opened_file
+
 
     def read_bytes(self) -> bytes:
         """Read the file content.

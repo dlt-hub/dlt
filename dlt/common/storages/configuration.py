@@ -145,4 +145,6 @@ class FilesystemConfiguration(BaseConfiguration):
 
 
     if TYPE_CHECKING:
-        def __init__(self, bucket_url: str, credentials: FileSystemCredentials = None) -> None: ...
+        def __init__(self, bucket_url: str, credentials: FileSystemCredentials = None,
+                     kwargs: Optional[DictStrAny] = None,
+                     client_kwargs: Optional[DictStrAny] = None) -> None: ...
