@@ -119,7 +119,8 @@ class Extractor:
             self.load_id, self.schema.name, table_name, items, columns
         )
         self.collector.update(table_name, inc=new_rows_count)
-        self.resources_with_items.add(resource_name)
+        if new_rows_count > 0:
+            self.resources_with_items.add(resource_name)
 
     def _write_to_dynamic_table(self, resource: DltResource, items: TDataItems) -> None:
         if not isinstance(items, list):

@@ -9,7 +9,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import ConfigSectionContext, known_sections
 from dlt.common.data_writers import TLoaderFileFormat
-from dlt.common.data_writers.writers import DataWriterMetrics
+from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
 from dlt.common.pipeline import (
     ExtractDataInfo,
     ExtractInfo,
@@ -183,14 +183,14 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         }
         # aggregate by table name
         table_metrics = {
-            table_name: sum(map(lambda pair: pair[1], metrics), DataWriterMetrics("", 0, 0))
+            table_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
             for table_name, metrics in itertools.groupby(
                 job_metrics.items(), lambda pair: pair[0].table_name
             )
         }
         # aggregate by resource name
         resource_metrics = {
-            resource_name: sum(map(lambda pair: pair[1], metrics), DataWriterMetrics("", 0, 0))
+            resource_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
             for resource_name, metrics in itertools.groupby(
                 table_metrics.items(), lambda pair: source.schema.get_table(pair[0])["resource"]
             )
