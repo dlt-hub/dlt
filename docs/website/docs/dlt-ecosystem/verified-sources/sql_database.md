@@ -2,7 +2,7 @@
 
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
-[Join our Slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+[Join our Slack community](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
@@ -77,10 +77,10 @@ connection_url = "connection_string = f"{drivername}://{username}:{password}@{ho
 
 - E.g., A public database at "mysql-rfam-public.ebi.ac.uk" hosted by EBI.
 
-`port`: The port for the database connection. 
+`port`: The port for the database connection.
 
 - E.g., "4497", in the above connection URL.
-`port`: The port for the database connection. 
+`port`: The port for the database connection.
 
 - E.g., "4497", in the above connection URL.
 
@@ -369,7 +369,7 @@ To create your own pipeline, use source and resource methods from this verified 
    print(info)
    ```
 
-   This process initially loads all data from the `family` table starting at midnight on January 1, 2022. For later runs, it uses the `updated` field for incremental loading as well. 
+   This process initially loads all data from the `family` table starting at midnight on January 1, 2022. For later runs, it uses the `updated` field for incremental loading as well.
 
    :::info
    * For merge write disposition, the source table needs a primary key, which `dlt` automatically sets up.

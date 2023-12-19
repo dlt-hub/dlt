@@ -6,6 +6,12 @@ keywords: [bigquery, destination, data warehouse]
 
 # Google BigQuery
 
+## Install dlt with BigQuery
+**To install the DLT library with BigQuery dependencies:**
+```
+pip install dlt[bigquery]
+```
+
 ## Setup Guide
 
 **1. Initalize a project with a pipeline that loads to BigQuery by running**

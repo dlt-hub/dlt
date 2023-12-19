@@ -9,7 +9,8 @@ import Header from '../_examples-header.md';
 <Header
     intro="This example demonstrates how to control nested data using Python and the dlt library. It covers working with MongoDB, incremental loading, limiting nesting levels, and applying data type hints."
     slug="nested_data"
-    run_file="nested_data" />
+    run_file="nested_data"
+    destination="duckdb"/>
 
 ## Control nested data
 
