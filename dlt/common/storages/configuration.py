@@ -92,7 +92,7 @@ class FilesystemConfiguration(BaseConfiguration):
     }
 
     bucket_url: str = None
-    # should be an union of all possible credentials as found in PROTOCOL_CREDENTIALS
+    # should be a union of all possible credentials as found in PROTOCOL_CREDENTIALS
     credentials: FileSystemCredentials
 
     @property
@@ -112,7 +112,7 @@ class FilesystemConfiguration(BaseConfiguration):
                 "File path or netloc missing. Field bucket_url of FilesystemClientConfiguration"
                 " must contain valid url with a path or host:password component."
             )
-        # this is just a path in local file system
+        # this is just a path in a local file system
         if url.path == self.bucket_url:
             url = url._replace(scheme="file")
             self.bucket_url = url.geturl()
@@ -124,9 +124,7 @@ class FilesystemConfiguration(BaseConfiguration):
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of bucket_url"""
-        if self.bucket_url:
-            return digest128(self.bucket_url)
-        return ""
+        return digest128(self.bucket_url) if self.bucket_url else ""
 
     def __str__(self) -> str:
         """Return displayable destination location"""

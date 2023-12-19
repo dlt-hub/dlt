@@ -94,3 +94,32 @@ def test_filesystem_instance_from_s3_endpoint(environment: Dict[str, str]) -> No
     assert bucket_name == "dummy-bucket"
     assert filesystem.key == "fake-access-key"
     assert filesystem.secret == "fake-secret-key"
+
+
+def test_filesystem_configuration_with_additional_arguments() -> None:
+    config = FilesystemConfiguration(bucket_url="az://root", additional_args={'use_ssl': True},
+                                     client_kwargs={'verify': 'public.crt'})
+    assert dict(config) == {"bucket_url": "az://root", "credentials": None,
+                            "additional_args": {'use_ssl': True}, "client_kwargs": {'verify': 'public.crt'}}
+
+
+def test_filesystem_instance_from_s3_endpoint_with_additional_arguments(environment: Dict[str, str]) -> None:
+    """Test that fsspec instance is correctly configured when using endpoint URL, along with additional arguments."""
+    from s3fs import S3FileSystem
+
+    config = FilesystemConfiguration(bucket_url="s3://dummy-bucket", additional_args={'use_ssl': True},
+                                     client_kwargs={'verify': 'public.crt'})
+    filesystem, bucket_name = fsspec_from_config(config)
+
+    assert isinstance(filesystem, S3FileSystem)
+
+    assert hasattr(filesystem, 'use_ssl'), "use_ssl additional property does not exist in filesystem instance"
+    assert filesystem.use_ssl, "use_ssl property does not match expected value"
+
+    assert hasattr(filesystem, 'client_kwargs'), "client_kwargs property does not exist in filesystem instance"
+    assert filesystem.client_kwargs == {'verify': 'public.crt'}, "client_kwargs property does not match expected value"
+
+
+def test_s3_wrong_certificate(environment: Dict[str, str]) -> None:
+    """Test that an exception is raised when the wrong certificate is provided."""
+    pytest.skip("Not implemented yet")

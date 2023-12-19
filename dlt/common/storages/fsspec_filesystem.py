@@ -56,7 +56,8 @@ def fsspec_filesystem(
 ) -> Tuple[AbstractFileSystem, str]:
     """Instantiates an authenticated fsspec `FileSystem` for a given `protocol` and credentials.
 
-    Please supply credentials instance corresponding to the protocol. The `protocol` is just the code name of the filesystem ie:
+    Please supply credentials instance corresponding to the protocol.
+    The `protocol` is just the code name of the filesystem i.e.:
     * s3
     * az, abfs
     * gcs, gs
@@ -69,7 +70,7 @@ def fsspec_filesystem(
 def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSystem, str]:
     """Instantiates an authenticated fsspec `FileSystem` from `config` argument.
 
-    Authenticates following filesystems:
+    Authenticates the following filesystems:
     * s3
     * az, abfs
     * gcs, gs
@@ -97,7 +98,8 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
             fs_kwargs["token"] = dict(config.credentials)
         fs_kwargs["project"] = config.credentials.project_id
     try:
-        return url_to_fs(config.bucket_url, use_listings_cache=False, **fs_kwargs)  # type: ignore[no-any-return]
+        fs_kwargs["use_listings_cache"] = False
+        return url_to_fs(config.bucket_url, **fs_kwargs)
     except ModuleNotFoundError as e:
         raise MissingDependencyException("filesystem", [f"{version.DLT_PKG_NAME}[{proto}]"]) from e
 
@@ -122,7 +124,7 @@ class FileItemDict(DictStrAny):
 
     @property
     def fsspec(self) -> AbstractFileSystem:
-        """The filesystem client based on the given credentials.
+        """The filesystem client is based on the given credentials.
 
         Returns:
             AbstractFileSystem: The fsspec client.
@@ -202,7 +204,7 @@ def glob_files(
     import os
 
     bucket_url_parsed = urlparse(bucket_url)
-    # if this is file path without scheme
+    # if this is a file path without a scheme
     if not bucket_url_parsed.scheme or (os.path.isabs(bucket_url) and "\\" in bucket_url):
         # this is a file so create a proper file url
         bucket_url = pathlib.Path(bucket_url).absolute().as_uri()
