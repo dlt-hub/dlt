@@ -14,7 +14,7 @@ def qdrant_snippet():
     from dlt.common.time import ensure_pendulum_datetime
     from dlt.common.typing import TAnyDateTime
     from dlt.sources.helpers.requests import client
-    from dlt.destinations.qdrant import qdrant_adapter
+    from dlt.destinations.impl.qdrant import qdrant_adapter
     from qdrant_client import QdrantClient
 
     from dlt.common.configuration.inject import with_config
@@ -23,9 +23,9 @@ def qdrant_snippet():
     @dlt.source(max_table_nesting=2)
     def zendesk_support(
         credentials: Dict[str, str] = dlt.secrets.value,
-        start_date: Optional[TAnyDateTime] = pendulum.datetime(
+        start_date: Optional[TAnyDateTime] = pendulum.datetime(  # noqa: B008
             year=2000, month=1, day=1
-        ),  # noqa: B008
+        ),
         end_date: Optional[TAnyDateTime] = None,
     ):
         """
