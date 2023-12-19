@@ -32,7 +32,11 @@ def raises_frozen_exception(check_raise: bool = True) -> Any:
         return
     with pytest.raises(PipelineStepFailed) as py_exc:
         yield
-    assert isinstance(py_exc.value.__context__, DataValidationError)
+    if py_exc.value.step == "extract":
+        assert isinstance(py_exc.value.__context__, DataValidationError)
+    else:
+        # normalize
+        assert isinstance(py_exc.value.__context__.__context__, DataValidationError)
 
 
 def items(settings: TSchemaContract) -> Any:

@@ -124,20 +124,22 @@ class BufferedDataWriter(Generic[TWriter]):
                 self._rotate_file()
         return new_rows_count
 
-    def write_empty_file(self, columns: TTableSchemaColumns) -> None:
+    def write_empty_file(self, columns: TTableSchemaColumns) -> DataWriterMetrics:
         """Writes empty file: only header and footer without actual items"""
         if columns is not None:
             self._current_columns = dict(columns)
-        self._flush_items(allow_empty_file=True)
+        return self._flush_and_close_file(allow_empty_file=True)
 
-    def import_file(self, file_path: str, metrics: DataWriterMetrics) -> None:
+    def import_file(self, file_path: str, metrics: DataWriterMetrics) -> DataWriterMetrics:
         # TODO: we should separate file storage from other storages. this creates circular deps
         from dlt.common.storages import FileStorage
 
         self._rotate_file()
         FileStorage.link_hard_with_fallback(file_path, self._file_name)
-        self.closed_files.append(metrics._replace(file_path=self._file_name))
+        metrics = metrics._replace(file_path=self._file_name)
+        self.closed_files.append(metrics)
         self._file_name = None
+        return metrics
 
     def close(self) -> None:
         self._ensure_open()
@@ -178,22 +180,23 @@ class BufferedDataWriter(Generic[TWriter]):
             self._buffered_items.clear()
             self._buffered_items_count = 0
 
-    def _flush_and_close_file(self) -> None:
+    def _flush_and_close_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
         # if any buffered items exist, flush them
-        self._flush_items()
+        self._flush_items(allow_empty_file)
         # if writer exists then close it
-        if self._writer:
-            # write the footer of a file
-            self._writer.write_footer()
-            self._file.flush()
-            # add file written to the list so we can commit all the files later
-            self.closed_files.append(
-                DataWriterMetrics(self._file_name, self._writer.items_count, self._file.tell())
-            )
-            self._file.close()
-            self._writer = None
-            self._file = None
-            self._file_name = None
+        if not self._writer:
+            return None
+        # write the footer of a file
+        self._writer.write_footer()
+        self._file.flush()
+        # add file written to the list so we can commit all the files later
+        metrics = DataWriterMetrics(self._file_name, self._writer.items_count, self._file.tell())
+        self.closed_files.append(metrics)
+        self._file.close()
+        self._writer = None
+        self._file = None
+        self._file_name = None
+        return metrics
 
     def _ensure_open(self) -> None:
         if self._closed:

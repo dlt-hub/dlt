@@ -50,7 +50,7 @@ class DataWriterMetrics(NamedTuple):
         return NotImplemented
 
 
-# DataWriterMetrics.EMPTY = DataWriterMetrics("", 0, 0)
+EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0)
 
 
 class DataWriter(abc.ABC):

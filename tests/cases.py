@@ -231,6 +231,21 @@ def assert_all_data_types_row(
     assert db_mapping == expected_rows
 
 
+def arrow_format_from_pandas(
+    df: Any,
+    object_format: TArrowFormat,
+) -> Any:
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    if object_format == "pandas":
+        return df
+    elif object_format == "table":
+        return pa.Table.from_pandas(df)
+    elif object_format == "record_batch":
+        return pa.RecordBatch.from_pandas(df)
+    raise ValueError("Unknown item type: " + object_format)
+
+
 def arrow_table_all_data_types(
     object_format: TArrowFormat,
     include_json: bool = True,
@@ -282,10 +297,4 @@ def arrow_table_all_data_types(
         .drop(columns=["null"])
         .to_dict("records")
     )
-    if object_format == "pandas":
-        return df, rows
-    elif object_format == "table":
-        return pa.Table.from_pandas(df), rows
-    elif object_format == "record_batch":
-        return pa.RecordBatch.from_pandas(df), rows
-    raise ValueError("Unknown item type: " + object_format)
+    return arrow_format_from_pandas(df, object_format), rows

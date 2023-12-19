@@ -42,10 +42,10 @@ class DataItemStorage(ABC):
 
     def write_empty_items_file(
         self, load_id: str, schema_name: str, table_name: str, columns: TTableSchemaColumns
-    ) -> None:
+    ) -> DataWriterMetrics:
         """Writes empty file: only header and footer without actual items"""
         writer = self.get_writer(load_id, schema_name, table_name)
-        writer.write_empty_file(columns)
+        return writer.write_empty_file(columns)
 
     def import_items_file(
         self,
@@ -54,10 +54,10 @@ class DataItemStorage(ABC):
         table_name: str,
         file_path: str,
         metrics: DataWriterMetrics,
-    ) -> None:
+    ) -> DataWriterMetrics:
         """Imports external file from `file_path`. Requires external metrics to be passed as internal data writer is not used."""
         writer = self.get_writer(load_id, schema_name, table_name)
-        writer.import_file(file_path, metrics)
+        return writer.import_file(file_path, metrics)
 
     def close_writers(self, load_id: str) -> None:
         # flush and close all files

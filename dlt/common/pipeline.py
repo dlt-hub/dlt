@@ -68,7 +68,7 @@ class ExtractDataInfo(TypedDict):
 class ExtractMetrics(TypedDict):
     schema_name: str
     job_metrics: Dict[str, DataWriterMetrics]
-    """Metrics collected per job during writing of job file"""
+    """Metrics collected per job id during writing of job file"""
     table_metrics: Dict[str, DataWriterMetrics]
     """Job metrics aggregated by table"""
     resource_metrics: Dict[str, DataWriterMetrics]
@@ -109,7 +109,10 @@ class ExtractInfo(StepInfo, _ExtractInfo):
 
 
 class NormalizeMetrics(TypedDict):
-    row_counts: RowCounts
+    job_metrics: Dict[str, DataWriterMetrics]
+    """Metrics collected per job id during writing of job file"""
+    table_metrics: Dict[str, DataWriterMetrics]
+    """Job metrics aggregated by table"""
 
 
 class _NormalizeInfo(NamedTuple):
@@ -133,7 +136,9 @@ class NormalizeInfo(StepInfo, _NormalizeInfo):
         counts: RowCounts = {}
         for metrics in self.metrics.values():
             assert len(metrics) == 1, "Cannot deal with more than 1 normalize metric per load_id"
-            merge_row_counts(counts, metrics[0].get("row_counts", {}))
+            merge_row_counts(
+                counts, {t: m.items_count for t, m in metrics[0]["table_metrics"].items()}
+            )
         return counts
 
     def asdict(self) -> DictStrAny:
@@ -147,8 +152,8 @@ class NormalizeInfo(StepInfo, _NormalizeInfo):
             assert len(metrics) == 1, "Cannot deal with more than 1 normalize metric per load_id"
             d["row_counts"].extend(
                 [
-                    {"load_id": load_id, "table_name": k, "count": v}
-                    for k, v in metrics[0]["row_counts"].items()
+                    {"load_id": load_id, "table_name": k, "count": v.items_count}
+                    for k, v in metrics[0]["table_metrics"].items()
                 ]
             )
         return d
