@@ -327,7 +327,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
         ) as f:
-            file_metrics = DataWriterMetrics(extracted_items_file, get_row_count(f), f.tell())
+            file_metrics = DataWriterMetrics(extracted_items_file, get_row_count(f), f.tell(), 0, 0)
 
         parts = ParsedLoadJobFileName.parse(extracted_items_file)
         self.load_storage.import_items_file(
