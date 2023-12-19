@@ -75,6 +75,9 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
     * az, abfs
     * gcs, gs
 
+    Additional fsspec filesystem arguments and client arguments are gathered from the
+    FilesystemConfiguration object and passed to the `url_to_fs` factory.
+
     All other filesystems are not authenticated
 
     Returns: (fsspec filesystem, normalized url)
