@@ -100,7 +100,7 @@ weaviate = ["weaviate-client"]
 pydantic = ["pydantic"]
 mssql = ["pyodbc"]
 qdrant = ["qdrant-client"]
-notebook = ["ipython", "ipywidgets", "jupyter"]
+
 
 [tool.poetry.scripts]
 dlt = "dlt.cli._dlt:_main"
@@ -166,7 +166,10 @@ connectorx="0.3.1"
 dbt-core=">=1.2.0"
 dbt-duckdb=">=1.2.0"
 pymongo = ">=4.3.3"
-
+[tool.poetry.group.notebook.dependencies]
+ipython = ">=7.28.0"
+ipywidgets = ">=7.6.5"
+jupyter = ">=1.0.0"
 [build-system]
 requires = ["poetry-core>=1.0.8"]
 build-backend = "poetry.core.masonry.api"
