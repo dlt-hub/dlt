@@ -41,10 +41,20 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnNames, TColumnSchema, TWriteDisposition, TSchemaContract
 from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_storage import LoadPackageInfo
-from dlt.common.typing import DictStrAny, REPattern, SupportsHumanize
+from dlt.common.typing import DictStrAny, REPattern, StrAny, SupportsHumanize
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
 from dlt.common.data_writers.writers import DataWriterMetrics, TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
+
+
+class _StepInfo(NamedTuple):
+    pipeline: "SupportsPipeline"
+    loads_ids: List[str]
+    """ids of the loaded packages"""
+    load_packages: List[LoadPackageInfo]
+    """Information on loaded packages"""
+    started_at: datetime.datetime
+    first_run: bool
 
 
 class StepInfo(SupportsHumanize):
@@ -56,8 +66,33 @@ class StepInfo(SupportsHumanize):
     started_at: datetime.datetime
     first_run: bool
 
+    def asdict(self) -> DictStrAny:
+        # to be mixed with NamedTuple
+        d: DictStrAny = self._asdict()  # type: ignore
+        d["pipeline"] = {"pipeline_name": self.pipeline.pipeline_name}
+        d["load_packages"] = [package.asdict() for package in self.load_packages]
+        return d
+
     def __str__(self) -> str:
         return self.asstr(verbosity=0)
+
+    @staticmethod
+    def job_metrics_asdict(
+        job_metrics: Dict[str, DataWriterMetrics], key_name: str = "job_id", extend: StrAny = None
+    ) -> List[DictStrAny]:
+        jobs = []
+        for job_id, metrics in job_metrics.items():
+            d = metrics._asdict()
+            if extend:
+                d.update(extend)
+            d[key_name] = job_id
+            jobs.append(d)
+        return jobs
+
+    def _astuple(self) -> _StepInfo:
+        return _StepInfo(
+            self.pipeline, self.loads_ids, self.load_packages, self.started_at, self.first_run
+        )
 
 
 class ExtractDataInfo(TypedDict):
@@ -82,6 +117,7 @@ class ExtractMetrics(TypedDict):
 class _ExtractInfo(NamedTuple):
     pipeline: "SupportsPipeline"
     metrics: Dict[str, List[ExtractMetrics]]
+    """Metrics per load id. If many sources with the same name were extracted, there will be more than 1 element in the list"""
     extract_data_info: List[ExtractDataInfo]
     loads_ids: List[str]
     """ids of the loaded packages"""
@@ -96,12 +132,46 @@ class ExtractInfo(StepInfo, _ExtractInfo):
 
     def asdict(self) -> DictStrAny:
         """A dictionary representation of ExtractInfo that can be loaded with `dlt`"""
-        d = self._asdict()
-        d["pipeline"] = {"pipeline_name": self.pipeline.pipeline_name}
-        d["load_packages"] = [package.asdict() for package in self.load_packages]
-        # TODO: transform and leave metrics when we have them implemented
-        # d.pop("metrics")
+        d = super().asdict()
         d.pop("extract_data_info")
+        # transform metrics
+        d.pop("metrics")
+        load_metrics: Dict[str, List[Any]] = {
+            "job_metrics": [],
+            "table_metrics": [],
+            "resource_metrics": [],
+            "dag": [],
+            "hints": [],
+        }
+        for load_id, metrics_list in self.metrics.items():
+            for idx, metrics in enumerate(metrics_list):
+                extend = {"load_id": load_id, "extract_idx": idx}
+                load_metrics["job_metrics"].extend(
+                    self.job_metrics_asdict(metrics["job_metrics"], extend=extend)
+                )
+                load_metrics["table_metrics"].extend(
+                    self.job_metrics_asdict(
+                        metrics["table_metrics"], key_name="table_name", extend=extend
+                    )
+                )
+                load_metrics["resource_metrics"].extend(
+                    self.job_metrics_asdict(
+                        metrics["resource_metrics"], key_name="resource_name", extend=extend
+                    )
+                )
+                load_metrics["dag"].extend(
+                    [
+                        {**extend, "parent_name": edge[0], "resource_name": edge[1]}
+                        for edge in metrics["dag"]
+                    ]
+                )
+                load_metrics["hints"].extend(
+                    [
+                        {**extend, "resource_name": name, **hints}
+                        for name, hints in metrics["hints"].items()
+                    ]
+                )
+        d.update(load_metrics)
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
@@ -143,19 +213,25 @@ class NormalizeInfo(StepInfo, _NormalizeInfo):
 
     def asdict(self) -> DictStrAny:
         """A dictionary representation of NormalizeInfo that can be loaded with `dlt`"""
-        d = self._asdict()
-        d["pipeline"] = {"pipeline_name": self.pipeline.pipeline_name}
-        d["load_packages"] = [package.asdict() for package in self.load_packages]
-        # list representation creates a nice table
-        d["row_counts"] = []
-        for load_id, metrics in self.metrics.items():
-            assert len(metrics) == 1, "Cannot deal with more than 1 normalize metric per load_id"
-            d["row_counts"].extend(
-                [
-                    {"load_id": load_id, "table_name": k, "count": v.items_count}
-                    for k, v in metrics[0]["table_metrics"].items()
-                ]
-            )
+        d = super().asdict()
+        # transform metrics
+        d.pop("metrics")
+        load_metrics: Dict[str, List[Any]] = {
+            "job_metrics": [],
+            "table_metrics": [],
+        }
+        for load_id, metrics_list in self.metrics.items():
+            for idx, metrics in enumerate(metrics_list):
+                extend = {"load_id": load_id, "extract_idx": idx}
+                load_metrics["job_metrics"].extend(
+                    self.job_metrics_asdict(metrics["job_metrics"], extend=extend)
+                )
+                load_metrics["table_metrics"].extend(
+                    self.job_metrics_asdict(
+                        metrics["table_metrics"], key_name="table_name", extend=extend
+                    )
+                )
+        d.update(load_metrics)
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
@@ -192,10 +268,7 @@ class LoadInfo(StepInfo, _LoadInfo):
 
     def asdict(self) -> DictStrAny:
         """A dictionary representation of LoadInfo that can be loaded with `dlt`"""
-        d = self._asdict()
-        d["pipeline"] = {"pipeline_name": self.pipeline.pipeline_name}
-        d["load_packages"] = [package.asdict() for package in self.load_packages]
-        return d
+        return super().asdict()
 
     def asstr(self, verbosity: int = 0) -> str:
         msg = f"Pipeline {self.pipeline.pipeline_name} completed in "
@@ -273,7 +346,7 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
 
     def _step_info_start_load_id(self, load_id: str) -> None:
         self._current_load_id = load_id
-        self._load_id_metrics[load_id] = []
+        self._load_id_metrics.setdefault(load_id, [])
 
     def _step_info_complete_load_id(self, load_id: str, metrics: TStepMetrics) -> None:
         assert self._current_load_id == load_id, (

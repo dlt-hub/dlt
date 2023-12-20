@@ -217,9 +217,10 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     hints[name] = get_callable_name(hint)
                     continue
                 if name == "columns":
-                    hints[name] = yaml.dump(
-                        hint, allow_unicode=True, default_flow_style=False, sort_keys=False
-                    )
+                    if hint:
+                        hints[name] = yaml.dump(
+                            hint, allow_unicode=True, default_flow_style=False, sort_keys=False
+                        )
                     continue
                 hints[name] = hint
 
@@ -307,6 +308,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             self.extract_storage.close_writers(load_id)
             # gather metrics
             self._step_info_complete_load_id(load_id, self._compute_metrics(load_id, source))
+            # remove the metrics of files processed in this extract run
+            # NOTE: there may be more than one extract run per load id: ie. the resource and then dlt state
+            self.extract_storage.remove_closed_files(load_id)
 
     def extract(
         self,

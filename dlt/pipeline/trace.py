@@ -98,7 +98,11 @@ class PipelineStepTrace(SupportsHumanize, _PipelineStepTrace):
         d = self._asdict()
         if self.step_info:
             # name property depending on step name - generates nicer data
-            d[f"{self.step}_info"] = d.pop("step_info")
+            d[f"{self.step}_info"] = step_info_dict = d.pop("step_info").asdict()
+            d["step_info"] = {}
+            # take only the base keys
+            for prop in self.step_info._astuple()._asdict():
+                d["step_info"][prop] = step_info_dict.pop(prop)
         # replace the attributes in exception traces with json dumps
         if self.exception_traces:
             # do not modify original traces
@@ -161,7 +165,8 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
     def asdict(self) -> DictStrAny:
         """A dictionary representation of PipelineTrace that can be loaded with `dlt`"""
         d = self._asdict()
-        d["steps"] = [step.asdict() for step in self.steps]
+        # run step is the same as load step
+        d["steps"] = [step.asdict() for step in self.steps]  # if step.step != "run"
         return d
 
     @property

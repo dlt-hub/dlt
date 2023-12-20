@@ -145,15 +145,15 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
                 logger.info(f"Will truncate tables in {truncate_dir}")
                 try:
                     all_files = self.fs_client.ls(truncate_dir, detail=False, refresh=True)
-                    # logger.info(f"Found {len(all_files)} CANDIDATE files in {truncate_dir}")
-                    # print(f"in truncate dir {truncate_dir}: {all_files}")
+                    logger.info(f"Found {len(all_files)} CANDIDATE files in {truncate_dir}")
+                    print(f"in truncate dir {truncate_dir}: {all_files}")
                     for item in all_files:
                         # check every file against all the prefixes
                         for search_prefix in truncate_prefixes:
                             if item.startswith(search_prefix):
                                 # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
                                 # logger.info(f"DEL {item}")
-                                # print(f"DEL {item}")
+                                print(f"DEL {item}")
                                 self.fs_client.rm(item)
                 except FileNotFoundError:
                     logger.info(

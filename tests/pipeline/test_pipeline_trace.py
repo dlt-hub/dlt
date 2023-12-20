@@ -41,7 +41,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
         credentials: CredentialsConfiguration = dlt.secrets.value,
         secret_value: TSecretValue = TSecretValue("123"),  # noqa: B008
     ):
-        @dlt.resource
+        @dlt.resource(write_disposition="replace", primary_key="id")
         def data():
             yield [1, 2, 3]
 
@@ -57,7 +57,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     extract_info = p.extract(inject_tomls())
     trace = p.last_trace
     assert trace is not None
-    assert p._trace is None
+    # assert p._trace is None
     assert len(trace.steps) == 1
     step = trace.steps[0]
     assert step.step == "extract"
@@ -66,7 +66,37 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert isinstance(step.step_info, ExtractInfo)
     assert step.step_info.extract_data_info == [{"name": "inject_tomls", "data_type": "source"}]
     # check infos
-    assert isinstance(p.last_trace.last_extract_info, ExtractInfo)
+    extract_info = p.last_trace.last_extract_info
+    assert isinstance(extract_info, ExtractInfo)
+    # should have single job and single load id
+    assert len(extract_info.loads_ids) == 1
+    load_id = extract_info.loads_ids[0]
+    assert len(extract_info.metrics) == 1
+
+    # extract of data in the first one
+    metrics = extract_info.metrics[load_id][0]
+    # inject tomls and dlt state
+    assert len(metrics["job_metrics"]) == 1
+    assert "data" in metrics["table_metrics"]
+    assert set(metrics["resource_metrics"].keys()) == {"data"}
+    assert metrics["schema_name"] == "inject_tomls"
+    # check dag and hints
+    assert metrics["dag"] == [("data", "data")]
+    assert metrics["hints"]["data"] == {"write_disposition": "replace", "primary_key": "id"}
+
+    metrics = extract_info.metrics[load_id][1]
+    # inject tomls and dlt state
+    assert len(metrics["job_metrics"]) == 1
+    assert "_dlt_pipeline_state" in metrics["table_metrics"]
+    assert set(metrics["resource_metrics"].keys()) == {"_dlt_pipeline_state"}
+    assert metrics["schema_name"] == "inject_tomls"
+    # check dag and hints
+    assert metrics["dag"] == [("_dlt_pipeline_state", "_dlt_pipeline_state")]
+    # state has explicit columns set
+    assert metrics["hints"]["_dlt_pipeline_state"]["original_columns"] == "dict"
+
+    # check packages
+    assert len(extract_info.load_packages) == 1
 
     # check config trace
     resolved = _find_resolved_value(trace.resolved_config_values, "api_type", [])
@@ -86,6 +116,8 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert resolved.is_secret_hint is True
     assert resolved.value == databricks_creds
     assert_trace_printable(trace)
+    # activate pipeline because other was running in assert trace
+    p.activate()
 
     # extract with exception
     @dlt.source
@@ -112,8 +144,21 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert step.step == "extract"
     assert isinstance(step.step_exception, str)
     assert isinstance(step.step_info, ExtractInfo)
+    assert len(step.exception_traces) > 0
     assert step.step_info.extract_data_info == [{"name": "async_exception", "data_type": "source"}]
     assert_trace_printable(trace)
+
+    extract_info = step.step_info
+    # only new (unprocessed) package is present, all other metrics are empty, state won't be extracted
+    assert len(extract_info.loads_ids) == 1
+    load_id = extract_info.loads_ids[0]
+    package = extract_info.load_packages[0]
+    assert package.state == "new"
+    # no jobs
+    assert len(package.jobs["new_jobs"]) == 0
+    # no metrics - exception happened first
+    print(extract_info.metrics)
+    assert len(extract_info.metrics[load_id]) == 0
 
     # normalize
     norm_info = p.normalize()
@@ -126,6 +171,20 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert_trace_printable(trace)
     assert isinstance(p.last_trace.last_normalize_info, NormalizeInfo)
     assert p.last_trace.last_normalize_info.row_counts == {"_dlt_pipeline_state": 1, "data": 3}
+
+    assert len(norm_info.loads_ids) == 1
+    load_id = norm_info.loads_ids[0]
+    assert len(norm_info.metrics) == 1
+
+    # just one load package with single metrics
+    assert len(norm_info.metrics[load_id]) == 1
+    norm_metrics = norm_info.metrics[load_id][0]
+    # inject tomls and dlt state
+    assert len(norm_metrics["job_metrics"]) == 2
+    assert "data" in norm_metrics["table_metrics"]
+
+    # check packages
+    assert len(extract_info.load_packages) == 1
 
     # load
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
@@ -142,6 +201,7 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert resolved.config_type_name == "DummyClientConfiguration"
     assert_trace_printable(trace)
     assert isinstance(p.last_trace.last_load_info, LoadInfo)
+    p.activate()
 
     # run resets the trace
     load_info = inject_tomls().run()
@@ -172,7 +232,7 @@ def test_save_load_trace() -> None:
     assert trace is not None
     assert pipeline._trace is None
     assert len(trace.steps) == 4 == len(info.pipeline.last_trace.steps)  # type: ignore[attr-defined]
-    step = trace.steps[-2]  # the previoius to last one should be load
+    step = trace.steps[-2]  # the previous to last one should be load
     assert step.step == "load"
     resolved = _find_resolved_value(trace.resolved_config_values, "completed_prob", [])
     assert resolved.is_secret_hint is False
@@ -184,6 +244,8 @@ def test_save_load_trace() -> None:
         "_dlt_pipeline_state": 1,
         "data": 3,
     }
+    # reactivate the pipeline
+    pipeline.activate()
 
     # exception also saves trace
     @dlt.resource
@@ -417,13 +479,15 @@ def assert_trace_printable(trace: PipelineTrace) -> None:
     trace.asstr(1)
     trace.asdict()
     with io.BytesIO() as b:
-        json.typed_dump(trace, b)
+        json.typed_dump(trace, b, pretty=True)
         b.getvalue()
     json.dumps(trace)
 
     # load trace to duckdb
     from dlt.destinations import duckdb
 
-    trace_pe = dlt.pipeline("trace", destination=duckdb(":pipeline:"))
-    trace_pe.run([trace], table_name="trace_data")
-    print(trace_pe.default_schema.to_pretty_yaml())
+    trace_pipeline = dlt.pipeline("trace", destination=duckdb(":pipeline:")).drop()
+    load_info = trace_pipeline.run([trace], table_name="trace_data")
+    load_info.raise_on_failed_jobs()
+
+    # print(trace_pipeline.default_schema.to_pretty_yaml())

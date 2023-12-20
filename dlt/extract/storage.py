@@ -94,6 +94,10 @@ class ExtractStorage(NormalizeStorage):
             files.extend(storage.closed_files(load_id))
         return files
 
+    def remove_closed_files(self, load_id: str) -> None:
+        for storage in self._item_storages.values():
+            storage.remove_closed_files(load_id)
+
     def commit_new_load_package(self, load_id: str, schema: Schema) -> None:
         self.new_packages.save_schema(load_id, schema)
         self.storage.rename_tree(

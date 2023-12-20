@@ -76,12 +76,19 @@ class DataItemStorage(ABC):
                 writer.close()
 
     def closed_files(self, load_id: str) -> List[DataWriterMetrics]:
+        """Return metrics for all fully processed (closed) files"""
         files: List[DataWriterMetrics] = []
         for name, writer in self.buffered_writers.items():
             if name.startswith(load_id):
                 files.extend(writer.closed_files)
 
         return files
+
+    def remove_closed_files(self, load_id: str) -> None:
+        """Remove metrics for closed files in a given `load_id`"""
+        for name, writer in self.buffered_writers.items():
+            if name.startswith(load_id):
+                writer.closed_files.clear()
 
     def _write_temp_job_file(
         self,
