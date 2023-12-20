@@ -420,5 +420,10 @@ def assert_trace_printable(trace: PipelineTrace) -> None:
         json.typed_dump(trace, b)
         b.getvalue()
     json.dumps(trace)
-    # assert trace_dict == json.loads(trace_str)
-    # print(trace_dict)
+
+    # load trace to duckdb
+    from dlt.destinations import duckdb
+
+    trace_pe = dlt.pipeline("trace", destination=duckdb(":pipeline:"))
+    trace_pe.run([trace], table_name="trace_data")
+    print(trace_pe.default_schema.to_pretty_yaml())

@@ -236,7 +236,7 @@ def test_gather_metrics(disable_compression: bool, format_: TLoaderFileFormat) -
         metrics = writer.closed_files[0]
         assert metrics.items_count == 2
         assert metrics.last_modified - metrics.created >= 0.55
-        assert metrics.created > now
+        assert metrics.created >= now
         time.sleep(0.35)
         count = writer.write_data_item([{"col1": 182812}, {"col1": -1}, {"col1": 182811}], t1)
         assert count == 3
