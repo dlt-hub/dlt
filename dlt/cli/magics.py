@@ -105,7 +105,7 @@ class DltMagics(Magics):
     @register_line_magic
     def settings(self, line:str)->str:
         """
-        A DLT line magic command to set global settings like telemetry, debug mode, etc.
+        A dlt line magic command to set global settings like telemetry, debug mode, etc.
         """
         args = parse_argstring(self.settings, line)
         global DEBUG_FLAG
@@ -115,13 +115,11 @@ class DltMagics(Magics):
                 telemetry_change_status_command_wrapper(True)
             if args.disable_telemetry:
                 telemetry_change_status_command_wrapper(False)
-            if args.non_interactive:
-                fmt.ALWAYS_CHOOSE_DEFAULT = True
             if args.debug:
                 DEBUG_FLAG = True
-            return "Settings updated"
+            return 0
         except:
-            return "Settings update failed"
+            return -1
 
 
     @magic_arguments()
@@ -134,7 +132,7 @@ class DltMagics(Magics):
     @line_magic
     def init(self, line:str) -> t.Any:
         """
-        A DLT line magic command for initializing a DLT project.
+        A dlt line magic command for initializing a DLT project.
         """
         args = parse_argstring(self.init, line)
         try:
@@ -148,9 +146,11 @@ class DltMagics(Magics):
                     branch=args.branch if args.branch is not None else None
                 )
                 if out == -1:
-                    return self.display(self.on_exception("Failure due to...", "Default value for init is 'No' for safety reasons."))
+                    self.display(self.on_exception("Failure due to...", "Default value for init is 'No' for safety reasons."))
+                    return -1
                 else:
-                    return self.display(self.success_message({"green-bold": "DLT project initialized successfully."}))
+                    self.display(self.success_message({"green-bold": "DLT project initialized successfully."}))
+                    return 0
         except Exception as ex:
             self.on_exception(str(ex), DLT_INIT_DOCS_URL)
             return -1
@@ -219,7 +219,7 @@ class DltMagics(Magics):
     @register_line_magic
     def pipeline(self, line:str)->t.Any:
         """
-        A DLT line magic command for pipeline operations.
+        A dlt line magic command for pipeline operations.
         """
         args = parse_argstring(self.pipeline, line)
         if args.operation == 'list-pipelines':
@@ -234,6 +234,7 @@ class DltMagics(Magics):
                     verbosity=args.verbosity
 
                 )
+                return 0
         except Exception as ex:
             self.on_exception(str(ex), DLT_PIPELINE_COMMAND_DOCS_URL)
             return -2
@@ -245,7 +246,7 @@ class DltMagics(Magics):
     @register_line_magic
     def schema(self, line:str)->t.Any:
         """
-        A DLT line magic command for handling schemas.
+        A dlt line magic command for handling schemas.
         """
         args = parse_argstring(self.schema, line)
         try:
@@ -256,7 +257,8 @@ class DltMagics(Magics):
                     format_=args.format,
                     remove_defaults=args.remove_defaults
                 )
-                return self.display(self.success_message({"green-bold": "DLT schema magic ran successfully."}))
+                self.display(self.success_message({"green-bold": "DLT schema magic ran successfully."}))
+                return 0
         except Exception as ex:
             self.on_exception(str(ex), "Schema Documentation URL")  # Replace with actual URL
             return -1
@@ -264,7 +266,7 @@ class DltMagics(Magics):
     @register_line_magic
     def dlt_version(self, line:str=None)->t.Any:
         """
-        A DLT line magic command to display version information.
+        A dlt line magic command to display version information.
         """
         from dlt.version import __version__
         return f"{self.__class__.__name__} version: {__version__}"
