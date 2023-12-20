@@ -1,15 +1,15 @@
 import dlt
 from dlt.common.typing import TDataItem
 from dlt.sources.helpers import requests
-from dlt.common.plugins import register_plugin, Plugin
+from dlt.common.plugins import Plugin
 
 
 class MyPlugin(Plugin):
 
-    def on_step_start(self):
+    def on_step_start(self, step: str):
         print("Started step " + self.step)
 
-    def on_step_end(self):
+    def on_step_end(self, step: str):
         print("Ended step " + self.step)
 
     def on_schema_contract_violation(self, table: str, violating_item: TDataItem, **kwargs):
@@ -18,14 +18,13 @@ class MyPlugin(Plugin):
     def on_extractor_item_written(self, item: TDataItem, **kwargs):
         print(f"Written item {item} in step {self.step}")
 
-register_plugin(MyPlugin)
-
 # Create a dlt pipeline that will load
 # chess player data to the DuckDB destination
 pipeline = dlt.pipeline(
     pipeline_name='chess_pipeline',
     destination='duckdb',
-    dataset_name='player_data'
+    dataset_name='player_data',
+    plugins=[MyPlugin],
 )
 # Grab some player data from Chess.com API
 data = []

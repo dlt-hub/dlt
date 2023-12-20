@@ -14,6 +14,7 @@ from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pip
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
 from dlt.pipeline.warnings import credentials_argument_deprecated
+from dlt.common.plugins import Plugin, TPluginArg
 
 
 @overload
@@ -29,6 +30,7 @@ def pipeline(
     full_refresh: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
+    plugins: TPluginArg = None,
 ) -> Pipeline:
     """Creates a new instance of `dlt` pipeline, which moves the data from the source ie. a REST API to a destination ie. database or a data lake.
 
@@ -97,6 +99,7 @@ def pipeline(
     full_refresh: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
+    plugins: TPluginArg = None,
     **kwargs: Any,
 ) -> Pipeline:
     ensure_correct_pipeline_kwargs(pipeline, **kwargs)
@@ -141,6 +144,7 @@ def pipeline(
         export_schema_path,
         full_refresh,
         progress,
+        plugins,
         False,
         last_config(**kwargs),
         kwargs["runtime"],
@@ -158,6 +162,7 @@ def attach(
     full_refresh: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
+    plugins: TPluginArg = None,
     **kwargs: Any,
 ) -> Pipeline:
     """Attaches to the working folder of `pipeline_name` in `pipelines_dir` or in default directory. Requires that valid pipeline state exists in working folder."""
@@ -179,6 +184,7 @@ def attach(
         None,
         full_refresh,
         progress,
+        plugins,
         True,
         last_config(**kwargs),
         kwargs["runtime"],

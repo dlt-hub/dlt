@@ -103,7 +103,7 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load import Load
-from dlt.common.plugins import PluginsContext
+from dlt.common.plugins import PluginsContext, TPluginArg
 
 from dlt.pipeline.configuration import PipelineConfiguration
 from dlt.pipeline.progress import _Collector, _NULL_COLLECTOR
@@ -173,26 +173,18 @@ def with_schemas_sync(f: TFun) -> TFun:
     return _wrap  # type: ignore
 
 
-def with_plugins() -> Callable[[TFun], TFun]:
+def with_plugins_step() -> Callable[[TFun], TFun]:
     def decorator(f: TFun) -> TFun:
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-            # activate pipeline so right state is always provided
+            plugins_context = self._container[PluginsContext]
+            plugins_context.on_step_start(f.__name__)
 
-            # setup plugins
-            plugins_context = PluginsContext() 
-            plugins_context.setup_plugins(self, f.__name__)
+            result = f(self, *args, **kwargs)
 
-            # inject plugins context
-            with self._container.injectable_context(plugins_context):
-                for p in plugins_context.plugins:
-                    p.on_step_start()
-                # run the function
-                result = f(self, *args, **kwargs)
-                for p in plugins_context.plugins:
-                    p.on_step_end()
+            plugins_context.on_step_end(f.__name__)
 
-                return result
+            return result
 
         return _wrap  # type: ignore
 
@@ -315,6 +307,7 @@ class Pipeline(SupportsPipeline):
         export_schema_path: str,
         full_refresh: bool,
         progress: _Collector,
+        plugins: TPluginArg,
         must_attach_to_local_pipeline: bool,
         config: PipelineConfiguration,
         runtime: RunConfiguration,
@@ -325,6 +318,7 @@ class Pipeline(SupportsPipeline):
         self.runtime_config = runtime
         self.full_refresh = full_refresh
         self.collector = progress or _NULL_COLLECTOR
+        self.plugins = plugins
         self.destination = None
         self.staging = None
 
@@ -340,6 +334,11 @@ class Pipeline(SupportsPipeline):
         initialize_runtime(self.runtime_config)
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, pipelines_dir)
+
+        # setup plugins context
+        plugins_ctx = PluginsContext()
+        plugins_ctx.setup_plugins(self.plugins, self)
+        self._container[PluginsContext] = plugins_ctx
 
         with self.managed_state() as state:
             # changing the destination could be dangerous if pipeline has pending load packages
@@ -368,6 +367,7 @@ class Pipeline(SupportsPipeline):
             self._schema_storage.config.export_schema_path,
             self.full_refresh,
             self.collector,
+            self.plugins,
             False,
             self.config,
             self.runtime_config,
@@ -377,7 +377,7 @@ class Pipeline(SupportsPipeline):
     @with_schemas_sync  # this must precede with_state_sync
     @with_state_sync(may_extract_state=True)
     @with_config_section((known_sections.EXTRACT,))
-    @with_plugins()
+    @with_plugins_step()
     def extract(
         self,
         data: Any,
@@ -439,7 +439,7 @@ class Pipeline(SupportsPipeline):
     @with_runtime_trace()
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
-    @with_plugins()
+    @with_plugins_step()
     def normalize(
         self, workers: int = 1, loader_file_format: TLoaderFileFormat = None
     ) -> NormalizeInfo:
@@ -487,7 +487,7 @@ class Pipeline(SupportsPipeline):
     @with_schemas_sync
     @with_state_sync()
     @with_config_section((known_sections.LOAD,))
-    @with_plugins()
+    @with_plugins_step()
     def load(
         self,
         destination: TDestinationReferenceArg = None,
@@ -542,7 +542,7 @@ class Pipeline(SupportsPipeline):
 
     @with_runtime_trace()
     @with_config_section(("run",))
-    @with_plugins()
+    @with_plugins_step()
     def run(
         self,
         data: Any = None,

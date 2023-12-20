@@ -24,7 +24,7 @@ from dlt.extract.resource import DltResource
 from dlt.extract.typing import TableNameMeta
 from dlt.extract.storage import ExtractStorage, ExtractorItemStorage
 
-from dlt.common.plugins import PluginsContext
+from dlt.common.plugins import with_plugins, PluginsContext
 
 try:
     from dlt.common.libs import pyarrow
@@ -46,6 +46,7 @@ class Extractor:
         _caps: Optional[DestinationCapabilitiesContext] = None
 
     @with_config(spec=ExtractorConfiguration)
+    @with_plugins()
     def __init__(
         self,
         load_id: str,
@@ -55,6 +56,7 @@ class Extractor:
         collector: Collector = NULL_COLLECTOR,
         *,
         _caps: DestinationCapabilitiesContext = None,
+        _plugins: PluginsContext = None,
     ) -> None:
         self.schema = schema
         self.naming = schema.naming
@@ -66,7 +68,7 @@ class Extractor:
         self._filtered_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
         self._storage = storage
         self._caps = _caps or DestinationCapabilitiesContext.generic_capabilities()
-        self._plugins = Container()[PluginsContext].plugins
+        self._plugins = _plugins
 
     @property
     def storage(self) -> ExtractorItemStorage:
@@ -125,8 +127,8 @@ class Extractor:
         self.collector.update(table_name, inc=new_rows_count)
         if new_rows_count > 0:
             self.resources_with_items.add(resource_name)
-        for p in self._plugins:
-            p.on_extractor_item_written(items)
+        self._plugins.on_extractor_item_written(items)
+
 
     def _write_to_dynamic_table(self, resource: DltResource, items: TDataItems) -> None:
         if not isinstance(items, list):
