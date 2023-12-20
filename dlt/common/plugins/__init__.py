@@ -1,1 +1,2 @@
-from .plugins import Plugin, PluginsContext, TPluginArg, with_plugins
+from .plugins import PluginsContext, with_plugins
+from .reference import PluginConfig, TPluginArg, Plugin

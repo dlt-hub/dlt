@@ -1,13 +1,22 @@
-import dlt
+import dlt, os
 from dlt.common.typing import TDataItem
 from dlt.sources.helpers import requests
-from dlt.common.plugins import Plugin
+from dlt.common.plugins import Plugin, PluginConfig
+from dlt.common.configuration.specs.base_configuration import configspec
 
+
+@configspec
+class MyPluginConfig(PluginConfig):
+    second_name: str
 
 class MyPlugin(Plugin):
 
+    NAME: str = "my_plugin"
+    SPEC = MyPluginConfig
+
     def on_step_start(self, step: str):
         print("Started step " + self.step)
+        print("with config " + self.config.second_name)
 
     def on_step_end(self, step: str):
         print("Ended step " + self.step)
@@ -17,6 +26,9 @@ class MyPlugin(Plugin):
 
     def on_extractor_item_written(self, item: TDataItem, **kwargs):
         print(f"Written item {item} in step {self.step}")
+
+
+os.environ["PLUGIN__MY_PLUGIN__SECOND_NAME"] = "second_name"
 
 # Create a dlt pipeline that will load
 # chess player data to the DuckDB destination

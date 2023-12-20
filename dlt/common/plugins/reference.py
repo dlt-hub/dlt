@@ -1,6 +1,8 @@
 from typing import Type, Union, List, Any
 from dlt.common.typing import TDataItem
 from dlt.common.schema.typing import TSchemaContract
+from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
 
 
 class SupportsCallbackPlugin:
@@ -34,12 +36,20 @@ class SupportsCallbackPlugin:
     ) -> None:
         pass
 
+@configspec
+class PluginConfig(BaseConfiguration):
+    pass
+
 
 class Plugin(SupportsCallbackPlugin):
     NAME: str = None
+    SPEC: Type[PluginConfig] = PluginConfig
 
     def __init__(self) -> None:
         self.step: Union[str, None] = None
+        assert self.NAME is not None, "Plugin.NAME must be defined"
+        assert self.SPEC is not None, "Plugin.SPEC must be defined"
+        self.config = resolve_configuration(self.SPEC(), sections=["plugin", self.NAME])
 
 
 TSinglePluginArg = Union[Type[Plugin], Plugin, str]
