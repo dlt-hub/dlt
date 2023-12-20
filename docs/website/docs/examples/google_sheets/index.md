@@ -1,7 +1,7 @@
 ---
 title: Google Sheets minimal example
 description: Learn how work with Google services
-keywords: [incremental loading, example]
+keywords: [google sheets, credentials, example]
 ---
 
 import Header from '../_examples-header.md';
@@ -17,9 +17,9 @@ import Header from '../_examples-header.md';
 In this example, you'll find a Python script that demonstrates how to load Google Sheets data using the `dlt` library.
 
 We'll learn how to:
-- use built-in credentials;
-- use union of credentials;
-- create dynamically generated resources.
+- use [built-in credentials](../../general-usage/credentials/config_specs#gcp-credentials);
+- use [union of credentials](../../general-usage/credentials/config_specs#working-with-alternatives-of-credentials-union-types);
+- create [dynamically generated resources](../../general-usage/source#create-resources-dynamically).
 
 ### Install Google client library
 

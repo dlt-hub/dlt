@@ -73,10 +73,12 @@ def google_sheets_snippet() -> None:
         sheet_id = "1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580"
         range_names = ["hidden_columns_merged_cells", "Blank Columns"]
         # "2022-05", "model_metadata"
-        info = pipeline.run(google_spreadsheet(
-            spreadsheet_id=sheet_id,
-            sheet_names=range_names,
-        ))
+        info = pipeline.run(
+            google_spreadsheet(
+                spreadsheet_id=sheet_id,
+                sheet_names=range_names,
+            )
+        )
         print(info)
     # @@@DLT_SNIPPET_END google_sheets_run
     # @@@DLT_SNIPPET_END example
