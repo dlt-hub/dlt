@@ -1,4 +1,4 @@
-from typing import Type, Union, List, Any, Callable
+from typing import Type, Union, List, Any, Callable, Iterable
 from dlt.common.typing import TFun
 from dlt.common.typing import TDataItem
 from dlt.common.pipeline import SupportsPipeline
@@ -31,6 +31,8 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
         return plugin
 
     def setup_plugins(self, plugins: TPluginArg, pipeline: SupportsPipeline) -> None:
+        if not isinstance(plugins, Iterable):
+            plugins = [plugins]
         for p in plugins:
             self._plugins.append(self._resolve_plugin(p, pipeline))
 
@@ -48,6 +50,7 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
 
 
 def with_plugins() -> Callable[[TFun], TFun]:
+
     def decorator(f: TFun) -> TFun:
         @wraps(f)
         def _wrap(*args: Any, **kwargs: Any) -> Any:

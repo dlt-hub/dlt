@@ -39,7 +39,7 @@ class Plugin(SupportsCallbackPlugin):
     NAME: str = None
 
     def __init__(self) -> None:
-        self.step: str | None = None
+        self.step: Union[str, None] = None
 
 
 TSinglePluginArg = Union[Type[Plugin], Plugin, str]
