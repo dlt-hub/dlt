@@ -1,5 +1,7 @@
 from tests.utils import skipifgithubfork
 
+__source_name__ = "google_sheets"
+
 
 @skipifgithubfork
 def google_sheets_snippet() -> None:
@@ -66,14 +68,15 @@ def google_sheets_snippet() -> None:
     # @@@DLT_SNIPPET_START google_sheets_run
     __name__ = "__main__"  # @@@DLT_REMOVE
     if __name__ == "__main__":
-        dlt.pipeline(destination="duckdb", full_refresh=True)
+        pipeline = dlt.pipeline(destination="duckdb")
         # see example.secrets.toml to where to put credentials
-
+        sheet_id = "1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580"
+        range_names = ["hidden_columns_merged_cells", "Blank Columns"]
         # "2022-05", "model_metadata"
-        info = google_spreadsheet(
-            "11G95oVZjieRhyGqtQMQqlqpxyvWkRXowKE8CtdLtFaU",
-            ["named range", "Second_Copy!1:2"],
-        )
-        print(list(info))
+        info = pipeline.run(google_spreadsheet(
+            spreadsheet_id=sheet_id,
+            sheet_names=range_names,
+        ))
+        print(info)
     # @@@DLT_SNIPPET_END google_sheets_run
     # @@@DLT_SNIPPET_END example

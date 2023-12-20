@@ -1,5 +1,5 @@
 ---
-title: Google Sheets in 4 lines of code
+title: Google Sheets minimal example
 description: Learn how work with Google services
 keywords: [incremental loading, example]
 ---
@@ -33,11 +33,14 @@ We'll learn how to:
 ```py
 from typing import Any, Iterator, Sequence, Union, cast
 
-import dlt
-from dlt.common.configuration.specs import GcpServiceAccountCredentials, GcpOAuthCredentials
-from dlt.common.typing import DictStrAny, StrAny
 from googleapiclient.discovery import build
 
+import dlt
+from dlt.common.configuration.specs import (
+    GcpOAuthCredentials,
+    GcpServiceAccountCredentials,
+)
+from dlt.common.typing import DictStrAny, StrAny
 
 def _initialize_sheets(
     credentials: Union[GcpOAuthCredentials, GcpServiceAccountCredentials]
@@ -92,11 +95,15 @@ def google_spreadsheet(
 <!--@@@DLT_SNIPPET_START code/google_sheets-snippets.py::google_sheets_run-->
 ```py
 if __name__ == "__main__":
-    dlt.pipeline(destination="duckdb", full_refresh=True)
+    pipeline = dlt.pipeline(destination="duckdb")
     # see example.secrets.toml to where to put credentials
-
+    sheet_id = "1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580"
+    range_names = ["hidden_columns_merged_cells", "Blank Columns"]
     # "2022-05", "model_metadata"
-    info = google_spreadsheet("11G95oVZjieRhyGqtQMQqlqpxyvWkRXowKE8CtdLtFaU", ["named range", "Second_Copy!1:2"])
+    info = pipeline.run(google_spreadsheet(
+        spreadsheet_id=sheet_id,
+        sheet_names=range_names,
+    ))
     print(list(info))
 ```
 <!--@@@DLT_SNIPPET_END code/google_sheets-snippets.py::google_sheets_run-->
