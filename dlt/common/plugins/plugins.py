@@ -31,6 +31,8 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
         return plugin
 
     def setup_plugins(self, plugins: TPluginArg, pipeline: SupportsPipeline) -> None:
+        if not plugins:
+            return
         if not isinstance(plugins, Iterable):
             plugins = [plugins]
         for p in plugins:
