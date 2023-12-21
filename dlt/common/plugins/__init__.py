@@ -1,2 +1,2 @@
 from .plugins import PluginsContext, with_plugins
-from .reference import PluginConfig, TPluginArg, Plugin
+from .reference import PluginConfig, TPluginArg, CallbackPlugin

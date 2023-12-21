@@ -86,7 +86,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         schema = self.schema
         schema_name = schema.name
         normalize_data_fun = self.schema.normalize_data_item
-
         for item in items:
             items_gen = normalize_data_fun(item, self.load_id, root_table_name)
             try:

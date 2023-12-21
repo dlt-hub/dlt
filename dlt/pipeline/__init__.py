@@ -14,7 +14,7 @@ from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pip
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
 from dlt.pipeline.warnings import credentials_argument_deprecated
-from dlt.common.plugins import Plugin, TPluginArg
+from dlt.common.plugins import TPluginArg
 
 
 @overload

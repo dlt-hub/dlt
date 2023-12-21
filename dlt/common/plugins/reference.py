@@ -6,6 +6,7 @@ from dlt.common.configuration.specs.base_configuration import BaseConfiguration,
 
 
 class SupportsCallbackPlugin:
+
     def on_step_start(self, step: str) -> None:
         pass
 
@@ -36,12 +37,13 @@ class SupportsCallbackPlugin:
     ) -> None:
         pass
 
+
 @configspec
 class PluginConfig(BaseConfiguration):
     pass
 
 
-class Plugin(SupportsCallbackPlugin):
+class Plugin:
     NAME: str = None
     SPEC: Type[PluginConfig] = PluginConfig
 
@@ -50,6 +52,10 @@ class Plugin(SupportsCallbackPlugin):
         assert self.NAME is not None, "Plugin.NAME must be defined"
         assert self.SPEC is not None, "Plugin.SPEC must be defined"
         self.config = resolve_configuration(self.SPEC(), sections=["plugin", self.NAME])
+
+
+class CallbackPlugin(Plugin, SupportsCallbackPlugin):
+    pass
 
 
 TSinglePluginArg = Union[Type[Plugin], Plugin, str]
