@@ -22,6 +22,7 @@ from dlt.common.pipeline import (
     NormalizeInfo,
     PipelineContext,
     StepInfo,
+    StepMetrics,
     SupportsPipeline,
 )
 from dlt.common.source import get_current_pipe_name
@@ -64,7 +65,7 @@ class _PipelineStepTrace(NamedTuple):
     step: TPipelineStep
     started_at: datetime.datetime
     finished_at: datetime.datetime = None
-    step_info: Optional[StepInfo] = None
+    step_info: Optional[StepInfo[StepMetrics]] = None
     """A step outcome info ie. LoadInfo"""
     step_exception: Optional[str] = None
     """For failing steps contains exception string"""

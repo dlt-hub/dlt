@@ -225,6 +225,8 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 hints[name] = hint
 
         return {
+            "started_at": None,
+            "finished_at": None,
             "schema_name": source.schema.name,
             "job_metrics": {job.job_id(): metrics for job, metrics in job_metrics.items()},
             "table_metrics": table_metrics,
@@ -352,9 +354,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         # all load ids got processed, cleanup empty folder
         self.extract_storage.delete_empty_extract_folder()
 
-    def get_step_info(
-        self, pipeline: SupportsPipeline, started_at: datetime = None, completed_at: datetime = None
-    ) -> ExtractInfo:
+    def get_step_info(self, pipeline: SupportsPipeline) -> ExtractInfo:
         load_ids = list(self._load_id_metrics.keys())
         load_packages: List[LoadPackageInfo] = []
         metrics: Dict[str, List[ExtractMetrics]] = {}
@@ -368,6 +368,5 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             describe_extract_data(self.original_data),
             load_ids,
             load_packages,
-            started_at,
             pipeline.first_run,
         )

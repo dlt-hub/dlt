@@ -41,6 +41,7 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnNames, TColumnSchema, TWriteDisposition, TSchemaContract
 from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_storage import LoadPackageInfo
+from dlt.common.time import ensure_pendulum_datetime, precise_time
 from dlt.common.typing import DictStrAny, REPattern, StrAny, SupportsHumanize
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
 from dlt.common.data_writers.writers import DataWriterMetrics, TLoaderFileFormat
@@ -53,24 +54,61 @@ class _StepInfo(NamedTuple):
     """ids of the loaded packages"""
     load_packages: List[LoadPackageInfo]
     """Information on loaded packages"""
-    started_at: datetime.datetime
     first_run: bool
+    started_at: datetime.datetime
+    finished_at: datetime.datetime
 
 
-class StepInfo(SupportsHumanize):
+class StepMetrics(TypedDict):
+    """Metrics for particular package processed in particular pipeline step"""
+
+    started_at: datetime.datetime
+    """Start of package processing"""
+    finished_at: datetime.datetime
+    """End of package processing"""
+
+
+TStepMetricsCo = TypeVar("TStepMetricsCo", bound=StepMetrics, covariant=True)
+
+
+class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
     pipeline: "SupportsPipeline"
+    metrics: Dict[str, List[TStepMetricsCo]]
+    """Metrics per load id. If many sources with the same name were extracted, there will be more than 1 element in the list"""
     loads_ids: List[str]
     """ids of the loaded packages"""
     load_packages: List[LoadPackageInfo]
     """Information on loaded packages"""
-    started_at: datetime.datetime
     first_run: bool
+
+    @property
+    def started_at(self) -> datetime.datetime:
+        """Returns the earliest start date of all collected metrics"""
+        if not self.metrics:
+            return None
+        try:
+            return min(m["started_at"] for l_m in self.metrics.values() for m in l_m)
+        except ValueError:
+            return None
+
+    @property
+    def finished_at(self) -> datetime.datetime:
+        """Returns the latest end date of all collected metrics"""
+        if not self.metrics:
+            return None
+        try:
+            return max(m["finished_at"] for l_m in self.metrics.values() for m in l_m)
+        except ValueError:
+            return None
 
     def asdict(self) -> DictStrAny:
         # to be mixed with NamedTuple
         d: DictStrAny = self._asdict()  # type: ignore
         d["pipeline"] = {"pipeline_name": self.pipeline.pipeline_name}
         d["load_packages"] = [package.asdict() for package in self.load_packages]
+        if self.metrics:
+            d["started_at"] = self.started_at
+            d["finished_at"] = self.finished_at
         return d
 
     def __str__(self) -> str:
@@ -91,7 +129,12 @@ class StepInfo(SupportsHumanize):
 
     def _astuple(self) -> _StepInfo:
         return _StepInfo(
-            self.pipeline, self.loads_ids, self.load_packages, self.started_at, self.first_run
+            self.pipeline,
+            self.loads_ids,
+            self.load_packages,
+            self.first_run,
+            self.started_at,
+            self.finished_at,
         )
 
 
@@ -100,7 +143,7 @@ class ExtractDataInfo(TypedDict):
     data_type: str
 
 
-class ExtractMetrics(TypedDict):
+class ExtractMetrics(StepMetrics):
     schema_name: str
     job_metrics: Dict[str, DataWriterMetrics]
     """Metrics collected per job id during writing of job file"""
@@ -115,19 +158,19 @@ class ExtractMetrics(TypedDict):
 
 
 class _ExtractInfo(NamedTuple):
+    """NamedTuple cannot be part of the derivation chain so we must re-declare all fields to use it as mixin later"""
+
     pipeline: "SupportsPipeline"
     metrics: Dict[str, List[ExtractMetrics]]
-    """Metrics per load id. If many sources with the same name were extracted, there will be more than 1 element in the list"""
     extract_data_info: List[ExtractDataInfo]
     loads_ids: List[str]
     """ids of the loaded packages"""
     load_packages: List[LoadPackageInfo]
     """Information on loaded packages"""
-    started_at: datetime.datetime
     first_run: bool
 
 
-class ExtractInfo(StepInfo, _ExtractInfo):
+class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):  # type: ignore[misc]
     """A tuple holding information on extracted data items. Returned by pipeline `extract` method."""
 
     def asdict(self) -> DictStrAny:
@@ -178,7 +221,10 @@ class ExtractInfo(StepInfo, _ExtractInfo):
         return ""
 
 
-class NormalizeMetrics(TypedDict):
+# reveal_type(ExtractInfo)
+
+
+class NormalizeMetrics(StepMetrics):
     job_metrics: Dict[str, DataWriterMetrics]
     """Metrics collected per job id during writing of job file"""
     table_metrics: Dict[str, DataWriterMetrics]
@@ -192,11 +238,10 @@ class _NormalizeInfo(NamedTuple):
     """ids of the loaded packages"""
     load_packages: List[LoadPackageInfo]
     """Information on loaded packages"""
-    started_at: datetime.datetime
     first_run: bool
 
 
-class NormalizeInfo(StepInfo, _NormalizeInfo):
+class NormalizeInfo(StepInfo[NormalizeMetrics], _NormalizeInfo):  # type: ignore[misc]
     """A tuple holding information on normalized data items. Returned by pipeline `normalize` method."""
 
     @property
@@ -244,8 +289,13 @@ class NormalizeInfo(StepInfo, _NormalizeInfo):
         return msg
 
 
+class LoadMetrics(StepMetrics):
+    pass
+
+
 class _LoadInfo(NamedTuple):
     pipeline: "SupportsPipeline"
+    metrics: Dict[str, List[LoadMetrics]]
     destination_type: str
     destination_displayable_credentials: str
     destination_name: str
@@ -259,11 +309,10 @@ class _LoadInfo(NamedTuple):
     """ids of the loaded packages"""
     load_packages: List[LoadPackageInfo]
     """Information on loaded packages"""
-    started_at: datetime.datetime
     first_run: bool
 
 
-class LoadInfo(StepInfo, _LoadInfo):
+class LoadInfo(StepInfo[LoadMetrics], _LoadInfo):  # type: ignore[misc]
     """A tuple holding the information on recently loaded packages. Returned by pipeline `run` and `load` methods"""
 
     def asdict(self) -> DictStrAny:
@@ -329,8 +378,8 @@ class LoadInfo(StepInfo, _LoadInfo):
         return self.asstr(verbosity=1)
 
 
-TStepMetrics = TypeVar("TStepMetrics")
-TStepInfo = TypeVar("TStepInfo", bound=StepInfo)
+TStepMetrics = TypeVar("TStepMetrics", bound=StepMetrics, covariant=False)
+TStepInfo = TypeVar("TStepInfo", bound=StepInfo[StepMetrics])
 
 
 class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
@@ -338,14 +387,17 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
 
     _current_load_id: str
     _load_id_metrics: Dict[str, List[TStepMetrics]]
+    _current_load_started: float
     """Completed load ids metrics"""
 
     def __init__(self) -> None:
         self._load_id_metrics = {}
         self._current_load_id = None
+        self._current_load_started = None
 
     def _step_info_start_load_id(self, load_id: str) -> None:
         self._current_load_id = load_id
+        self._current_load_started = precise_time()
         self._load_id_metrics.setdefault(load_id, [])
 
     def _step_info_complete_load_id(self, load_id: str, metrics: TStepMetrics) -> None:
@@ -353,8 +405,11 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
             f"Current load id mismatch {self._current_load_id} != {load_id} when completing step"
             " info"
         )
+        metrics["started_at"] = ensure_pendulum_datetime(self._current_load_started)
+        metrics["finished_at"] = ensure_pendulum_datetime(precise_time())
         self._load_id_metrics[load_id].append(metrics)
         self._current_load_id = None
+        self._current_load_started = None
 
     def _step_info_metrics(self, load_id: str) -> List[TStepMetrics]:
         return self._load_id_metrics[load_id]
@@ -368,8 +423,6 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
     def get_step_info(
         self,
         pipeline: "SupportsPipeline",
-        started_at: datetime.datetime = None,
-        completed_at: datetime.datetime = None,
     ) -> TStepInfo:
         """Returns and instance of StepInfo with metrics and package infos"""
         pass

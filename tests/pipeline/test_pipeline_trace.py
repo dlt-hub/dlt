@@ -157,7 +157,6 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     # no jobs
     assert len(package.jobs["new_jobs"]) == 0
     # no metrics - exception happened first
-    print(extract_info.metrics)
     assert len(extract_info.metrics[load_id]) == 0
 
     # normalize

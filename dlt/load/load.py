@@ -8,7 +8,7 @@ import os
 from dlt.common import sleep, logger
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
-from dlt.common.pipeline import LoadInfo, SupportsPipeline, WithStepInfo
+from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
 from dlt.common.schema.utils import get_child_tables, get_top_level_table
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
@@ -47,7 +47,7 @@ from dlt.load.exceptions import (
 )
 
 
-class Load(Runnable[Executor], WithStepInfo[str, LoadInfo]):
+class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
     pool: Executor
 
     @with_config(spec=LoaderConfiguration, sections=(known_sections.LOAD,))
@@ -347,7 +347,7 @@ class Load(Runnable[Executor], WithStepInfo[str, LoadInfo]):
         self.load_storage.complete_load_package(load_id, aborted)
         # TODO: Load must provide a clear interface to get last loads and metrics
         # TODO: get more info ie. was package aborted, schema name etc.
-        self._step_info_complete_load_id(load_id, metrics=None)
+        self._step_info_complete_load_id(load_id, metrics={"started_at": None, "finished_at": None})
         logger.info(
             f"All jobs completed, archiving package {load_id} with aborted set to {aborted}"
         )
@@ -563,12 +563,11 @@ class Load(Runnable[Executor], WithStepInfo[str, LoadInfo]):
     def get_step_info(
         self,
         pipeline: SupportsPipeline,
-        started_at: datetime.datetime = None,
-        completed_at: datetime.datetime = None,
     ) -> LoadInfo:
         # TODO: LoadInfo should hold many datasets
         load_ids = list(self._load_id_metrics.keys())
         load_packages: List[LoadPackageInfo] = []
+        metrics: Dict[str, List[LoadMetrics]] = {}
         # get load packages and dataset_name from the last package
         _dataset_name: str = None
         for load_id in self._load_id_metrics.keys():
@@ -579,9 +578,11 @@ class Load(Runnable[Executor], WithStepInfo[str, LoadInfo]):
                     load_package.schema
                 )
             load_packages.append(load_package)
+            metrics[load_id] = self._step_info_metrics(load_id)
 
         return LoadInfo(
             pipeline,
+            metrics,
             Destination.normalize_type(self.initial_client_config.destination_type),
             str(self.initial_client_config),
             self.initial_client_config.destination_name,
@@ -601,6 +602,5 @@ class Load(Runnable[Executor], WithStepInfo[str, LoadInfo]):
             _dataset_name,
             list(load_ids),
             load_packages,
-            started_at,
             pipeline.first_run,
         )

@@ -80,11 +80,13 @@ from dlt.common.pipeline import (
     LoadInfo,
     NormalizeInfo,
     PipelineContext,
+    StepInfo,
     TStepInfo,
     SupportsPipeline,
     TPipelineLocalState,
     TPipelineState,
     StateInjectableContext,
+    TStepMetrics,
     WithStepInfo,
 )
 from dlt.common.schema import Schema
@@ -396,12 +398,13 @@ class Pipeline(SupportsPipeline):
                 extract_step.commit_packages()
                 return self._get_step_info(extract_step)
         except Exception as exc:
+            step_info = self._get_step_info(extract_step)
             raise PipelineStepFailed(
                 self,
                 "extract",
                 extract_step.current_load_id,
                 exc,
-                self._get_step_info(extract_step),
+                step_info,
             ) from exc
 
     @with_runtime_trace()
@@ -441,12 +444,13 @@ class Pipeline(SupportsPipeline):
                     runner.run_pool(normalize_step.config, normalize_step)
                 return self._get_step_info(normalize_step)
             except Exception as n_ex:
+                step_info = self._get_step_info(normalize_step)
                 raise PipelineStepFailed(
                     self,
                     "normalize",
                     normalize_step.current_load_id,
                     n_ex,
-                    self._get_step_info(normalize_step),
+                    step_info,
                 ) from n_ex
 
     @with_runtime_trace(send_state=True)
@@ -500,8 +504,9 @@ class Pipeline(SupportsPipeline):
             self.first_run = False
             return info
         except Exception as l_ex:
+            step_info = self._get_step_info(load_step)
             raise PipelineStepFailed(
-                self, "load", load_step.current_load_id, l_ex, self._get_step_info(load_step)
+                self, "load", load_step.current_load_id, l_ex, step_info
             ) from l_ex
 
     @with_runtime_trace()
@@ -1315,13 +1320,8 @@ class Pipeline(SupportsPipeline):
         if not self.default_schema_name:
             self._set_default_schema_name(schema)
 
-    def _get_step_info(self, step: WithStepInfo[Any, TStepInfo]) -> TStepInfo:
-        started_at: datetime.datetime = None
-        finished_at: datetime.datetime = None
-        if self._trace:
-            started_at = self._trace.started_at
-            finished_at = self._trace.finished_at
-        return step.get_step_info(self, started_at, finished_at)
+    def _get_step_info(self, step: WithStepInfo[TStepMetrics, TStepInfo]) -> TStepInfo:
+        return step.get_step_info(self)
 
     def _get_state(self) -> TPipelineState:
         try:

@@ -316,6 +316,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         self._step_info_complete_load_id(
             load_id,
             {
+                "started_at": None,
+                "finished_at": None,
                 "job_metrics": {job.job_id(): metrics for job, metrics in job_metrics.items()},
                 "table_metrics": {
                     table_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
@@ -388,8 +390,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
     def get_step_info(
         self,
         pipeline: SupportsPipeline,
-        started_at: datetime.datetime = None,
-        completed_at: datetime.datetime = None,
     ) -> NormalizeInfo:
         load_ids = list(self._load_id_metrics.keys())
         load_packages: List[LoadPackageInfo] = []
@@ -398,6 +398,4 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             load_package = self.get_load_package_info(load_id)
             load_packages.append(load_package)
             metrics[load_id] = self._step_info_metrics(load_id)
-        return NormalizeInfo(
-            pipeline, metrics, load_ids, load_packages, started_at, pipeline.first_run
-        )
+        return NormalizeInfo(pipeline, metrics, load_ids, load_packages, pipeline.first_run)
