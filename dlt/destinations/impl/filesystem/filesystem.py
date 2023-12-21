@@ -136,7 +136,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
                     schema_name=self.schema.name, table_name=table
                 )
                 truncate_prefixes.add(posixpath.join(self.dataset_path, table_prefix))
-            # print(f"TRUNCATE PREFIXES {truncate_prefixes}")
+            # print(f"TRUNCATE PREFIXES {truncate_prefixes} on {truncate_tables}")
 
             for truncate_dir in truncated_dirs:
                 # get files in truncate dirs
@@ -145,16 +145,22 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
                 logger.info(f"Will truncate tables in {truncate_dir}")
                 try:
                     all_files = self.fs_client.ls(truncate_dir, detail=False, refresh=True)
-                    logger.info(f"Found {len(all_files)} CANDIDATE files in {truncate_dir}")
-                    print(f"in truncate dir {truncate_dir}: {all_files}")
+                    # logger.debug(f"Found {len(all_files)} CANDIDATE files in {truncate_dir}")
+                    # print(f"in truncate dir {truncate_dir}: {all_files}")
                     for item in all_files:
                         # check every file against all the prefixes
                         for search_prefix in truncate_prefixes:
                             if item.startswith(search_prefix):
                                 # NOTE: deleting in chunks on s3 does not raise on access denied, file non existing and probably other errors
-                                # logger.info(f"DEL {item}")
-                                print(f"DEL {item}")
-                                self.fs_client.rm(item)
+                                # print(f"DEL {item}")
+                                try:
+                                    # NOTE: must use rm_file to get errors on delete
+                                    self.fs_client.rm_file(item)
+                                except NotImplementedError:
+                                    # not all filesystem implement the above
+                                    self.fs_client.rm(item)
+                                    if self.fs_client.exists(item):
+                                        raise FileExistsError(item)
                 except FileNotFoundError:
                     logger.info(
                         f"Directory or path to truncate tables {truncate_dir} does not exist but it"
