@@ -89,7 +89,7 @@ We'll provide you with access to the resources above if you wish to test locally
 
 Use Python 3.8 for development, as it's the lowest supported version for `dlt`. You'll need `distutils` and `venv`. You may also use `pyenv`, as suggested by [poetry](https://python-poetry.org/docs/managing-environments/).
 
-# Publishing (Maintainers Only)
+## Publishing (Maintainers Only)
 
 This section is intended for project maintainers who have the necessary permissions to manage the project's versioning and publish new releases. If you're a contributor, you can skip this section.
 
@@ -97,30 +97,30 @@ Please read how we [version the library](README.md#adding-as-dependency) first.
 
 The source of truth of the current version is is `pyproject.toml`, and we use `poetry` to manage it.
 
-## Regular release
+### Regular release
 
 Before publishing a new release, make sure to bump the project's version accordingly:
 
 1. Check out the **devel** branch.
 2. Use `poetry version patch` to increase the **patch** version
 3. Run `make build-library` to apply the changes to the project.
-4. Create a new branch, and submit the PR to **devel**
-5. Once the PR with version bump is merged, create another PR from `devel` to `master` and merge it.
+4. Create a new branch, and submit the PR to **devel**. Go through standard process to merge it.
+5. Create a merge PR from `devel` to `master` and merge it.
 
-## Hotfix release
+### Hotfix release
 1. Check out the **master** branch
 2. Use `poetry version patch` to increase the **patch** version
 3. Run `make build-library` to apply the changes to the project.
 4. Create a new branch, and submit the PR to **master** and merge it.
 
-## Pre-release
+### Pre-release
 Occasionally we may release an alpha version directly from the **branch**.
 1. Check out the **devel** branch
 2. Use `poetry version prerelease` to increase the **alpha** version
 3. Run `make build-library` to apply the changes to the project.
 4. Create a new branch, and submit the PR to **devel** and merge it.
 
-## Publishing to PyPI
+### Publishing to PyPI
 
 Once the version has been bumped, follow these steps to publish the new release to PyPI:
 
