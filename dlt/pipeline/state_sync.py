@@ -106,7 +106,6 @@ def load_state_from_destination(pipeline_name: str, client: WithStateSync) -> TP
     if not state:
         return None
     s = decompress_state(state.state)
-    print(f"BEFORE M {s}")
     return migrate_state(pipeline_name, s, s["_state_engine_version"], STATE_ENGINE_VERSION)
 
 

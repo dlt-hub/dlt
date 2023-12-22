@@ -545,6 +545,37 @@ def test_data_tables(schema: Schema, schema_storage: SchemaStorage) -> None:
         [LOADS_TABLE_NAME, VERSION_TABLE_NAME, "event_slot", "event_user", "event_bot"]
     )
     assert [t["name"] for t in schema.data_tables()] == ["event_slot"]
+    assert schema.is_new_table("event_slot") is False
+    assert schema.is_new_table("new_table") is True
+    assert schema.is_new_table("event_user") is True
+    assert len(schema.get_table_columns("event_user")) == 0
+    assert len(schema.get_table_columns("event_user", include_incomplete=True)) == 0
+
+    # add incomplete column
+    schema.update_table(
+        {
+            "name": "event_user",
+            "columns": {"name": {"name": "name", "primary_key": True, "nullable": False}},
+        }
+    )
+    assert [t["name"] for t in schema.data_tables()] == ["event_slot"]
+    assert schema.is_new_table("event_user") is True
+    assert len(schema.get_table_columns("event_user")) == 0
+    assert len(schema.get_table_columns("event_user", include_incomplete=True)) == 1
+
+    # make it complete
+    schema.update_table(
+        {"name": "event_user", "columns": {"name": {"name": "name", "data_type": "text"}}}
+    )
+    assert [t["name"] for t in schema.data_tables()] == ["event_slot", "event_user"]
+    assert [t["name"] for t in schema.data_tables(include_incomplete=True)] == [
+        "event_slot",
+        "event_user",
+        "event_bot",
+    ]
+    assert schema.is_new_table("event_user") is False
+    assert len(schema.get_table_columns("event_user")) == 1
+    assert len(schema.get_table_columns("event_user", include_incomplete=True)) == 1
 
 
 def test_write_disposition(schema_storage: SchemaStorage) -> None:

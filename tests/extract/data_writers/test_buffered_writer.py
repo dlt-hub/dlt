@@ -1,8 +1,11 @@
+import os
+import pytest
+import time
 from typing import Iterator
 
-import pytest
-
 from dlt.common.data_writers.exceptions import BufferedDataWriterClosed
+from dlt.common.data_writers.writers import DataWriterMetrics
+from dlt.common.destination.capabilities import TLoaderFileFormat
 from dlt.common.schema.utils import new_column
 from dlt.common.storages.file_storage import FileStorage
 
@@ -11,8 +14,9 @@ from dlt.common.typing import DictStrAny
 from tests.common.data_writers.utils import ALL_WRITERS, get_writer
 
 
-def test_write_no_item() -> None:
-    with get_writer() as writer:
+@pytest.mark.parametrize("format_", ALL_WRITERS)
+def test_write_no_item(format_: TLoaderFileFormat) -> None:
+    with get_writer(_format=format_) as writer:
         pass
     assert writer.closed
     with pytest.raises(BufferedDataWriterClosed):
@@ -175,11 +179,105 @@ def test_writer_optional_schema(disable_compression: bool) -> None:
         writer.write_data_item([{"col1": 1}], None)
 
 
-# @pytest.mark.parametrize(
-#     "disable_compression", [True, False], ids=["no_compression", "compression"]
-# )
-# def test_write_empty_file() -> None:
-#     pass
+@pytest.mark.parametrize(
+    "disable_compression", [True, False], ids=["no_compression", "compression"]
+)
+@pytest.mark.parametrize("format_", ALL_WRITERS - {"arrow"})
+def test_write_empty_file(disable_compression: bool, format_: TLoaderFileFormat) -> None:
+    # just single schema is enough
+    c1 = new_column("col1", "bigint")
+    t1 = {"col1": c1}
+    now = time.time()
+    with get_writer(format_, disable_compression=disable_compression) as writer:
+        metrics = writer.write_empty_file(t1)
+        assert len(writer.closed_files) == 1
+        assert os.path.abspath(metrics.file_path)
+        assert os.path.isfile(metrics.file_path)
+        assert metrics.created <= metrics.last_modified
+        assert metrics.created >= now
+        assert metrics.items_count == 0
+        assert metrics.file_size >= 0
+        assert writer.closed_files[0] == metrics
 
 
-# def test_import_file()
+@pytest.mark.parametrize("format_", ALL_WRITERS)
+def test_import_file(format_: TLoaderFileFormat) -> None:
+    now = time.time()
+    with get_writer(format_) as writer:
+        # won't destroy the original
+        metrics = writer.import_file(
+            "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
+        )
+        assert len(writer.closed_files) == 1
+        assert os.path.isfile(metrics.file_path)
+        assert writer.closed_files[0] == metrics
+        assert metrics.created <= metrics.last_modified
+        assert metrics.created >= now
+        assert metrics.items_count == 1
+        assert metrics.file_size == 231
+
+
+@pytest.mark.parametrize(
+    "disable_compression", [True, False], ids=["no_compression", "compression"]
+)
+@pytest.mark.parametrize("format_", ALL_WRITERS - {"arrow"})
+def test_gather_metrics(disable_compression: bool, format_: TLoaderFileFormat) -> None:
+    now = time.time()
+    c1 = new_column("col1", "bigint")
+    t1 = {"col1": c1}
+    with get_writer(
+        format_, disable_compression=disable_compression, buffer_max_items=2, file_max_items=2
+    ) as writer:
+        time.sleep(0.55)
+        count = writer.write_data_item([{"col1": 182812}, {"col1": -1}], t1)
+        assert count == 2
+        # file rotated
+        assert len(writer.closed_files) == 1
+        metrics = writer.closed_files[0]
+        assert metrics.items_count == 2
+        assert metrics.last_modified - metrics.created >= 0.55
+        assert metrics.created >= now
+        time.sleep(0.35)
+        count = writer.write_data_item([{"col1": 182812}, {"col1": -1}, {"col1": 182811}], t1)
+        assert count == 3
+        # file rotated
+        assert len(writer.closed_files) == 2
+        metrics_2 = writer.closed_files[1]
+        assert metrics_2.items_count == 3
+        assert metrics_2.created >= metrics.last_modified
+        assert metrics_2.last_modified - metrics_2.created >= 0.35
+
+    assert len(writer.closed_files) == 2
+
+
+@pytest.mark.parametrize(
+    "disable_compression", [True, False], ids=["no_compression", "compression"]
+)
+@pytest.mark.parametrize("format_", ALL_WRITERS - {"arrow"})
+def test_special_write_rotates(disable_compression: bool, format_: TLoaderFileFormat) -> None:
+    c1 = new_column("col1", "bigint")
+    t1 = {"col1": c1}
+    with get_writer(
+        format_, disable_compression=disable_compression, buffer_max_items=100, file_max_items=100
+    ) as writer:
+        writer.write_data_item([{"col1": 182812}, {"col1": -1}], t1)
+        assert len(writer.closed_files) == 0
+        # writing empty rotates existing file
+        metrics = writer.write_empty_file(t1)
+        assert len(writer.closed_files) == 2
+        assert writer.closed_files[1] == metrics
+        assert writer.closed_files[0].items_count == 2
+
+        # also import rotates
+        assert writer.write_data_item({"col1": 182812}, t1) == 1
+        metrics = writer.import_file(
+            "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
+        )
+        assert len(writer.closed_files) == 4
+        assert writer.closed_files[3] == metrics
+        assert writer.closed_files[2].items_count == 1
+
+        assert writer.write_data_item({"col1": 182812}, t1) == 1
+        metrics = writer.import_file(
+            "tests/extract/cases/imported.any", DataWriterMetrics("", 1, 231, 0, 0)
+        )

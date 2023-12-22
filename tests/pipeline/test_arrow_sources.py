@@ -14,7 +14,7 @@ from dlt.common.libs.pyarrow import NameNormalizationClash
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 
-from tests.cases import arrow_table_all_data_types, TArrowFormat
+from tests.cases import arrow_format_from_pandas, arrow_table_all_data_types, TArrowFormat
 from tests.utils import preserve_environ
 
 
@@ -318,3 +318,36 @@ def test_normalize_with_dlt_columns(item_type: TArrowFormat):
 
     # schema = pipeline.default_schema
     # assert schema.tables['some_data']['columns']['static_int']['data_type'] == 'bigint'
+
+
+@pytest.mark.parametrize("item_type", ["pandas", "table", "record_batch"])
+def test_empty_arrow(item_type: TArrowFormat) -> None:
+    os.environ["RESTORE_FROM_DESTINATION"] = "False"
+    os.environ["DESTINATION__LOADER_FILE_FORMAT"] = "parquet"
+
+    # always return pandas
+    item, _ = arrow_table_all_data_types("pandas", num_rows=1)
+    item_resource = dlt.resource(item, name="items", write_disposition="replace")
+
+    pipeline_name = "arrow_" + uniq_id()
+    pipeline = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    # E & L
+    info = pipeline.extract(item_resource)
+    load_id = info.loads_ids[0]
+    assert info.metrics[load_id][0]["table_metrics"]["items"].items_count == 1
+    assert len(pipeline.list_extracted_resources()) == 1
+    norm_info = pipeline.normalize()
+    assert norm_info.row_counts["items"] == 1
+
+    # load 0 elements to replace
+    empty_df = pd.DataFrame(columns=item.columns)
+
+    item_resource = dlt.resource(
+        arrow_format_from_pandas(empty_df, item_type), name="items", write_disposition="replace"
+    )
+    info = pipeline.extract(item_resource)
+    load_id = info.loads_ids[0]
+    assert info.metrics[load_id][0]["table_metrics"]["items"].items_count == 0
+    assert len(pipeline.list_extracted_resources()) == 1
+    norm_info = pipeline.normalize()
+    assert norm_info.row_counts["items"] == 0

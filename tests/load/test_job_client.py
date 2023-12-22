@@ -307,7 +307,9 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
     for tbl_name in list(schema_2.tables):
         if tbl_name.startswith("_dlt"):
             continue
+        # rename the table properly
         schema_2.tables[tbl_name + "_2"] = schema_2.tables.pop(tbl_name)
+        schema_2.tables[tbl_name + "_2"]["name"] = tbl_name + "_2"
 
     client.schema = schema_2
     client.schema.bump_version()

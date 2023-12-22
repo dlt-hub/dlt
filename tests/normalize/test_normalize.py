@@ -277,7 +277,11 @@ def test_multiprocessing_row_counting(
     assert step_info.row_counts["events__payload__pull_request__requested_reviewers"] == 24
     # check if single load id
     assert len(step_info.loads_ids) == 1
-    assert step_info.metrics[step_info.loads_ids[0]]["row_counts"] == step_info.row_counts
+    row_counts = {
+        t: m.items_count
+        for t, m in step_info.metrics[step_info.loads_ids[0]][0]["table_metrics"].items()
+    }
+    assert row_counts == step_info.row_counts
 
 
 @pytest.mark.parametrize("caps", ALL_CAPABILITIES, indirect=True)

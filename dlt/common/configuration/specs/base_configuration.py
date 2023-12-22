@@ -14,12 +14,11 @@ from typing import (
     MutableMapping,
     Type,
     TYPE_CHECKING,
-    get_args,
-    get_origin,
     overload,
     ClassVar,
     TypeVar,
 )
+from typing_extensions import get_args, get_origin
 from functools import wraps
 
 if TYPE_CHECKING:

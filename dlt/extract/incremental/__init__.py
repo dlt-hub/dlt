@@ -1,5 +1,6 @@
 import os
-from typing import Generic, ClassVar, Any, Optional, get_args, get_origin, Type, Dict
+from typing import Generic, ClassVar, Any, Optional, Type, Dict
+from typing_extensions import get_origin, get_args
 import inspect
 from functools import wraps
 
@@ -458,16 +459,16 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
 
             if p.name in bound_args.arguments:
                 explicit_value = bound_args.arguments[p.name]
-                if isinstance(explicit_value, Incremental):
+                if explicit_value is Incremental.EMPTY or p.default is Incremental.EMPTY:
+                    # drop incremental
+                    pass
+                elif isinstance(explicit_value, Incremental):
                     # Explicit Incremental instance is merged with default
                     # allowing e.g. to only update initial_value/end_value but keeping default cursor_path
                     if isinstance(p.default, Incremental):
                         new_incremental = p.default.merge(explicit_value)
                     else:
                         new_incremental = explicit_value.copy()
-                elif explicit_value is None:
-                    # new_incremental not set!
-                    pass
                 elif isinstance(p.default, Incremental):
                     # Passing only initial value explicitly updates the default instance
                     new_incremental = p.default.copy()

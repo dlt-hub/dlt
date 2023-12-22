@@ -1,4 +1,5 @@
 import gzip
+import time
 from typing import List, IO, Any, Optional, Type, TypeVar, Generic
 
 from dlt.common.typing import TDataItem, TDataItems
@@ -71,6 +72,8 @@ class BufferedDataWriter(Generic[TWriter]):
         self._buffered_items_count: int = 0
         self._writer: TWriter = None
         self._file: IO[Any] = None
+        self._created: float = None
+        self._last_modified: float = None
         self._closed = False
         try:
             self._rotate_file()
@@ -114,6 +117,8 @@ class BufferedDataWriter(Generic[TWriter]):
         # flush if max buffer exceeded
         if self._buffered_items_count >= self.buffer_max_items:
             self._flush_items()
+        # set last modification date
+        self._last_modified = time.time()
         # rotate the file if max_bytes exceeded
         if self._file:
             # rotate on max file size
@@ -124,20 +129,41 @@ class BufferedDataWriter(Generic[TWriter]):
                 self._rotate_file()
         return new_rows_count
 
-    def write_empty_file(self, columns: TTableSchemaColumns) -> None:
-        """Writes empty file: only header and footer without actual items"""
+    def write_empty_file(self, columns: TTableSchemaColumns) -> DataWriterMetrics:
+        """Writes empty file: only header and footer without actual items. Closed the
+        empty file and returns metrics. Mind that header and footer will be written."""
+        self._rotate_file()
         if columns is not None:
             self._current_columns = dict(columns)
-        self._flush_items(allow_empty_file=True)
+        self._last_modified = time.time()
+        return self._rotate_file(allow_empty_file=True)
 
-    def import_file(self, file_path: str, metrics: DataWriterMetrics) -> None:
+    def import_file(self, file_path: str, metrics: DataWriterMetrics) -> DataWriterMetrics:
+        """Import a file from `file_path` into items storage under a new file name. Does not check
+        the imported file format. Uses counts from `metrics` as a base. Logically closes the imported file
+
+        The preferred import method is a hard link to avoid copying the data. If current filesystem does not
+        support it, a regular copy is used.
+        """
         # TODO: we should separate file storage from other storages. this creates circular deps
         from dlt.common.storages import FileStorage
 
         self._rotate_file()
         FileStorage.link_hard_with_fallback(file_path, self._file_name)
-        self.closed_files.append(metrics._replace(file_path=self._file_name))
+        self._last_modified = time.time()
+        metrics = metrics._replace(
+            file_path=self._file_name,
+            created=self._created,
+            last_modified=self._last_modified or self._created,
+        )
+        self.closed_files.append(metrics)
+        # reset current file
         self._file_name = None
+        self._last_modified = None
+        self._created = None
+        # get ready for a next one
+        self._rotate_file()
+        return metrics
 
     def close(self) -> None:
         self._ensure_open()
@@ -154,11 +180,13 @@ class BufferedDataWriter(Generic[TWriter]):
     def __exit__(self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: Any) -> None:
         self.close()
 
-    def _rotate_file(self) -> None:
-        self._flush_and_close_file()
+    def _rotate_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
+        metrics = self._flush_and_close_file(allow_empty_file)
         self._file_name = (
             self.file_name_template % new_file_id() + "." + self._file_format_spec.file_extension
         )
+        self._created = time.time()
+        return metrics
 
     def _flush_items(self, allow_empty_file: bool = False) -> None:
         if self._buffered_items_count > 0 or allow_empty_file:
@@ -178,22 +206,31 @@ class BufferedDataWriter(Generic[TWriter]):
             self._buffered_items.clear()
             self._buffered_items_count = 0
 
-    def _flush_and_close_file(self) -> None:
+    def _flush_and_close_file(self, allow_empty_file: bool = False) -> DataWriterMetrics:
         # if any buffered items exist, flush them
-        self._flush_items()
+        self._flush_items(allow_empty_file)
         # if writer exists then close it
-        if self._writer:
-            # write the footer of a file
-            self._writer.write_footer()
-            self._file.flush()
-            # add file written to the list so we can commit all the files later
-            self.closed_files.append(
-                DataWriterMetrics(self._file_name, self._writer.items_count, self._file.tell())
-            )
-            self._file.close()
-            self._writer = None
-            self._file = None
-            self._file_name = None
+        if not self._writer:
+            return None
+        # write the footer of a file
+        self._writer.write_footer()
+        self._file.flush()
+        # add file written to the list so we can commit all the files later
+        metrics = DataWriterMetrics(
+            self._file_name,
+            self._writer.items_count,
+            self._file.tell(),
+            self._created,
+            self._last_modified,
+        )
+        self.closed_files.append(metrics)
+        self._file.close()
+        self._writer = None
+        self._file = None
+        self._file_name = None
+        self._created = None
+        self._last_modified = None
+        return metrics
 
     def _ensure_open(self) -> None:
         if self._closed:

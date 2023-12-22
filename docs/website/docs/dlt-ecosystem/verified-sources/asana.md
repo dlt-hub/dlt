@@ -8,7 +8,7 @@ keywords: [asana api, verified source, asana]
 
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
-[Join our Slack community](https://dlthub-community.slack.com/join/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g)
+[Join our Slack community](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
@@ -163,7 +163,7 @@ To fetch all workspaces from Asana, the function uses the
 of all fields joined by commas. A generator is used with the `yield from` statement to provide each
 workspace from the iterator obtained. This enables the workspaces to be consumed one by one.
 
-### Resource-transformer `prjects`
+### Resource-transformer `projects`
 
 In addition to these source and resource functions, there are seven transformer functions. For
 various endpoints like “projects”, “sections”, “tags”, “tasks”, “stories”, “teams” and “users”. The

@@ -1,5 +1,6 @@
 import os
 import datetime  # noqa: 251
+import itertools
 from typing import Callable, List, Dict, NamedTuple, Sequence, Tuple, Set, Optional
 from concurrent.futures import Future, Executor
 
@@ -8,6 +9,7 @@ from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.configuration.container import Container
 from dlt.common.data_writers import DataWriterMetrics
+from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals
@@ -32,9 +34,10 @@ from dlt.common.pipeline import (
 )
 from dlt.common.storages.exceptions import LoadPackageNotFound
 from dlt.common.storages.load_package import LoadPackageInfo
-from dlt.common.utils import RowCounts, chunks, merge_row_counts, increase_row_count
+from dlt.common.utils import chunks
 
 from dlt.normalize.configuration import NormalizeConfiguration
+from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.normalize.items_normalizers import (
     ParquetItemsNormalizer,
     JsonLItemsNormalizer,
@@ -44,9 +47,7 @@ from dlt.normalize.items_normalizers import (
 
 class TWorkerRV(NamedTuple):
     schema_updates: List[TSchemaUpdate]
-    total_items: int
     file_metrics: List[DataWriterMetrics]
-    row_counts: RowCounts
 
 
 # normalize worker wrapping function signature
@@ -104,8 +105,6 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
     ) -> TWorkerRV:
         destination_caps = config.destination_capabilities
         schema_updates: List[TSchemaUpdate] = []
-        total_items = 0
-        row_counts: RowCounts = {}
         item_normalizers: Dict[TLoaderFileFormat, ItemsNormalizer] = {}
 
         def _create_load_storage(file_format: TLoaderFileFormat) -> LoadStorage:
@@ -145,11 +144,10 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                 )
                 return norm
 
+            parsed_file_name: ParsedLoadJobFileName = None
             try:
                 root_tables: Set[str] = set()
-                populated_root_tables: Set[str] = set()
                 for extracted_items_file in extracted_items_files:
-                    line_no: int = 0
                     parsed_file_name = ParsedLoadJobFileName.parse(extracted_items_file)
                     # normalize table name in case the normalization changed
                     # NOTE: this is the best we can do, until a full lineage information is in the schema
@@ -162,48 +160,22 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                         f"Processing extracted items in {extracted_items_file} in load_id"
                         f" {load_id} with table name {root_table_name} and schema {schema.name}"
                     )
-                    partial_updates, items_count, r_counts = normalizer(
-                        extracted_items_file, root_table_name
-                    )
+                    partial_updates = normalizer(extracted_items_file, root_table_name)
                     schema_updates.extend(partial_updates)
-                    total_items += items_count
-                    merge_row_counts(row_counts, r_counts)
-                    if items_count > 0:
-                        populated_root_tables.add(root_table_name)
-                        logger.debug(
-                            f"Processed total {line_no + 1} lines from file {extracted_items_file},"
-                            f" total items {total_items}"
-                        )
-                    # make sure base tables are all covered
-                    increase_row_count(row_counts, root_table_name, 0)
-                # write empty jobs for tables without items if table exists in schema
-                empty_tables = root_tables - populated_root_tables
-                if empty_tables:
-                    # get first normalizer created
-                    normalizer = list(item_normalizers.values())[0]
-                    for table_name in root_tables - populated_root_tables:
-                        if table_name not in schema.tables:
-                            continue
-                        logger.debug(f"Writing empty job for table {table_name}")
-                        columns = schema.get_table_columns(table_name)
-                        normalizer.load_storage.write_empty_items_file(
-                            load_id, schema.name, table_name, columns
-                        )
-            except Exception:
-                # TODO: raise a wrapper exception with job_id, load_id, line_no and schema name
-                logger.exception(
-                    f"Exception when processing file {extracted_items_file}, line {line_no}"
-                )
-                raise
+                    logger.debug(f"Processed file {extracted_items_file}")
+            except Exception as exc:
+                job_id = parsed_file_name.job_id() if parsed_file_name else ""
+                raise NormalizeJobFailed(load_id, job_id, str(exc)) from exc
             finally:
                 for normalizer in item_normalizers.values():
                     normalizer.load_storage.close_writers(load_id)
 
-        logger.info(f"Processed total {total_items} items in {len(extracted_items_files)} files")
         writer_metrics: List[DataWriterMetrics] = []
         for normalizer in item_normalizers.values():
-            writer_metrics.extend(normalizer.load_storage.closed_files())
-        return TWorkerRV(schema_updates, total_items, writer_metrics, row_counts)
+            norm_metrics = normalizer.load_storage.closed_files(load_id)
+            writer_metrics.extend(norm_metrics)
+        logger.info(f"Processed all items in {len(extracted_items_files)} files")
+        return TWorkerRV(schema_updates, writer_metrics)
 
     def update_table(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
         for schema_update in schema_updates:
@@ -248,7 +220,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             for files in chunk_files
         ]
         # return stats
-        summary = TWorkerRV([], 0, [], {})
+        summary = TWorkerRV([], [])
         # push all tasks to queue
         tasks = [
             (self.pool.submit(Normalize.w_normalize_files, *params), params)
@@ -268,11 +240,12 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                         # gather schema from all manifests, validate consistency and combine
                         self.update_table(schema, result[0])
                         summary.schema_updates.extend(result.schema_updates)
+                        summary.file_metrics.extend(result.file_metrics)
                         # update metrics
                         self.collector.update("Files", len(result.file_metrics))
-                        self.collector.update("Items", result.total_items)
-                        # merge row counts
-                        merge_row_counts(summary.row_counts, result.row_counts)
+                        self.collector.update(
+                            "Items", sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count
+                        )
                     except CannotCoerceColumnException as exc:
                         # schema conflicts resulting from parallel executing
                         logger.warning(
@@ -306,14 +279,16 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         )
         self.update_table(schema, result.schema_updates)
         self.collector.update("Files", len(result.file_metrics))
-        self.collector.update("Items", result.total_items)
+        self.collector.update(
+            "Items", sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count
+        )
         return result
 
     def spool_files(
         self, load_id: str, schema: Schema, map_f: TMapFuncType, files: Sequence[str]
     ) -> None:
         # process files in parallel or in single thread, depending on map_f
-        schema_updates, _, _, row_counts = map_f(schema, load_id, files)
+        schema_updates, writer_metrics = map_f(schema, load_id, files)
         # remove normalizer specific info
         for table in schema.tables.values():
             table.pop("x-normalizer", None)  # type: ignore[typeddict-item]
@@ -337,7 +312,21 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         self.normalize_storage.extracted_packages.delete_package(load_id)
         # log and update metrics
         logger.info(f"Extracted package {load_id} processed")
-        self._step_info_complete_load_id(load_id, {"row_counts": row_counts})
+        job_metrics = {ParsedLoadJobFileName.parse(m.file_path): m for m in writer_metrics}
+        self._step_info_complete_load_id(
+            load_id,
+            {
+                "started_at": None,
+                "finished_at": None,
+                "job_metrics": {job.job_id(): metrics for job, metrics in job_metrics.items()},
+                "table_metrics": {
+                    table_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
+                    for table_name, metrics in itertools.groupby(
+                        job_metrics.items(), lambda pair: pair[0].table_name
+                    )
+                },
+            },
+        )
 
     def spool_schema_files(self, load_id: str, schema: Schema, files: Sequence[str]) -> str:
         # normalized files will go here before being atomically renamed
@@ -401,16 +390,12 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
     def get_step_info(
         self,
         pipeline: SupportsPipeline,
-        started_at: datetime.datetime = None,
-        completed_at: datetime.datetime = None,
     ) -> NormalizeInfo:
         load_ids = list(self._load_id_metrics.keys())
         load_packages: List[LoadPackageInfo] = []
-        metrics: Dict[str, NormalizeMetrics] = {}
+        metrics: Dict[str, List[NormalizeMetrics]] = {}
         for load_id in self._load_id_metrics.keys():
             load_package = self.get_load_package_info(load_id)
             load_packages.append(load_package)
             metrics[load_id] = self._step_info_metrics(load_id)
-        return NormalizeInfo(
-            pipeline, metrics, load_ids, load_packages, started_at, pipeline.first_run
-        )
+        return NormalizeInfo(pipeline, metrics, load_ids, load_packages, pipeline.first_run)
