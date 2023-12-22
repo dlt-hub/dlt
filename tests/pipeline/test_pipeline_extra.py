@@ -183,7 +183,7 @@ def test_extract_pydantic_models() -> None:
 
     pipeline.extract(users())
 
-    storage = ExtractStorage(pipeline._normalize_storage_config)
+    storage = ExtractStorage(pipeline._normalize_storage_config())
     expect_extracted_file(
         storage,
         pipeline.default_schema_name,

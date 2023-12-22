@@ -34,7 +34,9 @@ from tests.utils import start_test_telemetry
 from tests.common.configuration.utils import toml_providers, environment
 
 
-def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
+def test_create_trace(toml_providers: ConfigProvidersContext, environment: Any) -> None:
+    dlt.secrets["load.delete_completed_jobs"] = True
+
     @dlt.source
     def inject_tomls(
         api_type=dlt.config.value,
@@ -97,6 +99,10 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
 
     # check packages
     assert len(extract_info.load_packages) == 1
+    # two jobs
+    print(extract_info.load_packages[0])
+    assert len(extract_info.load_packages[0].jobs["new_jobs"]) == 2
+    assert extract_info.load_packages[0].state == "extracted"
 
     # check config trace
     resolved = _find_resolved_value(trace.resolved_config_values, "api_type", [])
@@ -183,7 +189,10 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     assert "data" in norm_metrics["table_metrics"]
 
     # check packages
-    assert len(extract_info.load_packages) == 1
+    assert len(norm_info.load_packages) == 1
+    # two jobs
+    assert len(norm_info.load_packages[0].jobs["new_jobs"]) == 2
+    assert norm_info.load_packages[0].state == "normalized"
 
     # load
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
@@ -194,6 +203,14 @@ def test_create_trace(toml_providers: ConfigProvidersContext) -> None:
     step = trace.steps[3]
     assert step.step == "load"
     assert step.step_info is load_info
+    load_info = step.step_info  # type: ignore[assignment]
+
+    # check packages
+    assert len(load_info.load_packages) == 1
+    # two jobs
+    assert load_info.load_packages[0].state == "loaded"
+    assert len(load_info.load_packages[0].jobs["completed_jobs"]) == 2
+
     resolved = _find_resolved_value(trace.resolved_config_values, "completed_prob", [])
     assert resolved.is_secret_hint is False
     assert resolved.value == "1.0"
@@ -245,6 +262,12 @@ def test_save_load_trace() -> None:
     }
     # reactivate the pipeline
     pipeline.activate()
+
+    # load trace and check if all elements are present
+    loaded_trace = load_trace(pipeline.working_dir)
+    print(loaded_trace.asstr(2))
+    assert len(trace.steps) == 4
+    assert loaded_trace.asdict() == trace.asdict()
 
     # exception also saves trace
     @dlt.resource

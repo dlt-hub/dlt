@@ -306,8 +306,6 @@ class Pipeline(SupportsPipeline):
         self._pipeline_storage: FileStorage = None
         self._schema_storage: LiveSchemaStorage = None
         self._schema_storage_config: SchemaStorageConfiguration = None
-        self._normalize_storage_config: NormalizeStorageConfiguration = None
-        self._load_storage_config: LoadStorageConfiguration = None
         self._trace: PipelineTrace = None
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
@@ -369,7 +367,10 @@ class Pipeline(SupportsPipeline):
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
         # create extract storage to which all the sources will be extracted
         extract_step = Extract(
-            self._schema_storage, self._normalize_storage_config, self.collector, original_data=data
+            self._schema_storage,
+            self._normalize_storage_config(),
+            self.collector,
+            original_data=data,
         )
         try:
             with self._maybe_destination_capabilities():
@@ -428,8 +429,8 @@ class Pipeline(SupportsPipeline):
         normalize_config = NormalizeConfiguration(
             workers=workers,
             _schema_storage_config=self._schema_storage_config,
-            _normalize_storage_config=self._normalize_storage_config,
-            _load_storage_config=self._load_storage_config,
+            _normalize_storage_config=self._normalize_storage_config(),
+            _load_storage_config=self._load_storage_config(),
         )
         # run with destination context
         with self._maybe_destination_capabilities(loader_file_format=loader_file_format):
@@ -486,7 +487,7 @@ class Pipeline(SupportsPipeline):
         load_config = LoaderConfiguration(
             workers=workers,
             raise_on_failed_jobs=raise_on_failed_jobs,
-            _load_storage_config=self._load_storage_config,
+            _load_storage_config=self._load_storage_config(),
         )
         load_step: Load = Load(
             self.destination,
@@ -931,7 +932,7 @@ class Pipeline(SupportsPipeline):
             raise SqlClientNotAvailable(self.pipeline_name, self.destination.destination_name)
 
     def _get_normalize_storage(self) -> NormalizeStorage:
-        return NormalizeStorage(True, self._normalize_storage_config)
+        return NormalizeStorage(True, self._normalize_storage_config())
 
     def _get_load_storage(self) -> LoadStorage:
         caps = self._get_destination_capabilities()
@@ -939,8 +940,16 @@ class Pipeline(SupportsPipeline):
             True,
             caps.preferred_loader_file_format,
             caps.supported_loader_file_formats,
-            self._load_storage_config,
+            self._load_storage_config(),
         )
+
+    def _normalize_storage_config(self) -> NormalizeStorageConfiguration:
+        return NormalizeStorageConfiguration(
+            normalize_volume_path=os.path.join(self.working_dir, "normalize")
+        )
+
+    def _load_storage_config(self) -> LoadStorageConfiguration:
+        return LoadStorageConfiguration(load_volume_path=os.path.join(self.working_dir, "load"))
 
     def _init_working_dir(self, pipeline_name: str, pipelines_dir: str) -> None:
         self.pipeline_name = pipeline_name
@@ -964,12 +973,8 @@ class Pipeline(SupportsPipeline):
             export_schema_path=export_schema_path,
         )
         # create default configs
-        self._normalize_storage_config = NormalizeStorageConfiguration(
-            normalize_volume_path=os.path.join(self.working_dir, "normalize")
-        )
-        self._load_storage_config = LoadStorageConfiguration(
-            load_volume_path=os.path.join(self.working_dir, "load"),
-        )
+        self._normalize_storage_config()
+        self._load_storage_config()
 
         # are we running again?
         has_state = self._pipeline_storage.has_file(Pipeline.STATE_FILE)
@@ -1504,7 +1509,7 @@ class Pipeline(SupportsPipeline):
         if should_extract and extract_state:
             data = state_resource(state)
             extract_ = extract or Extract(
-                self._schema_storage, self._normalize_storage_config, original_data=data
+                self._schema_storage, self._normalize_storage_config(), original_data=data
             )
             self._extract_source(extract_, data_to_sources(data, self)[0], 1, 1)
             state["_local"]["_last_extracted_at"] = pendulum.now()
