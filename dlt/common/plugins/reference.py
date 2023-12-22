@@ -1,8 +1,8 @@
 from typing import Type, Union, List, Any
 from dlt.common.typing import TDataItem
-from dlt.common.schema.typing import TSchemaContract
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
+from dlt.common.schema.exceptions import DataValidationError
 
 
 class SupportsCallbackPlugin:
@@ -30,9 +30,7 @@ class SupportsCallbackPlugin:
     #
     def on_schema_contract_violation(
         self,
-        schema_contract: TSchemaContract,
-        table_name: str,
-        violating_item: TDataItem,
+        error: DataValidationError,
         **kwargs: Any
     ) -> None:
         pass

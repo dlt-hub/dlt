@@ -6,6 +6,7 @@ from dlt.common.plugins import CallbackPlugin, PluginConfig
 from dlt.common.configuration.specs.base_configuration import configspec
 
 
+
 @configspec
 class MyPluginConfig(PluginConfig):
     second_name: str
@@ -21,6 +22,7 @@ class MyPlugin(CallbackPlugin):
         return item
 
 os.environ["PLUGIN__MY_PLUGIN__SECOND_NAME"] = "some_new_value"
+
 
 # Create a dlt pipeline that will load
 # chess player data to the DuckDB destination

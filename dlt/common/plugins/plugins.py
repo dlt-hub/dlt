@@ -8,6 +8,7 @@ from dlt.common.configuration.specs import configspec
 from functools import wraps
 from .reference import SupportsCallbackPlugin, Plugin, TSinglePluginArg, TPluginArg, CallbackPlugin
 from dlt.common.configuration.container import Container
+from dlt.common.schema.exceptions import DataValidationError
 
 
 @configspec
@@ -78,13 +79,11 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
     #
     def on_schema_contract_violation(
         self,
-        schema_contract: TSchemaContract,
-        table_name: str,
-        violating_item: TDataItem,
+        error: DataValidationError,
         **kwargs: Any,
     ) -> None:
         for p in self._callback_plugins:
-            p.on_schema_contract_violation(schema_contract, table_name, violating_item, **kwargs)
+            p.on_schema_contract_violation(error, **kwargs)
 
 
 def with_plugins() -> Callable[[TFun], TFun]:
