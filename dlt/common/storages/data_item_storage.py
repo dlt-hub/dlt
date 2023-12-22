@@ -15,7 +15,7 @@ class DataItemStorage(ABC):
         self.buffered_writers: Dict[str, BufferedDataWriter[DataWriter]] = {}
         super().__init__(*args)
 
-    def get_writer(
+    def _get_writer(
         self, load_id: str, schema_name: str, table_name: str
     ) -> BufferedDataWriter[DataWriter]:
         # unique writer id
@@ -36,16 +36,17 @@ class DataItemStorage(ABC):
         item: TDataItems,
         columns: TTableSchemaColumns,
     ) -> int:
-        writer = self.get_writer(load_id, schema_name, table_name)
+        writer = self._get_writer(load_id, schema_name, table_name)
         # write item(s)
         return writer.write_data_item(item, columns)
 
     def write_empty_items_file(
         self, load_id: str, schema_name: str, table_name: str, columns: TTableSchemaColumns
-    ) -> None:
-        """Writes empty file: only header and footer without actual items"""
-        writer = self.get_writer(load_id, schema_name, table_name)
-        writer.write_empty_file(columns)
+    ) -> DataWriterMetrics:
+        """Writes empty file: only header and footer without actual items. Closed the
+        empty file and returns metrics. Mind that header and footer will be written."""
+        writer = self._get_writer(load_id, schema_name, table_name)
+        return writer.write_empty_file(columns)
 
     def import_items_file(
         self,
@@ -54,10 +55,15 @@ class DataItemStorage(ABC):
         table_name: str,
         file_path: str,
         metrics: DataWriterMetrics,
-    ) -> None:
-        """Imports external file from `file_path`. Requires external metrics to be passed as internal data writer is not used."""
-        writer = self.get_writer(load_id, schema_name, table_name)
-        writer.import_file(file_path, metrics)
+    ) -> DataWriterMetrics:
+        """Import a file from `file_path` into items storage under a new file name. Does not check
+        the imported file format. Uses counts from `metrics` as a base. Logically closes the imported file
+
+        The preferred import method is a hard link to avoid copying the data. If current filesystem does not
+        support it, a regular copy is used.
+        """
+        writer = self._get_writer(load_id, schema_name, table_name)
+        return writer.import_file(file_path, metrics)
 
     def close_writers(self, load_id: str) -> None:
         # flush and close all files
@@ -69,12 +75,20 @@ class DataItemStorage(ABC):
                 )
                 writer.close()
 
-    def closed_files(self) -> List[DataWriterMetrics]:
+    def closed_files(self, load_id: str) -> List[DataWriterMetrics]:
+        """Return metrics for all fully processed (closed) files"""
         files: List[DataWriterMetrics] = []
-        for writer in self.buffered_writers.values():
-            files.extend(writer.closed_files)
+        for name, writer in self.buffered_writers.items():
+            if name.startswith(load_id):
+                files.extend(writer.closed_files)
 
         return files
+
+    def remove_closed_files(self, load_id: str) -> None:
+        """Remove metrics for closed files in a given `load_id`"""
+        for name, writer in self.buffered_writers.items():
+            if name.startswith(load_id):
+                writer.closed_files.clear()
 
     def _write_temp_job_file(
         self,

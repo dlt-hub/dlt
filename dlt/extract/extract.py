@@ -1,12 +1,15 @@
 import contextlib
 from collections.abc import Sequence as C_Sequence
 from datetime import datetime  # noqa: 251
+import itertools
 from typing import List, Set, Dict, Optional, Set, Any
+import yaml
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import ConfigSectionContext, known_sections
 from dlt.common.data_writers import TLoaderFileFormat
+from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
 from dlt.common.pipeline import (
     ExtractDataInfo,
     ExtractInfo,
@@ -25,6 +28,8 @@ from dlt.common.schema.typing import (
     TWriteDisposition,
 )
 from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, SchemaStorage
+from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.utils import get_callable_name, get_full_class_name
 
 from dlt.extract.decorators import SourceSchemaInjectableContext
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
@@ -170,6 +175,66 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         self.original_data: Any = original_data
         super().__init__()
 
+    def _compute_metrics(self, load_id: str, source: DltSource) -> ExtractMetrics:
+        # map by job id
+        job_metrics = {
+            ParsedLoadJobFileName.parse(m.file_path): m
+            for m in self.extract_storage.closed_files(load_id)
+        }
+        # aggregate by table name
+        table_metrics = {
+            table_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
+            for table_name, metrics in itertools.groupby(
+                job_metrics.items(), lambda pair: pair[0].table_name
+            )
+        }
+        # aggregate by resource name
+        resource_metrics = {
+            resource_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
+            for resource_name, metrics in itertools.groupby(
+                table_metrics.items(), lambda pair: source.schema.get_table(pair[0])["resource"]
+            )
+        }
+        # collect resource hints
+        clean_hints: Dict[str, Dict[str, Any]] = {}
+        for resource in source.selected_resources.values():
+            # cleanup the hints
+            hints = clean_hints[resource.name] = {}
+            resource_hints = resource._hints or resource.compute_table_schema()
+
+            for name, hint in resource_hints.items():
+                if hint is None or name in ["validator"]:
+                    continue
+                if name == "incremental":
+                    # represent incremental as dictionary (it derives from BaseConfiguration)
+                    hints[name] = dict(hint)  # type: ignore[call-overload]
+                    continue
+                if name == "original_columns":
+                    # this is original type of the columns ie. Pydantic model
+                    hints[name] = get_full_class_name(hint)
+                    continue
+                if callable(hint):
+                    hints[name] = get_callable_name(hint)
+                    continue
+                if name == "columns":
+                    if hint:
+                        hints[name] = yaml.dump(
+                            hint, allow_unicode=True, default_flow_style=False, sort_keys=False
+                        )
+                    continue
+                hints[name] = hint
+
+        return {
+            "started_at": None,
+            "finished_at": None,
+            "schema_name": source.schema.name,
+            "job_metrics": {job.job_id(): metrics for job, metrics in job_metrics.items()},
+            "table_metrics": table_metrics,
+            "resource_metrics": resource_metrics,
+            "dag": source.resources.selected_dag,
+            "hints": clean_hints,
+        }
+
     def _extract_single_source(
         self,
         load_id: str,
@@ -221,7 +286,8 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     last_item_format = item_format
 
                 # find defined resources that did not yield any pipeitems and create empty jobs for them
-                data_tables = {t["name"]: t for t in schema.data_tables()}
+                # NOTE: do not include incomplete tables. those tables have never seen data so we do not need to reset them
+                data_tables = {t["name"]: t for t in schema.data_tables(include_incomplete=False)}
                 tables_by_resources = utils.group_tables_by_resource(data_tables)
                 for resource in source.resources.selected.values():
                     if (
@@ -243,7 +309,10 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             # flush all buffered writers
             self.extract_storage.close_writers(load_id)
             # gather metrics
-            self._step_info_complete_load_id(load_id, {"schema_name": schema.name})
+            self._step_info_complete_load_id(load_id, self._compute_metrics(load_id, source))
+            # remove the metrics of files processed in this extract run
+            # NOTE: there may be more than one extract run per load id: ie. the resource and then dlt state
+            self.extract_storage.remove_closed_files(load_id)
 
     def extract(
         self,
@@ -280,17 +349,15 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         # commit load packages
         for load_id, metrics in self._load_id_metrics.items():
             self.extract_storage.commit_new_load_package(
-                load_id, self.schema_storage[metrics["schema_name"]]
+                load_id, self.schema_storage[metrics[0]["schema_name"]]
             )
         # all load ids got processed, cleanup empty folder
         self.extract_storage.delete_empty_extract_folder()
 
-    def get_step_info(
-        self, pipeline: SupportsPipeline, started_at: datetime = None, completed_at: datetime = None
-    ) -> ExtractInfo:
+    def get_step_info(self, pipeline: SupportsPipeline) -> ExtractInfo:
         load_ids = list(self._load_id_metrics.keys())
         load_packages: List[LoadPackageInfo] = []
-        metrics: Dict[str, ExtractMetrics] = {}
+        metrics: Dict[str, List[ExtractMetrics]] = {}
         for load_id in self._load_id_metrics.keys():
             load_package = self.extract_storage.get_load_package_info(load_id)
             load_packages.append(load_package)
@@ -301,6 +368,5 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             describe_extract_data(self.original_data),
             load_ids,
             load_packages,
-            started_at,
             pipeline.first_run,
         )

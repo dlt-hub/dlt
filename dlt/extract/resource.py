@@ -36,7 +36,7 @@ from dlt.extract.typing import (
     ValidateItem,
 )
 from dlt.extract.pipe import Pipe, ManagedPipeIterator, TPipeStep
-from dlt.extract.hints import DltResourceHints, TTableSchemaTemplate
+from dlt.extract.hints import DltResourceHints, TResourceHints
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired,
@@ -72,7 +72,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def __init__(
         self,
         pipe: Pipe,
-        table_schema_template: TTableSchemaTemplate,
+        hints: TResourceHints,
         selected: bool,
         incremental: IncrementalResourceWrapper = None,
         section: str = None,
@@ -86,7 +86,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         if incremental and not self.incremental:
             self.add_step(incremental)
         self.source_name = None
-        super().__init__(table_schema_template)
+        super().__init__(hints)
 
     @classmethod
     def from_data(
@@ -94,7 +94,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         data: Any,
         name: str = None,
         section: str = None,
-        table_schema_template: TTableSchemaTemplate = None,
+        hints: TResourceHints = None,
         selected: bool = True,
         data_from: Union["DltResource", Pipe] = None,
         incremental: IncrementalResourceWrapper = None,
@@ -106,9 +106,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             return data
 
         if isinstance(data, Pipe):
-            return cls(
-                data, table_schema_template, selected, incremental=incremental, section=section
-            )
+            return cls(data, hints, selected, incremental=incremental, section=section)
 
         if callable(data):
             name = name or get_callable_name(data)
@@ -141,7 +139,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             pipe = Pipe.from_data(name, data, parent=parent_pipe)
             return cls(
                 pipe,
-                table_schema_template,
+                hints,
                 selected,
                 incremental=incremental,
                 section=section,
@@ -337,8 +335,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.insert_step(item_transform, insert_at)
         return self
 
-    def set_template(self, table_schema_template: TTableSchemaTemplate) -> None:
-        super().set_template(table_schema_template)
+    def set_hints(self, table_schema_template: TResourceHints) -> None:
+        super().set_hints(table_schema_template)
         incremental = self.incremental
         # try to late assign incremental
         if table_schema_template.get("incremental") is not None:
@@ -453,7 +451,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         # incremental and parent are already in the pipe (if any)
         return DltResource(
             pipe,
-            deepcopy(self._table_schema_template),
+            deepcopy(self._hints),
             selected=self.selected,
             section=self.section,
         )

@@ -94,7 +94,14 @@ You can configure a DuckDB destination with [secret / config values](../../gener
 ```toml
 destination.duckdb.credentials=duckdb:///_storage/test_quack.duckdb
 ```
+**duckdb://** url above creates a **relative** path to `_storage/test_quack.duckdb`. To define **absolute** path you need to specify four slashes ie. `duckdb:////_storage/test_quack.duckdb`.
 
+A few special connection strings are supported:
+* **:pipeline:** creates the database in the working directory of the pipeline with name `quack.duckdb`.
+* **:memory:** creates in memory database. This may be useful for testing.
+
+
+### Additional configuration
 Unique indexes may be created during loading if the following config value is set:
 ```toml
 [destination.duckdb]

@@ -1,7 +1,8 @@
 import os
-from typing import Dict
+from typing import Dict, List
 
 from dlt.common.data_writers import TLoaderFileFormat
+from dlt.common.data_writers.writers import DataWriterMetrics
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.storages import (
@@ -86,6 +87,16 @@ class ExtractStorage(NormalizeStorage):
     def close_writers(self, load_id: str) -> None:
         for storage in self._item_storages.values():
             storage.close_writers(load_id)
+
+    def closed_files(self, load_id: str) -> List[DataWriterMetrics]:
+        files = []
+        for storage in self._item_storages.values():
+            files.extend(storage.closed_files(load_id))
+        return files
+
+    def remove_closed_files(self, load_id: str) -> None:
+        for storage in self._item_storages.values():
+            storage.remove_closed_files(load_id)
 
     def commit_new_load_package(self, load_id: str, schema: Schema) -> None:
         self.new_packages.save_schema(load_id, schema)

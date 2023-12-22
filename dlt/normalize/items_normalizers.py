@@ -1,4 +1,4 @@
-from typing import List, Dict, Set, Tuple, Any
+from typing import List, Dict, Set, Any
 from abc import abstractmethod
 
 from dlt.common import json, logger
@@ -13,7 +13,6 @@ from dlt.common.storages import (
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny, TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
-from dlt.common.utils import RowCounts, merge_row_counts, increase_row_count
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers.utils import generate_dlt_ids
 
@@ -43,9 +42,7 @@ class ItemsNormalizer:
         self.config = config
 
     @abstractmethod
-    def __call__(
-        self, extracted_items_file: str, root_table_name: str
-    ) -> Tuple[List[TSchemaUpdate], int, RowCounts]: ...
+    def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]: ...
 
 
 class JsonLItemsNormalizer(ItemsNormalizer):
@@ -77,13 +74,11 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
     def _normalize_chunk(
         self, root_table_name: str, items: List[TDataItem], may_have_pua: bool
-    ) -> Tuple[TSchemaUpdate, int, RowCounts]:
+    ) -> TSchemaUpdate:
         column_schemas = self._column_schemas
         schema_update: TSchemaUpdate = {}
         schema = self.schema
         schema_name = schema.name
-        items_count = 0
-        row_counts: RowCounts = {}
         normalize_data_fun = self.schema.normalize_data_item
 
         for item in items:
@@ -179,41 +174,39 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     self.load_storage.write_data_item(
                         self.load_id, schema_name, table_name, row, columns
                     )
-                    # count total items
-                    # TODO: take counts and bytes from buffered file writers instead of taking those here
-                    items_count += 1
-                    increase_row_count(row_counts, table_name, 1)
             except StopIteration:
                 pass
             signals.raise_if_signalled()
-        return schema_update, items_count, row_counts
+        return schema_update
 
     def __call__(
         self,
         extracted_items_file: str,
         root_table_name: str,
-    ) -> Tuple[List[TSchemaUpdate], int, RowCounts]:
+    ) -> List[TSchemaUpdate]:
         schema_updates: List[TSchemaUpdate] = []
-        row_counts: RowCounts = {}
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
         ) as f:
             # enumerate jsonl file line by line
-            items_count = 0
-            line: bytes
+            line: bytes = None
             for line_no, line in enumerate(f):
                 items: List[TDataItem] = json.loadb(line)
-                partial_update, items_count, r_counts = self._normalize_chunk(
-                    root_table_name, items, may_have_pua(line)
-                )
+                partial_update = self._normalize_chunk(root_table_name, items, may_have_pua(line))
                 schema_updates.append(partial_update)
-                merge_row_counts(row_counts, r_counts)
+                logger.debug(f"Processed {line_no} lines from file {extracted_items_file}")
+            if line is None and root_table_name in self.schema.tables:
+                self.load_storage.write_empty_items_file(
+                    self.load_id,
+                    self.schema.name,
+                    root_table_name,
+                    self.schema.get_table_columns(root_table_name),
+                )
                 logger.debug(
-                    f"Processed {line_no} items from file {extracted_items_file}, items"
-                    f" {items_count}"
+                    f"No lines in file {extracted_items_file}, written empty load job file"
                 )
 
-        return schema_updates, items_count, row_counts
+        return schema_updates
 
 
 class ParquetItemsNormalizer(ItemsNormalizer):
@@ -221,7 +214,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
 
     def _write_with_dlt_columns(
         self, extracted_items_file: str, root_table_name: str, add_load_id: bool, add_dlt_id: bool
-    ) -> Tuple[List[TSchemaUpdate], int]:
+    ) -> List[TSchemaUpdate]:
         new_columns: List[Any] = []
         schema = self.schema
         load_id = self.load_id
@@ -281,22 +274,23 @@ class ParquetItemsNormalizer(ItemsNormalizer):
                 items_count += batch.num_rows
                 if as_py:
                     # Write python rows to jsonl, insert-values, etc... storage
-                    self.load_storage.write_data_item(
-                        load_id,
-                        schema.name,
-                        root_table_name,
-                        batch.to_pylist(),
-                        schema.get_table_columns(root_table_name),
-                    )
-                else:
-                    self.load_storage.write_data_item(
-                        load_id,
-                        schema.name,
-                        root_table_name,
-                        batch,
-                        schema.get_table_columns(root_table_name),
-                    )
-        return [schema_update], items_count
+                    batch = batch.to_pylist()
+                self.load_storage.write_data_item(
+                    load_id,
+                    schema.name,
+                    root_table_name,
+                    batch,
+                    schema.get_table_columns(root_table_name),
+                )
+        if items_count == 0:
+            self.load_storage.write_empty_items_file(
+                load_id,
+                schema.name,
+                root_table_name,
+                self.schema.get_table_columns(root_table_name),
+            )
+
+        return [schema_update]
 
     def _fix_schema_precisions(self, root_table_name: str) -> List[TSchemaUpdate]:
         """Reduce precision of timestamp columns if needed, according to destination caps"""
@@ -316,26 +310,24 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             {root_table_name: [schema.update_table({"name": root_table_name, "columns": new_cols})]}
         ]
 
-    def __call__(
-        self, extracted_items_file: str, root_table_name: str
-    ) -> Tuple[List[TSchemaUpdate], int, RowCounts]:
+    def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
         base_schema_update = self._fix_schema_precisions(root_table_name)
 
         add_dlt_id = self.config.parquet_normalizer.add_dlt_id
         add_dlt_load_id = self.config.parquet_normalizer.add_dlt_load_id
 
         if add_dlt_id or add_dlt_load_id or self.load_storage.loader_file_format != "arrow":
-            schema_update, items_count = self._write_with_dlt_columns(
+            schema_update = self._write_with_dlt_columns(
                 extracted_items_file, root_table_name, add_dlt_load_id, add_dlt_id
             )
-            return base_schema_update + schema_update, items_count, {root_table_name: items_count}
+            return base_schema_update + schema_update
 
         from dlt.common.libs.pyarrow import get_row_count
 
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "rb"
         ) as f:
-            file_metrics = DataWriterMetrics(extracted_items_file, get_row_count(f), f.tell())
+            file_metrics = DataWriterMetrics(extracted_items_file, get_row_count(f), f.tell(), 0, 0)
 
         parts = ParsedLoadJobFileName.parse(extracted_items_file)
         self.load_storage.import_items_file(
@@ -346,8 +338,4 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             file_metrics,
         )
 
-        return (
-            base_schema_update,
-            file_metrics.items_count,
-            {root_table_name: file_metrics.items_count},
-        )
+        return base_schema_update

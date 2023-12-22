@@ -126,10 +126,12 @@ try:
   pipeline.run()
 except as pip_ex:
   if pip_ex.step == "normalize":
-    if isinstance(pip_ex.__context__, DataValidationError):
+    if isinstance(pip_ex.__context__.__context__, DataValidationError):
       ...
   if pip_ex.step == "extract":
-    # wrapped in resource exception
+    if isinstance(pip_ex.__context__, DataValidationError):
+      ...
+
 
 ```
 

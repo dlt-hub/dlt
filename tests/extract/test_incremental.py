@@ -584,6 +584,24 @@ def test_json_path_cursor() -> None:
 
 
 def test_remove_incremental_with_explicit_none() -> None:
+    @dlt.resource(standalone=True)
+    def some_data(
+        last_timestamp: dlt.sources.incremental[float] = dlt.sources.incremental(
+            "id", initial_value=9
+        ),
+    ):
+        first_idx = last_timestamp.start_value or 0
+        for idx in range(first_idx, 10):
+            yield {"id": idx}
+
+    # keeps initial value
+    assert list(some_data()) == [{"id": 9}]
+
+    # removes any initial value
+    assert len(list(some_data(last_timestamp=None))) == 10
+
+
+def test_remove_incremental_with_incremental_empty() -> None:
     @dlt.resource
     def some_data_optional(
         last_timestamp: Optional[dlt.sources.incremental[float]] = dlt.sources.incremental(
@@ -594,7 +612,8 @@ def test_remove_incremental_with_explicit_none() -> None:
         yield 1
 
     # we disable incremental by typing the argument as optional
-    assert list(some_data_optional(last_timestamp=None)) == [1]
+    # if not disabled it would fail on "item.timestamp" not found
+    assert list(some_data_optional(last_timestamp=dlt.sources.incremental.EMPTY)) == [1]
 
     @dlt.resource(standalone=True)
     def some_data(
@@ -605,7 +624,7 @@ def test_remove_incremental_with_explicit_none() -> None:
 
     # we'll get the value error
     with pytest.raises(ValueError):
-        assert list(some_data(last_timestamp=None)) == [1]
+        assert list(some_data(last_timestamp=dlt.sources.incremental.EMPTY)) == [1]
 
 
 @pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)

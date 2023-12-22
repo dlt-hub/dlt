@@ -19,6 +19,7 @@ ALL_WRITERS: Set[Literal[TLoaderFileFormat]] = {
 def get_writer(
     _format: TLoaderFileFormat = "insert_values",
     buffer_max_items: int = 10,
+    file_max_items: int = 5000,
     disable_compression: bool = False,
 ) -> BufferedDataWriter[DataWriter]:
     caps = DestinationCapabilitiesContext.generic_capabilities()
@@ -28,6 +29,7 @@ def get_writer(
         _format,
         file_template,
         buffer_max_items=buffer_max_items,
+        file_max_items=file_max_items,
         disable_compression=disable_compression,
         _caps=caps,
     )

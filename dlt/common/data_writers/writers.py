@@ -1,6 +1,18 @@
 import abc
 from dataclasses import dataclass
-from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, NamedTuple
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    NamedTuple,
+    overload,
+)
 
 from dlt.common import json
 from dlt.common.configuration import configspec, known_sections, with_config
@@ -27,6 +39,22 @@ class DataWriterMetrics(NamedTuple):
     file_path: str
     items_count: int
     file_size: int
+    created: float
+    last_modified: float
+
+    def __add__(self, other: Tuple[object, ...], /) -> Tuple[object, ...]:
+        if isinstance(other, DataWriterMetrics):
+            return DataWriterMetrics(
+                "",  # path is not known
+                self.items_count + other.items_count,
+                self.file_size + other.file_size,
+                min(self.created, other.created),
+                max(self.last_modified, other.last_modified),
+            )
+        return NotImplemented
+
+
+EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0)
 
 
 class DataWriter(abc.ABC):
@@ -290,7 +318,7 @@ class ParquetDataWriter(DataWriter):
 class ArrowWriter(ParquetDataWriter):
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         # Schema will be written as-is from the arrow table
-        pass
+        self._column_schema = columns_schema
 
     def write_data(self, rows: Sequence[Any]) -> None:
         from dlt.common.libs.pyarrow import pyarrow
@@ -309,6 +337,11 @@ class ArrowWriter(ParquetDataWriter):
                 raise ValueError(f"Unsupported type {type(row)}")
             # count rows that got written
             self.items_count += row.num_rows
+
+    def write_footer(self) -> None:
+        if not self.writer:
+            raise NotImplementedError("Arrow Writer does not support writing empty files")
+        return super().write_footer()
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:

@@ -151,10 +151,12 @@ def test_replace_disposition(
         int(x["id"]) for x in table_dicts["items__sub_items__sub_sub_items"]
     }
 
-    # we need to test that destination tables including child tables are cleared when we yield none from the resource
+    # we need to test that destination tables including child tables are cleared if we do not yield anything
     @dlt.resource(name="items", write_disposition="replace", primary_key="id")
     def load_items_none():
-        yield
+        # do not yield even once
+        if False:
+            yield
 
     info = pipeline.run(
         [load_items_none, append_items], loader_file_format=destination_config.file_format
@@ -313,6 +315,16 @@ def test_replace_table_clearing(
     def yield_none():
         yield
 
+    @dlt.resource(name="main_resource", write_disposition="replace", primary_key="id")
+    def no_yield():
+        # this will not yield even once
+        if False:
+            yield
+
+    @dlt.resource(name="main_resource", write_disposition="replace", primary_key="id")
+    def yield_empty_list():
+        yield []
+
     # regular call
     pipeline.run(
         [items_with_subitems, static_items], loader_file_format=destination_config.file_format
@@ -352,19 +364,20 @@ def test_replace_table_clearing(
     assert pipeline.last_trace.last_normalize_info.row_counts == {"items": 1, "other_items": 1}
 
     # see if yield none clears everything
-    pipeline.run(items_with_subitems, loader_file_format=destination_config.file_format)
-    pipeline.run(yield_none, loader_file_format=destination_config.file_format)
-    table_counts = load_table_counts(
-        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-    )
-    assert table_counts.get("items", 0) == 0
-    assert table_counts.get("items__sub_items", 0) == 0
-    assert table_counts.get("other_items", 0) == 0
-    assert table_counts.get("other_items__sub_items", 0) == 0
-    assert table_counts["static_items"] == 1
-    assert table_counts["static_items__sub_items"] == 2
-    # check trace
-    assert pipeline.last_trace.last_normalize_info.row_counts == {"items": 0, "other_items": 0}
+    for empty_resource in [yield_none, no_yield, yield_empty_list]:
+        pipeline.run(items_with_subitems, loader_file_format=destination_config.file_format)
+        pipeline.run(empty_resource, loader_file_format=destination_config.file_format)
+        table_counts = load_table_counts(
+            pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
+        )
+        assert table_counts.get("items", 0) == 0
+        assert table_counts.get("items__sub_items", 0) == 0
+        assert table_counts.get("other_items", 0) == 0
+        assert table_counts.get("other_items__sub_items", 0) == 0
+        assert table_counts["static_items"] == 1
+        assert table_counts["static_items__sub_items"] == 2
+        # check trace
+        assert pipeline.last_trace.last_normalize_info.row_counts == {"items": 0, "other_items": 0}
 
     # see if yielding something next to other none entries still goes into db
     pipeline.run(items_with_subitems_yield_none, loader_file_format=destination_config.file_format)
