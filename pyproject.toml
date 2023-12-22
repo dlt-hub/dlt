@@ -111,6 +111,8 @@ pytest = "^6.2.4"
 mypy = "^1.6.1"
 flake8 = "^5.0.0"
 bandit = "^1.7.0"
+black = "^23.7.0"
+isort = "^5.12.0"
 flake8-bugbear = "^22.0.0"
 pytest-pythonpath = "^0.7.3"
 pytest-order = "^1.0.0"
@@ -141,8 +143,6 @@ enlighten = "^1.11.2"
 alive-progress = "^3.1.1"
 pydantic = ">2"
 pandas = ">2"
-black = "^23.7.0"
-isort = "^5.12.0"
 
 [tool.poetry.group.airflow]
 optional = true
@@ -173,6 +173,7 @@ connectorx="0.3.1"
 dbt-core=">=1.2.0"
 dbt-duckdb=">=1.2.0"
 pymongo = ">=4.3.3"
+pandas = ">2"
 
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
 line-length = 100
