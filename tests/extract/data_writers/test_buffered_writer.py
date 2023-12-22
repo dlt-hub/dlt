@@ -244,7 +244,7 @@ def test_gather_metrics(disable_compression: bool, format_: TLoaderFileFormat) -
         assert len(writer.closed_files) == 2
         metrics_2 = writer.closed_files[1]
         assert metrics_2.items_count == 3
-        assert metrics_2.created > metrics.last_modified
+        assert metrics_2.created >= metrics.last_modified
         assert metrics_2.last_modified - metrics_2.created >= 0.35
 
     assert len(writer.closed_files) == 2

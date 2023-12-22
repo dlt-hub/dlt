@@ -1,5 +1,6 @@
 import os
-from typing import Generic, ClassVar, Any, Optional, get_args, get_origin, Type, Dict
+from typing import Generic, ClassVar, Any, Optional, Type, Dict
+from typing_extensions import get_origin, get_args
 import inspect
 from functools import wraps
 

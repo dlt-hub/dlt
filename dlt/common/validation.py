@@ -1,5 +1,6 @@
 import functools
-from typing import Callable, Any, Type, get_type_hints, get_args
+from typing import Callable, Any, Type
+from typing_extensions import get_type_hints, get_args
 
 from dlt.common.exceptions import DictValidationException
 from dlt.common.typing import (

@@ -1,4 +1,4 @@
-from __future__ import annotations
+from __future__ import annotations as _annotations
 import inspect
 from copy import copy
 from typing import (
@@ -10,10 +10,9 @@ from typing import (
     Type,
     Union,
     TypeVar,
-    get_origin,
-    get_args,
     Any,
 )
+from typing_extensions import Annotated, get_args, get_origin
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import DataValidationError
@@ -23,6 +22,7 @@ from dlt.common.typing import (
     TDataItem,
     TDataItems,
     extract_union_types,
+    is_annotated,
     is_optional_type,
     extract_inner_type,
     is_list_generic_type,
@@ -155,7 +155,7 @@ def get_extra_from_model(model: Type[BaseModel]) -> str:
     if _PYDANTIC_2:
         default_extra = model.model_config.get("extra", default_extra)
     else:
-        default_extra = model.Config.extra or default_extra  # type: ignore[attr-defined]
+        default_extra = str(model.Config.extra) or default_extra  # type: ignore[attr-defined]
     return default_extra
 
 
@@ -190,14 +190,20 @@ def apply_schema_contract_to_model(
         config = copy(model.model_config)
         config["extra"] = extra  # type: ignore[typeddict-item]
     else:
+        from pydantic.config import prepare_config
+
         config = copy(model.Config)  # type: ignore[attr-defined]
         config.extra = extra  # type: ignore[attr-defined]
+        prepare_config(config, model.Config.__name__)  # type: ignore[attr-defined]
 
     _child_models: Dict[int, Type[BaseModel]] = {}
 
     def _process_annotation(t_: Type[Any]) -> Type[Any]:
         """Recursively recreates models with applied schema contract"""
-        if is_list_generic_type(t_):
+        if is_annotated(t_):
+            a_t, *a_m = get_args(t_)
+            return Annotated[_process_annotation(a_t), a_m]  # type: ignore
+        elif is_list_generic_type(t_):
             l_t: Type[Any] = get_args(t_)[0]
             try:
                 return get_origin(t_)[_process_annotation(l_t)]  # type: ignore[no-any-return]
@@ -227,10 +233,16 @@ def apply_schema_contract_to_model(
                 return child_model
         return t_
 
+    def _rebuild_annotated(f: Any) -> Type[Any]:
+        if hasattr(f, "rebuild_annotation"):
+            return f.rebuild_annotation()  # type: ignore[no-any-return]
+        else:
+            return f.annotation  # type: ignore[no-any-return]
+
     new_model: Type[_TPydanticModel] = create_model(  # type: ignore[call-overload]
         model.__name__ + "Extra" + extra.title(),
         __config__=config,
-        **{n: (_process_annotation(f.annotation), f) for n, f in model.__fields__.items()},  # type: ignore[attr-defined]
+        **{n: (_process_annotation(_rebuild_annotated(f)), f) for n, f in model.__fields__.items()},  # type: ignore[attr-defined]
     )
     # pass dlt config along
     dlt_config = getattr(model, "dlt_config", None)

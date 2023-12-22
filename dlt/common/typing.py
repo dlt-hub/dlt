@@ -23,11 +23,9 @@ from typing import (
     TYPE_CHECKING,
     Union,
     runtime_checkable,
-    get_args,
-    get_origin,
     IO,
 )
-from typing_extensions import TypeAlias, ParamSpec, Concatenate, Annotated
+from typing_extensions import TypeAlias, ParamSpec, Concatenate, Annotated, get_args, get_origin
 
 from dlt.common.pendulum import timedelta, pendulum
 
@@ -152,6 +150,13 @@ def is_typeddict(t: Type[Any]) -> bool:
     if t := extract_type_if_modifier(t):
         return is_typeddict(t)
     return False
+
+
+def is_annotated(ann_type: Any) -> bool:
+    try:
+        return issubclass(get_origin(ann_type), Annotated)  # type: ignore[arg-type]
+    except TypeError:
+        return False
 
 
 def is_list_generic_type(t: Type[Any]) -> bool:

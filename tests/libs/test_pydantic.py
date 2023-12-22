@@ -13,6 +13,7 @@ from typing import (
     Dict,
     Any,
 )
+from typing_extensions import Annotated, get_args, get_origin
 from enum import Enum
 
 from datetime import datetime, date, time  # noqa: I251
@@ -243,12 +244,12 @@ def test_nested_model_config_propagation() -> None:
 
     class User(BaseModel):
         user_id: int
-        name: str
-        created_at: datetime
+        name: Annotated[str, "PII", "name"]
+        created_at: Optional[datetime]
         labels: List[str]
         user_label: UserLabel
         user_labels: List[UserLabel]
-        address: UserAddress
+        address: Annotated[UserAddress, "PII", "address"]
         unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
 
         dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
@@ -256,8 +257,20 @@ def test_nested_model_config_propagation() -> None:
     model_freeze = apply_schema_contract_to_model(User, "evolve", "freeze")
     from typing import get_type_hints
 
-    print(get_type_hints(model_freeze))
-    print(get_type_hints(model_freeze.model_fields["address"].annotation))
+    # print(model_freeze.__fields__)
+    # extra is modified
+    assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressExtraAllow"  # type: ignore[index]
+    # annotated is preserved
+    assert issubclass(get_origin(model_freeze.__fields__["address"].rebuild_annotation()), Annotated)  # type: ignore[arg-type, index]
+    # UserAddress is converted to UserAddressAllow only once
+    assert model_freeze.__fields__["address"].annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
+
+    # print(User.__fields__)
+    # print(User.__fields__["name"].annotation)
+    # print(model_freeze.model_config)
+    # print(model_freeze.__fields__)
+    # print(model_freeze.__fields__["name"].annotation)
+    # print(model_freeze.__fields__["address"].annotation)
 
 
 def test_item_list_validation() -> None:
