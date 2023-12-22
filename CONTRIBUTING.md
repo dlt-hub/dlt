@@ -30,9 +30,21 @@ When you're ready to contribute, follow these steps:
 3. Write your code and tests.
 4. Lint your code by running `make lint` and test common modules with `make test-common`.
 5. If you're working on destination code, contact us to get access to test destinations.
-6. Create a pull request targeting the `devel` branch of the main repository.
+6. Create a pull request targeting the **devel** branch of the main repository.
 
 **Note:** for some special cases, you'd need to contact us to create a branch in this repository (not fork). See below.
+
+### Active branches
+
+We use **devel** (which is our default Github branch) to prepare a next release of `dlt`. We accept all regular contributions there (including most of the bugfixes).
+
+We use **master** branch for hot fixes (including documentation) that needs to be released out of normal schedule.
+
+On the release day, **devel** branch is merged into **master**. All releases of `dlt` happen only from the **master**.
+
+### Submitting a hotfix
+We'll fix critical bugs and release `dlt` our of the schedule. Follow the regular procedure, but make your PR against **master** branch. Please ping us on Slack if you do it.
+
 ### Testing with Github Actions
 We enable our CI to run tests for contributions from forks. All the tests are run, but not all destinations are available due to credentials. Currently
 only the `duckdb` and `postgres` are available to forks.
@@ -77,33 +89,42 @@ We'll provide you with access to the resources above if you wish to test locally
 
 Use Python 3.8 for development, as it's the lowest supported version for `dlt`. You'll need `distutils` and `venv`. You may also use `pyenv`, as suggested by [poetry](https://python-poetry.org/docs/managing-environments/).
 
-# Publishing (Maintainers Only)
+## Publishing (Maintainers Only)
 
 This section is intended for project maintainers who have the necessary permissions to manage the project's versioning and publish new releases. If you're a contributor, you can skip this section.
 
-## Project Versioning
+Please read how we [version the library](README.md#adding-as-dependency) first.
 
-`dlt` follows the semantic versioning with the [`MAJOR.MINOR.PATCH`](https://peps.python.org/pep-0440/#semantic-versioning) pattern. Currently, we are using **pre-release versioning** with the major version being 0.
+The source of truth of the current version is is `pyproject.toml`, and we use `poetry` to manage it.
 
-- `minor` version change means breaking changes
-- `patch` version change means new features that should be backward compatible
-- any suffix change, e.g., `post10` -> `post11`, is considered a patch
+### Regular release
 
 Before publishing a new release, make sure to bump the project's version accordingly:
 
-1. Modify `pyproject.toml` to add a `post` label or increase post release number ie: `version = "0.2.6.post1"`
-2. Run `make build-library` to apply the changes to the project.
-3. The source of the version is `pyproject.toml`, and we use `poetry` to manage it.
+1. Check out the **devel** branch.
+2. Use `poetry version patch` to increase the **patch** version
+3. Run `make build-library` to apply the changes to the project.
+4. Create a new branch, and submit the PR to **devel**. Go through standard process to merge it.
+5. Create a merge PR from `devel` to `master` and merge it.
 
-For pre-release please replace step (1) with:
-1. Make sure you are not bumping post-release version. There are reports of `poetry` not working in that case.
-2. Use `poetry version prerelease` to bump the pre-release version.
+### Hotfix release
+1. Check out the **master** branch
+2. Use `poetry version patch` to increase the **patch** version
+3. Run `make build-library` to apply the changes to the project.
+4. Create a new branch, and submit the PR to **master** and merge it.
 
-## Publishing to PyPI
+### Pre-release
+Occasionally we may release an alpha version directly from the **branch**.
+1. Check out the **devel** branch
+2. Use `poetry version prerelease` to increase the **alpha** version
+3. Run `make build-library` to apply the changes to the project.
+4. Create a new branch, and submit the PR to **devel** and merge it.
+
+### Publishing to PyPI
 
 Once the version has been bumped, follow these steps to publish the new release to PyPI:
 
-1. Ensure that you are on the `devel` branch and have the latest code that has passed all tests on CI.
+1. Ensure that you are on the **master** branch and have the latest code that has passed all tests on CI.
 2. Verify the current version with `poetry version`.
 3. Obtain a PyPI access token and configure it with `poetry config pypi-token.pypi your-api-token`.
 4. Run `make publish-library` to publish the new version.
