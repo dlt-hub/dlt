@@ -92,7 +92,8 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
     if config.client_kwargs is not None:
         fs_kwargs["client_kwargs"] = config.client_kwargs
 
-    fs_kwargs["use_listings_cache"] = False  # is this default necessary?
+    # https://github.com/dlt-hub/dlt/issues/814#issuecomment-1867004844
+    fs_kwargs["use_listings_cache"] = False
 
     if proto == "s3":
         fs_kwargs.update(cast(AwsCredentials, config.credentials).to_s3fs_credentials())
