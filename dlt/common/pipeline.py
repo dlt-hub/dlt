@@ -22,7 +22,6 @@ from typing import (
 )
 from typing_extensions import NotRequired
 
-from dlt.common import pendulum
 from dlt.common.configuration import configspec
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.container import Container
@@ -113,6 +112,30 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
 
     def __str__(self) -> str:
         return self.asstr(verbosity=0)
+
+    @staticmethod
+    def _load_packages_asstr(load_packages: List[LoadPackageInfo], verbosity: int) -> str:
+        msg: str = ""
+        for load_package in load_packages:
+            cstr = (
+                load_package.state.upper()
+                if load_package.completed_at
+                else f"{load_package.state.upper()} and NOT YET LOADED to the destination"
+            )
+            # now enumerate all complete loads if we have any failed packages
+            # complete but failed job will not raise any exceptions
+            failed_jobs = load_package.jobs["failed_jobs"]
+            jobs_str = "no failed jobs" if not failed_jobs else f"{len(failed_jobs)} FAILED job(s)!"
+            msg += f"\nLoad package {load_package.load_id} is {cstr} and contains {jobs_str}"
+            if verbosity > 0:
+                for failed_job in failed_jobs:
+                    msg += (
+                        f"\n\t[{failed_job.job_file_info.job_id()}]: {failed_job.failed_message}\n"
+                    )
+            if verbosity > 1:
+                msg += "\nPackage details:\n"
+                msg += load_package.asstr() + "\n"
+        return msg
 
     @staticmethod
     def job_metrics_asdict(
@@ -218,7 +241,7 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):  # type: ignore[misc]
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
-        return ""
+        return self._load_packages_asstr(self.load_packages, verbosity)
 
 
 # reveal_type(ExtractInfo)
@@ -286,6 +309,7 @@ class NormalizeInfo(StepInfo[NormalizeMetrics], _NormalizeInfo):  # type: ignore
                 msg += f"- {key}: {value} row(s)\n"
         else:
             msg = "No data found to normalize"
+        msg += self._load_packages_asstr(self.load_packages, verbosity)
         return msg
 
 
@@ -320,9 +344,9 @@ class LoadInfo(StepInfo[LoadMetrics], _LoadInfo):  # type: ignore[misc]
         return super().asdict()
 
     def asstr(self, verbosity: int = 0) -> str:
-        msg = f"Pipeline {self.pipeline.pipeline_name} completed in "
+        msg = f"Pipeline {self.pipeline.pipeline_name} load step completed in "
         if self.started_at:
-            elapsed = pendulum.now() - self.started_at
+            elapsed = self.finished_at - self.started_at
             msg += humanize.precisedelta(elapsed)
         else:
             msg += "---"
@@ -340,21 +364,8 @@ class LoadInfo(StepInfo[LoadMetrics], _LoadInfo):  # type: ignore[misc]
             f"The {self.destination_name} destination used"
             f" {self.destination_displayable_credentials} location to store data"
         )
-        for load_package in self.load_packages:
-            cstr = load_package.state.upper() if load_package.completed_at else "NOT COMPLETED"
-            # now enumerate all complete loads if we have any failed packages
-            # complete but failed job will not raise any exceptions
-            failed_jobs = load_package.jobs["failed_jobs"]
-            jobs_str = "no failed jobs" if not failed_jobs else f"{len(failed_jobs)} FAILED job(s)!"
-            msg += f"\nLoad package {load_package.load_id} is {cstr} and contains {jobs_str}"
-            if verbosity > 0:
-                for failed_job in failed_jobs:
-                    msg += (
-                        f"\n\t[{failed_job.job_file_info.job_id()}]: {failed_job.failed_message}\n"
-                    )
-            if verbosity > 1:
-                msg += "\nPackage details:\n"
-                msg += load_package.asstr() + "\n"
+        msg += self._load_packages_asstr(self.load_packages, verbosity)
+
         return msg
 
     @property
