@@ -52,7 +52,10 @@ MTIME_DISPATCH["abfs"] = MTIME_DISPATCH["az"]
 
 
 def fsspec_filesystem(
-    protocol: str, credentials: FileSystemCredentials = None
+    protocol: str,
+    credentials: FileSystemCredentials = None,
+    kwargs: Optional[DictStrAny] = None,
+    client_kwargs: Optional[DictStrAny] = None,
 ) -> Tuple[AbstractFileSystem, str]:
     """Instantiates an authenticated fsspec `FileSystem` for a given `protocol` and credentials.
 
@@ -64,7 +67,9 @@ def fsspec_filesystem(
 
     also see filesystem_from_config
     """
-    return fsspec_from_config(FilesystemConfiguration(protocol, credentials))
+    return fsspec_from_config(
+        FilesystemConfiguration(protocol, credentials, kwargs=kwargs, client_kwargs=client_kwargs)
+    )
 
 
 def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSystem, str]:
@@ -111,7 +116,7 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
             fs_kwargs["token"] = dict(config.credentials)
         fs_kwargs["project"] = config.credentials.project_id
     try:
-        return url_to_fs(config.bucket_url, **fs_kwargs)
+        return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore
     except ModuleNotFoundError as e:
         raise MissingDependencyException("filesystem", [f"{version.DLT_PKG_NAME}[{proto}]"]) from e
 

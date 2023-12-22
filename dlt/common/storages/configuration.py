@@ -1,9 +1,10 @@
 import os
-from urllib.parse import urlparse
 from typing import TYPE_CHECKING, Any, Literal, Optional, Type, get_args, ClassVar, Dict, Union
+from urllib.parse import urlparse
 
-from dlt.common.configuration.specs import BaseConfiguration, configspec, CredentialsConfiguration
 from dlt.common.configuration import configspec, resolve_type
+from dlt.common.configuration.exceptions import ConfigurationValueError
+from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs import (
     GcpServiceAccountCredentials,
     AwsCredentials,
@@ -14,7 +15,6 @@ from dlt.common.configuration.specs import (
 )
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import digest128
-from dlt.common.configuration.exceptions import ConfigurationValueError
 
 
 TSchemaFileFormat = Literal["json", "yaml"]
@@ -94,8 +94,10 @@ class FilesystemConfiguration(BaseConfiguration):
     }
 
     bucket_url: str = None
+
     # should be a union of all possible credentials as found in PROTOCOL_CREDENTIALS
     credentials: FileSystemCredentials
+
     kwargs: Optional[DictStrAny] = None
     client_kwargs: Optional[DictStrAny] = None
 
@@ -149,4 +151,9 @@ class FilesystemConfiguration(BaseConfiguration):
             credentials: FileSystemCredentials = None,
             kwargs: Optional[DictStrAny] = None,
             client_kwargs: Optional[DictStrAny] = None,
-        ) -> None: ...
+        ) -> None:
+            self.bucket_url = bucket_url
+            self.credentials = credentials
+            self.kwargs = kwargs
+            self.client_kwargs = client_kwargs
+            ...

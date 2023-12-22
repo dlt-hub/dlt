@@ -1,19 +1,18 @@
-import posixpath
 import os
+import posixpath
+from typing import Dict, List, Any, Union
+from typing_extensions import LiteralString
 
 import pytest
 
-from dlt.common.utils import digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
-
+from dlt.common.utils import digest128, uniq_id
 from dlt.destinations.impl.filesystem.filesystem import (
     LoadFilesystemJob,
     FilesystemDestinationClientConfiguration,
 )
-
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
-from tests.utils import preserve_environ, autouse_test_storage
 
 
 @pytest.fixture(autouse=True)
@@ -55,7 +54,7 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
     else:
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
 
-    dataset_name = "test_" + uniq_id()
+    dataset_name = f"test_{uniq_id()}"
 
     with perform_load(
         dataset_name, NORMALIZED_FILES, write_disposition=write_disposition
@@ -83,7 +82,7 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
                 ),
             )
 
-            # File is created with correct filename and path
+            # File is created with the correct filename and path
             assert client.fs_client.isfile(destination_path)
 
 
@@ -93,13 +92,13 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
-    dataset_name = "test_" + uniq_id()
+    dataset_name = f"test_{uniq_id()}"
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="replace") as load_info:
         client, _, root_path, load_id1 = load_info
         layout = client.config.layout
 
-        # this path will be kept after replace
+        # this path will be kept after replacement
         job_2_load_1_path = posixpath.join(
             root_path,
             LoadFilesystemJob.make_destination_filename(
@@ -120,14 +119,13 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
                 ),
             )
 
-            # First file from load1 remains, second file is replaced by load2
+            # The first file from load1 remains, the second file is replaced by load2
             # assert that only these two files are in the destination folder
-            paths = []
+            paths: List[Union[LiteralString, str, bytes, None, Any]] = []
             for basedir, _dirs, files in client.fs_client.walk(
                 client.dataset_path, detail=False, refresh=True
             ):
-                for f in files:
-                    paths.append(posixpath.join(basedir, f))
+                paths.extend(posixpath.join(basedir, f) for f in files)
             ls = set(paths)
             assert ls == {job_2_load_1_path, job_1_load_2_path}
 
@@ -139,7 +137,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
-    dataset_name = "test_" + uniq_id()
+    dataset_name = f"test_{uniq_id()}"
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="append") as load_info:
         client, jobs1, root_path, load_id1 = load_info
@@ -159,10 +157,14 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
             ]
             expected_files = sorted([posixpath.join(root_path, fn) for fn in expected_files])
 
-            paths = []
+            paths: List[Union[LiteralString, str, bytes, None, Any]] = []
             for basedir, _dirs, files in client.fs_client.walk(
                 client.dataset_path, detail=False, refresh=True
             ):
-                for f in files:
-                    paths.append(posixpath.join(basedir, f))
+                paths.extend(posixpath.join(basedir, f) for f in files)
             assert list(sorted(paths)) == expected_files
+
+
+def test_s3_wrong_certificate(environment: Dict[str, str]) -> None:
+    """Test that an exception is raised when the wrong certificate is provided."""
+    pytest.skip("Not implemented yet")

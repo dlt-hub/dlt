@@ -10,7 +10,6 @@ from dlt.common.configuration.specs import AzureCredentials, AzureCredentialsWit
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import uniq_id
-from tests.common.configuration.utils import environment
 from tests.common.storages.utils import assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
 
@@ -46,7 +45,7 @@ def test_filesystem_instance(all_buckets_env: str) -> None:
         assert bucket_url.endswith(url)
     # do a few file ops
     now = pendulum.now()
-    filename = "filesystem_common_" + uniq_id()
+    filename = f"filesystem_common_{uniq_id()}"
     file_url = posixpath.join(url, filename)
     try:
         filesystem.pipe(file_url, b"test bytes")
@@ -74,7 +73,7 @@ def test_filesystem_dict(default_buckets_env: str, load_content: bool) -> None:
         )
         assert_sample_files(all_file_items, filesystem, config, load_content)
     except NotImplementedError as ex:
-        pytest.skip("Skipping due to " + str(ex))
+        pytest.skip(f"Skipping due to {str(ex)}")
 
 
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
@@ -110,8 +109,3 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         "kwargs": {"use_ssl": True},
         "client_kwargs": {"verify": "public.crt"},
     }
-
-
-def test_s3_wrong_certificate(environment: Dict[str, str]) -> None:
-    """Test that an exception is raised when the wrong certificate is provided."""
-    pytest.skip("Not implemented yet")
