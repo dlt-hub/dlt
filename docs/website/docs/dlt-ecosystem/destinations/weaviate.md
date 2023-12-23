@@ -43,7 +43,7 @@ The `url` will default to **http://localhost:8080** and `api_key` is not defined
 
 ```python
 import dlt
-from dlt.destinations.weaviate import weaviate_adapter
+from dlt.destinations.adapters import weaviate_adapter
 
 movies = [
     {
