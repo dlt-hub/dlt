@@ -44,7 +44,7 @@ from dlt.common import pendulum
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.typing import TAnyDateTime
 from dlt.sources.helpers.requests import client
-from dlt.destinations.impl.qdrant import qdrant_adapter
+from dlt.destinations.adapters import qdrant_adapter
 from qdrant_client import QdrantClient
 
 from dlt.common.configuration.inject import with_config
