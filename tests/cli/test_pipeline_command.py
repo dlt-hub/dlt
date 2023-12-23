@@ -69,7 +69,7 @@ def test_pipeline_command_operations(repo_dir: str, project_files: FileStorage) 
         pipeline_command.pipeline_command("trace", "chess_pipeline", None, 0)
         _out = buf.getvalue()
         # basic trace
-        assert "Pipeline chess_pipeline completed in" in _out
+        assert "Pipeline chess_pipeline load step completed in" in _out
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):

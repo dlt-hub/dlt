@@ -29,6 +29,7 @@ def test_complete_successful_package(load_storage: LoadStorage) -> None:
         )
     )
     # but completed packages are deleted
+    load_storage.maybe_remove_completed_jobs(load_id)
     assert not load_storage.loaded_packages.storage.has_folder(
         load_storage.loaded_packages.get_job_folder_path(load_id, "completed_jobs")
     )

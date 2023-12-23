@@ -169,11 +169,11 @@ class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
         completed_msg = (
             f"The package was {self.state.upper()} at {self.completed_at}"
             if self.completed_at
-            else "The package is being PROCESSED"
+            else "The package is NOT YET LOADED to the destination"
         )
         msg = (
             f"The package with load id {self.load_id} for schema {self.schema_name} is in"
-            f" {self.state} state. It updated schema for {len(self.schema_update)} tables."
+            f" {self.state.upper()} state. It updated schema for {len(self.schema_update)} tables."
             f" {completed_msg}.\n"
         )
         msg += "Jobs details:\n"
@@ -336,26 +336,24 @@ class PackageStorage:
         self.storage.create_folder(os.path.join(load_id, PackageStorage.FAILED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.STARTED_JOBS_FOLDER))
 
-    def complete_package(
-        self, load_id: str, load_state: TLoadPackageState, delete_completed_jobs: bool
-    ) -> str:
-        """Completes loading the package by writing marker file with `package_state` and optionally deleting completed jobs
-
-        If package has failed jobs, nothing gets deleted. Returns path to the completed package
-        """
+    def complete_loading_package(self, load_id: str, load_state: TLoadPackageState) -> str:
+        """Completes loading the package by writing marker file with`package_state. Returns path to the completed package"""
         load_path = self.get_package_path(load_id)
-        has_failed_jobs = len(self.list_failed_jobs(load_id)) > 0
-        # delete completed jobs
-        if delete_completed_jobs and not has_failed_jobs:
-            self.storage.delete_folder(
-                self.get_job_folder_path(load_id, PackageStorage.COMPLETED_JOBS_FOLDER),
-                recursively=True,
-            )
         # save marker file
         self.storage.save(
             os.path.join(load_path, PackageStorage.PACKAGE_COMPLETED_FILE_NAME), load_state
         )
         return load_path
+
+    def remove_completed_jobs(self, load_id: str) -> None:
+        """Deletes completed jobs. If package has failed jobs, nothing gets deleted."""
+        has_failed_jobs = len(self.list_failed_jobs(load_id)) > 0
+        # delete completed jobs
+        if not has_failed_jobs:
+            self.storage.delete_folder(
+                self.get_job_folder_path(load_id, PackageStorage.COMPLETED_JOBS_FOLDER),
+                recursively=True,
+            )
 
     def delete_package(self, load_id: str) -> None:
         package_path = self.get_package_path(load_id)

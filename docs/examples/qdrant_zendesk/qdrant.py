@@ -150,7 +150,7 @@ if __name__ == "__main__":
 
     # running the Qdrant client to connect to your Qdrant database
 
-    @with_config(sections=("destination", "credentials"))
+    @with_config(sections=("destination", "qdrant", "credentials"))
     def get_qdrant_client(location=dlt.secrets.value, api_key=dlt.secrets.value):
         return QdrantClient(
             url=location,

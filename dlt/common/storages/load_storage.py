@@ -149,12 +149,17 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     #     )
 
     def complete_load_package(self, load_id: str, aborted: bool) -> None:
-        self.normalized_packages.complete_package(
-            load_id, "aborted" if aborted else "loaded", self.config.delete_completed_jobs
+        self.normalized_packages.complete_loading_package(
+            load_id, "aborted" if aborted else "loaded"
         )
         # move to completed
         completed_path = self.get_loaded_package_path(load_id)
         self.storage.rename_tree(self.get_normalized_package_path(load_id), completed_path)
+
+    def maybe_remove_completed_jobs(self, load_id: str) -> None:
+        """Deletes completed jobs if delete_completed_jobs config flag is set. If package has failed jobs, nothing gets deleted."""
+        if self.config.delete_completed_jobs:
+            self.loaded_packages.remove_completed_jobs(load_id)
 
     def delete_loaded_package(self, load_id: str) -> None:
         self.loaded_packages.delete_package(load_id)

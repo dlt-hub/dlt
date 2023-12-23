@@ -53,7 +53,9 @@ from dlt.common.configuration.inject import with_config
 @dlt.source(max_table_nesting=2)
 def zendesk_support(
     credentials: Dict[str, str] = dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
+    start_date: Optional[TAnyDateTime] = pendulum.datetime(  # noqa: B008
+        year=2000, month=1, day=1
+    ),
     end_date: Optional[TAnyDateTime] = None,
 ):
     """
@@ -84,9 +86,7 @@ def zendesk_support(
     #  when two events have the same timestamp
     @dlt.resource(primary_key="id", write_disposition="append")
     def tickets_data(
-        updated_at: dlt.sources.incremental[
-            pendulum.DateTime
-        ] = dlt.sources.incremental(
+        updated_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
             "updated_at",
             initial_value=start_date_obj,
             end_value=end_date_obj,
@@ -129,7 +129,7 @@ if __name__ == "__main__":
     load_info = pipeline.run(
         # here we use a special function to tell Qdrant which fields to embed
         qdrant_adapter(
-            zendesk_support(), # retrieve tickets data
+            zendesk_support(),  # retrieve tickets data
             embed=["subject", "description"],
         )
     )
@@ -143,7 +143,7 @@ if __name__ == "__main__":
 ```py
 # running the Qdrant client to connect to your Qdrant database
 
-@with_config(sections=("destination", "credentials"))
+@with_config(sections=("destination", "qdrant", "credentials"))
 def get_qdrant_client(location=dlt.secrets.value, api_key=dlt.secrets.value):
     return QdrantClient(
         url=location,
@@ -164,7 +164,7 @@ print(qdrant_client.get_collections())
 response = qdrant_client.query(
     "zendesk_data_content",  # collection/dataset name with the 'content' suffix -> tickets content table
     query_text=["cancel", "cancel subscription"],  # prompt to search
-    limit=3  # limit the number of results to the nearest 3 embeddings
+    limit=3,  # limit the number of results to the nearest 3 embeddings
 )
 ```
 <!--@@@DLT_SNIPPET_END ./code/qdrant-snippets.py::get_response-->
