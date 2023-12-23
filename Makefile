@@ -44,14 +44,20 @@ has-poetry:
 	poetry --version
 
 dev: has-poetry
-	poetry install --all-extras --with airflow --with docs --with providers
+	poetry install --all-extras --with airflow --with docs --with providers --with pipeline --with sentry-sdk
 
 lint:
 	./check-package.sh
 	poetry run mypy --config-file mypy.ini dlt tests
 	poetry run flake8 --max-line-length=200 dlt
 	poetry run flake8 --max-line-length=200 tests --exclude tests/reflection/module_cases
+	poetry run black dlt docs tests --diff --extend-exclude=".*syntax_error.py"
+	# poetry run isort ./ --diff
 	# $(MAKE) lint-security
+
+format:
+	poetry run black dlt docs tests --exclude=".*syntax_error.py|\.venv.*|_storage/.*"
+	# poetry run isort ./
 
 test-and-lint-snippets:
 	poetry run mypy --config-file mypy.ini docs/website docs/examples
@@ -87,3 +93,4 @@ test-build-images: build-library
 	grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 	docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
+

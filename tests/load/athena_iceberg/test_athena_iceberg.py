@@ -1,4 +1,3 @@
-
 import pytest
 import os
 import datetime  # noqa: I251
@@ -7,7 +6,7 @@ from typing import Iterator, Any
 import dlt
 from dlt.common import pendulum
 from dlt.common.utils import uniq_id
-from tests.load.pipeline.utils import  load_table_counts
+from tests.load.pipeline.utils import load_table_counts
 from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.pipeline.utils import assert_load_info
 
@@ -25,21 +24,20 @@ def test_iceberg() -> None:
     We write two tables, one with the iceberg flag, one without. We expect the iceberg table and its subtables to accept update commands
     and the other table to reject them.
     """
-    os.environ['DESTINATION__FILESYSTEM__BUCKET_URL'] = "s3://dlt-ci-test-bucket"
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "s3://dlt-ci-test-bucket"
 
-    pipeline = dlt.pipeline(pipeline_name="aaaaathena-iceberg", destination="athena", staging="filesystem", full_refresh=True)
+    pipeline = dlt.pipeline(
+        pipeline_name="aaaaathena-iceberg",
+        destination="athena",
+        staging="filesystem",
+        full_refresh=True,
+    )
 
     def items() -> Iterator[Any]:
         yield {
             "id": 1,
             "name": "item",
-            "sub_items": [{
-                "id": 101,
-                "name": "sub item 101"
-            },{
-                "id": 101,
-                "name": "sub item 102"
-            }]
+            "sub_items": [{"id": 101, "name": "sub item 101"}, {"id": 101, "name": "sub item 102"}],
         }
 
     @dlt.resource(name="items_normal", write_disposition="append")
@@ -53,7 +51,9 @@ def test_iceberg() -> None:
     print(pipeline.run([items_normal, items_iceberg]))
 
     # see if we have athena tables with items
-    table_counts = load_table_counts(pipeline, *[t["name"] for t in pipeline.default_schema._schema_tables.values() ])
+    table_counts = load_table_counts(
+        pipeline, *[t["name"] for t in pipeline.default_schema._schema_tables.values()]
+    )
     assert table_counts["items_normal"] == 1
     assert table_counts["items_normal__sub_items"] == 2
     assert table_counts["_dlt_loads"] == 1
@@ -75,4 +75,3 @@ def test_iceberg() -> None:
         # modifying iceberg table will succeed
         client.execute_sql("UPDATE items_iceberg SET name='new name'")
         client.execute_sql("UPDATE items_iceberg__sub_items SET name='super new name'")
-

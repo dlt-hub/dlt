@@ -6,10 +6,24 @@ import pytest
 
 from dlt.common import json, Decimal, pendulum
 from dlt.common.arithmetics import numeric_default_context
-from dlt.common.json import _DECIMAL, _WEI, custom_pua_decode, _orjson, _simplejson, SupportsJson, _DATETIME
+from dlt.common.json import (
+    _DECIMAL,
+    _WEI,
+    custom_pua_decode,
+    may_have_pua,
+    _orjson,
+    _simplejson,
+    SupportsJson,
+    _DATETIME,
+)
 
 from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
-from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED, JSON_TYPED_DICT_NESTED, JSON_TYPED_DICT_NESTED_DECODED
+from tests.cases import (
+    JSON_TYPED_DICT,
+    JSON_TYPED_DICT_DECODED,
+    JSON_TYPED_DICT_NESTED,
+    JSON_TYPED_DICT_NESTED_DECODED,
+)
 from tests.common.utils import json_case_path, load_json_case
 
 
@@ -158,7 +172,10 @@ def test_json_decimals(json_impl: SupportsJson) -> None:
     # serialize out of local context
     s = json_impl.dumps(doc)
     # full precision. you need to quantize yourself if you need it
-    assert s == '{"decimal":"99999999999999999999999999999999999999999999999999999999999999999999999999.999"}'
+    assert (
+        s
+        == '{"decimal":"99999999999999999999999999999999999999999999999999999999999999999999999999.999"}'
+    )
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
@@ -199,18 +216,27 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
 def test_json_named_tuple(json_impl: SupportsJson) -> None:
-    assert json_impl.dumps(NamedTupleTest("STR", Decimal("1.3333"))) == '{"str_field":"STR","dec_field":"1.3333"}'
+    assert (
+        json_impl.dumps(NamedTupleTest("STR", Decimal("1.3333")))
+        == '{"str_field":"STR","dec_field":"1.3333"}'
+    )
     with io.BytesIO() as b:
         json_impl.typed_dump(NamedTupleTest("STR", Decimal("1.3333")), b)
-        assert b.getvalue().decode("utf-8") == '{"str_field":"STR","dec_field":"\uF0261.3333"}'
+        assert b.getvalue().decode("utf-8") == '{"str_field":"STR","dec_field":"\uf0261.3333"}'
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
 def test_data_class(json_impl: SupportsJson) -> None:
-    assert json_impl.dumps(DataClassTest(str_field="AAA")) == '{"str_field":"AAA","int_field":5,"dec_field":"0.5"}'
+    assert (
+        json_impl.dumps(DataClassTest(str_field="AAA"))
+        == '{"str_field":"AAA","int_field":5,"dec_field":"0.5"}'
+    )
     with io.BytesIO() as b:
         json_impl.typed_dump(DataClassTest(str_field="AAA"), b)
-        assert b.getvalue().decode("utf-8") == '{"str_field":"AAA","int_field":5,"dec_field":"\uF0260.5"}'
+        assert (
+            b.getvalue().decode("utf-8")
+            == '{"str_field":"AAA","int_field":5,"dec_field":"\uf0260.5"}'
+        )
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
@@ -246,8 +272,19 @@ def test_json_typed_encode(json_impl: SupportsJson) -> None:
     assert d["decimal"][0] == _DECIMAL
     assert d["wei"][0] == _WEI
     # decode all
-    d_d = {k: custom_pua_decode(v) for k,v in d.items()}
+    d_d = {k: custom_pua_decode(v) for k, v in d.items()}
     assert d_d == JSON_TYPED_DICT_DECODED
+
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+def test_pua_detection(json_impl: SupportsJson) -> None:
+    with io.BytesIO() as b:
+        json_impl.typed_dump(JSON_TYPED_DICT, b)
+        content_b = b.getvalue()
+    assert may_have_pua(content_b)
+    with open(json_case_path("rasa_event_bot_metadata"), "rb") as f:
+        content_b = f.read()
+    assert not may_have_pua(content_b)
 
 
 def test_load_and_compare_all_impls() -> None:
@@ -260,6 +297,6 @@ def test_load_and_compare_all_impls() -> None:
 
     # same docs, same output
     for idx in range(0, len(docs) - 1):
-        assert docs[idx] == docs[idx+1]
-        assert dump_s[idx] == dump_s[idx+1]
-        assert dump_b[idx] == dump_b[idx+1]
+        assert docs[idx] == docs[idx + 1]
+        assert dump_s[idx] == dump_s[idx + 1]
+        assert dump_b[idx] == dump_b[idx + 1]

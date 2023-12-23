@@ -50,9 +50,14 @@ def test_whole_row_filter_with_exception(schema: Schema) -> None:
     # mind that path event_bot__custom_data__included_object was also eliminated
     assert filtered_case == {}
     # this child of the row has exception (^event_bot__custom_data__included_object__ - the __ at the end select all childern but not the parent)
-    filtered_case = schema.filter_row("event_bot__custom_data__included_object", deepcopy(bot_case)["custom_data"]["included_object"])
+    filtered_case = schema.filter_row(
+        "event_bot__custom_data__included_object",
+        deepcopy(bot_case)["custom_data"]["included_object"],
+    )
     assert filtered_case == bot_case["custom_data"]["included_object"]
-    filtered_case = schema.filter_row("event_bot__custom_data__excluded_path", deepcopy(bot_case)["custom_data"]["excluded_path"])
+    filtered_case = schema.filter_row(
+        "event_bot__custom_data__excluded_path", deepcopy(bot_case)["custom_data"]["excluded_path"]
+    )
     assert filtered_case == {}
 
 
@@ -60,16 +65,13 @@ def test_filter_parent_table_schema_update(schema: Schema) -> None:
     # filter out parent table and leave just child one. that should break the child-parent relationship and reject schema update
     _add_excludes(schema)
     source_row = {
-        "metadata": [{
-            "elvl1": [{
-                "elvl2": [{
-                    "id": "level3_kept"
-                    }],
-                "f": "elvl1_removed"
-                }],
-            "f": "metadata_removed"
-            }]
-        }
+        "metadata": [
+            {
+                "elvl1": [{"elvl2": [{"id": "level3_kept"}], "f": "elvl1_removed"}],
+                "f": "metadata_removed",
+            }
+        ]
+    }
 
     updates = []
 
@@ -96,7 +98,9 @@ def test_filter_parent_table_schema_update(schema: Schema) -> None:
     updates.clear()
     schema = Schema("event")
     _add_excludes(schema)
-    schema.get_table("event_bot")["filters"]["includes"].extend([TSimpleRegex("re:^metadata___dlt_"), TSimpleRegex("re:^metadata__elvl1___dlt_")])
+    schema.get_table("event_bot")["filters"]["includes"].extend(
+        [TSimpleRegex("re:^metadata___dlt_"), TSimpleRegex("re:^metadata__elvl1___dlt_")]
+    )
     schema._compile_settings()
     for (t, p), row in schema.normalize_data_item(source_row, "load_id", "event_bot"):
         row = schema.filter_row(t, row)
@@ -118,7 +122,9 @@ def _add_excludes(schema: Schema) -> None:
     bot_table = new_table("event_bot")
     bot_table.setdefault("filters", {})["excludes"] = ["re:^metadata", "re:^is_flagged$", "re:^data", "re:^custom_data"]  # type: ignore[typeddict-item]
     bot_table["filters"]["includes"] = [
-        TSimpleRegex("re:^data__custom$"), TSimpleRegex("re:^custom_data__included_object__"), TSimpleRegex("re:^metadata__elvl1__elvl2__")
+        TSimpleRegex("re:^data__custom$"),
+        TSimpleRegex("re:^custom_data__included_object__"),
+        TSimpleRegex("re:^metadata__elvl1__elvl2__"),
     ]
     schema.update_table(bot_table)
     schema._compile_settings()

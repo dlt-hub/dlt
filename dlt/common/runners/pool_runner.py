@@ -5,6 +5,7 @@ from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
 from typing_extensions import ParamSpec
 
 from dlt.common import logger, sleep
+from dlt.common.configuration.container import Container
 from dlt.common.runtime import init
 from dlt.common.runners.runnable import Runnable, TExecutor
 from dlt.common.runners.configuration import PoolRunnerConfiguration
@@ -38,28 +39,35 @@ class NullExecutor(Executor):
 def create_pool(config: PoolRunnerConfiguration) -> Executor:
     if config.pool_type == "process":
         # if not fork method, provide initializer for logs and configuration
-        if multiprocessing.get_start_method() != "fork" and init._INITIALIZED:
+        start_method = config.start_method or multiprocessing.get_start_method()
+        if start_method != "fork" and init._INITIALIZED:
             return ProcessPoolExecutor(
                 max_workers=config.workers,
                 initializer=init.initialize_runtime,
                 initargs=(init._RUN_CONFIGURATION,),
-                mp_context=multiprocessing.get_context()
-                )
+                mp_context=multiprocessing.get_context(method=start_method),
+            )
         else:
             return ProcessPoolExecutor(
-                max_workers=config.workers,
-                mp_context=multiprocessing.get_context()
+                max_workers=config.workers, mp_context=multiprocessing.get_context()
             )
     elif config.pool_type == "thread":
-        return ThreadPoolExecutor(max_workers=config.workers)
+        return ThreadPoolExecutor(
+            max_workers=config.workers, thread_name_prefix=Container.thread_pool_prefix()
+        )
     # no pool - single threaded
     return NullExecutor()
 
 
-def run_pool(config: PoolRunnerConfiguration, run_f: Union[Runnable[TExecutor], Callable[[TExecutor], TRunMetrics]]) -> int:
+def run_pool(
+    config: PoolRunnerConfiguration,
+    run_f: Union[Runnable[TExecutor], Callable[[TExecutor], TRunMetrics]],
+) -> int:
     # validate the run function
     if not isinstance(run_f, Runnable) and not callable(run_f):
-        raise ValueError(run_f, "Pool runner entry point must be a function f(pool: TPool) or Runnable")
+        raise ValueError(
+            run_f, "Pool runner entry point must be a function f(pool: TPool) or Runnable"
+        )
 
     # start pool
     pool = create_pool(config)

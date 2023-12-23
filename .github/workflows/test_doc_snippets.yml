@@ -63,7 +63,7 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E duckdb -E weaviate -E parquet -E qdrant --with docs --without airflow
+        run: poetry install --no-interaction -E duckdb -E weaviate -E parquet -E qdrant --with docs,sentry-sdk --without airflow
 
       - name: Run linter and tests
         run: make test-and-lint-snippets

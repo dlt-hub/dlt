@@ -4,20 +4,30 @@ import dlt
 
 from dlt.common import json
 
+
 @dlt.source(root_key=True)
 def github():
-
-    @dlt.resource(table_name="issues", write_disposition="merge", primary_key="id", merge_key=("node_id", "url"))
-    def load_issues():
+    @dlt.resource(
+        table_name="issues",
+        write_disposition="merge",
+        primary_key="id",
+        merge_key=("node_id", "url"),
+    )
+    def load_issues(created_at=dlt.sources.incremental[str]("created_at")):  # noqa: B008
         # we should be in TEST_STORAGE folder
-        with open("../tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8") as f:
-            yield from json.load(f)
+        with open(
+            "../tests/normalize/cases/github.issues.load_page_5_duck.json", "r", encoding="utf-8"
+        ) as f:
+            issues = sorted(json.load(f), key=lambda x: x["created_at"])
+            yield from issues
 
     return load_issues
 
 
 if __name__ == "__main__":
-    p = dlt.pipeline("dlt_github_pipeline", destination="duckdb", dataset_name="github_3", full_refresh=False)
+    p = dlt.pipeline(
+        "dlt_github_pipeline", destination="duckdb", dataset_name="github_3", full_refresh=False
+    )
     github_source = github()
     if len(sys.argv) > 1:
         # load only N issues

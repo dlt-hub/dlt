@@ -9,7 +9,9 @@ from docs.examples.sources.sql_query import query_table, query_sql
 source_dsn = "redshift+redshift_connector://loader@chat-analytics.czwteevq7bpe.eu-central-1.redshift.amazonaws.com:5439/chat_analytics_rasa"
 
 # get data from table, we preserve method signature from pandas
-items = query_table("blocks__transactions", source_dsn, table_schema_name="mainnet_2_ethereum", coerce_float=False)
+items = query_table(
+    "blocks__transactions", source_dsn, table_schema_name="mainnet_2_ethereum", coerce_float=False
+)
 # the data is also an iterator
 
 for i in items:
@@ -25,5 +27,7 @@ items = query_sql("select *  from mainnet_2_ethereum.blocks__transactions limit 
 # you can find a docker compose file that spins up required instance in tests/load/postgres
 # note: run the script without required env variables to see info on possible secret configurations that were tried
 
-info = dlt.pipeline().run(items, destination=postgres, dataset_name="ethereum", table_name="transactions")
+info = dlt.pipeline().run(
+    items, destination=postgres, dataset_name="ethereum", table_name="transactions"
+)
 print(info)

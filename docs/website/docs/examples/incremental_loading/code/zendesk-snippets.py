@@ -7,23 +7,22 @@ __source_name__ = "zendesk"
 
 @skipifgithubfork
 def incremental_snippet() -> None:
-
     # @@@DLT_SNIPPET_START example
     # @@@DLT_SNIPPET_START markdown_source
-    from typing import Iterator, Optional, Dict, Any, Tuple
+    from typing import Optional, Dict, Any, Tuple
 
     import dlt
     from dlt.common import pendulum
     from dlt.common.time import ensure_pendulum_datetime
-    from dlt.common.typing import TDataItem, TDataItems, TAnyDateTime
-    from dlt.extract.source import DltResource
+    from dlt.common.typing import TAnyDateTime
     from dlt.sources.helpers.requests import client
-
 
     @dlt.source(max_table_nesting=2)
     def zendesk_support(
-        credentials: Dict[str, str]=dlt.secrets.value,
-        start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
+        credentials: Dict[str, str] = dlt.secrets.value,
+        start_date: Optional[TAnyDateTime] = pendulum.datetime(  # noqa: B008
+            year=2000, month=1, day=1
+        ),
         end_date: Optional[TAnyDateTime] = None,
     ):
         """
@@ -115,9 +114,7 @@ def incremental_snippet() -> None:
         # make request and keep looping until there is no next page
         get_url = f"{url}{endpoint}"
         while get_url:
-            response = client.get(
-                get_url, headers=headers, auth=auth, params=params
-            )
+            response = client.get(get_url, headers=headers, auth=auth, params=params)
             response.raise_for_status()
             response_json = response.json()
             result = response_json[data_point_name]
@@ -128,9 +125,8 @@ def incremental_snippet() -> None:
             if not response_json["end_of_stream"]:
                 get_url = response_json["next_page"]
 
-
     # @@@DLT_SNIPPET_START markdown_pipeline
-    __name__ = "__main__" # @@@DLT_REMOVE
+    __name__ = "__main__"  # @@@DLT_REMOVE
     if __name__ == "__main__":
         # create dlt pipeline
         pipeline = dlt.pipeline(
@@ -145,4 +141,3 @@ def incremental_snippet() -> None:
     # check that stuff was loaded
     row_counts = pipeline.last_trace.last_normalize_info.row_counts
     assert row_counts["ticket_events"] == 24
-

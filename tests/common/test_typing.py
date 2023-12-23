@@ -1,10 +1,38 @@
+from typing import (
+    ClassVar,
+    Final,
+    List,
+    Literal,
+    Mapping,
+    MutableMapping,
+    MutableSequence,
+    NewType,
+    Sequence,
+    TypeVar,
+    TypedDict,
+    Optional,
+    Union,
+)
+from typing_extensions import Annotated, get_args
 
-from typing import List, Literal, Mapping, MutableMapping, MutableSequence, NewType, Sequence, TypeVar, TypedDict, Optional, Union
-from dlt.common.configuration.specs.base_configuration import BaseConfiguration, get_config_if_union_hint
+from dlt.common.configuration.specs.base_configuration import (
+    BaseConfiguration,
+    get_config_if_union_hint,
+)
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
-
-from dlt.common.typing import StrAny, extract_inner_type, extract_optional_type, is_dict_generic_type, is_list_generic_type, is_literal_type, is_newtype_type, is_optional_type, is_typeddict
-
+from dlt.common.typing import (
+    StrAny,
+    extract_inner_type,
+    extract_union_types,
+    is_dict_generic_type,
+    is_list_generic_type,
+    is_literal_type,
+    is_newtype_type,
+    is_optional_type,
+    is_typeddict,
+    is_union_type,
+    is_annotated,
+)
 
 
 class TTestTyDi(TypedDict):
@@ -14,6 +42,8 @@ class TTestTyDi(TypedDict):
 TTestLi = Literal["a", "b", "c"]
 TOptionalLi = Optional[TTestLi]
 TOptionalTyDi = Optional[TTestTyDi]
+
+TOptionalUnionLiTyDi = Optional[Union[TTestTyDi, TTestLi]]
 
 
 def test_is_typeddict() -> None:
@@ -28,6 +58,7 @@ def test_is_list_generic_type() -> None:
     assert is_list_generic_type(List[str]) is True
     assert is_list_generic_type(Sequence[str]) is True
     assert is_list_generic_type(MutableSequence[str]) is True
+    assert is_list_generic_type(TOptionalUnionLiTyDi) is False  # type: ignore[arg-type]
 
 
 def test_is_dict_generic_type() -> None:
@@ -38,23 +69,45 @@ def test_is_dict_generic_type() -> None:
 
 def test_is_literal() -> None:
     assert is_literal_type(TTestLi) is True  # type: ignore[arg-type]
+    assert is_literal_type(Final[TTestLi]) is True  # type: ignore[arg-type]
     assert is_literal_type("a") is False  # type: ignore[arg-type]
     assert is_literal_type(List[str]) is False
 
 
 def test_optional() -> None:
     assert is_optional_type(TOptionalLi) is True  # type: ignore[arg-type]
+    assert is_optional_type(ClassVar[TOptionalLi]) is True  # type: ignore[arg-type]
     assert is_optional_type(TOptionalTyDi) is True  # type: ignore[arg-type]
     assert is_optional_type(TTestTyDi) is False
-    assert extract_optional_type(TOptionalLi) is TTestLi  # type: ignore[arg-type]
-    assert extract_optional_type(TOptionalTyDi) is TTestTyDi  # type: ignore[arg-type]
+    assert extract_union_types(TOptionalLi) == [TTestLi, type(None)]  # type: ignore[arg-type]
+    assert extract_union_types(TOptionalTyDi) == [TTestTyDi, type(None)]  # type: ignore[arg-type]
+
+
+def test_union_types() -> None:
+    assert is_optional_type(TOptionalLi) is True  # type: ignore[arg-type]
+    assert is_optional_type(TOptionalTyDi) is True  # type: ignore[arg-type]
+    assert is_optional_type(TTestTyDi) is False
+    assert extract_union_types(TOptionalLi) == [TTestLi, type(None)]  # type: ignore[arg-type]
+    assert extract_union_types(TOptionalTyDi) == [TTestTyDi, type(None)]  # type: ignore[arg-type]
+    assert is_optional_type(TOptionalUnionLiTyDi) is True  # type: ignore[arg-type]
+    assert extract_union_types(TOptionalUnionLiTyDi) == [TTestTyDi, TTestLi, type(None)]  # type: ignore[arg-type]
+    assert is_union_type(MutableSequence[str]) is False
 
 
 def test_is_newtype() -> None:
     NT1 = NewType("NT1", str)
     assert is_newtype_type(NT1) is True
+    assert is_newtype_type(ClassVar[NT1]) is True  # type: ignore[arg-type]
     assert is_newtype_type(TypeVar("TV1", bound=str)) is False  # type: ignore[arg-type]
     assert is_newtype_type(1) is False  # type: ignore[arg-type]
+
+
+def test_is_annotated() -> None:
+    TA = Annotated[str, "PII", "name"]
+    assert is_annotated(TA) is True
+    a_t, *a_m = get_args(TA)
+    assert a_t is str
+    assert a_m == ["PII", "name"]
 
 
 def test_extract_inner_type() -> None:
@@ -77,6 +130,9 @@ def test_get_config_if_union() -> None:
     assert get_config_if_union_hint(Union[BaseException, str, StrAny]) is None  # type: ignore[arg-type]
     assert get_config_if_union_hint(Union[BaseConfiguration, str, StrAny]) is BaseConfiguration  # type: ignore[arg-type]
     assert get_config_if_union_hint(Union[str, BaseConfiguration, StrAny]) is BaseConfiguration  # type: ignore[arg-type]
-    assert get_config_if_union_hint(
-        Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]  # type: ignore[arg-type]
-    ) is GcpServiceAccountCredentialsWithoutDefaults
+    assert (
+        get_config_if_union_hint(
+            Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]  # type: ignore[arg-type]
+        )
+        is GcpServiceAccountCredentialsWithoutDefaults
+    )

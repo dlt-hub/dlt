@@ -20,7 +20,9 @@ class Runnable(ABC, Generic[TExecutor]):
     # use weak reference container, once other references are dropped the referenced object is garbage collected
     RUNNING: TWeakValueDictionary = WeakValueDictionary({})
 
-    def __new__(cls: Type["Runnable[TExecutor]"], *args: Any, **kwargs: Any) -> "Runnable[TExecutor]":
+    def __new__(
+        cls: Type["Runnable[TExecutor]"], *args: Any, **kwargs: Any
+    ) -> "Runnable[TExecutor]":
         """Registers Runnable instance as running for a time when context is active.
         Used with `~workermethod` decorator to pass a class instance to decorator function that must be static thus avoiding pickling such instance.
 
@@ -50,6 +52,7 @@ def workermethod(f: TFun) -> TFun:
     Returns:
         TFun: wrapped worker function
     """
+
     @wraps(f)
     def _wrap(rid: Union[int, Runnable[TExecutor]], *args: Any, **kwargs: Any) -> Any:
         if isinstance(rid, int):
@@ -95,4 +98,3 @@ def workermethod(f: TFun) -> TFun:
 #         return f(config, *args, **kwargs)
 
 #     return _wrap  # type: ignore
-

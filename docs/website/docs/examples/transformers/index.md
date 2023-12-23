@@ -33,7 +33,6 @@ We'll learn how to:
 import dlt
 from dlt.sources.helpers import requests
 
-
 @dlt.source(max_table_nesting=2)
 def source(pokemon_api_url: str):
     """"""
@@ -77,10 +76,7 @@ def source(pokemon_api_url: str):
     # 2. send pokemon details into `species` transformer to get species details
     # NOTE: dlt is smart enough to get data from pokemon_list and pokemon details once
 
-    return (
-        pokemon_list | pokemon,
-        pokemon_list | pokemon | species
-    )
+    return (pokemon_list | pokemon, pokemon_list | pokemon | species)
 
 if __name__ == "__main__":
     # build duck db pipeline

@@ -1,11 +1,17 @@
 from types import SimpleNamespace
 import pytest
 
-from dlt.reflection.script_inspector import load_script_module, inspect_pipeline_script, DummyModule, PipelineIsRunning
+from dlt.reflection.script_inspector import (
+    load_script_module,
+    inspect_pipeline_script,
+    DummyModule,
+    PipelineIsRunning,
+)
 
 from tests.utils import unload_modules
 
 MODULE_CASES = "./tests/reflection/module_cases"
+
 
 def test_import_init_module() -> None:
     with pytest.raises(ModuleNotFoundError):
@@ -27,7 +33,9 @@ def test_import_module() -> None:
     with pytest.raises(ImportError):
         load_script_module(MODULE_CASES, "no_pkg", ignore_missing_imports=True)
     # but with package name in module name it will work
-    m = load_script_module("./tests/reflection/", "module_cases.no_pkg", ignore_missing_imports=True)
+    m = load_script_module(
+        "./tests/reflection/", "module_cases.no_pkg", ignore_missing_imports=True
+    )
     # uniq_id got imported
     assert isinstance(m.uniq_id(), str)
 

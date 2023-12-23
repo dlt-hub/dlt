@@ -3,13 +3,20 @@ from typing import List, TYPE_CHECKING
 import dlt
 import pytest
 
-from dlt.common.exceptions import DestinationIncompatibleLoaderFileFormatException, DestinationLoadingViaStagingNotSupported, DestinationNoStagingMode
+from dlt.common.exceptions import (
+    DestinationIncompatibleLoaderFileFormatException,
+    DestinationLoadingViaStagingNotSupported,
+    DestinationNoStagingMode,
+)
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 
-def test_file_format_resolution()  -> None:
+
+def test_file_format_resolution() -> None:
     # raise on destinations that does not support staging
     with pytest.raises(DestinationLoadingViaStagingNotSupported):
-        p = dlt.pipeline(pipeline_name="managed_state_pipeline", destination="postgres", staging="filesystem")
+        p = dlt.pipeline(
+            pipeline_name="managed_state_pipeline", destination="postgres", staging="filesystem"
+        )
 
     # raise on staging that does not support staging interface
     with pytest.raises(DestinationNoStagingMode):
@@ -20,7 +27,7 @@ def test_file_format_resolution()  -> None:
     if TYPE_CHECKING:
         cp = DestinationCapabilitiesContext
 
-    class cp():  # type: ignore[no-redef]
+    class cp:  # type: ignore[no-redef]
         def __init__(self) -> None:
             self.preferred_loader_file_format: str = None
             self.supported_loader_file_formats: List[str] = []

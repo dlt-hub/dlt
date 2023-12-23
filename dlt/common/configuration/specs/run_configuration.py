@@ -16,7 +16,7 @@ class RunConfiguration(BaseConfiguration):
     slack_incoming_hook: Optional[TSecretStrValue] = None
     dlthub_telemetry: bool = True  # enable or disable dlthub telemetry
     dlthub_telemetry_segment_write_key: str = "a1F2gc6cNYw2plyAt02sZouZcsRjG7TD"
-    log_format: str = '{asctime}|[{levelname:<21}]|{process}|{name}|{filename}|{funcName}:{lineno}|{message}'
+    log_format: str = "{asctime}|[{levelname:<21}]|{process}|{thread}|{name}|{filename}|{funcName}:{lineno}|{message}"
     log_level: str = "WARNING"
     request_timeout: float = 60
     """Timeout for http requests"""
@@ -27,6 +27,8 @@ class RunConfiguration(BaseConfiguration):
     request_max_retry_delay: float = 300
     """Maximum delay between http request retries"""
     config_files_storage_path: str = "/run/config/"
+    """Platform connection"""
+    dlthub_dsn: Optional[TSecretStrValue] = None
 
     __section__ = "runtime"
 
@@ -38,7 +40,9 @@ class RunConfiguration(BaseConfiguration):
             # it may be obfuscated base64 value
             # TODO: that needs to be removed ASAP
             try:
-                self.slack_incoming_hook = TSecretStrValue(reveal_pseudo_secret(self.slack_incoming_hook, b"dlt-runtime-2022"))
+                self.slack_incoming_hook = TSecretStrValue(
+                    reveal_pseudo_secret(self.slack_incoming_hook, b"dlt-runtime-2022")
+                )
             except binascii.Error:
                 # just keep the original value
                 pass

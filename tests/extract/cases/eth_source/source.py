@@ -1,6 +1,7 @@
 from typing import Any
 import dlt
 
+
 @dlt.source
 def ethereum() -> Any:
     # this just tests if the schema "ethereum" was loaded

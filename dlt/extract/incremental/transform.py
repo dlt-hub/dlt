@@ -17,15 +17,21 @@ from dlt.common.json import json
 from dlt.common import pendulum
 from dlt.common.typing import TDataItem, TDataItems
 from dlt.common.jsonpath import TJsonPath, find_values, JSONPathFields, compile_path
-from dlt.extract.incremental.exceptions import IncrementalCursorPathMissing, IncrementalPrimaryKeyMissing
+from dlt.extract.incremental.exceptions import (
+    IncrementalCursorPathMissing,
+    IncrementalPrimaryKeyMissing,
+)
 from dlt.extract.incremental.typing import IncrementalColumnState, TCursorValue, LastValueFunc
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.typing import TTableHintTemplate
 from dlt.common.schema.typing import TColumnNames
+
 try:
+    from dlt.common.libs import pyarrow
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
 except MissingDependencyException:
     pa = None
+    pyarrow = None
 
 
 class IncrementalTransform:
@@ -50,24 +56,26 @@ class IncrementalTransform:
         # compile jsonpath
         self._compiled_cursor_path = compile_path(cursor_path)
         # for simple column name we'll fallback to search in dict
-        if isinstance(self._compiled_cursor_path, JSONPathFields) and len(self._compiled_cursor_path.fields) == 1 and self._compiled_cursor_path.fields[0] != "*":
+        if (
+            isinstance(self._compiled_cursor_path, JSONPathFields)
+            and len(self._compiled_cursor_path.fields) == 1
+            and self._compiled_cursor_path.fields[0] != "*"
+        ):
             self.cursor_path = self._compiled_cursor_path.fields[0]
             self._compiled_cursor_path = None
 
     def __call__(
         self,
         row: TDataItem,
-    ) -> Tuple[bool, bool, bool]:
-        ...
+    ) -> Tuple[bool, bool, bool]: ...
 
 
 class JsonIncremental(IncrementalTransform):
-
     def unique_value(
         self,
         row: TDataItem,
         primary_key: Optional[TTableHintTemplate[TColumnNames]],
-        resource_name: str
+        resource_name: str,
     ) -> str:
         try:
             if primary_key:
@@ -82,7 +90,7 @@ class JsonIncremental(IncrementalTransform):
     def find_cursor_value(self, row: TDataItem) -> Any:
         """Finds value in row at cursor defined by self.cursor_path.
 
-           Will use compiled JSONPath if present, otherwise it reverts to column search if row is dict
+        Will use compiled JSONPath if present, otherwise it reverts to column search if row is dict
         """
         row_value: Any = None
         if self._compiled_cursor_path:
@@ -117,33 +125,36 @@ class JsonIncremental(IncrementalTransform):
         if isinstance(row_value, datetime):
             row_value = pendulum.instance(row_value)
 
-        last_value = self.incremental_state['last_value']
+        last_value = self.incremental_state["last_value"]
 
         # Check whether end_value has been reached
         # Filter end value ranges exclusively, so in case of "max" function we remove values >= end_value
         if self.end_value is not None and (
-            self.last_value_func((row_value, self.end_value)) != self.end_value or self.last_value_func((row_value, )) == self.end_value
+            self.last_value_func((row_value, self.end_value)) != self.end_value
+            or self.last_value_func((row_value,)) == self.end_value
         ):
             end_out_of_range = True
             return None, start_out_of_range, end_out_of_range
 
-        check_values = (row_value,) + ((last_value, ) if last_value is not None else ())
+        check_values = (row_value,) + ((last_value,) if last_value is not None else ())
         new_value = self.last_value_func(check_values)
         if last_value == new_value:
-            processed_row_value = self.last_value_func((row_value, ))
+            processed_row_value = self.last_value_func((row_value,))
             # we store row id for all records with the current "last_value" in state and use it to deduplicate
 
             if processed_row_value == last_value:
                 unique_value = self.unique_value(row, self.primary_key, self.resource_name)
                 # if unique value exists then use it to deduplicate
                 if unique_value:
-                    if unique_value in self.incremental_state['unique_hashes']:
+                    if unique_value in self.incremental_state["unique_hashes"]:
                         return None, start_out_of_range, end_out_of_range
                     # add new hash only if the record row id is same as current last value
-                    self.incremental_state['unique_hashes'].append(unique_value)
+                    self.incremental_state["unique_hashes"].append(unique_value)
                 return row, start_out_of_range, end_out_of_range
             # skip the record that is not a last_value or new_value: that record was already processed
-            check_values = (row_value,) + ((self.start_value,) if self.start_value is not None else ())
+            check_values = (row_value,) + (
+                (self.start_value,) if self.start_value is not None else ()
+            )
             new_value = self.last_value_func(check_values)
             # Include rows == start_value but exclude "lower"
             if new_value == self.start_value and processed_row_value != self.start_value:
@@ -164,10 +175,7 @@ class ArrowIncremental(IncrementalTransform):
     _dlt_index = "_dlt_index"
 
     def unique_values(
-        self,
-        item: "TAnyArrowItem",
-        unique_columns: List[str],
-        resource_name: str
+        self, item: "TAnyArrowItem", unique_columns: List[str], resource_name: str
     ) -> List[Tuple[int, str]]:
         if not unique_columns:
             return []
@@ -178,28 +186,13 @@ class ArrowIncremental(IncrementalTransform):
             (index, digest128(json.dumps(row, sort_keys=True))) for index, row in zip(indices, rows)
         ]
 
-    def _deduplicate(self, tbl: "pa.Table", unique_columns: Optional[List[str]], aggregate: str, cursor_path: str) -> "pa.Table":
+    def _deduplicate(
+        self, tbl: "pa.Table", unique_columns: Optional[List[str]], aggregate: str, cursor_path: str
+    ) -> "pa.Table":
         """Creates unique index if necessary."""
         # create unique index if necessary
         if self._dlt_index not in tbl.schema.names:
-            tbl = tbl.append_column(self._dlt_index, pa.array(np.arange(tbl.num_rows)))
-        # code below deduplicates groups that include the cursor column in the group id. that was just artifact of
-        # json incremental and there's no need to duplicate it here
-
-        # if unique_columns is None:
-        #     return tbl
-        # group_cols = unique_columns + [cursor_path]
-        # try:
-        #     tbl = tbl.filter(
-        #         pa.compute.is_in(
-        #             tbl[self._dlt_index],
-        #             tbl.group_by(group_cols).aggregate(
-        #                 [(self._dlt_index, "one"), (cursor_path, aggregate)]
-        #             )[f'{self._dlt_index}_one']
-        #         )
-        #     )
-        # except KeyError as e:
-            # raise IncrementalPrimaryKeyMissing(self.resource_name, unique_columns[0], tbl) from e
+            tbl = pyarrow.append_column(tbl, self._dlt_index, pa.array(np.arange(tbl.num_rows)))
         return tbl
 
     def __call__(
@@ -225,7 +218,7 @@ class ArrowIncremental(IncrementalTransform):
             if isinstance(primary_key, str):
                 self._dlt_index = primary_key
         elif primary_key is None:
-            unique_columns = tbl.column_names
+            unique_columns = tbl.schema.names
         else:  # deduplicating is disabled
             unique_columns = None
 
@@ -233,7 +226,7 @@ class ArrowIncremental(IncrementalTransform):
         if not tbl:  # row is None or empty arrow table
             return tbl, start_out_of_range, end_out_of_range
 
-        last_value = self.incremental_state['last_value']
+        last_value = self.incremental_state["last_value"]
 
         if self.last_value_func is max:
             compute = pa.compute.max
@@ -248,8 +241,9 @@ class ArrowIncremental(IncrementalTransform):
             last_value_compare = pa.compute.less_equal
             new_value_compare = pa.compute.less
         else:
-            raise NotImplementedError("Only min or max last_value_func is supported for arrow tables")
-
+            raise NotImplementedError(
+                "Only min or max last_value_func is supported for arrow tables"
+            )
 
         # TODO: Json path support. For now assume the cursor_path is a column name
         cursor_path = self.cursor_path
@@ -264,8 +258,12 @@ class ArrowIncremental(IncrementalTransform):
                 row_value = pendulum.from_timestamp(orig_row_value.cast(pa.int64()).as_py() / 1000)
         except KeyError as e:
             raise IncrementalCursorPathMissing(
-                self.resource_name, cursor_path, tbl,
-                f"Column name {cursor_path} was not found in the arrow table. Not nested JSON paths are not supported for arrow tables and dataframes, the incremental cursor_path must be a column name."
+                self.resource_name,
+                cursor_path,
+                tbl,
+                f"Column name {cursor_path} was not found in the arrow table. Not nested JSON paths"
+                " are not supported for arrow tables and dataframes, the incremental cursor_path"
+                " must be a column name.",
             ) from e
 
         # If end_value is provided, filter to include table rows that are "less" than end_value
@@ -288,31 +286,52 @@ class ArrowIncremental(IncrementalTransform):
             eq_rows = tbl.filter(pa.compute.equal(tbl[cursor_path], last_value))
             # compute index, unique hash mapping
             unique_values = self.unique_values(eq_rows, unique_columns, self.resource_name)
-            unique_values = [(i, uq_val) for i, uq_val in unique_values if uq_val in self.incremental_state['unique_hashes']]
+            unique_values = [
+                (i, uq_val)
+                for i, uq_val in unique_values
+                if uq_val in self.incremental_state["unique_hashes"]
+            ]
             remove_idx = pa.array(i for i, _ in unique_values)
             # Filter the table
             tbl = tbl.filter(pa.compute.invert(pa.compute.is_in(tbl[self._dlt_index], remove_idx)))
 
-            if new_value_compare(row_value, last_value).as_py() and row_value != last_value:  # Last value has changed
-                self.incremental_state['last_value'] = row_value
+            if (
+                new_value_compare(row_value, last_value).as_py() and row_value != last_value
+            ):  # Last value has changed
+                self.incremental_state["last_value"] = row_value
                 # Compute unique hashes for all rows equal to row value
-                self.incremental_state['unique_hashes'] = [uq_val for _, uq_val in self.unique_values(
-                    tbl.filter(pa.compute.equal(tbl[cursor_path], row_value)), unique_columns, self.resource_name
-                )]
+                self.incremental_state["unique_hashes"] = [
+                    uq_val
+                    for _, uq_val in self.unique_values(
+                        tbl.filter(pa.compute.equal(tbl[cursor_path], row_value)),
+                        unique_columns,
+                        self.resource_name,
+                    )
+                ]
             else:
                 # last value is unchanged, add the hashes
-                self.incremental_state['unique_hashes'] = list(set(self.incremental_state['unique_hashes'] + [uq_val for _, uq_val in unique_values]))
+                self.incremental_state["unique_hashes"] = list(
+                    set(
+                        self.incremental_state["unique_hashes"]
+                        + [uq_val for _, uq_val in unique_values]
+                    )
+                )
         else:
             tbl = self._deduplicate(tbl, unique_columns, aggregate, cursor_path)
-            self.incremental_state['last_value'] = row_value
-            self.incremental_state['unique_hashes'] = [uq_val for _, uq_val in self.unique_values(
-                tbl.filter(pa.compute.equal(tbl[cursor_path], row_value)), unique_columns, self.resource_name
-            )]
+            self.incremental_state["last_value"] = row_value
+            self.incremental_state["unique_hashes"] = [
+                uq_val
+                for _, uq_val in self.unique_values(
+                    tbl.filter(pa.compute.equal(tbl[cursor_path], row_value)),
+                    unique_columns,
+                    self.resource_name,
+                )
+            ]
 
         if len(tbl) == 0:
             return None, start_out_of_range, end_out_of_range
         try:
-            tbl = tbl.drop(["_dlt_index"])
+            tbl = pyarrow.remove_columns(tbl, ["_dlt_index"])
         except KeyError:
             pass
         if is_pandas:

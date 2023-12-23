@@ -1,6 +1,7 @@
 from tenacity import RetryError
 from requests import (
-    Request, Response,
+    Request,
+    Response,
     ConnectionError,
     ConnectTimeout,
     FileModeWarning,
@@ -19,7 +20,14 @@ from dlt.common.configuration.specs import RunConfiguration
 client = Client()
 
 get, post, put, patch, delete, options, head, request = (
-    client.get, client.post, client.put, client.patch, client.delete, client.options, client.head, client.request
+    client.get,
+    client.post,
+    client.put,
+    client.patch,
+    client.delete,
+    client.options,
+    client.head,
+    client.request,
 )
 
 
@@ -40,8 +48,18 @@ __all__ = [
     "request",
     "init",
     "Session",
-    "Request", "Response", "ConnectionError", "ConnectTimeout", "FileModeWarning", "HTTPError", "ReadTimeout",
-    "RequestException", "Timeout", "TooManyRedirects", "URLRequired", "ChunkedEncodingError", "RetryError"
-    "Client",
-    "RetryError"
+    "Request",
+    "Response",
+    "ConnectionError",
+    "ConnectTimeout",
+    "FileModeWarning",
+    "HTTPError",
+    "ReadTimeout",
+    "RequestException",
+    "Timeout",
+    "TooManyRedirects",
+    "URLRequired",
+    "ChunkedEncodingError",
+    "RetryErrorClient",
+    "RetryError",
 ]

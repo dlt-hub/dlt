@@ -9,7 +9,6 @@ from dlt.common.runtime.exec_info import github_info
 from dlt.common.runtime.segment import track as dlthub_telemetry_track
 from dlt.common.runtime.slack import send_slack_message
 from dlt.common.pipeline import LoadInfo, ExtractInfo, SupportsPipeline
-from dlt.common.destination import DestinationReference
 
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
@@ -21,9 +20,10 @@ try:
     def _add_sentry_tags(span: Span, pipeline: SupportsPipeline) -> None:
         span.set_tag("pipeline_name", pipeline.pipeline_name)
         if pipeline.destination:
-            span.set_tag("destination", pipeline.destination.__name__)
+            span.set_tag("destination", pipeline.destination.destination_name)
         if pipeline.dataset_name:
             span.set_tag("dataset_name", pipeline.dataset_name)
+
 except ImportError:
     # sentry is optional dependency and enabled only when RuntimeConfiguration.sentry_dsn is set
     pass
@@ -48,7 +48,7 @@ def slack_notify_load_success(incoming_hook: str, load_info: LoadInfo, trace: Pi
         normalize_step = next((step for step in trace.steps if step.step == "normalize"), None)
         extract_step = next((step for step in trace.steps if step.step == "extract"), None)
 
-        message = f"""The {author}pipeline *{load_info.pipeline.pipeline_name}* just loaded *{len(load_info.loads_ids)}* load package(s) to destination *{load_info.destination_name}* and into dataset *{load_info.dataset_name}*.
+        message = f"""The {author}pipeline *{load_info.pipeline.pipeline_name}* just loaded *{len(load_info.loads_ids)}* load package(s) to destination *{load_info.destination_type}* and into dataset *{load_info.dataset_name}*.
 🚀 *{humanize.precisedelta(total_elapsed)}* of which {_get_step_elapsed(load_step)}{_get_step_elapsed(normalize_step)}{_get_step_elapsed(extract_step)}"""
 
         send_slack_message(incoming_hook, message)
@@ -67,7 +67,9 @@ def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: Supports
         transaction.__enter__()
 
 
-def on_start_trace_step(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:
+def on_start_trace_step(
+    trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
+) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"START SENTRY SPAN {trace.transaction_id}:{trace_step.span_id} SCOPE: {Hub.current.scope}")
         span = Hub.current.scope.span.start_child(description=step, op=step).__enter__()
@@ -75,7 +77,13 @@ def on_start_trace_step(trace: PipelineTrace, step: TPipelineStep, pipeline: Sup
         _add_sentry_tags(span, pipeline)
 
 
-def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: SupportsPipeline, step_info: Any) -> None:
+def on_end_trace_step(
+    trace: PipelineTrace,
+    step: PipelineStepTrace,
+    pipeline: SupportsPipeline,
+    step_info: Any,
+    send_state: bool,
+) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"---END SENTRY SPAN {trace.transaction_id}:{step.span_id}: {step} SCOPE: {Hub.current.scope}")
         with contextlib.suppress(Exception):
@@ -87,13 +95,15 @@ def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: S
     props = {
         "elapsed": (step.finished_at - trace.started_at).total_seconds(),
         "success": step.step_exception is None,
-        "destination_name": DestinationReference.to_name(pipeline.destination) if pipeline.destination else None,
+        "destination_name": pipeline.destination.destination_name if pipeline.destination else None,
+        "destination_type": pipeline.destination.destination_type if pipeline.destination else None,
         "pipeline_name_hash": digest128(pipeline.pipeline_name),
         "dataset_name_hash": digest128(pipeline.dataset_name) if pipeline.dataset_name else None,
-        "default_schema_name_hash": digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None,
-        "transaction_id": trace.transaction_id
+        "default_schema_name_hash": (
+            digest128(pipeline.default_schema_name) if pipeline.default_schema_name else None
+        ),
+        "transaction_id": trace.transaction_id,
     }
-    # disable automatic slack messaging until we can configure messages themselves
     if step.step == "extract" and step_info:
         assert isinstance(step_info, ExtractInfo)
         props["extract_data"] = step_info.extract_data_info
@@ -103,7 +113,7 @@ def on_end_trace_step(trace: PipelineTrace, step: PipelineStepTrace, pipeline: S
     dlthub_telemetry_track("pipeline", step.step, props)
 
 
-def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline) -> None:
+def on_end_trace(trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool) -> None:
     if pipeline.runtime_config.sentry_dsn:
         # print(f"---END SENTRY TX: {trace.transaction_id} SCOPE: {Hub.current.scope}")
         with contextlib.suppress(Exception):

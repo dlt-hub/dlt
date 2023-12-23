@@ -99,9 +99,7 @@ if __name__ == "__main__":
         destination="duckdb",
         dataset_name="unpacked_data",
     )
-    source_data = mongodb_collection(
-        collection="movies", write_disposition="replace"
-    )
+    source_data = mongodb_collection(collection="movies", write_disposition="replace")
     load_info = pipeline.run(source_data)
     print(load_info)
 
@@ -115,9 +113,7 @@ if __name__ == "__main__":
         destination="duckdb",
         dataset_name="not_unpacked_data",
     )
-    source_data = mongodb_collection(
-        collection="movies", write_disposition="replace"
-    )
+    source_data = mongodb_collection(collection="movies", write_disposition="replace")
     source_data.max_table_nesting = 0
     load_info = pipeline.run(source_data)
     print(load_info)
@@ -131,9 +127,7 @@ if __name__ == "__main__":
         destination="duckdb",
         dataset_name="unpacked_data_without_cast",
     )
-    source_data = mongodb_collection(
-        collection="movies", write_disposition="replace"
-    )
+    source_data = mongodb_collection(collection="movies", write_disposition="replace")
     source_data.movies.apply_hints(columns={"cast": {"data_type": "complex"}})
     load_info = pipeline.run(source_data)
     print(load_info)

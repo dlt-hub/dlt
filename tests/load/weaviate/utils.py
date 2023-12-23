@@ -6,8 +6,8 @@ from dlt.common.pipeline import PipelineContext
 from dlt.common.configuration.container import Container
 from dlt.common.schema.utils import get_columns_names_with_prop
 
-from dlt.destinations.weaviate.weaviate_client import WeaviateClient
-from dlt.destinations.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
+from dlt.destinations.impl.weaviate.weaviate_client import WeaviateClient
+from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
 
 
 def assert_unordered_list_equal(list1: List[Any], list2: List[Any]) -> None:

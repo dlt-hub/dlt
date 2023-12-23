@@ -15,10 +15,24 @@ def example_toml():
 def test_write_value(example_toml):
     toml_table = example_toml
 
-    write_value(toml_table, "species", str, overwrite_existing=True, default_value="Homo sapiens", is_default_of_interest=True)
+    write_value(
+        toml_table,
+        "species",
+        str,
+        overwrite_existing=True,
+        default_value="Homo sapiens",
+        is_default_of_interest=True,
+    )
     assert toml_table["species"] == "Homo sapiens"
 
-    write_value(toml_table, "species", str, overwrite_existing=False, default_value="Mus musculus", is_default_of_interest=True)
+    write_value(
+        toml_table,
+        "species",
+        str,
+        overwrite_existing=False,
+        default_value="Mus musculus",
+        is_default_of_interest=True,
+    )
     assert toml_table["species"] == "Homo sapiens"
 
     # Test with is_default_of_interest=True and non-optional, non-final hint
@@ -26,24 +40,42 @@ def test_write_value(example_toml):
     assert toml_table["species"] == "species"
 
     # Test with is_default_of_interest=False and non-optional, non-final hint, and no default
-    write_value(toml_table, "population", int, overwrite_existing=True, is_default_of_interest=False)
+    write_value(
+        toml_table, "population", int, overwrite_existing=True, is_default_of_interest=False
+    )
     # non default get typed example value
     assert "population" in toml_table
 
     # Test with optional hint
-    write_value(toml_table, "habitat", Optional[str], overwrite_existing=True, is_default_of_interest=False)
+    write_value(
+        toml_table, "habitat", Optional[str], overwrite_existing=True, is_default_of_interest=False
+    )
     assert "habitat" not in toml_table
 
     # test with optional hint of interest
-    write_value(toml_table, "habitat", Optional[str], overwrite_existing=True, is_default_of_interest=True)
+    write_value(
+        toml_table, "habitat", Optional[str], overwrite_existing=True, is_default_of_interest=True
+    )
     assert "habitat" in toml_table
 
     # Test with final hint
-    write_value(toml_table, "immutable_trait", Final[str], overwrite_existing=True, is_default_of_interest=False)
+    write_value(
+        toml_table,
+        "immutable_trait",
+        Final[str],
+        overwrite_existing=True,
+        is_default_of_interest=False,
+    )
     assert "immutable_trait" not in toml_table
 
     # Test with final hint of interest
-    write_value(toml_table, "immutable_trait", Final[str], overwrite_existing=True, is_default_of_interest=True)
+    write_value(
+        toml_table,
+        "immutable_trait",
+        Final[str],
+        overwrite_existing=True,
+        is_default_of_interest=True,
+    )
     assert "immutable_trait" in toml_table
 
 
@@ -61,7 +93,9 @@ def test_write_values(example_toml):
 
     new_values = [
         WritableConfigValue("species", str, "Canis lupus", ("taxonomy", "genus")),
-        WritableConfigValue("species", str, "Canis lupus familiaris", ("taxonomy", "genus", "subgenus")),
+        WritableConfigValue(
+            "species", str, "Canis lupus familiaris", ("taxonomy", "genus", "subgenus")
+        ),
         WritableConfigValue("genome_size", float, 2.8, ("genomic_info",)),
     ]
     write_values(example_toml, new_values, overwrite_existing=False)
@@ -118,7 +152,10 @@ def test_write_values_without_defaults(example_toml):
     assert example_toml["animal_info"]["is_animal"] is True
 
     assert example_toml["genomic_info"]["chromosome_data"]["chromosomes"] == ["a", "b", "c"]
-    assert example_toml["genomic_info"]["chromosome_data"]["chromosomes"].trivia.comment == EXAMPLE_COMMENT
+    assert (
+        example_toml["genomic_info"]["chromosome_data"]["chromosomes"].trivia.comment
+        == EXAMPLE_COMMENT
+    )
 
     assert example_toml["genomic_info"]["gene_data"]["genes"] == {"key": "value"}
     assert example_toml["genomic_info"]["gene_data"]["genes"].trivia.comment == EXAMPLE_COMMENT

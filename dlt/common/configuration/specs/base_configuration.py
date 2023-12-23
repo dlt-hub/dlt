@@ -3,7 +3,22 @@ import inspect
 import contextlib
 import dataclasses
 from collections.abc import Mapping as C_Mapping
-from typing import Callable, List, Optional, Union, Any, Dict, Iterator, MutableMapping, Type, TYPE_CHECKING, get_args, get_origin, overload, ClassVar, TypeVar
+from typing import (
+    Callable,
+    List,
+    Optional,
+    Union,
+    Any,
+    Dict,
+    Iterator,
+    MutableMapping,
+    Type,
+    TYPE_CHECKING,
+    overload,
+    ClassVar,
+    TypeVar,
+)
+from typing_extensions import get_args, get_origin
 from functools import wraps
 
 if TYPE_CHECKING:
@@ -11,9 +26,17 @@ if TYPE_CHECKING:
 else:
     TDtcField = dataclasses.Field
 
-from dlt.common.typing import TAnyClass, TSecretValue, extract_inner_type, is_optional_type, is_union
+from dlt.common.typing import (
+    TAnyClass,
+    extract_inner_type,
+    is_optional_type,
+    is_union_type,
+)
 from dlt.common.data_types import py_type_to_sc_type
-from dlt.common.configuration.exceptions import ConfigFieldMissingTypeHintException, ConfigFieldTypeHintNotSupported
+from dlt.common.configuration.exceptions import (
+    ConfigFieldMissingTypeHintException,
+    ConfigFieldTypeHintNotSupported,
+)
 
 
 # forward class declaration
@@ -35,20 +58,20 @@ def is_credentials_inner_hint(inner_hint: Type[Any]) -> bool:
 
 
 def get_config_if_union_hint(hint: Type[Any]) -> Type[Any]:
-    if is_union(hint):
+    if is_union_type(hint):
         return next((t for t in get_args(hint) if is_base_configuration_inner_hint(t)), None)
     return None
 
 
 def is_valid_hint(hint: Type[Any]) -> bool:
+    if get_origin(hint) is ClassVar:
+        # class vars are skipped by dataclass
+        return True
     hint = extract_inner_type(hint)
     hint = get_config_if_union_hint(hint) or hint
     hint = get_origin(hint) or hint
 
     if hint is Any:
-        return True
-    if hint is ClassVar:
-        # class vars are skipped by dataclass
         return True
     if is_base_configuration_inner_hint(hint):
         return True
@@ -68,7 +91,7 @@ def extract_inner_hint(hint: Type[Any], preserve_new_types: bool = False) -> Typ
 
 
 def is_secret_hint(hint: Type[Any]) -> bool:
-    is_secret =  False
+    is_secret = False
     if hasattr(hint, "__name__"):
         is_secret = hint.__name__ == "TSecretValue"
     if not is_secret:
@@ -82,16 +105,16 @@ def is_secret_hint(hint: Type[Any]) -> bool:
 
 
 @overload
-def configspec(cls: Type[TAnyClass]) -> Type[TAnyClass]:
-    ...
+def configspec(cls: Type[TAnyClass]) -> Type[TAnyClass]: ...
 
 
 @overload
-def configspec(cls: None = ...) -> Callable[[Type[TAnyClass]], Type[TAnyClass]]:
-    ...
+def configspec(cls: None = ...) -> Callable[[Type[TAnyClass]], Type[TAnyClass]]: ...
 
 
-def configspec(cls: Optional[Type[Any]] = None) -> Union[Type[TAnyClass], Callable[[Type[TAnyClass]], Type[TAnyClass]]]:
+def configspec(
+    cls: Optional[Type[Any]] = None,
+) -> Union[Type[TAnyClass], Callable[[Type[TAnyClass]], Type[TAnyClass]]]:
     """Converts (via derivation) any decorated class to a Python dataclass that may be used as a spec to resolve configurations
 
     In comparison the Python dataclass, a spec implements full dictionary interface for its attributes, allows instance creation from ie. strings
@@ -99,6 +122,7 @@ def configspec(cls: Optional[Type[Any]] = None) -> Union[Type[TAnyClass], Callab
     more information.
 
     """
+
     def wrap(cls: Type[TAnyClass]) -> Type[TAnyClass]:
         cls.__hint_resolvers__ = {}  # type: ignore[attr-defined]
         is_context = issubclass(cls, _F_ContainerInjectableContext)
@@ -106,8 +130,11 @@ def configspec(cls: Optional[Type[Any]] = None) -> Union[Type[TAnyClass], Callab
         with contextlib.suppress(NameError):
             if not issubclass(cls, BaseConfiguration):
                 # keep the original module and keep defaults for fields listed in annotations
-                fields = {"__module__": cls.__module__, "__annotations__": getattr(cls, "__annotations__", {})}
-                for key in fields['__annotations__'].keys():  # type: ignore[union-attr]
+                fields = {
+                    "__module__": cls.__module__,
+                    "__annotations__": getattr(cls, "__annotations__", {}),
+                }
+                for key in fields["__annotations__"].keys():  # type: ignore[union-attr]
                     if key in cls.__dict__:
                         fields[key] = cls.__dict__[key]
                 cls = type(cls.__name__, (cls, _F_BaseConfiguration), fields)
@@ -129,7 +156,9 @@ def configspec(cls: Optional[Type[Any]] = None) -> Union[Type[TAnyClass], Callab
                 except NameError:
                     # Dealing with BaseConfiguration itself before it is defined
                     continue
-            if not att_name.startswith(("__", "_abc_")) and not isinstance(att_value, (staticmethod, classmethod, property)):
+            if not att_name.startswith(("__", "_abc_")) and not isinstance(
+                att_value, (staticmethod, classmethod, property)
+            ):
                 if att_name not in cls.__annotations__:
                     raise ConfigFieldMissingTypeHintException(att_name, cls)
                 hint = cls.__annotations__[att_name]
@@ -142,8 +171,8 @@ def configspec(cls: Optional[Type[Any]] = None) -> Union[Type[TAnyClass], Callab
                     # blocking mutable defaults
                     def default_factory(att_value=att_value):  # type: ignore[no-untyped-def]
                         return att_value.copy()
-                    setattr(cls, att_name, dataclasses.field(default_factory=default_factory))
 
+                    setattr(cls, att_name, dataclasses.field(default_factory=default_factory))
 
         # We don't want to overwrite user's __init__ method
         # Create dataclass init only when not defined in the class
@@ -168,19 +197,17 @@ def configspec(cls: Optional[Type[Any]] = None) -> Union[Type[TAnyClass], Callab
 
 @configspec
 class BaseConfiguration(MutableMapping[str, Any]):
-
-    __is_resolved__: bool = dataclasses.field(default = False, init=False, repr=False)
+    __is_resolved__: bool = dataclasses.field(default=False, init=False, repr=False)
     """True when all config fields were resolved and have a specified value type"""
-    __section__: str = dataclasses.field(default = None, init=False, repr=False)
+    __section__: str = dataclasses.field(default=None, init=False, repr=False)
     """Obligatory section used by config providers when searching for keys, always present in the search path"""
-    __exception__: Exception = dataclasses.field(default = None, init=False, repr=False)
+    __exception__: Exception = dataclasses.field(default=None, init=False, repr=False)
     """Holds the exception that prevented the full resolution"""
     __config_gen_annotations__: ClassVar[List[str]] = []
     """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
     __dataclass_fields__: ClassVar[Dict[str, TDtcField]]
     """Typing for dataclass fields"""
     __hint_resolvers__: ClassVar[Dict[str, Callable[["BaseConfiguration"], Type[Any]]]] = {}
-
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
@@ -212,7 +239,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         # Sort dynamic type hint fields last because they depend on other values
         yield from sorted(
             (f for f in cls.__dataclass_fields__.values() if cls.__is_valid_field(f)),
-            key=lambda f: f.name in cls.__hint_resolvers__
+            key=lambda f: f.name in cls.__hint_resolvers__,
         )
 
     @classmethod
@@ -229,7 +256,9 @@ class BaseConfiguration(MutableMapping[str, Any]):
             return False
         # check if all resolvable fields have value
         return any(
-            field for field, hint in self.get_resolvable_fields().items() if getattr(self, field) is None and not is_optional_type(hint)
+            field
+            for field, hint in self.get_resolvable_fields().items()
+            if getattr(self, field) is None and not is_optional_type(hint)
         )
 
     def resolve(self) -> None:
@@ -265,7 +294,10 @@ class BaseConfiguration(MutableMapping[str, Any]):
 
     def __iter__(self) -> Iterator[str]:
         """Iterator or valid key names"""
-        return map(lambda field: field.name, filter(lambda val: self.__is_valid_field(val), self.__dataclass_fields__.values()))
+        return map(
+            lambda field: field.name,
+            filter(lambda val: self.__is_valid_field(val), self.__dataclass_fields__.values()),
+        )
 
     def __len__(self) -> int:
         return sum(1 for _ in self.__iter__())
@@ -280,7 +312,9 @@ class BaseConfiguration(MutableMapping[str, Any]):
     # helper functions
 
     def __has_attr(self, __key: str) -> bool:
-        return __key in self.__dataclass_fields__ and self.__is_valid_field(self.__dataclass_fields__[__key])
+        return __key in self.__dataclass_fields__ and self.__is_valid_field(
+            self.__dataclass_fields__[__key]
+        )
 
     @staticmethod
     def __is_valid_field(field: TDtcField) -> bool:
@@ -335,7 +369,7 @@ class CredentialsConfiguration(BaseConfiguration):
         return self.to_native_representation()
 
     def __str__(self) -> str:
-        """Get string representation of credentials to be displayed, with all secret parts removed """
+        """Get string representation of credentials to be displayed, with all secret parts removed"""
         return super().__str__()
 
 
@@ -360,6 +394,8 @@ class ContainerInjectableContext(BaseConfiguration):
 
     can_create_default: ClassVar[bool] = True
     """If True, `Container` is allowed to create default context instance, if none exists"""
+    global_affinity: ClassVar[bool] = False
+    """If True, `Container` will create context that will be visible in any thread. If False, per thread context is created"""
 
     def add_extras(self) -> None:
         """Called right after context was added to the container. Benefits mostly the config provider injection context which adds extra providers using the initial ones."""
@@ -372,11 +408,15 @@ _F_ContainerInjectableContext = ContainerInjectableContext
 TSpec = TypeVar("TSpec", bound=BaseConfiguration)
 THintResolver = Callable[[TSpec], Type[Any]]
 
+
 def resolve_type(field_name: str) -> Callable[[THintResolver[TSpec]], THintResolver[TSpec]]:
     def decorator(func: THintResolver[TSpec]) -> THintResolver[TSpec]:
         func.__hint_for_field__ = field_name  # type: ignore[attr-defined]
+
         @wraps(func)
         def wrapper(self: TSpec) -> Type[Any]:
             return func(self)
+
         return wrapper
+
     return decorator

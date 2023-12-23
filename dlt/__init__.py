@@ -29,8 +29,17 @@ from dlt.common.schema import Schema
 
 from dlt import sources
 from dlt.extract.decorators import source, resource, transformer, defer
-from dlt.pipeline import pipeline as _pipeline, run, attach, Pipeline, dbt, current as _current, mark as _mark
+from dlt.pipeline import (
+    pipeline as _pipeline,
+    run,
+    attach,
+    Pipeline,
+    dbt,
+    current as _current,
+    mark as _mark,
+)
 from dlt.pipeline import progress
+from dlt import destinations
 
 pipeline = _pipeline
 current = _current
@@ -64,4 +73,5 @@ __all__ = [
     "TSecretValue",
     "TCredentials",
     "sources",
+    "destinations",
 ]

@@ -27,17 +27,17 @@ def make_dlt_settings_path(path: str) -> str:
 
 
 def get_dlt_data_dir() -> str:
-    """ Gets default directory where pipelines' data will be stored
-        1. in user home directory: ~/.dlt/
-        2. if current user is root: in /var/dlt/
-        3. if current user does not have a home directory: in /tmp/dlt/
-        4. if DLT_DATA_DIR is set in env then it is used
+    """Gets default directory where pipelines' data will be stored
+    1. in user home directory: ~/.dlt/
+    2. if current user is root: in /var/dlt/
+    3. if current user does not have a home directory: in /tmp/dlt/
+    4. if DLT_DATA_DIR is set in env then it is used
     """
     if "DLT_DATA_DIR" in os.environ:
         return os.environ["DLT_DATA_DIR"]
 
-    # getuid not available on Windows
-    if hasattr(os, "getuid") and os.geteuid() == 0:
+    # geteuid not available on Windows
+    if hasattr(os, "geteuid") and os.geteuid() == 0:
         # we are root so use standard /var
         return os.path.join("/var", "dlt")
 
@@ -48,6 +48,7 @@ def get_dlt_data_dir() -> str:
     else:
         # if home directory is available use ~/.dlt/pipelines
         return os.path.join(home, DOT_DLT)
+
 
 def _get_user_home_dir() -> str:
     return os.path.expanduser("~")
