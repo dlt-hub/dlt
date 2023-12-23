@@ -18,7 +18,6 @@ from load.utils import ALL_FILESYSTEM_DRIVERS
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
 from tests.utils import preserve_environ, autouse_test_storage
-from tests.common.configuration.utils import environment
 
 
 @pytest.fixture(autouse=True)
@@ -171,6 +170,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
             assert list(sorted(paths)) == expected_files
 
 
+@pytest.mark.usefixtures("preserve_environ", "autouse_test_storage")
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
 def test_s3_wrong_client_certificate(default_buckets_env: str, load_content: bool) -> None:
     """Test that an exception is raised when the wrong certificate is provided in client_kwargs."""
