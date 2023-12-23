@@ -1,10 +1,9 @@
 import os
 import posixpath
-from typing import Dict, List, Any, Union
-
-from typing_extensions import LiteralString
+from typing import List, Any, Union
 
 import pytest
+from typing_extensions import LiteralString
 
 from common.storages.utils import assert_sample_files
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName, fsspec_from_config
@@ -18,6 +17,8 @@ from load.filesystem.test_filesystem_common import get_config
 from load.utils import ALL_FILESYSTEM_DRIVERS
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
+from tests.utils import preserve_environ, autouse_test_storage
+from tests.common.configuration.utils import environment
 
 
 @pytest.fixture(autouse=True)
@@ -173,7 +174,6 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
 def test_s3_wrong_client_certificate(default_buckets_env: str, load_content: bool) -> None:
     """Test that an exception is raised when the wrong certificate is provided in client_kwargs."""
-    from botocore.exceptions import SSLError
 
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     glob_folder = "standard_source"
