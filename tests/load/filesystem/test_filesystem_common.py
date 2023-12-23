@@ -1,8 +1,10 @@
 import os
 import posixpath
+from ssl import SSLError, SSLCertVerificationError
 from typing import Union, Dict
 
 import pytest
+from fsspec import AbstractFileSystem
 
 from dlt.common import pendulum
 from dlt.common.configuration.inject import with_config
@@ -10,6 +12,7 @@ from dlt.common.configuration.specs import AzureCredentials, AzureCredentialsWit
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import uniq_id
+from unittest.mock import patch
 from tests.common.storages.utils import assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
 from tests.utils import preserve_environ, autouse_test_storage
@@ -115,21 +118,38 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
 
 
 @pytest.mark.usefixtures("preserve_environ", "autouse_test_storage")
-@pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
-def test_s3_wrong_client_certificate(default_buckets_env: str, load_content: bool) -> None:
-    """Test that an exception is raised when the wrong certificate is provided in client_kwargs."""
-
-    bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
-    glob_folder = "standard_source"
-
+def test_client_kwargs_propagate_to_instance(default_buckets_env: str) -> None:
     config = get_config()
+    config = FilesystemConfiguration(
+        bucket_url=config.bucket_url,
+        credentials=config.credentials,
+        kwargs={"use_ssl": True},
+        client_kwargs={"verify": False, "foo": "bar"},
+    )
 
     filesystem, _ = fsspec_from_config(config)
 
-    try:
-        all_file_items = list(
-            glob_files(filesystem, posixpath.join(bucket_url, glob_folder, "samples"))
-        )
-        assert_sample_files(all_file_items, filesystem, config, load_content)
-    except NotImplementedError as ex:
-        pytest.skip(f"Skipping due to {str(ex)}")
+    assert hasattr(filesystem, "client_kwargs")
+    assert ("verify", False) in filesystem.client_kwargs.items()
+    assert ("foo", "bar") in filesystem.client_kwargs.items()
+
+
+def test_wrong_client_certificate(default_buckets_env: str) -> None:
+    """Test whether filesystem raises an SSLError when trying to establish
+    a connection with the wrong client certificate."""
+
+    config = get_config()
+    config = FilesystemConfiguration(
+        bucket_url=config.bucket_url,
+        credentials=config.credentials,
+        kwargs={"use_ssl": True},
+        client_kwargs={"verify": "public.crt"},
+    )
+
+    from s3fs import S3FileSystem
+
+    filesystem: S3FileSystem
+    filesystem, _ = fsspec_from_config(config)
+
+    with pytest.raises(SSLCertVerificationError):
+        print(filesystem.ls("", detail=False))

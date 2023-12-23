@@ -101,9 +101,18 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
     fs_kwargs["use_listings_cache"] = False
 
     if proto == "s3":
-        fs_kwargs.update(cast(AwsCredentials, config.credentials).to_s3fs_credentials())
+        # we are careful not to override the client_kwargs key when updating fs_kwargs
+        s3_credentials = cast(AwsCredentials, config.credentials).to_s3fs_credentials()
+        if "client_kwargs" in fs_kwargs and "client_kwargs" in s3_credentials:
+            fs_kwargs["client_kwargs"].update(s3_credentials["client_kwargs"])
+            s3_credentials.pop("client_kwargs")
+        fs_kwargs.update(s3_credentials)
     elif proto in ["az", "abfs", "adl", "azure"]:
-        fs_kwargs.update(cast(AzureCredentials, config.credentials).to_adlfs_credentials())
+        azure_credentials = cast(AzureCredentials, config.credentials).to_adlfs_credentials()
+        if "client_kwargs" in fs_kwargs and "client_kwargs" in azure_credentials:
+            fs_kwargs["client_kwargs"].update(azure_credentials["client_kwargs"])
+            azure_credentials.pop("client_kwargs")
+        fs_kwargs.update(azure_credentials)
     elif proto in ["gcs", "gs"]:
         assert isinstance(config.credentials, GcpCredentials)
         # Default credentials are handled by gcsfs
@@ -169,16 +178,15 @@ class FileItemDict(DictStrAny):
         if "file_content" in self:
             bytes_io = BytesIO(self["file_content"])
 
-            if "t" in mode:
-                text_kwargs = {
-                    k: kwargs.pop(k) for k in ["encoding", "errors", "newline"] if k in kwargs
-                }
-                return io.TextIOWrapper(
-                    bytes_io,
-                    **text_kwargs,
-                )
-            else:
+            if "t" not in mode:
                 return bytes_io
+            text_kwargs = {
+                k: kwargs.pop(k) for k in ["encoding", "errors", "newline"] if k in kwargs
+            }
+            return io.TextIOWrapper(
+                bytes_io,
+                **text_kwargs,
+            )
         else:
             opened_file = self.fsspec.open(self["file_url"], mode=mode, **kwargs)
         return opened_file
@@ -190,19 +198,17 @@ class FileItemDict(DictStrAny):
             bytes: The file content.
         """
         content: bytes
-        # same as open, if the user has already extracted the content, we use it.
-        if "file_content" in self and self["file_content"] is not None:
-            content = self["file_content"]
-        else:
-            content = self.fsspec.read_bytes(self["file_url"])
-        return content
+        return (  # type: ignore
+            self["file_content"]
+            if "file_content" in self and self["file_content"] is not None
+            else self.fsspec.read_bytes(self["file_url"])
+        )
 
 
 def guess_mime_type(file_name: str) -> str:
-    mime_type = mimetypes.guess_type(posixpath.basename(file_name), strict=False)[0]
-    if not mime_type:
-        mime_type = "application/" + (posixpath.splitext(file_name)[1][1:] or "octet-stream")
-    return mime_type
+    return mimetypes.guess_type(posixpath.basename(file_name), strict=False)[
+        0
+    ] or "application/" + (posixpath.splitext(file_name)[1][1:] or "octet-stream")
 
 
 def glob_files(
@@ -243,9 +249,9 @@ def glob_files(
             continue
         # make that absolute path on a file://
         if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
-            file = "/" + file
+            file = f"/{file}"
         file_name = posixpath.relpath(file, bucket_path)
-        file_url = bucket_url_parsed.scheme + "://" + file
+        file_url = f"{bucket_url_parsed.scheme}://{file}"
         yield FileItem(
             file_name=file_name,
             file_url=file_url,
