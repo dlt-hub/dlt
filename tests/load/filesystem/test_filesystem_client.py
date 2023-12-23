@@ -1,16 +1,21 @@
 import os
 import posixpath
 from typing import Dict, List, Any, Union
+
 from typing_extensions import LiteralString
 
 import pytest
 
-from dlt.common.storages import FileStorage, ParsedLoadJobFileName
+from common.storages.utils import assert_sample_files
+from dlt.common.storages import FileStorage, ParsedLoadJobFileName, fsspec_from_config
+from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.utils import digest128, uniq_id
 from dlt.destinations.impl.filesystem.filesystem import (
     LoadFilesystemJob,
     FilesystemDestinationClientConfiguration,
 )
+from load.filesystem.test_filesystem_common import get_config
+from load.utils import ALL_FILESYSTEM_DRIVERS
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
 
@@ -165,6 +170,21 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
             assert list(sorted(paths)) == expected_files
 
 
-def test_s3_wrong_certificate(environment: Dict[str, str]) -> None:
-    """Test that an exception is raised when the wrong certificate is provided."""
-    pytest.skip("Not implemented yet")
+@pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
+def test_s3_wrong_client_certificate(default_buckets_env: str, load_content: bool) -> None:
+    """Test that an exception is raised when the wrong certificate is provided in client_kwargs."""
+    from botocore.exceptions import SSLError
+
+    bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
+    glob_folder = "standard_source"
+
+    config = get_config()
+
+    filesystem, _ = fsspec_from_config(config)
+
+    try:
+        all_file_items = list(
+            glob_files(filesystem, posixpath.join(bucket_url, glob_folder, "samples"))
+        )
+        assert_sample_files(all_file_items, filesystem, config, load_content)
+
