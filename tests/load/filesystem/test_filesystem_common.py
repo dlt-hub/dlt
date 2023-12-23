@@ -112,3 +112,24 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         "kwargs": {"use_ssl": True},
         "client_kwargs": {"verify": "public.crt"},
     }
+
+
+@pytest.mark.usefixtures("preserve_environ", "autouse_test_storage")
+@pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
+def test_s3_wrong_client_certificate(default_buckets_env: str, load_content: bool) -> None:
+    """Test that an exception is raised when the wrong certificate is provided in client_kwargs."""
+
+    bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
+    glob_folder = "standard_source"
+
+    config = get_config()
+
+    filesystem, _ = fsspec_from_config(config)
+
+    try:
+        all_file_items = list(
+            glob_files(filesystem, posixpath.join(bucket_url, glob_folder, "samples"))
+        )
+        assert_sample_files(all_file_items, filesystem, config, load_content)
+    except NotImplementedError as ex:
+        pytest.skip(f"Skipping due to {str(ex)}")

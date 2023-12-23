@@ -1,20 +1,16 @@
-import os
 import posixpath
-from typing import List, Any, Union
+import os
 
 import pytest
-from typing_extensions import LiteralString
 
-from common.storages.utils import assert_sample_files
-from dlt.common.storages import FileStorage, ParsedLoadJobFileName, fsspec_from_config
-from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.utils import digest128, uniq_id
+from dlt.common.storages import FileStorage, ParsedLoadJobFileName
+
 from dlt.destinations.impl.filesystem.filesystem import (
     LoadFilesystemJob,
     FilesystemDestinationClientConfiguration,
 )
-from load.filesystem.test_filesystem_common import get_config
-from load.utils import ALL_FILESYSTEM_DRIVERS
+
 from tests.load.filesystem.utils import perform_load
 from tests.utils import clean_test_storage, init_test_logging
 from tests.utils import preserve_environ, autouse_test_storage
@@ -59,7 +55,7 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
     else:
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
 
-    dataset_name = f"test_{uniq_id()}"
+    dataset_name = "test_" + uniq_id()
 
     with perform_load(
         dataset_name, NORMALIZED_FILES, write_disposition=write_disposition
@@ -87,7 +83,7 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
                 ),
             )
 
-            # File is created with the correct filename and path
+            # File is created with correct filename and path
             assert client.fs_client.isfile(destination_path)
 
 
@@ -97,13 +93,13 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
-    dataset_name = f"test_{uniq_id()}"
+    dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="replace") as load_info:
         client, _, root_path, load_id1 = load_info
         layout = client.config.layout
 
-        # this path will be kept after replacement
+        # this path will be kept after replace
         job_2_load_1_path = posixpath.join(
             root_path,
             LoadFilesystemJob.make_destination_filename(
@@ -124,13 +120,14 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
                 ),
             )
 
-            # The first file from load1 remains, the second file is replaced by load2
+            # First file from load1 remains, second file is replaced by load2
             # assert that only these two files are in the destination folder
-            paths: List[Union[LiteralString, str, bytes, None, Any]] = []
+            paths = []
             for basedir, _dirs, files in client.fs_client.walk(
                 client.dataset_path, detail=False, refresh=True
             ):
-                paths.extend(posixpath.join(basedir, f) for f in files)
+                for f in files:
+                    paths.append(posixpath.join(basedir, f))
             ls = set(paths)
             assert ls == {job_2_load_1_path, job_1_load_2_path}
 
@@ -142,7 +139,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
-    dataset_name = f"test_{uniq_id()}"
+    dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     with perform_load(dataset_name, NORMALIZED_FILES, write_disposition="append") as load_info:
         client, jobs1, root_path, load_id1 = load_info
@@ -162,29 +159,10 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
             ]
             expected_files = sorted([posixpath.join(root_path, fn) for fn in expected_files])
 
-            paths: List[Union[LiteralString, str, bytes, None, Any]] = []
+            paths = []
             for basedir, _dirs, files in client.fs_client.walk(
                 client.dataset_path, detail=False, refresh=True
             ):
-                paths.extend(posixpath.join(basedir, f) for f in files)
+                for f in files:
+                    paths.append(posixpath.join(basedir, f))
             assert list(sorted(paths)) == expected_files
-
-
-@pytest.mark.usefixtures("preserve_environ", "autouse_test_storage")
-@pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
-def test_s3_wrong_client_certificate(default_buckets_env: str, load_content: bool) -> None:
-    """Test that an exception is raised when the wrong certificate is provided in client_kwargs."""
-
-    bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
-    glob_folder = "standard_source"
-
-    config = get_config()
-
-    filesystem, _ = fsspec_from_config(config)
-
-    try:
-        all_file_items = list(
-            glob_files(filesystem, posixpath.join(bucket_url, glob_folder, "samples"))
-        )
-        assert_sample_files(all_file_items, filesystem, config, load_content)
-
