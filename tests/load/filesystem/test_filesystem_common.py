@@ -1,10 +1,8 @@
 import os
 import posixpath
-from ssl import SSLError, SSLCertVerificationError
 from typing import Union, Dict
 
 import pytest
-from fsspec import AbstractFileSystem
 
 from dlt.common import pendulum
 from dlt.common.configuration.inject import with_config
@@ -12,11 +10,10 @@ from dlt.common.configuration.specs import AzureCredentials, AzureCredentialsWit
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import uniq_id
-from unittest.mock import patch
+from tests.common.configuration.utils import environment
 from tests.common.storages.utils import assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS
 from tests.utils import preserve_environ, autouse_test_storage
-from tests.common.configuration.utils import environment
 
 
 @with_config(spec=FilesystemConfiguration, sections=("destination", "filesystem"))
@@ -134,22 +131,25 @@ def test_client_kwargs_propagate_to_instance(default_buckets_env: str) -> None:
     assert ("foo", "bar") in filesystem.client_kwargs.items()
 
 
-def test_wrong_client_certificate(default_buckets_env: str) -> None:
+@pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
+def test_s3_wrong_client_certificate(default_buckets_env: str, self_signed_cert: str) -> None:
     """Test whether filesystem raises an SSLError when trying to establish
     a connection with the wrong client certificate."""
-
     config = get_config()
+
+    if config.protocol != "s3":
+        pytest.skip(f"Not configured to use {config.protocol} protocol.")
+
     config = FilesystemConfiguration(
         bucket_url=config.bucket_url,
         credentials=config.credentials,
         kwargs={"use_ssl": True},
-        client_kwargs={"verify": "public.crt"},
+        client_kwargs={"verify": self_signed_cert},
     )
 
-    from s3fs import S3FileSystem
-
-    filesystem: S3FileSystem
     filesystem, _ = fsspec_from_config(config)
 
-    with pytest.raises(SSLCertVerificationError):
+    from botocore.exceptions import SSLError
+
+    with pytest.raises(SSLError, match="SSL: CERTIFICATE_VERIFY_FAILED"):
         print(filesystem.ls("", detail=False))
