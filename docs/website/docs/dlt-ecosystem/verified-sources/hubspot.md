@@ -241,6 +241,13 @@ verified source.
    ```
     1. `include_history` loads property change history and entities as separate tables. By default set as False.
 
+1. To load particular properties of a single resource contacts.
+
+   ```python
+   load_data = hubspot()
+   load_data.contacts.bind(props=["date_of_birth", "degree"])
+   load_info = pipeline.run(load_data.with_resources("contacts"))
+   ```
 
 1. To load the web analytics events of a given object type.
 
