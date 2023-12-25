@@ -164,6 +164,7 @@ def hubspot(
 specified entities.
 
 `global_props`: A list of CRM object properties to extract. Applied to every included resource.
+See the example of requesting properties for particular resources below.
 
 ### Resource `companies`
 
@@ -254,7 +255,7 @@ verified source.
    ```
 
     1. `props` argument is supported by every Hubspot resource. By default, equals to the default returned properties
-    of [Hubspot search](https://developers.hubspot.com/docs/api/crm/search#crm-objects)
+    of [Hubspot search](https://developers.hubspot.com/docs/api/crm/search#crm-objects).
 
 1. To load the web analytics events of a given object type.
 
