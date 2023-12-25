@@ -152,7 +152,9 @@ web analytics events data into the destination.
 ```python
 @dlt.source(name="hubspot")
 def hubspot(
-    api_key: str = dlt.secrets.value, include_history: bool = False
+    api_key: str = dlt.secrets.value,
+    include_history: bool = False,
+    global_props: Sequence[str] = None,
 ) -> Sequence[DltResource]:
 ```
 
@@ -160,6 +162,8 @@ def hubspot(
 
 `include_history`: This parameter, when set to "True", loads the history of property changes for the
 specified entities.
+
+`global_props`: A list of CRM object properties to extract. Applied to every included resource.
 
 ### Resource `companies`
 
@@ -248,6 +252,9 @@ verified source.
    load_data.contacts.bind(props=["date_of_birth", "degree"])
    load_info = pipeline.run(load_data.with_resources("contacts"))
    ```
+
+    1. `props` argument is supported by every Hubspot resource. By default, equals to the default returned properties
+    of [Hubspot search](https://developers.hubspot.com/docs/api/crm/search#crm-objects)
 
 1. To load the web analytics events of a given object type.
 
