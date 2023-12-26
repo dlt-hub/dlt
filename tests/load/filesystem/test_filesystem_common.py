@@ -78,7 +78,6 @@ def test_filesystem_dict(default_buckets_env: str, load_content: bool) -> None:
         pytest.skip(f"Skipping due to {str(ex)}")
 
 
-@pytest.mark.usefixtures("environment", "preserve_environ", "autouse_test_storage")
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
 def test_filesystem_instance_from_s3_endpoint(environment: Dict[str, str]) -> None:
     """Test that fsspec instance is correctly configured when using endpoint URL.
@@ -114,7 +113,6 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
     }
 
 
-@pytest.mark.usefixtures("preserve_environ", "autouse_test_storage")
 def test_client_kwargs_propagate_to_instance(default_buckets_env: str) -> None:
     config = get_config()
     config = FilesystemConfiguration(
