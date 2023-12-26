@@ -257,6 +257,18 @@ verified source.
     1. `props` argument is supported by every Hubspot resource. By default, equals to the default returned properties
     of [Hubspot search](https://developers.hubspot.com/docs/api/crm/search#crm-objects).
 
+1. To load all the custom properties of a single resource contacts.
+
+   ```python
+   from sources.hubspot.settings import ALL, CUSTON_ONLY
+   
+   load_data = hubspot()
+   load_data.contacts.bind(props=CUSTOM_ONLY)
+   load_info = pipeline.run(load_data.with_resources("contacts"))
+   ```
+    1. `CUSTOM_ONLY` filters out all the properties with the `hs_` prefix.
+    2. The `ALL` constant includes all the available properties of the CRM object.
+
 1. To load the web analytics events of a given object type.
 
    ```python
