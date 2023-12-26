@@ -287,6 +287,7 @@ def validate_items(
                 if err_idx in deleted:
                     # already dropped
                     continue
+                # item with an error (evidence)
                 err_item = items[err_idx - len(deleted)]
             else:
                 # top level error which means misalignment of list model and items
@@ -314,6 +315,7 @@ def validate_items(
                         err_item,
                     ) from e
                 elif column_mode == "discard_row":
+                    # MARK: add contract violation hook here (IDK how to pass plugins here so it is still effective)
                     # pop at the right index
                     items.pop(err_idx - len(deleted))
                     # store original index so we do not pop again
@@ -335,6 +337,7 @@ def validate_items(
                         err_item,
                     ) from e
                 elif data_mode == "discard_row":
+                    # MARK: add contract violation hook here (IDK how to pass plugins here so it is still effective)
                     items.pop(err_idx - len(deleted))
                     deleted.add(err_idx)
                 else:
@@ -372,6 +375,7 @@ def validate_item(
                         item,
                     ) from e
                 elif column_mode == "discard_row":
+                    # MARK: add contract violation hook here (IDK how to pass plugins here so it is still effective)
                     return None
                 raise NotImplementedError(
                     f"{column_mode} column mode not implemented for Pydantic validation"
@@ -389,6 +393,7 @@ def validate_item(
                         item,
                     ) from e
                 elif data_mode == "discard_row":
+                    # MARK: add contract violation hook here (IDK how to pass plugins here so it is still effective)
                     return None
                 raise NotImplementedError(
                     f"{data_mode} data mode not implemented for Pydantic validation"

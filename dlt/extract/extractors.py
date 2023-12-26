@@ -137,12 +137,16 @@ class Extractor:
         for item in items:
             table_name = self._get_dynamic_table_name(resource, item)
             if table_name in self._filtered_tables:
+                # MARK: add contract violation hook here
                 continue
             if table_name not in self._table_contracts or resource._table_has_other_dynamic_hints:
                 item = self._compute_and_update_table(resource, table_name, item)
             # write to storage with inferred table name
             if table_name not in self._filtered_tables:
                 self._write_item(table_name, resource.name, item)
+            else:
+                # MARK: add contract violation hook here
+                pass
 
     def _write_to_static_table(
         self, resource: DltResource, table_name: str, items: TDataItems
@@ -261,7 +265,7 @@ class ArrowExtractor(Extractor):
             ]
             if removed_columns:
                 item = pyarrow.remove_columns(item, removed_columns)
-                # MARK: add contract violation hook here
+                # MARK: add contract violation hook here -> I'd pass the original arrow table here so before columns are modified
 
         return item
 

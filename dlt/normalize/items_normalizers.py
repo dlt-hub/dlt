@@ -73,8 +73,11 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         for name, mode in filtered_columns.items():
             if name in row:
                 if mode == "discard_row":
+                    # MARK: add contract violation hook here
                     return None
                 elif mode == "discard_value":
+                    # MARK: add contract violation hook here, I just see a problem with sending the original row. we probably need to make a copy. which costs a lot
+                    # WARNING: send an item only once! same item may be modified several times
                     row.pop(name)
         return row
 
@@ -108,7 +111,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     # do not process empty rows
                     if not row:
                         should_descend = False
-                        # MARK: add contract violation hook here
+                        # NOT MARK: no contract violation here
                         continue
 
                     # filter columns or full rows if schema contract said so
@@ -119,7 +122,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         # if whole row got dropped
                         if not row:
                             should_descend = False
-                            # MARK: add contract violation hook here
                             continue
 
                     # decode pua types
@@ -154,7 +156,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         if partial_table is None:
                             # discard migration and row
                             should_descend = False
-                            # MARK: add contract violation hook here
+                            # MARK: add contract violation hook here (full table dropped)
                             continue
                         # theres a new table or new columns in existing table
                         # update schema and save the change
@@ -171,7 +173,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             # do not continue if new filters skipped the full row
                             if not row:
                                 should_descend = False
-                                # MARK: add contract violation hook here
                                 continue
 
                     # get current columns schema
