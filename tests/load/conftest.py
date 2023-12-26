@@ -1,6 +1,6 @@
-import datetime
 import os
 import tempfile
+from dlt.common.pendulum import timedelta, __utcnow
 from typing import Iterator
 
 import pytest
@@ -37,21 +37,23 @@ def all_buckets_env(request) -> Iterator[str]:
 def self_signed_cert() -> Iterator[str]:
     key = rsa.generate_private_key(public_exponent=65537, key_size=2048, backend=default_backend())
 
-    subject = issuer = x509.Name([
-        x509.NameAttribute(NameOID.COUNTRY_NAME, "DE"),
-        x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Berlin"),
-        x509.NameAttribute(NameOID.LOCALITY_NAME, "Britz"),
-        x509.NameAttribute(NameOID.ORGANIZATION_NAME, "dltHub"),
-        x509.NameAttribute(NameOID.COMMON_NAME, "localhost"),
-    ])
+    subject = issuer = x509.Name(
+        [
+            x509.NameAttribute(NameOID.COUNTRY_NAME, "DE"),
+            x509.NameAttribute(NameOID.STATE_OR_PROVINCE_NAME, "Berlin"),
+            x509.NameAttribute(NameOID.LOCALITY_NAME, "Britz"),
+            x509.NameAttribute(NameOID.ORGANIZATION_NAME, "dltHub"),
+            x509.NameAttribute(NameOID.COMMON_NAME, "localhost"),
+        ]
+    )
     cert = (
         x509.CertificateBuilder()
         .subject_name(subject)
         .issuer_name(issuer)
         .public_key(key.public_key())
         .serial_number(x509.random_serial_number())
-        .not_valid_before(datetime.datetime.now(datetime.timezone.utc))
-        .not_valid_after(datetime.datetime.now(datetime.timezone.utc) + datetime.timedelta(days=1))
+        .not_valid_before(__utcnow())
+        .not_valid_after(__utcnow() + timedelta(days=1))
         .add_extension(
             x509.SubjectAlternativeName([x509.DNSName("localhost")]),
             critical=False,
