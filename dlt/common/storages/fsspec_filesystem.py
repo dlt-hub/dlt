@@ -89,16 +89,15 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
 
     """
     proto = config.protocol
-    fs_kwargs: DictStrAny = {}
+
+    # defaults
+    fs_kwargs: DictStrAny = {"use_listings_cache": False}
 
     if config.kwargs is not None:
         fs_kwargs.update(config.kwargs)
 
     if config.client_kwargs is not None:
         fs_kwargs["client_kwargs"] = config.client_kwargs
-
-    # https://github.com/dlt-hub/dlt/issues/814#issuecomment-1867004844
-    fs_kwargs["use_listings_cache"] = False
 
     if proto == "s3":
         # we are careful not to override the client_kwargs key when updating fs_kwargs
