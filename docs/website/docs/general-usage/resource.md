@@ -45,7 +45,7 @@ function.
 
 ### Define schema
 
-`dlt` will generate [schema](schema.md) for tables associated with resources from the resource's.
+`dlt` will infer [schema](schema.md) for tables associated with resources from the resource's data.
 You can modify the generation process by using the table and column hints. Resource decorator
 accepts following arguments:
 

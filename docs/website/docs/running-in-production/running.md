@@ -255,7 +255,7 @@ if __name__ == "__main__" :
         for attempt in Retrying(stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1.5, min=4, max=10), retry=retry_if_exception(retry_load(())), reraise=True):
             with attempt:
                 load_info = p.run(data)
-        send_slack_message(pipeline.runtime_config.slack_incoming_hook, "HOORAY 😄")
+                send_slack_message(pipeline.runtime_config.slack_incoming_hook, "HOORAY 😄")
     except Exception:
         # we get here after all the retries
         send_slack_message(pipeline.runtime_config.slack_incoming_hook, "BOOO 🤯")

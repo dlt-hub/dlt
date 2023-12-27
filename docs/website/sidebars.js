@@ -102,6 +102,7 @@ const sidebars = {
         'general-usage/resource',
         'general-usage/source',
         'general-usage/pipeline',
+        'general-usage/destination',
         'general-usage/destination-tables',
         'dlt-ecosystem/staging',
         'general-usage/state',
