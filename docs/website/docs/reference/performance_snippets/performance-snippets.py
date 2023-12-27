@@ -1,3 +1,4 @@
+import os
 from utils import parse_toml_file
 
 
@@ -171,4 +172,5 @@ def parallel_pipelines_asyncio_snippet() -> None:
 
 
 def test_toml_snippets() -> None:
-    parse_toml_file("./toml-snippets.toml")
+    current_dir = os.path.dirname(os.path.realpath(__file__))
+    parse_toml_file(f"{current_dir}/toml-snippets.toml")
