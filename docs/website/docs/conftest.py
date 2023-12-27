@@ -24,7 +24,7 @@ from tests.utils import (
 
 
 @pytest.fixture(autouse=True)
-def setup_secret_providers(request) -> None:
+def setup_secret_providers(request):
     """Creates set of config providers where tomls are loaded from tests/.dlt"""
     secret_dir = "./.dlt"
     dname = os.path.dirname(request.module.__file__)
