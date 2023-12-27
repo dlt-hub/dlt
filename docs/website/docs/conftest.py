@@ -1,5 +1,4 @@
 import os
-from typing import Iterator
 
 import pytest
 
@@ -17,7 +16,7 @@ from dlt.common.configuration.specs.config_providers_context import (
 
 
 @pytest.fixture(autouse=True, scope="session")
-def test_config_providers() -> Iterator[ConfigProvidersContext]:
+def test_config_providers() -> None:
     """Creates set of config providers where tomls are loaded from tests/.dlt"""
     config_root = "./.dlt"
     ctx = ConfigProvidersContext()
