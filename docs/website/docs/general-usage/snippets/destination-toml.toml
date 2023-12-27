@@ -1,0 +1,15 @@
+# @@@DLT_SNIPPET_START default_layout
+[destination.filesystem]
+bucket_url="az://dlt-azure-bucket"
+[destination.filesystem.credentials]
+azure_storage_account_name="dltdata"
+azure_storage_account_key="storage key"
+# @@@DLT_SNIPPET_END default_layout
+
+# @@@DLT_SNIPPET_START name_layout
+[destination.production_az_bucket]
+bucket_url="az://dlt-azure-bucket"
+[destination.production_az_bucket.credentials]
+azure_storage_account_name="dltdata"
+azure_storage_account_key="storage key"
+# @@@DLT_SNIPPET_END name_layout
