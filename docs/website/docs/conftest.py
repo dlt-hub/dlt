@@ -1,18 +1,18 @@
 import os
 import pytest
+from unittest.mock import patch
 
 from dlt.common.configuration.container import Container
-
-# patch which providers to enable
 from dlt.common.configuration.providers import (
-    StringTomlProvider,
     ConfigTomlProvider,
     EnvironProvider,
     SecretsTomlProvider,
+    StringTomlProvider,
 )
 from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersContext,
 )
+from dlt.common.utils import set_working_dir
 
 from tests.utils import (
     patch_home_dir,
@@ -26,24 +26,29 @@ from tests.utils import (
 @pytest.fixture(autouse=True)
 def setup_secret_providers(request) -> None:
     """Creates set of config providers where tomls are loaded from tests/.dlt"""
-    config_root = "./.dlt"
-    ctx = ConfigProvidersContext()
-    ctx.providers.clear()
-    ctx.add_provider(EnvironProvider())
-    ctx.add_provider(
-        SecretsTomlProvider(project_dir=config_root, add_global_config=False)
-    )
-
+    secret_dir = "./.dlt"
     dname = os.path.dirname(request.module.__file__)
     config_dir = dname + "/.dlt"
-    ctx.add_provider(
-        ConfigTomlProvider(project_dir=config_dir, add_global_config=False)
-    )
 
-    # replace in container
-    Container()[ConfigProvidersContext] = ctx
-    # extras work when container updated
-    ctx.add_extras()
+    # inject provider context so the original providers are restored at the end
+    def _initial_providers():
+        return [
+            EnvironProvider(),
+            SecretsTomlProvider(project_dir=secret_dir, add_global_config=False),
+            ConfigTomlProvider(project_dir=config_dir, add_global_config=False),
+        ]
+
+    glob_ctx = ConfigProvidersContext()
+    glob_ctx.providers = _initial_providers()
+
+    with set_working_dir(dname), Container().injectable_context(glob_ctx), patch(
+        "dlt.common.configuration.specs.config_providers_context.ConfigProvidersContext.initial_providers",
+        _initial_providers,
+    ):
+        Container()[ConfigProvidersContext] = glob_ctx
+        # extras work when container updated
+        glob_ctx.add_extras()
+        yield
 
 
 def pytest_configure(config):
