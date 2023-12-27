@@ -6,12 +6,21 @@ from dlt.common.configuration.container import Container
 
 # patch which providers to enable
 from dlt.common.configuration.providers import (
+    StringTomlProvider,
     ConfigTomlProvider,
     EnvironProvider,
     SecretsTomlProvider,
 )
 from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersContext,
+)
+
+from tests.utils import (
+    patch_home_dir,
+    autouse_test_storage,
+    preserve_environ,
+    duckdb_pipeline_location,
+    wipe_pipeline,
 )
 
 
