@@ -2,6 +2,7 @@ from abc import ABC, abstractmethod
 from importlib import import_module
 from types import TracebackType
 from typing import (
+    Callable,
     ClassVar,
     Optional,
     NamedTuple,
@@ -418,7 +419,7 @@ class SupportsStagingDestination:
         return True
 
 
-TDestinationReferenceArg = Union[str, "Destination", None]
+TDestinationReferenceArg = Union[str, "Destination", Callable[..., "Destination"], None]
 
 
 class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
@@ -485,6 +486,8 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             raise InvalidDestinationReference(ref)
         if isinstance(ref, str):
             return ref.rsplit(".", 1)[-1]
+        if callable(ref):
+            ref = ref()
         return ref.destination_name
 
     @staticmethod
@@ -515,6 +518,9 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             ref = destination_name
         if ref is None:
             return None
+        # evaluate callable returning Destination
+        if callable(ref):
+            ref = ref()
         if isinstance(ref, Destination):
             if credentials or destination_name or environment:
                 logger.warning(
