@@ -1,5 +1,4 @@
 import os
-
 import pytest
 
 from dlt.common.configuration.container import Container
@@ -24,8 +23,8 @@ from tests.utils import (
 )
 
 
-@pytest.fixture(autouse=True, scope="session")
-def test_config_providers() -> None:
+@pytest.fixture(autouse=True)
+def setup_secret_providers(request) -> None:
     """Creates set of config providers where tomls are loaded from tests/.dlt"""
     config_root = "./.dlt"
     ctx = ConfigProvidersContext()
@@ -34,9 +33,13 @@ def test_config_providers() -> None:
     ctx.add_provider(
         SecretsTomlProvider(project_dir=config_root, add_global_config=False)
     )
+
+    dname = os.path.dirname(request.module.__file__)
+    config_dir = dname + "/.dlt"
     ctx.add_provider(
-        ConfigTomlProvider(project_dir=config_root, add_global_config=False)
+        ConfigTomlProvider(project_dir=config_dir, add_global_config=False)
     )
+
     # replace in container
     Container()[ConfigProvidersContext] = ctx
     # extras work when container updated
