@@ -20,12 +20,9 @@ env:
   DESTINATION__WEAVIATE__VECTORIZER: text2vec-contextionary
   DESTINATION__WEAVIATE__MODULE_CONFIG: "{\"text2vec-contextionary\": {\"vectorizeClassName\": false, \"vectorizePropertyName\": true}}"
 
-#  # zendesk vars for example
-#  SOURCES__ZENDESK__CREDENTIALS: ${{ secrets.ZENDESK__CREDENTIALS }}
   # Slack hook for chess in production example
   RUNTIME__SLACK_INCOMING_HOOK: ${{ secrets.RUNTIME__SLACK_INCOMING_HOOK }}
-  # Mongodb url for nested data example
-  MONGODB_PIPELINE__SOURCES__CONNECTION_URL: ${{ secrets.MONGODB_PIPELINE__SOURCES__CONNECTION_URL }}
+
   # Qdrant credentials
   DESTINATION__QDRANT__CREDENTIALS__LOCATION: ${{ secrets.DESTINATION__QDRANT__CREDENTIALS__LOCATION }}
   DESTINATION__QDRANT__CREDENTIALS__API_KEY: ${{ secrets.DESTINATION__QDRANT__CREDENTIALS__API_KEY }}
