@@ -1,5 +1,6 @@
 import posixpath
 import os
+from dlt.common.exceptions import MissingDependencyException
 
 from tests.utils import TEST_STORAGE_ROOT
 from utils import parse_toml_file
@@ -59,7 +60,11 @@ def destination_instantiation_snippet() -> None:
     # @@@DLT_SNIPPET_END config_partial
 
     os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "pwd"
-    assert pipeline.destination_client().config.credentials.password == "pwd"  # type: ignore[attr-defined]
+    try:
+        assert pipeline.destination_client().config.credentials.password == "pwd"  # type: ignore[attr-defined]
+    except MissingDependencyException:
+        # not very elegant but I do not want to add psycopg2 to docs dependencies
+        pass
 
     # @@@DLT_SNIPPET_START config_partial_spec
     import dlt
@@ -94,4 +99,4 @@ def destination_instantiation_snippet() -> None:
 
 
 def test_toml_snippets() -> None:
-    parse_toml_file("./toml-snippets.toml")
+    parse_toml_file("./destination-toml.toml")
