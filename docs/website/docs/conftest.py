@@ -45,7 +45,6 @@ def setup_secret_providers(request):
         "dlt.common.configuration.specs.config_providers_context.ConfigProvidersContext.initial_providers",
         _initial_providers,
     ):
-        Container()[ConfigProvidersContext] = glob_ctx
         # extras work when container updated
         glob_ctx.add_extras()
         yield
