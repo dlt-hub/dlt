@@ -170,14 +170,26 @@ the destination, replacing any existing data.
 ```python
 @dlt.resource(name="companies", write_disposition="replace")
 def companies(
-      api_key: str = dlt.secrets.value, include_history: bool = False
-) ->  Iterator[TDataItems]:
-      """Hubspot companies resource"""
-      yield from crm_objects("company", api_key, include_history=include_history)
+   api_key: str = api_key,
+   include_history: bool = include_history,
+   props: Sequence[str] = DEFAULT_COMPANY_PROPS,
+   include_custom_props: bool = True,
+) -> Iterator[TDataItems]:
+   """Hubspot companies resource"""
+   yield from crm_objects(
+      "company",
+      api_key,
+      include_history=include_history,
+      props=props,
+      include_custom_props=include_custom_props,
+   )
 ```
 
 This resource function takes the same arguments, `api_key` and `include_history` as the "husbpot"
-source described [above](hubspot.md#source-hubspot). Similar to this, resource functions "contacts",
+source described [above](hubspot.md#source-hubspot), but also supports two additional.
+`include_custom_props` - indicates if all the properties of CRM objects, except Hubspot driven
+(prefixed with `hs_`), are to be extracted. `props` - the list of properties to extract
+in addition to the custom properties. Similar to this, resource functions "contacts",
 "deals", "tickets", "products", and "quotes" retrieve data from the Hubspot API.
 
 ### Resource `hubspot_events_for_objects`
