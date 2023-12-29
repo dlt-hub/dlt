@@ -2,6 +2,8 @@ from dlt.common.configuration.specs import (
     GcpServiceAccountCredentials,
     GcpOAuthCredentials,
     GcpCredentials,
+    AwsCredentials,
+    AzureCredentials,
 )
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs import OAuth2Credentials
@@ -13,6 +15,8 @@ __all__ = [
     "GcpServiceAccountCredentials",
     "GcpOAuthCredentials",
     "GcpCredentials",
+    "AwsCredentials",
+    "AzureCredentials",
     "ConnectionStringCredentials",
     "OAuth2Credentials",
     "CredentialsConfiguration",

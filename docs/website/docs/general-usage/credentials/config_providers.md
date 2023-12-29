@@ -46,16 +46,11 @@ def google_sheets(
     credentials=dlt.secrets.value,
     only_strings=False
 ):
-    sheets = build('sheets', 'v4', credentials=Services.from_json(credentials))
-    tabs = []
-    for tab_name in tab_names:
-        data = sheets.get(spreadsheet_id, tab_name).execute().values()
-        tabs.append(dlt.resource(data, name=tab_name))
-    return tabs
+    ...
 ```
 
 In case of `google_sheets()` it will look
-for: `spreadsheet_id`, `tab_names` and `credentials`.
+for: `spreadsheet_id`, `tab_names`, `credentials` and `only_strings`
 
 Each provider has its own key naming convention, and dlt is able to translate between them.
 
