@@ -134,7 +134,7 @@ import itertools
 
 import dlt
 from weaviate.util import generate_uuid5
-from dlt.destinations.weaviate import weaviate_adapter
+from dlt.destinations.adapters import weaviate_adapter
 
 from zendesk import zendesk_support
 
