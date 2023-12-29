@@ -1,5 +1,7 @@
 from tests.utils import skipifgithubfork
 
+__source_name__ = "mongodb"
+
 
 @skipifgithubfork
 def nested_data_snippet() -> None:

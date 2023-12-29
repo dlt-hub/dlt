@@ -23,7 +23,7 @@ print(f"Job run triggered successfully. Run ID: {job_run_id}")
 
 # Example: Get run status
 run_status = client.get_run_status(run_id=job_run_id)
-print(f"Job run status: {run_status["status_humanized"]}")
+print(f"Job run status: {run_status['status_humanized']}")
 ```
 
 ## Helper functions
