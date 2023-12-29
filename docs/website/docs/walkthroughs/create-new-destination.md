@@ -1,7 +1,7 @@
 # Create new destination
 
 :::caution
-This guide works with `dlt` **0.3.x**. Version **0.4.x** has different module layout. We are working on an update
+This guide is compatible with `dlt` **0.3.x**. Version **0.4.x** has a different module layout. We are working on an update.
 :::
 
 `dlt` can import destinations from external python modules. Below we show how to quickly add a [dbapi](https://peps.python.org/pep-0249/) based destination. `dbapi` is a standardized interface to access

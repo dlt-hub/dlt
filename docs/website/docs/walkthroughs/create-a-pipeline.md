@@ -47,7 +47,7 @@ Copy the value of the API key into `.dlt/secrets.toml`:
 [sources]
 api_secret_key = '<api key value>'
 ```
-The **secret name** corresponds to the **argument name** in the source function. Below **api_secret_key** [will get its value](../general-usage/credentials/configuration.md#general-usage-and-an-example) from `secrets.toml` when `weatherapi_source()` is called.
+The **secret name** corresponds to the **argument name** in the source function. Below `api_secret_key` [will get its value](../general-usage/credentials/configuration.md#general-usage-and-an-example) from `secrets.toml` when `weatherapi_source()` is called.
 ```python
 @dlt.source
 def weatherapi_source(api_secret_key=dlt.secrets.value):
