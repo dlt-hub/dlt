@@ -152,7 +152,8 @@ web analytics events data into the destination.
 ```python
 @dlt.source(name="hubspot")
 def hubspot(
-    api_key: str = dlt.secrets.value, include_history: bool = False
+    api_key: str = dlt.secrets.value,
+    include_history: bool = False,
 ) -> Sequence[DltResource]:
 ```
 
@@ -169,14 +170,26 @@ the destination, replacing any existing data.
 ```python
 @dlt.resource(name="companies", write_disposition="replace")
 def companies(
-      api_key: str = dlt.secrets.value, include_history: bool = False
-) ->  Iterator[TDataItems]:
-      """Hubspot companies resource"""
-      yield from crm_objects("company", api_key, include_history=False)
+   api_key: str = api_key,
+   include_history: bool = include_history,
+   props: Sequence[str] = DEFAULT_COMPANY_PROPS,
+   include_custom_props: bool = True,
+) -> Iterator[TDataItems]:
+   """Hubspot companies resource"""
+   yield from crm_objects(
+      "company",
+      api_key,
+      include_history=include_history,
+      props=props,
+      include_custom_props=include_custom_props,
+   )
 ```
 
 This resource function takes the same arguments, `api_key` and `include_history` as the "husbpot"
-source described [above](hubspot.md#source-hubspot). Similar to this, resource functions "contacts",
+source described [above](hubspot.md#source-hubspot), but also supports two additional.
+`include_custom_props` - indicates if all the properties of CRM objects, except Hubspot driven
+(prefixed with `hs_`), are to be extracted. `props` - the list of properties to extract
+in addition to the custom properties. Similar to this, resource functions "contacts",
 "deals", "tickets", "products", and "quotes" retrieve data from the Hubspot API.
 
 ### Resource `hubspot_events_for_objects`
@@ -240,6 +253,23 @@ verified source.
    print(load_info)
    ```
     1. `include_history` loads property change history and entities as separate tables. By default set as False.
+
+1. By default, all the custom properties of a CRM object are extracted. If you want only particular fields,
+    set the flag `include_custom_props=False` and add a list of properties with the `props` arg.
+
+   ```python
+   load_data = hubspot()
+   load_data.contacts.bind(props=["date_of_birth", "degree"], include_custom_props=False)
+   load_info = pipeline.run(load_data.with_resources("contacts"))
+   ```
+
+1. If you want to read all the custom properties of CRM objects and some additional (e.g. Hubspot driven) properties.
+
+   ```python
+   load_data = hubspot()
+   load_data.contacts.bind(props=["hs_content_membership_email", "hs_content_membership_email_confirmed"])
+   load_info = pipeline.run(load_data.with_resources("contacts"))
+   ```
 
 
 1. To load the web analytics events of a given object type.
