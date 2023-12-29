@@ -5,7 +5,7 @@ DLT_MARKER = "@@@DLT_"
 
 
 def parse_toml_file(filename: str) -> None:
-    """test toml file by splitting into snippets and parsing them separately"""
+    """Test TOML file by splitting into snippets and parsing them separately"""
     with open(filename, "r", encoding="utf-8") as f:
         # use whitespace preserving parser
         lines = f.readlines()

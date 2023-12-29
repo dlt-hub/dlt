@@ -8,7 +8,7 @@ keywords: [destination, load data, configure destination, name destination]
 
 [Destination](glossary.md#destination) is a location in which `dlt` creates and maintains the current version of the schema and loads your data. Destinations come in various forms: databases, datalakes, vector stores or files. `dlt` deals with this variety via modules which you declare when creating a pipeline.
 
-We maintain a set of [built in destinations](../dlt-ecosystem/destinations/) that you can use right away.
+We maintain a set of [built-in destinations](../dlt-ecosystem/destinations/) that you can use right away.
 
 ## Declare the destination type
 We recommend that you declare the destination type when creating a pipeline instance with `dlt.pipeline`. This allows the `run` method to synchronize your local pipeline state with destination and `extract` and `normalize` to create compatible load packages and schemas. You can also pass the destination to `run` and `load` methods.
@@ -54,14 +54,14 @@ azure_bucket = filesystem("az://dlt-azure-bucket", destination_name="production_
 pipeline = dlt.pipeline("pipeline", destination=azure_bucket)
 ```
 <!--@@@DLT_SNIPPET_END ./snippets/destination-snippets.py::instance-->
-Above we import and instantiate the **filesystem** destination class. We pass explicit url of the bucket and name the destination to **production_az_bucket**.
+Above we import and instantiate the `filesystem` destination class. We pass explicit url of the bucket and name the destination to `production_az_bucket`.
 
-If destination is not named, its shorthand type (the Python class name) serves as a destination name. Name your destination explicitly if you need several separate configurations of destinations of the same type ie. you wish to maintain credentials for development, staging and production storage buckets in the same config file. Destination name is also stored in the [load info](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) and pipeline traces so use them also when you need more descriptive names (than ie. **filesystem**).
+If destination is not named, its shorthand type (the Python class name) serves as a destination name. Name your destination explicitly if you need several separate configurations of destinations of the same type (i.e. you wish to maintain credentials for development, staging and production storage buckets in the same config file). Destination name is also stored in the [load info](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) and pipeline traces so use them also when you need more descriptive names (other than, for example, `filesystem`).
 
 ## Configure a destination
-We recommend to pass the credentials and other required parameters to configuration via toml files, environment variables or other [config providers](credentials/config_providers.md). This allows you to ie. easily switch to production destinations after deployment.
+We recommend to pass the credentials and other required parameters to configuration via TOML files, environment variables or other [config providers](credentials/config_providers.md). This allows you, for example, to  easily switch to production destinations after deployment.
 
-We recommend to use the [**default config section layout**](credentials/configuration.md#default-layout-and-default-key-lookup-during-injection) as below:
+We recommend to use the [default config section layout](credentials/configuration.md#default-layout-and-default-key-lookup-during-injection) as below:
 <!--@@@DLT_SNIPPET_START ./snippets/destination-toml.toml::default_layout-->
 ```toml
 [destination.filesystem]
@@ -78,7 +78,7 @@ DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME=dltdata
 DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY="storage key"
 ```
 
-For named destinations you use its name in the config section
+For named destinations you use their names in the config section
 <!--@@@DLT_SNIPPET_START ./snippets/destination-toml.toml::name_layout-->
 ```toml
 [destination.production_az_bucket]
@@ -89,10 +89,10 @@ azure_storage_account_key="storage key"
 ```
 <!--@@@DLT_SNIPPET_END ./snippets/destination-toml.toml::name_layout-->
 
-Note that if you use [`dlt init` command](../walkthroughs/add-a-verified-source.md) to create or add a data source, `dlt` will create a sample configuration for selected destination.
+Note that when you use [`dlt init` command](../walkthroughs/add-a-verified-source.md) to create or add a data source, `dlt` creates a sample configuration for selected destination.
 
 ### Pass explicit credentials
-You can pass **credentials** explicitly when creating destination class instance. This replaces the `credentials` argument in `dlt.pipeline` and `pipeline.load` methods - which is now deprecated. You can pass the required credentials object, its dictionary representation or the supported native form like below:
+You can pass credentials explicitly when creating destination class instance. This replaces the `credentials` argument in `dlt.pipeline` and `pipeline.load` methods - which is now deprecated. You can pass the required credentials object, its dictionary representation or the supported native form like below:
 <!--@@@DLT_SNIPPET_START ./snippets/destination-snippets.py::config_explicit-->
 ```py
 import dlt
@@ -136,13 +136,13 @@ Please read how to use [various built in credentials types](credentials/config_s
 
 ## Access a destination
 When loading data, `dlt` will access the destination in two cases:
-1. at the beginning of the `run` method to sync the pipeline state with the destination (or if you call `pipeline.sync_destination` explicitly)
-2. in the `pipeline.load` method - to migrate schema and load the load package.
+1. At the beginning of the `run` method to sync the pipeline state with the destination (or if you call `pipeline.sync_destination` explicitly).
+2. In the `pipeline.load` method - to migrate schema and load the load package.
 
 Obviously, dlt will access the destination when you instantiate [sql_client](../dlt-ecosystem/transformations/sql.md).
 
 :::note
-`dlt` will not import the destination dependencies or access destination configuration if access is not needed. You can build multi-stage pipelines where steps are executed in separate processes/containers - the `extract` and `normalize` step do not need destination dependencies, configuration and actual connection.
+`dlt` will not import the destination dependencies or access destination configuration if access is not needed. You can build multi-stage pipelines where steps are executed in separate processes or containers - the `extract` and `normalize` step do not need destination dependencies, configuration and actual connection.
 
 <!--@@@DLT_SNIPPET_START ./snippets/destination-snippets.py::late_destination_access-->
 ```py
