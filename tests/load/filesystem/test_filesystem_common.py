@@ -10,10 +10,10 @@ from dlt.common.configuration.specs import AzureCredentials, AzureCredentialsWit
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH, glob_files
 from dlt.common.utils import uniq_id
-from tests.common.configuration.utils import environment
 from tests.common.storages.utils import assert_sample_files
-from tests.load.utils import ALL_FILESYSTEM_DRIVERS
+from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET
 from tests.utils import preserve_environ, autouse_test_storage
+from tests.common.configuration.utils import environment
 
 
 @with_config(spec=FilesystemConfiguration, sections=("destination", "filesystem"))
@@ -113,37 +113,35 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
     }
 
 
-def test_client_kwargs_propagate_to_instance(default_buckets_env: str) -> None:
+@pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
+def test_kwargs_propagate_to_s3_instance(environment: Dict[str, str]) -> None:
+    environment["DESTINATION__FILESYSTEM__BUCKET_URL"] = AWS_BUCKET
+    environment["DESTINATION__FILESYSTEM__KWARGS"] = '{"use_ssl": false}'
+    environment["DESTINATION__FILESYSTEM__CLIENT_KWARGS"] = '{"verify": false, "foo": "bar"}'
+
     config = get_config()
-    config = FilesystemConfiguration(
-        bucket_url=config.bucket_url,
-        credentials=config.credentials,
-        kwargs={"use_ssl": True},
-        client_kwargs={"verify": False, "foo": "bar"},
-    )
 
     filesystem, _ = fsspec_from_config(config)
 
+    assert hasattr(filesystem, "kwargs")
     assert hasattr(filesystem, "client_kwargs")
+    assert not filesystem.use_ssl
     assert ("verify", False) in filesystem.client_kwargs.items()
     assert ("foo", "bar") in filesystem.client_kwargs.items()
 
 
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
-def test_s3_wrong_client_certificate(default_buckets_env: str, self_signed_cert: str) -> None:
+def test_s3_wrong_client_certificate(environment: Dict[str, str], self_signed_cert: str) -> None:
     """Test whether filesystem raises an SSLError when trying to establish
     a connection with the wrong client certificate."""
+    environment["DESTINATION__FILESYSTEM__BUCKET_URL"] = AWS_BUCKET
+    environment["DESTINATION__FILESYSTEM__KWARGS"] = '{"use_ssl": true}'
+    environment["DESTINATION__FILESYSTEM__CLIENT_KWARGS"] = f'{{"verify": "{self_signed_cert}"}}'
+
     config = get_config()
 
     if config.protocol != "s3":
         pytest.skip(f"Not configured to use {config.protocol} protocol.")
-
-    config = FilesystemConfiguration(
-        bucket_url=config.bucket_url,
-        credentials=config.credentials,
-        kwargs={"use_ssl": True},
-        client_kwargs={"verify": self_signed_cert},
-    )
 
     filesystem, _ = fsspec_from_config(config)
 
