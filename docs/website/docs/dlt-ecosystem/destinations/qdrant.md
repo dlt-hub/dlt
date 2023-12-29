@@ -33,7 +33,7 @@ If no configuration options are provided, the default fallback will be `http://l
 
 ```python
 import dlt
-from dlt.destinations.impl.qdrant import qdrant_adapter
+from dlt.destinations.adapters import qdrant_adapter
 
 movies = [
     {
