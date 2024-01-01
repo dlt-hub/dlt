@@ -117,6 +117,16 @@ aws_secret_access_key = "please set me up!" # copy the secret access key here
 endpoint_url = "https://<account_id>.r2.cloudflarestorage.com" # copy your endpoint URL here
 ```
 
+##### Adding Additional Configuration
+
+To pass any additional arguments to `fsspec`, you may supply `kwargs` and `client_kwargs` in the config as a **stringified dictionary**:
+
+```toml
+[destination.filesystem]
+kwargs = '{"use_ssl": true}'
+client_kwargs = '{"verify": "public.crt"}'
+```
+
 #### Google Storage
 Run `pip install dlt[gs]` which will install `gcfs` package.
 
