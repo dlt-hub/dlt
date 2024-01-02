@@ -39,5 +39,5 @@ jobs:
         run: poetry install --no-interaction --with notebook -E duckdb
 
       - run: |
-          ipython tests/cli/test_magics.py
+          poetry run ipython tests/cli/test_magics.py
         name: Run tests
