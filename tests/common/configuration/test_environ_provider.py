@@ -2,7 +2,12 @@ import pytest
 from typing import Any
 
 from dlt.common.typing import TSecretValue
-from dlt.common.configuration import configspec, ConfigFieldMissingException, ConfigFileNotFoundException, resolve
+from dlt.common.configuration import (
+    configspec,
+    ConfigFieldMissingException,
+    ConfigFileNotFoundException,
+    resolve,
+)
 from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
 from dlt.common.configuration.providers import environ as environ_provider
 
@@ -27,22 +32,25 @@ class MockProdRunConfigurationVar(RunConfiguration):
     pipeline_name: str = "comp"
 
 
-
 def test_resolves_from_environ(environment: Any) -> None:
     environment["NONECONFIGVAR"] = "Some"
 
     C = WrongConfiguration()
-    resolve._resolve_config_fields(C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False)
+    resolve._resolve_config_fields(
+        C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False
+    )
     assert not C.is_partial()
 
     assert C.NoneConfigVar == environment["NONECONFIGVAR"]
 
 
 def test_resolves_from_environ_with_coercion(environment: Any) -> None:
-    environment["RUNTIME__TEST_BOOL"] = 'yes'
+    environment["RUNTIME__TEST_BOOL"] = "yes"
 
     C = SimpleRunConfiguration()
-    resolve._resolve_config_fields(C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False)
+    resolve._resolve_config_fields(
+        C, explicit_values=None, explicit_sections=(), embedded_sections=(), accept_partial=False
+    )
     assert not C.is_partial()
 
     # value will be coerced to bool
@@ -52,13 +60,13 @@ def test_resolves_from_environ_with_coercion(environment: Any) -> None:
 def test_secret(environment: Any) -> None:
     with pytest.raises(ConfigFieldMissingException):
         resolve.resolve_configuration(SecretConfiguration())
-    environment['SECRET_VALUE'] = "1"
+    environment["SECRET_VALUE"] = "1"
     C = resolve.resolve_configuration(SecretConfiguration())
     assert C.secret_value == "1"
     # mock the path to point to secret storage
     # from dlt.common.configuration import config_utils
     path = environ_provider.SECRET_STORAGE_PATH
-    del environment['SECRET_VALUE']
+    del environment["SECRET_VALUE"]
     try:
         # must read a secret file
         environ_provider.SECRET_STORAGE_PATH = "./tests/common/cases/%s"
@@ -66,13 +74,13 @@ def test_secret(environment: Any) -> None:
         assert C.secret_value == "BANANA"
 
         # set some weird path, no secret file at all
-        del environment['SECRET_VALUE']
+        del environment["SECRET_VALUE"]
         environ_provider.SECRET_STORAGE_PATH = "!C:\\PATH%s"
         with pytest.raises(ConfigFieldMissingException):
             resolve.resolve_configuration(SecretConfiguration())
 
         # set env which is a fallback for secret not as file
-        environment['SECRET_VALUE'] = "1"
+        environment["SECRET_VALUE"] = "1"
         C = resolve.resolve_configuration(SecretConfiguration())
         assert C.secret_value == "1"
     finally:
@@ -87,7 +95,7 @@ def test_secret_kube_fallback(environment: Any) -> None:
         # all unix editors will add x10 at the end of file, it will be preserved
         assert C.secret_kube == "kube\n"
         # we propagate secrets back to environ and strip the whitespace
-        assert environment['SECRET_KUBE'] == "kube"
+        assert environment["SECRET_KUBE"] == "kube"
     finally:
         environ_provider.SECRET_STORAGE_PATH = path
 
@@ -99,7 +107,10 @@ def test_configuration_files(environment: Any) -> None:
     assert C.config_files_storage_path == environment["RUNTIME__CONFIG_FILES_STORAGE_PATH"]
     assert C.has_configuration_file("hasn't") is False
     assert C.has_configuration_file("event.schema.json") is True
-    assert C.get_configuration_file_path("event.schema.json") == "./tests/common/cases/schemas/ev1/event.schema.json"
+    assert (
+        C.get_configuration_file_path("event.schema.json")
+        == "./tests/common/cases/schemas/ev1/event.schema.json"
+    )
     with C.open_configuration_file("event.schema.json", "r") as f:
         f.read()
     with pytest.raises(ConfigFileNotFoundException):

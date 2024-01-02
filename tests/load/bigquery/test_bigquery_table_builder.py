@@ -8,11 +8,12 @@ from dlt.common.schema.utils import new_table
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
 
-from dlt.destinations.bigquery.bigquery import BigQueryClient
-from dlt.destinations.bigquery.configuration import BigQueryClientConfiguration
+from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
+from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 
 from tests.load.utils import TABLE_UPDATE
+
 
 @pytest.fixture
 def schema() -> Schema:
@@ -37,7 +38,7 @@ def gcp_client(schema: Schema) -> BigQueryClient:
     creds.project_id = "test_project_id"
     return BigQueryClient(
         schema,
-        BigQueryClientConfiguration(dataset_name="test_" + uniq_id(), credentials=creds)  # type: ignore[arg-type]
+        BigQueryClientConfiguration(dataset_name="test_" + uniq_id(), credentials=creds),  # type: ignore[arg-type]
     )
 
 

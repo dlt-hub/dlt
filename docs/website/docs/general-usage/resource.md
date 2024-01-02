@@ -25,7 +25,7 @@ def generate_rows():
 	for i in range(10):
 		yield {'id':i, 'example_string':'abc'}
 
-@dlt.sources
+@dlt.source
 def source_name():
     return generate_rows
 ```
@@ -45,7 +45,7 @@ function.
 
 ### Define schema
 
-`dlt` will generate [schema](schema.md) for tables associated with resources from the resource's.
+`dlt` will infer [schema](schema.md) for tables associated with resources from the resource's data.
 You can modify the generation process by using the table and column hints. Resource decorator
 accepts following arguments:
 
@@ -72,6 +72,9 @@ accepts following arguments:
 
 > 💡 You can mark some resource arguments as [configuration and credentials](credentials)
 > values so `dlt` can pass them automatically to your functions.
+
+### Put a contract on a tables, columns and data
+Use the `schema_contract` argument to tell dlt how to [deal with new tables, data types and bad data types](schema-contracts.md). For example if you set it to **freeze**, `dlt` will not allow for any new tables, columns or data types to be introduced to the schema - it will raise an exception. Learn more in on available contract modes [here](schema-contracts.md#setting-up-the-contract)
 
 ### Define a schema with Pydantic
 
@@ -106,24 +109,33 @@ def get_users():
 The data types of the table columns are inferred from the types of the pydantic fields. These use the same type conversions
 as when the schema is automatically generated from the data.
 
+Pydantic models integrate well with [schema contracts](schema-contracts.md) as data validators.
+
 Things to note:
 
 - Fields with an `Optional` type are marked as `nullable`
 - Fields with a `Union` type are converted to the first (not `None`) type listed in the union. E.g. `status: Union[int, str]` results in a `bigint` column.
-- `list`, `dict` and nested pydantic model fields will use the `complex` type which means they'll be stored as a JSON object in the database instead of creating child tables. You can override this by manually calling the pydantic helper with `skip_complex_types=True`, see below:
+- `list`, `dict` and nested pydantic model fields will use the `complex` type which means they'll be stored as a JSON object in the database instead of creating child tables.
+
+You can override this by configuring the Pydantic model
 
 ```python
-from dlt.common.lib.pydantic import pydantic_to_table_schema_columns
+from typing import ClassVar
+from dlt.common.libs.pydantic import DltConfig
 
-...
+class UserWithNesting(User):
+  dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
 
-@dlt.resource(name="user", columns=pydantic_to_table_schema_columns(User, skip_complex_types=True))
+@dlt.resource(name="user", columns=UserWithNesting)
 def get_users():
     ...
 ```
 
-This omits any `dict`/`list`/`BaseModel` type fields from the schema, so dlt will fall back on the default
+`"skip_complex_types"` omits any `dict`/`list`/`BaseModel` type fields from the schema, so dlt will fall back on the default
 behaviour of creating child tables for these fields.
+
+We do not support `RootModel` that validate simple types. You can add such validator yourself, see [data filtering section](#filter-transform-and-pivot-data).
+
 
 ### Dispatch data to many tables
 
@@ -301,7 +313,7 @@ assert list(r) == list(range(10))
 > 💡 You cannot limit transformers. They should process all the data they receive fully to avoid
 > inconsistencies in generated datasets.
 
-### Set table and adjust schema
+### Set table name and adjust schema
 
 You can change the schema of a resource, be it standalone or as a part of a source. Look for method
 named `apply_hints` which takes the same arguments as resource decorator. Obviously you should call

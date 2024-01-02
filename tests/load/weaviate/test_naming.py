@@ -1,16 +1,19 @@
 import dlt, pytest
 
-from dlt.destinations.weaviate.naming import NamingConvention
-from dlt.destinations.weaviate.ci_naming import NamingConvention as CINamingConvention
+from dlt.destinations.impl.weaviate.naming import NamingConvention
+from dlt.destinations.impl.weaviate.ci_naming import NamingConvention as CINamingConvention
 
 from tests.common.utils import load_yml_case
 
+
 @dlt.source
 def small():
-    return dlt.resource([1,2,3], name="table")
+    return dlt.resource([1, 2, 3], name="table")
 
 
-@pytest.mark.parametrize("n", [NamingConvention(), CINamingConvention()], ids=["naming", "ci_naming"])
+@pytest.mark.parametrize(
+    "n", [NamingConvention(), CINamingConvention()], ids=["naming", "ci_naming"]
+)
 def test_table_name_normalization(n: NamingConvention) -> None:
     assert n.normalize_table_identifier("FlatSpace") == "FlatSpace"
     assert n.normalize_table_identifier("a_snake_case_name") == "ASnakeCaseName"
@@ -87,13 +90,13 @@ def test_reserved_property_names() -> None:
 #     print(schema_2.name)
 #     print(schema_2.naming)
 
-#     eth_v6 = load_yml_case("schemas/eth/ethereum_schema_v6")
-#     eth_v6_schema = dlt.Schema.from_dict(eth_v6)
+#     eth_V8 = load_yml_case("schemas/eth/ethereum_schema_v8")
+#     eth_V8_schema = dlt.Schema.from_dict(eth_V8)
 
-#     pipeline.extract(s, schema=eth_v6_schema)
+#     pipeline.extract(s, schema=eth_V8_schema)
 
-#     print(eth_v6_schema.data_tables())
-#     print(eth_v6_schema.dlt_tables())
+#     print(eth_V8_schema.data_tables())
+#     print(eth_V8_schema.dlt_tables())
 
 
 # def test_x_schema_naming_normalize() -> None:
@@ -101,14 +104,14 @@ def test_reserved_property_names() -> None:
 #     print(pipeline.dataset_name)
 
 #     s = small()
-#     eth_v6 = load_yml_case("schemas/eth/ethereum_schema_v6")
-#     eth_v6_schema = dlt.Schema.from_dict(eth_v6)
+#     eth_V8 = load_yml_case("schemas/eth/ethereum_schema_v8")
+#     eth_V8_schema = dlt.Schema.from_dict(eth_V8)
 
-#     pipeline.extract(s, schema=eth_v6_schema)
-#     print(eth_v6_schema.tables.keys())
+#     pipeline.extract(s, schema=eth_V8_schema)
+#     print(eth_V8_schema.tables.keys())
 #     default_schema = pipeline.default_schema
 #     print(default_schema.name)
-#     print(eth_v6_schema.tables.keys())
+#     print(eth_V8_schema.tables.keys())
 
 #     pipeline.run(s, destination="weaviate")
 #     print(default_schema.tables.keys())

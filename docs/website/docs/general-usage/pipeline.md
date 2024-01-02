@@ -77,7 +77,7 @@ You can inspect stored artifacts using the command
 [dlt pipeline info](../reference/command-line-interface.md#dlt-pipeline) and
 [programmatically](../walkthroughs/run-a-pipeline.md#4-inspect-a-load-process).
 
-> 💡 A pipeline with given name looks for its working in location above - so if you have two
+> 💡 A pipeline with given name looks for its working directory in location above - so if you have two
 > pipeline scripts that create a pipeline with the same name, they will see the same working folder
 > and share all the possible state. You may override the default location using `pipelines_dir`
 > argument when creating the pipeline.

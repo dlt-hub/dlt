@@ -3,19 +3,13 @@ from tests.pipeline.utils import assert_load_info
 
 
 def start_snippet() -> None:
-
     # @@@DLT_SNIPPET_START start
     import dlt
 
-    data = [
-        {'id': 1, 'name': 'Alice'},
-        {'id': 2, 'name': 'Bob'}
-    ]
+    data = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
 
     pipeline = dlt.pipeline(
-        pipeline_name='quick_start',
-        destination='duckdb',
-        dataset_name='mydata'
+        pipeline_name="quick_start", destination="duckdb", dataset_name="mydata"
     )
     load_info = pipeline.run(data, table_name="users")
 
@@ -26,19 +20,18 @@ def start_snippet() -> None:
 
 
 def json_snippet() -> None:
-
     # @@@DLT_SNIPPET_START json
     import dlt
 
     from dlt.common import json
 
-    with open("./assets/json_file.json", 'rb') as file:
+    with open("./assets/json_file.json", "rb") as file:
         data = json.load(file)
 
     pipeline = dlt.pipeline(
-        pipeline_name='from_json',
-        destination='duckdb',
-        dataset_name='mydata',
+        pipeline_name="from_json",
+        destination="duckdb",
+        dataset_name="mydata",
     )
 
     # NOTE: test data that we load is just a dictionary so we enclose it in a list
@@ -52,19 +45,18 @@ def json_snippet() -> None:
 
 
 def csv_snippet() -> None:
-
     # @@@DLT_SNIPPET_START csv
     import dlt
     import pandas as pd
 
     owid_disasters_csv = "https://raw.githubusercontent.com/owid/owid-datasets/master/datasets/Natural%20disasters%20from%201900%20to%202019%20-%20EMDAT%20(2020)/Natural%20disasters%20from%201900%20to%202019%20-%20EMDAT%20(2020).csv"
     df = pd.read_csv(owid_disasters_csv)
-    data = df.to_dict(orient='records')
+    data = df.to_dict(orient="records")
 
     pipeline = dlt.pipeline(
-        pipeline_name='from_csv',
-        destination='duckdb',
-        dataset_name='mydata',
+        pipeline_name="from_csv",
+        destination="duckdb",
+        dataset_name="mydata",
     )
     load_info = pipeline.run(data, table_name="natural_disasters")
 
@@ -75,7 +67,6 @@ def csv_snippet() -> None:
 
 
 def api_snippet() -> None:
-
     # @@@DLT_SNIPPET_START api
     import dlt
     from dlt.sources.helpers import requests
@@ -87,9 +78,9 @@ def api_snippet() -> None:
     response.raise_for_status()
 
     pipeline = dlt.pipeline(
-        pipeline_name='from_api',
-        destination='duckdb',
-        dataset_name='github_data',
+        pipeline_name="from_api",
+        destination="duckdb",
+        dataset_name="github_data",
     )
     # the response contains a list of issues
     load_info = pipeline.run(response.json(), table_name="issues")
@@ -101,7 +92,6 @@ def api_snippet() -> None:
 
 
 def db_snippet() -> None:
-
     # @@@DLT_SNIPPET_START db
     import dlt
     from sqlalchemy import create_engine
@@ -112,19 +102,18 @@ def db_snippet() -> None:
     engine = create_engine("mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam")
     with engine.connect() as conn:
         # select genome table, stream data in batches of 100 elements
-        rows = conn.execution_options(yield_per=100).exec_driver_sql("SELECT * FROM genome LIMIT 1000")
+        rows = conn.execution_options(yield_per=100).exec_driver_sql(
+            "SELECT * FROM genome LIMIT 1000"
+        )
 
         pipeline = dlt.pipeline(
-            pipeline_name='from_database',
-            destination='duckdb',
-            dataset_name='genome_data',
+            pipeline_name="from_database",
+            destination="duckdb",
+            dataset_name="genome_data",
         )
 
         # here we convert the rows into dictionaries on the fly with a map function
-        load_info = pipeline.run(
-            map(lambda row: dict(row._mapping), rows),
-            table_name="genome"
-        )
+        load_info = pipeline.run(map(lambda row: dict(row._mapping), rows), table_name="genome")
 
     print(load_info)
     # @@@DLT_SNIPPET_END db
@@ -133,19 +122,15 @@ def db_snippet() -> None:
 
 
 def replace_snippet() -> None:
-
     # @@@DLT_SNIPPET_START replace
     import dlt
 
-    data = [
-        {'id': 1, 'name': 'Alice'},
-        {'id': 2, 'name': 'Bob'}
-    ]
+    data = [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}]
 
     pipeline = dlt.pipeline(
-        pipeline_name='replace_data',
-        destination='duckdb',
-        dataset_name='mydata',
+        pipeline_name="replace_data",
+        destination="duckdb",
+        dataset_name="mydata",
     )
     load_info = pipeline.run(data, table_name="users", write_disposition="replace")
 
@@ -156,7 +141,6 @@ def replace_snippet() -> None:
 
 
 def incremental_snippet() -> None:
-
     # @@@DLT_SNIPPET_START incremental
     import dlt
     from dlt.sources.helpers import requests
@@ -183,11 +167,10 @@ def incremental_snippet() -> None:
                 break
             url = response.links["next"]["url"]
 
-
     pipeline = dlt.pipeline(
-        pipeline_name='github_issues_incremental',
-        destination='duckdb',
-        dataset_name='github_data_append',
+        pipeline_name="github_issues_incremental",
+        destination="duckdb",
+        dataset_name="github_data_append",
     )
     load_info = pipeline.run(get_issues)
     row_counts = pipeline.last_trace.last_normalize_info
@@ -201,7 +184,6 @@ def incremental_snippet() -> None:
 
 
 def incremental_merge_snippet() -> None:
-
     # @@@DLT_SNIPPET_START incremental_merge
     import dlt
     from dlt.sources.helpers import requests
@@ -212,7 +194,7 @@ def incremental_merge_snippet() -> None:
         primary_key="id",
     )
     def get_issues(
-        updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
+        updated_at=dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
     ):
         # NOTE: we read only open issues to minimize number of calls to the API. There's a limit of ~50 calls for not authenticated Github users
         url = f"https://api.github.com/repos/dlt-hub/dlt/issues?since={updated_at.last_value}&per_page=100&sort=updated&directions=desc&state=open"
@@ -228,9 +210,9 @@ def incremental_merge_snippet() -> None:
             url = response.links["next"]["url"]
 
     pipeline = dlt.pipeline(
-        pipeline_name='github_issues_merge',
-        destination='duckdb',
-        dataset_name='github_data_merge',
+        pipeline_name="github_issues_merge",
+        destination="duckdb",
+        dataset_name="github_data_merge",
     )
     load_info = pipeline.run(get_issues)
     row_counts = pipeline.last_trace.last_normalize_info
@@ -244,15 +226,12 @@ def incremental_merge_snippet() -> None:
 
 
 def table_dispatch_snippet() -> None:
-
     # @@@DLT_SNIPPET_START table_dispatch
     import dlt
     from dlt.sources.helpers import requests
 
     @dlt.resource(primary_key="id", table_name=lambda i: i["type"], write_disposition="append")
-    def repo_events(
-        last_created_at = dlt.sources.incremental("created_at")
-    ):
+    def repo_events(last_created_at=dlt.sources.incremental("created_at")):
         url = "https://api.github.com/repos/dlt-hub/dlt/events?per_page=100"
 
         while True:
@@ -271,9 +250,9 @@ def table_dispatch_snippet() -> None:
             url = response.links["next"]["url"]
 
     pipeline = dlt.pipeline(
-        pipeline_name='github_events',
-        destination='duckdb',
-        dataset_name='github_events_data',
+        pipeline_name="github_events",
+        destination="duckdb",
+        dataset_name="github_events_data",
     )
     load_info = pipeline.run(repo_events)
     row_counts = pipeline.last_trace.last_normalize_info
@@ -285,14 +264,14 @@ def table_dispatch_snippet() -> None:
 
     assert_load_info(load_info)
 
+
 def pdf_to_weaviate_snippet() -> None:
     # @@@DLT_SNIPPET_START pdf_to_weaviate
     import os
 
     import dlt
-    from dlt.destinations.weaviate import weaviate_adapter
+    from dlt.destinations.impl.weaviate import weaviate_adapter
     from PyPDF2 import PdfReader
-
 
     @dlt.resource(selected=False)
     def list_files(folder_path: str):
@@ -302,9 +281,8 @@ def pdf_to_weaviate_snippet() -> None:
             yield {
                 "file_name": filename,
                 "file_path": file_path,
-                "mtime": os.path.getmtime(file_path)
+                "mtime": os.path.getmtime(file_path),
             }
-
 
     @dlt.transformer(primary_key="page_id", write_disposition="merge")
     def pdf_to_text(file_item, separate_pages: bool = False):
@@ -319,10 +297,7 @@ def pdf_to_weaviate_snippet() -> None:
             page_item["page_id"] = file_item["file_name"] + "_" + str(page_no)
             yield page_item
 
-    pipeline = dlt.pipeline(
-        pipeline_name='pdf_to_text',
-        destination='weaviate'
-    )
+    pipeline = dlt.pipeline(pipeline_name="pdf_to_text", destination="weaviate")
 
     # this constructs a simple pipeline that: (1) reads files from "invoices" folder (2) filters only those ending with ".pdf"
     # (3) sends them to pdf_to_text transformer with pipe (|) operator
@@ -335,9 +310,7 @@ def pdf_to_weaviate_snippet() -> None:
     pdf_pipeline.table_name = "InvoiceText"
 
     # use weaviate_adapter to tell destination to vectorize "text" column
-    load_info = pipeline.run(
-        weaviate_adapter(pdf_pipeline, vectorize="text")
-    )
+    load_info = pipeline.run(weaviate_adapter(pdf_pipeline, vectorize="text"))
     row_counts = pipeline.last_trace.last_normalize_info
     print(row_counts)
     print("------")
@@ -353,4 +326,3 @@ def pdf_to_weaviate_snippet() -> None:
     # get text of all the invoices in InvoiceText class we just created above
     print(client.query.get("InvoiceText", ["text", "file_name", "mtime", "page_id"]).do())
     # @@@DLT_SNIPPET_END pdf_to_weaviate_read
-

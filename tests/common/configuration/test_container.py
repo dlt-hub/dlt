@@ -1,12 +1,18 @@
+from concurrent.futures import ThreadPoolExecutor
 import pytest
-from typing import Any, ClassVar, Literal, Optional, Iterator, TYPE_CHECKING
+import threading
+from typing import Any, ClassVar, Literal, Optional, Iterator, Type, TYPE_CHECKING
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.providers.context import ContextProvider
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs import BaseConfiguration, ContainerInjectableContext
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.exceptions import ConfigFieldMissingException, ContainerInjectableContextMangled, ContextDefaultCannotBeCreated
+from dlt.common.configuration.exceptions import (
+    ConfigFieldMissingException,
+    ContainerInjectableContextMangled,
+    ContextDefaultCannotBeCreated,
+)
 
 from tests.utils import preserve_environ
 from tests.common.configuration.utils import environment
@@ -20,8 +26,8 @@ class InjectableTestContext(ContainerInjectableContext):
         raise ValueError(native_value)
 
     if TYPE_CHECKING:
-        def __init__(self, current_value: str = None) -> None:
-            ...
+
+        def __init__(self, current_value: str = None) -> None: ...
 
 
 @configspec
@@ -31,8 +37,12 @@ class EmbeddedWithInjectableContext(BaseConfiguration):
 
 @configspec
 class NoDefaultInjectableContext(ContainerInjectableContext):
-
     can_create_default: ClassVar[bool] = False
+
+
+@configspec
+class GlobalTestContext(InjectableTestContext):
+    global_affinity: ClassVar[bool] = True
 
 
 @configspec
@@ -57,25 +67,26 @@ def container() -> Iterator[Container]:
 
 def test_singleton(container: Container) -> None:
     # keep the old configurations list
-    container_configurations = container.contexts
+    container_configurations = container.thread_contexts
 
     singleton = Container()
     # make sure it is the same object
     assert container is singleton
     # that holds the same configurations dictionary
-    assert container_configurations is singleton.contexts
+    assert container_configurations is singleton.thread_contexts
 
 
-def test_container_items(container: Container) -> None:
+@pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
+def test_container_items(container: Container, spec: Type[InjectableTestContext]) -> None:
     # will add InjectableTestContext instance to container
-    container[InjectableTestContext]
-    assert InjectableTestContext in container
-    del container[InjectableTestContext]
-    assert InjectableTestContext not in container
-    container[InjectableTestContext] = InjectableTestContext(current_value="S")
-    assert container[InjectableTestContext].current_value == "S"
-    container[InjectableTestContext] = InjectableTestContext(current_value="SS")
-    assert container[InjectableTestContext].current_value == "SS"
+    container[spec]
+    assert spec in container
+    del container[spec]
+    assert spec not in container
+    container[spec] = spec(current_value="S")
+    assert container[spec].current_value == "S"
+    container[spec] = spec(current_value="SS")
+    assert container[spec].current_value == "SS"
 
 
 def test_get_default_injectable_config(container: Container) -> None:
@@ -93,7 +104,10 @@ def test_raise_on_no_default_value(container: Container) -> None:
         assert container[NoDefaultInjectableContext] is injected
 
 
-def test_container_injectable_context(container: Container) -> None:
+@pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
+def test_container_injectable_context(
+    container: Container, spec: Type[InjectableTestContext]
+) -> None:
     with container.injectable_context(InjectableTestContext()) as current_config:
         assert current_config.current_value is None
         current_config.current_value = "TEST"
@@ -103,43 +117,131 @@ def test_container_injectable_context(container: Container) -> None:
     assert InjectableTestContext not in container
 
 
-def test_container_injectable_context_restore(container: Container) -> None:
+@pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
+def test_container_injectable_context_restore(
+    container: Container, spec: Type[InjectableTestContext]
+) -> None:
     # this will create InjectableTestConfiguration
-    original = container[InjectableTestContext]
+    original = container[spec]
     original.current_value = "ORIGINAL"
-    with container.injectable_context(InjectableTestContext()) as current_config:
+    with container.injectable_context(spec()) as current_config:
         current_config.current_value = "TEST"
         # nested context is supported
-        with container.injectable_context(InjectableTestContext()) as inner_config:
+        with container.injectable_context(spec()) as inner_config:
             assert inner_config.current_value is None
-            assert container[InjectableTestContext] is inner_config
-        assert container[InjectableTestContext] is current_config
+            assert container[spec] is inner_config
+        assert container[spec] is current_config
 
-    assert container[InjectableTestContext] is original
-    assert container[InjectableTestContext].current_value == "ORIGINAL"
+    assert container[spec] is original
+    assert container[spec].current_value == "ORIGINAL"
 
 
-def test_container_injectable_context_mangled(container: Container) -> None:
-    original = container[InjectableTestContext]
+@pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
+def test_container_injectable_context_mangled(
+    container: Container, spec: Type[InjectableTestContext]
+) -> None:
+    original = container[spec]
     original.current_value = "ORIGINAL"
 
-    context = InjectableTestContext()
+    context = spec()
     with pytest.raises(ContainerInjectableContextMangled) as py_ex:
         with container.injectable_context(context) as current_config:
             current_config.current_value = "TEST"
             # overwrite the config in container
-            container[InjectableTestContext] = InjectableTestContext()
-    assert py_ex.value.spec == InjectableTestContext
+            container[spec] = spec()
+    assert py_ex.value.spec == spec
     assert py_ex.value.expected_config == context
 
 
-def test_container_provider(container: Container) -> None:
+@pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
+def test_container_thread_affinity(container: Container, spec: Type[InjectableTestContext]) -> None:
+    event = threading.Semaphore(0)
+    thread_item: InjectableTestContext = None
+
+    def _thread() -> None:
+        container[spec] = spec(current_value="THREAD")
+        event.release()
+        event.acquire()
+        nonlocal thread_item
+        thread_item = container[spec]
+        event.release()
+
+    threading.Thread(target=_thread, daemon=True).start()
+    event.acquire()
+    # it may be or separate copy (InjectableTestContext) or single copy (GlobalTestContext)
+    main_item = container[spec]
+    main_item.current_value = "MAIN"
+    event.release()
+    main_item = container[spec]
+    event.release()
+    if spec is GlobalTestContext:
+        # just one context is kept globally
+        assert main_item is thread_item
+        # MAIN was set after thread
+        assert thread_item.current_value == "MAIN"
+    else:
+        assert main_item is not thread_item
+        assert main_item.current_value == "MAIN"
+        assert thread_item.current_value == "THREAD"
+
+
+@pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
+def test_container_pool_affinity(container: Container, spec: Type[InjectableTestContext]) -> None:
+    event = threading.Semaphore(0)
+    thread_item: InjectableTestContext = None
+
+    def _thread() -> None:
+        container[spec] = spec(current_value="THREAD")
+        event.release()
+        event.acquire()
+        nonlocal thread_item
+        thread_item = container[spec]
+        event.release()
+
+    threading.Thread(target=_thread, daemon=True, name=Container.thread_pool_prefix()).start()
+    event.acquire()
+    # it may be or separate copy (InjectableTestContext) or single copy (GlobalTestContext)
+    main_item = container[spec]
+    main_item.current_value = "MAIN"
+    event.release()
+    main_item = container[spec]
+    event.release()
+
+    # just one context is kept globally - Container user pool thread name to get the starting thread id
+    # and uses it to retrieve context
+    assert main_item is thread_item
+    # MAIN was set after thread
+    assert thread_item.current_value == "MAIN"
+
+
+def test_thread_pool_affinity(container: Container) -> None:
+    def _context() -> InjectableTestContext:
+        return container[InjectableTestContext]
+
+    main_item = container[InjectableTestContext] = InjectableTestContext(current_value="MAIN")
+
+    with ThreadPoolExecutor(thread_name_prefix=container.thread_pool_prefix()) as p:
+        future = p.submit(_context)
+        item = future.result()
+
+    assert item is main_item
+
+    # create non affine pool
+    with ThreadPoolExecutor() as p:
+        future = p.submit(_context)
+        item = future.result()
+
+    assert item is not main_item
+
+
+@pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
+def test_container_provider(container: Container, spec: Type[InjectableTestContext]) -> None:
     provider = ContextProvider()
     # default value will be created
-    v, k = provider.get_value("n/a", InjectableTestContext, None)
-    assert isinstance(v, InjectableTestContext)
-    assert k == "InjectableTestContext"
-    assert InjectableTestContext in container
+    v, k = provider.get_value("n/a", spec, None)
+    assert isinstance(v, spec)
+    assert k == spec.__name__
+    assert spec in container
 
     # provider does not create default value in Container
     v, k = provider.get_value("n/a", NoDefaultInjectableContext, None)
@@ -154,7 +256,7 @@ def test_container_provider(container: Container) -> None:
 
     # must assert if sections are provided
     with pytest.raises(AssertionError):
-        provider.get_value("n/a", InjectableTestContext, None, "ns1")
+        provider.get_value("n/a", spec, None, "ns1")
 
     # type hints that are not classes
     literal = Literal["a"]
@@ -173,7 +275,10 @@ def test_container_provider_embedded_inject(container: Container, environment: A
         assert C.injected is injected
 
 
-def test_container_provider_embedded_no_default(container: Container) -> None:
+@pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
+def test_container_provider_embedded_no_default(
+    container: Container, spec: Type[InjectableTestContext]
+) -> None:
     with container.injectable_context(NoDefaultInjectableContext()):
         resolve_configuration(EmbeddedWithNoDefaultInjectableContext())
     # default cannot be created so fails

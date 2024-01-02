@@ -43,7 +43,7 @@ The `url` will default to **http://localhost:8080** and `api_key` is not defined
 
 ```python
 import dlt
-from dlt.destinations.weaviate import weaviate_adapter
+from dlt.destinations.adapters import weaviate_adapter
 
 movies = [
     {
@@ -252,7 +252,7 @@ it will be normalized to:
 so your best course of action is to clean up the data yourself before loading and use default naming convention. Nevertheless you can configure the alternative in `config.toml`:
 ```toml
 [schema]
-naming="dlt.destinations.weaviate.ci_naming"
+naming="dlt.destinations.weaviate.impl.ci_naming"
 ```
 
 ## Additional destination options

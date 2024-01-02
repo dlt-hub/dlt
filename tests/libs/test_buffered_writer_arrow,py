@@ -1,0 +1,50 @@
+import pytest
+
+from dlt.common.destination import TLoaderFileFormat
+from dlt.common.schema.utils import new_column
+
+from tests.common.data_writers.utils import get_writer, ALL_WRITERS
+
+
+@pytest.mark.parametrize("writer_format", ALL_WRITERS - {"arrow"})
+def test_writer_items_count(writer_format: TLoaderFileFormat) -> None:
+    c1 = {"col1": new_column("col1", "bigint")}
+    with get_writer(_format=writer_format) as writer:
+        assert writer._buffered_items_count == 0
+        # single item
+        writer.write_data_item({"col1": 1}, columns=c1)
+        assert writer._buffered_items_count == 1
+        # list
+        writer.write_data_item([{"col1": 1}, {"col1": 2}], columns=c1)
+        assert writer._buffered_items_count == 3
+        writer._flush_items()
+        assert writer._buffered_items_count == 0
+        assert writer._writer.items_count == 3
+
+
+def test_writer_items_count_arrow() -> None:
+    import pyarrow as pa
+    c1 = {"col1": new_column("col1", "bigint")}
+    with get_writer(_format="arrow") as writer:
+        assert writer._buffered_items_count == 0
+        # single item
+        writer.write_data_item(pa.Table.from_pylist([{"col1": 1}]), columns=c1)
+        assert writer._buffered_items_count == 1
+        # single item with many rows
+        writer.write_data_item(pa.Table.from_pylist([{"col1": 1}, {"col1": 2}]), columns=c1)
+        assert writer._buffered_items_count == 3
+        # empty list
+        writer.write_data_item([], columns=c1)
+        assert writer._buffered_items_count == 3
+        # list with one item
+        writer.write_data_item([pa.Table.from_pylist([{"col1": 1}])], columns=c1)
+        assert writer._buffered_items_count == 4
+        # list with many items
+        writer.write_data_item(
+            [pa.Table.from_pylist([{"col1": 1}]), pa.Table.from_pylist([{"col1": 1}, {"col1": 2}])],
+            columns=c1
+        )
+        assert writer._buffered_items_count == 7
+        writer._flush_items()
+        assert writer._buffered_items_count == 0
+        assert writer._writer.items_count == 7

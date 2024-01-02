@@ -1,6 +1,7 @@
 import gc
 import pytest
 import multiprocessing
+
 # from multiprocessing.pool import Pool
 # from multiprocessing.dummy import Pool as ThreadPool
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor
@@ -9,10 +10,15 @@ from typing import Any
 from dlt.normalize.configuration import SchemaStorageConfiguration
 from dlt.common.runners import Runnable
 
-from tests.common.runners.utils import _TestRunnableWorkerMethod, _TestRunnableWorker, ALL_METHODS, mp_method_auto
+from tests.common.runners.utils import (
+    _TestRunnableWorkerMethod,
+    _TestRunnableWorker,
+    ALL_METHODS,
+    mp_method_auto,
+)
 
 
-@pytest.mark.parametrize('method', ALL_METHODS)
+@pytest.mark.parametrize("method", ALL_METHODS)
 def test_runnable_process_pool(method: str) -> None:
     # 4 tasks
     r = _TestRunnableWorker(4)
@@ -45,7 +51,7 @@ def test_runnable_direct_worker_call() -> None:
     assert rv[0] == 199
 
 
-@pytest.mark.parametrize('method', ALL_METHODS)
+@pytest.mark.parametrize("method", ALL_METHODS)
 def test_process_worker_started_early(method: str) -> None:
     with ProcessPoolExecutor(4, mp_context=multiprocessing.get_context(method)) as p:
         r = _TestRunnableWorkerMethod(4)
@@ -71,7 +77,7 @@ def test_weak_pool_ref() -> None:
         r = wref[rid]
 
 
-@pytest.mark.parametrize('method', ALL_METHODS)
+@pytest.mark.parametrize("method", ALL_METHODS)
 def test_configuredworker(method: str) -> None:
     # call worker method with CONFIG values that should be restored into CONFIG type
     config = SchemaStorageConfiguration()

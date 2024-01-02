@@ -47,9 +47,12 @@ Copy the value of the API key into `.dlt/secrets.toml`:
 [sources]
 api_secret_key = '<api key value>'
 ```
-
-The secret name must correspond to the argument name in the source, i.e.
-`api_secret_key=dlt.secrets.value` in `def weatherapi_source(api_secret_key=dlt.secrets.value):`.
+The **secret name** corresponds to the **argument name** in the source function. Below `api_secret_key` [will get its value](../general-usage/credentials/configuration.md#general-usage-and-an-example) from `secrets.toml` when `weatherapi_source()` is called.
+```python
+@dlt.source
+def weatherapi_source(api_secret_key=dlt.secrets.value):
+  ...
+```
 
 Run the `weatherapi.py` pipeline script to test that authentication headers look fine:
 

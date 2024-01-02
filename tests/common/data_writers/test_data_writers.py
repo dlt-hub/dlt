@@ -1,13 +1,32 @@
 import io
 import pytest
+import time
 from typing import Iterator
 
 from dlt.common import pendulum, json
 from dlt.common.typing import AnyFun
+
 # from dlt.destinations.postgres import capabilities
-from dlt.destinations.redshift import capabilities as redshift_caps
-from dlt.common.data_writers.escape import escape_redshift_identifier, escape_bigquery_identifier, escape_redshift_literal, escape_postgres_literal, escape_duckdb_literal
-from dlt.common.data_writers.writers import DataWriter, InsertValuesWriter, JsonlWriter, ParquetDataWriter
+from dlt.destinations.impl.redshift import capabilities as redshift_caps
+from dlt.common.data_writers.escape import (
+    escape_redshift_identifier,
+    escape_bigquery_identifier,
+    escape_redshift_literal,
+    escape_postgres_literal,
+    escape_duckdb_literal,
+)
+
+# import all writers here to check if it can be done without all the dependencies
+from dlt.common.data_writers.writers import (
+    DataWriter,
+    DataWriterMetrics,
+    EMPTY_DATA_WRITER_METRICS,
+    InsertValuesWriter,
+    JsonlWriter,
+    JsonlListPUAEncodeWriter,
+    ParquetDataWriter,
+    ArrowWriter,
+)
 
 from tests.common.utils import load_json_case, row_to_column_schemas
 
@@ -20,6 +39,7 @@ class _StringIOWriter(DataWriter):
 
 class _BytesIOWriter(DataWriter):
     _f: io.BytesIO
+
 
 @pytest.fixture
 def insert_writer() -> Iterator[DataWriter]:
@@ -48,7 +68,7 @@ def test_simple_jsonl_writer(jsonl_writer: _BytesIOWriter) -> None:
     jsonl_writer.write_all(None, rows)
     # remove b'' at the end
     lines = jsonl_writer._f.getvalue().split(b"\n")
-    assert lines[-1] == b''
+    assert lines[-1] == b""
     assert len(lines) == 3
 
 
@@ -93,13 +113,22 @@ def test_string_literal_escape() -> None:
     assert escape_redshift_literal(", NULL'); DROP TABLE --") == "', NULL''); DROP TABLE --'"
     assert escape_redshift_literal(", NULL');\n DROP TABLE --") == "', NULL'');\\n DROP TABLE --'"
     assert escape_redshift_literal(", NULL);\n DROP TABLE --") == "', NULL);\\n DROP TABLE --'"
-    assert escape_redshift_literal(", NULL);\\n DROP TABLE --\\") == "', NULL);\\\\n DROP TABLE --\\\\'"
+    assert (
+        escape_redshift_literal(", NULL);\\n DROP TABLE --\\")
+        == "', NULL);\\\\n DROP TABLE --\\\\'"
+    )
     # assert escape_redshift_literal(b'hello_word') == "\\x68656c6c6f5f776f7264"
 
 
 @pytest.mark.parametrize("escaper", ALL_LITERAL_ESCAPE)
 def test_string_complex_escape(escaper: AnyFun) -> None:
-    doc = {"complex":[1,2,3,"a"], "link": "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\0xA \0x0 \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"}
+    doc = {
+        "complex": [1, 2, 3, "a"],
+        "link": (
+            "?commen\ntU\nrn=urn%3Ali%3Acomment%3A%28acti\0xA \0x0"
+            " \\vity%3A69'08444473\n\n551163392%2C6n \r \x8e9085"
+        ),
+    }
     escaped = escaper(doc)
     # should be same as string escape
     if escaper == escape_redshift_literal:
@@ -109,16 +138,42 @@ def test_string_complex_escape(escaper: AnyFun) -> None:
 
 
 def test_identifier_escape() -> None:
-    assert escape_redshift_identifier(", NULL'); DROP TABLE\" -\\-") == '", NULL\'); DROP TABLE"" -\\\\-"'
+    assert (
+        escape_redshift_identifier(", NULL'); DROP TABLE\" -\\-")
+        == '", NULL\'); DROP TABLE"" -\\\\-"'
+    )
 
 
 def test_identifier_escape_bigquery() -> None:
-    assert escape_bigquery_identifier(", NULL'); DROP TABLE\"` -\\-") == '`, NULL\'); DROP TABLE"\\` -\\\\-`'
+    assert (
+        escape_bigquery_identifier(", NULL'); DROP TABLE\"` -\\-")
+        == "`, NULL'); DROP TABLE\"\\` -\\\\-`"
+    )
 
 
 def test_string_literal_escape_unicode() -> None:
     # test on some unicode characters
     assert escape_redshift_literal(", NULL);\n DROP TABLE --") == "', NULL);\\n DROP TABLE --'"
-    assert escape_redshift_literal("イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム") == "'イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム'"
-    assert escape_redshift_identifier("ąćł\"") == '"ąćł"""'
-    assert escape_redshift_identifier("イロハニホヘト チリヌルヲ \"ワカヨタレソ ツネナラム") == '"イロハニホヘト チリヌルヲ ""ワカヨタレソ ツネナラム"'
+    assert (
+        escape_redshift_literal("イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム")
+        == "'イロハニホヘト チリヌルヲ ワカヨタレソ ツネナラム'"
+    )
+    assert escape_redshift_identifier('ąćł"') == '"ąćł"""'
+    assert (
+        escape_redshift_identifier('イロハニホヘト チリヌルヲ "ワカヨタレソ ツネナラム')
+        == '"イロハニホヘト チリヌルヲ ""ワカヨタレソ ツネナラム"'
+    )
+
+
+def test_data_writer_metrics_add() -> None:
+    now = time.time()
+    metrics = DataWriterMetrics("file", 10, 100, now, now + 10)
+    add_m: DataWriterMetrics = metrics + EMPTY_DATA_WRITER_METRICS  # type: ignore[assignment]
+    assert add_m == DataWriterMetrics("", 10, 100, now, now + 10)
+    assert metrics + metrics == DataWriterMetrics("", 20, 200, now, now + 10)
+    assert sum((metrics, metrics, metrics), EMPTY_DATA_WRITER_METRICS) == DataWriterMetrics(
+        "", 30, 300, now, now + 10
+    )
+    # time range extends when added
+    add_m = metrics + DataWriterMetrics("file", 99, 120, now - 10, now + 20)  # type: ignore[assignment]
+    assert add_m == DataWriterMetrics("", 109, 220, now - 10, now + 20)

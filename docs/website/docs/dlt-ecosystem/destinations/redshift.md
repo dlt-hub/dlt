@@ -6,6 +6,12 @@ keywords: [redshift, destination, data warehouse]
 
 # Amazon Redshift
 
+## Install dlt with Redshift
+**To install the DLT library with Redshift dependencies:**
+```
+pip install dlt[redshift]
+```
+
 ## Setup Guide
 ### 1. Initialize the dlt project
 

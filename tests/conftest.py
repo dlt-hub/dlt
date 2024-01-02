@@ -4,12 +4,26 @@ import logging
 from typing import List
 
 # patch which providers to enable
-from dlt.common.configuration.providers import ConfigProvider, EnvironProvider, SecretsTomlProvider, ConfigTomlProvider
-from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext, ConfigProvidersConfiguration
+from dlt.common.configuration.providers import (
+    ConfigProvider,
+    EnvironProvider,
+    SecretsTomlProvider,
+    ConfigTomlProvider,
+)
+from dlt.common.configuration.specs.config_providers_context import (
+    ConfigProvidersContext,
+    ConfigProvidersConfiguration,
+)
+
 
 def initial_providers() -> List[ConfigProvider]:
     # do not read the global config
-    return [EnvironProvider(), SecretsTomlProvider(project_dir="tests/.dlt", add_global_config=False), ConfigTomlProvider(project_dir="tests/.dlt", add_global_config=False)]
+    return [
+        EnvironProvider(),
+        SecretsTomlProvider(project_dir="tests/.dlt", add_global_config=False),
+        ConfigTomlProvider(project_dir="tests/.dlt", add_global_config=False),
+    ]
+
 
 ConfigProvidersContext.initial_providers = initial_providers  # type: ignore[method-assign]
 # also disable extras
@@ -26,29 +40,41 @@ def pytest_configure(config):
     from dlt.common.storages import configuration as storage_configuration
 
     test_storage_root = "_storage"
-    run_configuration.RunConfiguration.config_files_storage_path = os.path.join(test_storage_root, "config/")
-    run_configuration.RunConfiguration.dlthub_telemetry_segment_write_key = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB"
+    run_configuration.RunConfiguration.config_files_storage_path = os.path.join(
+        test_storage_root, "config/"
+    )
+    run_configuration.RunConfiguration.dlthub_telemetry_segment_write_key = (
+        "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB"
+    )
     delattr(run_configuration.RunConfiguration, "__init__")
     run_configuration.RunConfiguration = dataclasses.dataclass(run_configuration.RunConfiguration, init=True, repr=False)  # type: ignore
     # push telemetry to CI
 
-    storage_configuration.LoadStorageConfiguration.load_volume_path = os.path.join(test_storage_root, "load")
+    storage_configuration.LoadStorageConfiguration.load_volume_path = os.path.join(
+        test_storage_root, "load"
+    )
     delattr(storage_configuration.LoadStorageConfiguration, "__init__")
     storage_configuration.LoadStorageConfiguration = dataclasses.dataclass(storage_configuration.LoadStorageConfiguration, init=True, repr=False)  # type: ignore[misc, call-overload]
 
-    storage_configuration.NormalizeStorageConfiguration.normalize_volume_path = os.path.join(test_storage_root, "normalize")
+    storage_configuration.NormalizeStorageConfiguration.normalize_volume_path = os.path.join(
+        test_storage_root, "normalize"
+    )
     # delete __init__, otherwise it will not be recreated by dataclass
     delattr(storage_configuration.NormalizeStorageConfiguration, "__init__")
     storage_configuration.NormalizeStorageConfiguration = dataclasses.dataclass(storage_configuration.NormalizeStorageConfiguration, init=True, repr=False)  # type: ignore[misc, call-overload]
 
-    storage_configuration.SchemaStorageConfiguration.schema_volume_path = os.path.join(test_storage_root, "schemas")
+    storage_configuration.SchemaStorageConfiguration.schema_volume_path = os.path.join(
+        test_storage_root, "schemas"
+    )
     delattr(storage_configuration.SchemaStorageConfiguration, "__init__")
     storage_configuration.SchemaStorageConfiguration = dataclasses.dataclass(storage_configuration.SchemaStorageConfiguration, init=True, repr=False)  # type: ignore[misc, call-overload]
 
-
-    assert run_configuration.RunConfiguration.config_files_storage_path == os.path.join(test_storage_root, "config/")
-    assert run_configuration.RunConfiguration().config_files_storage_path == os.path.join(test_storage_root, "config/")
-
+    assert run_configuration.RunConfiguration.config_files_storage_path == os.path.join(
+        test_storage_root, "config/"
+    )
+    assert run_configuration.RunConfiguration().config_files_storage_path == os.path.join(
+        test_storage_root, "config/"
+    )
 
     # path pipeline instance id up to millisecond
     from dlt.common import pendulum
@@ -59,7 +85,7 @@ def pytest_configure(config):
 
     Pipeline._create_pipeline_instance_id = _create_pipeline_instance_id  # type: ignore[method-assign]
     # push sentry to ci
-    os.environ["RUNTIME__SENTRY_DSN"] = "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
+    # os.environ["RUNTIME__SENTRY_DSN"] = "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
 
     # disable sqlfluff logging
     for log in ["sqlfluff.parser", "sqlfluff.linter", "sqlfluff.templater", "sqlfluff.lexer"]:

@@ -17,7 +17,7 @@ from various and often messy data sources into well-structured, live datasets. I
 ```sh
 pip install dlt
 ```
-There's no need to start any backends or containers. Import `dlt` in your Python script and write a simple pipeline like the one below:
+There's no need to start any backends or containers. Simply import `dlt` in a Python file or Jupyter Notebook cell, and write a simple pipeline like this:
 
 <!--AUTO-GENERATED-CONTENT:END-->
 
@@ -25,33 +25,39 @@ There's no need to start any backends or containers. Import `dlt` in your Python
 ```py
 import dlt
 from dlt.sources.helpers import requests
+
 # Create a dlt pipeline that will load
 # chess player data to the DuckDB destination
 pipeline = dlt.pipeline(
-    pipeline_name='chess_pipeline',
-    destination='duckdb',
-    dataset_name='player_data'
+    pipeline_name="chess_pipeline", destination="duckdb", dataset_name="player_data"
 )
 # Grab some player data from Chess.com API
 data = []
-for player in ['magnuscarlsen', 'rpragchess']:
-    response = requests.get(f'https://api.chess.com/pub/player/{player}')
+for player in ["magnuscarlsen", "rpragchess"]:
+    response = requests.get(f"https://api.chess.com/pub/player/{player}")
     response.raise_for_status()
     data.append(response.json())
 # Extract, normalize, and load the data
-load_info = pipeline.run(data, table_name='player')
+load_info = pipeline.run(data, table_name="player")
 ```
 <!--@@@DLT_SNIPPET_END index-->
 
-Now copy this snippet to a file or a Notebook cell and run it. If you do not have it yet, install **duckdb** dependency (default `dlt` installation is really minimal):
+If you don't have `duckdb`, you can install it as an extra:
 ```sh
 pip install "dlt[duckdb]"
 ```
+Now **run** your Python file or Notebook cell.
 
-How the script works?: It extracts data from a
-[source](general-usage/glossary.md#source) (here: **chess.com REST API**), inspects its structure to create a
-[schema](general-usage/glossary.md#schema), structures, normalizes and verifies the data, and then
-loads it into a [destination](general-usage/glossary.md#destination) (here: **duckdb** into a database schema **player_data** and table name **player**).
+What that code does:
+
+1. Extracts data from a
+[source](general-usage/glossary.md#source) (here: **chess.com REST API**).
+2. `dlt` inspects the data's structure to create a
+[schema](general-usage/glossary.md#schema).
+3. `dlt` structures, normalizes and verifies the data.
+4. `dlt` loads data into a [destination](general-usage/glossary.md#destination) (here: a **duckdb** database schema **player_data** and table name **player**).
+
+See below for other easy ways to try `dlt`.
 
 ## Why use `dlt`?
 
@@ -63,6 +69,7 @@ external APIs, backends or containers, scales on micro and large infra alike.
 while empowering senior professionals.
 
 ## Getting started with `dlt`
+
 1. Play with the
 [Google Colab demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing).
 This is the simplest way to see `dlt` in action.

@@ -1,13 +1,16 @@
 import io
 import os
 import contextlib
+import sys
+import multiprocessing
+import platform
 
+from dlt.common.runtime.typing import TExecutionContext, TVersion, TExecInfoNames
 from dlt.common.typing import StrStr, StrAny, Literal, List
 from dlt.common.utils import filter_env_vars
-from dlt.version import __version__
+from dlt.version import __version__, DLT_PKG_NAME
 
 
-TExecInfoNames = Literal["kubernetes", "docker", "codespaces", "github_actions", "airflow", "notebook", "colab","aws_lambda","gcp_cloud_function"]
 # if one of these environment variables is set, we assume to be running in CI env
 CI_ENVIRONMENT_TELL = [
     "bamboo.buildKey",
@@ -121,7 +124,7 @@ def is_running_in_airflow_task() -> bool:
             from airflow.operators.python import get_current_context
 
             context = get_current_context()
-            return context is not None and 'ti' in context
+            return context is not None and "ti" in context
     except Exception:
         return False
 
@@ -185,3 +188,15 @@ def is_aws_lambda() -> bool:
 def is_gcp_cloud_function() -> bool:
     "Return True if the process is running in the serverless platform GCP Cloud Functions"
     return os.environ.get("FUNCTION_NAME") is not None
+
+
+def get_execution_context() -> TExecutionContext:
+    "Get execution context information"
+    return TExecutionContext(
+        ci_run=in_continuous_integration(),
+        python=sys.version.split(" ")[0],
+        cpu=multiprocessing.cpu_count(),
+        exec_info=exec_info_names(),
+        os=TVersion(name=platform.system(), version=platform.release()),
+        library=TVersion(name=DLT_PKG_NAME, version=__version__),
+    )

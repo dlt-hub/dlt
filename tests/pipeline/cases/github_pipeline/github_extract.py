@@ -5,7 +5,9 @@ import dlt
 from github_pipeline import github  # type: ignore[import-not-found]
 
 if __name__ == "__main__":
-    p = dlt.pipeline("dlt_github_pipeline", destination="duckdb", dataset_name="github_3", full_refresh=False)
+    p = dlt.pipeline(
+        "dlt_github_pipeline", destination="duckdb", dataset_name="github_3", full_refresh=False
+    )
     github_source = github()
     if len(sys.argv) > 1:
         # load only N issues
@@ -13,5 +15,3 @@ if __name__ == "__main__":
         github_source.add_limit(limit)
     info = p.extract(github_source)
     print(info)
-    # normalize - don't load
-    p.normalize()

@@ -29,10 +29,23 @@ from dlt.common.schema import Schema
 
 from dlt import sources
 from dlt.extract.decorators import source, resource, transformer, defer
-from dlt.pipeline import pipeline as _pipeline, run, attach, Pipeline, dbt, current as _current, mark as _mark
+from dlt.pipeline import (
+    pipeline as _pipeline,
+    run,
+    attach,
+    Pipeline,
+    dbt,
+    current as _current,
+    mark as _mark,
+)
 from dlt.pipeline import progress
+from dlt import destinations
 
-
+try:
+    from dlt.cli.magics import register_notebook_magics
+    register_notebook_magics()
+except:
+    pass
 
 pipeline = _pipeline
 current = _current
@@ -44,11 +57,6 @@ TSecretValue = _TSecretValue
 TCredentials = _CredentialsConfiguration
 "When typing source/resource function arguments it indicates that a given argument represents credentials and should be taken from dlt.secrets. Credentials may be a string, dictionary or any other type."
 
-try:
-    from dlt.cli.magics import register_notebook_magics
-    register_notebook_magics()
-except:
-    pass
 
 __all__ = [
     "__version__",
@@ -70,5 +78,6 @@ __all__ = [
     "mark",
     "TSecretValue",
     "TCredentials",
-    "sources"
+    "sources",
+    "destinations",
 ]

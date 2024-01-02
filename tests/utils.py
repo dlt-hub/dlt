@@ -3,7 +3,7 @@ import os
 import platform
 import sys
 from os import environ
-from typing import Iterator
+from typing import Any, Iterable, Iterator, List, Literal, Union, get_args
 from unittest.mock import patch
 
 import pytest
@@ -24,8 +24,9 @@ from dlt.common.runtime.telemetry import start_telemetry, stop_telemetry
 from dlt.common.schema import Schema
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
-from dlt.common.typing import StrAny
+from dlt.common.typing import StrAny, TDataItem
 from dlt.common.utils import custom_environ, uniq_id
+from dlt.common.pipeline import PipelineContext, SupportsPipeline
 
 TEST_STORAGE_ROOT = "_storage"
 
@@ -55,9 +56,7 @@ EXCLUDED_DESTINATION_CONFIGURATIONS = set(
 
 
 # filter out active destinations for current tests
-ACTIVE_DESTINATIONS = set(
-    dlt.config.get("ACTIVE_DESTINATIONS", list) or IMPLEMENTED_DESTINATIONS
-)
+ACTIVE_DESTINATIONS = set(dlt.config.get("ACTIVE_DESTINATIONS", list) or IMPLEMENTED_DESTINATIONS)
 
 ACTIVE_SQL_DESTINATIONS = SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
 ACTIVE_NON_SQL_DESTINATIONS = NON_SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
@@ -66,19 +65,19 @@ ACTIVE_NON_SQL_DESTINATIONS = NON_SQL_DESTINATIONS.intersection(ACTIVE_DESTINATI
 assert len(ACTIVE_DESTINATIONS) >= 0, "No active destinations selected"
 
 for destination in NON_SQL_DESTINATIONS:
-    assert (
-        destination in IMPLEMENTED_DESTINATIONS
-    ), f"Unknown non sql destination {destination}"
+    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown non sql destination {destination}"
 
 for destination in SQL_DESTINATIONS:
-    assert (
-        destination in IMPLEMENTED_DESTINATIONS
-    ), f"Unknown sql destination {destination}"
+    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown sql destination {destination}"
 
 for destination in ACTIVE_DESTINATIONS:
-    assert (
-        destination in IMPLEMENTED_DESTINATIONS
-    ), f"Unknown active destination {destination}"
+    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown active destination {destination}"
+
+
+# possible TDataItem types
+TDataItemFormat = Literal["json", "pandas", "arrow", "arrow-batch"]
+ALL_DATA_ITEM_FORMATS = get_args(TDataItemFormat)
+"""List with TDataItem formats: json, arrow table/batch / pandas"""
 
 
 def TEST_DICT_CONFIG_PROVIDER():
@@ -99,6 +98,12 @@ class MockHttpResponse(Response):
     def raise_for_status(self) -> None:
         if self.status_code >= 300:
             raise requests.HTTPError(response=self)
+
+
+class MockPipeline(SupportsPipeline):
+    def __init__(self, pipeline_name: str, first_run: bool) -> None:
+        self.pipeline_name = pipeline_name
+        self.first_run = first_run
 
 
 def write_version(storage: FileStorage, version: str) -> None:
@@ -163,6 +168,7 @@ def unload_modules() -> Iterator[None]:
 
 @pytest.fixture(autouse=True)
 def wipe_pipeline() -> Iterator[None]:
+    """Wipes pipeline local state and deactivates it"""
     container = Container()
     if container[PipelineContext].is_active():
         container[PipelineContext].deactivate()
@@ -173,6 +179,28 @@ def wipe_pipeline() -> Iterator[None]:
         p._wipe_working_folder()
         # deactivate context
         container[PipelineContext].deactivate()
+
+
+def data_to_item_format(
+    item_format: TDataItemFormat, data: Union[Iterator[TDataItem], Iterable[TDataItem]]
+) -> Any:
+    """Return the given data in the form of pandas, arrow table/batch or json items"""
+    if item_format == "json":
+        return data
+
+    import pandas as pd
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    # Make dataframe from the data
+    df = pd.DataFrame(list(data))
+    if item_format == "pandas":
+        return [df]
+    elif item_format == "arrow":
+        return [pa.Table.from_pandas(df)]
+    elif item_format == "arrow-batch":
+        return [pa.RecordBatch.from_pandas(df)]
+    else:
+        raise ValueError(f"Unknown item format: {item_format}")
 
 
 def init_test_logging(c: RunConfiguration = None) -> None:
@@ -215,31 +243,16 @@ def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
 
 
 def skip_if_not_active(destination: str) -> None:
-    assert (
-        destination in IMPLEMENTED_DESTINATIONS
-    ), f"Unknown skipped destination {destination}"
+    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown skipped destination {destination}"
     if destination not in ACTIVE_DESTINATIONS:
-        pytest.skip(
-            f"{destination} not in ACTIVE_DESTINATIONS", allow_module_level=True
-        )
+        pytest.skip(f"{destination} not in ACTIVE_DESTINATIONS", allow_module_level=True)
 
 
 def is_running_in_github_fork() -> bool:
-    event_path = os.environ["GITHUB_EVENT_PATH"]
-
-    # Extract necessary information from the GitHub Actions event payload
-    with open(event_path, encoding="utf-8") as f:
-        event_data = dlt.common.json.load(f)
-
-    # Check if the pull request is from a fork
-    is_pull_request_from_fork = (
-        event_data.get("pull_request", {})
-        .get("head", {})
-        .get("repo", {})
-        .get("fork", False)
-    )
-
-    return is_pull_request_from_fork
+    """Check if executed by GitHub Actions, in a repo fork."""
+    is_github_actions = os.environ.get("GITHUB_ACTIONS") == "true"
+    is_fork = os.environ.get("IS_FORK") == "true"  # custom var set by us in the workflow's YAML
+    return is_github_actions and is_fork
 
 
 skipifspawn = pytest.mark.skipif(
@@ -250,15 +263,12 @@ skipifpypy = pytest.mark.skipif(
     platform.python_implementation() == "PyPy", reason="won't run in PyPy interpreter"
 )
 
-skipifnotwindows = pytest.mark.skipif(
-    platform.system() != "Windows", reason="runs only on windows"
-)
+skipifnotwindows = pytest.mark.skipif(platform.system() != "Windows", reason="runs only on windows")
 
 skipifwindows = pytest.mark.skipif(
     platform.system() == "Windows", reason="does not runs on windows"
 )
 
 skipifgithubfork = pytest.mark.skipif(
-    is_running_in_github_fork(),
-    reason="Skipping test because it runs on a PR coming from fork",
+    is_running_in_github_fork(), reason="Skipping test because it runs on a PR coming from fork"
 )

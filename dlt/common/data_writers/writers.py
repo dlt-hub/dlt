@@ -1,6 +1,18 @@
 import abc
 from dataclasses import dataclass
-from typing import IO, TYPE_CHECKING, Any, Dict, List, Optional, Sequence, Type, Union
+from typing import (
+    IO,
+    TYPE_CHECKING,
+    Any,
+    Dict,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    NamedTuple,
+    overload,
+)
 
 from dlt.common import json
 from dlt.common.configuration import configspec, known_sections, with_config
@@ -21,6 +33,28 @@ class TFileFormatSpec:
     supports_schema_changes: bool
     requires_destination_capabilities: bool = False
     supports_compression: bool = False
+
+
+class DataWriterMetrics(NamedTuple):
+    file_path: str
+    items_count: int
+    file_size: int
+    created: float
+    last_modified: float
+
+    def __add__(self, other: Tuple[object, ...], /) -> Tuple[object, ...]:
+        if isinstance(other, DataWriterMetrics):
+            return DataWriterMetrics(
+                "",  # path is not known
+                self.items_count + other.items_count,
+                self.file_size + other.file_size,
+                min(self.created, other.created),
+                max(self.last_modified, other.last_modified),
+            )
+        return NotImplemented
+
+
+EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0)
 
 
 class DataWriter(abc.ABC):
@@ -45,18 +79,21 @@ class DataWriter(abc.ABC):
         self.write_data(rows)
         self.write_footer()
 
-
     @classmethod
     @abc.abstractmethod
     def data_format(cls) -> TFileFormatSpec:
         pass
 
     @classmethod
-    def from_file_format(cls, file_format: TLoaderFileFormat, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> "DataWriter":
+    def from_file_format(
+        cls, file_format: TLoaderFileFormat, f: IO[Any], caps: DestinationCapabilitiesContext = None
+    ) -> "DataWriter":
         return cls.class_factory(file_format)(f, caps)
 
     @classmethod
-    def from_destination_capabilities(cls, caps: DestinationCapabilitiesContext, f: IO[Any]) -> "DataWriter":
+    def from_destination_capabilities(
+        cls, caps: DestinationCapabilitiesContext, f: IO[Any]
+    ) -> "DataWriter":
         return cls.class_factory(caps.preferred_loader_file_format)(f, caps)
 
     @classmethod
@@ -74,13 +111,12 @@ class DataWriter(abc.ABC):
         elif file_format == "parquet":
             return ParquetDataWriter  # type: ignore
         elif file_format == "arrow":
-            return ArrowWriter # type: ignore
+            return ArrowWriter  # type: ignore
         else:
             raise ValueError(file_format)
 
 
 class JsonlWriter(DataWriter):
-
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         pass
 
@@ -105,7 +141,6 @@ class JsonlWriter(DataWriter):
 
 
 class JsonlListPUAEncodeWriter(JsonlWriter):
-
     def write_data(self, rows: Sequence[Any]) -> None:
         # skip JsonlWriter when calling super
         super(JsonlWriter, self).write_data(rows)
@@ -126,7 +161,6 @@ class JsonlListPUAEncodeWriter(JsonlWriter):
 
 
 class InsertValuesWriter(DataWriter):
-
     def __init__(self, f: IO[Any], caps: DestinationCapabilitiesContext = None) -> None:
         super().__init__(f, caps)
         self._chunks_written = 0
@@ -148,7 +182,7 @@ class InsertValuesWriter(DataWriter):
 
         def write_row(row: StrAny) -> None:
             output = ["NULL"] * len(self._headers_lookup)
-            for n,v  in row.items():
+            for n, v in row.items():
                 output[self._headers_lookup[n]] = self._caps.escape_literal(v)
             self._f.write("(")
             self._f.write(",".join(output))
@@ -194,19 +228,20 @@ class ParquetDataWriterConfiguration(BaseConfiguration):
 
     __section__: str = known_sections.DATA_WRITER
 
-class ParquetDataWriter(DataWriter):
 
+class ParquetDataWriter(DataWriter):
     @with_config(spec=ParquetDataWriterConfiguration)
-    def __init__(self,
-                 f: IO[Any],
-                 caps: DestinationCapabilitiesContext = None,
-                 *,
-                 flavor: str = "spark",
-                 version: str = "2.4",
-                 data_page_size: int = 1024 * 1024,
-                 timestamp_timezone: str = "UTC",
-                 row_group_size: Optional[int] = None
-                 ) -> None:
+    def __init__(
+        self,
+        f: IO[Any],
+        caps: DestinationCapabilitiesContext = None,
+        *,
+        flavor: str = "spark",
+        version: str = "2.4",
+        data_page_size: int = 1024 * 1024,
+        timestamp_timezone: str = "UTC",
+        row_group_size: Optional[int] = None,
+    ) -> None:
         super().__init__(f, caps)
         from dlt.common.libs.pyarrow import pyarrow
 
@@ -220,24 +255,35 @@ class ParquetDataWriter(DataWriter):
         self.parquet_row_group_size = row_group_size
 
     def _create_writer(self, schema: "pa.Schema") -> "pa.parquet.ParquetWriter":
-        from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_datatype
-        return pyarrow.parquet.ParquetWriter(self._f, schema, flavor=self.parquet_flavor, version=self.parquet_version, data_page_size=self.parquet_data_page_size)
+        from dlt.common.libs.pyarrow import pyarrow
+
+        return pyarrow.parquet.ParquetWriter(
+            self._f,
+            schema,
+            flavor=self.parquet_flavor,
+            version=self.parquet_version,
+            data_page_size=self.parquet_data_page_size,
+        )
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         from dlt.common.libs.pyarrow import pyarrow, get_py_arrow_datatype
 
         # build schema
         self.schema = pyarrow.schema(
-            [pyarrow.field(
-                name,
-                get_py_arrow_datatype(schema_item, self._caps, self.timestamp_timezone),
-                nullable=schema_item.get("nullable", True)
-            ) for name, schema_item in columns_schema.items()]
+            [
+                pyarrow.field(
+                    name,
+                    get_py_arrow_datatype(schema_item, self._caps, self.timestamp_timezone),
+                    nullable=schema_item.get("nullable", True),
+                )
+                for name, schema_item in columns_schema.items()
+            ]
         )
         # find row items that are of the complex type (could be abstracted out for use in other writers?)
-        self.complex_indices = [i for i, field in columns_schema.items() if field["data_type"] == "complex"]
+        self.complex_indices = [
+            i for i, field in columns_schema.items() if field["data_type"] == "complex"
+        ]
         self.writer = self._create_writer(self.schema)
-
 
     def write_data(self, rows: Sequence[Any]) -> None:
         super().write_data(rows)
@@ -257,19 +303,26 @@ class ParquetDataWriter(DataWriter):
         self.writer.close()
         self.writer = None
 
-
     @classmethod
     def data_format(cls) -> TFileFormatSpec:
-        return TFileFormatSpec("parquet", "parquet", True, False, requires_destination_capabilities=True, supports_compression=False)
+        return TFileFormatSpec(
+            "parquet",
+            "parquet",
+            True,
+            False,
+            requires_destination_capabilities=True,
+            supports_compression=False,
+        )
 
 
 class ArrowWriter(ParquetDataWriter):
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         # Schema will be written as-is from the arrow table
-        pass
+        self._column_schema = columns_schema
 
     def write_data(self, rows: Sequence[Any]) -> None:
         from dlt.common.libs.pyarrow import pyarrow
+
         rows = list(rows)
         if not rows:
             return
@@ -284,6 +337,11 @@ class ArrowWriter(ParquetDataWriter):
                 raise ValueError(f"Unsupported type {type(row)}")
             # count rows that got written
             self.items_count += row.num_rows
+
+    def write_footer(self) -> None:
+        if not self.writer:
+            raise NotImplementedError("Arrow Writer does not support writing empty files")
+        return super().write_footer()
 
     @classmethod
     def data_format(cls) -> TFileFormatSpec:

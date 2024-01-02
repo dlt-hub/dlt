@@ -1,4 +1,5 @@
 from typing import Any, AnyStr, List, Type, Optional, Protocol, Tuple, TypeVar
+
 try:
     from pandas import DataFrame
 except ImportError:
@@ -7,12 +8,11 @@ except ImportError:
 # native connection
 TNativeConn = TypeVar("TNativeConn", bound=Any)
 
-class DBTransaction(Protocol):
-    def commit_transaction(self) -> None:
-        ...
 
-    def rollback_transaction(self) -> None:
-        ...
+class DBTransaction(Protocol):
+    def commit_transaction(self) -> None: ...
+
+    def rollback_transaction(self) -> None: ...
 
 
 class DBApi(Protocol):
@@ -23,21 +23,17 @@ class DBApi(Protocol):
 
 class DBApiCursor(Protocol):
     """Protocol for DBAPI cursor"""
+
     description: Tuple[Any, ...]
 
     native_cursor: "DBApiCursor"
     """Cursor implementation native to current destination"""
 
-    def execute(self, query: AnyStr, *args: Any, **kwargs: Any) -> None:
-        ...
-    def fetchall(self) -> List[Tuple[Any, ...]]:
-        ...
-    def fetchmany(self, size: int = ...) -> List[Tuple[Any, ...]]:
-        ...
-    def fetchone(self) -> Optional[Tuple[Any, ...]]:
-        ...
-    def close(self) -> None:
-        ...
+    def execute(self, query: AnyStr, *args: Any, **kwargs: Any) -> None: ...
+    def fetchall(self) -> List[Tuple[Any, ...]]: ...
+    def fetchmany(self, size: int = ...) -> List[Tuple[Any, ...]]: ...
+    def fetchone(self) -> Optional[Tuple[Any, ...]]: ...
+    def close(self) -> None: ...
 
     def df(self, chunk_size: int = None, **kwargs: None) -> Optional[DataFrame]:
         """Fetches the results as data frame. For large queries the results may be chunked
@@ -54,4 +50,3 @@ class DBApiCursor(Protocol):
             Optional[DataFrame]: A data frame with query results. If chunk_size > 0, None will be returned if there is no more data in results
         """
         ...
-

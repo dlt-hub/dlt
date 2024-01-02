@@ -2,6 +2,7 @@ import ast
 from ast import NodeVisitor
 from typing import Any
 
+
 class FunctionVisitor(NodeVisitor):
     def __init__(self, source: str):
         self.source = source

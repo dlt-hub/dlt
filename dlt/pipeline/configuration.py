@@ -11,7 +11,9 @@ from dlt.common.data_writers import TLoaderFileFormat
 class PipelineConfiguration(BaseConfiguration):
     pipeline_name: Optional[str] = None
     pipelines_dir: Optional[str] = None
+    destination_type: Optional[str] = None
     destination_name: Optional[str] = None
+    staging_type: Optional[str] = None
     staging_name: Optional[str] = None
     loader_file_format: Optional[TLoaderFileFormat] = None
     dataset_name: Optional[str] = None

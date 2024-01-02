@@ -8,7 +8,6 @@ from .provider import ConfigProvider
 
 
 class ContextProvider(ConfigProvider):
-
     NAME: ClassVar[str] = "Injectable Context"
 
     def __init__(self) -> None:
@@ -18,7 +17,9 @@ class ContextProvider(ConfigProvider):
     def name(self) -> str:
         return ContextProvider.NAME
 
-    def get_value(self, key: str, hint: Type[Any], pipeline_name: str = None, *sections: str) -> Tuple[Optional[Any], str]:
+    def get_value(
+        self, key: str, hint: Type[Any], pipeline_name: str = None, *sections: str
+    ) -> Tuple[Optional[Any], str]:
         assert sections == ()
 
         # only context is a valid hint

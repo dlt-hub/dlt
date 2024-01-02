@@ -5,27 +5,24 @@ from contextlib import contextmanager
 from dlt.load import Load
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.destination.reference import DestinationReference, LoadJob
+from dlt.common.destination.reference import Destination, LoadJob, TDestination
 from dlt.destinations import filesystem
-from dlt.destinations.filesystem.filesystem import FilesystemClient
+from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.job_impl import EmptyLoadJob
 from tests.load.utils import prepare_load_package
 
 
 def setup_loader(dataset_name: str) -> Load:
-    destination: DestinationReference = filesystem  # type: ignore[assignment]
-    config = filesystem.spec()(dataset_name=dataset_name)
+    destination: TDestination = filesystem()  # type: ignore[assignment]
+    config = filesystem.spec(dataset_name=dataset_name)
     # setup loader
-    with Container().injectable_context(ConfigSectionContext(sections=('filesystem',))):
-        return Load(
-            destination,
-            initial_client_config=config
-        )
+    with Container().injectable_context(ConfigSectionContext(sections=("filesystem",))):
+        return Load(destination, initial_client_config=config)
 
 
 @contextmanager
 def perform_load(
-    dataset_name: str, cases: Sequence[str], write_disposition: str='append'
+    dataset_name: str, cases: Sequence[str], write_disposition: str = "append"
 ) -> Iterator[Tuple[FilesystemClient, List[LoadJob], str, str]]:
     load = setup_loader(dataset_name)
     load_id, schema = prepare_load_package(load.load_storage, cases, write_disposition)
@@ -33,9 +30,9 @@ def perform_load(
 
     # for the replace disposition in the loader we truncate the tables, so do this here
     truncate_tables = []
-    if write_disposition == 'replace':
+    if write_disposition == "replace":
         for item in cases:
-            parts = item.split('.')
+            parts = item.split(".")
             truncate_tables.append(parts[0])
 
     client.initialize_storage(truncate_tables=truncate_tables)

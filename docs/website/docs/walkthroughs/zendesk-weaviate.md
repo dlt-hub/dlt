@@ -79,7 +79,7 @@ When you run `dlt init zendesk weaviate`, dlt creates a file called `zendesk_pip
 
 ```python
 import dlt
-from dlt.destinations.weaviate import weaviate_adapter
+from dlt.destinations.adapters import weaviate_adapter
 
 from zendesk import zendesk_support
 

@@ -1,351 +1,372 @@
 import contextlib
-import os
-from typing import ClassVar, List, Set, Dict, Type, Any, Sequence, Optional
-from collections import defaultdict
+from collections.abc import Sequence as C_Sequence
+from datetime import datetime  # noqa: 251
+import itertools
+from typing import List, Set, Dict, Optional, Set, Any
+import yaml
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
-from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
-from dlt.common.pipeline import reset_resource_state
+from dlt.common.configuration.specs import ConfigSectionContext, known_sections
 from dlt.common.data_writers import TLoaderFileFormat
-from dlt.common.exceptions import MissingDependencyException
-
+from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
+from dlt.common.pipeline import (
+    ExtractDataInfo,
+    ExtractInfo,
+    ExtractMetrics,
+    SupportsPipeline,
+    WithStepInfo,
+    reset_resource_state,
+)
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
-from dlt.common.utils import uniq_id
-from dlt.common.typing import TDataItems, TDataItem
-from dlt.common.schema import Schema, utils, TSchemaUpdate
-from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns
-from dlt.common.storages import NormalizeStorageConfiguration, NormalizeStorage, DataItemStorage, FileStorage
-from dlt.common.configuration.specs import known_sections
+from dlt.common.schema import Schema, utils
+from dlt.common.schema.typing import (
+    TAnySchemaColumns,
+    TColumnNames,
+    TSchemaContract,
+    TWriteDisposition,
+)
+from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, SchemaStorage
+from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.utils import get_callable_name, get_full_class_name
 
 from dlt.extract.decorators import SourceSchemaInjectableContext
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
 from dlt.extract.pipe import PipeIterator
-from dlt.extract.source import DltResource, DltSource
-from dlt.extract.typing import TableNameMeta
-try:
-    from dlt.common.libs import pyarrow
-    from dlt.common.libs.pyarrow import pyarrow as pa
-except MissingDependencyException:
-    pyarrow = None
-try:
-    import pandas as pd
-except ModuleNotFoundError:
-    pd = None
+from dlt.extract.source import DltSource
+from dlt.extract.resource import DltResource
+from dlt.extract.storage import ExtractStorage
+from dlt.extract.extractors import JsonLExtractor, ArrowExtractor, Extractor
 
 
-class ExtractorItemStorage(DataItemStorage):
-    load_file_type: TLoaderFileFormat
+def data_to_sources(
+    data: Any,
+    pipeline: SupportsPipeline,
+    schema: Schema = None,
+    table_name: str = None,
+    parent_table_name: str = None,
+    write_disposition: TWriteDisposition = None,
+    columns: TAnySchemaColumns = None,
+    primary_key: TColumnNames = None,
+    schema_contract: TSchemaContract = None,
+) -> List[DltSource]:
+    """Creates a list of sources for data items present in `data` and applies specified hints to all resources.
 
-    def __init__(self, storage: FileStorage, extract_folder: str="extract") -> None:
-        # data item storage with jsonl with pua encoding
-        super().__init__(self.load_file_type)
-        self.extract_folder = extract_folder
-        self.storage = storage
+    `data` may be a DltSource, DltResource, a list of those or any other data type accepted by pipeline.run
+    """
+
+    def apply_hint_args(resource: DltResource) -> None:
+        resource.apply_hints(
+            table_name,
+            parent_table_name,
+            write_disposition,
+            columns,
+            primary_key,
+            schema_contract=schema_contract,
+        )
+
+    def apply_settings(source_: DltSource) -> None:
+        # apply schema contract settings
+        if schema_contract:
+            source_.schema_contract = schema_contract
+
+    def choose_schema() -> Schema:
+        """Except of explicitly passed schema, use a clone that will get discarded if extraction fails"""
+        if schema:
+            schema_ = schema
+        elif pipeline.default_schema_name:
+            schema_ = pipeline.schemas[pipeline.default_schema_name].clone()
+        else:
+            schema_ = pipeline._make_schema_with_default_name()
+        return schema_
+
+    effective_schema = choose_schema()
+
+    # a list of sources or a list of resources may be passed as data
+    sources: List[DltSource] = []
+    resources: List[DltResource] = []
+
+    def append_data(data_item: Any) -> None:
+        if isinstance(data_item, DltSource):
+            # if schema is explicit then override source schema
+            if schema:
+                data_item.schema = schema
+            sources.append(data_item)
+        elif isinstance(data_item, DltResource):
+            # do not set section to prevent source that represent a standalone resource
+            # to overwrite other standalone resources (ie. parents) in that source
+            sources.append(DltSource(effective_schema, "", [data_item]))
+        else:
+            # iterator/iterable/generator
+            # create resource first without table template
+            resources.append(
+                DltResource.from_data(data_item, name=table_name, section=pipeline.pipeline_name)
+            )
+
+    if isinstance(data, C_Sequence) and len(data) > 0:
+        # if first element is source or resource
+        if isinstance(data[0], (DltResource, DltSource)):
+            for item in data:
+                append_data(item)
+        else:
+            append_data(data)
+    else:
+        append_data(data)
+
+    # add all the appended resources in one source
+    if resources:
+        sources.append(DltSource(effective_schema, pipeline.pipeline_name, resources))
+
+    # apply hints and settings
+    for source in sources:
+        apply_settings(source)
+        for resource in source.selected_resources.values():
+            apply_hint_args(resource)
+
+    return sources
 
 
-    def _get_data_item_path_template(self, load_id: str, schema_name: str, table_name: str) -> str:
-        template = NormalizeStorage.build_extracted_file_stem(schema_name, table_name, "%s")
-        return self.storage.make_full_path(os.path.join(self._get_extract_path(load_id), template))
+def describe_extract_data(data: Any) -> List[ExtractDataInfo]:
+    """Extract source and resource names from data passed to extract"""
+    data_info: List[ExtractDataInfo] = []
 
-    def _get_extract_path(self, extract_id: str) -> str:
-        return os.path.join(self.extract_folder, extract_id)
+    def add_item(item: Any) -> bool:
+        if isinstance(item, (DltResource, DltSource)):
+            # record names of sources/resources
+            data_info.append(
+                {
+                    "name": item.name,
+                    "data_type": "resource" if isinstance(item, DltResource) else "source",
+                }
+            )
+            return False
+        else:
+            # skip None
+            if data is not None:
+                # any other data type does not have a name - just type
+                data_info.append({"name": "", "data_type": type(item).__name__})
+            return True
+
+    item: Any = data
+    if isinstance(data, C_Sequence) and len(data) > 0:
+        for item in data:
+            # add_item returns True if non named item was returned. in that case we break
+            if add_item(item):
+                break
+        return data_info
+
+    add_item(item)
+    return data_info
 
 
-class JsonLExtractorStorage(ExtractorItemStorage):
-    load_file_type: TLoaderFileFormat = "puae-jsonl"
+class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
+    def __init__(
+        self,
+        schema_storage: SchemaStorage,
+        normalize_storage_config: NormalizeStorageConfiguration,
+        collector: Collector = NULL_COLLECTOR,
+        original_data: Any = None,
+    ) -> None:
+        """optionally saves originally extracted `original_data` to generate extract info"""
+        self.collector = collector
+        self.schema_storage = schema_storage
+        self.extract_storage = ExtractStorage(normalize_storage_config)
+        self.original_data: Any = original_data
+        super().__init__()
 
+    def _compute_metrics(self, load_id: str, source: DltSource) -> ExtractMetrics:
+        # map by job id
+        job_metrics = {
+            ParsedLoadJobFileName.parse(m.file_path): m
+            for m in self.extract_storage.closed_files(load_id)
+        }
+        # aggregate by table name
+        table_metrics = {
+            table_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
+            for table_name, metrics in itertools.groupby(
+                job_metrics.items(), lambda pair: pair[0].table_name
+            )
+        }
+        # aggregate by resource name
+        resource_metrics = {
+            resource_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
+            for resource_name, metrics in itertools.groupby(
+                table_metrics.items(), lambda pair: source.schema.get_table(pair[0])["resource"]
+            )
+        }
+        # collect resource hints
+        clean_hints: Dict[str, Dict[str, Any]] = {}
+        for resource in source.selected_resources.values():
+            # cleanup the hints
+            hints = clean_hints[resource.name] = {}
+            resource_hints = resource._hints or resource.compute_table_schema()
 
-class ArrowExtractorStorage(ExtractorItemStorage):
-    load_file_type: TLoaderFileFormat = "arrow"
+            for name, hint in resource_hints.items():
+                if hint is None or name in ["validator"]:
+                    continue
+                if name == "incremental":
+                    # represent incremental as dictionary (it derives from BaseConfiguration)
+                    hints[name] = dict(hint)  # type: ignore[call-overload]
+                    continue
+                if name == "original_columns":
+                    # this is original type of the columns ie. Pydantic model
+                    hints[name] = get_full_class_name(hint)
+                    continue
+                if callable(hint):
+                    hints[name] = get_callable_name(hint)
+                    continue
+                if name == "columns":
+                    if hint:
+                        hints[name] = yaml.dump(
+                            hint, allow_unicode=True, default_flow_style=False, sort_keys=False
+                        )
+                    continue
+                hints[name] = hint
 
-
-class ExtractorStorage(NormalizeStorage):
-    EXTRACT_FOLDER: ClassVar[str] = "extract"
-
-    """Wrapper around multiple extractor storages with different file formats"""
-    def __init__(self, C: NormalizeStorageConfiguration) -> None:
-        super().__init__(True, C)
-        self._item_storages: Dict[TLoaderFileFormat, ExtractorItemStorage] = {
-            "puae-jsonl": JsonLExtractorStorage(self.storage, extract_folder=self.EXTRACT_FOLDER),
-            "arrow": ArrowExtractorStorage(self.storage, extract_folder=self.EXTRACT_FOLDER)
+        return {
+            "started_at": None,
+            "finished_at": None,
+            "schema_name": source.schema.name,
+            "job_metrics": {job.job_id(): metrics for job, metrics in job_metrics.items()},
+            "table_metrics": table_metrics,
+            "resource_metrics": resource_metrics,
+            "dag": source.resources.selected_dag,
+            "hints": clean_hints,
         }
 
-    def _get_extract_path(self, extract_id: str) -> str:
-        return os.path.join(self.EXTRACT_FOLDER, extract_id)
-
-    def create_extract_id(self) -> str:
-        extract_id = uniq_id()
-        self.storage.create_folder(self._get_extract_path(extract_id))
-        return extract_id
-
-    def get_storage(self, loader_file_format: TLoaderFileFormat) -> ExtractorItemStorage:
-        return self._item_storages[loader_file_format]
-
-    def close_writers(self, extract_id: str) -> None:
-        for storage in self._item_storages.values():
-            storage.close_writers(extract_id)
-
-    def commit_extract_files(self, extract_id: str, with_delete: bool = True) -> None:
-        extract_path = self._get_extract_path(extract_id)
-        for file in self.storage.list_folder_files(extract_path, to_root=False):
-            from_file = os.path.join(extract_path, file)
-            to_file = os.path.join(NormalizeStorage.EXTRACTED_FOLDER, file)
-            if with_delete:
-                self.storage.atomic_rename(from_file, to_file)
-            else:
-                # create hardlink which will act as a copy
-                self.storage.link_hard(from_file, to_file)
-        if with_delete:
-            self.storage.delete_folder(extract_path, recursively=True)
-
-    def write_data_item(self, file_format: TLoaderFileFormat, load_id: str, schema_name: str, table_name: str, item: TDataItems, columns: TTableSchemaColumns) -> None:
-        self.get_storage(file_format).write_data_item(load_id, schema_name, table_name, item, columns)
-
-
-
-class Extractor:
-    file_format: TLoaderFileFormat
-    dynamic_tables: TSchemaUpdate
-    def __init__(
-            self,
-            extract_id: str,
-            storage: ExtractorStorage,
-            schema: Schema,
-            resources_with_items: Set[str],
-            dynamic_tables: TSchemaUpdate,
-            collector: Collector = NULL_COLLECTOR
+    def _extract_single_source(
+        self,
+        load_id: str,
+        source: DltSource,
+        *,
+        max_parallel_items: int = None,
+        workers: int = None,
+        futures_poll_interval: float = None,
     ) -> None:
-        self._storage = storage
-        self.schema = schema
-        self.dynamic_tables = dynamic_tables
-        self.collector = collector
-        self.resources_with_items = resources_with_items
-        self.extract_id = extract_id
+        schema = source.schema
+        collector = self.collector
+        resources_with_items: Set[str] = set()
+        extractors: Dict[TLoaderFileFormat, Extractor] = {
+            "puae-jsonl": JsonLExtractor(
+                load_id, self.extract_storage, schema, resources_with_items, collector=collector
+            ),
+            "arrow": ArrowExtractor(
+                load_id, self.extract_storage, schema, resources_with_items, collector=collector
+            ),
+        }
+        last_item_format: Optional[TLoaderFileFormat] = None
 
-    @property
-    def storage(self) -> ExtractorItemStorage:
-        return self._storage.get_storage(self.file_format)
+        with collector(f"Extract {source.name}"):
+            self._step_info_start_load_id(load_id)
+            # yield from all selected pipes
+            with PipeIterator.from_pipes(
+                source.resources.selected_pipes,
+                max_parallel_items=max_parallel_items,
+                workers=workers,
+                futures_poll_interval=futures_poll_interval,
+            ) as pipes:
+                left_gens = total_gens = len(pipes._sources)
+                collector.update("Resources", 0, total_gens)
+                for pipe_item in pipes:
+                    curr_gens = len(pipes._sources)
+                    if left_gens > curr_gens:
+                        delta = left_gens - curr_gens
+                        left_gens -= delta
+                        collector.update("Resources", delta)
 
-    @staticmethod
-    def item_format(items: TDataItems) -> Optional[TLoaderFileFormat]:
-        """Detect the loader file format of the data items based on type.
-        Currently this is either 'arrow' or 'puae-jsonl'
+                    signals.raise_if_signalled()
 
-        Returns:
-            The loader file format or `None` if if can't be detected.
-        """
-        for item in items if isinstance(items, list) else [items]:
-            # Assume all items in list are the same type
-            if (pyarrow and pyarrow.is_arrow_item(item)) or (pd and isinstance(item, pd.DataFrame)):
-                return "arrow"
-            return "puae-jsonl"
-        return None # Empty list is unknown format
+                    resource = source.resources[pipe_item.pipe.name]
+                    # Fallback to last item's format or default (puae-jsonl) if the current item is an empty list
+                    item_format = (
+                        Extractor.item_format(pipe_item.item) or last_item_format or "puae-jsonl"
+                    )
+                    extractors[item_format].write_items(resource, pipe_item.item, pipe_item.meta)
+                    last_item_format = item_format
 
-    def write_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
-        if isinstance(meta, TableNameMeta):
-            table_name = meta.table_name
-            self._write_static_table(resource, table_name, items)
-            self._write_item(table_name, resource.name, items)
-        else:
-            if resource._table_name_hint_fun:
-                if isinstance(items, list):
-                    for item in items:
-                        self._write_dynamic_table(resource, item)
-                else:
-                    self._write_dynamic_table(resource, items)
-            else:
-                # write item belonging to table with static name
-                table_name = resource.table_name  # type: ignore[assignment]
-                self._write_static_table(resource, table_name, items)
-                self._write_item(table_name, resource.name, items)
+                # find defined resources that did not yield any pipeitems and create empty jobs for them
+                # NOTE: do not include incomplete tables. those tables have never seen data so we do not need to reset them
+                data_tables = {t["name"]: t for t in schema.data_tables(include_incomplete=False)}
+                tables_by_resources = utils.group_tables_by_resource(data_tables)
+                for resource in source.resources.selected.values():
+                    if (
+                        resource.write_disposition != "replace"
+                        or resource.name in resources_with_items
+                    ):
+                        continue
+                    if resource.name not in tables_by_resources:
+                        continue
+                    for table in tables_by_resources[resource.name]:
+                        # we only need to write empty files for the top tables
+                        if not table.get("parent", None):
+                            extractors["puae-jsonl"].write_empty_items_file(table["name"])
 
-    def write_empty_file(self, table_name: str) -> None:
-        table_name = self.schema.naming.normalize_table_identifier(table_name)
-        self.storage.write_empty_file(self.extract_id, self.schema.name, table_name, None)
+                if left_gens > 0:
+                    # go to 100%
+                    collector.update("Resources", left_gens)
 
-    def _write_item(self, table_name: str, resource_name: str, items: TDataItems, columns: TTableSchemaColumns = None) -> None:
-        # normalize table name before writing so the name match the name in schema
-        # note: normalize function should be cached so there's almost no penalty on frequent calling
-        # note: column schema is not required for jsonl writer used here
-        table_name = self.schema.naming.normalize_identifier(table_name)
-        self.collector.update(table_name)
-        self.resources_with_items.add(resource_name)
-        self.storage.write_data_item(self.extract_id, self.schema.name, table_name, items, columns)
+            # flush all buffered writers
+            self.extract_storage.close_writers(load_id)
+            # gather metrics
+            self._step_info_complete_load_id(load_id, self._compute_metrics(load_id, source))
+            # remove the metrics of files processed in this extract run
+            # NOTE: there may be more than one extract run per load id: ie. the resource and then dlt state
+            self.extract_storage.remove_closed_files(load_id)
 
-    def _write_dynamic_table(self, resource: DltResource, item: TDataItem) -> None:
-        table_name = resource._table_name_hint_fun(item)
-        existing_table = self.dynamic_tables.get(table_name)
-        if existing_table is None:
-            self.dynamic_tables[table_name] = [resource.compute_table_schema(item)]
-        else:
-            # quick check if deep table merge is required
-            if resource._table_has_other_dynamic_hints:
-                new_table = resource.compute_table_schema(item)
-                # this merges into existing table in place
-                utils.merge_tables(existing_table[0], new_table)
-            else:
-                # if there are no other dynamic hints besides name then we just leave the existing partial table
-                pass
-        # write to storage with inferred table name
-        self._write_item(table_name, resource.name, item)
+    def extract(
+        self,
+        source: DltSource,
+        max_parallel_items: int,
+        workers: int,
+    ) -> str:
+        # generate load package to be able to commit all the sources together later
+        load_id = self.extract_storage.create_load_package(source.discover_schema())
+        with Container().injectable_context(SourceSchemaInjectableContext(source.schema)):
+            # inject the config section with the current source name
+            with inject_section(
+                ConfigSectionContext(
+                    sections=(known_sections.SOURCES, source.section, source.name),
+                    source_state_key=source.name,
+                )
+            ):
+                # reset resource states, the `extracted` list contains all the explicit resources and all their parents
+                for resource in source.resources.extracted.values():
+                    with contextlib.suppress(DataItemRequiredForDynamicTableHints):
+                        if resource.write_disposition == "replace":
+                            reset_resource_state(resource.name)
 
-    def _write_static_table(self, resource: DltResource, table_name: str, items: TDataItems) -> None:
-        existing_table = self.dynamic_tables.get(table_name)
-        if existing_table is None:
-            static_table = resource.compute_table_schema()
-            static_table["name"] = table_name
-            self.dynamic_tables[table_name] = [static_table]
+                self._extract_single_source(
+                    load_id,
+                    source,
+                    max_parallel_items=max_parallel_items,
+                    workers=workers,
+                )
+        return load_id
 
-
-class JsonLExtractor(Extractor):
-    file_format = "puae-jsonl"
-
-
-class ArrowExtractor(Extractor):
-    file_format = "arrow"
-
-    def _rename_columns(self, items: List[TDataItem], new_column_names: List[str]) -> List[TDataItem]:
-        """Rename arrow columns to normalized schema column names"""
-        if not items:
-            return items
-        if items[0].schema.names == new_column_names:
-            # No need to rename
-            return items
-        if isinstance(items[0], pyarrow.pyarrow.Table):
-            return [item.rename_columns(new_column_names) for item in items]
-        elif isinstance(items[0], pyarrow.pyarrow.RecordBatch):
-            # Convert the batches to table -> rename -> then back to batches
-            return pa.Table.from_batches(items).rename_columns(new_column_names).to_batches()  # type: ignore[no-any-return]
-        else:
-            raise TypeError(f"Unsupported data item type {type(items[0])}")
-
-    def write_table(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
-        items = [
-            # 2. Remove null-type columns from the table(s) as they can't be loaded
-            pyarrow.remove_null_columns(tbl) for tbl in (
-                # 1. Convert pandas frame(s) to arrow Table
-                pyarrow.pyarrow.Table.from_pandas(item) if (pd and isinstance(item, pd.DataFrame)) else item
-                for item in (items if isinstance(items, list) else [items])
+    def commit_packages(self) -> None:
+        """Commits all extracted packages to normalize storage"""
+        # commit load packages
+        for load_id, metrics in self._load_id_metrics.items():
+            self.extract_storage.commit_new_load_package(
+                load_id, self.schema_storage[metrics[0]["schema_name"]]
             )
-        ]
-        super().write_table(resource, items, meta)
+        # all load ids got processed, cleanup empty folder
+        self.extract_storage.delete_empty_extract_folder()
 
-    def _write_item(self, table_name: str, resource_name: str, items: TDataItems, columns: TTableSchemaColumns = None) -> None:
-        # Note: `items` is always a list here due to the conversion in `write_table`
-        new_columns = list(self.dynamic_tables[table_name][0]["columns"].keys())
-        super()._write_item(table_name, resource_name, self._rename_columns(items, new_columns), self.dynamic_tables[table_name][0]["columns"])
-
-    def _write_static_table(self, resource: DltResource, table_name: str, items: TDataItems) -> None:
-        existing_table = self.dynamic_tables.get(table_name)
-        if existing_table is not None:
-            return
-        static_table = resource.compute_table_schema()
-        if isinstance(items, list):
-            item = items[0]
-        else:
-            item = items
-        # Merge the columns to include primary_key and other hints that may be set on the resource
-        arrow_columns = pyarrow.py_arrow_to_table_schema_columns(item.schema)
-        for key, value in static_table["columns"].items():
-            arrow_columns[key] = utils.merge_columns(value, arrow_columns.get(key, {}))
-        static_table["columns"] = arrow_columns
-        static_table["name"] = table_name
-        self.dynamic_tables[table_name] = [self.schema.normalize_table_identifiers(static_table)]
-
-
-def extract(
-    extract_id: str,
-    source: DltSource,
-    storage: ExtractorStorage,
-    collector: Collector = NULL_COLLECTOR,
-    *,
-    max_parallel_items: int = None,
-    workers: int = None,
-    futures_poll_interval: float = None
-) -> TSchemaUpdate:
-    dynamic_tables: TSchemaUpdate = {}
-    schema = source.schema
-    resources_with_items: Set[str] = set()
-    extractors: Dict[TLoaderFileFormat, Extractor] = {
-        "puae-jsonl": JsonLExtractor(
-            extract_id, storage, schema, resources_with_items, dynamic_tables, collector=collector
-        ),
-        "arrow": ArrowExtractor(
-            extract_id, storage, schema, resources_with_items, dynamic_tables, collector=collector
+    def get_step_info(self, pipeline: SupportsPipeline) -> ExtractInfo:
+        load_ids = list(self._load_id_metrics.keys())
+        load_packages: List[LoadPackageInfo] = []
+        metrics: Dict[str, List[ExtractMetrics]] = {}
+        for load_id in self._load_id_metrics.keys():
+            load_package = self.extract_storage.get_load_package_info(load_id)
+            load_packages.append(load_package)
+            metrics[load_id] = self._step_info_metrics(load_id)
+        return ExtractInfo(
+            pipeline,
+            metrics,
+            describe_extract_data(self.original_data),
+            load_ids,
+            load_packages,
+            pipeline.first_run,
         )
-    }
-    last_item_format: Optional[TLoaderFileFormat] = None
-
-    with collector(f"Extract {source.name}"):
-        # yield from all selected pipes
-        with PipeIterator.from_pipes(source.resources.selected_pipes, max_parallel_items=max_parallel_items, workers=workers, futures_poll_interval=futures_poll_interval) as pipes:
-            left_gens = total_gens = len(pipes._sources)
-            collector.update("Resources", 0, total_gens)
-            for pipe_item in pipes:
-
-                curr_gens = len(pipes._sources)
-                if left_gens > curr_gens:
-                    delta = left_gens - curr_gens
-                    left_gens -= delta
-                    collector.update("Resources", delta)
-
-                signals.raise_if_signalled()
-
-                resource = source.resources[pipe_item.pipe.name]
-                # Fallback to last item's format or default (puae-jsonl) if the current item is an empty list
-                item_format = Extractor.item_format(pipe_item.item) or last_item_format or "puae-jsonl"
-                extractors[item_format].write_table(resource, pipe_item.item, pipe_item.meta)
-                last_item_format = item_format
-
-            # find defined resources that did not yield any pipeitems and create empty jobs for them
-            data_tables = {t["name"]: t for t in schema.data_tables()}
-            tables_by_resources = utils.group_tables_by_resource(data_tables)
-            for resource in source.resources.selected.values():
-                if resource.write_disposition != "replace" or resource.name in resources_with_items:
-                    continue
-                if resource.name not in tables_by_resources:
-                    continue
-                for table in tables_by_resources[resource.name]:
-                    # we only need to write empty files for the top tables
-                    if not table.get("parent", None):
-                        extractors[last_item_format or "puae-jsonl"].write_empty_file(table["name"])
-
-            if left_gens > 0:
-                # go to 100%
-                collector.update("Resources", left_gens)
-
-        # flush all buffered writers
-        storage.close_writers(extract_id)
-
-    # returns set of partial tables
-    return dynamic_tables
-
-
-def extract_with_schema(
-    storage: ExtractorStorage,
-    source: DltSource,
-    schema: Schema,
-    collector: Collector,
-    max_parallel_items: int,
-    workers: int
-) -> str:
-    # generate extract_id to be able to commit all the sources together later
-    extract_id = storage.create_extract_id()
-    with Container().injectable_context(SourceSchemaInjectableContext(schema)):
-        # inject the config section with the current source name
-        with inject_section(ConfigSectionContext(sections=(known_sections.SOURCES, source.section, source.name), source_state_key=source.name)):
-            # reset resource states, the `extracted` list contains all the explicit resources and all their parents
-            for resource in source.resources.extracted.values():
-                with contextlib.suppress(DataItemRequiredForDynamicTableHints):
-                    if resource.write_disposition == "replace":
-                        reset_resource_state(resource.name)
-
-            extractor = extract(extract_id, source, storage, collector, max_parallel_items=max_parallel_items, workers=workers)
-            # iterate over all items in the pipeline and update the schema if dynamic table hints were present
-            for _, partials in extractor.items():
-                for partial in partials:
-                    schema.update_table(schema.normalize_table_identifiers(partial))
-
-    return extract_id

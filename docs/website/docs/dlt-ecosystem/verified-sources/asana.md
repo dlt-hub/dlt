@@ -163,7 +163,7 @@ To fetch all workspaces from Asana, the function uses the
 of all fields joined by commas. A generator is used with the `yield from` statement to provide each
 workspace from the iterator obtained. This enables the workspaces to be consumed one by one.
 
-### Resource-transformer `prjects`
+### Resource-transformer `projects`
 
 In addition to these source and resource functions, there are seven transformer functions. For
 various endpoints like “projects”, “sections”, “tags”, “tasks”, “stories”, “teams” and “users”. The

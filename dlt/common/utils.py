@@ -8,11 +8,28 @@ from contextlib import contextmanager
 from functools import wraps
 from os import environ
 from types import ModuleType
+import traceback
 import zlib
 
-from typing import Any, ContextManager, Dict, Iterator, Optional, Sequence, Set, Tuple, TypeVar, Mapping, List, Union, Counter, Iterable
+from typing import (
+    Any,
+    ContextManager,
+    Dict,
+    Iterator,
+    Optional,
+    Sequence,
+    Set,
+    Tuple,
+    TypeVar,
+    Mapping,
+    List,
+    Union,
+    Counter,
+    Iterable,
+)
 from collections.abc import Mapping as C_Mapping
 
+from dlt.common.exceptions import DltException, ExceptionTrace, TerminalException
 from dlt.common.typing import AnyFun, StrAny, DictStrAny, StrStr, TAny, TFun
 
 
@@ -23,11 +40,12 @@ TKey = TypeVar("TKey")
 TValue = TypeVar("TValue")
 
 # row counts
-TRowCount = Dict[str, int]
+RowCounts = Dict[str, int]
+
 
 def chunks(seq: Sequence[T], n: int) -> Iterator[Sequence[T]]:
     for i in range(0, len(seq), n):
-        yield seq[i:i + n]
+        yield seq[i : i + n]
 
 
 def uniq_id(len_: int = 16) -> str:
@@ -37,7 +55,7 @@ def uniq_id(len_: int = 16) -> str:
 
 def uniq_id_base64(len_: int = 16) -> str:
     """Returns a base64 encoded crypto-grade string of random bytes with desired len_"""
-    return base64.b64encode(secrets.token_bytes(len_)).decode('ascii').rstrip("=")
+    return base64.b64encode(secrets.token_bytes(len_)).decode("ascii").rstrip("=")
 
 
 def many_uniq_ids_base64(n_ids: int, len_: int = 16) -> List[str]:
@@ -46,34 +64,41 @@ def many_uniq_ids_base64(n_ids: int, len_: int = 16) -> List[str]:
     """
     random_bytes = secrets.token_bytes(n_ids * len_)
     encode = base64.b64encode
-    return [encode(random_bytes[i:i+len_]).decode('ascii').rstrip("=") for i in range(0, n_ids * len_, len_)]
+    return [
+        encode(random_bytes[i : i + len_]).decode("ascii").rstrip("=")
+        for i in range(0, n_ids * len_, len_)
+    ]
 
 
 def digest128(v: str, len_: int = 15) -> str:
     """Returns a base64 encoded shake128 hash of str `v` with digest of length `len_` (default: 15 bytes = 20 characters length)"""
-    return base64.b64encode(hashlib.shake_128(v.encode("utf-8")).digest(len_)).decode('ascii').rstrip("=")
+    return (
+        base64.b64encode(hashlib.shake_128(v.encode("utf-8")).digest(len_))
+        .decode("ascii")
+        .rstrip("=")
+    )
 
 
 def digest128b(v: bytes, len_: int = 15) -> str:
     """Returns a base64 encoded shake128 hash of bytes `v` with digest of length `len_` (default: 15 bytes = 20 characters length)"""
-    enc_v = base64.b64encode(hashlib.shake_128(v).digest(len_)).decode('ascii')
+    enc_v = base64.b64encode(hashlib.shake_128(v).digest(len_)).decode("ascii")
     return enc_v.rstrip("=")
 
 
 def digest256(v: str) -> str:
     digest = hashlib.sha3_256(v.encode("utf-8")).digest()
-    return base64.b64encode(digest).decode('ascii')
+    return base64.b64encode(digest).decode("ascii")
 
 
 def str2bool(v: str) -> bool:
     if isinstance(v, bool):
         return v
-    if v.lower() in ('yes', 'true', 't', 'y', '1'):
+    if v.lower() in ("yes", "true", "t", "y", "1"):
         return True
-    elif v.lower() in ('no', 'false', 'f', 'n', '0'):
+    elif v.lower() in ("no", "false", "f", "n", "0"):
         return False
     else:
-        raise ValueError('Boolean value expected.')
+        raise ValueError("Boolean value expected.")
 
 
 # def flatten_list_of_dicts(dicts: Sequence[StrAny]) -> StrAny:
@@ -96,7 +121,7 @@ def flatten_list_of_str_or_dicts(seq: Sequence[Union[StrAny, str]]) -> DictStrAn
     o: DictStrAny = {}
     for e in seq:
         if isinstance(e, dict):
-            for k,v in e.items():
+            for k, v in e.items():
                 if k in o:
                     raise KeyError(f"Cannot flatten with duplicate key {k}")
                 o[k] = v
@@ -177,7 +202,9 @@ def concat_strings_with_limit(strings: List[str], separator: str, limit: int) ->
     sep_len = len(separator)
 
     for i in range(1, len(strings)):
-        if current_length + len(strings[i]) + sep_len > limit:  # accounts for the length of separator
+        if (
+            current_length + len(strings[i]) + sep_len > limit
+        ):  # accounts for the length of separator
             yield separator.join(strings[start:i])
             start = i
             current_length = len(strings[i])
@@ -187,7 +214,9 @@ def concat_strings_with_limit(strings: List[str], separator: str, limit: int) ->
     yield separator.join(strings[start:])
 
 
-def graph_edges_to_nodes(edges: Sequence[Tuple[TAny, TAny]], directed: bool = True) -> Dict[TAny, Set[TAny]]:
+def graph_edges_to_nodes(
+    edges: Sequence[Tuple[TAny, TAny]], directed: bool = True
+) -> Dict[TAny, Set[TAny]]:
     """Converts a directed graph represented as a sequence of edges to a graph represented as a mapping from nodes a set of connected nodes.
 
     Isolated nodes are represented as edges to itself. If `directed` is `False`, each edge is duplicated but going in opposite direction.
@@ -221,7 +250,6 @@ def graph_find_scc_nodes(undag: Dict[TAny, Set[TAny]]) -> List[Set[TAny]]:
             for neighbor in undag[node]:
                 dfs(neighbor, current_component)
 
-
     for node in undag:
         if node not in visited:
             component: Set[TAny] = set()
@@ -245,6 +273,7 @@ def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None:
 
 
 def update_dict_nested(dst: TDict, src: StrAny) -> TDict:
+    """Merges `src` into `dst` key wise. Does not recur into lists. Values in `src` overwrite `dst` if both keys exit."""
     # based on https://github.com/clarketm/mergedeep/blob/master/mergedeep/mergedeep.py
 
     def _is_recursive_merge(a: StrAny, b: StrAny) -> bool:
@@ -301,9 +330,10 @@ def is_interactive() -> bool:
         bool: True if interactive (e.g., REPL, IPython, Jupyter Notebook), False if running as a script.
     """
     import __main__ as main
+
     # When running as a script, the __main__ module has a __file__ attribute.
     # In an interactive environment, the __file__ attribute is absent.
-    return not hasattr(main, '__file__')
+    return not hasattr(main, "__file__")
 
 
 def dict_remove_nones_in_place(d: Dict[Any, Any]) -> Dict[Any, Any]:
@@ -331,7 +361,6 @@ def custom_environ(env: StrStr) -> Iterator[None]:
 
 
 def with_custom_environ(f: TFun) -> TFun:
-
     @wraps(f)
     def _wrap(*args: Any, **kwargs: Any) -> Any:
         saved_environ = os.environ.copy()
@@ -404,11 +433,20 @@ def is_inner_callable(f: AnyFun) -> bool:
 
 
 def obfuscate_pseudo_secret(pseudo_secret: str, pseudo_key: bytes) -> str:
-    return base64.b64encode(bytes([_a ^ _b for _a, _b in zip(pseudo_secret.encode("utf-8"), pseudo_key*250)])).decode()
+    return base64.b64encode(
+        bytes([_a ^ _b for _a, _b in zip(pseudo_secret.encode("utf-8"), pseudo_key * 250)])
+    ).decode()
 
 
 def reveal_pseudo_secret(obfuscated_secret: str, pseudo_key: bytes) -> str:
-    return bytes([_a ^ _b for _a, _b in zip(base64.b64decode(obfuscated_secret.encode("ascii"), validate=True), pseudo_key*250)]).decode("utf-8")
+    return bytes(
+        [
+            _a ^ _b
+            for _a, _b in zip(
+                base64.b64decode(obfuscated_secret.encode("ascii"), validate=True), pseudo_key * 250
+            )
+        ]
+    ).decode("utf-8")
 
 
 def get_module_name(m: ModuleType) -> str:
@@ -428,7 +466,7 @@ def derives_from_class_of_name(o: object, name: str) -> bool:
 
 def compressed_b64encode(value: bytes) -> str:
     """Compress and b64 encode the given bytestring"""
-    return base64.b64encode(zlib.compress(value, level=9)).decode('ascii')
+    return base64.b64encode(zlib.compress(value, level=9)).decode("ascii")
 
 
 def compressed_b64decode(value: str) -> bytes:
@@ -441,15 +479,15 @@ def identity(x: TAny) -> TAny:
     return x
 
 
-def increase_row_count(row_counts: TRowCount, table_name: str, count: int) -> None:
-    row_counts[table_name] = row_counts.get(table_name, 0) + count
+def increase_row_count(row_counts: RowCounts, counter_name: str, count: int) -> None:
+    row_counts[counter_name] = row_counts.get(counter_name, 0) + count
 
 
-def merge_row_count(row_counts_1: TRowCount, row_counts_2: TRowCount) -> None:
+def merge_row_counts(row_counts_1: RowCounts, row_counts_2: RowCounts) -> None:
     """merges row counts_2 into row_counts_1"""
-    keys = set(row_counts_1.keys()) | set(row_counts_2.keys())
-    for key in keys:
-        row_counts_1[key] = row_counts_1.get(key, 0) + row_counts_2.get(key, 0)
+    # only keys present in row_counts_2 are modifed
+    for counter_name in row_counts_2.keys():
+        row_counts_1[counter_name] = row_counts_1.get(counter_name, 0) + row_counts_2[counter_name]
 
 
 def extend_list_deduplicated(original_list: List[Any], extending_list: Iterable[Any]) -> List[Any]:
@@ -474,3 +512,66 @@ def maybe_context(manager: ContextManager[TAny]) -> Iterator[TAny]:
 def without_none(d: Mapping[TKey, Optional[TValue]]) -> Mapping[TKey, TValue]:
     """Return a new dict with all `None` values removed"""
     return {k: v for k, v in d.items() if v is not None}
+
+
+def get_full_class_name(obj: Any) -> str:
+    cls = obj.__class__
+    module = cls.__module__
+    # exclude 'builtins' for built-in types.
+    if module is None or module == "builtins":
+        return cls.__name__  #  type: ignore[no-any-return]
+    return module + "." + cls.__name__  #  type: ignore[no-any-return]
+
+
+def get_exception_trace(exc: BaseException) -> ExceptionTrace:
+    """Get exception trace and additional information for DltException(s)"""
+    trace: ExceptionTrace = {"message": str(exc), "exception_type": get_full_class_name(exc)}
+    if exc.__traceback__:
+        tb_extract = traceback.extract_tb(exc.__traceback__)
+        trace["stack_trace"] = traceback.format_list(tb_extract)
+    trace["is_terminal"] = isinstance(exc, TerminalException)
+
+    # get attrs and other props
+    if isinstance(exc, DltException):
+        if exc.__doc__:
+            trace["docstring"] = exc.__doc__
+        attrs = exc.attrs()
+        str_attrs = {}
+        for k, v in attrs.items():
+            if v is None:
+                continue
+            try:
+                from dlt.common.json import json
+
+                # must be json serializable, other attrs are skipped
+                if not isinstance(v, str):
+                    json.dumps(v)
+                str_attrs[k] = v
+            except Exception:
+                continue
+            # extract special attrs
+            if k in ["load_id", "pipeline_name", "source_name", "resource_name", "job_id"]:
+                trace[k] = v  # type: ignore[literal-required]
+
+        trace["exception_attrs"] = str_attrs
+    return trace
+
+
+def get_exception_trace_chain(
+    exc: BaseException, traces: List[ExceptionTrace] = None, seen: Set[int] = None
+) -> List[ExceptionTrace]:
+    """Get traces for exception chain. The function will recursively visit all __cause__ and __context__ exceptions. The top level
+    exception trace is first on the list
+    """
+    traces = traces or []
+    seen = seen or set()
+    # prevent cycles
+    if id(exc) in seen:
+        return traces
+    seen.add(id(exc))
+    traces.append(get_exception_trace(exc))
+    if exc.__cause__:
+        return get_exception_trace_chain(exc.__cause__, traces, seen)
+    elif exc.__context__:
+        return get_exception_trace_chain(exc.__context__, traces, seen)
+    return traces

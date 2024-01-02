@@ -37,6 +37,7 @@ const sidebars = {
           },
           items: [
             'dlt-ecosystem/verified-sources/airtable',
+            'dlt-ecosystem/verified-sources/amazon_kinesis',
             'dlt-ecosystem/verified-sources/arrow-pandas',
             'dlt-ecosystem/verified-sources/asana',
             'dlt-ecosystem/verified-sources/chess',
@@ -52,6 +53,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/mongodb',
             'dlt-ecosystem/verified-sources/mux',
             'dlt-ecosystem/verified-sources/notion',
+            'dlt-ecosystem/verified-sources/personio',
             'dlt-ecosystem/verified-sources/pipedrive',
             'dlt-ecosystem/verified-sources/salesforce',
             'dlt-ecosystem/verified-sources/shopify',
@@ -100,12 +102,14 @@ const sidebars = {
         'general-usage/resource',
         'general-usage/source',
         'general-usage/pipeline',
+        'general-usage/destination',
         'general-usage/destination-tables',
         'dlt-ecosystem/staging',
         'general-usage/state',
         'general-usage/incremental-loading',
         'general-usage/full-loading',
         'general-usage/schema',
+        'general-usage/schema-contracts',
         {
           type: 'category',
           label: 'Configuration',
@@ -239,6 +243,7 @@ const sidebars = {
         'examples/connector_x_arrow/index',
         'examples/chess_production/index',
         'examples/nested_data/index',
+        'examples/qdrant_zendesk/index'
       ],
     },
     {

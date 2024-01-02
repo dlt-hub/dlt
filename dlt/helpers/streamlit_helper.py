@@ -16,9 +16,14 @@ from dlt.pipeline.state_sync import load_state_from_destination
 
 try:
     import streamlit as st
+
     # from streamlit import SECRETS_FILE_LOC, secrets
 except ModuleNotFoundError:
-    raise MissingDependencyException("DLT Streamlit Helpers", ["streamlit"], "DLT Helpers for Streamlit should be run within a streamlit app.")
+    raise MissingDependencyException(
+        "DLT Streamlit Helpers",
+        ["streamlit"],
+        "DLT Helpers for Streamlit should be run within a streamlit app.",
+    )
 
 
 # use right caching function to disable deprecation message
@@ -120,7 +125,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         schema_names = ", ".join(sorted(pipeline.schema_names))
         st.markdown(f"""
         * pipeline name: **{pipeline.pipeline_name}**
-        * destination: **{str(credentials)}** in **{pipeline.destination.__name__}**
+        * destination: **{str(credentials)}** in **{pipeline.destination.destination_description}**
         * dataset name: **{pipeline.dataset_name}**
         * default schema name: **{pipeline.default_schema_name}**
         * all schema names: **{schema_names}**
@@ -129,11 +134,17 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         st.header("Last load info")
         col1, col2, col3 = st.columns(3)
         loads_df = _query_data_live(
-            f"SELECT load_id, inserted_at FROM {pipeline.default_schema.loads_table_name} WHERE status = 0 ORDER BY inserted_at DESC LIMIT 101 "
+            f"SELECT load_id, inserted_at FROM {pipeline.default_schema.loads_table_name} WHERE"
+            " status = 0 ORDER BY inserted_at DESC LIMIT 101 "
         )
         loads_no = loads_df.shape[0]
         if loads_df.shape[0] > 0:
-            rel_time = humanize.naturaldelta(pendulum.now() - pendulum.from_timestamp(loads_df.iloc[0, 1].timestamp())) + " ago"
+            rel_time = (
+                humanize.naturaldelta(
+                    pendulum.now() - pendulum.from_timestamp(loads_df.iloc[0, 1].timestamp())
+                )
+                + " ago"
+            )
             last_load_id = loads_df.iloc[0, 0]
             if loads_no > 100:
                 loads_no = "> " + str(loads_no)
@@ -154,7 +165,10 @@ def write_load_status_page(pipeline: Pipeline) -> None:
             if "parent" in table:
                 continue
             table_name = table["name"]
-            query_parts.append(f"SELECT '{table_name}' as table_name, COUNT(1) As rows_count FROM {table_name} WHERE _dlt_load_id = '{selected_load_id}'")
+            query_parts.append(
+                f"SELECT '{table_name}' as table_name, COUNT(1) As rows_count FROM"
+                f" {table_name} WHERE _dlt_load_id = '{selected_load_id}'"
+            )
             query_parts.append("UNION ALL")
         query_parts.pop()
         rows_counts_df = _query_data("\n".join(query_parts))
@@ -167,8 +181,9 @@ def write_load_status_page(pipeline: Pipeline) -> None:
 
         st.header("Schema updates")
         schemas_df = _query_data_live(
-            f"SELECT schema_name, inserted_at, version, version_hash FROM {pipeline.default_schema.version_table_name} ORDER BY inserted_at DESC LIMIT 101 "
-            )
+            "SELECT schema_name, inserted_at, version, version_hash FROM"
+            f" {pipeline.default_schema.version_table_name} ORDER BY inserted_at DESC LIMIT 101 "
+        )
         st.markdown("**100 recent schema updates**")
         st.dataframe(schemas_df)
 
@@ -188,14 +203,19 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         col2.metric("Remote state version", remote_state_version)
 
         if remote_state_version != local_state["_state_version"]:
-            st.warning("Looks like that local state is not yet synchronized or synchronization is disabled")
+            st.warning(
+                "Looks like that local state is not yet synchronized or synchronization is disabled"
+            )
 
     except CannotRestorePipelineException as restore_ex:
         st.error("Seems like the pipeline does not exist. Did you run it at least once?")
         st.exception(restore_ex)
 
     except ConfigFieldMissingException as cf_ex:
-        st.error("Pipeline credentials/configuration is missing. This most often happen when you run the streamlit app from different folder than the `.dlt` with `toml` files resides.")
+        st.error(
+            "Pipeline credentials/configuration is missing. This most often happen when you run the"
+            " streamlit app from different folder than the `.dlt` with `toml` files resides."
+        )
         st.text(str(cf_ex))
 
     except Exception as ex:
@@ -203,8 +223,13 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         st.exception(ex)
 
 
-
-def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_dlt_tables: bool = False, example_query: str = "", show_charts: bool = True) -> None:
+def write_data_explorer_page(
+    pipeline: Pipeline,
+    schema_name: str = None,
+    show_dlt_tables: bool = False,
+    example_query: str = "",
+    show_charts: bool = True,
+) -> None:
     """Writes Streamlit app page with a schema and live data preview.
 
     #### Args:
@@ -253,21 +278,29 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
         if "write_disposition" in table:
             table_hints.append("write disposition: **%s**" % table["write_disposition"])
         columns = table["columns"]
-        primary_keys: Iterator[str] = flatten_list_or_items([
-            col_name for col_name in columns.keys()
+        primary_keys: Iterator[str] = flatten_list_or_items(
+            [
+                col_name
+                for col_name in columns.keys()
                 if not col_name.startswith("_") and not columns[col_name].get("primary_key") is None
-        ])
+            ]
+        )
         table_hints.append("primary key(s): **%s**" % ", ".join(primary_keys))
-        merge_keys = flatten_list_or_items([
-            col_name for col_name in columns.keys()
+        merge_keys = flatten_list_or_items(
+            [
+                col_name
+                for col_name in columns.keys()
                 if not col_name.startswith("_") and not columns[col_name].get("merge_key") is None
-        ])
+            ]
+        )
         table_hints.append("merge key(s): **%s**" % ", ".join(merge_keys))
 
         st.markdown(" | ".join(table_hints))
 
         # table schema contains various hints (like clustering or partition options) that we do not want to show in basic view
-        essentials_f = lambda c: {k:v for k, v in c.items() if k in ["name", "data_type", "nullable"]}
+        essentials_f = lambda c: {
+            k: v for k, v in c.items() if k in ["name", "data_type", "nullable"]
+        }
 
         st.table(map(essentials_f, table["columns"].values()))
         # add a button that when pressed will show the full content of a table
@@ -302,7 +335,6 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
                             # try barchart
                             st.bar_chart(df)
                         if df.dtypes.shape[0] == 2 and show_charts:
-
                             # try to import altair charts
                             try:
                                 import altair as alt
@@ -310,13 +342,17 @@ def write_data_explorer_page(pipeline: Pipeline, schema_name: str = None, show_d
                                 raise MissingDependencyException(
                                     "DLT Streamlit Helpers",
                                     ["altair"],
-                                    "DLT Helpers for Streamlit should be run within a streamlit app."
+                                    "DLT Helpers for Streamlit should be run within a streamlit"
+                                    " app.",
                                 )
 
                             # try altair
-                            bar_chart = alt.Chart(df).mark_bar().encode(
-                                x=f'{df.columns[1]}:Q',
-                                y=alt.Y(f'{df.columns[0]}:N', sort='-x')
+                            bar_chart = (
+                                alt.Chart(df)
+                                .mark_bar()
+                                .encode(
+                                    x=f"{df.columns[1]}:Q", y=alt.Y(f"{df.columns[0]}:N", sort="-x")
+                                )
                             )
                             st.altair_chart(bar_chart, use_container_width=True)
                     except Exception as ex:

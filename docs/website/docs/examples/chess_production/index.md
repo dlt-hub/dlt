@@ -9,7 +9,8 @@ import Header from '../_examples-header.md';
 <Header
     intro="In this tutorial, you will learn how to investigate, track, retry and test your loads."
     slug="chess_production"
-    run_file="chess" />
+    run_file="chess"
+    destination="duckdb" />
 
 ## Run chess pipeline in production
 
@@ -60,9 +61,7 @@ def chess(
     @dlt.transformer(data_from=players, write_disposition="replace")
     @dlt.defer
     def players_profiles(username: Any) -> TDataItems:
-        print(
-            f"getting {username} profile via thread {threading.current_thread().name}"
-        )
+        print(f"getting {username} profile via thread {threading.current_thread().name}")
         sleep(1)  # add some latency to show parallel runs
         return _get_data_with_retry(f"player/{username}")
 
@@ -115,16 +114,12 @@ def load_data_with_retry(pipeline, data):
             load_info.raise_on_failed_jobs()
             # send notification
             send_slack_message(
-                pipeline.runtime_config.slack_incoming_hook,
-                "Data was successfully loaded!"
+                pipeline.runtime_config.slack_incoming_hook, "Data was successfully loaded!"
             )
     except Exception:
         # we get here after all the failed retries
         # send notification
-        send_slack_message(
-            pipeline.runtime_config.slack_incoming_hook,
-            "Something went wrong!"
-        )
+        send_slack_message(pipeline.runtime_config.slack_incoming_hook, "Something went wrong!")
         raise
 
     # we get here after a successful attempt
@@ -142,9 +137,7 @@ def load_data_with_retry(pipeline, data):
     # send notifications if there are schema updates
     if schema_updates:
         # send notification
-        send_slack_message(
-            pipeline.runtime_config.slack_incoming_hook, "Schema was updated!"
-        )
+        send_slack_message(pipeline.runtime_config.slack_incoming_hook, "Schema was updated!")
 
     # To run simple tests with `sql_client`, such as checking table counts and
     # warning if there is no data, you can use the `execute_query` method

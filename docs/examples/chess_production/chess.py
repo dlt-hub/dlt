@@ -6,6 +6,7 @@ from dlt.common import sleep
 from dlt.common.typing import StrAny, TDataItems
 from dlt.sources.helpers.requests import client
 
+
 @dlt.source
 def chess(
     chess_url: str = dlt.config.value,
@@ -31,9 +32,7 @@ def chess(
     @dlt.transformer(data_from=players, write_disposition="replace")
     @dlt.defer
     def players_profiles(username: Any) -> TDataItems:
-        print(
-            f"getting {username} profile via thread {threading.current_thread().name}"
-        )
+        print(f"getting {username} profile via thread {threading.current_thread().name}")
         sleep(1)  # add some latency to show parallel runs
         return _get_data_with_retry(f"player/{username}")
 
@@ -61,6 +60,7 @@ from dlt.pipeline.helpers import retry_load
 
 MAX_PLAYERS = 5
 
+
 def load_data_with_retry(pipeline, data):
     try:
         for attempt in Retrying(
@@ -70,9 +70,7 @@ def load_data_with_retry(pipeline, data):
             reraise=True,
         ):
             with attempt:
-                logger.info(
-                    f"Running the pipeline, attempt={attempt.retry_state.attempt_number}"
-                )
+                logger.info(f"Running the pipeline, attempt={attempt.retry_state.attempt_number}")
                 load_info = pipeline.run(data)
                 logger.info(str(load_info))
 
@@ -80,16 +78,12 @@ def load_data_with_retry(pipeline, data):
             load_info.raise_on_failed_jobs()
             # send notification
             send_slack_message(
-                pipeline.runtime_config.slack_incoming_hook,
-                "Data was successfully loaded!"
+                pipeline.runtime_config.slack_incoming_hook, "Data was successfully loaded!"
             )
     except Exception:
         # we get here after all the failed retries
         # send notification
-        send_slack_message(
-            pipeline.runtime_config.slack_incoming_hook,
-            "Something went wrong!"
-        )
+        send_slack_message(pipeline.runtime_config.slack_incoming_hook, "Something went wrong!")
         raise
 
     # we get here after a successful attempt
@@ -98,18 +92,14 @@ def load_data_with_retry(pipeline, data):
     # print the information on the first load package and all jobs inside
     logger.info(f"First load package info: {load_info.load_packages[0]}")
     # print the information on the first completed job in first load package
-    logger.info(
-        f"First completed job info: {load_info.load_packages[0].jobs['completed_jobs'][0]}"
-    )
+    logger.info(f"First completed job info: {load_info.load_packages[0].jobs['completed_jobs'][0]}")
 
     # check for schema updates:
     schema_updates = [p.schema_update for p in load_info.load_packages]
     # send notifications if there are schema updates
     if schema_updates:
         # send notification
-        send_slack_message(
-            pipeline.runtime_config.slack_incoming_hook, "Schema was updated!"
-        )
+        send_slack_message(pipeline.runtime_config.slack_incoming_hook, "Schema was updated!")
 
     # To run simple tests with `sql_client`, such as checking table counts and
     # warning if there is no data, you can use the `execute_query` method

@@ -17,7 +17,6 @@ class OAuth2Credentials(CredentialsConfiguration):
     # add refresh_token when generating config samples
     __config_gen_annotations__: ClassVar[List[str]] = ["refresh_token"]
 
-
     def auth(self, scopes: Union[str, List[str]] = None, redirect_url: str = None) -> None:
         """Authorizes the client using the available credentials
 
@@ -44,4 +43,3 @@ class OAuth2Credentials(CredentialsConfiguration):
                     self.scopes += [scopes]
             elif scopes:
                 self.scopes = list(set(self.scopes + scopes))
-

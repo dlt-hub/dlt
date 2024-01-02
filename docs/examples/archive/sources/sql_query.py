@@ -12,23 +12,30 @@ try:
     # import gracefully and produce nice exception that explains the user what to do
     import pandas
 except ImportError:
-    raise MissingDependencyException("SQL Query Source", ["pandas"], "SQL Query Source temporarily uses pandas as DB interface")
+    raise MissingDependencyException(
+        "SQL Query Source", ["pandas"], "SQL Query Source temporarily uses pandas as DB interface"
+    )
 
 try:
     from sqlalchemy.exc import NoSuchModuleError
 except ImportError:
-    raise MissingDependencyException("SQL Query Source", ["sqlalchemy"], "SQL Query Source temporarily uses pandas as DB interface")
+    raise MissingDependencyException(
+        "SQL Query Source",
+        ["sqlalchemy"],
+        "SQL Query Source temporarily uses pandas as DB interface",
+    )
 
 
-def _query_data(
-    f: AnyFun
-) -> Iterator[DictStrAny]:
-
+def _query_data(f: AnyFun) -> Iterator[DictStrAny]:
     try:
         items = f()
     except NoSuchModuleError as m_exc:
         if "redshift.redshift_connector" in str(m_exc):
-            raise MissingDependencyException("SQL Query Source", ["sqlalchemy-redshift", "redshift_connector"], "Redshift dialect support for SqlAlchemy")
+            raise MissingDependencyException(
+                "SQL Query Source",
+                ["sqlalchemy-redshift", "redshift_connector"],
+                "Redshift dialect support for SqlAlchemy",
+            )
         raise
 
     for i in items:
@@ -46,11 +53,21 @@ def query_table(
     coerce_float: bool = True,
     parse_dates: Any = None,
     columns: List[str] = None,
-    chunk_size: int = 1000
+    chunk_size: int = 1000,
 ) -> Any:
     print(credentials)
     assert isinstance(credentials, ConnectionStringCredentials)
-    f = partial(pandas.read_sql_table, table_name, credentials.to_native_representation(), table_schema_name, None, coerce_float, parse_dates, columns, chunksize=chunk_size)
+    f = partial(
+        pandas.read_sql_table,
+        table_name,
+        credentials.to_native_representation(),
+        table_schema_name,
+        None,
+        coerce_float,
+        parse_dates,
+        columns,
+        chunksize=chunk_size,
+    )
     # if resource is returned from decorator function, it will override the hints from decorator
     return dlt.resource(_query_data(f), name=table_name)
 
@@ -62,8 +79,18 @@ def query_sql(
     coerce_float: bool = True,
     parse_dates: Any = None,
     chunk_size: int = 1000,
-    dtype: Any = None
+    dtype: Any = None,
 ) -> Iterator[TDataItem]:
     assert isinstance(credentials, ConnectionStringCredentials)
-    f = partial(pandas.read_sql_query, sql, credentials.to_native_representation(), None, coerce_float, None, parse_dates, chunk_size, dtype)
+    f = partial(
+        pandas.read_sql_query,
+        sql,
+        credentials.to_native_representation(),
+        None,
+        coerce_float,
+        None,
+        parse_dates,
+        chunk_size,
+        dtype,
+    )
     yield from _query_data(f)
