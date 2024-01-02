@@ -29,7 +29,6 @@ def test_filesystem_configuration() -> None:
         config.resolve_credentials_type()
         == Union[AzureCredentialsWithoutDefaults, AzureCredentials]
     )
-    # make sure that only bucket_url and credentials are there
     assert dict(config) == {
         "bucket_url": "az://root",
         "credentials": None,
@@ -81,7 +80,7 @@ def test_filesystem_dict(default_buckets_env: str, load_content: bool) -> None:
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
 def test_filesystem_instance_from_s3_endpoint(environment: Dict[str, str]) -> None:
     """Test that fsspec instance is correctly configured when using endpoint URL.
-    E.g., when using an S3 compatible service such as Cloudflare R2
+    E.g. when using an S3 compatible service such as Cloudflare R2
     """
     from s3fs import S3FileSystem
 
