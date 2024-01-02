@@ -139,7 +139,7 @@ coerced in existing column.
 | timestamp     | `'2023-07-26T14:45:00Z'`, `datetime.datetime.now()` | Supports precision expressed as parts of a second       |
 | date          | `datetime.date(2023, 7, 26)`                        |                                                         |
 | time          | `'14:01:02'`, `datetime.time(14, 1, 2)`             | Supports precision - see **timestamp**                  |
-| bigint        | `9876543210`                                        | Support precision as number of bytes                    |
+| bigint        | `9876543210`                                        | Supports precision as number of bits                    |
 | binary        | `b'\x00\x01\x02\x03'`                               | Supports precision, like **text**                       |
 | complex       | `[4, 5, 6]`, `{'a': 1}`                             |                                                         |
 | decimal       | `Decimal('4.56')`                                   | Supports precision and scale                            |
@@ -160,7 +160,7 @@ do not support precision for a given data type will ignore it.
 
 The precision for **timestamp** is useful when creating **parquet** files. Use 3 - for milliseconds, 6 for microseconds, 9 for nanoseconds
 
-The precision for **bigint** is mapped to available integer types ie. TINYINT, INT, BIGINT. The default is 8 bytes precision (BIGINT)
+The precision for **bigint** is mapped to available integer types ie. TINYINT, INT, BIGINT. The default is 64 bits (8 bytes) precision (BIGINT)
 :::
 
 ## Schema settings

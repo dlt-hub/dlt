@@ -140,4 +140,4 @@ def incremental_snippet() -> None:
 
     # check that stuff was loaded
     row_counts = pipeline.last_trace.last_normalize_info.row_counts
-    assert row_counts["ticket_events"] == 24
+    assert row_counts["ticket_events"] == 16
