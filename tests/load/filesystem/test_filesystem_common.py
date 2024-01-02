@@ -13,6 +13,7 @@ from dlt.common.utils import uniq_id
 from tests.common.storages.utils import assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET
 from tests.utils import preserve_environ, autouse_test_storage
+from .utils import self_signed_cert
 from tests.common.configuration.utils import environment
 
 
