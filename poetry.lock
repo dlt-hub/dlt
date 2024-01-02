@@ -3984,6 +3984,20 @@ files = [
 ]
 
 [[package]]
+name = "hyperscript"
+version = "0.0.1"
+description = "HyperText with Python"
+optional = false
+python-versions = ">=3.7"
+files = [
+    {file = "hyperscript-0.0.1-py3-none-any.whl", hash = "sha256:fff92ff7dcf2af519b66e9b80f40442e2855f3e3b9eb05b39b17a8b1050bac95"},
+    {file = "hyperscript-0.0.1.tar.gz", hash = "sha256:728d49132fc3660cb11552b9e6db9ee5cf02bb8d734397ea336af06c0d9ee1b9"},
+]
+
+[package.extras]
+lint = ["black", "pylint"]
+
+[[package]]
 name = "idna"
 version = "3.4"
 description = "Internationalized Domain Names in Applications (IDNA)"
@@ -5631,29 +5645,6 @@ developer = ["mypy (>=0.982)", "pre-commit (>=2.20)"]
 doc = ["nb2plots (>=0.6)", "numpydoc (>=1.5)", "pillow (>=9.2)", "pydata-sphinx-theme (>=0.11)", "sphinx (>=5.2)", "sphinx-gallery (>=0.11)", "texext (>=0.6.6)"]
 extra = ["lxml (>=4.6)", "pydot (>=1.4.2)", "pygraphviz (>=1.9)", "sympy (>=1.10)"]
 test = ["codecov (>=2.1)", "pytest (>=7.2)", "pytest-cov (>=4.0)"]
-
-[[package]]
-name = "notebook"
-version = "7.0.6"
-description = "Jupyter Notebook - A web-based notebook environment for interactive computing"
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "notebook-7.0.6-py3-none-any.whl", hash = "sha256:0fe8f67102fea3744fedf652e4c15339390902ca70c5a31c4f547fa23da697cc"},
-    {file = "notebook-7.0.6.tar.gz", hash = "sha256:ec6113b06529019f7f287819af06c97a2baf7a95ac21a8f6e32192898e9f9a58"},
-]
-
-[package.dependencies]
-jupyter-server = ">=2.4.0,<3"
-jupyterlab = ">=4.0.2,<5"
-jupyterlab-server = ">=2.22.1,<3"
-notebook-shim = ">=0.2,<0.3"
-tornado = ">=6.2.0"
-
-[package.extras]
-dev = ["hatch", "pre-commit"]
-docs = ["myst-parser", "nbsphinx", "pydata-sphinx-theme", "sphinx (>=1.3.6)", "sphinxcontrib-github-alt", "sphinxcontrib-spelling"]
-test = ["importlib-resources (>=5.0)", "ipykernel", "jupyter-server[test] (>=2.4.0,<3)", "jupyterlab-server[test] (>=2.22.1,<3)", "nbval", "pytest (>=7.0)", "pytest-console-scripts", "pytest-timeout", "pytest-tornasync", "requests"]
 
 [[package]]
 name = "notebook-shim"
@@ -9648,4 +9639,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "a69c264dbd6e83b30f0b9a9c365773dbcd70441c3caed0b7f78203277318de8e"
+content-hash = "6d818bdfafd9952e5f2b9322920aac5c2ae6e56e1336b3d518cd9a3257386a9a"
