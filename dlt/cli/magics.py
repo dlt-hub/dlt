@@ -1,20 +1,19 @@
-import os
-import traceback
 import typing as t
 
-from hyperscript import h
 from IPython.core.display import HTML, display
 from IPython.core.magic import Magics, line_magic, magics_class
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 
-from dlt.cli import echo, echo as fmt
-from dlt.common.runtime.exec_info import is_ipython
+from dlt.cli import echo
+from dlt.cli._dlt import (
+    init_command_wrapper,
+    pipeline_command_wrapper,
+    schema_command_wrapper,
+    telemetry_change_status_command_wrapper,
+)
+from dlt.common.runtime.exec_info import is_databricks, is_ipython
 
-DEBUG_FLAG = False
-
-DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
-DLT_TELEMETRY_URL = "https://dlthub.com/docs/reference/telemetry"
 DLT_SCHEMA_URL = "https://dlthub.com/docs/general-usage/schema"
 
 
@@ -42,7 +41,7 @@ def register_notebook_magics() -> None:
 class DltMagics(Magics):
     @property
     def display(self) -> t.Any:
-        if os.getenv("DATABRICKS_RUNTIME_VERSION"):
+        if is_databricks():
             # Assume Databricks' 'display' is a callable with an unknown signature
             databricks_display = self.shell.user_ns.get("display")
             if callable(databricks_display):
@@ -53,47 +52,13 @@ class DltMagics(Magics):
                 )
         return display  # Assuming 'display' is a predefined callable
 
-    def success_message(self, messages: t.Dict[str, str]) -> HTML:
-        unstyled = messages.get("unstyled")
-        msg = str(
-            h(
-                "div",
-                h(
-                    "span",
-                    messages.get("green-bold"),
-                    {"style": {"color": "green", "font-weight": "bold"}},
-                ),
-                h("span", unstyled) if unstyled else "",
-            )
-        )
-        return HTML(msg)
+    def success_message(self, message: str) -> HTML:
+        msg = f'<div><span style="color: green; font-weight: bold">{message}</span></div>'
+        return self.display(HTML(msg))
 
     def on_exception(self, ex: str, info: str) -> t.Any:
-        msg = str(
-            h(
-                "div",
-                h(
-                    "span",
-                    str(ex),
-                    {"style": {"color": "red", "font-weight": "bold"}},
-                ),
-                h(
-                    "span",
-                    " Please refer to %s for further assistance" % fmt.bold(info),
-                ),
-            )
-        )
-        out = display(HTML(msg))
-
-        if DEBUG_FLAG:
-            # Display the full traceback in a preformatted style
-            traceback_html = h(
-                "pre", traceback.format_exc(), {"style": {"color": "gray"}}
-            )
-            display(HTML(str(traceback_html)))
-            raise ex
-
-        return out
+        msg = f'<div><span style="color: red; font-weight: bold">{ex}</span><span style="color: green; font-weight: bold>Please refer to {info} for further assistance</span></div>'
+        return self.display(HTML(msg))
 
     @magic_arguments()
     @argument(
@@ -106,29 +71,18 @@ class DltMagics(Magics):
         action="store_true",
         help="Disables telemetry before command is executed",
     )
-    @argument(
-        "--debug", action="store_true", help="Displays full stack traces on exceptions."
-    )
     @line_magic
     def settings(self, line: str) -> int:
         """
-        A dlt line magic command to set global settings like telemetry, debug mode, etc.
+        A dlt line magic command to set global settings like telemetry
         """
         args = parse_argstring(self.settings, line)
-        global DEBUG_FLAG
-        try:
-            from dlt.cli._dlt import telemetry_change_status_command_wrapper
 
-            if args.enable_telemetry:
-                telemetry_change_status_command_wrapper(True)
-            if args.disable_telemetry:
-                telemetry_change_status_command_wrapper(False)
-            if args.debug:
-                DEBUG_FLAG = True
-            return 0
-        except Exception as ex:
-            self.on_exception(ex, DLT_TELEMETRY_URL)
-            return -1
+        if args.enable_telemetry:
+            return telemetry_change_status_command_wrapper(True)
+        if args.disable_telemetry:
+            return telemetry_change_status_command_wrapper(False)
+        return 0
 
     @magic_arguments()
     @argument(
@@ -157,34 +111,20 @@ class DltMagics(Magics):
     @line_magic
     def init(self, line: str) -> t.Any:
         """
-        A dlt line magic command for initializing a DLT project.
+        A dlt line magic command for initializing a dlt project.
         """
         args = parse_argstring(self.init, line)
-        try:
-            from dlt.cli._dlt import init_command_wrapper
 
-            with echo.always_choose(False, always_choose_value=True):
-                out = init_command_wrapper(
-                    source_name=args.source_name,
-                    destination_type=args.destination_name,
-                    use_generic_template=args.use_generic_template,
-                    repo_location=args.repo_location
-                    if args.repo_location is not None
-                    else DEFAULT_VERIFIED_SOURCES_REPO,
-                    branch=args.branch if args.branch is not None else None,
-                )
-                if out == 0:
-                    self.display(
-                        self.success_message(
-                            {"green-bold": "DLT project initialized successfully."}
-                        )
-                    )
-                    return 0
-                else:
-                    return out
-        except Exception as ex:
-            self.on_exception(str(ex), DLT_INIT_DOCS_URL)
-            return -1
+        with echo.always_choose(False, always_choose_value=True):
+            return init_command_wrapper(
+                source_name=args.source_name,
+                destination_type=args.destination_name,
+                use_generic_template=args.use_generic_template,
+                repo_location=args.repo_location
+                if args.repo_location is not None
+                else DEFAULT_VERIFIED_SOURCES_REPO,
+                branch=args.branch if args.branch is not None else None,
+            )
 
     @magic_arguments()
     @argument(
@@ -203,23 +143,18 @@ class DltMagics(Magics):
         """
         A dlt line magic command for pipeline operations.
         """
-        from dlt.cli._dlt import DLT_PIPELINE_COMMAND_DOCS_URL, pipeline_command_wrapper
-
         args = parse_argstring(self.pipeline, line)
+
         if args.operation == "list-pipelines":
             args.operation = "list"
-        try:
-            with echo.always_choose(False, always_choose_value=True):
-                pipeline_command_wrapper(
-                    operation=args.operation,
-                    pipeline_name=args.pipeline_name,
-                    pipelines_dir=args.pipelines_dir,
-                    verbosity=args.verbosity,
-                )
-                return 0
-        except Exception as ex:
-            self.on_exception(str(ex), DLT_PIPELINE_COMMAND_DOCS_URL)
-            return -1
+
+        with echo.always_choose(False, always_choose_value=True):
+            return pipeline_command_wrapper(
+                operation=args.operation,
+                pipeline_name=args.pipeline_name,
+                pipelines_dir=args.pipelines_dir,
+                verbosity=args.verbosity,
+            )
 
     @magic_arguments()
     @argument("--file_path", type=str, help="Schema file name, in yaml or json format")
@@ -231,20 +166,15 @@ class DltMagics(Magics):
         A dlt line magic command for handling schemas.
         """
         args = parse_argstring(self.schema, line)
-        try:
-            from dlt.cli._dlt import schema_command_wrapper
 
+        try:
             with echo.always_choose(False, always_choose_value=True):
                 schema_command_wrapper(
                     file_path=args.file_path,
                     format_=args.format,
                     remove_defaults=args.remove_defaults,
                 )
-                self.display(
-                    self.success_message(
-                        {"green-bold": "DLT schema magic ran successfully."}
-                    )
-                )
+                self.success_message("dlt schema magic ran successfully.")
                 return 0
         except Exception as ex:
             self.on_exception(str(ex), DLT_SCHEMA_URL)
@@ -256,12 +186,9 @@ class DltMagics(Magics):
         A dlt line magic command to display version information.
         """
         from dlt.version import __version__
+
         try:
-            self.display(
-                self.success_message(
-                    {"green-bold": f"{self.__class__.__name__} version: {__version__}"}
-                )
-            )
+            self.success_message(f"dlt version: {__version__}")
             return 0
         except Exception as ex:
             self.on_exception(str(ex), "")

@@ -90,6 +90,10 @@ def is_ipython() -> bool:
         return False
 
 
+def is_databricks() -> bool:
+    return "DATABRICKS_RUNTIME_VERSION" in os.environ
+
+
 def is_colab() -> bool:
     try:
         return "COLAB_RELEASE_TAG" in os.environ or "google.colab" in str(get_ipython())  # type: ignore
