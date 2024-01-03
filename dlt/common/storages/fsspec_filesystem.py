@@ -3,7 +3,7 @@ import mimetypes
 import pathlib
 import posixpath
 from io import BytesIO
-from typing import cast, Tuple, TypedDict, Optional, Union, Iterator, Any, IO, Dict
+from typing import cast, Tuple, TypedDict, Optional, Union, Iterator, Any, IO, Dict, Callable
 from urllib.parse import urlparse
 
 from fsspec import AbstractFileSystem
@@ -12,7 +12,6 @@ from fsspec.core import url_to_fs
 from dlt import version
 from dlt.common import pendulum
 from dlt.common.configuration.specs import (
-    CredentialsWithDefault,
     GcpCredentials,
     AwsCredentials,
     AzureCredentials,
@@ -48,6 +47,17 @@ MTIME_DISPATCH = {
 MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]
 MTIME_DISPATCH["s3a"] = MTIME_DISPATCH["s3"]
 MTIME_DISPATCH["abfs"] = MTIME_DISPATCH["az"]
+
+# Map of protocol to a filesystem type
+CREDENTIALS_DISPATCH: Dict[str, Callable[[FilesystemConfiguration], DictStrAny]] = {
+    "s3": lambda config: cast(AwsCredentials, config.credentials).to_s3fs_credentials(),
+    "adl": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
+    "az": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
+    "gcs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
+    "gs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
+    "abfs": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
+    "azure": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
+}
 
 
 def fsspec_filesystem(
@@ -88,33 +98,25 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
 
     """
     proto = config.protocol
-    credentials: DictStrAny = {}
     fs_kwargs: DictStrAny = {"use_listings_cache": False}
-
-    if proto == "s3":
-        credentials = cast(AwsCredentials, config.credentials).to_s3fs_credentials()
-    elif proto in ["az", "abfs", "adl", "azure"]:
-        credentials = cast(AzureCredentials, config.credentials).to_adlfs_credentials()
-    elif proto in ["gcs", "gs"]:
-        credentials = cast(GcpCredentials, config.credentials).to_gcs_credentials()
+    credentials = CREDENTIALS_DISPATCH.get(proto, lambda _: {})(config)
 
     if config.kwargs is not None:
         fs_kwargs.update(config.kwargs)
-
     if config.client_kwargs is not None:
         fs_kwargs["client_kwargs"] = config.client_kwargs
 
-    # Don't override the client_kwargs key when updating fs_kwargs
     if "client_kwargs" in fs_kwargs and "client_kwargs" in credentials:
-        fs_kwargs["client_kwargs"].update(credentials["client_kwargs"])
-        credentials.pop("client_kwargs")
+        fs_kwargs["client_kwargs"].update(credentials.pop("client_kwargs"))
 
     fs_kwargs.update(credentials)
 
     try:
-        return url_to_fs(config.bucket_url, **fs_kwargs)
+        return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore
     except ModuleNotFoundError as e:
-        raise MissingDependencyException("filesystem", [f"{version.DLT_PKG_NAME}[{proto}]"]) from e
+        raise MissingDependencyException(
+            "filesystem", [f"{version.DLT_PKG_NAME}[{config.protocol}]"]
+        ) from e
 
 
 class FileItemDict(DictStrAny):
