@@ -17,6 +17,8 @@ def initialize_runtime(config: RunConfiguration) -> None:
 
     # Init or update default requests client config
     requests.init(config)
+
+    # initialize only once
     if not _INITIALIZED:
         start_telemetry(config)
         _INITIALIZED = True

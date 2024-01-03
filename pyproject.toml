@@ -178,6 +178,7 @@ google-api-python-client = ">=1.7.11"
 
 [tool.poetry.group.notebook.dependencies]
 ipython = ">=7.28.0"
+sentry-sdk = ">=1.39.1"
 
 
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
