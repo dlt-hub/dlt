@@ -1,27 +1,26 @@
 import io
 import mimetypes
-import posixpath
 import pathlib
-from urllib.parse import urlparse
+import posixpath
 from io import BytesIO
-from typing import cast, Tuple, TypedDict, Optional, Union, Iterator, Any, IO
+from typing import cast, Tuple, TypedDict, Optional, Union, Iterator, Any, IO, Dict
+from urllib.parse import urlparse
 
-from fsspec.core import url_to_fs
 from fsspec import AbstractFileSystem
+from fsspec.core import url_to_fs
 
+from dlt import version
 from dlt.common import pendulum
-from dlt.common.exceptions import MissingDependencyException
-from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.typing import DictStrAny
 from dlt.common.configuration.specs import (
     CredentialsWithDefault,
     GcpCredentials,
     AwsCredentials,
     AzureCredentials,
 )
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
-
-from dlt import version
+from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.typing import DictStrAny
 
 
 class FileItem(TypedDict, total=False):
@@ -89,9 +88,15 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
 
     """
     proto = config.protocol
-
-    # defaults
+    credentials: DictStrAny = {}
     fs_kwargs: DictStrAny = {"use_listings_cache": False}
+
+    if proto == "s3":
+        credentials = cast(AwsCredentials, config.credentials).to_s3fs_credentials()
+    elif proto in ["az", "abfs", "adl", "azure"]:
+        credentials = cast(AzureCredentials, config.credentials).to_adlfs_credentials()
+    elif proto in ["gcs", "gs"]:
+        credentials = cast(GcpCredentials, config.credentials).to_gcs_credentials()
 
     if config.kwargs is not None:
         fs_kwargs.update(config.kwargs)
@@ -99,32 +104,15 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
     if config.client_kwargs is not None:
         fs_kwargs["client_kwargs"] = config.client_kwargs
 
-    if proto == "s3":
-        # we are careful not to override the client_kwargs key when updating fs_kwargs
-        s3_credentials = cast(AwsCredentials, config.credentials).to_s3fs_credentials()
-        if "client_kwargs" in fs_kwargs and "client_kwargs" in s3_credentials:
-            fs_kwargs["client_kwargs"].update(s3_credentials["client_kwargs"])
-            s3_credentials.pop("client_kwargs")
-        fs_kwargs.update(s3_credentials)
-    elif proto in ["az", "abfs", "adl", "azure"]:
-        azure_credentials = cast(AzureCredentials, config.credentials).to_adlfs_credentials()
-        if "client_kwargs" in fs_kwargs and "client_kwargs" in azure_credentials:
-            fs_kwargs["client_kwargs"].update(azure_credentials["client_kwargs"])
-            azure_credentials.pop("client_kwargs")
-        fs_kwargs.update(azure_credentials)
-    elif proto in ["gcs", "gs"]:
-        assert isinstance(config.credentials, GcpCredentials)
-        # Default credentials are handled by gcsfs
-        if (
-            isinstance(config.credentials, CredentialsWithDefault)
-            and config.credentials.has_default_credentials()
-        ):
-            fs_kwargs["token"] = None
-        else:
-            fs_kwargs["token"] = dict(config.credentials)
-        fs_kwargs["project"] = config.credentials.project_id
+    # Don't override the client_kwargs key when updating fs_kwargs
+    if "client_kwargs" in fs_kwargs and "client_kwargs" in credentials:
+        fs_kwargs["client_kwargs"].update(credentials["client_kwargs"])
+        credentials.pop("client_kwargs")
+
+    fs_kwargs.update(credentials)
+
     try:
-        return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore
+        return url_to_fs(config.bucket_url, **fs_kwargs)
     except ModuleNotFoundError as e:
         raise MissingDependencyException("filesystem", [f"{version.DLT_PKG_NAME}[{proto}]"]) from e
 
