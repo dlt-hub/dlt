@@ -38,6 +38,5 @@ jobs:
       - name: Install dependencies
         run: poetry install --no-interaction --with notebook -E duckdb
 
-      - run: |
-          poetry run ipython tests/cli/test_magics.py
+      - run: poetry run pytest tests/cli/test_magics.py
         name: Run tests
