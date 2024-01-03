@@ -48,7 +48,7 @@ class DltMagics(Magics):
     def display(self) ->  t.Any:
         if os.getenv("DATABRICKS_RUNTIME_VERSION"):
             # Assume Databricks' 'display' is a callable with an unknown signature
-            databricks_display = self._shell.user_ns.get("display")
+            databricks_display = self.shell.user_ns.get("display")
             if callable(databricks_display):
                 return databricks_display
             else:
@@ -103,7 +103,7 @@ class DltMagics(Magics):
     @argument('--debug', action='store_true', help="Displays full stack traces on exceptions.")
     @line_magic
     @register_line_magic
-    def settings(self, line:str)->str:
+    def settings(self, line:str)->int:
         """
         A dlt line magic command to set global settings like telemetry, debug mode, etc.
         """
@@ -140,7 +140,7 @@ class DltMagics(Magics):
             with echo.always_choose(False, always_choose_value=True):
                 out = init_command_wrapper(
                     source_name=args.source_name,
-                    destination_name=args.destination_name,
+                    destination_type=args.destination_name,
                     use_generic_template=args.use_generic_template,
                     repo_location=args.repo_location if args.repo_location is not None else DEFAULT_VERIFIED_SOURCES_REPO,
                     branch=args.branch if args.branch is not None else None
