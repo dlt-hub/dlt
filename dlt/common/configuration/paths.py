@@ -54,9 +54,7 @@ def _get_user_home_dir() -> str:
     return os.path.expanduser("~")
 
 
-
-
-def create_symlink_to_dlt(symlink_dir):
+def create_symlink_to_dlt(symlink_dir: str) -> None:
     """
     Creates a symbolic link pointing to the '.dlt' directory.
 

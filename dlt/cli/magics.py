@@ -14,7 +14,8 @@ DEBUG_FLAG = False
 
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
-DLT_DEPLOY_DOCS_URL = "https://dlthub.com/docs/walkthroughs/deploy-a-pipeline"
+DLT_TELEMETRY_URL = "https://dlthub.com/docs/reference/telemetry"
+DLT_SCHEMA_URL = "https://dlthub.com/docs/general-usage/schema"
 
 
 def register_notebook_magics() -> None:
@@ -125,7 +126,8 @@ class DltMagics(Magics):
             if args.debug:
                 DEBUG_FLAG = True
             return 0
-        except:
+        except Exception as ex:
+            self.on_exception(ex, DLT_TELEMETRY_URL)
             return -1
 
     @magic_arguments()
@@ -171,21 +173,15 @@ class DltMagics(Magics):
                     else DEFAULT_VERIFIED_SOURCES_REPO,
                     branch=args.branch if args.branch is not None else None,
                 )
-                if out == -1:
-                    self.display(
-                        self.on_exception(
-                            "Failure due to...",
-                            "Default value for init is 'No' for safety reasons.",
-                        )
-                    )
-                    return -1
-                else:
+                if out == 0:
                     self.display(
                         self.success_message(
                             {"green-bold": "DLT project initialized successfully."}
                         )
                     )
                     return 0
+                else:
+                    return out
         except Exception as ex:
             self.on_exception(str(ex), DLT_INIT_DOCS_URL)
             return -1
@@ -223,7 +219,7 @@ class DltMagics(Magics):
                 return 0
         except Exception as ex:
             self.on_exception(str(ex), DLT_PIPELINE_COMMAND_DOCS_URL)
-            return -2
+            return -1
 
     @magic_arguments()
     @argument("--file_path", type=str, help="Schema file name, in yaml or json format")
@@ -251,7 +247,7 @@ class DltMagics(Magics):
                 )
                 return 0
         except Exception as ex:
-            self.on_exception(str(ex), "Schema Documentation URL")
+            self.on_exception(str(ex), DLT_SCHEMA_URL)
             return -1
 
     @line_magic

@@ -19,8 +19,11 @@ def test_init_command(shell_interactive):
     assert result == 0
 
 
-def test_settings_command(shell_interactive):
-    result = shell_interactive.run_line_magic("settings", "--enable-telemetry --debug")
+@pytest.mark.parametrize(
+    "telemetry", ["enable", "disable"]
+)
+def test_settings_command(shell_interactive, telemetry):
+    result = shell_interactive.run_line_magic("settings", f"--{telemetry}-telemetry")
     # Check if the init command returns the expected result
     assert result == 0
 

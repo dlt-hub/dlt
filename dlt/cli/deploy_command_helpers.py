@@ -18,7 +18,6 @@ from dlt.common.configuration.exceptions import LookupTrace
 from dlt.common.configuration.providers import ConfigTomlProvider, EnvironProvider
 from dlt.common.git import get_origin, get_repo, Repo
 from dlt.common.configuration.specs.run_configuration import get_default_pipeline_name
-from dlt.common.runtime.exec_info import is_notebook
 from dlt.common.typing import StrAny
 from dlt.common.reflection.utils import evaluate_node_literal
 from dlt.common.pipeline import LoadInfo, TPipelineState, get_dlt_repos_dir
@@ -394,12 +393,8 @@ def ask_files_overwrite(files: Sequence[str]) -> None:
     existing = [file for file in files if os.path.exists(file)]
     if existing:
         fmt.echo("Following files will be overwritten: %s" % fmt.bold(str(existing)))
-        if is_notebook():
-            fmt.echo("Automatically proceeding in the notebook")
-            pass
-        else:
-            if not fmt.confirm("Do you want to continue?", default=False):
-                raise CliCommandException("init", "Aborted")
+        if not fmt.confirm("Do you want to continue?", default=False):
+            raise CliCommandException("init", "Aborted")
 
 
 class PipelineWasNotRun(CliCommandException):
