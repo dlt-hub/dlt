@@ -5,12 +5,6 @@ from IPython.core.magic import Magics, line_magic, magics_class
 from IPython.core.magic_arguments import argument, magic_arguments, parse_argstring
 
 from dlt.cli import echo
-from dlt.cli._dlt import (
-    init_command_wrapper,
-    pipeline_command_wrapper,
-    schema_command_wrapper,
-    telemetry_change_status_command_wrapper,
-)
 from dlt.common.runtime.exec_info import is_databricks, is_ipython
 
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
@@ -53,7 +47,9 @@ class DltMagics(Magics):
         return display  # Assuming 'display' is a predefined callable
 
     def success_message(self, message: str) -> t.Any:
-        msg = f'<div><span style="color: green; font-weight: bold">{message}</span></div>'
+        msg = (
+            f'<div><span style="color: green; font-weight: bold">{message}</span></div>'
+        )
         return self.display(HTML(msg))
 
     def on_exception(self, ex: str, info: str) -> t.Any:
@@ -73,6 +69,8 @@ class DltMagics(Magics):
     )
     @line_magic
     def settings(self, line: str) -> int:
+        from dlt.cli._dlt import telemetry_change_status_command_wrapper
+
         """
         A dlt line magic command to set global settings like telemetry
         """
@@ -113,6 +111,8 @@ class DltMagics(Magics):
         """
         A dlt line magic command for initializing a dlt project.
         """
+        from dlt.cli._dlt import init_command_wrapper
+
         args = parse_argstring(self.init, line)
 
         with echo.always_choose(False, always_choose_value=True):
@@ -143,6 +143,8 @@ class DltMagics(Magics):
         """
         A dlt line magic command for pipeline operations.
         """
+        from dlt.cli._dlt import pipeline_command_wrapper
+
         args = parse_argstring(self.pipeline, line)
 
         if args.operation == "list-pipelines":
@@ -165,6 +167,8 @@ class DltMagics(Magics):
         """
         A dlt line magic command for handling schemas.
         """
+        from dlt.cli._dlt import schema_command_wrapper
+
         args = parse_argstring(self.schema, line)
 
         try:
