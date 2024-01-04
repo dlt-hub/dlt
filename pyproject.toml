@@ -177,7 +177,7 @@ pandas = ">2"
 google-api-python-client = ">=1.7.11"
 
 [tool.poetry.group.notebook.dependencies]
-#ipython = ">=7.28.0"
+ipython = ">=7.28.0"
 
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
 line-length = 100
