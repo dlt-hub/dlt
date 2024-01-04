@@ -9,6 +9,9 @@ on:
   workflow_dispatch:
 
 env:
+
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
+
   # all credentials must be present to be passed to dbt runner
   DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader@dlttests.cwz0jfxu0m7m.eu-central-1.rds.amazonaws.com:5432/dlt_data
   DESTINATION__REDSHIFT__CREDENTIALS: postgresql://loader@3.73.90.3:5439/dlt_ci
@@ -83,6 +86,9 @@ jobs:
       - name: Remove dbt-core
         # install dlt with postgres support
         run: poetry run pip uninstall dbt-core -y
+
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
           poetry run pytest tests/helpers/dbt_tests --ignore=tests/helpers/dbt_tests/local -k '(not local)'
