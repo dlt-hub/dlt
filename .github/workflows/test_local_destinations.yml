@@ -19,9 +19,6 @@ env:
   ACTIVE_DESTINATIONS: "[\"duckdb\", \"postgres\", \"filesystem\", \"weaviate\"]"
   ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\"]"
 
-  DESTINATION__WEAVIATE__VECTORIZER: text2vec-contextionary
-  DESTINATION__WEAVIATE__MODULE_CONFIG: "{\"text2vec-contextionary\": {\"vectorizeClassName\": false, \"vectorizePropertyName\": true}}"
-
 jobs:
   get_docs_changes:
     uses: ./.github/workflows/get_docs_changes.yml
