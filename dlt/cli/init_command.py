@@ -506,4 +506,4 @@ def init_command(
         dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
 
     if is_notebook():
-        create_symlink_to_dlt( '_dlt')
+        create_symlink_to_dlt('_dlt')
