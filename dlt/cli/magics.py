@@ -52,7 +52,7 @@ class DltMagics(Magics):
                 )
         return display  # Assuming 'display' is a predefined callable
 
-    def success_message(self, message: str) -> HTML:
+    def success_message(self, message: str) -> t.Any:
         msg = f'<div><span style="color: green; font-weight: bold">{message}</span></div>'
         return self.display(HTML(msg))
 
@@ -181,7 +181,7 @@ class DltMagics(Magics):
             return -1
 
     @line_magic
-    def dlt_version(self, line) -> t.Any:
+    def dlt_version(self, line: str) -> t.Any:
         """
         A dlt line magic command to display version information.
         """

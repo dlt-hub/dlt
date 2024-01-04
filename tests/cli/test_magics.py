@@ -23,7 +23,10 @@ def test_init_command(shell_interactive):
 @pytest.fixture
 def run_pipeline():
     load_info = dlt.pipeline(
-        pipeline_name="test_pipeline", destination="duckdb", dataset_name="mydata"
+        pipeline_name="test_pipeline",
+        destination="duckdb",
+        dataset_name="mydata",
+        full_refresh=True
     ).run([{"id": 1, "name": "John"}], table_name="users")
     return load_info
 
