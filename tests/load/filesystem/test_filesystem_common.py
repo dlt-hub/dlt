@@ -114,12 +114,14 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
 
 
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
-def test_kwargs_propagate_to_s3_instance(environment: Dict[str, str]) -> None:
-    environment["DESTINATION__FILESYSTEM__BUCKET_URL"] = AWS_BUCKET
-    environment["DESTINATION__FILESYSTEM__KWARGS"] = '{"use_ssl": false}'
-    environment["DESTINATION__FILESYSTEM__CLIENT_KWARGS"] = '{"verify": false, "foo": "bar"}'
+def test_kwargs_propagate_to_s3_instance(default_buckets_env: str) -> None:
+    os.environ["DESTINATION__FILESYSTEM__KWARGS"] = '{"use_ssl": false}'
+    os.environ["DESTINATION__FILESYSTEM__CLIENT_KWARGS"] = '{"verify": false, "foo": "bar"}'
 
     config = get_config()
+
+    if config.protocol != "s3":
+        pytest.skip(f"Not configured to use {config.protocol} protocol.")
 
     filesystem, _ = fsspec_from_config(config)
 
@@ -131,12 +133,11 @@ def test_kwargs_propagate_to_s3_instance(environment: Dict[str, str]) -> None:
 
 
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
-def test_s3_wrong_client_certificate(environment: Dict[str, str], self_signed_cert: str) -> None:
+def test_s3_wrong_client_certificate(default_buckets_env: str, self_signed_cert: str) -> None:
     """Test whether filesystem raises an SSLError when trying to establish
     a connection with the wrong client certificate."""
-    environment["DESTINATION__FILESYSTEM__BUCKET_URL"] = AWS_BUCKET
-    environment["DESTINATION__FILESYSTEM__KWARGS"] = '{"use_ssl": true}'
-    environment["DESTINATION__FILESYSTEM__CLIENT_KWARGS"] = f'{{"verify": "{self_signed_cert}"}}'
+    os.environ["DESTINATION__FILESYSTEM__KWARGS"] = '{"use_ssl": true}'
+    os.environ["DESTINATION__FILESYSTEM__CLIENT_KWARGS"] = f'{{"verify": "{self_signed_cert}"}}'
 
     config = get_config()
 
