@@ -39,19 +39,14 @@ def google_spreadsheet(
     # pprint.pprint(meta)
     def get_sheet(sheet_name: str) -> Iterator[DictStrAny]:
         # get list of list of typed values
-        result = (
-            sheets.spreadsheets()
-            .values()
-            .get(
+        result = sheets.spreadsheets().values().get(
                 spreadsheetId=spreadsheet_id,
                 range=sheet_name,
                 # unformatted returns typed values
                 valueRenderOption="UNFORMATTED_VALUE",
                 # will return formatted dates
                 dateTimeRenderOption="FORMATTED_STRING",
-            )
-            .execute()
-        )
+            ).execute()
 
         # pprint.pprint(result)
         values = result.get("values")
