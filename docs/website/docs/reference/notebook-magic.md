@@ -17,39 +17,32 @@ This means that the pipeline will run without any prompts.
 If you want to run the pipeline with prompts, you can use command line arguments.
 :::
 
-## Installation
-
-You can install `dlt` and its notebook dependencies using `pip`:
-
-```bash
-pip install dlt[notebook]
-```
-
 ## `%pipeline`
 
 In an IPython notebook, you can use the `%pipeline` magic command to execute the `dlt pipeline` command.
 This command allows managing of pipelines.
 
 ```ipython
-%pipeline --operation <command>
+%pipeline --operation <command> --pipeline_name <pipeline_name>
 ```
 
 Possible operations are:
-  1. `info`
-  2. `list-pipelines`
-  3. `show`
-  4. `info`
-  5. `trace`
-  6. `failed-jobs`
-  7. `drop-pending-packages`
-  8. `load-package`
-  9. `drop`
-  10. `schema`
+1. `list-pipelines`
+2. `info`
+3. `sync`
+4. `trace`
+5. `failed-jobs`
+6. `drop-pending-packages`
+7. `schema`
 
-Example:
+Examples:
 
 ```ipython
-%pipeline --operation info
+%pipeline --operation list-pipelines
+```
+
+```ipython
+%pipeline --operation info --pipeline_name chess
 ```
 
 For more information on these commands, check `dlt` [CLI documentation](command-line-interface).
@@ -62,14 +55,36 @@ This command sets up a new `dlt` pipeline script that transfers data from a `sou
 
 
 ```ipython
-%init --source <source>  --destination <destination>
+%init --source_name <source>  --destination_name <destination>
 ```
 
 Example:
 
 ```ipython
-%init --source pokemon  --destination duckdb
+%init --source_name pokemon  --destination_name duckdb
 ```
+
+## `%settings`
+
+Enable or disable telemetry globally.
+
+```ipython
+%settings --enable-telemetry
+```
+or
+```ipython
+%settings --disable-telemetry
+```
+
+## `%schema`
+This command shows, converts and upgrades schemas.
+
+```ipython
+%schema --file_path <schema_file_path> --format json
+```
+Options:
+- `--format`: Display schema in yaml or json format. Defaults to `yaml`.
+- `--remove-defaults`: Does not show default hint values.
 
 ## `%dlt_version`
 

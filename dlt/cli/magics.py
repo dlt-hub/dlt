@@ -160,7 +160,7 @@ class DltMagics(Magics):
 
     @magic_arguments()
     @argument("--file_path", type=str, help="Schema file name, in yaml or json format")
-    @argument("--format", type=str, help="File format")
+    @argument("--format", type=str, choices=["json", "yaml"], default="yaml", help="File format")
     @argument("--remove_defaults", type=str, help="Remove defaults")
     @line_magic
     def schema(self, line: str) -> t.Any:

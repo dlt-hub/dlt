@@ -44,7 +44,7 @@ from dlt import destinations
 try:
     from dlt.cli.magics import register_notebook_magics
     register_notebook_magics()
-except:
+except Exception:
     pass
 
 pipeline = _pipeline
