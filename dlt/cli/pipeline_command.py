@@ -8,7 +8,6 @@ from dlt.common.pipeline import resource_state, get_dlt_pipelines_dir, TSourceSt
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
-from dlt.common.runtime.exec_info import is_notebook
 from dlt.common.schema.utils import group_tables_by_resource, remove_defaults
 from dlt.common.storages import FileStorage, PackageStorage
 from dlt.pipeline.helpers import DropCommand
@@ -302,6 +301,5 @@ def pipeline_command(
         #     fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
         for warning in drop.info["warnings"]:
             fmt.warning(warning)
-
         if fmt.confirm("Do you want to apply these changes?", default=False):
             drop()

@@ -34,6 +34,7 @@ Possible operations are:
 5. `failed-jobs`
 6. `drop-pending-packages`
 7. `schema`
+8. `load-package`
 
 Examples:
 

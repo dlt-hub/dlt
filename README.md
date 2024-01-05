@@ -111,4 +111,3 @@ The dlt project is quickly growing, and we're excited to have you join our commu
 ## License
 
 DLT is released under the [Apache 2.0 License](LICENSE.txt).
-

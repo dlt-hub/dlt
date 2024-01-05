@@ -176,6 +176,9 @@ dbt-duckdb=">=1.2.0"
 pymongo = ">=4.3.3"
 pandas = ">2"
 
+[tool.poetry.group.notebook.dependencies]
+ipython = ">=7.28.0"
+
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
 line-length = 100
 preview = true

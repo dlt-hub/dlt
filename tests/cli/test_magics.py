@@ -46,7 +46,7 @@ def test_list_pipeline_command(shell_interactive):
 
 # @pytest.mark.parametrize(
 #     "operation",
-#     ["info", "sync", "trace", "failed-jobs", "drop-pending-packages", "schema"],
+#     ["info", "sync", "load-package", "trace", "failed-jobs", "drop-pending-packages", "schema"],
 # )
 # def test_operation_pipeline_command(shell_interactive, operation, run_pipeline):
 #     result = shell_interactive.run_line_magic(
