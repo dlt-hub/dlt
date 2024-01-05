@@ -1,26 +1,18 @@
 import os
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import (
     ConfigTomlProvider,
     EnvironProvider,
     SecretsTomlProvider,
-    StringTomlProvider,
 )
 from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersContext,
 )
 from dlt.common.utils import set_working_dir
-
-from tests.utils import (
-    patch_home_dir,
-    autouse_test_storage,
-    preserve_environ,
-    duckdb_pipeline_location,
-    wipe_pipeline,
-)
 
 
 @pytest.fixture(autouse=True)
@@ -52,6 +44,6 @@ def setup_secret_providers(request):
 
 def pytest_configure(config):
     # push sentry to ci
-    os.environ[
-        "RUNTIME__SENTRY_DSN"
-    ] = "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
+    os.environ["RUNTIME__SENTRY_DSN"] = (
+        "https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
+    )

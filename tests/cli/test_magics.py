@@ -26,7 +26,7 @@ def run_pipeline():
         pipeline_name="test_pipeline",
         destination="duckdb",
         dataset_name="mydata",
-        full_refresh=True
+        full_refresh=True,
     ).run([{"id": 1, "name": "John"}], table_name="users")
     return load_info
 

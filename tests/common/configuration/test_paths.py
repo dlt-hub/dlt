@@ -1,10 +1,12 @@
 import os
-from pathlib import Path
-import pytest
 import shutil
+
+import pytest
+
 from dlt.common.configuration.paths import create_symlink_to_dlt
 
-DOT_DLT = '.dlt'
+DOT_DLT = ".dlt"
+
 
 @pytest.fixture
 def setup_and_teardown_symlink_env(tmp_path):
@@ -22,6 +24,7 @@ def setup_and_teardown_symlink_env(tmp_path):
         os.remove(tmp_path / "symlink_to_dlt")
     shutil.rmtree(tmp_path)
 
+
 def test_create_symlink_to_dlt(setup_and_teardown_symlink_env):
     tmp_path = setup_and_teardown_symlink_env
     symlink_dir = tmp_path / "symlink_to_dlt"
@@ -36,4 +39,3 @@ def test_create_symlink_to_dlt(setup_and_teardown_symlink_env):
     # Assert that the symbolic link is created and points to the .dlt directory
     assert symlink_dir.is_symlink()
     assert symlink_dir.resolve().samefile(dlt_dir)
-

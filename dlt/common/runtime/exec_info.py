@@ -1,15 +1,14 @@
-import io
-import os
 import contextlib
-import sys
+import io
 import multiprocessing
+import os
 import platform
+import sys
 
-from dlt.common.runtime.typing import TExecutionContext, TVersion, TExecInfoNames
-from dlt.common.typing import StrStr, StrAny, Literal, List
+from dlt.common.runtime.typing import TExecInfoNames, TExecutionContext, TVersion
+from dlt.common.typing import List, StrAny, StrStr
 from dlt.common.utils import filter_env_vars
-from dlt.version import __version__, DLT_PKG_NAME
-
+from dlt.version import DLT_PKG_NAME, __version__
 
 # if one of these environment variables is set, we assume to be running in CI env
 CI_ENVIRONMENT_TELL = [
@@ -67,13 +66,14 @@ def is_notebook() -> bool:
     try:
         # Import get_ipython from IPython
         from IPython import get_ipython
+
         # Get the class name of the current IPython instance
         shell = get_ipython().__class__.__name__
         # Check if the shell is a Jupyter notebook (ZMQInteractiveShell)
-        if shell == 'ZMQInteractiveShell':
+        if shell == "ZMQInteractiveShell":
             return True
         # Additionally, check for Databricks notebook environment
-        if 'dbutils' in globals():
+        if "dbutils" in globals():
             return True
         # If none of the above, it's not a notebook
         return False
@@ -115,7 +115,7 @@ def airflow_info() -> StrAny:
 def is_airflow_installed() -> bool:
     try:
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            import airflow
+            pass
         return True
     except Exception:
         return False
@@ -177,7 +177,7 @@ def is_docker() -> bool:
 
     # if that didn't work, try to use proc information
     try:
-        with open("/proc/self/cgroup", mode="r", encoding="utf-8") as f:
+        with open("/proc/self/cgroup", encoding="utf-8") as f:
             return "docker" in f.read()
     except Exception:
         return False

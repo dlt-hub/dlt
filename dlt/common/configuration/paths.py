@@ -78,4 +78,3 @@ def create_symlink_to_dlt(symlink_dir: str) -> None:
     if not os.path.exists(symlink_dir):
         os.symlink(DOT_DLT, symlink_dir)
         print(f"Created a visible symlink: {symlink_dir} -> {DOT_DLT}")
-

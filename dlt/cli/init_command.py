@@ -1,42 +1,42 @@
-import os
 import ast
+import os
 import shutil
 from types import ModuleType
-from typing import Dict, List, Sequence, Tuple, Optional
-from importlib.metadata import version as pkg_version
+from typing import Dict, List, Sequence, Tuple
 
+import dlt.reflection.names as n
+from dlt.cli import echo as fmt, pipeline_files as files_ops, source_detection, utils
+from dlt.cli.config_toml_writer import WritableConfigValue, write_values
+from dlt.cli.exceptions import CliCommandException
+from dlt.cli.pipeline_files import (
+    TVerifiedSourceFileEntry,
+    TVerifiedSourceFileIndex,
+    VerifiedSourceFiles,
+)
+from dlt.cli.requirements import SourceRequirements
 from dlt.common import git
-from dlt.common.configuration.paths import get_dlt_settings_dir, make_dlt_settings_path, create_symlink_to_dlt
-from dlt.common.configuration.specs import known_sections
+from dlt.common.configuration.paths import (
+    create_symlink_to_dlt,
+    get_dlt_settings_dir,
+    make_dlt_settings_path,
+)
 from dlt.common.configuration.providers import (
     CONFIG_TOML,
     SECRETS_TOML,
     ConfigTomlProvider,
     SecretsTomlProvider,
 )
-from dlt.common.pipeline import get_dlt_repos_dir
-from dlt.common.source import _SOURCES
-from dlt.version import DLT_PKG_NAME, __version__
+from dlt.common.configuration.specs import known_sections
 from dlt.common.destination import Destination
+from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.reflection.utils import rewrite_python_script
-from dlt.common.schema.utils import is_valid_schema_name
-from dlt.common.schema.exceptions import InvalidSchemaName
-from dlt.common.storages.file_storage import FileStorage
-
-import dlt.reflection.names as n
-from dlt.reflection.script_inspector import inspect_pipeline_script, load_script_module
-
-from dlt.cli import echo as fmt, pipeline_files as files_ops, source_detection
-from dlt.cli import utils
-from dlt.cli.config_toml_writer import WritableConfigValue, write_values
-from dlt.cli.pipeline_files import (
-    VerifiedSourceFiles,
-    TVerifiedSourceFileEntry,
-    TVerifiedSourceFileIndex,
-)
-from dlt.cli.exceptions import CliCommandException
-from dlt.cli.requirements import SourceRequirements
 from dlt.common.runtime.exec_info import is_notebook
+from dlt.common.schema.exceptions import InvalidSchemaName
+from dlt.common.schema.utils import is_valid_schema_name
+from dlt.common.source import _SOURCES
+from dlt.common.storages.file_storage import FileStorage
+from dlt.reflection.script_inspector import inspect_pipeline_script, load_script_module
+from dlt.version import DLT_PKG_NAME
 
 DLT_INIT_DOCS_URL = "https://dlthub.com/docs/reference/command-line-interface#dlt-init"
 DEFAULT_VERIFIED_SOURCES_REPO = "https://github.com/dlt-hub/verified-sources.git"
@@ -93,7 +93,10 @@ def _select_source_files(
         prompt = (
             "Should incoming changes be Skipped, Applied (local changes will be lost) or Merged (%s"
             " UPDATED | %s DELETED | all local changes remain)?"
-            % (fmt.bold(",".join(can_update_files)), fmt.bold(",".join(can_delete_files)))
+            % (
+                fmt.bold(",".join(can_update_files)),
+                fmt.bold(",".join(can_delete_files)),
+            )
         )
         choices = "sam"
     else:
@@ -172,7 +175,10 @@ def _welcome_message(
     if is_new_source:
         fmt.echo(
             "* Add credentials for %s and other secrets in %s"
-            % (fmt.bold(destination_type), fmt.bold(make_dlt_settings_path(SECRETS_TOML)))
+            % (
+                fmt.bold(destination_type),
+                fmt.bold(make_dlt_settings_path(SECRETS_TOML)),
+            )
         )
 
     if dependency_system:
@@ -192,7 +198,7 @@ def _welcome_message(
             )
         elif dependency_system == utils.PYPROJECT_TOML:
             fmt.echo("  If you are using poetry you may issue the following command:")
-            fmt.echo(fmt.bold("  poetry add %s -E %s" % (DLT_PKG_NAME, destination_type)))
+            fmt.echo(fmt.bold(f"  poetry add {DLT_PKG_NAME} -E {destination_type}"))
         fmt.echo()
     else:
         fmt.echo(
@@ -217,7 +223,7 @@ def list_verified_sources_command(repo_location: str, branch: str = None) -> Non
     for source_name, source_files in _list_verified_sources(repo_location, branch).items():
         reqs = source_files.requirements
         dlt_req_string = str(reqs.dlt_requirement_base)
-        msg = "%s: %s" % (fmt.bold(source_name), source_files.doc)
+        msg = f"{fmt.bold(source_name)}: {source_files.doc}"
         if not reqs.is_installed_dlt_compatible():
             msg += fmt.warning_style(" [needs update: %s]" % (dlt_req_string))
         fmt.echo(msg)
@@ -280,7 +286,11 @@ def init_command(
         if conflict_modified or conflict_deleted:
             # select source files that can be copied/updated
             _, remote_modified, remote_deleted = _select_source_files(
-                source_name, remote_modified, remote_deleted, conflict_modified, conflict_deleted
+                source_name,
+                remote_modified,
+                remote_deleted,
+                conflict_modified,
+                conflict_deleted,
             )
         if not remote_deleted and not remote_modified:
             fmt.echo("No files to update, exiting")
@@ -328,7 +338,8 @@ def init_command(
         )
         fmt.warning(msg)
         if not fmt.confirm(
-            "Would you like to continue anyway? (you can update dlt after this step)", default=True
+            "Would you like to continue anyway? (you can update dlt after this step)",
+            default=True,
         ):
             fmt.echo(
                 "You can update dlt with: pip3 install -U"
@@ -388,9 +399,11 @@ def init_command(
         )
         # template sources are always in module starting with "pipeline"
         # for templates, place config and secrets into top level section
-        required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
-            _SOURCES, "pipeline", ()
-        )
+        (
+            required_secrets,
+            required_config,
+            checked_sources,
+        ) = source_detection.detect_source_configs(_SOURCES, "pipeline", ())
         # template has a strict rules where sources are placed
         for source_q_name, source_config in checked_sources.items():
             if source_q_name not in visitor.known_sources_resources:
@@ -411,7 +424,11 @@ def init_command(
         )
         # pipeline sources are in module with name starting from {pipeline_name}
         # for verified pipelines place in the specific source section
-        required_secrets, required_config, checked_sources = source_detection.detect_source_configs(
+        (
+            required_secrets,
+            required_config,
+            checked_sources,
+        ) = source_detection.detect_source_configs(
             _SOURCES, source_name, (known_sections.SOURCES, source_name)
         )
 
@@ -506,4 +523,4 @@ def init_command(
         dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
 
     if is_notebook():
-        create_symlink_to_dlt('_dlt')
+        create_symlink_to_dlt("_dlt")

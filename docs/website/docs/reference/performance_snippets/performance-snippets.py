@@ -4,8 +4,9 @@ from utils import parse_toml_file
 def parallel_config_snippet() -> None:
     # @@@DLT_SNIPPET_START parallel_config
     import os
-    import dlt
     from itertools import islice
+
+    import dlt
     from dlt.common import pendulum
 
     @dlt.resource(name="table")
@@ -14,7 +15,11 @@ def parallel_config_snippet() -> None:
         while item_slice := list(islice(rows, 1000)):
             now = pendulum.now().isoformat()
             yield [
-                {"row": _id, "description": "this is row with id {_id}", "timestamp": now}
+                {
+                    "row": _id,
+                    "description": "this is row with id {_id}",
+                    "timestamp": now,
+                }
                 for _id in item_slice
             ]
 
@@ -43,9 +48,10 @@ def parallel_config_snippet() -> None:
 
 def parallel_extract_callables_snippet() -> None:
     # @@@DLT_SNIPPET_START parallel_extract_callables
-    import dlt
-    from time import sleep
     from threading import currentThread
+    from time import sleep
+
+    import dlt
 
     @dlt.resource
     def list_items(start, limit):
@@ -114,9 +120,10 @@ def performance_chunking_snippet() -> None:
 def parallel_pipelines_asyncio_snippet() -> None:
     # @@@DLT_SNIPPET_START parallel_pipelines
     import asyncio
-    import dlt
-    from time import sleep
     from concurrent.futures import ThreadPoolExecutor
+    from time import sleep
+
+    import dlt
 
     # create both futures and thread parallel resources
 

@@ -47,13 +47,14 @@ class DltMagics(Magics):
         return display  # Assuming 'display' is a predefined callable
 
     def success_message(self, message: str) -> t.Any:
-        msg = (
-            f'<div><span style="color: green; font-weight: bold">{message}</span></div>'
-        )
+        msg = f'<div><span style="color: green; font-weight: bold">{message}</span></div>'
         return self.display(HTML(msg))
 
     def on_exception(self, ex: str, info: str) -> t.Any:
-        msg = f'<div><span style="color: red; font-weight: bold">{ex}</span><span style="color: green; font-weight: bold>Please refer to {info} for further assistance</span></div>'
+        msg = (
+            f'<div><span style="color: red; font-weight: bold">{ex}</span><span style="color:'
+            f" green; font-weight: bold>Please refer to {info} for further assistance</span></div>"
+        )
         return self.display(HTML(msg))
 
     @magic_arguments()
@@ -103,9 +104,7 @@ class DltMagics(Magics):
         action="store_true",
         help="Use a generic template with all the dlt loading code present.",
     )
-    @argument(
-        "--branch", type=str, default=None, help="Use a default branch for the source."
-    )
+    @argument("--branch", type=str, default=None, help="Use a default branch for the source.")
     @line_magic
     def init(self, line: str) -> t.Any:
         """
@@ -120,9 +119,11 @@ class DltMagics(Magics):
                 source_name=args.source_name,
                 destination_type=args.destination_name,
                 use_generic_template=args.use_generic_template,
-                repo_location=args.repo_location
-                if args.repo_location is not None
-                else DEFAULT_VERIFIED_SOURCES_REPO,
+                repo_location=(
+                    args.repo_location
+                    if args.repo_location is not None
+                    else DEFAULT_VERIFIED_SOURCES_REPO
+                ),
                 branch=args.branch if args.branch is not None else None,
             )
 
@@ -134,9 +135,7 @@ class DltMagics(Magics):
         help="Operation to perform on the pipeline",
     )
     @argument("--pipeline_name", type=str, default=None, help="Name of the pipeline")
-    @argument(
-        "--pipelines_dir", type=str, default=None, help="Directory of the pipeline"
-    )
+    @argument("--pipelines_dir", type=str, default=None, help="Directory of the pipeline")
     @argument("--verbosity", type=int, default=0, help="Verbosity level")
     @line_magic
     def pipeline(self, line: str) -> t.Any:
