@@ -9,17 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  DESTINATION__SNOWFLAKE__CREDENTIALS: snowflake://loader@kgiotue-wn98412/dlt_data?warehouse=COMPUTE_WH&role=DLT_LOADER_ROLE
-  CREDENTIALS__PASSWORD: ${{ secrets.PG_PASSWORD }}
-
-  # needed for snowflake staging tests
-  DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4LGORLZOK
-  DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  DESTINATION__FILESYSTEM__CREDENTIALS__PROJECT_ID: chat-analytics-rasa-ci
-  DESTINATION__FILESYSTEM__CREDENTIALS__CLIENT_EMAIL: chat-analytics-loader@chat-analytics-rasa-ci.iam.gserviceaccount.com
-  DESTINATION__FILESYSTEM__CREDENTIALS__PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
-  DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME: dltdata
-  DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
 
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
@@ -72,6 +62,9 @@ jobs:
 
       - name: Install dependencies
         run: poetry install --no-interaction -E snowflake -E s3 -E gs -E az -E parquet --with sentry-sdk --with pipeline
+
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
           poetry run pytest tests/load

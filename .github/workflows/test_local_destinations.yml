@@ -11,16 +11,13 @@ on:
   workflow_dispatch:
 
 env:
-  DESTINATION__DUCKDB__CREDENTIALS: duckdb:///_storage/test_quack.duckdb
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
 
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
   RUNTIME__DLTHUB_TELEMETRY_SEGMENT_WRITE_KEY: TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB
   ACTIVE_DESTINATIONS: "[\"duckdb\", \"postgres\", \"filesystem\", \"weaviate\"]"
   ALL_FILESYSTEM_DRIVERS: "[\"memory\", \"file\"]"
-
-  DESTINATION__WEAVIATE__VECTORIZER: text2vec-contextionary
-  DESTINATION__WEAVIATE__MODULE_CONFIG: "{\"text2vec-contextionary\": {\"vectorizeClassName\": false, \"vectorizePropertyName\": true}}"
 
 jobs:
   get_docs_changes:
@@ -85,6 +82,9 @@ jobs:
 
       - name: Install dependencies
         run: poetry install --no-interaction -E postgres -E duckdb -E parquet -E filesystem -E cli -E weaviate --with sentry-sdk --with pipeline
+
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: poetry run pytest tests/load && poetry run pytest tests/cli
         name: Run tests Linux
