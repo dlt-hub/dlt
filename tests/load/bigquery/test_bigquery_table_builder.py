@@ -1,3 +1,4 @@
+import os
 import pytest
 import sqlfluff
 from copy import deepcopy
@@ -21,13 +22,17 @@ def schema() -> Schema:
 
 
 def test_configuration() -> None:
+    os.environ["MYBG__CREDENTIALS__CLIENT_EMAIL"] = "1234"
+    os.environ["MYBG__CREDENTIALS__PRIVATE_KEY"] = "1234"
+    os.environ["MYBG__CREDENTIALS__PROJECT_ID"] = "1234"
+
     # check names normalized
-    with custom_environ({"CREDENTIALS__PRIVATE_KEY": "---NO NEWLINE---\n"}):
-        C = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())
+    with custom_environ({"MYBG__CREDENTIALS__PRIVATE_KEY": "---NO NEWLINE---\n"}):
+        C = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("mybg",))
         assert C.private_key == "---NO NEWLINE---\n"
 
-    with custom_environ({"CREDENTIALS__PRIVATE_KEY": "---WITH NEWLINE---\n"}):
-        C = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults())
+    with custom_environ({"MYBG__CREDENTIALS__PRIVATE_KEY": "---WITH NEWLINE---\n"}):
+        C = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("mybg",))
         assert C.private_key == "---WITH NEWLINE---\n"
 
 
