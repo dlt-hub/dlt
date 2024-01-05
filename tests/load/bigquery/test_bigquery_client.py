@@ -182,7 +182,9 @@ def test_oauth_credentials_native_credentials_object(environment: Any) -> None:
 
 
 def test_get_oauth_access_token() -> None:
-    c = resolve_configuration(GcpOAuthCredentialsWithoutDefaults())
+    c = resolve_configuration(
+        GcpOAuthCredentialsWithoutDefaults(), sections=("destination", "bigquery")
+    )
     assert c.refresh_token is not None
     assert c.token is None
     c.auth()

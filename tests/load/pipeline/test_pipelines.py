@@ -478,26 +478,29 @@ def test_pipeline_explicit_destination_credentials(
 ) -> None:
     # explicit credentials resolved
     p = dlt.pipeline(
-        destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data"
+        destination=Destination.from_reference("postgres", destination_name="mydest"),
+        credentials="postgresql://loader:loader@localhost:7777/dlt_data",
     )
     c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
-    assert c.config.credentials.host == "localhost"  # type: ignore[attr-defined]
+    assert c.config.credentials.port == 7777  # type: ignore[attr-defined]
 
-    # Remove connection string in CI to start with clean environ
     # TODO: may want to clear the env completely and ignore/mock config files somehow to avoid side effects
-    os.environ.pop("DESTINATION__POSTGRES__CREDENTIALS", None)
     # explicit credentials resolved ignoring the config providers
-    os.environ["DESTINATION__POSTGRES__CREDENTIALS__HOST"] = "HOST"
+    os.environ["DESTINATION__MYDEST__CREDENTIALS__HOST"] = "HOST"
     p = dlt.pipeline(
-        destination="postgres", credentials="postgresql://loader:loader@localhost:5432/dlt_data"
+        destination=Destination.from_reference("postgres", destination_name="mydest"),
+        credentials="postgresql://loader:loader@localhost:5432/dlt_data",
     )
     c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
     assert c.config.credentials.host == "localhost"  # type: ignore[attr-defined]
 
     # explicit partial credentials will use config providers
-    os.environ["DESTINATION__POSTGRES__CREDENTIALS__USERNAME"] = "UN"
-    os.environ["DESTINATION__POSTGRES__CREDENTIALS__PASSWORD"] = "PW"
-    p = dlt.pipeline(destination="postgres", credentials="postgresql://localhost:5432/dlt_data")
+    os.environ["DESTINATION__MYDEST__CREDENTIALS__USERNAME"] = "UN"
+    os.environ["DESTINATION__MYDEST__CREDENTIALS__PASSWORD"] = "PW"
+    p = dlt.pipeline(
+        destination=Destination.from_reference("postgres", destination_name="mydest"),
+        credentials="postgresql://localhost:5432/dlt_data",
+    )
     c = p._get_destination_clients(Schema("s"), p._get_destination_client_initial_config())[0]
     assert c.config.credentials.username == "UN"  # type: ignore[attr-defined]
     # host is also overridden

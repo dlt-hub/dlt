@@ -133,6 +133,7 @@ types-tqdm = "^4.66.0.2"
 types-psutil = "^5.9.5.16"
 types-psycopg2 = "^2.9.21.14"
 cryptography = "^41.0.7"
+google-api-python-client = ">=1.7.11"
 
 [tool.poetry.group.pipeline]
 optional=true
@@ -175,7 +176,6 @@ dbt-core=">=1.2.0"
 dbt-duckdb=">=1.2.0"
 pymongo = ">=4.3.3"
 pandas = ">2"
-google-api-python-client = ">=1.7.11"
 
 [tool.black] # https://black.readthedocs.io/en/stable/usage_and_configuration/the_basics.html#configuration-via-a-file
 line-length = 100

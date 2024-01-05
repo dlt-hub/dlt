@@ -9,12 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4LGORLZOK
-  DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  DESTINATION__ATHENA__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4LGORLZOK
-  DESTINATION__ATHENA__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  DESTINATION__ATHENA__CREDENTIALS__REGION_NAME: eu-central-1
-  DESTINATION__ATHENA__QUERY_RESULT_BUCKET: s3://dlt-athena-output
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
 
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
@@ -71,6 +66,9 @@ jobs:
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction -E  --with sentry-sdk --with pipeline
+
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
           poetry run pytest tests/load

@@ -35,11 +35,13 @@ def test_redshift_configuration() -> None:
     # check names normalized
     with custom_environ(
         {
-            "DESTINATION__REDSHIFT__CREDENTIALS__DATABASE": "UPPER_CASE_DATABASE",
-            "DESTINATION__REDSHIFT__CREDENTIALS__PASSWORD": " pass\n",
+            "DESTINATION__MY_REDSHIFT__CREDENTIALS__USERNAME": "username",
+            "DESTINATION__MY_REDSHIFT__CREDENTIALS__HOST": "host",
+            "DESTINATION__MY_REDSHIFT__CREDENTIALS__DATABASE": "UPPER_CASE_DATABASE",
+            "DESTINATION__MY_REDSHIFT__CREDENTIALS__PASSWORD": " pass\n",
         }
     ):
-        C = resolve_configuration(RedshiftCredentials(), sections=("destination", "redshift"))
+        C = resolve_configuration(RedshiftCredentials(), sections=("destination", "my_redshift"))
         assert C.database == "upper_case_database"
         assert C.password == "pass"
 
