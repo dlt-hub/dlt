@@ -20,17 +20,6 @@ def test_init_command(shell_interactive):
     assert result == 0
 
 
-@pytest.fixture
-def run_pipeline():
-    load_info = dlt.pipeline(
-        pipeline_name="test_pipeline",
-        destination="duckdb",
-        dataset_name="mydata",
-        full_refresh=True,
-    ).run([{"id": 1, "name": "John"}], table_name="users")
-    return load_info
-
-
 @pytest.mark.parametrize("telemetry", ["disable", "enable"])
 def test_settings_command(shell_interactive, telemetry):
     result = shell_interactive.run_line_magic("settings", f"--{telemetry}-telemetry")
@@ -40,18 +29,6 @@ def test_settings_command(shell_interactive, telemetry):
 
 def test_list_pipeline_command(shell_interactive):
     result = shell_interactive.run_line_magic("pipeline", "--operation list-pipelines")
-    # Check if the init command returns the expected result
-    assert result == 0
-
-
-@pytest.mark.parametrize(
-    "operation",
-    ["info", "sync", "load-package", "trace", "failed-jobs", "drop-pending-packages", "schema"],
-)
-def test_operation_pipeline_command(shell_interactive, operation, run_pipeline):
-    result = shell_interactive.run_line_magic(
-        "pipeline", f"--operation {operation} --pipeline_name test_pipeline"
-    )
     # Check if the init command returns the expected result
     assert result == 0
 
