@@ -1,8 +1,6 @@
 import pytest
 from IPython.terminal.interactiveshell import TerminalInteractiveShell
 
-import dlt
-
 
 @pytest.fixture(scope="session")
 def shell_interactive():
