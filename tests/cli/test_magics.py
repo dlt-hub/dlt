@@ -31,7 +31,7 @@ def run_pipeline():
     return load_info
 
 
-@pytest.mark.parametrize("telemetry", ["enable", "disable"])
+@pytest.mark.parametrize("telemetry", ["disable", "enable"])
 def test_settings_command(shell_interactive, telemetry):
     result = shell_interactive.run_line_magic("settings", f"--{telemetry}-telemetry")
     # Check if the init command returns the expected result
