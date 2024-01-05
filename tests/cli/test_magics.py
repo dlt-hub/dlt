@@ -44,16 +44,16 @@ def test_list_pipeline_command(shell_interactive):
     assert result == 0
 
 
-# @pytest.mark.parametrize(
-#     "operation",
-#     ["info", "sync", "load-package", "trace", "failed-jobs", "drop-pending-packages", "schema"],
-# )
-# def test_operation_pipeline_command(shell_interactive, operation, run_pipeline):
-#     result = shell_interactive.run_line_magic(
-#         "pipeline", f"--operation {operation} --pipeline_name test_pipeline"
-#     )
-#     # Check if the init command returns the expected result
-#     assert result == 0
+@pytest.mark.parametrize(
+    "operation",
+    ["info", "sync", "load-package", "trace", "failed-jobs", "drop-pending-packages", "schema"],
+)
+def test_operation_pipeline_command(shell_interactive, operation, run_pipeline):
+    result = shell_interactive.run_line_magic(
+        "pipeline", f"--operation {operation} --pipeline_name test_pipeline"
+    )
+    # Check if the init command returns the expected result
+    assert result == 0
 
 
 def test_version_command(shell_interactive):
