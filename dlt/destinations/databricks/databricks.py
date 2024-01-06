@@ -17,7 +17,7 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.databricks import capabilities
 from dlt.destinations.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.databricks.sql_client import DatabricksSqlClient
-from dlt.destinations.sql_jobs import SqlStagingCopyJob
+from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
@@ -117,7 +117,7 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         from_clause = ""
         credentials_clause = ""
         files_clause = ""
-        stage_file_path = ""
+        # stage_file_path = ""
         format_options = ""
         copy_options = "COPY_OPTIONS ('mergeSchema'='true')"
 
@@ -125,13 +125,13 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
             # referencing an external s3/azure stage does not require explicit credentials
-            if bucket_scheme in ["s3", "az"] and stage_name:
+            if bucket_scheme in ["s3", "az", "abfs", "gc", "gcs"] and stage_name:
                 from_clause = f"FROM ('{bucket_path}')"
             # referencing an staged files via a bucket URL requires explicit AWS credentials
             if bucket_scheme == "s3" and staging_credentials and isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
                 credentials_clause = f"""WITH(CREDENTIAL(AWS_KEY_ID='{staging_credentials.aws_access_key_id}', AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}'))"""
                 from_clause = f"FROM '{bucket_path}'"
-            elif bucket_scheme == "az" and staging_credentials and isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
+            elif bucket_scheme in ["az", "abfs"] and staging_credentials and isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
                 # Explicit azure credentials are needed to load from bucket without a named stage
                 credentials_clause = f"""WITH(CREDENTIAL(AZURE_SAS_TOKEN='{staging_credentials.azure_storage_sas_token}'))"""
                 # Converts an az://<container_name>/<path> to abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>
@@ -152,6 +152,7 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
                     # when loading from bucket stage must be given
                     raise LoadJobTerminalException(file_path, f"Cannot load from bucket path {bucket_path} without a stage name. See https://dlthub.com/docs/dlt-ecosystem/destinations/databricks for instructions on setting up the `stage_name`")
                 from_clause = f"FROM ('{bucket_path}')"
+        # Databricks does not support loading from local files
         # else:
         #     # this means we have a local file
         #     if not stage_name:
@@ -165,19 +166,19 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         if file_name.endswith("parquet"):
             source_format = "PARQUET"
 
-        with client.begin_transaction():
-            client.execute_sql(
-                f"""COPY INTO {qualified_table_name}
-                {from_clause}
-                {files_clause}
-                {credentials_clause}
-                FILEFORMAT = {source_format}
-                {format_options}
-                {copy_options}
-                """
-            )
-            # if stage_file_path and not keep_staged_files:
-            #     client.execute_sql(f'REMOVE {stage_file_path}')
+        client.execute_sql(
+            f"""COPY INTO {qualified_table_name}
+            {from_clause}
+            {files_clause}
+            {credentials_clause}
+            FILEFORMAT = {source_format}
+            {format_options}
+            {copy_options}
+            """
+        )
+        # Databricks does not support deleting staged files via sql
+        # if stage_file_path and not keep_staged_files:
+        #     client.execute_sql(f'REMOVE {stage_file_path}')
 
 
     def state(self) -> TLoadJobState:
@@ -200,6 +201,12 @@ class DatabricksStagingCopyJob(SqlStagingCopyJob):
             # recreate destination table with data cloned from staging table
             sql.append(f"CREATE TABLE {table_name} CLONE {staging_table_name};")
         return sql
+
+
+class DatabricksMergeJob(SqlMergeJob):
+    @classmethod
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
+        return f"CREATE OR REPLACE TEMPORARY VIEW {temp_table_name} AS {select_sql};"
 
 
 class DatabricksClient(SqlJobClientWithStaging):
@@ -232,6 +239,12 @@ class DatabricksClient(SqlJobClientWithStaging):
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
+
+    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)
+
+    def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return DatabricksStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
     def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
         # Override because databricks requires multiple columns in a single ADD COLUMN clause
