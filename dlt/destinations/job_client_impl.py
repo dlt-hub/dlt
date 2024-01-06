@@ -84,7 +84,8 @@ class SqlLoadJob(LoadJob):
             # with sql_client.begin_transaction():
             sql_client.execute_sql(sql)
         else:
-            sql_client.execute_sql(sql)
+            # sql_client.execute_sql(sql)
+            sql_client.execute_fragments(sql.split(";"))
 
     def state(self) -> TLoadJobState:
         # this job is always done
