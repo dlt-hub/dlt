@@ -1,27 +1,25 @@
 import io
 import mimetypes
-import posixpath
 import pathlib
-from urllib.parse import urlparse
+import posixpath
 from io import BytesIO
-from typing import cast, Tuple, TypedDict, Optional, Union, Iterator, Any, IO
+from typing import cast, Tuple, TypedDict, Optional, Union, Iterator, Any, IO, Dict, Callable
+from urllib.parse import urlparse
 
-from fsspec.core import url_to_fs
 from fsspec import AbstractFileSystem
+from fsspec.core import url_to_fs
 
+from dlt import version
 from dlt.common import pendulum
-from dlt.common.exceptions import MissingDependencyException
-from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.typing import DictStrAny
 from dlt.common.configuration.specs import (
-    CredentialsWithDefault,
     GcpCredentials,
     AwsCredentials,
     AzureCredentials,
 )
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.storages.configuration import FileSystemCredentials, FilesystemConfiguration
-
-from dlt import version
+from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.typing import DictStrAny
 
 
 class FileItem(TypedDict, total=False):
@@ -50,29 +48,49 @@ MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]
 MTIME_DISPATCH["s3a"] = MTIME_DISPATCH["s3"]
 MTIME_DISPATCH["abfs"] = MTIME_DISPATCH["az"]
 
+# Map of protocol to a filesystem type
+CREDENTIALS_DISPATCH: Dict[str, Callable[[FilesystemConfiguration], DictStrAny]] = {
+    "s3": lambda config: cast(AwsCredentials, config.credentials).to_s3fs_credentials(),
+    "adl": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
+    "az": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
+    "gcs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
+    "gs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
+    "abfs": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
+    "azure": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
+}
+
 
 def fsspec_filesystem(
-    protocol: str, credentials: FileSystemCredentials = None
+    protocol: str,
+    credentials: FileSystemCredentials = None,
+    kwargs: Optional[DictStrAny] = None,
+    client_kwargs: Optional[DictStrAny] = None,
 ) -> Tuple[AbstractFileSystem, str]:
     """Instantiates an authenticated fsspec `FileSystem` for a given `protocol` and credentials.
 
-    Please supply credentials instance corresponding to the protocol. The `protocol` is just the code name of the filesystem ie:
+    Please supply credentials instance corresponding to the protocol.
+    The `protocol` is just the code name of the filesystem i.e.:
     * s3
     * az, abfs
     * gcs, gs
 
     also see filesystem_from_config
     """
-    return fsspec_from_config(FilesystemConfiguration(protocol, credentials))
+    return fsspec_from_config(
+        FilesystemConfiguration(protocol, credentials, kwargs=kwargs, client_kwargs=client_kwargs)
+    )
 
 
 def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSystem, str]:
     """Instantiates an authenticated fsspec `FileSystem` from `config` argument.
 
-    Authenticates following filesystems:
+    Authenticates the following filesystems:
     * s3
     * az, abfs
     * gcs, gs
+
+    Additional fsspec filesystem arguments and client arguments are gathered from the
+    FilesystemConfiguration object and passed to the `url_to_fs` factory.
 
     All other filesystems are not authenticated
 
@@ -80,26 +98,25 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
 
     """
     proto = config.protocol
-    fs_kwargs: DictStrAny = {}
-    if proto == "s3":
-        fs_kwargs.update(cast(AwsCredentials, config.credentials).to_s3fs_credentials())
-    elif proto in ["az", "abfs", "adl", "azure"]:
-        fs_kwargs.update(cast(AzureCredentials, config.credentials).to_adlfs_credentials())
-    elif proto in ["gcs", "gs"]:
-        assert isinstance(config.credentials, GcpCredentials)
-        # Default credentials are handled by gcsfs
-        if (
-            isinstance(config.credentials, CredentialsWithDefault)
-            and config.credentials.has_default_credentials()
-        ):
-            fs_kwargs["token"] = None
-        else:
-            fs_kwargs["token"] = dict(config.credentials)
-        fs_kwargs["project"] = config.credentials.project_id
+    fs_kwargs: DictStrAny = {"use_listings_cache": False}
+    credentials = CREDENTIALS_DISPATCH.get(proto, lambda _: {})(config)
+
+    if config.kwargs is not None:
+        fs_kwargs.update(config.kwargs)
+    if config.client_kwargs is not None:
+        fs_kwargs["client_kwargs"] = config.client_kwargs
+
+    if "client_kwargs" in fs_kwargs and "client_kwargs" in credentials:
+        fs_kwargs["client_kwargs"].update(credentials.pop("client_kwargs"))
+
+    fs_kwargs.update(credentials)
+
     try:
-        return url_to_fs(config.bucket_url, use_listings_cache=False, **fs_kwargs)  # type: ignore[no-any-return]
+        return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore
     except ModuleNotFoundError as e:
-        raise MissingDependencyException("filesystem", [f"{version.DLT_PKG_NAME}[{proto}]"]) from e
+        raise MissingDependencyException(
+            "filesystem", [f"{version.DLT_PKG_NAME}[{config.protocol}]"]
+        ) from e
 
 
 class FileItemDict(DictStrAny):
@@ -122,7 +139,7 @@ class FileItemDict(DictStrAny):
 
     @property
     def fsspec(self) -> AbstractFileSystem:
-        """The filesystem client based on the given credentials.
+        """The filesystem client is based on the given credentials.
 
         Returns:
             AbstractFileSystem: The fsspec client.
@@ -150,16 +167,15 @@ class FileItemDict(DictStrAny):
         if "file_content" in self:
             bytes_io = BytesIO(self["file_content"])
 
-            if "t" in mode:
-                text_kwargs = {
-                    k: kwargs.pop(k) for k in ["encoding", "errors", "newline"] if k in kwargs
-                }
-                return io.TextIOWrapper(
-                    bytes_io,
-                    **text_kwargs,
-                )
-            else:
+            if "t" not in mode:
                 return bytes_io
+            text_kwargs = {
+                k: kwargs.pop(k) for k in ["encoding", "errors", "newline"] if k in kwargs
+            }
+            return io.TextIOWrapper(
+                bytes_io,
+                **text_kwargs,
+            )
         else:
             opened_file = self.fsspec.open(self["file_url"], mode=mode, **kwargs)
         return opened_file
@@ -171,19 +187,17 @@ class FileItemDict(DictStrAny):
             bytes: The file content.
         """
         content: bytes
-        # same as open, if the user has already extracted the content, we use it.
-        if "file_content" in self and self["file_content"] is not None:
-            content = self["file_content"]
-        else:
-            content = self.fsspec.read_bytes(self["file_url"])
-        return content
+        return (  # type: ignore
+            self["file_content"]
+            if "file_content" in self and self["file_content"] is not None
+            else self.fsspec.read_bytes(self["file_url"])
+        )
 
 
 def guess_mime_type(file_name: str) -> str:
-    mime_type = mimetypes.guess_type(posixpath.basename(file_name), strict=False)[0]
-    if not mime_type:
-        mime_type = "application/" + (posixpath.splitext(file_name)[1][1:] or "octet-stream")
-    return mime_type
+    return mimetypes.guess_type(posixpath.basename(file_name), strict=False)[
+        0
+    ] or "application/" + (posixpath.splitext(file_name)[1][1:] or "octet-stream")
 
 
 def glob_files(
@@ -202,7 +216,7 @@ def glob_files(
     import os
 
     bucket_url_parsed = urlparse(bucket_url)
-    # if this is file path without scheme
+    # if this is a file path without a scheme
     if not bucket_url_parsed.scheme or (os.path.isabs(bucket_url) and "\\" in bucket_url):
         # this is a file so create a proper file url
         bucket_url = pathlib.Path(bucket_url).absolute().as_uri()
@@ -224,9 +238,9 @@ def glob_files(
             continue
         # make that absolute path on a file://
         if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
-            file = "/" + file
+            file = f"/{file}"
         file_name = posixpath.relpath(file, bucket_path)
-        file_url = bucket_url_parsed.scheme + "://" + file
+        file_url = f"{bucket_url_parsed.scheme}://{file}"
         yield FileItem(
             file_name=file_name,
             file_url=file_url,
