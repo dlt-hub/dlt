@@ -2,6 +2,7 @@
 slug: streaming-pubsub-json-gcp
 title: Streaming Pub/Sub JSON to Cloud SQL PostgreSQL on GCP
 summary: 'How and why to use a low-cost instance group to stream JSON events from Pub/Sub to PostgreSQL running on Cloud SQL.'
+image: https://storage.googleapis.com/dlt-blog-images/pubsub_dlt/pubsub_backlog_performance.png
 meta:
   - name: canonical
     content: https://www.dataroc.ca/blog/streaming-pubsub-json-to-cloud-sql-postgresql-on-gcp
