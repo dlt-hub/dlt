@@ -1,7 +1,6 @@
 from typing import List
 
 import dlt
-import duckdb
 import pytest
 import os
 
@@ -32,9 +31,7 @@ class StepCounterPlugin(CallbackPlugin[BaseConfiguration]):
 def test_simple_plugin_steps() -> None:
     """very simple test to see if plugins work"""
     plug = StepCounterPlugin()
-    pipeline = dlt.pipeline(
-        "my_pipeline", plugins=[plug], destination="duckdb", credentials=duckdb.connect(":memory:")
-    )
+    pipeline = dlt.pipeline("my_pipeline_2", plugins=[plug], destination="dummy")
     pipeline.run([{"a": 1, "b": 2}], table_name="my_table")
 
     assert plug.start_steps == ["run", "extract", "normalize", "load"]
@@ -123,4 +120,4 @@ def test_plugin_config_resolution_name_section(environment) -> None:
 
 def test_plugin_config_resolution_no_vars(environment) -> None:
     with pytest.raises(ConfigFieldMissingException):
-        plug = TestConfigPlugin()
+        TestConfigPlugin()
