@@ -30,9 +30,12 @@ class StepCounterPlugin(CallbackPlugin[BaseConfiguration]):
 
 def test_simple_plugin_steps() -> None:
     """very simple test to see if plugins work"""
-    plug = StepCounterPlugin()
-    pipeline = dlt.pipeline("my_pipeline_2", plugins=[plug], destination="dummy")
+    pipeline = dlt.pipeline(
+        "my_pipeline_2", plugins=[StepCounterPlugin], destination="dummy", full_refresh=True
+    )
     pipeline.run([{"a": 1, "b": 2}], table_name="my_table")
+
+    plug = pipeline._container[PluginsContext]._plugins[0]
 
     assert plug.start_steps == ["run", "extract", "normalize", "load"]
     assert plug.end_steps == ["extract", "normalize", "load", "run"]
@@ -41,16 +44,12 @@ def test_simple_plugin_steps() -> None:
 def test_plugin_resolution() -> None:
     ctx = PluginsContext()
 
-    # isntance remains the same
-    plugin = StepCounterPlugin()
-    assert ctx._resolve_plugin(plugin) is plugin
-
     # class gets instantiated
     assert isinstance(ctx._resolve_plugin(StepCounterPlugin), StepCounterPlugin)
 
     # string gets imported and instantiated
     assert isinstance(
-        ctx._resolve_plugin("tests.common.plugins.test_plugins.StepCounterPlugin"),
+        ctx._resolve_plugin("tests.common.plugins.test_plugin_basics.StepCounterPlugin"),
         StepCounterPlugin,
     )
 
@@ -60,7 +59,7 @@ def test_plugin_resolution() -> None:
 
     # same but incorrect attribute
     with pytest.raises(UnknownPluginPathException):
-        ctx._resolve_plugin("tests.common.plugins.test_plugins.UnknwonAttr")
+        ctx._resolve_plugin("tests.common.plugins.test_plugin_basics.UnknwonAttr")
 
     # resolves but class is not plugin type
     with pytest.raises(TypeError):
@@ -72,6 +71,10 @@ def test_plugin_resolution() -> None:
 
     with pytest.raises(TypeError):
         ctx._resolve_plugin(ctx)  # type: ignore
+
+    # instances are not allowed
+    with pytest.raises(TypeError):
+        ctx._resolve_plugin(StepCounterPlugin())  # type: ignore
 
 
 @configspec

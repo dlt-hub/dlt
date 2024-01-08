@@ -177,9 +177,9 @@ def with_plugins() -> Callable[[TFun], TFun]:
     def decorator(f: TFun) -> TFun:
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-            # setup plugins context if it does not exist yet
-            # TODO: should plugins be persisted across steps?
-            if not (plugins_ctx := self._container[PluginsContext]):
+            plugins_ctx = self._container[PluginsContext]
+            # TODO: something weird with the pipeline state is going on here
+            if plugins_ctx is None or not plugins_ctx._plugins:
                 plugins_ctx = PluginsContext()
                 plugins_ctx.setup_plugins(self.plugins)
                 self._container[PluginsContext] = plugins_ctx

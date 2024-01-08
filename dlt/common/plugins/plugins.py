@@ -1,4 +1,4 @@
-from typing import List, Any, Iterable
+from typing import List, Any, Iterable, Optional
 from dlt.common.typing import TFun
 from dlt.common.typing import TDataItem
 from dlt.common.pipeline import SupportsPipeline
@@ -12,13 +12,33 @@ from dlt.common.schema.exceptions import DataValidationError
 from importlib import import_module
 from .exceptions import UnknownPluginPathException
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
+import multiprocessing as mp
+from functools import wraps
+
+
+def on_main_process(f: TFun) -> TFun:
+    @wraps(f)
+    def _wrap(self: "PluginsContext", *args: Any, **kwargs: Any) -> Any:
+        # send message to shared queue if this is not the main instance
+        if not self._main:
+            self._queue.put((f.__name__, args, kwargs))
+            return None
+        return f(self, *args, **kwargs)
+
+    return _wrap  # type: ignore
 
 
 @configspec
 class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
-    def __init__(self) -> None:
+    def __init__(self, main: bool = True) -> None:
         self._plugins: List[Plugin[BaseConfiguration]] = []
         self._callback_plugins: List[CallbackPlugin[BaseConfiguration]] = []
+        self._initial_plugins: TPluginArg = []
+        self._main = main
+
+        if self._main:
+            manager = mp.Manager()
+            self._queue = manager.Queue()
 
     def _resolve_plugin(self, plugin: TSinglePluginArg) -> Plugin[BaseConfiguration]:
         resolved_plugin: Plugin[BaseConfiguration] = None
@@ -34,16 +54,30 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
                 raise UnknownPluginPathException(str(plugin)) from e
         if isinstance(plugin, type) and issubclass(plugin, Plugin):
             resolved_plugin = plugin()
-        elif isinstance(plugin, Plugin):
-            resolved_plugin = plugin
         else:
-            raise TypeError(
-                f"Plugin {plugin} is not a subclass of Plugin, nor a Plugin instance, nor a plugin"
-                " name string"
-            )
+            raise TypeError(f"Plugin {plugin} is not a subclass of Plugin nor a plugin name string")
         return resolved_plugin
 
+    # pickle support
+    def __getstate__(self):
+        return {"plugins": self._initial_plugins, "queue": self._queue}
+
+    def __setstate__(self, d):
+        self.__init__(False)
+        self.setup_plugins(d["plugins"])
+        self._queue = d["queue"]
+
+    def process_queue(self):
+        assert self._main
+        try:
+            while True:
+                name, args, kwargs = self._queue.get_nowait()
+                getattr(self, name)(*args, **kwargs)
+        except mp.queues.Empty:
+            pass
+
     def setup_plugins(self, plugins: TPluginArg) -> None:
+        self._initial_plugins = plugins
         if not plugins:
             return
         if not isinstance(plugins, Iterable):
