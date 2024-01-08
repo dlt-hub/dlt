@@ -1,9 +1,10 @@
 import os
-from urllib.parse import urlparse
 from typing import TYPE_CHECKING, Any, Literal, Optional, Type, get_args, ClassVar, Dict, Union
+from urllib.parse import urlparse
 
-from dlt.common.configuration.specs import BaseConfiguration, configspec, CredentialsConfiguration
 from dlt.common.configuration import configspec, resolve_type
+from dlt.common.configuration.exceptions import ConfigurationValueError
+from dlt.common.configuration.specs import CredentialsConfiguration
 from dlt.common.configuration.specs import (
     GcpServiceAccountCredentials,
     AwsCredentials,
@@ -12,8 +13,9 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
     BaseConfiguration,
 )
+from dlt.common.typing import DictStrAny
 from dlt.common.utils import digest128
-from dlt.common.configuration.exceptions import ConfigurationValueError
+
 
 TSchemaFileFormat = Literal["json", "yaml"]
 SchemaFileExtensions = get_args(TSchemaFileFormat)
@@ -92,8 +94,12 @@ class FilesystemConfiguration(BaseConfiguration):
     }
 
     bucket_url: str = None
-    # should be an union of all possible credentials as found in PROTOCOL_CREDENTIALS
+
+    # should be a union of all possible credentials as found in PROTOCOL_CREDENTIALS
     credentials: FileSystemCredentials
+
+    kwargs: Optional[DictStrAny] = None
+    client_kwargs: Optional[DictStrAny] = None
 
     @property
     def protocol(self) -> str:
@@ -112,7 +118,7 @@ class FilesystemConfiguration(BaseConfiguration):
                 "File path or netloc missing. Field bucket_url of FilesystemClientConfiguration"
                 " must contain valid url with a path or host:password component."
             )
-        # this is just a path in local file system
+        # this is just a path in a local file system
         if url.path == self.bucket_url:
             url = url._replace(scheme="file")
             self.bucket_url = url.geturl()
@@ -124,9 +130,7 @@ class FilesystemConfiguration(BaseConfiguration):
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of bucket_url"""
-        if self.bucket_url:
-            return digest128(self.bucket_url)
-        return ""
+        return digest128(self.bucket_url) if self.bucket_url else ""
 
     def __str__(self) -> str:
         """Return displayable destination location"""
@@ -141,4 +145,15 @@ class FilesystemConfiguration(BaseConfiguration):
 
     if TYPE_CHECKING:
 
-        def __init__(self, bucket_url: str, credentials: FileSystemCredentials = None) -> None: ...
+        def __init__(
+            self,
+            bucket_url: str,
+            credentials: FileSystemCredentials = None,
+            kwargs: Optional[DictStrAny] = None,
+            client_kwargs: Optional[DictStrAny] = None,
+        ) -> None:
+            self.bucket_url = bucket_url
+            self.credentials = credentials
+            self.kwargs = kwargs
+            self.client_kwargs = client_kwargs
+            ...
