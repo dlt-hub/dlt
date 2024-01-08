@@ -1,18 +1,16 @@
 import os
-import pytest
-import sqlfluff
 from copy import deepcopy
 
-from dlt.common.utils import custom_environ, uniq_id
-from dlt.common.schema import Schema
-from dlt.common.schema.utils import new_table
+import pytest
+import sqlfluff
+
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
-
+from dlt.common.schema import Schema
+from dlt.common.utils import custom_environ, uniq_id
+from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
-from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
-
 from tests.load.utils import TABLE_UPDATE
 
 
