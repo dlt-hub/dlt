@@ -36,12 +36,14 @@ def test_configuration() -> None:
 
 @pytest.fixture
 def gcp_client(schema: Schema) -> BigQueryClient:
-    # return client without opening connection
+    # return a client without opening connection
     creds = GcpServiceAccountCredentialsWithoutDefaults()
     creds.project_id = "test_project_id"
     return BigQueryClient(
         schema,
-        BigQueryClientConfiguration(dataset_name="test_" + uniq_id(), credentials=creds),  # type: ignore[arg-type]
+        BigQueryClientConfiguration(
+            dataset_name=f"test_{uniq_id()}", credentials=creds
+        ),
     )
 
 
