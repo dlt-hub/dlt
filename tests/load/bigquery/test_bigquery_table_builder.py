@@ -24,14 +24,14 @@ def test_configuration() -> None:
     os.environ["MYBG__CREDENTIALS__PRIVATE_KEY"] = "1234"
     os.environ["MYBG__CREDENTIALS__PROJECT_ID"] = "1234"
 
-    # check names normalized
+    # check names normalised
     with custom_environ({"MYBG__CREDENTIALS__PRIVATE_KEY": "---NO NEWLINE---\n"}):
-        C = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("mybg",))
-        assert C.private_key == "---NO NEWLINE---\n"
+        c = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("mybg",))
+        assert c.private_key == "---NO NEWLINE---\n"
 
     with custom_environ({"MYBG__CREDENTIALS__PRIVATE_KEY": "---WITH NEWLINE---\n"}):
-        C = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("mybg",))
-        assert C.private_key == "---WITH NEWLINE---\n"
+        c = resolve_configuration(GcpServiceAccountCredentialsWithoutDefaults(), sections=("mybg",))
+        assert c.private_key == "---WITH NEWLINE---\n"
 
 
 @pytest.fixture
@@ -42,7 +42,7 @@ def gcp_client(schema: Schema) -> BigQueryClient:
     return BigQueryClient(
         schema,
         BigQueryClientConfiguration(
-            dataset_name=f"test_{uniq_id()}", credentials=creds
+            dataset_name=f"test_{uniq_id()}", credentials=creds  # type: ignore[arg-type]
         ),
     )
 
