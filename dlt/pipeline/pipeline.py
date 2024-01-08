@@ -173,16 +173,21 @@ def with_schemas_sync(f: TFun) -> TFun:
     return _wrap  # type: ignore
 
 
-def with_plugins_step() -> Callable[[TFun], TFun]:
+def with_plugins() -> Callable[[TFun], TFun]:
     def decorator(f: TFun) -> TFun:
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-            plugins_context = self._container[PluginsContext]
-            plugins_context.on_step_start(f.__name__)
+            # setup plugins context if it does not exist yet
+            # TODO: should plugins be persisted across steps?
+            if not (plugins_ctx := self._container[PluginsContext]):
+                plugins_ctx = PluginsContext()
+                plugins_ctx.setup_plugins(self.plugins)
+                self._container[PluginsContext] = plugins_ctx
 
+            # call step
+            plugins_ctx.on_step_start(f.__name__, self)
             result = f(self, *args, **kwargs)
-
-            plugins_context.on_step_end(f.__name__)
+            plugins_ctx.on_step_end(f.__name__, self)
 
             return result
 
@@ -335,11 +340,6 @@ class Pipeline(SupportsPipeline):
         # initialize pipeline working dir
         self._init_working_dir(pipeline_name, pipelines_dir)
 
-        # setup plugins context
-        plugins_ctx = PluginsContext()
-        plugins_ctx.setup_plugins(self.plugins, self)
-        self._container[PluginsContext] = plugins_ctx
-
         with self.managed_state() as state:
             # changing the destination could be dangerous if pipeline has pending load packages
             self._set_destinations(destination=destination, staging=staging)
@@ -377,7 +377,7 @@ class Pipeline(SupportsPipeline):
     @with_schemas_sync  # this must precede with_state_sync
     @with_state_sync(may_extract_state=True)
     @with_config_section((known_sections.EXTRACT,))
-    @with_plugins_step()
+    @with_plugins()
     def extract(
         self,
         data: Any,
@@ -439,7 +439,7 @@ class Pipeline(SupportsPipeline):
     @with_runtime_trace()
     @with_schemas_sync
     @with_config_section((known_sections.NORMALIZE,))
-    @with_plugins_step()
+    @with_plugins()
     def normalize(
         self, workers: int = 1, loader_file_format: TLoaderFileFormat = None
     ) -> NormalizeInfo:
@@ -487,7 +487,7 @@ class Pipeline(SupportsPipeline):
     @with_schemas_sync
     @with_state_sync()
     @with_config_section((known_sections.LOAD,))
-    @with_plugins_step()
+    @with_plugins()
     def load(
         self,
         destination: TDestinationReferenceArg = None,
@@ -542,7 +542,7 @@ class Pipeline(SupportsPipeline):
 
     @with_runtime_trace()
     @with_config_section(("run",))
-    @with_plugins_step()
+    @with_plugins()
     def run(
         self,
         data: Any = None,

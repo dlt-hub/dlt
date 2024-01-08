@@ -24,7 +24,7 @@ from dlt.extract.resource import DltResource
 from dlt.extract.typing import TableNameMeta
 from dlt.extract.storage import ExtractStorage, ExtractorItemStorage
 
-from dlt.common.plugins import with_plugins, PluginsContext
+from dlt.common.plugins import PluginsContext
 
 try:
     from dlt.common.libs import pyarrow
@@ -44,9 +44,9 @@ class Extractor:
     @configspec
     class ExtractorConfiguration(BaseConfiguration):
         _caps: Optional[DestinationCapabilitiesContext] = None
+        _plugins: Optional[PluginsContext] = None
 
     @with_config(spec=ExtractorConfiguration)
-    @with_plugins()
     def __init__(
         self,
         load_id: str,
@@ -127,8 +127,6 @@ class Extractor:
         self.collector.update(table_name, inc=new_rows_count)
         if new_rows_count > 0:
             self.resources_with_items.add(resource_name)
-        self._plugins.on_extractor_item_written(items)
-
 
     def _write_to_dynamic_table(self, resource: DltResource, items: TDataItems) -> None:
         if not isinstance(items, list):

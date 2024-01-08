@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration
@@ -9,6 +9,7 @@ from dlt.common.storages import (
     NormalizeStorageConfiguration,
     SchemaStorageConfiguration,
 )
+from dlt.common.plugins import PluginsContext
 
 
 @configspec
@@ -30,6 +31,7 @@ class NormalizeConfiguration(PoolRunnerConfiguration):
     _schema_storage_config: SchemaStorageConfiguration
     _normalize_storage_config: NormalizeStorageConfiguration
     _load_storage_config: LoadStorageConfiguration
+    _plugins: Optional[PluginsContext] = None
 
     json_normalizer: ItemsNormalizerConfiguration = ItemsNormalizerConfiguration(
         add_dlt_id=True, add_dlt_load_id=True

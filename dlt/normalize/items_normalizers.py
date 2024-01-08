@@ -15,7 +15,7 @@ from dlt.common.typing import DictStrAny, TDataItem
 from dlt.common.schema import TSchemaUpdate, Schema
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers.utils import generate_dlt_ids
-from dlt.common.plugins import PluginsContext, with_plugins
+from dlt.common.plugins import PluginsContext
 from dlt.common.configuration.container import Container
 
 from dlt.normalize.configuration import NormalizeConfiguration
@@ -42,13 +42,13 @@ class ItemsNormalizer:
         self.schema = schema
         self.load_id = load_id
         self.config = config
+        self._plugins: PluginsContext = config._plugins
 
     @abstractmethod
     def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]: ...
 
 
 class JsonLItemsNormalizer(ItemsNormalizer):
-    @with_plugins()
     def __init__(
         self,
         load_storage: LoadStorage,
@@ -56,8 +56,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         schema: Schema,
         load_id: str,
         config: NormalizeConfiguration,
-        *,
-        _plugins: PluginsContext,
     ) -> None:
         super().__init__(load_storage, normalize_storage, schema, load_id, config)
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
@@ -65,7 +63,6 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         self._filtered_tables_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
         # quick access to column schema for writers below
         self._column_schemas: Dict[str, TTableSchemaColumns] = {}
-        self._plugins = _plugins
 
     def _filter_columns(
         self, filtered_columns: Dict[str, TSchemaEvolutionMode], row: DictStrAny
@@ -107,7 +104,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
                     # filter row, may eliminate some or all fields
                     row = schema.filter_row(table_name, row)
-                    row = self._plugins.filter_row(table_name, row)
+
                     # do not process empty rows
                     if not row:
                         should_descend = False

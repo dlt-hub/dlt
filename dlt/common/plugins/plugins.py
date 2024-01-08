@@ -1,4 +1,4 @@
-from typing import Type, Union, List, Any, Callable, Iterable
+from typing import List, Any, Iterable
 from dlt.common.typing import TFun
 from dlt.common.typing import TDataItem
 from dlt.common.pipeline import SupportsPipeline
@@ -9,70 +9,62 @@ from functools import wraps
 from .reference import SupportsCallbackPlugin, Plugin, TSinglePluginArg, TPluginArg, CallbackPlugin
 from dlt.common.configuration.container import Container
 from dlt.common.schema.exceptions import DataValidationError
+from importlib import import_module
+from .exceptions import UnknownPluginPathException
+from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 
 
 @configspec
 class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
     def __init__(self) -> None:
-        self._plugins: List[Plugin] = []
-        self._callback_plugins: List[CallbackPlugin] = []
-        self.steps: List[str] = []
+        self._plugins: List[Plugin[BaseConfiguration]] = []
+        self._callback_plugins: List[CallbackPlugin[BaseConfiguration]] = []
 
-    def _resolve_plugin(self, plugin: TSinglePluginArg, pipeline: SupportsPipeline) -> Plugin:
+    def _resolve_plugin(self, plugin: TSinglePluginArg) -> Plugin[BaseConfiguration]:
+        resolved_plugin: Plugin[BaseConfiguration] = None
         if isinstance(plugin, str):
-            pass  # TODO
-        elif isinstance(plugin, type) and issubclass(plugin, Plugin):
-            plugin = plugin()
+            module_path, attr_name = plugin.rsplit(".", 1)
+            try:
+                module = import_module(module_path)
+            except ModuleNotFoundError as e:
+                raise UnknownPluginPathException(plugin) from e
+            try:
+                plugin = getattr(module, attr_name)
+            except AttributeError as e:
+                raise UnknownPluginPathException(str(plugin)) from e
+        if isinstance(plugin, type) and issubclass(plugin, Plugin):
+            resolved_plugin = plugin()
         elif isinstance(plugin, Plugin):
-            pass
+            resolved_plugin = plugin
         else:
             raise TypeError(
                 f"Plugin {plugin} is not a subclass of Plugin, nor a Plugin instance, nor a plugin"
                 " name string"
             )
-        return plugin
+        return resolved_plugin
 
-    def setup_plugins(self, plugins: TPluginArg, pipeline: SupportsPipeline) -> None:
+    def setup_plugins(self, plugins: TPluginArg) -> None:
         if not plugins:
             return
         if not isinstance(plugins, Iterable):
             plugins = [plugins]
         for p in plugins:
-            resolved_plugin = self._resolve_plugin(p, pipeline)
+            resolved_plugin = self._resolve_plugin(p)
             self._plugins.append(resolved_plugin)
             if isinstance(resolved_plugin, CallbackPlugin):
                 self._callback_plugins.append(resolved_plugin)
 
-    def on_step_start(self, step: str) -> None:
-        self.steps.append(step)
-        for p in self._plugins:
-            p.step = self.steps[-1]
-            p.on_step_start(step)
+    def on_step_start(self, step: str, pipeline: SupportsPipeline) -> None:
+        for p in self._callback_plugins:
+            p.on_step_start(step, pipeline)
 
-    def on_step_end(self, step: str) -> None:
-        self.steps.pop()
-        for p in self._plugins:
-            p.on_step_end(step)
-            p.step = self.steps[-1] if self.steps else None
+    def on_step_end(self, step: str, pipeline: SupportsPipeline) -> None:
+        for p in self._callback_plugins:
+            p.on_step_end(step, pipeline)
 
     #
     # callback interfaces
     #
-
-    #
-    # extraction callbacks
-    #
-    def on_extractor_item_written(self, item: TDataItem, **kwargs: Any) -> None:
-        for p in self._callback_plugins:
-            p.on_extractor_item_written(item, **kwargs)
-
-    #
-    # normalizer callbacks
-    #
-    def filter_row(self, table_name: str, item: TDataItem, **kwargs: Any) -> TDataItem:
-        for p in self._callback_plugins:
-            item = p.filter_row(table_name, item, **kwargs)
-        return item
 
     #
     # contracts callbacks
@@ -84,16 +76,3 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
     ) -> None:
         for p in self._callback_plugins:
             p.on_schema_contract_violation(error, **kwargs)
-
-
-def with_plugins() -> Callable[[TFun], TFun]:
-    def decorator(f: TFun) -> TFun:
-        @wraps(f)
-        def _wrap(*args: Any, **kwargs: Any) -> Any:
-            # get plugins context
-            plugins = Container()[PluginsContext]
-            return f(*args, **kwargs, _plugins=plugins)
-
-        return _wrap  # type: ignore
-
-    return decorator
