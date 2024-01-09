@@ -138,7 +138,7 @@ data = [
 ]
 ```
 
-once pipeline runs we will have the following schema
+once pipeline runs we will have the following schema:
 
 | name          | data_type     | nullable |
 | ------------- | ------------- | -------- |
