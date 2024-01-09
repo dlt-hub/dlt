@@ -163,7 +163,7 @@ to reflect that new data type for `id` so for any type which is not compatible w
 | name          | text          | true     |
 | id__v_text    | text          | true     |
 
-On the other hand if `id` field already was string of type then introducing new data `id` of other types
+On the other hand if `id` field was already of string type then introducing new data with `id` containing other types
 will not change schema because they can be coerced to string.
 
 ### Data types
