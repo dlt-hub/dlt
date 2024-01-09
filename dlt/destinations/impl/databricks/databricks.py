@@ -2,8 +2,18 @@ from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, Any, Iterabl
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import FollowupJob, NewLoadJob, TLoadJobState, LoadJob, CredentialsConfiguration
-from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults, AzureCredentials, AzureCredentialsWithoutDefaults
+from dlt.common.destination.reference import (
+    FollowupJob,
+    NewLoadJob,
+    TLoadJobState,
+    LoadJob,
+    CredentialsConfiguration,
+)
+from dlt.common.configuration.specs import (
+    AwsCredentialsWithoutDefaults,
+    AzureCredentials,
+    AzureCredentialsWithoutDefaults,
+)
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
@@ -14,9 +24,9 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import LoadJobTerminalException
 
-from dlt.destinations.databricks import capabilities
-from dlt.destinations.databricks.configuration import DatabricksClientConfiguration
-from dlt.destinations.databricks.sql_client import DatabricksSqlClient
+from dlt.destinations.impl.databricks import capabilities
+from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
+from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
@@ -61,7 +71,7 @@ class DatabricksTypeMapper(TypeMapper):
         "INTERVAL": "interval",
         "MAP": "map",
         "STRUCT": "struct",
-        "ARRAY": "complex"
+        "ARRAY": "complex",
     }
 
     sct_to_dbt = {
@@ -81,17 +91,18 @@ class DatabricksTypeMapper(TypeMapper):
         "interval": "INTERVAL",
         "map": "MAP",
         "struct": "STRUCT",
-        "complex": "ARRAY"
+        "complex": "ARRAY",
     }
 
-
-    def from_db_type(self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None) -> TColumnType:
+    def from_db_type(
+        self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
+    ) -> TColumnType:
         if db_type == "NUMBER":
             if precision == self.BIGINT_PRECISION and scale == 0:
-                return dict(data_type='bigint')
+                return dict(data_type="bigint")
             elif (precision, scale) == self.capabilities.wei_precision:
-                return dict(data_type='wei')
-            return dict(data_type='decimal', precision=precision, scale=scale)
+                return dict(data_type="wei")
+            return dict(data_type="decimal", precision=precision, scale=scale)
         return super().from_db_type(db_type, precision, scale)
 
 
@@ -104,7 +115,7 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         client: DatabricksSqlClient,
         stage_name: Optional[str] = None,
         keep_staged_files: bool = True,
-        staging_credentials: Optional[CredentialsConfiguration] = None
+        staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
@@ -112,8 +123,14 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         qualified_table_name = client.make_qualified_table_name(table_name)
 
         # extract and prepare some vars
-        bucket_path = NewReferenceJob.resolve_reference(file_path) if NewReferenceJob.is_reference_job(file_path) else ""
-        file_name = FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
+        bucket_path = (
+            NewReferenceJob.resolve_reference(file_path)
+            if NewReferenceJob.is_reference_job(file_path)
+            else ""
+        )
+        file_name = (
+            FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
+        )
         from_clause = ""
         credentials_clause = ""
         files_clause = ""
@@ -128,10 +145,18 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             if bucket_scheme in ["s3", "az", "abfs", "gc", "gcs"] and stage_name:
                 from_clause = f"FROM ('{bucket_path}')"
             # referencing an staged files via a bucket URL requires explicit AWS credentials
-            if bucket_scheme == "s3" and staging_credentials and isinstance(staging_credentials, AwsCredentialsWithoutDefaults):
+            if (
+                bucket_scheme == "s3"
+                and staging_credentials
+                and isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
+            ):
                 credentials_clause = f"""WITH(CREDENTIAL(AWS_KEY_ID='{staging_credentials.aws_access_key_id}', AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}'))"""
                 from_clause = f"FROM '{bucket_path}'"
-            elif bucket_scheme in ["az", "abfs"] and staging_credentials and isinstance(staging_credentials, AzureCredentialsWithoutDefaults):
+            elif (
+                bucket_scheme in ["az", "abfs"]
+                and staging_credentials
+                and isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
+            ):
                 # Explicit azure credentials are needed to load from bucket without a named stage
                 credentials_clause = f"""WITH(CREDENTIAL(AZURE_SAS_TOKEN='{staging_credentials.azure_storage_sas_token}'))"""
                 # Converts an az://<container_name>/<path> to abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>
@@ -141,7 +166,7 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
                     bucket_url._replace(
                         scheme="abfss",
                         netloc=f"{bucket_url.netloc}@{staging_credentials.azure_storage_account_name}.dfs.core.windows.net",
-                        path=_path
+                        path=_path,
                     )
                 )
                 from_clause = f"FROM '{bucket_path}'"
@@ -150,7 +175,12 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
                 bucket_path = bucket_path.replace("gs://", "gcs://")
                 if not stage_name:
                     # when loading from bucket stage must be given
-                    raise LoadJobTerminalException(file_path, f"Cannot load from bucket path {bucket_path} without a stage name. See https://dlthub.com/docs/dlt-ecosystem/destinations/databricks for instructions on setting up the `stage_name`")
+                    raise LoadJobTerminalException(
+                        file_path,
+                        f"Cannot load from bucket path {bucket_path} without a stage name. See"
+                        " https://dlthub.com/docs/dlt-ecosystem/destinations/databricks for"
+                        " instructions on setting up the `stage_name`",
+                    )
                 from_clause = f"FROM ('{bucket_path}')"
         # Databricks does not support loading from local files
         # else:
@@ -166,20 +196,17 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         if file_name.endswith("parquet"):
             source_format = "PARQUET"
 
-        client.execute_sql(
-            f"""COPY INTO {qualified_table_name}
+        client.execute_sql(f"""COPY INTO {qualified_table_name}
             {from_clause}
             {files_clause}
             {credentials_clause}
             FILEFORMAT = {source_format}
             {format_options}
             {copy_options}
-            """
-        )
+            """)
         # Databricks does not support deleting staged files via sql
         # if stage_file_path and not keep_staged_files:
         #     client.execute_sql(f'REMOVE {stage_file_path}')
-
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -187,10 +214,12 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
     def exception(self) -> str:
         raise NotImplementedError()
 
-class DatabricksStagingCopyJob(SqlStagingCopyJob):
 
+class DatabricksStagingCopyJob(SqlStagingCopyJob):
     @classmethod
-    def generate_sql(cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]) -> List[str]:
+    def generate_sql(
+        cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
             with sql_client.with_staging_dataset(staging=True):
@@ -213,13 +242,10 @@ class DatabricksClient(SqlJobClientWithStaging):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: DatabricksClientConfiguration) -> None:
-        sql_client = DatabricksSqlClient(
-            config.normalize_dataset_name(schema),
-            config.credentials
-        )
+        sql_client = DatabricksSqlClient(config.normalize_dataset_name(schema), config.credentials)
         super().__init__(schema, config, sql_client)
         self.config: DatabricksClientConfiguration = config
-        self.sql_client: DatabricksSqlClient = sql_client  # type: ignore
+        self.sql_client: DatabricksSqlClient = sql_client
         self.type_mapper = DatabricksTypeMapper(self.capabilities)
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
@@ -228,12 +254,14 @@ class DatabricksClient(SqlJobClientWithStaging):
         if not job:
             job = DatabricksLoadJob(
                 file_path,
-                table['name'],
+                table["name"],
                 load_id,
                 self.sql_client,
                 stage_name=self.config.stage_name,
                 keep_staged_files=self.config.keep_staged_files,
-                staging_credentials=self.config.staging_config.credentials if self.config.staging_config else None
+                staging_credentials=(
+                    self.config.staging_config.credentials if self.config.staging_config else None
+                ),
             )
         return job
 
@@ -253,10 +281,18 @@ class DatabricksClient(SqlJobClientWithStaging):
     def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return DatabricksStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
-    def _get_table_update_sql(self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool, separate_alters: bool = False) -> List[str]:
+    def _get_table_update_sql(
+        self,
+        table_name: str,
+        new_columns: Sequence[TColumnSchema],
+        generate_alter: bool,
+        separate_alters: bool = False,
+    ) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
 
-        cluster_list = [self.capabilities.escape_identifier(c['name']) for c in new_columns if c.get('cluster')]
+        cluster_list = [
+            self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("cluster")
+        ]
 
         if cluster_list:
             sql[0] = sql[0] + "\nCLUSTER BY (" + ",".join(cluster_list) + ")"
@@ -271,12 +307,16 @@ class DatabricksClient(SqlJobClientWithStaging):
         self._update_schema_in_storage(self.schema)
         return schema_update
 
-    def _from_db_type(self, bq_t: str, precision: Optional[int], scale: Optional[int]) -> TColumnType:
+    def _from_db_type(
+        self, bq_t: str, precision: Optional[int], scale: Optional[int]
+    ) -> TColumnType:
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema) -> str:
         name = self.capabilities.escape_identifier(c["name"])
-        return f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
+        return (
+            f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
+        )
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         exists, table = super().get_storage_table(table_name)

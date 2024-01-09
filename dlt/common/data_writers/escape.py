@@ -125,4 +125,5 @@ def escape_snowflake_identifier(v: str) -> str:
     # See also https://docs.snowflake.com/en/sql-reference/identifiers-syntax#double-quoted-identifiers
     return escape_postgres_identifier(v.upper())
 
+
 escape_databricks_identifier = escape_bigquery_identifier

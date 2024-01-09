@@ -10,11 +10,21 @@ from databricks.sql.exc import Error as DatabricksSqlError
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException, DatabaseUndefinedRelation
-from dlt.destinations.sql_client import DBApiCursorImpl, SqlClientBase, raise_database_error, raise_open_connection_error
+from dlt.destinations.exceptions import (
+    DatabaseTerminalException,
+    DatabaseTransientException,
+    DatabaseUndefinedRelation,
+)
+from dlt.destinations.sql_client import (
+    DBApiCursorImpl,
+    SqlClientBase,
+    raise_database_error,
+    raise_open_connection_error,
+)
 from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
-from dlt.destinations.databricks.configuration import DatabricksCredentials
-from dlt.destinations.databricks import capabilities
+from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
+from dlt.destinations.impl.databricks import capabilities
+
 
 class DatabricksCursorImpl(DBApiCursorImpl):
     native_cursor: DatabricksSqlCursor  # type: ignore[assignment]
@@ -36,9 +46,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     def open_connection(self) -> DatabricksSqlConnection:
         conn_params = self.credentials.to_connector_params()
-        self._conn = databricks_lib.connect(
-            **conn_params
-        )
+        self._conn = databricks_lib.connect(**conn_params)
         return self._conn
 
     @raise_open_connection_error
@@ -51,7 +59,10 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     @contextmanager
     def begin_transaction(self) -> Iterator[DBTransaction]:
-        logger.warning("NotImplemented: Databricks does not support transactions. Each SQL statement is auto-committed separately.")
+        logger.warning(
+            "NotImplemented: Databricks does not support transactions. Each SQL statement is"
+            " auto-committed separately."
+        )
         yield self
 
     @raise_database_error
@@ -73,7 +84,9 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         with suppress(DatabaseUndefinedRelation):
             super().drop_tables(*tables)
 
-    def execute_sql(self, sql: AnyStr, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+    def execute_sql(
+        self, sql: AnyStr, *args: Any, **kwargs: Any
+    ) -> Optional[Sequence[Sequence[Any]]]:
         with self.execute_query(sql, *args, **kwargs) as curr:
             if curr.description is None:
                 return None
@@ -81,7 +94,9 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
                 f = curr.fetchall()
                 return f
 
-    def execute_fragments(self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+    def execute_fragments(
+        self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any
+    ) -> Optional[Sequence[Sequence[Any]]]:
         """
         Executes several SQL fragments as efficiently as possible to prevent data copying.
         Default implementation just joins the strings and executes them together.
@@ -120,7 +135,6 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     @staticmethod
     def _make_database_exception(ex: Exception) -> Exception:
-
         if isinstance(ex, databricks_lib.ServerOperationError):
             if "TABLE_OR_VIEW_NOT_FOUND" in str(ex):
                 return DatabaseUndefinedRelation(ex)
@@ -134,7 +148,9 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
             return ex
 
     @staticmethod
-    def _maybe_make_terminal_exception_from_data_error(databricks_ex: databricks_lib.DatabaseError) -> Optional[Exception]:
+    def _maybe_make_terminal_exception_from_data_error(
+        databricks_ex: databricks_lib.DatabaseError,
+    ) -> Optional[Exception]:
         return None
 
     @staticmethod

@@ -8,6 +8,7 @@ from dlt.common.destination.reference import DestinationClientDwhWithStagingConf
 
 CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 
+
 @configspec
 class DatabricksCredentials(CredentialsConfiguration):
     catalog: Optional[str] = None  # type: ignore[assignment]
@@ -27,7 +28,12 @@ class DatabricksCredentials(CredentialsConfiguration):
 
     _credentials_provider: Optional[Dict[str, Any]] = None
 
-    __config_gen_annotations__: ClassVar[List[str]] = ["server_hostname", "http_path", "catalog", "schema"]
+    __config_gen_annotations__: ClassVar[List[str]] = [
+        "server_hostname",
+        "http_path",
+        "catalog",
+        "schema",
+    ]
 
     def __post_init__(self) -> None:
         if "." in (self.schema or ""):
@@ -51,9 +57,7 @@ class DatabricksCredentials(CredentialsConfiguration):
         if self.catalog is not None:
             catalog = self.catalog.strip()
             if not catalog:
-                raise ConfigurationValueError(
-                    f"Invalid catalog name : `{self.catalog}`."
-                )
+                raise ConfigurationValueError(f"Invalid catalog name : `{self.catalog}`.")
             self.catalog = catalog
         else:
             self.catalog = "hive_metastore"
@@ -71,9 +75,7 @@ class DatabricksCredentials(CredentialsConfiguration):
             "_user_agent_entry",
         ):
             if key in connection_parameters:
-                raise ConfigurationValueError(
-                    f"The connection parameter `{key}` is reserved."
-                )
+                raise ConfigurationValueError(f"The connection parameter `{key}` is reserved.")
         if "http_headers" in connection_parameters:
             http_headers = connection_parameters["http_headers"]
             if not isinstance(http_headers, dict) or any(
@@ -96,15 +98,13 @@ class DatabricksCredentials(CredentialsConfiguration):
                 )
         if not self.token and self.auth_type != "oauth":
             raise ConfigurationValueError(
-                ("The config `auth_type: oauth` is required when not using access token")
+                "The config `auth_type: oauth` is required when not using access token"
             )
 
         if not self.client_id and self.client_secret:
             raise ConfigurationValueError(
-                (
-                    "The config 'client_id' is required to connect "
-                    "to Databricks when 'client_secret' is present"
-                )
+                "The config 'client_id' is required to connect "
+                "to Databricks when 'client_secret' is present"
             )
 
     def to_connector_params(self) -> Dict[str, Any]:
