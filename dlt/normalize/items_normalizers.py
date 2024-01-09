@@ -1,4 +1,4 @@
-from typing import List, Dict, Set, Any
+from typing import List, Dict, Set, Any, Optional
 from abc import abstractmethod
 
 from dlt.common import json, logger
@@ -12,7 +12,7 @@ from dlt.common.storages import (
 )
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny, TDataItem
-from dlt.common.schema import TSchemaUpdate, Schema
+from dlt.common.schema import TSchemaUpdate, Schema, DataValidationError
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.normalizers.utils import generate_dlt_ids
 from dlt.common.plugins import PluginsContext
@@ -59,22 +59,45 @@ class JsonLItemsNormalizer(ItemsNormalizer):
     ) -> None:
         super().__init__(load_storage, normalize_storage, schema, load_id, config)
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
-        self._filtered_tables: Set[str] = set()
+        self._filtered_tables: Dict[str, TSchemaEvolutionMode] = {}
         self._filtered_tables_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
         # quick access to column schema for writers below
         self._column_schemas: Dict[str, TTableSchemaColumns] = {}
 
+    def _notify_data_validation_error(
+        self,
+        table_name: str,
+        item: TDataItem,
+        column_name: Optional[str] = None,
+        contract_mode: Optional[TSchemaEvolutionMode] = None,
+    ) -> None:
+        if self._plugins is not None:
+            self._plugins.on_schema_contract_violation(
+                DataValidationError(
+                    schema_name=self.schema.name,
+                    table_name=column_name or table_name,
+                    column_name=None,
+                    schema_entity="columns" if column_name else "tables",
+                    contract_mode=contract_mode or self._filtered_tables[table_name],
+                    table_schema=None,
+                    schema_contract=self._table_contracts.get(table_name),
+                    data_item=item,
+                )
+            )
+
     def _filter_columns(
-        self, filtered_columns: Dict[str, TSchemaEvolutionMode], row: DictStrAny
+        self, table_name: str, filtered_columns: Dict[str, TSchemaEvolutionMode], row: DictStrAny
     ) -> DictStrAny:
+        sent_notification = False
         for name, mode in filtered_columns.items():
             if name in row:
                 if mode == "discard_row":
-                    # MARK: add contract violation hook here
+                    self._notify_data_validation_error(table_name, row, name, mode)
                     return None
                 elif mode == "discard_value":
-                    # MARK: add contract violation hook here, I just see a problem with sending the original row. we probably need to make a copy. which costs a lot
-                    # WARNING: send an item only once! same item may be modified several times
+                    if not sent_notification:
+                        sent_notification = True
+                        self._notify_data_validation_error(table_name, row.copy(), name, mode)
                     row.pop(name)
         return row
 
@@ -96,10 +119,10 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     (table_name, parent_table), row = row_info
 
                     # rows belonging to filtered out tables are skipped
-                    if table_name in self._filtered_tables:
+                    if table_name in self._filtered_tables.keys():
                         # stop descending into further rows
                         should_descend = False
-                        # MARK: add contract violation hook here
+                        self._notify_data_validation_error(table_name, item)
                         continue
 
                     # filter row, may eliminate some or all fields
@@ -108,14 +131,13 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     # do not process empty rows
                     if not row:
                         should_descend = False
-                        # NOT MARK: no contract violation here
                         continue
 
                     # filter columns or full rows if schema contract said so
                     # do it before schema inference in `coerce_row` to not trigger costly migration code
                     filtered_columns = self._filtered_tables_columns.get(table_name, None)
                     if filtered_columns:
-                        row = self._filter_columns(filtered_columns, row)  # type: ignore[arg-type]
+                        row = self._filter_columns(table_name, filtered_columns, row)  # type: ignore[arg-type]
                         # if whole row got dropped
                         if not row:
                             should_descend = False
@@ -143,7 +165,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         if filters:
                             for entity, name, mode in filters:
                                 if entity == "tables":
-                                    self._filtered_tables.add(name)
+                                    self._filtered_tables[name] = mode
                                 elif entity == "columns":
                                     filtered_columns = self._filtered_tables_columns.setdefault(
                                         table_name, {}
@@ -153,7 +175,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         if partial_table is None:
                             # discard migration and row
                             should_descend = False
-                            # MARK: add contract violation hook here (full table dropped)
+                            self._notify_data_validation_error(table_name, item)
                             continue
                         # theres a new table or new columns in existing table
                         # update schema and save the change
@@ -166,7 +188,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
                         # apply new filters
                         if filtered_columns and filters:
-                            row = self._filter_columns(filtered_columns, row)
+                            row = self._filter_columns(table_name, filtered_columns, row)
                             # do not continue if new filters skipped the full row
                             if not row:
                                 should_descend = False

@@ -3,6 +3,7 @@ import multiprocessing
 from typing import Callable, Union, cast, TypeVar
 from concurrent.futures import Executor, ProcessPoolExecutor, ThreadPoolExecutor, Future
 from typing_extensions import ParamSpec
+from typing import List
 
 from dlt.common import logger, sleep
 from dlt.common.configuration.container import Container
@@ -62,6 +63,7 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
 def run_pool(
     config: PoolRunnerConfiguration,
     run_f: Union[Runnable[TExecutor], Callable[[TExecutor], TRunMetrics]],
+    perdiodocal_callables: List[Callable[[], None]] = [],
 ) -> int:
     # validate the run function
     if not isinstance(run_f, Runnable) and not callable(run_f):
@@ -89,6 +91,8 @@ def run_pool(
             # for next run
             signals.raise_if_signalled()
             runs_count += 1
+            for pc in perdiodocal_callables:
+                pc()
             sleep(config.run_sleep)
         return runs_count
     except SignalReceivedException as sigex:
@@ -101,3 +105,5 @@ def run_pool(
             pool.shutdown(wait=True)
             pool = None
             logger.info("Processing pool closed")
+        for pc in perdiodocal_callables:
+            pc()

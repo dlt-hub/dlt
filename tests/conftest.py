@@ -30,6 +30,9 @@ ConfigProvidersContext.initial_providers = initial_providers  # type: ignore[met
 ConfigProvidersConfiguration.enable_airflow_secrets = False
 ConfigProvidersConfiguration.enable_google_secrets = False
 
+# disable logging output for discovery cache for tests
+logging.getLogger("googleapiclient.discovery_cache").setLevel(logging.ERROR)
+
 
 def pytest_configure(config):
     # patch the configurations to use test storage by default, we modify the types (classes) fields

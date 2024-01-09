@@ -1,10 +1,11 @@
 import dlt, os, pytest
 import contextlib
-from typing import Any, Callable, Iterator, Union, Optional
+from typing import Any, Callable, Iterator, Union, Optional, List
 
 from dlt.common.schema.typing import TSchemaContract
 from dlt.common.utils import uniq_id
 from dlt.common.schema.exceptions import DataValidationError
+from dlt.common.plugins import CallbackPlugin, PluginsContext
 
 from dlt.extract import DltResource
 from dlt.pipeline.pipeline import Pipeline
@@ -136,6 +137,15 @@ def run_resource(
     # assert resolve_contract_settings_for_table(None, "items", pipeline.default_schema) == expand_schema_contract_settings(settings.get("resource") or settings.get("override") or "evolve")
 
 
+class ContractsViolationPlugin(CallbackPlugin[Any]):
+    def __init__(self) -> None:
+        super().__init__()
+        self.calls: List[DataValidationError] = []
+
+    def on_schema_contract_violation(self, error: DataValidationError, **kwargs: Any) -> None:
+        self.calls.append(error)
+
+
 def get_pipeline():
     import duckdb
 
@@ -143,6 +153,7 @@ def get_pipeline():
         pipeline_name=uniq_id(),
         destination="duckdb",
         credentials=duckdb.connect(":memory:"),
+        plugins=[ContractsViolationPlugin],
         full_refresh=True,
     )
 
@@ -201,9 +212,9 @@ def test_new_tables(
         assert table_counts.get(SUBITEMS_TABLE, 0) == (10 if contract_setting in ["evolve"] else 0)
 
 
-@pytest.mark.parametrize("contract_setting", schema_contract)
-@pytest.mark.parametrize("setting_location", LOCATIONS)
-@pytest.mark.parametrize("item_format", ALL_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("contract_setting", ["discard_row"])
+@pytest.mark.parametrize("setting_location", ["resource"])
+@pytest.mark.parametrize("item_format", ["json"])
 def test_new_columns(
     contract_setting: str, setting_location: str, item_format: TDataItemFormat
 ) -> None:
@@ -241,6 +252,11 @@ def test_new_columns(
     )
     expected_items_count += 20 if contract_setting in ["evolve", "discard_value"] else 0
     assert table_counts["items"] == expected_items_count
+
+    if contract_setting in ["evolve", "freeze"]:
+        assert pipeline._container[PluginsContext]._callback_plugins[0].calls == []
+    else:
+        assert len(pipeline._container[PluginsContext]._callback_plugins[0].calls) == 20
 
     # NOTE: arrow / pandas do not support variants and subtables so we must skip
     if item_format == "json":

@@ -3,11 +3,9 @@ from dlt.common.typing import TFun
 from dlt.common.typing import TDataItem
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.configuration.specs import ContainerInjectableContext
-from dlt.common.schema.typing import TSchemaContract
 from dlt.common.configuration.specs import configspec
 from functools import wraps
 from .reference import SupportsCallbackPlugin, Plugin, TSinglePluginArg, TPluginArg, CallbackPlugin
-from dlt.common.configuration.container import Container
 from dlt.common.schema.exceptions import DataValidationError
 from importlib import import_module
 from .exceptions import UnknownPluginPathException
@@ -88,25 +86,28 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
             if isinstance(resolved_plugin, CallbackPlugin):
                 self._callback_plugins.append(resolved_plugin)
 
+    #
+    # Main Pipeline Callbacks
+    #
+    @on_main_process
     def on_step_start(self, step: str, pipeline: SupportsPipeline) -> None:
         for p in self._callback_plugins:
             p.on_step_start(step, pipeline)
 
+    @on_main_process
     def on_step_end(self, step: str, pipeline: SupportsPipeline) -> None:
         for p in self._callback_plugins:
             p.on_step_end(step, pipeline)
 
     #
-    # callback interfaces
-    #
-
-    #
     # contracts callbacks
     #
+    @on_main_process
     def on_schema_contract_violation(
         self,
         error: DataValidationError,
         **kwargs: Any,
     ) -> None:
+        # TODO: do we need to aquire a thread lock here?
         for p in self._callback_plugins:
             p.on_schema_contract_violation(error, **kwargs)

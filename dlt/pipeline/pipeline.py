@@ -471,7 +471,11 @@ class Pipeline(SupportsPipeline):
             )
             try:
                 with signals.delayed_signals():
-                    runner.run_pool(normalize_step.config, normalize_step)
+                    runner.run_pool(
+                        normalize_step.config,
+                        normalize_step,
+                        [self._container[PluginsContext].process_queue],
+                    )
                 return self._get_step_info(normalize_step)
             except Exception as n_ex:
                 step_info = self._get_step_info(normalize_step)
@@ -530,7 +534,9 @@ class Pipeline(SupportsPipeline):
         )
         try:
             with signals.delayed_signals():
-                runner.run_pool(load_step.config, load_step)
+                runner.run_pool(
+                    load_step.config, load_step, [self._container[PluginsContext].process_queue]
+                )
             info: LoadInfo = self._get_step_info(load_step)
             self.first_run = False
             return info

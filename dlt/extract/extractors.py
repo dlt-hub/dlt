@@ -11,7 +11,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.utils import update_dict_nested
 from dlt.common.typing import TDataItems, TDataItem
-from dlt.common.schema import Schema, utils
+from dlt.common.schema import Schema, utils, DataValidationError
 from dlt.common.schema.typing import (
     TSchemaContractDict,
     TSchemaEvolutionMode,
@@ -64,7 +64,7 @@ class Extractor:
         self.resources_with_items = resources_with_items
         self.load_id = load_id
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
-        self._filtered_tables: Set[str] = set()
+        self._filtered_tables: Dict[str, TSchemaEvolutionMode] = {}
         self._filtered_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
         self._storage = storage
         self._caps = _caps or DestinationCapabilitiesContext.generic_capabilities()
@@ -134,28 +134,41 @@ class Extractor:
 
         for item in items:
             table_name = self._get_dynamic_table_name(resource, item)
-            if table_name in self._filtered_tables:
-                # MARK: add contract violation hook here
+            if table_name in self._filtered_tables.keys():
+                self._notify_data_validation_error(table_name, item)
                 continue
             if table_name not in self._table_contracts or resource._table_has_other_dynamic_hints:
                 item = self._compute_and_update_table(resource, table_name, item)
             # write to storage with inferred table name
-            if table_name not in self._filtered_tables:
+            if table_name not in self._filtered_tables.keys():
                 self._write_item(table_name, resource.name, item)
             else:
-                # MARK: add contract violation hook here
-                pass
+                self._notify_data_validation_error(table_name, item)
 
     def _write_to_static_table(
         self, resource: DltResource, table_name: str, items: TDataItems
     ) -> None:
         if table_name not in self._table_contracts:
             items = self._compute_and_update_table(resource, table_name, items)
-        if table_name not in self._filtered_tables:
+        if table_name not in self._filtered_tables.keys():
             self._write_item(table_name, resource.name, items)
         else:
-            # MARK: add contract violation hook here
-            pass
+            self._notify_data_validation_error(table_name, items)
+
+    def _notify_data_validation_error(self, table_name: str, item: TDataItems) -> None:
+        if self._plugins is not None:
+            self._plugins.on_schema_contract_violation(
+                DataValidationError(
+                    schema_name=self.schema.name,
+                    table_name=table_name,
+                    column_name=None,
+                    schema_entity="tables",
+                    contract_mode=self._filtered_tables[table_name],
+                    table_schema=None,
+                    schema_contract=self._table_contracts.get(table_name),
+                    data_item=item,
+                )
+            )
 
     def _compute_table(self, resource: DltResource, items: TDataItems) -> TTableSchema:
         """Computes a schema for a new or dynamic table and normalizes identifiers"""
@@ -197,7 +210,7 @@ class Extractor:
         if filters:
             for entity, name, mode in filters:
                 if entity == "tables":
-                    self._filtered_tables.add(name)
+                    self._filtered_tables[name] = mode
                 elif entity == "columns":
                     filtered_columns = self._filtered_columns.setdefault(table_name, {})
                     filtered_columns[name] = mode
