@@ -124,7 +124,7 @@ class DatabricksCredentials(CredentialsConfiguration):
 
 @configspec
 class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration):
-    destination_name: Final[str] = "databricks"  # type: ignore[misc]
+    destination_type: Final[str] = "databricks"  # type: ignore[misc]
     credentials: DatabricksCredentials
 
     stage_name: Optional[str] = None
