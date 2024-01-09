@@ -134,7 +134,7 @@ where `id` is an integer type at the beginning
 
 ```py
 data = [
-  {"id": 1, "name": "Alice"}
+  {"id": 1, "human_name": "Alice"}
 ]
 ```
 
@@ -143,14 +143,14 @@ once pipeline runs we will have the following schema:
 | field_name    | data_type     | nullable |
 | ------------- | ------------- | -------- |
 | id            | bigint        | true     |
-| name          | text          | true     |
+| human_name    | text          | true     |
 
 Now imagine the data has changed and `id` field also contains strings
 
 ```py
 data = [
-  {"id": 1, "name": "Alice"}
-  {"id": "idx-nr-456", "name": "Bob"}
+  {"id": 1, "human_name": "Alice"}
+  {"id": "idx-nr-456", "human_name": "Bob"}
 ]
 ```
 
@@ -160,7 +160,7 @@ to reflect that new data type for `id` so for any type which is not compatible w
 | field_name    | data_type     | nullable |
 | ------------- | ------------- | -------- |
 | id            | bigint        | true     |
-| name          | text          | true     |
+| human_name    | text          | true     |
 | id__v_text    | text          | true     |
 
 On the other hand if `id` field was already of string type then introducing new data with `id` containing other types
