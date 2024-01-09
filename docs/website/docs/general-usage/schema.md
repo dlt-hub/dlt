@@ -154,7 +154,7 @@ data = [
 ]
 ```
 
-So after you run the pipeline `dlt` will automatically infer type changes and will a new field in the schema `id__v_text`
+So after you run the pipeline `dlt` will automatically infer type changes and will add a new field in the schema `id__v_text`
 to reflect that new data type for `id` so for any type which is not compatible with integer it will create a new field.
 
 | name          | data_type     | nullable |
