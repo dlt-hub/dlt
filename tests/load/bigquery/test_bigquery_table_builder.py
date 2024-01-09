@@ -39,6 +39,7 @@ def gcp_client(schema: Schema) -> BigQueryClient:
     # return a client without opening connection
     creds = GcpServiceAccountCredentialsWithoutDefaults()
     creds.project_id = "test_project_id"
+    # noinspection PydanticTypeChecker
     return BigQueryClient(
         schema,
         BigQueryClientConfiguration(

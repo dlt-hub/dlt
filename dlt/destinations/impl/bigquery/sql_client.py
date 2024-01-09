@@ -175,7 +175,11 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
             return False
 
     def create_dataset(self) -> None:
-        self._client.create_dataset(self.fully_qualified_dataset_name(escape=False), retry=self._default_retry, timeout=self.http_timeout)
+        self._client.create_dataset(
+            self.fully_qualified_dataset_name(escape=False),
+            retry=self._default_retry,
+            timeout=self.http_timeout,
+        )
 
     def drop_dataset(self) -> None:
         self._client.delete_dataset(
