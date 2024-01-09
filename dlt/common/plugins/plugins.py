@@ -1,4 +1,4 @@
-from typing import List, Any, Iterable, Optional
+from typing import List, Any, Iterable, Optional, Dict
 from dlt.common.typing import TFun
 from dlt.common.typing import TDataItem
 from dlt.common.pipeline import SupportsPipeline
@@ -59,21 +59,21 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
         return resolved_plugin
 
     # pickle support
-    def __getstate__(self):
+    def __getstate__(self) -> Dict[str, Any]:
         return {"plugins": self._initial_plugins, "queue": self._queue}
 
-    def __setstate__(self, d):
-        self.__init__(False)
+    def __setstate__(self, d: Dict[str, Any]) -> None:
+        self.__init__(False)  # type: ignore[misc]
         self.setup_plugins(d["plugins"])
         self._queue = d["queue"]
 
-    def process_queue(self):
+    def process_queue(self) -> None:
         assert self._main
         try:
             while True:
                 name, args, kwargs = self._queue.get_nowait()
                 getattr(self, name)(*args, **kwargs)
-        except mp.queues.Empty:
+        except mp.queues.Empty:  # type: ignore
             pass
 
     def setup_plugins(self, plugins: TPluginArg) -> None:

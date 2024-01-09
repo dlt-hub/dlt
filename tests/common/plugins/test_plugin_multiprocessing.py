@@ -9,14 +9,13 @@ from dlt.common.plugins import CallbackPlugin, PluginsContext, on_main_process
 
 class CustomPluginsContext(PluginsContext):
     def on_subprocess_call(self, value: int, some_string: str) -> None:
-        print("sub")
         for p in self._plugins:
-            p.on_subprocess_call(value, some_string)
+            p.on_subprocess_call(value, some_string)  # type: ignore
 
     @on_main_process
     def on_mainprocess_call(self, value: int, some_string: str) -> None:
         for p in self._plugins:
-            p.on_mainprocess_call(value, some_string)
+            p.on_mainprocess_call(value, some_string)  # type: ignore
 
 
 class MultiprocessingPlugin(CallbackPlugin[BaseConfiguration]):
@@ -39,15 +38,15 @@ def test_pickle_and_queue_same_process() -> None:
     context1 = CustomPluginsContext()
     context1.setup_plugins([MultiprocessingPlugin])
     assert len(context1._plugins) == 1
-    assert context1._plugins[0].some_value == "initial"
-    context1._plugins[0].some_value = "changed"
-    assert context1._main == True
+    assert context1._plugins[0].some_value == "initial"  # type: ignore
+    context1._plugins[0].some_value = "changed"  # type: ignore
+    assert context1._main is True
 
     # after pickle, plugins are there again but reset
     context2 = pickle.loads(pickle.dumps(context1))
     assert len(context2._plugins) == 1
     assert context2._plugins[0].some_value == "initial"
-    assert context2._main == False
+    assert context2._main is False
 
     # check calls are being routed to the right processes
     context1.on_subprocess_call(5, some_string="hello")
@@ -58,8 +57,8 @@ def test_pickle_and_queue_same_process() -> None:
     context1.process_queue()
 
     # plugin on main context
-    assert context1._plugins[0].sub_process_calls == 5
-    assert context1._plugins[0].main_process_calls == 20
+    assert context1._plugins[0].sub_process_calls == 5  # type: ignore
+    assert context1._plugins[0].main_process_calls == 20  # type: ignore
 
     # plugin on subprocess context
     assert context2._plugins[0].sub_process_calls == 5
@@ -82,12 +81,12 @@ def test_multiprocessing() -> None:
 
     # spawn 4 processes
     pool = ProcessPoolExecutor(max_workers=4, mp_context=get_context())
-    for i in range(4):
+    for _i in range(4):
         pool.submit(child_process, context1)
 
     pool.shutdown(wait=True)
 
     # collect messages
     context1.process_queue()
-    assert context1._plugins[0].sub_process_calls == 5
-    assert context1._plugins[0].main_process_calls == 50
+    assert context1._plugins[0].sub_process_calls == 5  # type: ignore
+    assert context1._plugins[0].main_process_calls == 50  # type: ignore

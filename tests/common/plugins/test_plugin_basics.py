@@ -37,8 +37,8 @@ def test_simple_plugin_steps() -> None:
 
     plug = pipeline._container[PluginsContext]._plugins[0]
 
-    assert plug.start_steps == ["run", "extract", "normalize", "load"]
-    assert plug.end_steps == ["extract", "normalize", "load", "run"]
+    assert plug.start_steps == ["run", "extract", "normalize", "load"]  # type: ignore
+    assert plug.end_steps == ["extract", "normalize", "load", "run"]  # type: ignore
 
 
 def test_plugin_resolution() -> None:
@@ -74,7 +74,7 @@ def test_plugin_resolution() -> None:
 
     # instances are not allowed
     with pytest.raises(TypeError):
-        ctx._resolve_plugin(StepCounterPlugin())  # type: ignore
+        ctx._resolve_plugin(StepCounterPlugin())
 
 
 @configspec
