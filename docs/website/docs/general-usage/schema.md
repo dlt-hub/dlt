@@ -166,6 +166,8 @@ to reflect that new data type for `id` so for any type which is not compatible w
 On the other hand if `id` field was already of string type then introducing new data with `id` containing other types
 will not change schema because they can be coerced to string.
 
+Now go ahead and try to add a new record where `id` is float number, you should see a new field `id__v_double` in the schema.
+
 ### Data types
 
 | dlt Data Type | Source Value Example                                | Precision and Scale                                     |
