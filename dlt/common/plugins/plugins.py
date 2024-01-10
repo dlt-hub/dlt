@@ -115,6 +115,5 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
         error: DataValidationError,
         **kwargs: Any,
     ) -> None:
-        # TODO: do we need to aquire a thread lock here?
         for p in self._callback_plugins:
             p.on_schema_contract_violation(error, **kwargs)
