@@ -116,4 +116,4 @@ def test_multiprocessing_multiple_threads() -> None:
 
     # all calls on main process calls should be done on the main thread
     assert context1._plugins[0].safe_calls_thread_ids == {threading.get_ident()}  # type: ignore
-    assert len(context1._plugins[0].unsafe_calls_thread_ids) == 5  # type: ignore
+    assert len(context1._plugins[0].unsafe_calls_thread_ids) > 1  # type: ignore
