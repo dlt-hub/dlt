@@ -1,2 +1,2 @@
-from .plugins import PluginsContext, on_main_process
+from .plugins import PluginsContext, create_safe_version
 from .reference import TPluginArg, CallbackPlugin

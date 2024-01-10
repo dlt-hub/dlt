@@ -1,6 +1,8 @@
 import dlt, os, pytest
 import contextlib
-from typing import Any, Callable, Iterator, Union, Optional, List, Dict, cast
+import threading
+
+from typing import Any, Callable, Iterator, Union, Optional, List, Dict, cast, Set
 from collections.abc import Iterable
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.schema.typing import TSchemaContract
@@ -144,15 +146,20 @@ class ContractsViolationPlugin(CallbackPlugin[Any]):
         super().__init__()
         # collect all datavalidation calls
         self.calls: List[DataValidationError] = []
+        self.unsafe_calls: List[DataValidationError] = []
         # def common attributes of all calls so far, useful for most tests, because usually only the item will change
         self.common_attributes: Dict[str, str] = None
         self.calls_have_common_attributes = True
+        self.calling_thread_ids: Set[int] = set()
 
     def on_step_start(self, step: str, pipeline: SupportsPipeline) -> None:
         if step == "run":
             self.reset()
 
     def on_schema_contract_violation(self, error: DataValidationError, **kwargs: Any) -> None:
+        self.unsafe_calls.append(error)
+
+    def on_schema_contract_violation_safe(self, error: DataValidationError, **kwargs: Any) -> None:
         self.calls.append(error)
         error_dict = error.__dict__.copy()
         error_dict.pop("data_item", None)
@@ -161,6 +168,7 @@ class ContractsViolationPlugin(CallbackPlugin[Any]):
         if self.calls_have_common_attributes and error_dict != self.common_attributes:
             self.calls_have_common_attributes = False
             self.common_attributes = {}
+        self.calling_thread_ids.add(threading.get_ident())
 
     @property
     def row_count(self) -> int:
@@ -201,6 +209,7 @@ class ContractsViolationPlugin(CallbackPlugin[Any]):
     def reset(self) -> None:
         # collect all datavalidation calls
         self.calls = []
+        self.unsafe_calls = []
         # def common attributes of all calls so far, useful for most tests, because usually only the item will change
         self.common_attributes = {}
         self.calls_have_common_attributes = True
@@ -845,3 +854,27 @@ def test_dynamic_new_columns(column_mode: str) -> None:
     assert pipeline.last_trace.last_normalize_info.row_counts.get("items", 0) == 2
     plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     assert len(plugin.calls) == 0
+
+
+@pytest.mark.parametrize("pool_type", ["", "thread", "process"])
+def test_multiprocessing(pool_type: str) -> None:
+    """
+    Normalize only seems to work with processes (this is hardcoded into the config)
+    in case threads are allowed again, this test will automatically test that too
+    """
+    os.environ["NORMALIZE__WORKERS"] = "5" if pool_type else "1"
+    os.environ["NORMALIZE__POOL_TYPE"] = pool_type
+
+    pipeline = get_pipeline()
+
+    # first load
+    run_resource(pipeline, items, {})
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 10
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
+    assert len(plugin.calls) == 0
+
+    # provoke messages
+    run_resource(pipeline, items_with_new_column, {"source": {"columns": "discard_row"}})
+    assert len(plugin.calls) == 10
+    assert plugin.calling_thread_ids == {threading.get_ident()}
+    assert len(plugin.unsafe_calls) == (0 if pool_type in ["process", "thread"] else 10)

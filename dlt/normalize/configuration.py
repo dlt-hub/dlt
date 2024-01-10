@@ -42,6 +42,7 @@ class NormalizeConfiguration(PoolRunnerConfiguration):
     )
 
     def on_resolved(self) -> None:
+        # TODO: why does this not work with thread?
         self.pool_type = "none" if self.workers == 1 else "process"
 
     if TYPE_CHECKING:

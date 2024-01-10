@@ -177,20 +177,18 @@ def with_plugins() -> Callable[[TFun], TFun]:
     def decorator(f: TFun) -> TFun:
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
-            plugins_ctx = self._container[PluginsContext]
-
-            if plugins_ctx is None or not plugins_ctx._plugins:
-                plugins_ctx = PluginsContext()
-                plugins_ctx.setup_plugins(self.plugins)
-                self._container[PluginsContext] = plugins_ctx
+            if self._plugin_ctx is None:
+                self._plugin_ctx = PluginsContext()
+                self._plugin_ctx.setup_plugins(self.plugins)
 
             # call step
-            plugins_ctx.on_step_start(f.__name__, self)
-            result = f(self, *args, **kwargs)
-            plugins_ctx.on_step_end(f.__name__, self)
+            self._plugin_ctx.on_step_start(f.__name__, self)
+            with self._container.injectable_context(self._plugin_ctx):
+                result = f(self, *args, **kwargs)
+            self._plugin_ctx.on_step_end(f.__name__, self)
 
             # ensure messages queue is completely processed
-            plugins_ctx.process_queue()
+            self._plugin_ctx.process_queue()
 
             return result
 
@@ -336,6 +334,7 @@ class Pipeline(SupportsPipeline):
         self._schema_storage: LiveSchemaStorage = None
         self._schema_storage_config: SchemaStorageConfiguration = None
         self._trace: PipelineTrace = None
+        self._plugin_ctx: PluginsContext = None
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
 
@@ -464,6 +463,7 @@ class Pipeline(SupportsPipeline):
             _normalize_storage_config=self._normalize_storage_config(),
             _load_storage_config=self._load_storage_config(),
         )
+        print("normalize")
         # run with destination context
         with self._maybe_destination_capabilities(loader_file_format=loader_file_format):
             # shares schema storage with the pipeline so we do not need to install
@@ -838,8 +838,8 @@ class Pipeline(SupportsPipeline):
 
     def get_plugin(self, plugin_name: str) -> Any:
         """Returns the plugin instance by name"""
-        if self._container[PluginsContext] is not None:
-            return self._container[PluginsContext].get_plugin(plugin_name)
+        if self._plugin_ctx is not None:
+            return self._plugin_ctx.get_plugin(plugin_name)
         return None
 
     @deprecated(

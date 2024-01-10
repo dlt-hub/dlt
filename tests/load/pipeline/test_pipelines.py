@@ -409,7 +409,7 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
     def complex_data():
         return dlt.resource([{"idx": 1, "cn": complex_part}], name="complex_cn")
 
-    info = dlt.run(
+    dlt.run(
         complex_data(),
         destination=destination_config.destination,
         staging=destination_config.staging,

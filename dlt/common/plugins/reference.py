@@ -22,6 +22,9 @@ class SupportsCallbackPlugin:
     def on_schema_contract_violation(self, error: DataValidationError, **kwargs: Any) -> None:
         pass
 
+    def on_schema_contract_violation_safe(self, error: DataValidationError, **kwargs: Any) -> None:
+        pass
+
 
 class Plugin(Generic[TPluginConfig]):
     NAME: Optional[str] = None

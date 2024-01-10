@@ -17,6 +17,7 @@ class LoaderConfiguration(PoolRunnerConfiguration):
     _load_storage_config: LoadStorageConfiguration = None
 
     def on_resolved(self) -> None:
+        # TODO: should pool type not be set from config?
         self.pool_type = "none" if self.workers == 1 else "thread"
 
     if TYPE_CHECKING:

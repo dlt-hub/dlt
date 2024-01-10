@@ -15,13 +15,17 @@ from functools import wraps
 import threading
 
 
-def on_main_process(f: TFun) -> TFun:
+SAFE_SUFFIX = "_safe"
+
+
+def create_safe_version(f: TFun) -> TFun:
     @wraps(f)
     def _wrap(self: "PluginsContext", *args: Any, **kwargs: Any) -> Any:
         # send message to shared queue if this is not the main instance
         if not self._main or threading.main_thread() != threading.current_thread():
             self._queue.put((f.__name__, args, kwargs))
-            return None
+        else:
+            getattr(self, (f.__name__ + SAFE_SUFFIX))(*args, **kwargs)
         return f(self, *args, **kwargs)
 
     return _wrap  # type: ignore
@@ -71,7 +75,7 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
         try:
             while True:
                 name, args, kwargs = self._queue.get_nowait()
-                getattr(self, name)(*args, **kwargs)
+                getattr(self, (name + SAFE_SUFFIX))(*args, **kwargs)
         except mp.queues.Empty:  # type: ignore
             pass
 
@@ -96,12 +100,10 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
     #
     # Main Pipeline Callbacks
     #
-    @on_main_process
     def on_step_start(self, step: str, pipeline: SupportsPipeline) -> None:
         for p in self._callback_plugins:
             p.on_step_start(step, pipeline)
 
-    @on_main_process
     def on_step_end(self, step: str, pipeline: SupportsPipeline) -> None:
         for p in self._callback_plugins:
             p.on_step_end(step, pipeline)
@@ -109,7 +111,7 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
     #
     # contracts callbacks
     #
-    @on_main_process
+    @create_safe_version
     def on_schema_contract_violation(
         self,
         error: DataValidationError,
@@ -117,3 +119,11 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
     ) -> None:
         for p in self._callback_plugins:
             p.on_schema_contract_violation(error, **kwargs)
+
+    def on_schema_contract_violation_safe(
+        self,
+        error: DataValidationError,
+        **kwargs: Any,
+    ) -> None:
+        for p in self._callback_plugins:
+            p.on_schema_contract_violation_safe(error, **kwargs)

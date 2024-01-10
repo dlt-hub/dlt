@@ -35,10 +35,10 @@ def test_simple_plugin_steps() -> None:
     )
     pipeline.run([{"a": 1, "b": 2}], table_name="my_table")
 
-    plug = pipeline._container[PluginsContext]._plugins[0]
+    plug = pipeline.get_plugin("stepcounterplugin")
 
-    assert plug.start_steps == ["run", "extract", "normalize", "load"]  # type: ignore
-    assert plug.end_steps == ["extract", "normalize", "load", "run"]  # type: ignore
+    assert plug.start_steps == ["run", "extract", "normalize", "load"]
+    assert plug.end_steps == ["extract", "normalize", "load", "run"]
 
 
 def test_plugin_resolution() -> None:
