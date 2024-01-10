@@ -83,6 +83,16 @@ class DatabricksTypeMapper(TypeMapper):
     def from_db_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
     ) -> TColumnType:
+        # precision and scale arguments here are meaningless as they're not included separately in information schema
+        # We use full_data_type from databricks which is either in form "typename" or "typename(precision, scale)"
+        type_parts = db_type.split("(")
+        if len(type_parts) > 1:
+            db_type = type_parts[0]
+            scale_str = type_parts[1].strip(")")
+            precision, scale = [int(val) for val in scale_str.split(",")]
+        else:
+            scale = precision = None
+        db_type = db_type.upper()
         if db_type == "DECIMAL":
             if (precision, scale) == self.wei_precision():
                 return dict(data_type="wei", precision=precision, scale=scale)
@@ -300,9 +310,9 @@ class DatabricksClient(SqlJobClientWithStaging, SupportsStagingDestination):
             f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
         )
 
-    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        exists, table = super().get_storage_table(table_name)
-        if not exists:
-            return exists, table
-        table = {col_name.lower(): dict(col, name=col_name.lower()) for col_name, col in table.items()}  # type: ignore
-        return exists, table
+    def _get_storage_table_query_columns(self) -> List[str]:
+        fields = super()._get_storage_table_query_columns()
+        fields[
+            1
+        ] = "full_data_type"  # Override because this is the only way to get data type with precision
+        return fields

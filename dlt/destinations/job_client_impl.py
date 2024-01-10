@@ -296,6 +296,15 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
     ) -> None:
         self.sql_client.close_connection()
 
+    def _get_storage_table_query_columns(self) -> List[str]:
+        """Column names used when querying table from information schema.
+        Override for databases that use different namings.
+        """
+        fields = ["column_name", "data_type", "is_nullable"]
+        if self.capabilities.schema_supports_numeric_precision:
+            fields += ["numeric_precision", "numeric_scale"]
+        return fields
+
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         def _null_to_bool(v: str) -> bool:
             if v == "NO":
@@ -304,9 +313,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
                 return True
             raise ValueError(v)
 
-        fields = ["column_name", "data_type", "is_nullable"]
-        if self.capabilities.schema_supports_numeric_precision:
-            fields += ["numeric_precision", "numeric_scale"]
+        fields = self._get_storage_table_query_columns()
         db_params = self.sql_client.make_qualified_table_name(table_name, escape=False).split(
             ".", 3
         )
