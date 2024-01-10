@@ -112,7 +112,6 @@ class BigQueryLoadJob(LoadJob, FollowupJob):
             # retry on all other reasons, including `backendError` which requires retry when the job is done
             return "retry"
 
-
     def bigquery_job_id(self) -> str:
         return BigQueryLoadJob.get_job_id_from_file_path(super().file_name())
 
