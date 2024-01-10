@@ -1,10 +1,13 @@
+from typing import Set
+
 import pickle
-import time
+import threading
 from multiprocessing import get_context
 from concurrent.futures import ProcessPoolExecutor
 
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.plugins import CallbackPlugin, PluginsContext, on_main_process
+from concurrent.futures import ThreadPoolExecutor
 
 
 class CustomPluginsContext(PluginsContext):
@@ -24,14 +27,18 @@ class MultiprocessingPlugin(CallbackPlugin[BaseConfiguration]):
         self.some_value = "initial"
         self.main_process_calls = 0
         self.sub_process_calls = 0
+        self.main_process_calls_thread_ids: Set[int] = set()
+        self.sub_process_calls_thread_ids: Set[int] = set()
 
     def on_subprocess_call(self, value: int, some_string: str) -> None:
         self.sub_process_calls += value
         assert some_string == "hello"
+        self.sub_process_calls_thread_ids.add(threading.get_ident())
 
     def on_mainprocess_call(self, value: int, some_string: str) -> None:
         self.main_process_calls += value
         assert some_string == "hello"
+        self.main_process_calls_thread_ids.add(threading.get_ident())
 
 
 def test_pickle_and_queue_same_process() -> None:
@@ -66,13 +73,11 @@ def test_pickle_and_queue_same_process() -> None:
 
 
 def child_process(context: CustomPluginsContext):
-    print("child start")
     context.on_subprocess_call(5, some_string="hello")
     context.on_mainprocess_call(10, some_string="hello")
-    print("child done")
 
 
-def test_multiprocessing() -> None:
+def test_multiprocessing_multiple_processes() -> None:
     context1 = CustomPluginsContext()
     context1.setup_plugins([MultiprocessingPlugin])
 
@@ -90,3 +95,30 @@ def test_multiprocessing() -> None:
     context1.process_queue()
     assert context1._plugins[0].sub_process_calls == 5  # type: ignore
     assert context1._plugins[0].main_process_calls == 50  # type: ignore
+    # all calls on main process calls should be done on the main thread
+    assert context1._plugins[0].main_process_calls_thread_ids == {threading.get_ident()}  # type: ignore
+    assert context1._plugins[0].sub_process_calls_thread_ids == {threading.get_ident()}  # type: ignore
+
+
+def test_multiprocessing_multiple_threads() -> None:
+    context1 = CustomPluginsContext()
+    context1.setup_plugins([MultiprocessingPlugin])
+
+    context1.on_subprocess_call(5, some_string="hello")
+    context1.on_mainprocess_call(10, some_string="hello")
+
+    # spawn 4 processes
+    pool = ThreadPoolExecutor(max_workers=4)  # , mp_context=get_context())
+    for _i in range(4):
+        pool.submit(child_process, context1)
+
+    pool.shutdown(wait=True)
+
+    # collect messages
+    context1.process_queue()
+    assert context1._plugins[0].sub_process_calls == 25  # type: ignore
+    assert context1._plugins[0].main_process_calls == 50  # type: ignore
+
+    # all calls on main process calls should be done on the main thread
+    assert context1._plugins[0].main_process_calls_thread_ids == {threading.get_ident()}  # type: ignore
+    assert len(context1._plugins[0].sub_process_calls_thread_ids) == 5  # type: ignore
