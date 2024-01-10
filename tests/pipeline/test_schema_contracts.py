@@ -186,7 +186,7 @@ class ContractsViolationPlugin(CallbackPlugin[Any]):
         data_item = (
             call.data_item
             if not (isinstance(call.data_item, Iterable) and not isinstance(call.data_item, dict))
-            else call.data_item[0] # type: ignore
+            else call.data_item[0]  # type: ignore
         )
         # arrow tables
         if hasattr(data_item, "num_rows"):

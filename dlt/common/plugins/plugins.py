@@ -12,13 +12,14 @@ from .exceptions import UnknownPluginPathException
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 import multiprocessing as mp
 from functools import wraps
+import threading
 
 
 def on_main_process(f: TFun) -> TFun:
     @wraps(f)
     def _wrap(self: "PluginsContext", *args: Any, **kwargs: Any) -> Any:
         # send message to shared queue if this is not the main instance
-        if not self._main:
+        if not self._main or not threading.main_thread():
             self._queue.put((f.__name__, args, kwargs))
             return None
         return f(self, *args, **kwargs)
