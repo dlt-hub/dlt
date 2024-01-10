@@ -415,7 +415,7 @@ def test_source_max_nesting(destination_config: DestinationTestConfiguration) ->
         staging=destination_config.staging,
         dataset_name="ds_" + uniq_id(),
     )
-    print(info)
+
     with dlt.pipeline().sql_client() as client:
         complex_cn_table = client.make_qualified_table_name("complex_cn")
     rows = select_data(dlt.pipeline(), f"SELECT cn FROM {complex_cn_table}")

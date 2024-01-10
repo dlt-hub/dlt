@@ -189,6 +189,9 @@ def with_plugins() -> Callable[[TFun], TFun]:
             result = f(self, *args, **kwargs)
             plugins_ctx.on_step_end(f.__name__, self)
 
+            # ensure messages queue is completely processed
+            plugins_ctx.process_queue()
+
             return result
 
         return _wrap  # type: ignore
