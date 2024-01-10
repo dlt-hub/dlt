@@ -11,7 +11,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
 from dlt.common.destination import TLoaderFileFormat
-from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
+from dlt.common.runners import TRunMetrics, Runnable, CurrentThreadExecutor
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema.typing import TStoredSchema
@@ -69,7 +69,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         self.config = config
         self.collector = collector
         self.normalize_storage: NormalizeStorage = None
-        self.pool = NullExecutor()
+        self.pool = CurrentThreadExecutor()
         self.load_storage: LoadStorage = None
         self.schema_storage: SchemaStorage = None
 
@@ -351,7 +351,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
 
     def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # keep the pool in class instance
-        self.pool = pool or NullExecutor()
+        self.pool = pool or CurrentThreadExecutor()
         logger.info("Running file normalizing")
         # list all load packages in extracted folder
         load_ids = self.normalize_storage.extracted_packages.list_packages()

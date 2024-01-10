@@ -19,8 +19,8 @@ T = TypeVar("T")
 P = ParamSpec("P")
 
 
-class NullExecutor(Executor):
-    """Dummy executor that runs jobs single-threaded.
+class CurrentThreadExecutor(Executor):
+    """Executor that runs jobs single-threaded on the current thread.
 
     Provides a uniform interface for `None` pool type
     """
@@ -57,7 +57,7 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
             max_workers=config.workers, thread_name_prefix=Container.thread_pool_prefix()
         )
     # no pool - single threaded
-    return NullExecutor()
+    return CurrentThreadExecutor()
 
 
 def run_pool(

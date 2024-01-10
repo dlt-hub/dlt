@@ -11,7 +11,7 @@ from dlt.common.configuration.accessors import config
 from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
 from dlt.common.schema.utils import get_child_tables, get_top_level_table
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
-from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
+from dlt.common.runners import TRunMetrics, Runnable, workermethod, CurrentThreadExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.runtime.logger import pretty_format_exception
 from dlt.common.exceptions import (
@@ -68,7 +68,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self.destination = destination
         self.capabilities = destination.capabilities()
         self.staging_destination = staging_destination
-        self.pool = NullExecutor()
+        self.pool = CurrentThreadExecutor()
         self.load_storage: LoadStorage = self.create_storage(is_storage_owner)
         self._loaded_packages: List[LoadPackageInfo] = []
         super().__init__()
@@ -541,7 +541,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # store pool
-        self.pool = pool or NullExecutor()
+        self.pool = pool or CurrentThreadExecutor()
 
         logger.info("Running file loading")
         # get list of loads and order by name ASC to execute schema updates

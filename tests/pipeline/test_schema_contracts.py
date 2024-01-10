@@ -134,8 +134,7 @@ def run_resource(
     # check items table settings
     # assert pipeline.default_schema.tables[ITEMS_TABLE].get("schema_contract", {}) == (settings.get("resource") or {})
 
-    # check effective table settings
-    # assert resolve_contract_settings_for_table(None, "items", pipeline.default_schema) == expand_schema_contract_settings(settings.get("resource") or settings.get("override") or "evolve")
+    # check effective tablepysct_settings_for_table(None, "items", pipeline.default_schema) == expand_schema_contract_settings(settings.get("resource") or settings.get("override") or "evolve")
 
 
 class ContractsViolationPlugin(CallbackPlugin[Any]):
