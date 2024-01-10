@@ -21,6 +21,7 @@ from .connection_string_credentials import ConnectionStringCredentials
 from .api_credentials import OAuth2Credentials
 from .aws_credentials import AwsCredentials, AwsCredentialsWithoutDefaults
 from .azure_credentials import AzureCredentials, AzureCredentialsWithoutDefaults
+from .gdrive_credentials import GoogleDriveFileSystem
 
 
 # backward compatibility for service account credentials
@@ -44,6 +45,7 @@ __all__ = [
     "GcpServiceAccountCredentials",
     "GcpOAuthCredentialsWithoutDefaults",
     "GcpOAuthCredentials",
+    "GoogleDriveFileSystem",
     "GcpCredentials",
     "ConnectionStringCredentials",
     "OAuth2Credentials",

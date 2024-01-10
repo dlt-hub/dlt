@@ -57,6 +57,7 @@ MTIME_DISPATCH = {
     "gcs": lambda f: ensure_pendulum_datetime(f["updated"]),
     "file": lambda f: ensure_pendulum_datetime(f["mtime"]),
     "memory": lambda f: ensure_pendulum_datetime(f["created"]),
+    "gdrive": lambda f: ensure_pendulum_datetime(f["modifiedTime"]),
 }
 # Support aliases
 MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]
@@ -70,6 +71,7 @@ CREDENTIALS_DISPATCH: Dict[str, Callable[[FilesystemConfiguration], DictStrAny]]
     "az": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
     "gcs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
     "gs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
+    "gdrive": lambda config: cast(GcpCredentials, config.credentials).to_gdrive_credentials(),
     "abfs": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
     "azure": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
 }
@@ -123,17 +125,15 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
 
 def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSystem, str]:
     """Instantiates an authenticated fsspec `FileSystem` from `config` argument.
-
     Authenticates following filesystems:
     * s3
     * az, abfs
     * gcs, gs
-
     All other filesystems are not authenticated
-
     Returns: (fsspec filesystem, normalized url)
     """
     fs_kwargs = prepare_fsspec_args(config)
+
     try:
         return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore
     except ModuleNotFoundError as e:
