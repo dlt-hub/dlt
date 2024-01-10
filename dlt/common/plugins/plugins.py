@@ -86,6 +86,12 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
             if isinstance(resolved_plugin, CallbackPlugin):
                 self._callback_plugins.append(resolved_plugin)
 
+    def get_plugin(self, plugin_name: str) -> Optional[Plugin[BaseConfiguration]]:
+        for p in self._plugins:
+            if p.NAME == plugin_name:
+                return p
+        return None
+
     #
     # Main Pipeline Callbacks
     #

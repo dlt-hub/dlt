@@ -833,6 +833,12 @@ class Pipeline(SupportsPipeline):
             return self._last_trace
         return load_trace(self.working_dir)
 
+    def get_plugin(self, plugin_name: str) -> Any:
+        """Returns the plugin instance by name"""
+        if self._container[PluginsContext] is not None:
+            return self._container[PluginsContext].get_plugin(plugin_name)
+        return None
+
     @deprecated(
         "Please use list_extracted_load_packages instead. Flat extracted storage format got dropped"
         " in dlt 0.4.0",

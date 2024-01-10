@@ -63,8 +63,9 @@ def create_pool(config: PoolRunnerConfiguration) -> Executor:
 def run_pool(
     config: PoolRunnerConfiguration,
     run_f: Union[Runnable[TExecutor], Callable[[TExecutor], TRunMetrics]],
-    perdiodocal_callables: List[Callable[[], None]] = [],
+    perdiodocal_callables: List[Callable[[], None]] = None,
 ) -> int:
+    perdiodocal_callables = perdiodocal_callables or []
     # validate the run function
     if not isinstance(run_f, Runnable) and not callable(run_f):
         raise ValueError(

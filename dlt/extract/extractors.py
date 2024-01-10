@@ -155,15 +155,21 @@ class Extractor:
         else:
             self._notify_data_validation_error(table_name, items)
 
-    def _notify_data_validation_error(self, table_name: str, item: TDataItems) -> None:
+    def _notify_data_validation_error(
+        self,
+        table_name: str,
+        item: TDataItem,
+        column_name: Optional[str] = None,
+        contract_mode: Optional[TSchemaEvolutionMode] = None,
+    ) -> None:
         if self._plugins is not None:
             self._plugins.on_schema_contract_violation(
                 DataValidationError(
                     schema_name=self.schema.name,
                     table_name=table_name,
-                    column_name=None,
-                    schema_entity="tables",
-                    contract_mode=self._filtered_tables[table_name],
+                    column_name=column_name,
+                    schema_entity="columns" if column_name else "tables",
+                    contract_mode=contract_mode or self._filtered_tables[table_name],
                     table_schema=None,
                     schema_contract=self._table_contracts.get(table_name),
                     data_item=item,
@@ -253,6 +259,7 @@ class ArrowExtractor(Extractor):
         # find matching columns and delete by original name
         table_name = static_table_name or self._get_dynamic_table_name(resource, item)
         filtered_columns = self._filtered_columns.get(table_name)
+        original_item = item
         if filtered_columns:
             # remove rows where columns have non null values
             # create a mask where rows will be False if any of the specified columns are non-null
@@ -275,8 +282,11 @@ class ArrowExtractor(Extractor):
                 if filtered_columns.get(rename_mapping[name]) is not None
             ]
             if removed_columns:
+                name = rename_mapping[removed_columns[0]]
+                mode = filtered_columns.get(name)
                 item = pyarrow.remove_columns(item, removed_columns)
-                # MARK: add contract violation hook here -> I'd pass the original arrow table here so before columns are modified
+                # TODO: should we maybe emit dictionaries here? or are arrow tables better? not sure...
+                self._notify_data_validation_error(table_name, original_item, name, mode)
 
         return item
 

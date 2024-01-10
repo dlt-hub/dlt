@@ -75,8 +75,8 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             self._plugins.on_schema_contract_violation(
                 DataValidationError(
                     schema_name=self.schema.name,
-                    table_name=column_name or table_name,
-                    column_name=None,
+                    table_name=table_name,
+                    column_name=column_name,
                     schema_entity="columns" if column_name else "tables",
                     contract_mode=contract_mode or self._filtered_tables[table_name],
                     table_schema=None,

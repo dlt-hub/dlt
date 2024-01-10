@@ -1,6 +1,6 @@
 import dlt, os, pytest
 import contextlib
-from typing import Any, Callable, Iterator, Union, Optional, List
+from typing import Any, Callable, Iterator, Union, Optional, List, Dict
 
 from dlt.common.schema.typing import TSchemaContract
 from dlt.common.utils import uniq_id
@@ -123,6 +123,8 @@ def run_resource(
             yield resource.with_name(resource.name + str(idx))
 
     # run pipeline
+    if (plugin := pipeline.get_plugin("cp")) is not None:
+        plugin.reset()
     pipeline.run(source(), schema_contract=settings.get("override"))
 
     # check global settings
@@ -138,12 +140,59 @@ def run_resource(
 
 
 class ContractsViolationPlugin(CallbackPlugin[Any]):
+    NAME: str = "cp"
+
     def __init__(self) -> None:
         super().__init__()
+        # collect all datavalidation calls
         self.calls: List[DataValidationError] = []
+        # def common attributes of all calls so far, useful for most tests, because usually only the item will change
+        self.common_attributes: Dict[str, str] = None
+        self.calls_have_common_attributes = True
 
     def on_schema_contract_violation(self, error: DataValidationError, **kwargs: Any) -> None:
         self.calls.append(error)
+        error_dict = error.__dict__.copy()
+        error_dict.pop("data_item", None)
+        if not self.common_attributes and self.calls_have_common_attributes:
+            self.common_attributes = error_dict
+        if self.calls_have_common_attributes and error_dict != self.common_attributes:
+            self.calls_have_common_attributes = False
+            self.common_attributes = {}
+
+    @property
+    def row_count(self) -> int:
+        # get the amount of rejected rows for regular items or arrow tables
+        count = 0
+        for call in self.calls:
+            # arrow tables
+            if hasattr(call.data_item, "num_rows"):
+                count += call.data_item.num_rows
+            else:
+                count += 1
+        return count
+
+    @property
+    def first_row(self) -> Dict[str, Any]:
+        call = self.calls[0]
+        item = None
+        # arrow tables
+        if hasattr(call.data_item, "num_rows"):
+            item = call.data_item.to_pylist()[0]
+        else:
+            item = call.data_item
+
+        # we need to do some renaming to convert arrow column names, e.g. New^Col to new_col.
+        # we also remove the dlt internal columns
+        # for the purpose of this test this will work..
+        return {k.replace("^", "_").lower(): v for k, v in item.items() if not k.startswith("_")}
+
+    def reset(self) -> None:
+        # collect all datavalidation calls
+        self.calls = []
+        # def common attributes of all calls so far, useful for most tests, because usually only the item will change
+        self.common_attributes = {}
+        self.calls_have_common_attributes = True
 
 
 def get_pipeline():
@@ -212,9 +261,9 @@ def test_new_tables(
         assert table_counts.get(SUBITEMS_TABLE, 0) == (10 if contract_setting in ["evolve"] else 0)
 
 
-@pytest.mark.parametrize("contract_setting", ["discard_row"])
-@pytest.mark.parametrize("setting_location", ["resource"])
-@pytest.mark.parametrize("item_format", ["json"])
+@pytest.mark.parametrize("contract_setting", schema_contract)
+@pytest.mark.parametrize("setting_location", LOCATIONS)
+@pytest.mark.parametrize("item_format", ALL_DATA_ITEM_FORMATS)
 def test_new_columns(
     contract_setting: str, setting_location: str, item_format: TDataItemFormat
 ) -> None:
@@ -253,31 +302,53 @@ def test_new_columns(
     expected_items_count += 20 if contract_setting in ["evolve", "discard_value"] else 0
     assert table_counts["items"] == expected_items_count
 
+    # check plugin calls
+    plugin = pipeline.get_plugin("cp")
     if contract_setting in ["evolve", "freeze"]:
-        assert pipeline._container[PluginsContext]._callback_plugins[0].calls == []
+        assert len(plugin.calls) == 0
     else:
-        assert len(pipeline._container[PluginsContext]._callback_plugins[0].calls) == 20
+        assert plugin.row_count == 20
+        assert plugin.common_attributes == {
+            "schema_name": "freeze_tests",
+            "table_name": "items",
+            "column_name": "new_col",
+            "schema_entity": "columns",
+            "contract_mode": contract_setting,
+            "table_schema": None,
+            "schema_contract": {
+                "tables": "evolve",
+                "columns": contract_setting,
+                "data_type": "evolve",
+            },
+        }
+        assert plugin.first_row == {"id": 0, "name": "item 0", "new_col": "hello"}
 
     # NOTE: arrow / pandas do not support variants and subtables so we must skip
-    if item_format == "json":
-        # subtable should work
-        run_resource(pipeline, items_with_subtable, full_settings)
-        table_counts = load_table_counts(
-            pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-        )
-        expected_items_count += 10
-        assert table_counts["items"] == expected_items_count
-        assert table_counts[SUBITEMS_TABLE] == 10
+    if item_format != "json":
+        return
 
-        # test adding variant column
-        run_resource(pipeline, items_with_variant, full_settings)
-        # variants are not new columns and should be able to always evolve
-        assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
-        table_counts = load_table_counts(
-            pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
-        )
-        expected_items_count += 10
-        assert table_counts["items"] == expected_items_count
+    # subtable should work
+    run_resource(pipeline, items_with_subtable, full_settings)
+    table_counts = load_table_counts(
+        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
+    )
+    expected_items_count += 10
+    assert table_counts["items"] == expected_items_count
+    assert table_counts[SUBITEMS_TABLE] == 10
+    # no calls to plugin
+    assert len(plugin.calls) == 0
+
+    # test adding variant column
+    run_resource(pipeline, items_with_variant, full_settings)
+    # variants are not new columns and should be able to always evolve
+    assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables["items"]["columns"]
+    table_counts = load_table_counts(
+        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
+    )
+    expected_items_count += 10
+    assert table_counts["items"] == expected_items_count
+    # no calls to plugin
+    assert len(plugin.calls) == 0
 
 
 @pytest.mark.parametrize("contract_setting", schema_contract)
