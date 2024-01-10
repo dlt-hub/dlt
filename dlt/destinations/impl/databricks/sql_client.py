@@ -8,6 +8,7 @@ from databricks.sql.client import (
 )
 from databricks.sql.exc import Error as DatabricksSqlError
 
+from dlt.common import pendulum
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import (
@@ -24,10 +25,11 @@ from dlt.destinations.sql_client import (
 from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
 from dlt.destinations.impl.databricks import capabilities
+from dlt.common.time import to_py_date, to_py_datetime
 
 
 class DatabricksCursorImpl(DBApiCursorImpl):
-    native_cursor: DatabricksSqlCursor  # type: ignore[assignment]
+    native_cursor: DatabricksSqlCursor
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         if chunk_size is None:
@@ -51,11 +53,9 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     @raise_open_connection_error
     def close_connection(self) -> None:
-        try:
+        if self._conn:
             self._conn.close()
             self._conn = None
-        except DatabricksSqlError as exc:
-            logger.warning("Exception while closing connection: {}".format(exc))
 
     @contextmanager
     def begin_transaction(self) -> Iterator[DBTransaction]:
@@ -101,14 +101,27 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         Executes several SQL fragments as efficiently as possible to prevent data copying.
         Default implementation just joins the strings and executes them together.
         """
-        return [self.execute_sql(fragment, *args, **kwargs) for fragment in fragments]  # type: ignore
+        return [self.execute_sql(fragment, *args, **kwargs) for fragment in fragments]
 
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         curr: DBApiCursor = None
-        db_args = args if args else kwargs if kwargs else None
-        with self._conn.cursor() as curr:  # type: ignore[assignment]
+        if args:
+            keys = [f"arg{i}" for i in range(len(args))]
+            # Replace position arguments (%s) with named arguments (:arg0, :arg1, ...)
+            query = query % tuple(f":{key}" for key in keys)
+            db_args = {}
+            for key, db_arg in zip(keys, args):
+                # Databricks connector doesn't accept pendulum objects
+                if isinstance(db_arg, pendulum.DateTime):
+                    db_arg = to_py_datetime(db_arg)
+                elif isinstance(db_arg, pendulum.Date):
+                    db_arg = to_py_date(db_arg)
+                db_args[key] = db_arg
+        else:
+            db_args = None
+        with self._conn.cursor() as curr:
             try:
                 curr.execute(query, db_args)
                 yield DatabricksCursorImpl(curr)  # type: ignore[abstract]
@@ -138,14 +151,16 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         if isinstance(ex, databricks_lib.ServerOperationError):
             if "TABLE_OR_VIEW_NOT_FOUND" in str(ex):
                 return DatabaseUndefinedRelation(ex)
-        elif isinstance(ex, databricks_lib.OperationalError):
             return DatabaseTerminalException(ex)
-        elif isinstance(ex, (databricks_lib.ProgrammingError, databricks_lib.IntegrityError)):
-            return DatabaseTerminalException(ex)
-        elif isinstance(ex, databricks_lib.DatabaseError):
-            return DatabaseTransientException(ex)
-        else:
-            return ex
+        return ex
+        # elif isinstance(ex, databricks_lib.OperationalError):
+        #     return DatabaseTerminalException(ex)
+        # elif isinstance(ex, (databricks_lib.ProgrammingError, databricks_lib.IntegrityError)):
+        #     return DatabaseTerminalException(ex)
+        # elif isinstance(ex, databricks_lib.DatabaseError):
+        #     return DatabaseTransientException(ex)
+        # else:
+        #     return ex
 
     @staticmethod
     def _maybe_make_terminal_exception_from_data_error(

@@ -8,6 +8,7 @@ from dlt.common.destination.reference import (
     TLoadJobState,
     LoadJob,
     CredentialsConfiguration,
+    SupportsStagingDestination,
 )
 from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
@@ -17,7 +18,7 @@ from dlt.common.configuration.specs import (
 from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.typing import TTableSchema, TColumnType, TSchemaTables
+from dlt.common.schema.typing import TTableSchema, TColumnType, TSchemaTables, TTableFormat
 
 
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
@@ -35,7 +36,7 @@ from dlt.destinations.type_mapping import TypeMapper
 
 class DatabricksTypeMapper(TypeMapper):
     sct_to_unbound_dbt = {
-        "complex": "ARRAY",  # Databricks supports complex types like ARRAY
+        "complex": "STRING",  # Databricks supports complex types like ARRAY
         "text": "STRING",
         "double": "DOUBLE",
         "bool": "BOOLEAN",
@@ -44,14 +45,7 @@ class DatabricksTypeMapper(TypeMapper):
         "bigint": "BIGINT",
         "binary": "BINARY",
         "decimal": "DECIMAL",  # DECIMAL(p,s) format
-        "float": "FLOAT",
-        "int": "INT",
-        "smallint": "SMALLINT",
-        "tinyint": "TINYINT",
-        "void": "VOID",
-        "interval": "INTERVAL",
-        "map": "MAP",
-        "struct": "STRUCT",
+        "time": "STRING",
     }
 
     dbt_to_sct = {
@@ -61,48 +55,37 @@ class DatabricksTypeMapper(TypeMapper):
         "DATE": "date",
         "TIMESTAMP": "timestamp",
         "BIGINT": "bigint",
+        "INT": "bigint",
+        "SMALLINT": "bigint",
+        "TINYINT": "bigint",
         "BINARY": "binary",
         "DECIMAL": "decimal",
-        "FLOAT": "float",
-        "INT": "int",
-        "SMALLINT": "smallint",
-        "TINYINT": "tinyint",
-        "VOID": "void",
-        "INTERVAL": "interval",
-        "MAP": "map",
-        "STRUCT": "struct",
-        "ARRAY": "complex",
     }
 
     sct_to_dbt = {
-        "text": "STRING",
-        "double": "DOUBLE",
-        "bool": "BOOLEAN",
-        "date": "DATE",
-        "timestamp": "TIMESTAMP",
-        "bigint": "BIGINT",
-        "binary": "BINARY",
         "decimal": "DECIMAL(%i,%i)",
-        "float": "FLOAT",
-        "int": "INT",
-        "smallint": "SMALLINT",
-        "tinyint": "TINYINT",
-        "void": "VOID",
-        "interval": "INTERVAL",
-        "map": "MAP",
-        "struct": "STRUCT",
-        "complex": "ARRAY",
+        "wei": "DECIMAL(%i,%i)",
     }
+
+    def to_db_integer_type(
+        self, precision: Optional[int], table_format: TTableFormat = None
+    ) -> str:
+        if precision is None:
+            return "BIGINT"
+        if precision <= 8:
+            return "TINYINT"
+        if precision <= 16:
+            return "SMALLINT"
+        if precision <= 32:
+            return "INT"
+        return "BIGINT"
 
     def from_db_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
     ) -> TColumnType:
-        if db_type == "NUMBER":
-            if precision == self.BIGINT_PRECISION and scale == 0:
-                return dict(data_type="bigint")
-            elif (precision, scale) == self.capabilities.wei_precision:
-                return dict(data_type="wei")
-            return dict(data_type="decimal", precision=precision, scale=scale)
+        if db_type == "DECIMAL":
+            if (precision, scale) == self.wei_precision():
+                return dict(data_type="wei", precision=precision, scale=scale)
         return super().from_db_type(db_type, precision, scale)
 
 
@@ -145,12 +128,18 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             if bucket_scheme in ["s3", "az", "abfs", "gc", "gcs"] and stage_name:
                 from_clause = f"FROM ('{bucket_path}')"
             # referencing an staged files via a bucket URL requires explicit AWS credentials
-            if (
+            elif (
                 bucket_scheme == "s3"
                 and staging_credentials
                 and isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
             ):
-                credentials_clause = f"""WITH(CREDENTIAL(AWS_KEY_ID='{staging_credentials.aws_access_key_id}', AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}'))"""
+                s3_creds = staging_credentials.to_session_credentials()
+                credentials_clause = f"""WITH(CREDENTIAL(
+                AWS_ACCESS_KEY='{s3_creds["aws_access_key_id"]}',
+                AWS_SECRET_KEY='{s3_creds["aws_secret_access_key"]}',
+                AWS_SESSION_TOKEN='{s3_creds["aws_session_token"]}'
+                ))
+                """
                 from_clause = f"FROM '{bucket_path}'"
             elif (
                 bucket_scheme in ["az", "abfs"]
@@ -171,39 +160,30 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
                 )
                 from_clause = f"FROM '{bucket_path}'"
             else:
-                # ensure that gcs bucket path starts with gs://, this is a requirement of databricks
-                bucket_path = bucket_path.replace("gs://", "gcs://")
-                if not stage_name:
-                    # when loading from bucket stage must be given
-                    raise LoadJobTerminalException(
-                        file_path,
-                        f"Cannot load from bucket path {bucket_path} without a stage name. See"
-                        " https://dlthub.com/docs/dlt-ecosystem/destinations/databricks for"
-                        " instructions on setting up the `stage_name`",
-                    )
-                from_clause = f"FROM ('{bucket_path}')"
-        # Databricks does not support loading from local files
-        # else:
-        #     # this means we have a local file
-        #     if not stage_name:
-        #         # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME"
-        #         stage_name = client.make_qualified_table_name('%'+table_name)
-        #     stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
-        #     from_clause = f"FROM {stage_file_path}"
+                raise LoadJobTerminalException(
+                    file_path,
+                    f"Databricks cannot load data from staging bucket {bucket_path}. Only s3 and azure buckets are supported",
+                )
+        else:
+            raise LoadJobTerminalException(
+                file_path,
+                "Cannot load from local file. Databricks does not support loading from local files. Configure staging with an s3 or azure storage bucket.",
+            )
 
         # decide on source format, stage_file_path will either be a local file or a bucket path
         source_format = "JSON"
         if file_name.endswith("parquet"):
             source_format = "PARQUET"
 
-        client.execute_sql(f"""COPY INTO {qualified_table_name}
+        statement = f"""COPY INTO {qualified_table_name}
             {from_clause}
             {files_clause}
             {credentials_clause}
             FILEFORMAT = {source_format}
             {format_options}
             {copy_options}
-            """)
+            """
+        client.execute_sql(statement)
         # Databricks does not support deleting staged files via sql
         # if stage_file_path and not keep_staged_files:
         #     client.execute_sql(f'REMOVE {stage_file_path}')
@@ -238,7 +218,7 @@ class DatabricksMergeJob(SqlMergeJob):
         return f"CREATE OR REPLACE TEMPORARY VIEW {temp_table_name} AS {select_sql};"
 
 
-class DatabricksClient(SqlJobClientWithStaging):
+class DatabricksClient(SqlJobClientWithStaging, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: DatabricksClientConfiguration) -> None:
@@ -274,7 +254,9 @@ class DatabricksClient(SqlJobClientWithStaging):
     def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
         return DatabricksStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
-    def _make_add_column_sql(self, new_columns: Sequence[TColumnSchema]) -> List[str]:
+    def _make_add_column_sql(
+        self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
+    ) -> List[str]:
         # Override because databricks requires multiple columns in a single ADD COLUMN clause
         return ["ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
 
@@ -312,7 +294,7 @@ class DatabricksClient(SqlJobClientWithStaging):
     ) -> TColumnType:
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
-    def _get_column_def_sql(self, c: TColumnSchema) -> str:
+    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         name = self.capabilities.escape_identifier(c["name"])
         return (
             f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
