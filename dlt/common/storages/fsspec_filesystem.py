@@ -42,6 +42,7 @@ MTIME_DISPATCH = {
     "gcs": lambda f: ensure_pendulum_datetime(f["updated"]),
     "file": lambda f: ensure_pendulum_datetime(f["mtime"]),
     "memory": lambda f: ensure_pendulum_datetime(f["created"]),
+    "gitpythonfs": lambda f: ensure_pendulum_datetime(f["committed_date"]),
 }
 # Support aliases
 MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]
@@ -215,7 +216,17 @@ def glob_files(
     """
     import os
 
+    # Use fsspec to clean up url. 
+    # NOTE: Internal method. No easy to do this via public url_to_fs()
+    #   without making braking changes to filesystem Source/Resource.
+    protocol = urlparse(bucket_url).scheme
+    fsspec_path = fs_client._strip_protocol(bucket_url)
+    bucket_url = f"{protocol}://{fsspec_path}"
+
     bucket_url_parsed = urlparse(bucket_url)
+    # netloc_unquoted = unquote(bucket_url_parsed.netloc)
+    # bucket_url_parsed = bucket_url_parsed._replace(netloc=netloc_unquoted)
+
     # if this is a file path without a scheme
     if not bucket_url_parsed.scheme or (os.path.isabs(bucket_url) and "\\" in bucket_url):
         # this is a file so create a proper file url

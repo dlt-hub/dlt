@@ -112,12 +112,29 @@ class FilesystemConfiguration(BaseConfiguration):
             return url.scheme
 
     def on_resolved(self) -> None:
+        #301 this parse will mangle some fsspec urls. Some need to have
+        #   their netloc removed before parsing, usually possible with
+        #   _strip_protocol(). We dont have a handle
+        #   on the fsspec instance here, so we can't it the fsspec way.
+        #   Unpredictable basis for evaluating the rules below.
         url = urlparse(self.bucket_url)
-        if not url.path and not url.netloc:
-            raise ConfigurationValueError(
-                "File path or netloc missing. Field bucket_url of FilesystemClientConfiguration"
-                " must contain valid url with a path or host:password component."
-            )
+        #301 
+        #   Do we need this rule at all? Wouldn't the fs throw an error?
+        #   ToDo: test this with the s3 tests.
+        #
+        #   The rule is not valid for all fsspec implementations.
+        #   eg, for github, gitpythonfs at least, the netloc
+        #   is stripped out by fsspec and you can ls(), walk() etc the entire
+        #   repo from root.
+        #   May be better to be explicit what protocols _are_ subject to this rule.
+        #   Guessing it is anything bucket-like, because you can't download all
+        #   buckets at once and you can't glob on bucket names?
+        if not url.scheme in ('gitpythonfs', 'github', 'git'):
+            if not url.path and not url.netloc:
+                raise ConfigurationValueError(
+                    "File path or netloc missing. Field bucket_url of FilesystemClientConfiguration"
+                    " must contain valid url with a path or host:password component."
+                )
         # this is just a path in a local file system
         if url.path == self.bucket_url:
             url = url._replace(scheme="file")
@@ -136,6 +153,9 @@ class FilesystemConfiguration(BaseConfiguration):
         """Return displayable destination location"""
         url = urlparse(self.bucket_url)
         # do not show passwords
+        #301 Some fsspec implementation put other things in the password@ slot.
+        #   Is hiding the password the more important use case?
+        #   Or add conditions to support both?
         if url.password:
             new_netloc = f"{url.username}:****@{url.hostname}"
             if url.port:
