@@ -118,9 +118,13 @@ When staging is enabled:
 > ❗ **Bigquery cannot load JSON columns from `parquet` files**. `dlt` will fail such jobs permanently. Switch to `jsonl` to load and parse JSON properly.
 
 ## Supported column hints
+
 BigQuery supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
-* `partition` - creates a partition with a day granularity on decorated column (`PARTITION BY DATE`). May be used with `datetime`, `date` data types and `bigint` and `double` if they contain valid UNIX timestamps. Only one column per table is supported and only when a new table is created.
-* `cluster` - creates a cluster column(s). Many column per table are supported and only when a new table is created.
+
+* `partition` - creates a partition with a day granularity on decorated column (`PARTITION BY DATE`).
+  May be used with `datetime`, `date` data types and `bigint` if it contains valid UNIX timestamps.
+  Only one column per table is supported and only when a new table is created.
+* `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
 ## Staging Support
 
