@@ -1,7 +1,7 @@
 ---
 slug: dlt-dbt-semantic-layer
 title: "dlt & dbt in Semantic Modelling"
-image: /img/people-stuck-with-tables-2.jpg
+image: /img/blog-dbt_sem-data-people.png
 authors:
   name: Hiba Jamal
   title: Data Science intern at dlthub
