@@ -271,20 +271,31 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         cluster_list = [
             self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("cluster")
         ]
-        if partition_list := [
-            self.capabilities.escape_identifier(c["name"])
-            for c in new_columns
-            if c.get("partition")
-        ]:
+        if partition_list := [c for c in new_columns if c.get("partition")]:
             if len(partition_list) > 1:
+                col_names = [self.capabilities.escape_identifier(c["name"]) for c in partition_list]
                 raise DestinationSchemaWillNotUpdate(
-                    canonical_name, partition_list, "Partition requested for more than one column"
+                    canonical_name, col_names, "Partition requested for more than one column"
                 )
-            else:
-                sql[0] = f"{sql[0]}\nPARTITION BY DATE({partition_list[0]})"
+            elif (c := partition_list[0])["data_type"] == "date":
+                sql[0] = f"{sql[0]}\nPARTITION BY {self.capabilities.escape_identifier(c['name'])}"
+            elif (c := partition_list[0])["data_type"] == "timestamp":
+                sql[0] = (
+                    f"{sql[0]}\nPARTITION BY DATE({self.capabilities.escape_identifier(c['name'])})"
+                )
+            # BigQuery supports partitioning only when bigint represents a UNIX timestamp.
+            # This is due to the bounds requirement of GENERATE_ARRAY function for partitioning.
+            # The 10,000 partitions limit makes it infeasible to cover the entire `bigint` range.
+            # The array bounds, with daily partitions (86400 seconds in a day), are somewhat arbitrarily chosen.
+            # See: https://dlthub.com/devel/dlt-ecosystem/destinations/bigquery#supported-column-hints
+            elif (c := partition_list[0])["data_type"] == "bigint":
+                sql[0] = (
+                    f"{sql[0]}\nPARTITION BY"
+                    f" RANGE_BUCKET({self.capabilities.escape_identifier(c['name'])},"
+                    " GENERATE_ARRAY(-172800000, 691200000, 86400))"
+                )
         if cluster_list:
             sql[0] = sql[0] + "\nCLUSTER BY " + ",".join(cluster_list)
-
         return sql
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:

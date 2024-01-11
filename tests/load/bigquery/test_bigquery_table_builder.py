@@ -136,7 +136,7 @@ def test_create_table_with_time_partition(gcp_client: BigQueryClient) -> None:
     mod_update[3]["partition"] = True
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
-    assert "PARTITION BY TIMESTAMP_TRUNC(`col4`, DAY)" in sql
+    assert "PARTITION BY DATE(`col4`)" in sql
 
 
 def test_create_table_with_date_partition(gcp_client: BigQueryClient) -> None:
