@@ -2,13 +2,14 @@ import dlt, os, pytest
 import contextlib
 import threading
 
-from typing import Any, Callable, Iterator, Union, Optional, List, Dict, cast, Set
+from typing import Any, Callable, Iterator, Union, Optional, List, Dict, cast, Set, Type
 from collections.abc import Iterable
 from dlt.common.pipeline import SupportsPipeline
 from dlt.common.schema.typing import TSchemaContract
 from dlt.common.utils import uniq_id
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.plugins import CallbackPlugin, PluginsContext
+from dlt.extract.exceptions import ResourceExtractionError
 
 from dlt.extract import DltResource
 from dlt.pipeline.pipeline import Pipeline
@@ -30,17 +31,19 @@ SCHEMA_ELEMENTS = ["tables", "columns", "data_type"]
 
 
 @contextlib.contextmanager
-def raises_frozen_exception(check_raise: bool = True) -> Any:
+def raises_step_exception(check_raise: bool = True, expected_nested_error: Type[Any] = None) -> Any:
+    expected_nested_error = expected_nested_error or DataValidationError
     if not check_raise:
         yield
         return
     with pytest.raises(PipelineStepFailed) as py_exc:
         yield
     if py_exc.value.step == "extract":
-        assert isinstance(py_exc.value.__context__, DataValidationError)
+        print(type(py_exc.value.__context__))
+        assert isinstance(py_exc.value.__context__, expected_nested_error)
     else:
         # normalize
-        assert isinstance(py_exc.value.__context__.__context__, DataValidationError)
+        assert isinstance(py_exc.value.__context__.__context__, expected_nested_error)
 
 
 def items(settings: TSchemaContract) -> Any:
@@ -254,7 +257,7 @@ def test_new_tables(
     assert len(plugin.calls) == 0
 
     # test adding new table
-    with raises_frozen_exception(contract_setting == "freeze"):
+    with raises_step_exception(contract_setting == "freeze"):
         run_resource(pipeline, new_items, full_settings, item_format)
     table_counts = load_table_counts(
         pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
@@ -297,7 +300,7 @@ def test_new_tables(
     assert len(plugin.calls) == 0
 
     # test adding new subtable
-    with raises_frozen_exception(contract_setting == "freeze"):
+    with raises_step_exception(contract_setting == "freeze"):
         run_resource(pipeline, items_with_subtable, full_settings)
 
     table_counts = load_table_counts(
@@ -361,7 +364,7 @@ def test_new_columns(
     assert len(plugin.calls) == 0
 
     # test adding new column twice: filter will try to catch it before it is added for the second time
-    with raises_frozen_exception(contract_setting == "freeze"):
+    with raises_step_exception(contract_setting == "freeze"):
         run_resource(pipeline, items_with_new_column, full_settings, item_format, duplicates=2)
     # delete extracted files if left after exception
     pipeline.drop_pending_packages()
@@ -466,7 +469,7 @@ def test_freeze_variants(contract_setting: str, setting_location: str) -> None:
     assert len(plugin.calls) == 0
 
     # test adding variant column
-    with raises_frozen_exception(contract_setting == "freeze"):
+    with raises_step_exception(contract_setting == "freeze"):
         run_resource(pipeline, items_with_variant, full_settings)
 
     if contract_setting == "evolve":
@@ -673,7 +676,7 @@ def test_data_contract_interaction() -> None:
     # loading once with pydantic will freeze the cols
     pipeline = get_pipeline()
     pipeline.run([get_items_with_model()])
-    with raises_frozen_exception(True):
+    with raises_step_exception(True):
         pipeline.run([get_items_new_col()])
 
     # it is possible to override contract when there are new columns
@@ -714,7 +717,7 @@ def test_dynamic_tables(table_mode: str) -> None:
         }
         yield {"id": 2, "tables": "two", "new_column": "some val"}
 
-    with raises_frozen_exception(table_mode == "freeze"):
+    with raises_step_exception(table_mode == "freeze"):
         pipeline.run([get_items()], schema_contract={"tables": table_mode})
 
     if table_mode != "freeze":
@@ -857,7 +860,7 @@ def test_dynamic_new_columns(column_mode: str) -> None:
 
 
 @pytest.mark.parametrize("pool_type", ["", "thread", "process"])
-def test_multiprocessing(pool_type: str) -> None:
+def test_multiprocessing_plugin(pool_type: str) -> None:
     """
     Normalize only seems to work with processes (this is hardcoded into the config)
     in case threads are allowed again, this test will automatically test that too
@@ -878,3 +881,98 @@ def test_multiprocessing(pool_type: str) -> None:
     assert len(plugin.calls) == 10
     assert plugin.calling_thread_ids == {threading.get_ident()}
     assert len(plugin.unsafe_calls) == (0 if pool_type in ["process", "thread"] else 10)
+
+
+@pytest.mark.parametrize("contract_setting", schema_contract)
+# @pytest.mark.parametrize("contract_setting", ["discard_row"])
+@pytest.mark.parametrize("as_list", [True, False])
+def test_pydantic_contract_implementation(contract_setting: str, as_list: bool) -> None:
+    from pydantic import BaseModel
+
+    class Items(BaseModel):
+        id: int  # noqa: A003
+        name: str
+
+    def get_items(as_list: bool = False):
+        items = [
+            {
+                "id": 5,
+                "name": "dave",
+            }
+        ]
+        if as_list:
+            yield items
+        else:
+            yield from items
+
+    def get_items_extra_attribute(as_list: bool = False):
+        items = [{"id": 5, "name": "dave", "blah": "blubb"}]
+        if as_list:
+            yield items
+        else:
+            yield from items
+
+    def get_items_extra_variant(as_list: bool = False):
+        items = [
+            {
+                "id": "five",
+                "name": "dave",
+            }
+        ]
+        if as_list:
+            yield items
+        else:
+            yield from items
+
+    # test columns complying to model
+    pipeline = get_pipeline()
+    pipeline.run(
+        [get_items(as_list)],
+        schema_contract={"columns": contract_setting},
+        columns=Items,
+        table_name="items",
+    )
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
+    table_counts = load_table_counts(
+        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
+    )
+    assert table_counts[ITEMS_TABLE] == 1
+    assert len(plugin.calls) == 0
+
+    # test columns extra attribute
+    with raises_step_exception(
+        contract_setting in ["freeze"],
+        expected_nested_error=(
+            ResourceExtractionError if contract_setting == "freeze" else NotImplementedError
+        ),
+    ):
+        pipeline.run(
+            [get_items_extra_attribute(as_list)],
+            schema_contract={"columns": contract_setting},
+            columns=Items,
+            table_name="items",
+        )
+    table_counts = load_table_counts(
+        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
+    )
+    assert table_counts[ITEMS_TABLE] == 1 if (contract_setting in ["freeze", "discard_row"]) else 2
+    # assert len(plugin.calls) == 1 if (contract_setting in ["discard_value", "discard_row"]) else 0
+
+    # test columns with variant
+    with raises_step_exception(
+        contract_setting in ["freeze", "discard_value"],
+        expected_nested_error=(
+            ResourceExtractionError if contract_setting == "freeze" else NotImplementedError
+        ),
+    ):
+        pipeline.run(
+            [get_items_extra_variant(as_list)],
+            schema_contract={"data_type": contract_setting},
+            columns=Items,
+            table_name="items",
+        )
+    table_counts = load_table_counts(
+        pipeline, *[t["name"] for t in pipeline.default_schema.data_tables()]
+    )
+    assert table_counts[ITEMS_TABLE] == 1 if (contract_setting in ["freeze", "discard_row"]) else 3
+    # assert len(plugin.calls) == 2 if (contract_setting in ["discard_value", "discard_row"]) else 0
