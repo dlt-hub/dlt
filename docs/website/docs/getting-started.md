@@ -71,12 +71,17 @@ Load package 1692364844.460054 is LOADED and contains no failed jobs
 ```
 
 `dlt` just created a database schema called **mydata** (the `dataset_name`) with a table **users** in it.
-[Take a look at it using built-in Streamlit app](reference/command-line-interface#show-tables-and-data-in-the-destination):
+
+### Explore the data
+
+To allow sneak peek and basic discovery you can take advantage of [built-in integration with Strealmit](reference/command-line-interface#show-tables-and-data-in-the-destination):
 
 ```bash
 dlt pipeline quick_start show
 ```
+
 **quick_start** is the name of the pipeline from the script above. If you do not have Streamlit installed yet do:
+
 ```bash
 pip install streamlit
 ```
