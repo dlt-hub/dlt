@@ -115,7 +115,7 @@ def airflow_info() -> StrAny:
 def is_airflow_installed() -> bool:
     try:
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
-            pass
+            import airflow
         return True
     except Exception:
         return False
@@ -177,7 +177,7 @@ def is_docker() -> bool:
 
     # if that didn't work, try to use proc information
     try:
-        with open("/proc/self/cgroup", encoding="utf-8") as f:
+        with open("/proc/self/cgroup", mode="r", encoding="utf-8") as f:
             return "docker" in f.read()
     except Exception:
         return False

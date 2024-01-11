@@ -8,11 +8,20 @@ from dlt.common.configuration.providers import (
     ConfigTomlProvider,
     EnvironProvider,
     SecretsTomlProvider,
+    StringTomlProvider,
 )
 from dlt.common.configuration.specs.config_providers_context import (
     ConfigProvidersContext,
 )
 from dlt.common.utils import set_working_dir
+
+from tests.utils import (
+    patch_home_dir,
+    autouse_test_storage,
+    preserve_environ,
+    duckdb_pipeline_location,
+    wipe_pipeline,
+)
 
 
 @pytest.fixture(autouse=True)
