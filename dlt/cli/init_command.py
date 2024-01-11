@@ -16,7 +16,6 @@ from dlt.cli.pipeline_files import (
 from dlt.cli.requirements import SourceRequirements
 from dlt.common import git
 from dlt.common.configuration.paths import (
-    create_symlink_to_dlt,
     get_dlt_settings_dir,
     make_dlt_settings_path,
 )
@@ -30,7 +29,6 @@ from dlt.common.configuration.specs import known_sections
 from dlt.common.destination import Destination
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.common.reflection.utils import rewrite_python_script
-from dlt.common.runtime.exec_info import is_notebook
 from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.schema.utils import is_valid_schema_name
 from dlt.common.source import _SOURCES
@@ -521,6 +519,3 @@ def init_command(
     if dependency_system is None:
         requirements_txt = "\n".join(source_files.requirements.compiled())
         dest_storage.save(utils.REQUIREMENTS_TXT, requirements_txt)
-
-    if is_notebook():
-        create_symlink_to_dlt("_dlt")
