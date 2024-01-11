@@ -72,7 +72,7 @@ Load package 1692364844.460054 is LOADED and contains no failed jobs
 
 `dlt` just created a database schema called **mydata** (the `dataset_name`) with a table **users** in it.
 
-### See data and schema
+### See the data and schema
 
 To allow sneak peek and basic discovery you can take advantage of [built-in integration with Strealmit](reference/command-line-interface#show-tables-and-data-in-the-destination):
 
