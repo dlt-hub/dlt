@@ -43,6 +43,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supports_truncate_command = True
     # caps.supports_transactions = False
     caps.alter_add_multi_column = True
+    caps.supports_multiple_statements = False
     return caps
 
 

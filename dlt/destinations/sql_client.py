@@ -20,7 +20,11 @@ from typing import (
 from dlt.common.typing import TFun
 from dlt.common.destination import DestinationCapabilitiesContext
 
-from dlt.destinations.exceptions import DestinationConnectionError, LoadClientNotConnected
+from dlt.destinations.exceptions import (
+    DestinationConnectionError,
+    LoadClientNotConnected,
+    DatabaseTerminalException,
+)
 from dlt.destinations.typing import DBApi, TNativeConn, DBApiCursor, DataFrame, DBTransaction
 
 

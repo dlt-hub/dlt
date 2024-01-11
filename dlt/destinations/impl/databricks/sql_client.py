@@ -48,7 +48,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     def open_connection(self) -> DatabricksSqlConnection:
         conn_params = self.credentials.to_connector_params()
-        self._conn = databricks_lib.connect(**conn_params)
+        self._conn = databricks_lib.connect(**conn_params, schema=self.dataset_name)
         return self._conn
 
     @raise_open_connection_error

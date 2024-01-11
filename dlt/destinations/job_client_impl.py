@@ -76,8 +76,11 @@ class SqlLoadJob(LoadJob):
         with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
             sql = f.read()
 
+        # Some clients (e.g. databricks) do not support multiple statements in one execute call
+        if not sql_client.capabilities.supports_multiple_statements:
+            sql_client.execute_fragments(self._split_fragments(sql))
         # if we detect ddl transactions, only execute transaction if supported by client
-        if (
+        elif (
             not self._string_containts_ddl_queries(sql)
             or sql_client.capabilities.supports_ddl_transactions
         ):
@@ -85,7 +88,7 @@ class SqlLoadJob(LoadJob):
             sql_client.execute_sql(sql)
         else:
             # sql_client.execute_sql(sql)
-            sql_client.execute_fragments(sql.split(";"))
+            sql_client.execute_fragments(self._split_fragments(sql))
 
     def state(self) -> TLoadJobState:
         # this job is always done
@@ -100,6 +103,9 @@ class SqlLoadJob(LoadJob):
             if re.search(cmd, sql, re.IGNORECASE):
                 return True
         return False
+
+    def _split_fragments(self, sql: str) -> List[str]:
+        return [s for s in sql.split(";") if s.strip()]
 
     @staticmethod
     def is_sql_job(file_path: str) -> bool:

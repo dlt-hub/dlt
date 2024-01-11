@@ -12,7 +12,6 @@ CATALOG_KEY_IN_SESSION_PROPERTIES = "databricks.catalog"
 @configspec
 class DatabricksCredentials(CredentialsConfiguration):
     catalog: Optional[str] = None  # type: ignore[assignment]
-    schema: Optional[str] = None  # type: ignore[assignment]
     server_hostname: str = None
     http_path: str = None
     access_token: Optional[TSecretStrValue] = None
@@ -36,12 +35,6 @@ class DatabricksCredentials(CredentialsConfiguration):
     ]
 
     def __post_init__(self) -> None:
-        if "." in (self.schema or ""):
-            raise ConfigurationValueError(
-                f"The schema should not contain '.': {self.schema}\n"
-                "If you are trying to set a catalog, please use `catalog` instead.\n"
-            )
-
         session_properties = self.session_properties or {}
         if CATALOG_KEY_IN_SESSION_PROPERTIES in session_properties:
             if self.catalog is None:
@@ -71,7 +64,6 @@ class DatabricksCredentials(CredentialsConfiguration):
             "client_secret",
             "session_configuration",
             "catalog",
-            "schema",
             "_user_agent_entry",
         ):
             if key in connection_parameters:
@@ -90,27 +82,9 @@ class DatabricksCredentials(CredentialsConfiguration):
             connection_parameters["_socket_timeout"] = 180
         self.connection_parameters = connection_parameters
 
-    def validate_creds(self) -> None:
-        for key in ["host", "http_path"]:
-            if not getattr(self, key):
-                raise ConfigurationValueError(
-                    "The config '{}' is required to connect to Databricks".format(key)
-                )
-        if not self.token and self.auth_type != "oauth":
-            raise ConfigurationValueError(
-                "The config `auth_type: oauth` is required when not using access token"
-            )
-
-        if not self.client_id and self.client_secret:
-            raise ConfigurationValueError(
-                "The config 'client_id' is required to connect "
-                "to Databricks when 'client_secret' is present"
-            )
-
     def to_connector_params(self) -> Dict[str, Any]:
         return dict(
             catalog=self.catalog,
-            schema=self.schema,
             server_hostname=self.server_hostname,
             http_path=self.http_path,
             access_token=self.access_token,
