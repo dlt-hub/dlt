@@ -110,14 +110,14 @@ def test_alter_table(gcp_client: BigQueryClient) -> None:
 def test_create_table_with_partition_and_cluster(gcp_client: BigQueryClient) -> None:
     mod_update = deepcopy(TABLE_UPDATE)
     # timestamp
-    mod_update[3]["partition"] = True
+    mod_update[9]["partition"] = True
     mod_update[4]["cluster"] = True
     mod_update[1]["cluster"] = True
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
     # clustering must be the last
     assert sql.endswith("CLUSTER BY `col2`,`col5`")
-    assert "PARTITION BY DATE(`col4`)" in sql
+    assert "PARTITION BY `col10`" in sql
 
 
 def test_double_partition_exception(gcp_client: BigQueryClient) -> None:
@@ -129,3 +129,27 @@ def test_double_partition_exception(gcp_client: BigQueryClient) -> None:
     with pytest.raises(DestinationSchemaWillNotUpdate) as excc:
         gcp_client._get_table_update_sql("event_test_table", mod_update, False)
     assert excc.value.columns == ["`col4`", "`col5`"]
+
+
+def test_create_table_with_time_partition(gcp_client: BigQueryClient) -> None:
+    mod_update = deepcopy(TABLE_UPDATE)
+    mod_update[3]["partition"] = True
+    sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
+    sqlfluff.parse(sql, dialect="bigquery")
+    assert "PARTITION BY TIMESTAMP_TRUNC(`col4`, DAY)" in sql
+
+
+def test_create_table_with_date_partition(gcp_client: BigQueryClient) -> None:
+    mod_update = deepcopy(TABLE_UPDATE)
+    mod_update[9]["partition"] = True
+    sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
+    sqlfluff.parse(sql, dialect="bigquery")
+    assert "PARTITION BY `col10`" in sql
+
+
+def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None:
+    mod_update = deepcopy(TABLE_UPDATE)
+    mod_update[0]["partition"] = True
+    sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
+    sqlfluff.parse(sql, dialect="bigquery")
+    assert "PARTITION BY RANGE_BUCKET(`col1`, GENERATE_ARRAY(-172800000, 691200000, 86400))" in sql
