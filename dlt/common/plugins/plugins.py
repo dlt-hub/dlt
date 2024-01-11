@@ -100,6 +100,14 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
     #
     # Main Pipeline Callbacks
     #
+    def on_start(self, pipeline: SupportsPipeline) -> None:
+        for p in self._callback_plugins:
+            p.on_start(pipeline)
+
+    def on_end(self, pipeline: SupportsPipeline) -> None:
+        for p in self._callback_plugins:
+            p.on_end(pipeline)
+
     def on_step_start(self, step: str, pipeline: SupportsPipeline) -> None:
         for p in self._callback_plugins:
             p.on_step_start(step, pipeline)

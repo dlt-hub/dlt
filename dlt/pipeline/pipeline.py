@@ -177,9 +177,11 @@ def with_plugins() -> Callable[[TFun], TFun]:
     def decorator(f: TFun) -> TFun:
         @wraps(f)
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
+            is_new_context = self._plugin_ctx is None
             if self._plugin_ctx is None:
                 self._plugin_ctx = PluginsContext()
                 self._plugin_ctx.setup_plugins(self.plugins)
+                self._plugin_ctx.on_start(self)
 
             # call step
             self._plugin_ctx.on_step_start(f.__name__, self)
@@ -189,6 +191,11 @@ def with_plugins() -> Callable[[TFun], TFun]:
 
             # ensure messages queue is completely processed
             self._plugin_ctx.process_queue()
+
+            if is_new_context:
+                self._plugin_ctx.on_end(self)
+                self._last_plugin_ctx = self._plugin_ctx
+                self._plugin_ctx = None
 
             return result
 
@@ -335,6 +342,7 @@ class Pipeline(SupportsPipeline):
         self._schema_storage_config: SchemaStorageConfiguration = None
         self._trace: PipelineTrace = None
         self._plugin_ctx: PluginsContext = None
+        self._last_plugin_ctx: PluginsContext = None
         self._last_trace: PipelineTrace = None
         self._state_restored: bool = False
 
@@ -838,8 +846,8 @@ class Pipeline(SupportsPipeline):
 
     def get_plugin(self, plugin_name: str) -> Any:
         """Returns the plugin instance by name"""
-        if self._plugin_ctx is not None:
-            return self._plugin_ctx.get_plugin(plugin_name)
+        if self._last_plugin_ctx is not None:
+            return self._last_plugin_ctx.get_plugin(plugin_name)
         return None
 
     @deprecated(

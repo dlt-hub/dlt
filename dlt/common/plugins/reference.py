@@ -10,6 +10,12 @@ TPluginConfig = TypeVar("TPluginConfig", bound=BaseConfiguration, covariant=True
 
 
 class SupportsCallbackPlugin:
+    def on_start(self, pipeline: SupportsPipeline) -> None:
+        pass
+
+    def on_end(self, pipeline: SupportsPipeline) -> None:
+        pass
+
     def on_step_start(self, step: str, pipeline: SupportsPipeline) -> None:
         pass
 
