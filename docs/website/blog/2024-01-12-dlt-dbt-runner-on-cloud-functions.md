@@ -38,7 +38,7 @@ workloads and are cost-effective. dbt doesn't require the high computing power o
 because it uses the computing power of the data warehouse to perform the transformations. This makes
 running dbt-core on cloud functions a good choice. The free tier would suffice for about 1.5h per
 day of running a 1 vCPU and 2 GB RAM machine, and if we wanted an additional 1h
-per day for this hardware it would cost us around 3-5 usd/month.
+per day for this hardware it would cost us around 3-5 USD/month.
 
 ![DLT-DBT-RUNNER](https://storage.googleapis.com/dlt-blog-images/dlt-dbt-runner-on-cloud-functions.png)
 
@@ -64,7 +64,7 @@ Let's dive into running dbt-core up on cloud functions.
 You should use this option for scenarios where you have already collected and housed your data in a
 data warehouse, and you need further transformations or modeling of the data. This is a good option
 if you have used dbt before and want to leverage the power of dbt-core. If you are new to dbt, you
-can refer to dbt documentation: [Link here.](https://docs.getdbt.com/docs/core/installation-overview).
+can refer to dbt documentation: [Link here.](https://docs.getdbt.com/docs/core/installation-overview)
 
 Let’s start with setting up the following directory structure:
 
