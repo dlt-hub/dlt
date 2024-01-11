@@ -23,7 +23,7 @@ For the purposes of this demo, we’ll be looking specifically at how dlt and db
 <div style={{ paddingRight: '10%', paddingLeft: '10%', paddingBottom: '1%' }}>
 
 ![cover](/img/blog-dbt_sem-data-people.png)
-<div>Taken from the real or fictitious book called 5th grade data engineering, 1998.</div>
+<div>Taken from the real or fictitious book called '5th grade data engineering, 1998'.</div>
 
 </div>
 
@@ -54,7 +54,7 @@ The extract, and load steps of an ETL pipeline have been taken care of with thes
 
 ![bigquery tables](/img/blog-dbt_sem-data-bqtables.png)
 
-questionnaire is a well structured dataset with a base table, and child tables. The survey__questions and survey_questions__options are normalized tables with, the individual questions and options of those questions, respectively, connected by a foreign key. The same structure is followed with the __respondents tables, with survey__respondents__responses as our fact table.
+`questionnaire` is a well structured dataset with a base table, and child tables. The `survey__questions` and `survey_questions__options` are normalized tables with, the individual questions and options of those questions, respectively, connected by a foreign key. The same structure is followed with the `..__respondents` tables, with `survey__respondents__responses` as our fact table.
 
 ## 2. Transformation with dbt
 
