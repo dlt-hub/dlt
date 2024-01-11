@@ -5,6 +5,7 @@ from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.destinations.impl.sink.configuration import (
     SinkClientConfiguration,
     SinkClientCredentials,
+    TSinkCallable,
 )
 from dlt.destinations.impl.sink import capabilities
 

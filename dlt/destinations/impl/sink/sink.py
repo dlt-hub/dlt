@@ -20,14 +20,23 @@ from dlt.destinations.exceptions import (
     LoadJobNotExistsException,
 )
 
-from dlt.destinations.impl.Sink import capabilities
-from dlt.destinations.impl.Sink.configuration import SinkClientConfiguration
+from dlt.destinations.impl.sink import capabilities
+from dlt.destinations.impl.sink.configuration import SinkClientConfiguration, TSinkCallable
 
 
 class LoadSinkJob(LoadJob, FollowupJob):
     def __init__(self, file_path: str, config: SinkClientConfiguration) -> None:
+        super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._file_path = file_path
         self._config = config
+
+        # stream items
+        from dlt.common.libs.pyarrow import pyarrow
+
+        with pyarrow.parquet.ParquetFile(file_path) as reader:
+            for record_batch in reader.iter_batches(batch_size=10):
+                for d in record_batch.to_pylist():
+                    self._config.credentials.callable(d)
 
     def state(self) -> TLoadJobState:
         return "completed"

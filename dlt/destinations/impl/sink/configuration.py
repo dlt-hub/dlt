@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Optional, Final
+from typing import TYPE_CHECKING, Optional, Final, Callable, Union, Any
 
 from dlt.common.configuration import configspec
 from dlt.common.destination import TLoaderFileFormat
@@ -6,22 +6,30 @@ from dlt.common.destination.reference import (
     DestinationClientConfiguration,
     CredentialsConfiguration,
 )
+from dlt.common.typing import TDataItems
+
+
+TSinkCallable = Callable[[TDataItems], None]
 
 
 @configspec
 class SinkClientCredentials(CredentialsConfiguration):
-    callable_name: str = None
+    callable_name: Optional[str] = None
+
+    def parse_native_representation(self, native_value: Any) -> None:
+        if callable(native_value):
+            self.callable: TSinkCallable = native_value
 
 
 @configspec
 class SinkClientConfiguration(DestinationClientConfiguration):
     destination_type: Final[str] = "sink"  # type: ignore
-    credentials: SinkClientCredentials = None
+    credentials: Union[SinkClientCredentials, TSinkCallable] = None
 
     if TYPE_CHECKING:
 
         def __init__(
             self,
             *,
-            credentials: Optional[CredentialsConfiguration] = None,
+            credentials: Union[SinkClientCredentials, TSinkCallable] = None,
         ) -> None: ...
