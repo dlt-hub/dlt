@@ -178,6 +178,9 @@ dbt-duckdb=">=1.2.0"
 pymongo = ">=4.3.3"
 pandas = ">2"
 
+[tool.poetry.group.notebook]
+optional = true
+
 [tool.poetry.group.notebook.dependencies]
 ipython = ">=7.28.0"
 
