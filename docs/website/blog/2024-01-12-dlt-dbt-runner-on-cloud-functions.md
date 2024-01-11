@@ -45,7 +45,7 @@ per day for this hardware it would cost us around 3-5 usd/month.
 When deploying dbt-core on cloud functions, there are certain constraints to keep in mind. For instance,
 there is a 9-minute time-out limit for all 1st Gen functions. For 2nd Gen functions, there is a 9-minute
 limit for event-driven functions and a 60-minute limit for HTTP functions. Since dbt works on the processing
-power of the data housing solution, 60 minutes is sufficient for most cases with small to medium workloads.
+power of the data warehouse, 60 minutes is sufficient for most cases with small to medium workloads.
 However, it is important to remember the 9-minute cap when using event-driven functions.
 
 ### Using dbt in Google Cloud functions
@@ -63,9 +63,8 @@ Let's dive into running dbt-core up on cloud functions.
 
 You should use this option for scenarios where you have already collected and housed your data in a
 data warehouse, and you need further transformations or modeling of the data. This is a good option
-if you have used dbt before and want to leverage the power of dbt-core. You can also maintain the dbt
-package using cloud functions. If you have not used dbt before, you can refer to the documentation to
-set up dbt core. [Documentation link here](https://docs.getdbt.com/docs/core/installation-overview).
+if you have used dbt before and want to leverage the power of dbt-core. If you are new to dbt, you
+can refer to dbt documentation: [Link here.](https://docs.getdbt.com/docs/core/installation-overview).
 
 Let’s start with setting up the following directory structure:
 
@@ -296,12 +295,10 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
        run_pipeline(None)
    ```
 
-1. The
-   [send_slack_message](https://dlthub.com/docs/running-in-production/running#using-slack-to-send-messages)
-   function is utilized for sending messages to Slack, triggered by both success and error events.
-   For setup instructions, please refer to the official
+1. The send_slack_message function is utilized for sending messages to Slack, triggered by
+   both success and error events. For setup instructions, please refer to the official
    [documentation here.](https://dlthub.com/docs/running-in-production/running#using-slack-to-send-messages)
-   > `RUNTIME__SLACK_INCOMING_HOOK` was set as environment variable in code above.
+   > `RUNTIME__SLACK_INCOMING_HOOK` was set up as environment variable in the above code.
 
 1. Next, list runtime-installable modules in `requirements.txt`:
 
@@ -342,7 +339,8 @@ database, dlt can utilize the cloud function’s hardware resources.
 
 When it comes to setting up just a dbt package to run on cloud functions, I guess it comes to
 personal preference: I prefer dlt as it simplifies credential management. It automatically shares
-credentials with dbt, making setup easier. Streamlining the process further, dlt on Google Cloud Functions,
-efficiently retrieves service account credentials when none are provided. And I also used dlt’s
-[Slack error reporting function](https://dlthub.com/docs/running-in-production/running#using-slack-to-send-messages) that sends success and error notifications from your runs
-directly to your Slack channel, helping me to manage and monitor my runs.
+credentials with dbt, making setup easier. Streamlining the process further, dlt on Google Cloud
+functions, efficiently retrieves service account credentials when none are provided. And I also
+used dlt’s [Slack error reporting function](https://dlthub.com/docs/running-in-production/running#using-slack-to-send-messages)
+that sends success and error notifications from your runs directly to your Slack channel,
+helping me to manage and monitor my runs.
