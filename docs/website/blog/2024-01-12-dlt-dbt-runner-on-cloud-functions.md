@@ -22,7 +22,7 @@ pipelines. And of course, after ingesting the data, we want to transform it into
 model. For this reason, dlt offers a dbt runner that’s able to just run a dbt model on top of where
 dlt loaded the data, without setting up any additional things like dbt credentials.
 
-### How does running on cloud functions compare to our git actions deployment?
+### How does running on cloud functions compare to our git actions serverless deployment?
 
 At dlthub we test our pipelines, so it's only natural that we support a GitHub actions deployment.
 GitHub actions is an orchestrator that most would not find suitable for a data warehouse setup - but
