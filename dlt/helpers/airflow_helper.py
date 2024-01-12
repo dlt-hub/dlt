@@ -25,7 +25,8 @@ except ModuleNotFoundError:
 
 import dlt
 from dlt.common import logger
-from dlt.common.schema.typing import TWriteDisposition
+from dlt.common.data_writers import TLoaderFileFormat
+from dlt.common.schema.typing import TWriteDisposition, TSchemaContract
 from dlt.common.utils import uniq_id
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
@@ -137,6 +138,8 @@ class PipelineTasksGroup(TaskGroup):
         decompose: Literal["none", "serialize"] = "none",
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
+        loader_file_format: TLoaderFileFormat = None,
+        schema_contract: TSchemaContract = None,
         **kwargs: Any,
     ) -> List[PythonOperator]:
         """Creates a task or a group of tasks to run `data` with `pipeline`
@@ -151,10 +154,13 @@ class PipelineTasksGroup(TaskGroup):
         Args:
             pipeline (Pipeline): An instance of pipeline used to run the source
             data (Any): Any data supported by `run` method of the pipeline
-            decompose (Literal[&quot;none&quot;, &quot;serialize&quot;], optional): A source decomposition strategy into Airflow tasks. Defaults to "none".
+            decompose (Literal["none", "serialize"], optional): A source decomposition strategy into Airflow tasks. Defaults to "none".
             table_name: (str): The name of the table to which the data should be loaded within the `dataset`
             write_disposition (TWriteDisposition, optional): Same as in `run` command. Defaults to None.
-
+            loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package.
+                Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
+            schema_contract (TSchemaContract, optional): On override for the schema contract settings,
+                this will replace the schema contract settings for all tables in the schema. Defaults to None.
         Returns:
             Any: Airflow tasks created in order of creation
         """
@@ -232,17 +238,27 @@ class PipelineTasksGroup(TaskGroup):
                                     % attempt.retry_state.attempt_number
                                 )
                                 load_info = task_pipeline.run(
-                                    data, table_name=table_name, write_disposition=write_disposition
+                                    data,
+                                    table_name=table_name,
+                                    write_disposition=write_disposition,
+                                    loader_file_format=loader_file_format,
+                                    schema_contract=schema_contract,
                                 )
                                 logger.info(str(load_info))
                                 # save load and trace
                                 if self.save_load_info:
                                     logger.info("Saving the load info in the destination")
-                                    task_pipeline.run([load_info], table_name="_load_info")
+                                    task_pipeline.run(
+                                        [load_info],
+                                        table_name="_load_info",
+                                        loader_file_format=loader_file_format,
+                                    )
                                 if self.save_trace_info:
                                     logger.info("Saving the trace in the destination")
                                     task_pipeline.run(
-                                        [task_pipeline.last_trace], table_name="_trace"
+                                        [task_pipeline.last_trace],
+                                        table_name="_trace",
+                                        loader_file_format=loader_file_format,
                                     )
                                 # raise on failed jobs if requested
                                 if self.fail_task_if_any_job_failed:
