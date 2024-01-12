@@ -313,7 +313,7 @@ took another 1h per day, we would need to pay ~15 USD/month for the smallest mac
 can see how that would be expensive if we wanted to run it continuously or had multiple pipelines always-on in parallel.
 
 Cloud functions are serverless lightweight computing solutions that can handle small computational
-workloads and are cost-effective. dbt doesn't require the high computing power of the machine
+workloads and are cost-effective. DBT doesn't require the high computing power of the machine
 because it uses the computing power of the data warehouse to perform the transformations. This makes
 running dbt-core on cloud functions a good choice. The free tier would suffice for about 1.5h per
 day of running a 1 vCPU and 2 GB RAM machine, and if we wanted an additional 1h
