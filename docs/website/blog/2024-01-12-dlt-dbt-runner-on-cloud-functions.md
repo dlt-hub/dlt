@@ -51,8 +51,8 @@ dbt_setup
 |-- dbt_transform
     |-- models
     |   |-- model1.sql
-		|   |-- model2.sql
-		|   |-- sources.yml
+    |   |-- model2.sql
+    |   |-- sources.yml
     |-- (other dbt related contents, if required)
 ```
 
@@ -164,8 +164,8 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
    |-- dbt_transform
        |-- models
        |   |-- model1.sql
-   		 |   |-- model2.sql
-   		 |   |-- sources.yml
+       |   |-- model2.sql
+       |   |-- sources.yml
        |-- (other dbt related contents, if required)
    ```
 
