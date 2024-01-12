@@ -11,7 +11,7 @@ tags: [dbt, dlt-dbt-runner, cloud functions, ETL, data modeling]
 ---
 
 :::info
-TL;DR: This article compares deploying dbt-core standalone and using dlt-dbt runner on Google Cloud Functions. The comparison considers various aspects along with a step-by-step deployment guide.
+TL;DR: This article compares deploying dbt-core standalone and using dlt-dbt runner on Google Cloud Functions. The comparison covers various aspects, along with a step-by-step deployment guide.
 :::
 
 dbt or “data build tool” has become a standard for transforming data in analytical environments.
@@ -30,7 +30,7 @@ At dlthub we test our pipelines, so it's only natural that we support a GitHub a
 GitHub actions is an orchestrator that most would not find suitable for a data warehouse setup - but
 it certainly could do the job for a minimalistic setup. GitHub actions provide 2000 free minutes per
 month, so if our pipelines run for 66 minutes per day, we fit in the free tier. If our pipelines
-took another 1h per day, we would need to pay $14.88 in a month for the smallest machine i.e. Linux machine
+took another 1h per day, we would need to pay ~15 USD/month for the smallest machine i.e. Linux machine
 having 2 vCPUs.
 
 Cloud functions are serverless lightweight computing solutions that can handle small computational
@@ -45,8 +45,8 @@ per day for this hardware it would cost us around 3-5 USD/month.
 When deploying dbt-core on cloud functions, there are certain constraints to keep in mind. For instance,
 there is a 9-minute time-out limit for all 1st Gen functions. For 2nd Gen functions, there is a 9-minute
 limit for event-driven functions and a 60-minute limit for HTTP functions. Since dbt works on the processing
-power of the data warehouse, 60 minutes is sufficient for most cases with small to medium workloads.
-However, it is important to remember the 9-minute cap when using event-driven functions.
+power of the data warehouse it's operating on, 60 minutes is sufficient for most cases with small to medium
+workloads. However, it is important to remember the 9-minute cap when using event-driven functions.
 
 ### Using dbt in Google Cloud functions
 
@@ -63,8 +63,8 @@ Let's dive into running dbt-core up on cloud functions.
 
 You should use this option for scenarios where you have already collected and housed your data in a
 data warehouse, and you need further transformations or modeling of the data. This is a good option
-if you have used dbt before and want to leverage the power of dbt-core. If you are new to dbt, you
-can refer to dbt documentation: [Link here.](https://docs.getdbt.com/docs/core/installation-overview)
+if you have used dbt before and want to leverage the power of dbt-core. If you are new to dbt, please
+refer to dbt documentation: [Link Here.](https://docs.getdbt.com/docs/core/installation-overview)
 
 Let’s start with setting up the following directory structure:
 
@@ -333,14 +333,14 @@ consider separating dlt and dbt into different cloud functions.
 When creating lightweight pipelines, using the two tools together on one cloud function makes a lot
 of sense, simplifying the setup process and the handover between loading and transformation.
 
-However, for more resource intensive pipelines, we might want to improve resource utilisation by
-separating the dlt loading from the dbt running, because while dbt’s run speed is determined by the
+However, for more resource-intensive pipelines, we might want to improve resource utilisation by
+separating the dlt loading from the dbt running because while dbt’s run speed is determined by the
 database, dlt can utilize the cloud function’s hardware resources.
 
 When it comes to setting up just a dbt package to run on cloud functions, I guess it comes to
 personal preference: I prefer dlt as it simplifies credential management. It automatically shares
 credentials with dbt, making setup easier. Streamlining the process further, dlt on Google Cloud
-functions, efficiently retrieves service account credentials when none are provided. And I also
+functions, efficiently retrieves service account credentials, when none are provided. I also
 used dlt’s [Slack error reporting function](https://dlthub.com/docs/running-in-production/running#using-slack-to-send-messages)
 that sends success and error notifications from your runs directly to your Slack channel,
-helping me to manage and monitor my runs.
+helping me manage and monitor my runs.
