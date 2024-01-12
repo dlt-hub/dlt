@@ -78,6 +78,9 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
     def native_connection(self) -> "DatabricksSqlConnection":
         return self._conn
 
+    def drop_dataset(self) -> None:
+        self.execute_sql("DROP SCHEMA IF EXISTS %s CASCADE;" % self.fully_qualified_dataset_name())
+
     def drop_tables(self, *tables: str) -> None:
         # Tables are drop with `IF EXISTS`, but databricks raises when the schema doesn't exist.
         # Multi statement exec is safe and the error can be ignored since all tables are in the same schema.
@@ -152,15 +155,14 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
             if "TABLE_OR_VIEW_NOT_FOUND" in str(ex):
                 return DatabaseUndefinedRelation(ex)
             return DatabaseTerminalException(ex)
-        return ex
-        # elif isinstance(ex, databricks_lib.OperationalError):
-        #     return DatabaseTerminalException(ex)
-        # elif isinstance(ex, (databricks_lib.ProgrammingError, databricks_lib.IntegrityError)):
-        #     return DatabaseTerminalException(ex)
-        # elif isinstance(ex, databricks_lib.DatabaseError):
-        #     return DatabaseTransientException(ex)
-        # else:
-        #     return ex
+        elif isinstance(ex, databricks_lib.OperationalError):
+            return DatabaseTerminalException(ex)
+        elif isinstance(ex, (databricks_lib.ProgrammingError, databricks_lib.IntegrityError)):
+            return DatabaseTerminalException(ex)
+        elif isinstance(ex, databricks_lib.DatabaseError):
+            return DatabaseTransientException(ex)
+        else:
+            return DatabaseTransientException(ex)
 
     @staticmethod
     def _maybe_make_terminal_exception_from_data_error(

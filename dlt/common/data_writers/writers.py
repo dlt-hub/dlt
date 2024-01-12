@@ -136,7 +136,7 @@ class JsonlWriter(DataWriter):
             file_extension="jsonl",
             is_binary_format=True,
             supports_schema_changes=True,
-            supports_compression=True,
+            supports_compression=False,
         )
 
 
