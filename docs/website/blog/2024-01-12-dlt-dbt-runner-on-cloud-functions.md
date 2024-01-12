@@ -108,7 +108,12 @@ We recommend setting up and testing dbt-core locally before using it in cloud fu
            logging.info(f"Files in the current directory: {os.listdir('.')}")
 
            # Run dbt command (e.g., dbt run)
-           result = subprocess.run(['dbt', 'run'], capture_output=True, text=True)
+
+           result = subprocess.run(
+               ['dbt', 'run'],
+               capture_output=True,
+               text=True
+               )
 
            # Return dbt output
            return result.stdout
@@ -194,17 +199,20 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
 
    def run_pipeline(request):
        """
-       Set up and execute a data processing pipeline, returning its status and model information.
+       Set up and execute a data processing pipeline, returning its status
+       and model information.
 
-       This function initializes a dlt pipeline with pre-defined settings, runs the pipeline
-       with a sample dataset, and then applies dbt transformations. It compiles and returns
-       the information about each dbt model's execution.
+       This function initializes a dlt pipeline with pre-defined settings,
+       runs the pipeline with a sample dataset, and then applies dbt
+       transformations. It compiles and returns the information about
+       each dbt model's execution.
 
        Args:
            request: The Flask request object. Not used in this function.
 
        Returns:
-           Flask Response: A JSON response with the pipeline's status and dbt model information.
+           Flask Response: A JSON response with the pipeline's status
+           and dbt model information.
        """
        try:
            # Sample data to be processed
@@ -213,53 +221,75 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
                    {"name": "Sunita Gupta", "id": 3, "country": "India"}]
 
            # Initialize a dlt pipeline with specified settings
-           pipeline = dlt.pipeline(pipeline_name="run2", destination="bigquery", dataset_name="dlt_dbt_test")
+           pipeline = dlt.pipeline(
+               pipeline_name="user_data_pipeline",
+               destination="bigquery",
+               dataset_name="dlt_dbt_test"
+               )
 
            # Run the pipeline with the sample data
            pipeline.run(data, table_name="table_integers")
 
            # Apply dbt transformations and collect model information
            models = transform_data(pipeline)
-           model_info = [{"model_name": m.model_name, "time": m.time, "status": m.status, "message": m.message} for m in models]
+           model_info = [
+               {
+                   "model_name": m.model_name,
+                   "time": m.time,
+                   "status": m.status,
+                   "message": m.message
+               }
+               for m in models
+           ]
 
-   				# Convert the model information to a string
+           # Convert the model information to a string
            model_info_str = json.dumps(model_info)
 
-   				# Send the model information to Slack
-           send_slack_message(pipeline.runtime_config.slack_incoming_hook, model_info_str)
+           # Send the model information to Slack
+           send_slack_message(
+               pipeline.runtime_config.slack_incoming_hook,
+               model_info_str
+           )
 
-   				# Return a success response with model information
+           # Return a success response with model information
            return jsonify({"status": "success", "model_info": model_info})
        except Exception as e:
            # Log and return an error response in case of any exceptions
            logging.error(f"Error in running pipeline: {e}", exc_info=True)
 
-   				return jsonify({"status": "error", "error": str(e)}), 500
+           return jsonify({"status": "error", "error": str(e)}), 500
 
    def transform_data(pipeline):
        """
        Execute dbt models for data transformation within a dlt pipeline.
 
-       This function packages and runs all dbt models associated with the pipeline,
-       applying defined transformations to the data.
+       This function packages and runs all dbt models associated with the
+       pipeline, applying defined transformations to the data.
 
        Args:
-           pipeline (dlt.Pipeline): The pipeline object for which dbt transformations are run.
+           pipeline (dlt.Pipeline): The pipeline object for which dbt
+           transformations are run.
 
        Returns:
-           list: A list of dbt model run information, indicating the outcome of each model.
+           list: A list of dbt model run information, indicating the
+           outcome of each model.
 
        Raises:
            Exception: If there is an error in running the dbt models.
        """
        try:
            # Initialize dbt with the given pipeline and virtual environment
-           dbt = dlt.dbt.package(pipeline, "/workspace/dbt_transform", venv=dlt.dbt.get_venv(pipeline))
+           dbt = dlt.dbt.package(
+               pipeline,
+               "/workspace/dbt_transform",
+               venv=dlt.dbt.get_venv(pipeline)
+           )
            logging.info("Running dbt models...")
            # Run all dbt models and return their run information
            return dbt.run_all()
        except Exception as e:
-           # Log and re-raise any errors encountered during dbt model execution
+           # Log and re-raise any errors encountered during dbt model
+           # execution
            logging.error(f"Error in running dbt models: {e}", exc_info=True)
            raise
 
