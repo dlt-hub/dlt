@@ -121,8 +121,8 @@ When staging is enabled:
 
 BigQuery supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
 
-* `partition` - creates a partition with a day granularity on decorated column (`PARTITION BY DATE`).
-  May be used with `datetime`, `date` data types and `bigint` if it contains valid UNIX timestamps.
+* `partition` - creates a partition with a day granularity on decorated column (`PARTITION BY DATE` or `RANGE_BUCKET`).
+  May be used with `datetime`, `date` data types and `bigint` **only if** it contains valid UNIX timestamps.
   Only one column per table is supported and only when a new table is created.
 * `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
