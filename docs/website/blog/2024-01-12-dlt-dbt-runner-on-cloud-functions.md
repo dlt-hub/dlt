@@ -22,30 +22,6 @@ pipelines. And of course, after ingesting the data, we want to transform it into
 model. For this reason, dlt offers a dbt runner that’s able to just run a dbt model on top of where
 dlt loaded the data, without setting up any additional things like dbt credentials.
 
-### How does running on cloud functions compare to our git actions serverless deployment?
-
-At dlthub we test our pipelines, so it's only natural that we support a GitHub actions deployment.
-GitHub actions is an orchestrator that most would not find suitable for a data warehouse setup - but
-it certainly could do the job for a minimalistic setup. GitHub actions provide 2000 free minutes per
-month, so if our pipelines run for 66 minutes per day, we fit in the free tier. If our pipelines
-took another 1h per day, we would need to pay ~15 USD/month for the smallest machine (2 vCPUs) but you
-can see how that would be expensive if we wanted to run it continuously or had multiple pipelines always-on in parallel.
-
-Cloud functions are serverless lightweight computing solutions that can handle small computational
-workloads and are cost-effective. dbt doesn't require the high computing power of the machine
-because it uses the computing power of the data warehouse to perform the transformations. This makes
-running dbt-core on cloud functions a good choice. The free tier would suffice for about 1.5h per
-day of running a 1 vCPU and 2 GB RAM machine, and if we wanted an additional 1h
-per day for this hardware it would cost us around 3-5 USD/month.
-
-![DLT-DBT-RUNNER](https://storage.googleapis.com/dlt-blog-images/dlt-dbt-runner-on-cloud-functions.png)
-
-When deploying dbt-core on cloud functions, there are certain constraints to keep in mind. For instance,
-there is a 9-minute time-out limit for all 1st Gen functions. For 2nd Gen functions, there is a 9-minute
-limit for event-driven functions and a 60-minute limit for HTTP functions. Since dbt works on the processing
-power of the data warehouse it's operating on, 60 minutes is sufficient for most cases with small to medium
-workloads. However, it is important to remember the 9-minute cap when using event-driven functions.
-
 ### Using dbt in Google Cloud functions
 
 To use dbt in cloud functions, we employed two methods:
@@ -325,6 +301,32 @@ consider separating dlt and dbt into different cloud functions.
 
 > For more info on using `dlt-dbt runner` , please refer to the
 > [official documentation by clicking here.](https://dlthub.com/docs/api_reference/helpers/dbt/runner#dbtpackagerunner-objects)
+
+### Deployment considerations: How does cloud functions compare to Git Actions?
+
+At dlthub we already natively support deploying to GitHub Actions, enabling you to have a serverless setup with a 1-command deployment.
+
+GitHub actions is an orchestrator that most would not find suitable for a data warehouse setup - but
+it certainly could do the job for a minimalistic setup. GitHub actions provide 2000 free minutes per
+month, so if our pipelines run for 66 minutes per day, we fit in the free tier. If our pipelines
+took another 1h per day, we would need to pay ~15 USD/month for the smallest machine (2 vCPUs) but you
+can see how that would be expensive if we wanted to run it continuously or had multiple pipelines always-on in parallel.
+
+Cloud functions are serverless lightweight computing solutions that can handle small computational
+workloads and are cost-effective. dbt doesn't require the high computing power of the machine
+because it uses the computing power of the data warehouse to perform the transformations. This makes
+running dbt-core on cloud functions a good choice. The free tier would suffice for about 1.5h per
+day of running a 1 vCPU and 2 GB RAM machine, and if we wanted an additional 1h
+per day for this hardware it would cost us around 3-5 USD/month.
+
+![DLT-DBT-RUNNER](https://storage.googleapis.com/dlt-blog-images/dlt-dbt-runner-on-cloud-functions.png)
+
+When deploying dbt-core on cloud functions, there are certain constraints to keep in mind. For instance,
+there is a 9-minute time-out limit for all 1st Gen functions. For 2nd Gen functions, there is a 9-minute
+limit for event-driven functions and a 60-minute limit for HTTP functions. Since dbt works on the processing
+power of the data warehouse it's operating on, 60 minutes is sufficient for most cases with small to medium
+workloads. However, it is important to remember the 9-minute cap when using event-driven functions.
+
 
 ### Conclusion
 
