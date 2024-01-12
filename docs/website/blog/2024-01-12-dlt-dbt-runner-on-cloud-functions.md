@@ -42,7 +42,7 @@ refer to dbt documentation: [Link Here.](https://docs.getdbt.com/docs/core/insta
 
 Let’s start with setting up the following directory structure:
 
-```python
+```text
 dbt_setup
 |-- main.py
 |-- requirements.txt
@@ -86,7 +86,7 @@ We recommend setting up and testing dbt-core locally before using it in cloud fu
 
 1. Next, modify the `main.py` as follows:
 
-   ```yaml
+   ```python
    import os
    import subprocess
    import logging
@@ -120,14 +120,14 @@ We recommend setting up and testing dbt-core locally before using it in cloud fu
 
 1. Next, list runtime-installable modules in `requirements.txt`:
 
-   ```yaml
+   ```text
    dbt-core
    dbt-bigquery
    ```
 
 1. Finally, you can deploy the function using gcloud CLI as:
 
-   ```yaml
+   ```shell
    gcloud functions deploy YOUR_FUNCTION_NAME \
    --gen2 \
    --region=YOUR_REGION \
@@ -156,7 +156,7 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
 
 1. Lets start by creating the following directory structure:
 
-   ```yaml
+   ```text
    dbt_setup
    |-- main.py
    |-- requirements.txt
@@ -283,7 +283,7 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
 
 1. Finally, you can deploy the function using gcloud CLI as:
 
-   ```yaml
+   ```shell
    gcloud functions deploy YOUR_FUNCTION_NAME \
    --gen2 \
    --region=YOUR_REGION \
