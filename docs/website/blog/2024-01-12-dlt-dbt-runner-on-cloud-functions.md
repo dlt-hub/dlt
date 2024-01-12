@@ -228,7 +228,7 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
                )
 
            # Run the pipeline with the sample data
-           pipeline.run(data, table_name="table_integers")
+           pipeline.run(data, table_name="sample_data")
 
            # Apply dbt transformations and collect model information
            models = transform_data(pipeline)
