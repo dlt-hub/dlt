@@ -27,12 +27,13 @@ from dlt.destinations.impl.sink.configuration import SinkClientConfiguration, TS
 
 class SinkLoadJob(LoadJob, FollowupJob):
     def __init__(
-        self, table: TTableSchema, file_path: str, config: SinkClientConfiguration
+        self, table: TTableSchema, file_path: str, config: SinkClientConfiguration, schema: Schema
     ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._file_path = file_path
         self._config = config
         self._table = table
+        self._schema = schema
         self.run()
 
     def run(self) -> None:
@@ -41,10 +42,19 @@ class SinkLoadJob(LoadJob, FollowupJob):
     def call_callable_with_items(self, items: TDataItems) -> None:
         if not items:
             return
-        if self._config.credentials.callable:
-            self._config.credentials.callable(
-                items[0] if self._config.batch_size == 1 else items, self._table
-            )
+
+        # coerce items into correct format specified by schema
+        coerced_items: TDataItems = []
+        for item in items:
+            coerced_item, table_update = self._schema.coerce_row(self._table["name"], None, item)
+            assert not table_update
+            coerced_items.append(coerced_item)
+
+        # send single item on batch size 1
+        if self._config.batch_size == 1:
+            coerced_items = coerced_items[0]
+
+        self._config.credentials.callable(coerced_items, self._table)
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -79,40 +89,50 @@ class SinkJsonlLoadJob(SinkLoadJob):
             self.call_callable_with_items(current_batch)
 
 
-class SinkInsertValueslLoadJob(SinkLoadJob):
-    def run(self) -> None:
-        from dlt.common import json
+# class SinkInsertValueslLoadJob(SinkLoadJob):
+#     def run(self) -> None:
+#         from dlt.common import json
 
-        # stream items
-        with FileStorage.open_zipsafe_ro(self._file_path) as f:
-            current_batch: TDataItems = []
-            column_names: List[str] = []
-            for line in f:
-                line = line.strip()
+#         # stream items
+#         with FileStorage.open_zipsafe_ro(self._file_path) as f:
+#             header = f.readline().strip()
+#             values_mark = f.readline()
 
-                # TODO respect inserts with multiline values
+#             # properly formatted file has a values marker at the beginning
+#             assert values_mark == "VALUES\n"
 
-                # extract column names
-                if line.startswith("INSERT INTO") and line.endswith(")"):
-                    line = line[15:-1]
-                    column_names = line.split(",")
-                    continue
+#             # extract column names
+#             assert header.startswith("INSERT INTO") and header.endswith(")")
+#             header = header[15:-1]
+#             column_names = header.split(",")
 
-                # not a valid values line
-                if not line.startswith("(") or not line.endswith(");"):
-                    continue
+#             # build batches
+#             current_batch: TDataItems = []
+#             current_row: str = ""
+#             for line in f:
+#                 current_row += line
+#                 if line.endswith(");"):
+#                     current_row = current_row[1:-2]
+#                 elif line.endswith("),\n"):
+#                     current_row = current_row[1:-3]
+#                 else:
+#                     continue
 
-                # extract values
-                line = line[1:-2]
-                values = line.split(",")
+#                 values = current_row.split(",")
+#                 values = [None if v == "NULL" else v for v in values]
+#                 current_row = ""
+#                 print(values)
+#                 print(current_row)
 
-                # zip and send to callable
-                current_batch.append(dict(zip(column_names, values)))
-                if len(current_batch) == self._config.batch_size:
-                    self.call_callable_with_items(current_batch)
-                    current_batch = []
+#                 # zip and send to callable
+#                 current_batch.append(dict(zip(column_names, values)))
+#                 d = dict(zip(column_names, values))
+#                 print(json.dumps(d, pretty=True))
+#                 if len(current_batch) == self._config.batch_size:
+#                     self.call_callable_with_items(current_batch)
+#                     current_batch = []
 
-            self.call_callable_with_items(current_batch)
+#             self.call_callable_with_items(current_batch)
 
 
 class SinkClient(JobClientBase):
@@ -140,11 +160,11 @@ class SinkClient(JobClientBase):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         if file_path.endswith("parquet"):
-            return SinkParquetLoadJob(table, file_path, self.config)
+            return SinkParquetLoadJob(table, file_path, self.config, self.schema)
         if file_path.endswith("jsonl"):
-            return SinkJsonlLoadJob(table, file_path, self.config)
-        if file_path.endswith("insert_values"):
-            return SinkInsertValueslLoadJob(table, file_path, self.config)
+            return SinkJsonlLoadJob(table, file_path, self.config, self.schema)
+        # if file_path.endswith("insert_values"):
+        #    return SinkInsertValueslLoadJob(table, file_path, self.config, self.schema)
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
     def restore_file_load(self, file_path: str) -> LoadJob:
