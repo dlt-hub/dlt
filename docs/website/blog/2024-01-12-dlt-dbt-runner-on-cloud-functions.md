@@ -319,7 +319,7 @@ running dbt-core on cloud functions a good choice. The free tier would suffice f
 day of running a 1 vCPU and 2 GB RAM machine, and if we wanted an additional 1h
 per day for this hardware it would cost us around 3-5 USD/month.
 
-![DLT-DBT-RUNNER](https://storage.googleapis.com/dlt-blog-images/dlt-dbt-runner-on-cloud-functions.png)
+![DLT-DBT-RUNNER_IMAGE](https://storage.googleapis.com/dlt-blog-images/dlt-dbt-runner-on-cloud-functions.png)
 
 When deploying dbt-core on cloud functions, there are certain constraints to keep in mind. For instance,
 there is a 9-minute time-out limit for all 1st Gen functions. For 2nd Gen functions, there is a 9-minute
