@@ -164,8 +164,8 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
    |-- dbt_transform
        |-- models
        |   |-- model1.sql
-   		|   |-- model2.sql
-   		|   |-- sources.yml
+   		 |   |-- model2.sql
+   		 |   |-- sources.yml
        |-- (other dbt related contents, if required)
    ```
 
@@ -209,8 +209,8 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
        try:
            # Sample data to be processed
            data = [{"name": "Alice Smith", "id": 1, "country": "Germany"},
-   								{"name": "Carlos Ruiz", "id": 2, "country": "Romania"},
-   		            {"name": "Sunita Gupta", "id": 3, "country": "India"}]
+                   {"name": "Carlos Ruiz", "id": 2, "country": "Romania"},
+                   {"name": "Sunita Gupta", "id": 3, "country": "India"}]
 
            # Initialize a dlt pipeline with specified settings
            pipeline = dlt.pipeline(pipeline_name="run2", destination="bigquery", dataset_name="dlt_dbt_test")
@@ -313,7 +313,7 @@ took another 1h per day, we would need to pay ~15 USD/month for the smallest mac
 can see how that would be expensive if we wanted to run it continuously or had multiple pipelines always-on in parallel.
 
 Cloud functions are serverless lightweight computing solutions that can handle small computational
-workloads and are cost-effective. DBT doesn't require the high computing power of the machine
+workloads and are cost-effective. dbt doesn't require the high computing power of the machine
 because it uses the computing power of the data warehouse to perform the transformations. This makes
 running dbt-core on cloud functions a good choice. The free tier would suffice for about 1.5h per
 day of running a 1 vCPU and 2 GB RAM machine, and if we wanted an additional 1h
