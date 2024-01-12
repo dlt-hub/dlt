@@ -7,9 +7,10 @@ from dlt.common.destination.reference import (
     CredentialsConfiguration,
 )
 from dlt.common.typing import TDataItems
+from dlt.common.schema import TTableSchema
 
 
-TSinkCallable = Callable[[TDataItems], None]
+TSinkCallable = Callable[[TDataItems, TTableSchema], None]
 
 
 @configspec
@@ -24,7 +25,9 @@ class SinkClientCredentials(CredentialsConfiguration):
 @configspec
 class SinkClientConfiguration(DestinationClientConfiguration):
     destination_type: Final[str] = "sink"  # type: ignore
-    credentials: Union[SinkClientCredentials, TSinkCallable] = None
+    credentials: SinkClientCredentials = None
+    loader_file_format: TLoaderFileFormat = "parquet"
+    batch_size: int = 10
 
     if TYPE_CHECKING:
 

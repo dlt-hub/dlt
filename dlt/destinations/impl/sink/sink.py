@@ -4,8 +4,10 @@ from types import TracebackType
 from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable, List
 
 from dlt.destinations.job_impl import EmptyLoadJob
+from dlt.common.typing import TDataItems
 
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
+from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -19,24 +21,30 @@ from dlt.common.destination.reference import (
 from dlt.destinations.exceptions import (
     LoadJobNotExistsException,
 )
-
 from dlt.destinations.impl.sink import capabilities
 from dlt.destinations.impl.sink.configuration import SinkClientConfiguration, TSinkCallable
 
 
-class LoadSinkJob(LoadJob, FollowupJob):
-    def __init__(self, file_path: str, config: SinkClientConfiguration) -> None:
+class SinkLoadJob(LoadJob, FollowupJob):
+    def __init__(
+        self, table: TTableSchema, file_path: str, config: SinkClientConfiguration
+    ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._file_path = file_path
         self._config = config
+        self._table = table
+        self.run()
 
-        # stream items
-        from dlt.common.libs.pyarrow import pyarrow
+    def run(self) -> None:
+        pass
 
-        with pyarrow.parquet.ParquetFile(file_path) as reader:
-            for record_batch in reader.iter_batches(batch_size=10):
-                for d in record_batch.to_pylist():
-                    self._config.credentials.callable(d)
+    def call_callable_with_items(self, items: TDataItems) -> None:
+        if not items:
+            return
+        if self._config.credentials.callable:
+            self._config.credentials.callable(
+                items[0] if self._config.batch_size == 1 else items, self._table
+            )
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -45,7 +53,66 @@ class LoadSinkJob(LoadJob, FollowupJob):
         raise NotImplementedError()
 
 
-JOBS: Dict[str, LoadSinkJob] = {}
+class SinkParquetLoadJob(SinkLoadJob):
+    def run(self) -> None:
+        # stream items
+        from dlt.common.libs.pyarrow import pyarrow
+
+        with pyarrow.parquet.ParquetFile(self._file_path) as reader:
+            for record_batch in reader.iter_batches(batch_size=self._config.batch_size):
+                batch = record_batch.to_pylist()
+                self.call_callable_with_items(batch)
+
+
+class SinkJsonlLoadJob(SinkLoadJob):
+    def run(self) -> None:
+        from dlt.common import json
+
+        # stream items
+        with FileStorage.open_zipsafe_ro(self._file_path) as f:
+            current_batch: TDataItems = []
+            for line in f:
+                current_batch.append(json.loads(line))
+                if len(current_batch) == self._config.batch_size:
+                    self.call_callable_with_items(current_batch)
+                    current_batch = []
+            self.call_callable_with_items(current_batch)
+
+
+class SinkInsertValueslLoadJob(SinkLoadJob):
+    def run(self) -> None:
+        from dlt.common import json
+
+        # stream items
+        with FileStorage.open_zipsafe_ro(self._file_path) as f:
+            current_batch: TDataItems = []
+            column_names: List[str] = []
+            for line in f:
+                line = line.strip()
+
+                # TODO respect inserts with multiline values
+
+                # extract column names
+                if line.startswith("INSERT INTO") and line.endswith(")"):
+                    line = line[15:-1]
+                    column_names = line.split(",")
+                    continue
+
+                # not a valid values line
+                if not line.startswith("(") or not line.endswith(");"):
+                    continue
+
+                # extract values
+                line = line[1:-2]
+                values = line.split(",")
+
+                # zip and send to callable
+                current_batch.append(dict(zip(column_names, values)))
+                if len(current_batch) == self._config.batch_size:
+                    self.call_callable_with_items(current_batch)
+                    current_batch = []
+
+            self.call_callable_with_items(current_batch)
 
 
 class SinkClient(JobClientBase):
@@ -72,7 +139,13 @@ class SinkClient(JobClientBase):
         return super().update_stored_schema(only_tables, expected_update)
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        return LoadSinkJob(file_path, config=self.config)
+        if file_path.endswith("parquet"):
+            return SinkParquetLoadJob(table, file_path, self.config)
+        if file_path.endswith("jsonl"):
+            return SinkJsonlLoadJob(table, file_path, self.config)
+        if file_path.endswith("insert_values"):
+            return SinkInsertValueslLoadJob(table, file_path, self.config)
+        return EmptyLoadJob.from_file_path(file_path, "completed")
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
@@ -93,6 +166,3 @@ class SinkClient(JobClientBase):
         self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
     ) -> None:
         pass
-
-    def _create_job(self, job_id: str) -> LoadSinkJob:
-        return LoadSinkJob(job_id, config=self.config)

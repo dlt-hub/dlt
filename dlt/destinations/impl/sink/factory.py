@@ -8,6 +8,7 @@ from dlt.destinations.impl.sink.configuration import (
     TSinkCallable,
 )
 from dlt.destinations.impl.sink import capabilities
+from dlt.common.data_writers import TLoaderFileFormat
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.sink.sink import SinkClient
@@ -17,7 +18,7 @@ class sink(Destination[SinkClientConfiguration, "SinkClient"]):
     spec = SinkClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:
-        return capabilities()
+        return capabilities(self.config_params.get("loader_file_format", "parquet"))
 
     @property
     def client_class(self) -> t.Type["SinkClient"]:
@@ -27,14 +28,18 @@ class sink(Destination[SinkClientConfiguration, "SinkClient"]):
 
     def __init__(
         self,
-        credentials: SinkClientCredentials = None,
+        credentials: t.Union[SinkClientCredentials, TSinkCallable] = None,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
+        loader_file_format: TLoaderFileFormat = None,
+        batch_size: int = 10,
         **kwargs: t.Any,
     ) -> None:
         super().__init__(
             credentials=credentials,
             destination_name=destination_name,
             environment=environment,
+            loader_file_format=loader_file_format,
+            batch_size=batch_size,
             **kwargs,
         )
