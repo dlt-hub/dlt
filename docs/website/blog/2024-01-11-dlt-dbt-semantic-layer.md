@@ -11,14 +11,14 @@ tags: [semantic modelling]
 ---
 
 <aside>
-💡 TLDR; Thanks to dbt’s new semantic layer feature we can now write “data pipeline” and “business user access” in the same sentence. In this article we explore how to create an end to end pipeline using the dlt library and dbt’s new feature.
+💡 TL;DR, Thanks to `dbt`’s new semantic layer feature we can now write “data pipeline” and “business user access” in the same sentence. In this article we explore how to create an end to end pipeline using the `dlt` library and `dbt`’s new feature.
 </aside>
 
 ## The Chinese Whisper of Data
 
 In the context of constructing a **modern data stack** through the development of various modular components for a data pipeline, our attention turns to the centralization of metrics and their definitions.
 
-For the purposes of this demo, we’ll be looking specifically at how dlt and dbt come together to solve the problem of the data flow from data engineer → analytics engineer → data analyst → business user. That’s quite a journey. And just like any game of *Chinese whisper*, things certainly do get lost in translation.
+For the purposes of this demo, we’ll be looking specifically at how `dlt` and `dbt` come together to solve the problem of the data flow from data engineer → analytics engineer → data analyst → business user. That’s quite a journey. And just like any game of *Chinese whisper*, things certainly do get lost in translation.
 
 <div style={{ paddingRight: '10%', paddingLeft: '10%', paddingBottom: '1%' }}>
 
@@ -30,20 +30,21 @@ For the purposes of this demo, we’ll be looking specifically at how dlt and db
 To solve for this problem, both these tools come together and seamlessly integrate to create everything from data sources to uniform metric definitions, that can be handled centrally, and hence are a big aid to the data democracy practices of your company!
 
 Here’s how a pipeline could look:
-1. Extract and load with dlt: Dlt will automate data cleaning and normalization leaving you with clean data you can just use.
+1. Extract and load with `dlt`: `dlt` will automate data cleaning and normalization leaving you with clean data you can just use.
 2. Create SQL models that simplify sources, if needed. This can include renaming and/or eliminating columns, identifying and setting down key constraints, fixing data types, etc.
 3. Create and manage central metric definitions with the semantic layer.
 
 ## 1. Extract, Structure, & Load with dlt
 
-The data being used is of a questionnaire, which includes questions, the options of those questions, respondents and responses. This data is contained within a nested json object, that we’ll pass as a raw source to dlt to structure, normalize and dump into a BigQuery destination.
+The data being used is of a questionnaire, which includes questions, the options of those questions, respondents and responses. This data is contained within a nested json object, that we’ll pass as a raw source to `dlt` to structure, normalize and dump into a BigQuery destination.
 
 ```python
 # initializing the dlt pipeline with your data warehouse destination
 pipeline = dlt.pipeline(
-        pipeline_name="survey_pipeline",
-        destination="bigquery",
-        dataset_name="questionnaire")
+    pipeline_name="survey_pipeline",
+    destination="bigquery",
+    dataset_name="questionnaire"
+)
 
 # running the pipeline (into a structured model)
 # the dataset variable contains unstructured data
@@ -60,8 +61,8 @@ The extract, and load steps of an ETL pipeline have been taken care of with thes
 
 For transformation, we head to `dbt`.
 
-- The tables created by dlt are loaded as sources into `dbt`, with the same columns and structure as created by `dlt`.
-- Since not much change is required to our original data, we can utilization the model creation ability of `dbt` to create a metric, whose results can directly be pulled by users.
+- The tables created by `dlt` are loaded as sources into `dbt`, with the same columns and structure as created by `dlt`.
+- Since not much change is required to our original data, we can utilize the model creation ability of `dbt` to create a metric, whose results can directly be pulled by users.
 
 Say, we would like to find the average age of people by their favorite color. First, we’d create an SQL model to find the age per person, the sources used are presented in the following image:
 
@@ -75,7 +76,7 @@ This is one method of centralizing a metric definition or formula,  that you cr
 
 ## 3. Central Metric Definitions & Semantic Modelling with dbt
 
-The other method of creating a metric definition, powered by MetricFlow, is the dbt semantic layer. Using MetricFlow we define our metrics in yaml files and then directly query them from any different reporting tool. Hence ensuring that no one gets a different result when they are trying to query company metrics and defining formulas and filters for themselves. For example, we created a semantic model named questionnaire, defining different entities, dimensions and measures. Like as follows:
+The other method of creating a metric definition, powered by MetricFlow, is the `dbt` semantic layer. Using MetricFlow we define our metrics in yaml files and then directly query them from any different reporting tool. Hence ensuring that no one gets a different result when they are trying to query company metrics and defining formulas and filters for themselves. For example, we created a semantic model named questionnaire, defining different entities, dimensions and measures. Like as follows:
 
 ```yaml
 model: ref('fact_table') # where the columns referred in this model will be taken from
