@@ -295,7 +295,7 @@ To integrate dlt and dbt in cloud functions, use the dlt-dbt runner; here’s ho
 
    # Main execution block
    if __name__ == "__main__":
-       # Execute the pipeline function, typically triggered in a web service context
+       # Execute the pipeline function.
        run_pipeline(None)
    ```
 
