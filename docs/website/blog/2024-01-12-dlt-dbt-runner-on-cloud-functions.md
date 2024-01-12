@@ -22,16 +22,16 @@ pipelines. And of course, after ingesting the data, we want to transform it into
 model. For this reason, dlt offers a dbt runner that’s able to just run a dbt model on top of where
 dlt loaded the data, without setting up any additional things like dbt credentials.
 
-<aside>
+:::info
 💡 In this article we will explore how we can run dbt in a Google Cloud function with or without this runner, offering a serverless alternative to dlt’s native GitHub actions deployment.
-</aside>
+:::
 
 At dlthub we test our pipelines, so it's only natural that we support a GitHub actions deployment.
 GitHub actions is an orchestrator that most would not find suitable for a data warehouse setup - but
 it certainly could do the job for a minimalistic setup. GitHub actions provide 2000 free minutes per
 month, so if our pipelines run for 66 minutes per day, we fit in the free tier. If our pipelines
-took another 1h per day, we would need to pay ~15 USD/month for the smallest machine i.e. Linux machine
-having 2 vCPUs.
+took another 1h per day, we would need to pay ~15 USD/month for the smallest machine (2 vCPUs) but you
+can see how that would be expensive if we wanted to run it continuously or had multiple pipelines always-on in parallel.
 
 Cloud functions are serverless lightweight computing solutions that can handle small computational
 workloads and are cost-effective. dbt doesn't require the high computing power of the machine
