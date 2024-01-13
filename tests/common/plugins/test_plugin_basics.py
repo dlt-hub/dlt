@@ -20,12 +20,20 @@ class StepCounterPlugin(CallbackPlugin[BaseConfiguration]):
         super().__init__()
         self.start_steps: List[str] = []
         self.end_steps: List[str] = []
+        self.on_start_called: int = 0
+        self.on_end_called: int = 0
 
     def on_step_start(self, step: str, pipeline: SupportsPipeline) -> None:
         self.start_steps.append(step)
 
     def on_step_end(self, step: str, pipeline: SupportsPipeline) -> None:
         self.end_steps.append(step)
+
+    def on_start(self, pipeline: SupportsPipeline) -> None:
+        self.on_start_called += 1
+
+    def on_end(self, pipeline: SupportsPipeline) -> None:
+        self.on_end_called += 1
 
 
 def test_simple_plugin_steps() -> None:
@@ -39,6 +47,10 @@ def test_simple_plugin_steps() -> None:
 
     assert plug.start_steps == ["run", "extract", "normalize", "load"]
     assert plug.end_steps == ["extract", "normalize", "load", "run"]
+    assert plug.on_start_called == 1
+    assert plug.on_end_called == 1
+    assert pipeline._last_plugin_ctx is not None
+    assert pipeline._plugin_ctx is None
 
 
 def test_plugin_resolution() -> None:

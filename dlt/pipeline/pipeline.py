@@ -185,17 +185,20 @@ def with_plugins() -> Callable[[TFun], TFun]:
 
             # call step
             self._plugin_ctx.on_step_start(f.__name__, self)
-            with self._container.injectable_context(self._plugin_ctx):
-                result = f(self, *args, **kwargs)
-            self._plugin_ctx.on_step_end(f.__name__, self)
 
-            # ensure messages queue is completely processed
-            self._plugin_ctx.process_queue()
+            try:
+                with self._container.injectable_context(self._plugin_ctx):
+                    result = f(self, *args, **kwargs)
+            finally:
+                self._plugin_ctx.on_step_end(f.__name__, self)
 
-            if is_new_context:
-                self._plugin_ctx.on_end(self)
-                self._last_plugin_ctx = self._plugin_ctx
-                self._plugin_ctx = None
+                # ensure messages queue is completely processed
+                self._plugin_ctx.process_queue()
+
+                if is_new_context:
+                    self._plugin_ctx.on_end(self)
+                    self._last_plugin_ctx = self._plugin_ctx
+                    self._plugin_ctx = None
 
             return result
 

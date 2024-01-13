@@ -13,6 +13,7 @@ from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 import multiprocessing as mp
 from functools import wraps
 import threading
+import queue
 
 
 SAFE_SUFFIX = "_safe"
@@ -22,10 +23,11 @@ def create_safe_version(f: TFun) -> TFun:
     @wraps(f)
     def _wrap(self: "PluginsContext", *args: Any, **kwargs: Any) -> Any:
         # send message to shared queue if this is not the main instance
-        if not self._main or threading.main_thread() != threading.current_thread():
-            self._queue.put((f.__name__, args, kwargs))
-        else:
-            getattr(self, (f.__name__ + SAFE_SUFFIX))(*args, **kwargs)
+        if self._plugins:
+            if not self._main or threading.main_thread() != threading.current_thread():
+                self._queue.put((f.__name__, args, kwargs))
+            else:
+                getattr(self, (f.__name__ + SAFE_SUFFIX))(*args, **kwargs)
         return f(self, *args, **kwargs)
 
     return _wrap  # type: ignore
@@ -38,10 +40,7 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
         self._callback_plugins: List[CallbackPlugin[BaseConfiguration]] = []
         self._initial_plugins: TPluginArg = []
         self._main = main
-
-        if self._main:
-            manager = mp.Manager()
-            self._queue = manager.Queue()
+        self._queue: Optional[queue.Queue[Any]] = None
 
     def _resolve_plugin(self, plugin: TSinglePluginArg) -> Plugin[BaseConfiguration]:
         resolved_plugin: Plugin[BaseConfiguration] = None
@@ -61,7 +60,7 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
             raise TypeError(f"Plugin {plugin} is not a subclass of Plugin nor a plugin name string")
         return resolved_plugin
 
-    # pickle support
+    # pickle support, send plugins config and queue to child process / threads
     def __getstate__(self) -> Dict[str, Any]:
         return {"plugins": self._initial_plugins, "queue": self._queue}
 
@@ -72,6 +71,8 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
 
     def process_queue(self) -> None:
         assert self._main
+        if not self._plugins:
+            return
         try:
             while True:
                 name, args, kwargs = self._queue.get_nowait()
@@ -80,9 +81,10 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
             pass
 
     def setup_plugins(self, plugins: TPluginArg) -> None:
-        self._initial_plugins = plugins
         if not plugins:
             return
+        self._initial_plugins = plugins
+        # if not plugins:
         if not isinstance(plugins, Iterable):
             plugins = [plugins]
         for p in plugins:
@@ -90,6 +92,10 @@ class PluginsContext(ContainerInjectableContext, SupportsCallbackPlugin):
             self._plugins.append(resolved_plugin)
             if isinstance(resolved_plugin, CallbackPlugin):
                 self._callback_plugins.append(resolved_plugin)
+
+        if self._plugins and self._main:
+            manager = mp.Manager()
+            self._queue = manager.Queue()
 
     def get_plugin(self, plugin_name: str) -> Optional[Plugin[BaseConfiguration]]:
         for p in self._plugins:
