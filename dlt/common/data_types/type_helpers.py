@@ -110,7 +110,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
         if from_type == "text":
             try:
                 return json.loads(value)
-            except Exception as e:
+            except Exception:
                 pass
 
     if to_type == "text":

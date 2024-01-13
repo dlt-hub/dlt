@@ -234,7 +234,7 @@ def assert_all_data_types_row(
     if expect_filtered_null_columns:
         for key, expected in expected_rows.items():
             if expected is None:
-                assert db_mapping.get(key, None) == None
+                assert db_mapping.get(key, None) is None
                 db_mapping[key] = None
 
     for key, expected in expected_rows.items():
