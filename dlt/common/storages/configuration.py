@@ -112,27 +112,7 @@ class FilesystemConfiguration(BaseConfiguration):
             return url.scheme
 
     def on_resolved(self) -> None:
-        #301 this parse will mangle some fsspec urls. Some need to have
-        #   their netloc removed before parsing, usually possible with
-        #   fsspec class method _strip_protocol(). But We dont have a handle
-        #   on the fsspec instance here, so we can't it the fsspec way unless
-        #   we use a class factory for fsspec implementations, which will need
-        #   imports carefully managed.
-
-        #   So we have Unpredictable basis for evaluating the rules, and any new rules.
         url = urlparse(self.bucket_url)
-        #301 
-        #   Do we need this rule at all? without it we get nice error:
-        #   "cannot traverse all of s3" if supply s3://, s3:/// 
-        #   ToDo: test with google, azure.
-        #
-        #   The rule is not valid for all fsspec implementations.
-        #   eg, for github, gitpythonfs at least, the netloc
-        #   is stripped out by fsspec and you can ls(), walk() etc the entire
-        #   repo from root.
-        #   May be better to be explicit what protocols _are_ subject to this rule.
-        #   Guessing it is anything bucket-like, because you can't download all
-        #   buckets at once and you can't glob on bucket names?
         if not url.scheme in ('gitpythonfs', 'github', 'git', "s3"):
             if not url.path and not url.netloc:
                 raise ConfigurationValueError(
@@ -157,9 +137,6 @@ class FilesystemConfiguration(BaseConfiguration):
         """Return displayable destination location"""
         url = urlparse(self.bucket_url)
         # do not show passwords
-        #301 Some fsspec implementation put other things in the password@ slot.
-        #   Is hiding the password the more important use case?
-        #   Or add conditions to support both?
         if url.password:
             new_netloc = f"{url.username}:****@{url.hostname}"
             if url.port:

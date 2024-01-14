@@ -119,20 +119,6 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
             "filesystem", [f"{version.DLT_PKG_NAME}[{config.protocol}]"]
         ) from e
 
-#301 Concerns about this class:
-#   Confirm it is a stateful class/object because it's an output of dlt Resource?
-#   If yes, could that be made clearer by it inheriting/implementing a dlt Python type?
-#
-#   It has complex responsibilities and not enough scope to fulfull them:
-#       1. store file metadata. ok, that's easy.
-#       2. lazy fsspec factory, which also exists as functions above, albeit different signature.
-#       4. 'file_url' is not enough to instantiate an fs because url params are stripped out. The
-#           params would need to have been copied into `credentials` object or turned into kwargs.
-#
-#    Possible way to tidy up is to require AbstractFileSystem instance in constructor. 
-#       Mostly, this class is instantiated by filesystem Resource, which has an fs intance it can pass in.
-#       Edge case is sources/inbox/__init__.py which instantiates it directly. But only accesses simple dict items?
-#       Are dlt users likely to have instantiated this class directly?
 class FileItemDict(DictStrAny):
     """A FileItem dictionary with additional methods to get fsspec filesystem, open and read files."""
 
@@ -161,10 +147,6 @@ class FileItemDict(DictStrAny):
         if isinstance(self.credentials, AbstractFileSystem):
             return self.credentials
         else:
-            # #301 file_url has two purposes: a) dlt destination field b) fsspec constructor param.
-            # For fsspec url params to work, the params 
-            # need to still be in the file_url here. Specifically, gitpython needs the repo_path
-            # from the username: section of the url. But it was removed in ./glob_files().
             return fsspec_filesystem(self["file_url"], self.credentials)[0]
 
     def open(self, mode: str = "rb", **kwargs: Any) -> IO[Any]:  # noqa: A003
@@ -195,7 +177,6 @@ class FileItemDict(DictStrAny):
                 **text_kwargs,
             )
         else:
-            # #301 ok once fsspec() method file_url fixed?
             opened_file = self.fsspec.open(self["file_url"], mode=mode, **kwargs)
         return opened_file
 
@@ -209,7 +190,6 @@ class FileItemDict(DictStrAny):
         return (  # type: ignore
             self["file_content"]
             if "file_content" in self and self["file_content"] is not None
-            # #301 ok once fsspec() method file_url fixed?
             else self.fsspec.read_bytes(self["file_url"])
         )
 
@@ -236,14 +216,10 @@ def glob_files(
     import os
 
     protocol = urlparse(bucket_url).scheme
-    # NOTE: _strip_protocol is internal method. No easy way to do this via 
-    # public url_to_fs() without making breaking changes to filesystem Source/Resource.
     fsspec_path = fs_client._strip_protocol(bucket_url)
     bucket_url = f"{protocol}://{fsspec_path}"
 
     bucket_url_parsed = urlparse(bucket_url)
-    # netloc_unquoted = unquote(bucket_url_parsed.netloc)
-    # bucket_url_parsed = bucket_url_parsed._replace(netloc=netloc_unquoted)
 
     # if this is a file path without a scheme
     if not bucket_url_parsed.scheme or (os.path.isabs(bucket_url) and "\\" in bucket_url):
