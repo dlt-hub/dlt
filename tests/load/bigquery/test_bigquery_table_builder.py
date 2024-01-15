@@ -1,16 +1,22 @@
 import os
 from copy import deepcopy
+from typing import Iterator, Dict
 
 import pytest
 import sqlfluff
 
+import dlt
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
+from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema
-from dlt.common.utils import custom_environ, uniq_id
+from dlt.common.utils import custom_environ
+from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
+from dlt.extract import DltResource
+from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 from tests.load.utils import TABLE_UPDATE
 
 
@@ -153,3 +159,81 @@ def test_create_table_with_integer_partition(gcp_client: BigQueryClient) -> None
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
     assert "PARTITION BY RANGE_BUCKET(`col1`, GENERATE_ARRAY(-172800000, 691200000, 86400))" in sql
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_bigquery_partition_by_date(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+
+    @dlt.resource(
+        write_disposition="merge",
+        primary_key="my_date_column",
+        columns={"my_date_column": {"data_type": "date", "partition": True, "nullable": False}},
+    )
+    def demo_resource() -> Iterator[Dict[str, pendulum.Date]]:
+        for i in range(10):
+            yield {
+                "my_date_column": pendulum.from_timestamp(1700784000 + i * 50_000).date(),
+            }
+
+    @dlt.source(max_table_nesting=0)
+    def demo_source() -> DltResource:
+        return demo_resource
+
+    pipeline.run(demo_source())
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_bigquery_partition_by_timestamp(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+
+    @dlt.resource(
+        write_disposition="merge",
+        primary_key="my_timestamp_column",
+        columns={
+            "my_timestamp_column": {"data_type": "timestamp", "partition": True, "nullable": False}
+        },
+    )
+    def demo_resource() -> Iterator[Dict[str, pendulum.DateTime]]:
+        for i in range(10):
+            yield {
+                "my_timestamp_column": pendulum.from_timestamp(1700784000 + i * 50_000),
+            }
+
+    @dlt.source(max_table_nesting=0)
+    def demo_source() -> DltResource:
+        return demo_resource
+
+    pipeline.run(demo_source())
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_bigquery_partition_by_integer(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+
+    @dlt.resource(
+        columns={"some_int": {"data_type": "bigint", "partition": True, "nullable": False}},
+    )
+    def demo_resource() -> Iterator[Dict[str, int]]:
+        for i in range(10):
+            yield {
+                "some_int": i,
+            }
+
+    @dlt.source(max_table_nesting=0)
+    def demo_source() -> DltResource:
+        return demo_resource
+
+    pipeline.run(demo_source())
