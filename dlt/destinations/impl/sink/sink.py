@@ -1,18 +1,17 @@
-import random
-from copy import copy
+from abc import ABC, abstractmethod
 from types import TracebackType
 from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable, List
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.common.typing import TDataItems
+from dlt.common import json
 
+from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import FileStorage
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
-    FollowupJob,
-    NewLoadJob,
     TLoadJobState,
     LoadJob,
     JobClientBase,
@@ -22,18 +21,38 @@ from dlt.destinations.impl.sink import capabilities
 from dlt.destinations.impl.sink.configuration import SinkClientConfiguration, TSinkCallable
 
 
-class SinkLoadJob(LoadJob, FollowupJob):
+# TODO: implement proper state storage somewhere, can this somehow go into the loadpackage?
+job_execution_storage: Dict[str, int] = {}
+
+
+class SinkLoadJob(LoadJob, ABC):
     def __init__(
-        self, table: TTableSchema, file_path: str, config: SinkClientConfiguration, schema: Schema
+        self,
+        table: TTableSchema,
+        file_path: str,
+        config: SinkClientConfiguration,
+        schema: Schema,
+        job_execution_storage: Dict[str, int],
     ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._file_path = file_path
         self._config = config
         self._table = table
         self._schema = schema
-        self.run()
+        self._job_execution_storage = job_execution_storage
 
-    def run(self) -> None:
+        # TODO: is this the correct way to tell dlt to retry this job in the next attempt?
+        self._state: TLoadJobState = "running"
+        try:
+            start_index = self._job_execution_storage.get(self._parsed_file_name.file_id, 0)
+            self.run(start_index)
+            self._state = "completed"
+        except Exception as e:
+            self._state = "retry"
+            raise e
+
+    @abstractmethod
+    def run(self, start_index: int) -> None:
         pass
 
     def call_callable_with_items(self, items: TDataItems) -> None:
@@ -51,34 +70,51 @@ class SinkLoadJob(LoadJob, FollowupJob):
         if self._config.batch_size == 1:
             coerced_items = coerced_items[0]
 
+        # call callable
         self._config.credentials.resolved_callable(coerced_items, self._table)
 
+        # if there was no exception we assume the callable call was successful and we advance the index
+        current_index = self._job_execution_storage.get(self._parsed_file_name.file_id, 0)
+        self._job_execution_storage[self._parsed_file_name.file_id] = current_index + len(items)
+
     def state(self) -> TLoadJobState:
-        return "completed"
+        return self._state
 
     def exception(self) -> str:
         raise NotImplementedError()
 
 
 class SinkParquetLoadJob(SinkLoadJob):
-    def run(self) -> None:
+    def run(self, start_index: int) -> None:
         # stream items
         from dlt.common.libs.pyarrow import pyarrow
 
+        # guard against changed batch size after restart of loadjob
+        assert (
+            start_index % self._config.batch_size
+        ) == 0, "Batch size was changed during processing of one load package"
+
+        start_batch = start_index / self._config.batch_size
         with pyarrow.parquet.ParquetFile(self._file_path) as reader:
             for record_batch in reader.iter_batches(batch_size=self._config.batch_size):
+                if start_batch > 0:
+                    start_batch -= 1
+                    continue
                 batch = record_batch.to_pylist()
                 self.call_callable_with_items(batch)
 
 
 class SinkJsonlLoadJob(SinkLoadJob):
-    def run(self) -> None:
-        from dlt.common import json
+    def run(self, start_index: int) -> None:
+        current_batch: TDataItems = []
 
         # stream items
         with FileStorage.open_zipsafe_ro(self._file_path) as f:
-            current_batch: TDataItems = []
             for line in f:
+                # find correct start position
+                if start_index > 0:
+                    start_index -= 1
+                    continue
                 current_batch.append(json.loads(line))
                 if len(current_batch) == self._config.batch_size:
                     self.call_callable_with_items(current_batch)
@@ -140,6 +176,8 @@ class SinkClient(JobClientBase):
     def __init__(self, schema: Schema, config: SinkClientConfiguration) -> None:
         super().__init__(schema, config)
         self.config: SinkClientConfiguration = config
+        global job_execution_storage
+        self.job_execution_storage = job_execution_storage
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         pass
@@ -157,21 +195,19 @@ class SinkClient(JobClientBase):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         if file_path.endswith("parquet"):
-            return SinkParquetLoadJob(table, file_path, self.config, self.schema)
+            return SinkParquetLoadJob(
+                table, file_path, self.config, self.schema, job_execution_storage
+            )
         if file_path.endswith("jsonl"):
-            return SinkJsonlLoadJob(table, file_path, self.config, self.schema)
+            return SinkJsonlLoadJob(
+                table, file_path, self.config, self.schema, job_execution_storage
+            )
         # if file_path.endswith("insert_values"):
         #    return SinkInsertValueslLoadJob(table, file_path, self.config, self.schema)
-        return EmptyLoadJob.from_file_path(file_path, "completed")
+        return None
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
-
-    def create_table_chain_completed_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
-    ) -> List[NewLoadJob]:
-        """Creates a list of followup jobs that should be executed after a table chain is completed"""
-        return []
 
     def complete_load(self, load_id: str) -> None:
         pass

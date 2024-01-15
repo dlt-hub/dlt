@@ -1,6 +1,7 @@
-from typing import List, Tuple
+from typing import List, Tuple, Dict
 
 import dlt
+import pytest
 import pytest
 
 from copy import deepcopy
@@ -9,6 +10,7 @@ from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.destination.reference import Destination
 from dlt.common.configuration.exceptions import ConfigurationValueError
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.load.utils import (
     TABLE_ROW_ALL_DATA_TYPES,
@@ -180,3 +182,85 @@ def test_instantiation() -> None:
     )
     with pytest.raises(ConfigurationValueError):
         p.run([1, 2, 3], table_name="items")
+
+
+@pytest.mark.parametrize("loader_file_format", ["jsonl"])
+@pytest.mark.parametrize("batch_size", [1, 10, 23])
+def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size: int) -> None:
+    calls: Dict[str, List[TDataItems]] = {}
+    # provoke errors on resources
+    provoke_error: Dict[str, int] = {}
+
+    @dlt.sink(loader_file_format=loader_file_format, batch_size=batch_size)
+    def test_sink(items: TDataItems, table: TTableSchema) -> None:
+        nonlocal calls
+        table_name = table["name"]
+        if table_name.startswith("_dlt"):
+            return
+
+        # provoke error if configured
+        if table_name in provoke_error:
+            for item in items if batch_size > 1 else [items]:
+                if provoke_error[table_name] == item["id"]:
+                    raise AssertionError("Oh no!")
+
+        calls.setdefault(table_name, []).append(items if batch_size > 1 else [items])
+
+    @dlt.resource()
+    def items() -> TDataItems:
+        for i in range(100):
+            yield {"id": i, "value": str(i)}
+
+    @dlt.resource()
+    def items2() -> TDataItems:
+        for i in range(100):
+            yield {"id": i, "value": str(i)}
+
+    def assert_items_in_range(c: List[TDataItems], start: int, end: int) -> None:
+        """
+        Ensure all items where called and no duplicates are present
+        """
+        collected_items = set()
+        for call in c:
+            for item in call:
+                assert item["value"] not in collected_items
+                collected_items.add(item["value"])
+        assert len(collected_items) == end - start
+        for i in range(start, end):
+            assert str(i) in collected_items
+
+    # no errors are set, all items should be processed
+    p = dlt.pipeline("sink_test", destination=test_sink, full_refresh=True)
+    p.run([items(), items2()])
+    assert_items_in_range(calls["items"], 0, 100)
+    assert_items_in_range(calls["items2"], 0, 100)
+
+    # provoke errors
+    calls = {}
+    provoke_error = {"items": 25, "items2": 45}
+    p = dlt.pipeline("sink_test", destination=test_sink, full_refresh=True)
+    with pytest.raises(PipelineStepFailed):
+        p.run([items(), items2()])
+
+    # partly loaded
+    if batch_size == 1:
+        assert_items_in_range(calls["items"], 0, 25)
+        assert_items_in_range(calls["items2"], 0, 45)
+    elif batch_size == 10:
+        assert_items_in_range(calls["items"], 0, 20)
+        assert_items_in_range(calls["items2"], 0, 40)
+    elif batch_size == 23:
+        assert_items_in_range(calls["items"], 0, 23)
+        assert_items_in_range(calls["items2"], 0, 23)
+    else:
+        raise AssertionError("Unknown batch size")
+
+    # load the rest
+    first_calls = deepcopy(calls)
+    provoke_error = {}
+    calls = {}
+    p.load()
+
+    # both calls combined should have every item called just once
+    assert_items_in_range(calls["items"] + first_calls["items"], 0, 100)
+    assert_items_in_range(calls["items2"] + first_calls["items2"], 0, 100)
