@@ -1,27 +1,8 @@
-from typing import Type
-
-from dlt.common.schema.schema import Schema
-from dlt.common.configuration import with_config, known_sections
-from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import JobClientBase, DestinationClientConfiguration
 from dlt.common.data_writers.escape import escape_databricks_identifier
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
-
-
-@with_config(
-    spec=DatabricksClientConfiguration,
-    sections=(
-        known_sections.DESTINATION,
-        "databricks",
-    ),
-)
-def _configure(
-    config: DatabricksClientConfiguration = config.value,
-) -> DatabricksClientConfiguration:
-    return config
 
 
 def capabilities() -> DestinationCapabilitiesContext:
@@ -45,16 +26,3 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.alter_add_multi_column = True
     caps.supports_multiple_statements = False
     return caps
-
-
-def client(
-    schema: Schema, initial_config: DestinationClientConfiguration = config.value
-) -> JobClientBase:
-    # import client when creating instance so capabilities and config specs can be accessed without dependencies installed
-    from dlt.destinations.databricks.databricks import DatabricksClient
-
-    return DatabricksClient(schema, _configure(initial_config))  # type: ignore
-
-
-def spec() -> Type[DestinationClientConfiguration]:
-    return DatabricksClientConfiguration
