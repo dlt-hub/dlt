@@ -21,7 +21,7 @@ from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TColumnType, TSchemaTables, TTableFormat
 
 
-from dlt.destinations.job_client_impl import SqlJobClientWithStaging
+from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import LoadJobTerminalException
 
@@ -230,7 +230,7 @@ class DatabricksStagingCopyJob(SqlStagingCopyJob):
 #         return f"CREATE OR REPLACE TEMPORARY VIEW {temp_table_name} AS {select_sql};"
 
 
-class DatabricksClient(SqlJobClientWithStaging, SupportsStagingDestination):
+class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: DatabricksClientConfiguration) -> None:
@@ -303,7 +303,7 @@ class DatabricksClient(SqlJobClientWithStaging, SupportsStagingDestination):
         sql_scripts, schema_update = self._build_schema_update_sql(only_tables)
         # stay within max query size when doing DDL. some db backends use bytes not characters so decrease limit by half
         # assuming that most of the characters in DDL encode into single bytes
-        self.sql_client.execute_fragments(sql_scripts)
+        self.sql_client.execute_many(sql_scripts)
         self._update_schema_in_storage(self.schema)
         return schema_update
 

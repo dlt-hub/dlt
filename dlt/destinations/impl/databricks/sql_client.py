@@ -97,14 +97,16 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
                 f = curr.fetchall()
                 return f
 
-    def execute_fragments(
-        self, fragments: Sequence[AnyStr], *args: Any, **kwargs: Any
+    def execute_many(
+        self, statements: Sequence[AnyStr], *args: Any, **kwargs: Any
     ) -> Optional[Sequence[Sequence[Any]]]:
-        """
-        Executes several SQL fragments as efficiently as possible to prevent data copying.
-        Default implementation just joins the strings and executes them together.
-        """
-        return [self.execute_sql(fragment, *args, **kwargs) for fragment in fragments]
+        """Databricks does not support multi-statement execution"""
+        ret = []
+        for statement in statements:
+            result = self.execute_sql(statement, *args, **kwargs)
+            if result is not None:
+                ret.append(result)
+        return ret
 
     @contextmanager
     @raise_database_error

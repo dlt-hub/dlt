@@ -567,7 +567,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     # syntax error within tx
     statements = ["BEGIN TRANSACTION;", f"INVERT INTO {version_table} VALUES(1);", "COMMIT;"]
     with pytest.raises(DatabaseTransientException):
-        client.sql_client.execute_fragments(statements)
+        client.sql_client.execute_many(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "ProgrammingError")
     assert client.get_stored_schema() is not None
     client.complete_load("EFG")
@@ -581,7 +581,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     ]
     # cannot insert NULL value
     with pytest.raises(DatabaseTerminalException):
-        client.sql_client.execute_fragments(statements)
+        client.sql_client.execute_many(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "IntegrityError")
     # assert isinstance(term_ex.value.dbapi_exception, (psycopg2.InternalError, psycopg2.))
     assert client.get_stored_schema() is not None

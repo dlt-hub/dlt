@@ -127,3 +127,18 @@ def escape_snowflake_identifier(v: str) -> str:
 
 
 escape_databricks_identifier = escape_bigquery_identifier
+
+
+def escape_databricks_literal(v: Any) -> Any:
+    if isinstance(v, str):
+        return _escape_extended(v, prefix="'")
+    if isinstance(v, (datetime, date, time)):
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return _escape_extended(json.dumps(v), prefix="'")
+    if isinstance(v, bytes):
+        return "X'{v.hex()}'"
+    if v is None:
+        return "NULL"
+
+    return str(v)

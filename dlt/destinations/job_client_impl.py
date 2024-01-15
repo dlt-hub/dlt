@@ -78,7 +78,7 @@ class SqlLoadJob(LoadJob):
 
         # Some clients (e.g. databricks) do not support multiple statements in one execute call
         if not sql_client.capabilities.supports_multiple_statements:
-            sql_client.execute_fragments(self._split_fragments(sql))
+            sql_client.execute_many(self._split_fragments(sql))
         # if we detect ddl transactions, only execute transaction if supported by client
         elif (
             not self._string_containts_ddl_queries(sql)
@@ -88,7 +88,7 @@ class SqlLoadJob(LoadJob):
             sql_client.execute_sql(sql)
         else:
             # sql_client.execute_sql(sql)
-            sql_client.execute_fragments(self._split_fragments(sql))
+            sql_client.execute_many(self._split_fragments(sql))
 
     def state(self) -> TLoadJobState:
         # this job is always done

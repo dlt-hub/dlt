@@ -90,7 +90,7 @@ SELECT 1
 
     def truncate_tables(self, *tables: str) -> None:
         statements = [self._truncate_table_sql(self.make_qualified_table_name(t)) for t in tables]
-        self.execute_fragments(statements)
+        self.execute_many(statements)
 
     def drop_tables(self, *tables: str) -> None:
         if not tables:
@@ -98,7 +98,7 @@ SELECT 1
         statements = [
             f"DROP TABLE IF EXISTS {self.make_qualified_table_name(table)};" for table in tables
         ]
-        self.execute_fragments(statements)
+        self.execute_many(statements)
 
     @abstractmethod
     def execute_sql(
@@ -117,6 +117,11 @@ SELECT 1
     ) -> Optional[Sequence[Sequence[Any]]]:
         """Executes several SQL fragments as efficiently as possible to prevent data copying. Default implementation just joins the strings and executes them together."""
         return self.execute_sql("".join(fragments), *args, **kwargs)  # type: ignore
+
+    def execute_many(
+        self, statements: Sequence[AnyStr], *args: Any, **kwargs: Any
+    ) -> Optional[Sequence[Sequence[Any]]]:
+        return self.execute_sql("".join(statements), *args, **kwargs)  # type: ignore
 
     @abstractmethod
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
