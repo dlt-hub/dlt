@@ -254,6 +254,7 @@ def test_new_tables(
     )
     assert table_counts[ITEMS_TABLE] == 20
     assert NEW_COLUMN_NAME in pipeline.default_schema.tables[ITEMS_TABLE]["columns"]
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     assert len(plugin.calls) == 0
 
     # test adding new table
@@ -267,6 +268,7 @@ def test_new_tables(
     pipeline.drop_pending_packages()
 
     # check plugin calls
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     if contract_setting in ["evolve", "freeze"]:
         assert len(plugin.calls) == 0
     else:
@@ -297,6 +299,7 @@ def test_new_tables(
     )
     assert table_counts[ITEMS_TABLE] == 30
     assert VARIANT_COLUMN_NAME in pipeline.default_schema.tables[ITEMS_TABLE]["columns"]
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     assert len(plugin.calls) == 0
 
     # test adding new subtable
@@ -310,6 +313,7 @@ def test_new_tables(
     assert table_counts.get(SUBITEMS_TABLE, 0) == (10 if contract_setting in ["evolve"] else 0)
 
     # check plugin calls
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     if contract_setting in ["evolve", "freeze"]:
         assert len(plugin.calls) == 0
     else:
@@ -361,6 +365,7 @@ def test_new_columns(
     expected_items_count = 10
     assert table_counts[ITEMS_TABLE] == expected_items_count
     assert table_counts[NEW_ITEMS_TABLE] == 10
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     assert len(plugin.calls) == 0
 
     # test adding new column twice: filter will try to catch it before it is added for the second time
@@ -380,6 +385,7 @@ def test_new_columns(
     assert table_counts[ITEMS_TABLE] == expected_items_count
 
     # check plugin calls
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     if contract_setting in ["evolve", "freeze"]:
         assert len(plugin.calls) == 0
     else:
@@ -412,6 +418,7 @@ def test_new_columns(
     assert table_counts[ITEMS_TABLE] == expected_items_count
     assert table_counts[SUBITEMS_TABLE] == 10
     # no calls to plugin
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     assert len(plugin.calls) == 0
 
     # test adding variant column
@@ -424,6 +431,7 @@ def test_new_columns(
     expected_items_count += 10
     assert table_counts[ITEMS_TABLE] == expected_items_count
     # no calls to plugin
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     assert len(plugin.calls) == 0
 
 
@@ -448,6 +456,7 @@ def test_freeze_variants(contract_setting: str, setting_location: str) -> None:
     )
     assert table_counts[ITEMS_TABLE] == 20
     assert table_counts[SUBITEMS_TABLE] == 10
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     assert len(plugin.calls) == 0
 
     # new should work
@@ -457,6 +466,7 @@ def test_freeze_variants(contract_setting: str, setting_location: str) -> None:
     )
     assert table_counts[ITEMS_TABLE] == 20
     assert table_counts[NEW_ITEMS_TABLE] == 10
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     assert len(plugin.calls) == 0
 
     # test adding new column
@@ -466,6 +476,7 @@ def test_freeze_variants(contract_setting: str, setting_location: str) -> None:
     )
     assert table_counts[ITEMS_TABLE] == 30
     assert NEW_COLUMN_NAME in pipeline.default_schema.tables[ITEMS_TABLE]["columns"]
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     assert len(plugin.calls) == 0
 
     # test adding variant column
@@ -484,6 +495,7 @@ def test_freeze_variants(contract_setting: str, setting_location: str) -> None:
     )
 
     # check plugin calls
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     if contract_setting in ["evolve", "freeze"]:
         assert len(plugin.calls) == 0
     else:
@@ -878,13 +890,13 @@ def test_multiprocessing_plugin(pool_type: str) -> None:
 
     # provoke messages
     run_resource(pipeline, items_with_new_column, {"source": {"columns": "discard_row"}})
+    plugin = cast(ContractsViolationPlugin, pipeline.get_plugin("cp"))
     assert len(plugin.calls) == 10
     assert plugin.calling_thread_ids == {threading.get_ident()}
     assert len(plugin.unsafe_calls) == (0 if pool_type in ["process", "thread"] else 10)
 
 
 @pytest.mark.parametrize("contract_setting", schema_contract)
-# @pytest.mark.parametrize("contract_setting", ["discard_row"])
 @pytest.mark.parametrize("as_list", [True, False])
 def test_pydantic_contract_implementation(contract_setting: str, as_list: bool) -> None:
     from pydantic import BaseModel
