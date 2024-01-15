@@ -4,7 +4,7 @@ title: "dlt & dbt in Semantic Modelling"
 image: /img/blog-dbt_sem-data-people.png
 authors:
   name: Hiba Jamal
-  title: Data Science intern at dlthub
+  title: Data Science intern at dltHub
   url: https://github.com/hibajamal
   image_url: https://avatars.githubusercontent.com/u/35984866?v=4
 tags: [semantic modelling]
