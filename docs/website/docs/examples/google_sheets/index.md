@@ -22,7 +22,7 @@ We'll learn how to:
 - create [dynamically generated resources](../../general-usage/source#create-resources-dynamically).
 
 :::tip
-This example is for educational purposes. We recommend using existed [Google Sheets verified source](../../dlt-ecosystem/verified-sources/google_sheets.md).
+This example is for educational purposes. For best practices, we recommend using [Google Sheets verified source](../../dlt-ecosystem/verified-sources/google_sheets.md).
 :::
 
 ### Install Google client library
