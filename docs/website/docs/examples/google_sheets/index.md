@@ -21,6 +21,10 @@ We'll learn how to:
 - use [union of credentials](../../general-usage/credentials/config_specs#working-with-alternatives-of-credentials-union-types);
 - create [dynamically generated resources](../../general-usage/source#create-resources-dynamically).
 
+:::tip
+This example is for educational purposes. We recommend using existed [Google Sheets verified source](../../dlt-ecosystem/verified-sources/google_sheets.md).
+:::
+
 ### Install Google client library
 
 ```shell
