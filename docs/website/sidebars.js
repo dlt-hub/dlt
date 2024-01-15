@@ -243,7 +243,8 @@ const sidebars = {
         'examples/connector_x_arrow/index',
         'examples/chess_production/index',
         'examples/nested_data/index',
-        'examples/qdrant_zendesk/index'
+        'examples/qdrant_zendesk/index',
+        'examples/google_sheets/index'
       ],
     },
     {
