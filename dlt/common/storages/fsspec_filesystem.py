@@ -120,34 +120,41 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
         ) from e
 
 class FileItemDict(DictStrAny):
-    """A FileItem dictionary with additional methods to get fsspec filesystem, open and read files."""
+    """A FileItem dictionary with additional methods to get fsspec filesystem,
+        open and read files.
+
+        It retains fsspec context while being passed between resources and transformers.
+    """
 
     def __init__(
         self,
         mapping: FileItem,
-        credentials: Optional[Union[FileSystemCredentials, AbstractFileSystem]] = None,
+        fsspec_instance_or_credentials: Optional[Union[AbstractFileSystem, FileSystemCredentials]] = None,
     ):
         """Create a dictionary with the filesystem client.
 
         Args:
             mapping (FileItem): The file item TypedDict.
-            credentials (Optional[FileSystemCredentials], optional): The credentials to the
-                filesystem. Defaults to None.
+            fsspec_instance_or_credentials (Optional[AbstractFileSystem, FileSystemCredentials], optional):
+                To help construct an fsspec filesystem instance. Defaults to None. If the fssspec implementation
+                requires arguments either parsed from the url or as keywords, it is safest to provide this argument, as supplying
+                only the `FileItem.file_url` (in mapping arg) could result in unexpected behaviour of the filesytem
+                client due to missing parameters unexpectedly taking on default values.
         """
-        self.credentials = credentials
+        self.fsspec_instance_or_credentials = fsspec_instance_or_credentials
         super().__init__(**mapping)
 
     @property
     def fsspec(self) -> AbstractFileSystem:
-        """The filesystem client is based on the given credentials.
+        """The filesystem client is based on the available instance, or url and credentials.
 
         Returns:
             AbstractFileSystem: The fsspec client.
         """
-        if isinstance(self.credentials, AbstractFileSystem):
-            return self.credentials
+        if isinstance(self.fsspec_instance_or_credentials, AbstractFileSystem):
+            return self.fsspec_instance_or_credentials
         else:
-            return fsspec_filesystem(self["file_url"], self.credentials)[0]
+            return fsspec_filesystem(self["file_url"], self.fsspec_instance_or_credentials)[0]
 
     def open(self, mode: str = "rb", **kwargs: Any) -> IO[Any]:  # noqa: A003
         """Open the file as a fsspec file.
