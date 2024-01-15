@@ -1,4 +1,4 @@
-from typing import Iterator, Dict, Union
+from typing import Iterator, Dict
 
 import pytest
 
