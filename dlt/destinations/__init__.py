@@ -10,6 +10,7 @@ from dlt.destinations.impl.redshift.factory import redshift
 from dlt.destinations.impl.qdrant.factory import qdrant
 from dlt.destinations.impl.motherduck.factory import motherduck
 from dlt.destinations.impl.weaviate.factory import weaviate
+from dlt.destinations.impl.sink.factory import sink
 
 
 __all__ = [

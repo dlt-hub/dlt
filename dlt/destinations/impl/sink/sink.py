@@ -18,9 +18,6 @@ from dlt.common.destination.reference import (
     JobClientBase,
 )
 
-from dlt.destinations.exceptions import (
-    LoadJobNotExistsException,
-)
 from dlt.destinations.impl.sink import capabilities
 from dlt.destinations.impl.sink.configuration import SinkClientConfiguration, TSinkCallable
 
@@ -54,7 +51,7 @@ class SinkLoadJob(LoadJob, FollowupJob):
         if self._config.batch_size == 1:
             coerced_items = coerced_items[0]
 
-        self._config.credentials.callable(coerced_items, self._table)
+        self._config.credentials.resolved_callable(coerced_items, self._table)
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -136,7 +133,7 @@ class SinkJsonlLoadJob(SinkLoadJob):
 
 
 class SinkClient(JobClientBase):
-    """Sink client storing jobs in memory"""
+    """Sink Client"""
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 

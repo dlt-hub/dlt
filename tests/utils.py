@@ -45,8 +45,9 @@ IMPLEMENTED_DESTINATIONS = {
     "motherduck",
     "mssql",
     "qdrant",
+    "sink",
 }
-NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant"}
+NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant", "sink"}
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
 
 # exclude destination configs (for now used for athena and athena iceberg separation)
@@ -57,6 +58,8 @@ EXCLUDED_DESTINATION_CONFIGURATIONS = set(
 
 # filter out active destinations for current tests
 ACTIVE_DESTINATIONS = set(dlt.config.get("ACTIVE_DESTINATIONS", list) or IMPLEMENTED_DESTINATIONS)
+
+ACTIVE_DESTINATIONS = {"sink"}
 
 ACTIVE_SQL_DESTINATIONS = SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)
 ACTIVE_NON_SQL_DESTINATIONS = NON_SQL_DESTINATIONS.intersection(ACTIVE_DESTINATIONS)

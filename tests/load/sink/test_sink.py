@@ -7,6 +7,8 @@ from copy import deepcopy
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
+from dlt.common.destination.reference import Destination
+from dlt.common.configuration.exceptions import ConfigurationValueError
 
 from tests.load.utils import (
     TABLE_ROW_ALL_DATA_TYPES,
@@ -110,3 +112,71 @@ def test_batch_size(loader_file_format: TLoaderFileFormat, batch_size: int) -> N
     assert len(all_items) == 100
     for i in range(100):
         assert str(i) in all_items
+
+
+global_calls: List[Tuple[TDataItems, TTableSchema]] = []
+
+
+def global_sink_func(items: TDataItems, table: TTableSchema) -> None:
+    global global_calls
+    if table["name"].startswith("_dlt"):
+        return
+    global_calls.append((items, table))
+
+
+def test_instantiation() -> None:
+    calls: List[Tuple[TDataItems, TTableSchema]] = []
+
+    def local_sink_func(items: TDataItems, table: TTableSchema) -> None:
+        nonlocal calls
+        if table["name"].startswith("_dlt"):
+            return
+        calls.append((items, table))
+
+    # test decorator
+    calls = []
+    p = dlt.pipeline("sink_test", destination=dlt.sink()(local_sink_func), full_refresh=True)
+    p.run([1, 2, 3], table_name="items")
+    assert len(calls) == 1
+
+    # test passing via credentials
+    calls = []
+    p = dlt.pipeline(
+        "sink_test", destination="sink", credentials=local_sink_func, full_refresh=True
+    )
+    p.run([1, 2, 3], table_name="items")
+    assert len(calls) == 1
+
+    # test passing via from_reference
+    calls = []
+    p = dlt.pipeline(
+        "sink_test",
+        destination=Destination.from_reference("sink", credentials=local_sink_func),  # type: ignore
+        full_refresh=True,
+    )
+    p.run([1, 2, 3], table_name="items")
+    assert len(calls) == 1
+
+    # test passing string reference
+    global global_calls
+    global_calls = []
+    p = dlt.pipeline(
+        "sink_test",
+        destination="sink",
+        credentials="tests.load.sink.test_sink.global_sink_func",
+        full_refresh=True,
+    )
+    p.run([1, 2, 3], table_name="items")
+    assert len(global_calls) == 1
+
+    # pass None credentials reference
+    p = dlt.pipeline("sink_test", destination="sink", credentials=None, full_refresh=True)
+    with pytest.raises(ConfigurationValueError):
+        p.run([1, 2, 3], table_name="items")
+
+    # pass invalid credentials module
+    p = dlt.pipeline(
+        "sink_test", destination="sink", credentials="does.not.exist.callable", full_refresh=True
+    )
+    with pytest.raises(ConfigurationValueError):
+        p.run([1, 2, 3], table_name="items")
