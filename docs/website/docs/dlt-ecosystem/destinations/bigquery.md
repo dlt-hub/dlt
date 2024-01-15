@@ -121,16 +121,22 @@ When staging is enabled:
 
 BigQuery supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
 
-* `partition` - creates a partition with a day granularity on decorated column (`PARTITION BY DATE` or `RANGE_BUCKET`).
+* `partition` - creates a partition with a day granularity on decorated column (`PARTITION BY DATE`).
   May be used with `datetime`, `date` data types and `bigint` **only if** it contains valid UNIX timestamps.
   Only one column per table is supported and only when a new table is created.
+  For more information on BigQuery partitioning, read the [official docs](https://cloud.google.com/bigquery/docs/partitioned-tables).
+
+  > ❗ `bigint` maps to BigQuery’s **INT64** data type.
+  > Automatic partitioning requires converting an INT64 column to a UNIX timestamp, which `GENERATE_ARRAY` doesn’t natively support.
+  > With a 10,000 partition limit, we can’t cover the full INT64 range.
+  > Instead, we set 86,400 second boundaries to enable daily partitioning.
+  > This captures typical values, but extremely large/small outliers go to an `__UNPARTITIONED__` catch-all partition.
+
 * `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
 ## Staging Support
 
 BigQuery supports gcs as a file staging destination. dlt will upload files in the parquet format to gcs and ask BigQuery to copy their data directly into the db. Please refer to the [Google Storage filesystem documentation](./filesystem.md#google-storage) to learn how to set up your gcs bucket with the bucket_url and credentials. If you use the same service account for gcs and your redshift deployment, you do not need to provide additional authentication for BigQuery to be able to read from your bucket.
-```toml
-```
 
 Alternatively to parquet files, you can also specify jsonl as the staging file format. For this set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 

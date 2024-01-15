@@ -46,7 +46,7 @@ class BigQueryTypeMapper(TypeMapper):
         "timestamp": "TIMESTAMP",
         "bigint": "INTEGER",
         "binary": "BYTES",
-        "wei": "BIGNUMERIC",  # non parametrised should hold wei values
+        "wei": "BIGNUMERIC",  # non-parametrized should hold wei values
         "time": "TIME",
     }
 
@@ -106,7 +106,7 @@ class BigQueryLoadJob(LoadJob, FollowupJob):
                 f"Got reason {reason} for job {self.file_name}, job considered still"
                 f" running. ({self.bq_load_job.error_result})"
             )
-            # the status of the job could not be obtained, job still running
+            # the status of the job couldn't be obtained, job still running
             return "running"
         else:
             # retry on all other reasons, including `backendError` which requires retry when the job is done
@@ -283,7 +283,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 sql[0] = (
                     f"{sql[0]}\nPARTITION BY DATE({self.capabilities.escape_identifier(c['name'])})"
                 )
-            # BigQuery supports partitioning only when bigint represents a UNIX timestamp.
+            # Automatic partitioning of an INT64 type requires us to be prescriptive - we treat the column as a UNIX timestamp.
             # This is due to the bounds requirement of GENERATE_ARRAY function for partitioning.
             # The 10,000 partitions limit makes it infeasible to cover the entire `bigint` range.
             # The array bounds, with daily partitions (86400 seconds in a day), are somewhat arbitrarily chosen.
