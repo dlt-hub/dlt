@@ -122,12 +122,12 @@ When staging is enabled:
 BigQuery supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
 
 * `partition` - creates a partition with a day granularity on decorated column (`PARTITION BY DATE`).
-  May be used with `datetime`, `date` data types and `bigint` **only if** it contains valid UNIX timestamps.
+  May be used with `datetime`, `date` and `bigint` data types.
   Only one column per table is supported and only when a new table is created.
   For more information on BigQuery partitioning, read the [official docs](https://cloud.google.com/bigquery/docs/partitioned-tables).
 
-  > ❗ `bigint` maps to BigQuery’s **INT64** data type.
-  > Automatic partitioning requires converting an INT64 column to a UNIX timestamp, which `GENERATE_ARRAY` doesn’t natively support.
+  > ❗ `bigint` maps to BigQuery's **INT64** data type.
+  > Automatic partitioning requires converting an INT64 column to a UNIX timestamp, which `GENERATE_ARRAY` doesn't natively support.
   > With a 10,000 partition limit, we can’t cover the full INT64 range.
   > Instead, we set 86,400 second boundaries to enable daily partitioning.
   > This captures typical values, but extremely large/small outliers go to an `__UNPARTITIONED__` catch-all partition.
