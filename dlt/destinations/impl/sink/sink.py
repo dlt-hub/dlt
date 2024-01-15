@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from types import TracebackType
-from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable, List
+from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable, Iterable
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.common.typing import TDataItems
@@ -44,15 +44,18 @@ class SinkLoadJob(LoadJob, ABC):
         # TODO: is this the correct way to tell dlt to retry this job in the next attempt?
         self._state: TLoadJobState = "running"
         try:
-            start_index = self._job_execution_storage.get(self._parsed_file_name.file_id, 0)
-            self.run(start_index)
+            current_index = self._job_execution_storage.get(self._parsed_file_name.file_id, 0)
+            for batch in self.run(current_index):
+                self.call_callable_with_items(batch)
+                current_index += len(batch)
+                self._job_execution_storage[self._parsed_file_name.file_id] = current_index
             self._state = "completed"
         except Exception as e:
             self._state = "retry"
             raise e
 
     @abstractmethod
-    def run(self, start_index: int) -> None:
+    def run(self, start_index: int) -> Iterable[TDataItems]:
         pass
 
     def call_callable_with_items(self, items: TDataItems) -> None:
@@ -73,10 +76,6 @@ class SinkLoadJob(LoadJob, ABC):
         # call callable
         self._config.credentials.resolved_callable(coerced_items, self._table)
 
-        # if there was no exception we assume the callable call was successful and we advance the index
-        current_index = self._job_execution_storage.get(self._parsed_file_name.file_id, 0)
-        self._job_execution_storage[self._parsed_file_name.file_id] = current_index + len(items)
-
     def state(self) -> TLoadJobState:
         return self._state
 
@@ -85,7 +84,7 @@ class SinkLoadJob(LoadJob, ABC):
 
 
 class SinkParquetLoadJob(SinkLoadJob):
-    def run(self, start_index: int) -> None:
+    def run(self, start_index: int) -> Iterable[TDataItems]:
         # stream items
         from dlt.common.libs.pyarrow import pyarrow
 
@@ -101,11 +100,11 @@ class SinkParquetLoadJob(SinkLoadJob):
                     start_batch -= 1
                     continue
                 batch = record_batch.to_pylist()
-                self.call_callable_with_items(batch)
+                yield batch
 
 
 class SinkJsonlLoadJob(SinkLoadJob):
-    def run(self, start_index: int) -> None:
+    def run(self, start_index: int) -> Iterable[TDataItems]:
         current_batch: TDataItems = []
 
         # stream items
@@ -117,9 +116,9 @@ class SinkJsonlLoadJob(SinkLoadJob):
                     continue
                 current_batch.append(json.loads(line))
                 if len(current_batch) == self._config.batch_size:
-                    self.call_callable_with_items(current_batch)
+                    yield current_batch
                     current_batch = []
-            self.call_callable_with_items(current_batch)
+            yield current_batch
 
 
 # class SinkInsertValueslLoadJob(SinkLoadJob):
