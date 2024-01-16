@@ -9,8 +9,7 @@ import Header from '../_examples-header.md';
 <Header
     intro="This example demonstrates how to extract text from PDF files and load it into Weaviate vector database."
     slug="pdf_to_weaviate"
-    install_comment="with weaviate and PyPDF2"
-    install_packages='PyPDF2 "dlt[weaviate]"'
+    destination="duckdb"
     run_file="pdf_to_weaviate" />
 
 ## Example code
