@@ -259,7 +259,7 @@ const sidebars = {
         'examples/chess_production/index',
         'examples/nested_data/index',
         'examples/qdrant_zendesk/index',
-        'examples/google_sheets/index'
+        'examples/google_sheets/index',
         'examples/pdf_to_weaviate/index'
       ],
     },
