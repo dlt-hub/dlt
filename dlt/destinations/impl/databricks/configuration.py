@@ -103,8 +103,6 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
 
     stage_name: Optional[str] = None
     """Use an existing named stage instead of the default. Default uses the implicit table stage per table"""
-    keep_staged_files: bool = True
-    """Whether to keep or delete the staged files after COPY INTO succeeds"""
 
     def __str__(self) -> str:
         """Return displayable destination location"""

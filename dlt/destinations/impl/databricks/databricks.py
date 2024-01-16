@@ -107,7 +107,6 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         load_id: str,
         client: DatabricksSqlClient,
         stage_name: Optional[str] = None,
-        keep_staged_files: bool = True,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
@@ -194,9 +193,6 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             {copy_options}
             """
         client.execute_sql(statement)
-        # Databricks does not support deleting staged files via sql
-        # if stage_file_path and not keep_staged_files:
-        #     client.execute_sql(f'REMOVE {stage_file_path}')
 
     def state(self) -> TLoadJobState:
         return "completed"
@@ -261,7 +257,6 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
                 load_id,
                 self.sql_client,
                 stage_name=self.config.stage_name,
-                keep_staged_files=self.config.keep_staged_files,
                 staging_credentials=(
                     self.config.staging_config.credentials if self.config.staging_config else None
                 ),
