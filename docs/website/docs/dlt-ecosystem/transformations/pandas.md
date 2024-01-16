@@ -1,10 +1,10 @@
 ---
-title: Transforming data with Pandas
-description: Transforming the data loaded by a dlt pipeline with Pandas
+title: Transform the data with Pandas
+description: Transform the data loaded by a dlt pipeline with Pandas
 keywords: [transform, pandas]
 ---
 
-# Transforming the data using Pandas
+# Transform the data with Pandas
 
 You can fetch results of any SQL query as a dataframe. If the destination is supporting that
 natively (i.e. BigQuery and DuckDB), `dlt` uses the native method. Thanks to that, reading

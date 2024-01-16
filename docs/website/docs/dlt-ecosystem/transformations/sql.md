@@ -1,10 +1,10 @@
 ---
-title: Transforming data with SQL
-description: Transforming the data loaded by a dlt pipeline with SQL client
+title: Transform the data with SQL
+description: Transforming the data loaded by a dlt pipeline with the dlt SQL client
 keywords: [transform, sql]
 ---
 
-# Transforming data using the `dlt` SQL client
+# Transform the data using the `dlt` SQL client
 
 A simple alternative to dbt is to query the data using the `dlt` SQL client and then performing the
 transformations using Python. The `execute_sql` method allows you to execute any SQL statement,
