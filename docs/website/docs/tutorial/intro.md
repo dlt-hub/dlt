@@ -9,11 +9,12 @@ As a practical example, we'll build a data pipeline that loads data from the Git
 
 ## What We'll Cover
 
-- Fetching data seamlessly from the GitHub API.
-- Understanding and managing data loading behaviors.
-- Incrementally loading new data and deduplicating existing data.
-- Making our data fetch more dynamic and reducing code redundancy.
-- Securely handling secrets.
+- [Fetching data from the GitHub API](./load-data-from-an-api.md)
+- [Understanding and managing data loading behaviors](./load-data-from-an-api.md#append-or-replace-your-data)
+- [Incrementally loading new data and deduplicating existing data](./load-data-from-an-api.md#load-only-new-data-incremental-loading)
+- [Making our data fetch more dynamic and reducing code redundancy](./grouping-resources.md)
+- [Securely handling secrets](./grouping-resources.md#handle-secrets)
+- [Making reusable data sources](./grouping-resources.md#configurable-sources)
 
 ## Ready to dive in?
 
