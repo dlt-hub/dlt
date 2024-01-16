@@ -1,4 +1,8 @@
-### Dispatch stream of events to tables by event type
+---
+title: Dispatch stream of events to multiple tables
+description: dispatch stream of events to tables by event type
+keywords: [dispatch, stream, events, tables, event type]
+---
 
 This is a fun but practical example that reads GitHub events from **dlt** repository (such as issue or pull request created, comment added etc.).
 Each event type is sent to a different table in `duckdb`.
@@ -7,10 +11,12 @@ Each event type is sent to a different table in `duckdb`.
 import dlt
 from dlt.sources.helpers import requests
 
-@dlt.resource(primary_key="id", table_name=lambda i: i["type"], write_disposition="append")
-def repo_events(
-    last_created_at = dlt.sources.incremental("created_at")
-):
+@dlt.resource(
+    primary_key="id",
+    table_name=lambda i: i["type"],
+    write_disposition="append",
+)
+def repo_events(last_created_at=dlt.sources.incremental("created_at")):
     url = "https://api.github.com/repos/dlt-hub/dlt/events?per_page=100"
 
     while True:
@@ -18,8 +24,10 @@ def repo_events(
         response.raise_for_status()
         yield response.json()
 
-        # stop requesting pages if the last element was already older than initial value
-        # note: incremental will skip those items anyway, we just do not want to use the api limits
+        # stop requesting pages if the last element was already older than
+        # the initial value
+        # note: incremental will skip those items anyway, we just do not
+        # want to use the api limits
         if last_created_at.start_out_of_range:
             break
 
@@ -28,10 +36,11 @@ def repo_events(
             break
         url = response.links["next"]["url"]
 
+
 pipeline = dlt.pipeline(
-    pipeline_name='github_events',
-    destination='duckdb',
-    dataset_name='github_events_data',
+    pipeline_name="github_events",
+    destination="duckdb",
+    dataset_name="github_events_data",
 )
 load_info = pipeline.run(repo_events)
 row_counts = pipeline.last_trace.last_normalize_info

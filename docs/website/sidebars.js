@@ -238,6 +238,7 @@ const sidebars = {
             'running-in-production/tracing',
           ],
         },
+        'walkthroughs/dispatch-to-multiple-tables',
         'walkthroughs/create-new-destination',
         'walkthroughs/zendesk-weaviate',
       ],
