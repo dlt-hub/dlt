@@ -224,10 +224,21 @@ class DatabricksStagingCopyJob(SqlStagingCopyJob):
         return sql
 
 
-# class DatabricksMergeJob(SqlMergeJob):
-#     @classmethod
-#     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
-#         return f"CREATE OR REPLACE TEMPORARY VIEW {temp_table_name} AS {select_sql};"
+class DatabricksMergeJob(SqlMergeJob):
+    @classmethod
+    def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
+        return f"CREATE TEMPORARY VIEW {temp_table_name} AS {select_sql};"
+
+    @classmethod
+    def gen_delete_from_sql(
+        cls, table_name: str, column_name: str, temp_table_name: str, temp_table_column: str
+    ) -> str:
+        # Databricks does not support subqueries in DELETE FROM statements so we use a MERGE statement instead
+        return f"""MERGE INTO {table_name}
+        USING {temp_table_name}
+        ON {table_name}.{column_name} = {temp_table_name}.{temp_table_column}
+        WHEN MATCHED THEN DELETE;
+        """
 
 
 class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
@@ -260,8 +271,11 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
-    # def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-    #     return DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)
+    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
+        return DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)
+
+    def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
+        return [DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)]
 
     # def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
     #     return DatabricksStagingCopyJob.from_table_chain(table_chain, self.sql_client)
@@ -274,6 +288,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
 
     # def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
     #     return DatabricksStagingCopyJob.from_table_chain(table_chain, self.sql_client)
+
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
     ) -> List[NewLoadJob]:

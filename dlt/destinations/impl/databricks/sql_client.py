@@ -59,20 +59,18 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     @contextmanager
     def begin_transaction(self) -> Iterator[DBTransaction]:
-        logger.warning(
-            "NotImplemented: Databricks does not support transactions. Each SQL statement is"
-            " auto-committed separately."
-        )
+        # Databricks does not support transactions
         yield self
 
     @raise_database_error
     def commit_transaction(self) -> None:
-        logger.warning("NotImplemented: commit")
+        # Databricks does not support transactions
         pass
 
     @raise_database_error
     def rollback_transaction(self) -> None:
-        logger.warning("NotImplemented: rollback")
+        # Databricks does not support transactions
+        pass
 
     @property
     def native_connection(self) -> "DatabricksSqlConnection":
@@ -127,16 +125,8 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         else:
             db_args = None
         with self._conn.cursor() as curr:
-            try:
-                curr.execute(query, db_args)
-                yield DatabricksCursorImpl(curr)  # type: ignore[abstract]
-            except databricks_lib.Error as outer:
-                try:
-                    self._reset_connection()
-                except databricks_lib.Error:
-                    self.close_connection()
-                    self.open_connection()
-                raise outer
+            curr.execute(query, db_args)
+            yield DatabricksCursorImpl(curr)  # type: ignore[abstract]
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         if escape:
@@ -146,10 +136,6 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
             catalog = self.credentials.catalog
             dataset_name = self.dataset_name
         return f"{catalog}.{dataset_name}"
-
-    def _reset_connection(self) -> None:
-        self.close_connection()
-        self.open_connection()
 
     @staticmethod
     def _make_database_exception(ex: Exception) -> Exception:

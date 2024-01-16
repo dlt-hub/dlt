@@ -158,6 +158,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     if destination_config.destination in (
         "redshift",
         "athena",
+        "databricks",
     ) and destination_config.file_format in ("parquet", "jsonl"):
         # Redshift copy doesn't support TIME column
         exclude_types.append("time")
