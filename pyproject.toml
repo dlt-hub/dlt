@@ -189,7 +189,7 @@ profile = "black"
 src_paths = ["dlt"]
 multi_line_output = 3
 
-[tool.ruff] # https://beta.ruff.rs/docs/
+[tool.ruff]
 line-length = 100
 ignore = ["F401"]
 ignore-init-module-imports = true
