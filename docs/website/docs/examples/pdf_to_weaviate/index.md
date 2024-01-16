@@ -12,6 +12,12 @@ import Header from '../_examples-header.md';
     destination="weaviate"
     run_file="pdf_to_weaviate" />
 
+Additionally we'll use PyPDF2 to extract text from PDFs. Make sure you have it installed:
+
+```shell
+pip install PyPDF2
+```
+
 ## Example code
 
 <!--@@@DLT_SNIPPET_START ./code/pdf_to_weaviate-snippets.py::pdf_to_weaviate -->
