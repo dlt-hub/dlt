@@ -6,7 +6,7 @@ def pdf_to_weaviate_snippet() -> None:
     import os
 
     import dlt
-    from dlt.destinations.weaviate import weaviate_adapter
+    from dlt.destinations.impl.weaviate import weaviate_adapter
     from PyPDF2 import PdfReader
 
 
@@ -60,8 +60,6 @@ def pdf_to_weaviate_snippet() -> None:
     print(load_info)
     # @@@DLT_SNIPPET_END pdf_to_weaviate
 
-    assert_load_info(load_info)
-
     # @@@DLT_SNIPPET_START pdf_to_weaviate_read
     import weaviate
 
@@ -70,3 +68,4 @@ def pdf_to_weaviate_snippet() -> None:
     print(client.query.get("InvoiceText", ["text", "file_name", "mtime", "page_id"]).do())
     # @@@DLT_SNIPPET_END pdf_to_weaviate_read
     # @@@DLT_SNIPPET_END example
+    assert_load_info(load_info)
