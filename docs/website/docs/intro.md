@@ -19,7 +19,7 @@ pip install dlt
 ```
 Unlike other solutions, with dlt, there's no need to use any backends or containers. Simply import `dlt` in a Python file or a Jupyter Notebook cell, and create a pipeline to load data into any of the [supported destinations](dlt-ecosystem/destinations/). You can load data from any source that produces Python data structures, including APIs, files, databases, and more.
 
-The library will create or update tables, infer data types and handle nested data automatically. Here's a few examples:
+The library will create or update tables, infer data types and handle nested data automatically. Here are a few examples:
 
 <Tabs
   groupId="source-type"
