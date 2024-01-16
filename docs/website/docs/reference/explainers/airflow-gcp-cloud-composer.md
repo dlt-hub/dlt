@@ -10,7 +10,7 @@ keywords: [airflow, github, google cloud composer]
 
 This setup will allow you to deploy the main branch of your Airflow project from GitHub to Cloud Composer.
 
-- Create a GitHub repository ie. [by following our deployment walkthroughs for Airflow](../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md)
+- Create a GitHub repository ie. by following our how-to guide on [deployment for Airflow](../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md)
 
 - In Google Cloud web interface, go to Source Repositories and create a repository that mirrors your
   GitHub repository. This will simplify the authentication by doing it through this mirroring

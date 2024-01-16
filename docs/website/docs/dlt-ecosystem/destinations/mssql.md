@@ -42,7 +42,7 @@ or run:
 ```
 pip install dlt[mssql]
 ```
-This will install dlt with **mssql** extra which contains all the dependencies required by the sql server client.
+This will install dlt with **mssql** extra which contains all the dependencies required by the SQL server client.
 
 **3. Enter your credentials into `.dlt/secrets.toml`.**
 
