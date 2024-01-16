@@ -1,7 +1,7 @@
 import os
 
 import dlt
-from dlt.destinations.weaviate import weaviate_adapter
+from dlt.destinations.impl.weaviate import weaviate_adapter
 from PyPDF2 import PdfReader
 
 
@@ -53,8 +53,6 @@ row_counts = pipeline.last_trace.last_normalize_info
 print(row_counts)
 print("------")
 print(load_info)
-
-assert_load_info(load_info)
 
 import weaviate
 
