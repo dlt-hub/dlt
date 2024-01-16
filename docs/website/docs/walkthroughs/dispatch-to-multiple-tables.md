@@ -1,11 +1,21 @@
 ---
-title: Dispatch stream of events to multiple tables
-description: dispatch stream of events to tables by event type
+title: Dispatch stream of events to multiple tables in DuckDB
+description: Learn how to efficiently dispatch a stream of GitHub events, categorized by event type, to different tables in DuckDB
 keywords: [dispatch, stream, events, tables, event type]
 ---
 
-This is a fun but practical example that reads GitHub events from **dlt** repository (such as issue or pull request created, comment added etc.).
-Each event type is sent to a different table in `duckdb`.
+This is a practical example of how to process [GitHub events](https://docs.github.com/en/rest/activity/events?apiVersion=2022-11-28) from the [dlt](https://github.com/dlt-hub/dlt) repository, such as issues or pull request creation, comments addition, etc.
+We'll use the [GitHub API](https://docs.github.com/en/rest) to fetch the events and [duckdb](https://duckdb.org/) as a destination. Each event type will be sent to a separate table in DuckDB.
+
+# Setup
+
+1. Install dlt with duckdb support:
+
+```shell
+pip install dlt[duckdb]
+```
+
+2. Create a new a new file `github_events_dispatch.py` and paste the following code:
 
 ```py
 import dlt
@@ -50,24 +60,26 @@ print("------")
 print(load_info)
 ```
 
+In the code above we define a resource `repo_events` that fetches events from the GitHub API.
+
 Events content never changes so we can use `append` write disposition and track new events using `created_at` field.
 
 We name the tables using a function that receives an event data and returns table name: `table_name=lambda i: i["type"]`
 
-Now run the script:
+3. Now run the script:
 
 ```shell
 python github_events_dispatch.py
 ```
 
-Peek at created tables:
+4. Peek at created tables:
 
 ```shell
 dlt pipeline -v github_events info
 dlt pipeline github_events trace
 ```
 
-And preview the data:
+5. And preview the data:
 
 ```shell
 dlt pipeline -v github_events show
