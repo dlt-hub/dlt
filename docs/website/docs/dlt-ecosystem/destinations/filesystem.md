@@ -215,5 +215,5 @@ You can choose the following file formats:
 
 
 ## Syncing of `dlt` state
-This destination does not support restoring the `dlt` state. You can change that by contributing to the core library 😄
+This destination does not support restoring the `dlt` state. You can change that by requesting the [feature](https://github.com/dlt-hub/dlt/issues/new/choose) or contributing to the core library 😄
 You can however easily [backup and restore the pipeline working folder](https://gist.github.com/rudolfix/ee6e16d8671f26ac4b9ffc915ad24b6e) - reusing the bucket and credentials used to store files.
