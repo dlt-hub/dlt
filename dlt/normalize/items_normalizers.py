@@ -42,7 +42,8 @@ class ItemsNormalizer:
         self.config = config
 
     @abstractmethod
-    def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]: ...
+    def __call__(self, extracted_items_file: str, root_table_name: str) -> List[TSchemaUpdate]:
+        ...
 
 
 class JsonLItemsNormalizer(ItemsNormalizer):

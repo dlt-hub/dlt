@@ -169,9 +169,7 @@ class DuckDbClient(InsertValuesJobClient):
             if c.get(h, False) is True
         )
         column_name = self.capabilities.escape_identifier(c["name"])
-        return (
-            f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
-        )
+        return f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     def _from_db_type(
         self, pq_t: str, precision: Optional[int], scale: Optional[int]

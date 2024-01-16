@@ -1163,9 +1163,9 @@ class Pipeline(SupportsPipeline):
             # set destination context on activation
             if self.destination:
                 # inject capabilities context
-                self._container[DestinationCapabilitiesContext] = (
-                    self._get_destination_capabilities()
-                )
+                self._container[
+                    DestinationCapabilitiesContext
+                ] = self._get_destination_capabilities()
         else:
             # remove destination context on deactivation
             if DestinationCapabilitiesContext in self._container:
@@ -1226,9 +1226,7 @@ class Pipeline(SupportsPipeline):
                     self.destination.destination_name,
                     (
                         # DestinationReference.to_name(self.destination),
-                        self.staging.destination_name
-                        if self.staging
-                        else None
+                        self.staging.destination_name if self.staging else None
                     ),
                     # DestinationReference.to_name(self.staging) if self.staging else None,
                     destination_caps,

@@ -889,7 +889,9 @@ class Schema:
                             map(utils.compile_simple_regex, table["filters"]["includes"])
                         )
         # look for auto-detections in settings and then normalizer
-        self._type_detections = self._settings.get("detections") or self._normalizers_config.get("detections") or []  # type: ignore
+        self._type_detections = (
+            self._settings.get("detections") or self._normalizers_config.get("detections") or []
+        )  # type: ignore
 
     def __repr__(self) -> str:
         return f"Schema {self.name} at {id(self)}"

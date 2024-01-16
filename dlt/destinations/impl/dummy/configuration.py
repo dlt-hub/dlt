@@ -45,4 +45,5 @@ class DummyClientConfiguration(DestinationClientConfiguration):
             fail_in_init: bool = None,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...

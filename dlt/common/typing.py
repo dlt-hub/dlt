@@ -79,7 +79,8 @@ class SupportsVariant(Protocol, Generic[TVariantBase]):
     See `Wei` type declaration which returns Decimal or str for values greater than supported by destination warehouse.
     """
 
-    def __call__(self) -> Union[TVariantBase, TVariantRV]: ...
+    def __call__(self) -> Union[TVariantBase, TVariantRV]:
+        ...
 
 
 class SupportsHumanize(Protocol):
@@ -232,7 +233,7 @@ TReturnVal = TypeVar("TReturnVal")
 
 
 def copy_sig(
-    wrapper: Callable[TInputArgs, Any]
+    wrapper: Callable[TInputArgs, Any],
 ) -> Callable[[Callable[..., TReturnVal]], Callable[TInputArgs, TReturnVal]]:
     """Copies docstring and signature from wrapper to func but keeps the func return value type"""
 

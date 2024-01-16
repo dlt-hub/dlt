@@ -105,11 +105,13 @@ def is_secret_hint(hint: Type[Any]) -> bool:
 
 
 @overload
-def configspec(cls: Type[TAnyClass]) -> Type[TAnyClass]: ...
+def configspec(cls: Type[TAnyClass]) -> Type[TAnyClass]:
+    ...
 
 
 @overload
-def configspec(cls: None = ...) -> Callable[[Type[TAnyClass]], Type[TAnyClass]]: ...
+def configspec(cls: None = ...) -> Callable[[Type[TAnyClass]], Type[TAnyClass]]:
+    ...
 
 
 def configspec(

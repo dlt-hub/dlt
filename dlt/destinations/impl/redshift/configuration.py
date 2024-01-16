@@ -42,4 +42,5 @@ class RedshiftClientConfiguration(PostgresClientConfiguration):
             staging_iam_role: str = None,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...

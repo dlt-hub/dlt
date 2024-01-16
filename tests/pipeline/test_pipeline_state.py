@@ -531,7 +531,10 @@ def test_migrate_state(test_storage: FileStorage) -> None:
         "_state_engine_version": 3,
     }
     migrate_state(
-        "test_pipeline", state_v3, state_v3["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
+        "test_pipeline",
+        state_v3,
+        state_v3["_state_engine_version"],
+        STATE_ENGINE_VERSION,  # type: ignore
     )
     assert state_v3["destination_name"] == "redshift"
     assert state_v3["destination_type"] == "dlt.destinations.redshift"
@@ -545,7 +548,10 @@ def test_migrate_state(test_storage: FileStorage) -> None:
         "_state_engine_version": 3,
     }
     migrate_state(
-        "test_pipeline", state_v3, state_v3["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
+        "test_pipeline",
+        state_v3,
+        state_v3["_state_engine_version"],
+        STATE_ENGINE_VERSION,  # type: ignore
     )
     assert state_v3["destination_name"] == "redshift"
     assert state_v3["destination_type"] == "dlt.destinations.redshift"
@@ -555,7 +561,10 @@ def test_migrate_state(test_storage: FileStorage) -> None:
 
     state_v3 = {"destination": None, "staging": None, "_state_engine_version": 3}
     migrate_state(
-        "test_pipeline", state_v3, state_v3["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
+        "test_pipeline",
+        state_v3,
+        state_v3["_state_engine_version"],
+        STATE_ENGINE_VERSION,  # type: ignore
     )
     assert "destination_name" not in state_v3
     assert "destination_type" not in state_v3
@@ -564,7 +573,10 @@ def test_migrate_state(test_storage: FileStorage) -> None:
 
     state_v3 = {"_state_engine_version": 2}
     migrate_state(
-        "test_pipeline", state_v3, state_v3["_state_engine_version"], STATE_ENGINE_VERSION  # type: ignore
+        "test_pipeline",
+        state_v3,
+        state_v3["_state_engine_version"],
+        STATE_ENGINE_VERSION,  # type: ignore
     )
     assert "destination_name" not in state_v3
     assert "destination_type" not in state_v3

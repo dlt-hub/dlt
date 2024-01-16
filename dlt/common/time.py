@@ -139,7 +139,7 @@ def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
 
 
 def _datetime_from_ts_or_iso(
-    value: Union[int, float, str]
+    value: Union[int, float, str],
 ) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
     if isinstance(value, (int, float)):
         return pendulum.from_timestamp(value)
@@ -172,4 +172,8 @@ T = TypeVar("T", bound=Union[pendulum.DateTime, pendulum.Time])
 def reduce_pendulum_datetime_precision(value: T, microsecond_precision: int) -> T:
     if microsecond_precision >= 6:
         return value
-    return value.replace(microsecond=value.microsecond // 10 ** (6 - microsecond_precision) * 10 ** (6 - microsecond_precision))  # type: ignore
+    return value.replace(
+        microsecond=value.microsecond
+        // 10 ** (6 - microsecond_precision)
+        * 10 ** (6 - microsecond_precision)
+    )  # type: ignore

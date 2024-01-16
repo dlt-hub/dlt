@@ -58,4 +58,5 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             create_indexes: bool = True,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...

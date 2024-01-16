@@ -38,4 +38,5 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             force_iceberg: Optional[bool] = False,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...

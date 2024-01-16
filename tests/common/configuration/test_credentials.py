@@ -57,11 +57,14 @@ OAUTH_USER_INFO = """
     }
 """
 
-OAUTH_APP_USER_INFO = """
+OAUTH_APP_USER_INFO = (
+    """
 {
     "installed": %s
 }
-""" % OAUTH_USER_INFO
+"""
+    % OAUTH_USER_INFO
+)
 
 
 def test_connection_string_credentials_native_representation(environment) -> None:

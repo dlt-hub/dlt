@@ -14,7 +14,8 @@ LOGGER: Logger = None
 
 
 class LogMethod(Protocol):
-    def __call__(self, msg: str, *args: Any, **kwds: Any) -> None: ...
+    def __call__(self, msg: str, *args: Any, **kwds: Any) -> None:
+        ...
 
 
 def __getattr__(name: str) -> LogMethod:

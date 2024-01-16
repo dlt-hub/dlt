@@ -71,7 +71,7 @@ class DltConfig(TypedDict, total=False):
 
 
 def pydantic_to_table_schema_columns(
-    model: Union[BaseModel, Type[BaseModel]]
+    model: Union[BaseModel, Type[BaseModel]],
 ) -> TTableSchemaColumns:
     """Convert a pydantic model to a table schema columns dict
 
@@ -261,7 +261,8 @@ def create_list_model(
     # TODO: use LenientList to create list model that automatically discards invalid items
     #   https://github.com/pydantic/pydantic/issues/2274 and https://gist.github.com/dmontagu/7f0cef76e5e0e04198dd608ad7219573
     return create_model(
-        "List" + __name__, items=(List[model], ...)  # type: ignore[return-value,valid-type]
+        "List" + __name__,
+        items=(List[model], ...),  # type: ignore[return-value,valid-type]
     )
 
 

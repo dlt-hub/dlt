@@ -53,4 +53,5 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             retry_deadline: float = 60.0,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...

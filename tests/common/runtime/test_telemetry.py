@@ -43,7 +43,8 @@ class SentryLoggerCriticalConfiguration(SentryLoggerConfiguration):
             sentry_dsn: str = "https://sentry.io",
             dlthub_telemetry_segment_write_key: str = "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB",
             log_level: str = "CRITICAL",
-        ) -> None: ...
+        ) -> None:
+            ...
 
 
 def test_sentry_log_level() -> None:

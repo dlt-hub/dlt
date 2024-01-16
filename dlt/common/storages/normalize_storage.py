@@ -17,9 +17,9 @@ from dlt.common.utils import set_working_dir
 
 class NormalizeStorage(VersionedStorage):
     STORAGE_VERSION: ClassVar[str] = "1.0.1"
-    EXTRACTED_FOLDER: ClassVar[str] = (
-        "extracted"  # folder within the volume where extracted files to be normalized are stored
-    )
+    EXTRACTED_FOLDER: ClassVar[
+        str
+    ] = "extracted"  # folder within the volume where extracted files to be normalized are stored
 
     @with_config(spec=NormalizeStorageConfiguration, sections=(known_sections.NORMALIZE,))
     def __init__(

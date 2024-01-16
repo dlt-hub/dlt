@@ -25,4 +25,5 @@ class NormalizersConfiguration(BaseConfiguration):
 
     if TYPE_CHECKING:
 
-        def __init__(self, naming: str = None, json_normalizer: TJSONNormalizer = None) -> None: ...
+        def __init__(self, naming: str = None, json_normalizer: TJSONNormalizer = None) -> None:
+            ...

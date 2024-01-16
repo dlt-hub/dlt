@@ -30,7 +30,7 @@ default_args = {
 def existing_incremental(
     updated_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
         "updated_at", allow_external_schedulers=True
-    )
+    ),
 ):
     yield {"updated_at": CATCHUP_BEGIN, "state": updated_at.get_state()}
 
@@ -73,7 +73,7 @@ def test_date_coercion() -> None:
             def incremental_datetime(
                 updated_at=dlt.sources.incremental[datetime.datetime](
                     "updated_at", allow_external_schedulers=True
-                )
+                ),
             ):
                 yield {"updated_at": CATCHUP_BEGIN, "state": updated_at.get_state()}
 
@@ -90,7 +90,7 @@ def test_date_coercion() -> None:
             def incremental_datetime(
                 updated_at=dlt.sources.incremental[datetime.date](
                     "updated_at", allow_external_schedulers=True
-                )
+                ),
             ):
                 yield {
                     "updated_at": ensure_pendulum_date(CATCHUP_BEGIN),
@@ -109,7 +109,7 @@ def test_date_coercion() -> None:
             def incremental_datetime(
                 updated_at=dlt.sources.incremental[int](
                     "updated_at", allow_external_schedulers=True
-                )
+                ),
             ):
                 yield {"updated_at": CATCHUP_BEGIN.int_timestamp, "state": updated_at.get_state()}
 
@@ -125,7 +125,7 @@ def test_date_coercion() -> None:
             def incremental_datetime(
                 updated_at=dlt.sources.incremental[float](
                     "updated_at", allow_external_schedulers=True
-                )
+                ),
             ):
                 yield {"updated_at": CATCHUP_BEGIN.timestamp(), "state": updated_at.get_state()}
 
@@ -139,7 +139,7 @@ def test_date_coercion() -> None:
             def incremental_datetime(
                 updated_at=dlt.sources.incremental[str](
                     "updated_at", allow_external_schedulers=True
-                )
+                ),
             ):
                 yield {
                     "updated_at": CATCHUP_BEGIN.in_tz("UTC").isoformat(),
@@ -185,7 +185,7 @@ def test_no_next_execution_date() -> None:
             def incremental_datetime(
                 updated_at=dlt.sources.incremental[datetime.datetime](
                     "updated_at", allow_external_schedulers=True
-                )
+                ),
             ):
                 yield {
                     "updated_at": context["data_interval_start"],
@@ -209,7 +209,7 @@ def test_no_next_execution_date() -> None:
             def incremental_datetime(
                 updated_at=dlt.sources.incremental[datetime.datetime](
                     "updated_at", allow_external_schedulers=True
-                )
+                ),
             ):
                 yield {
                     "updated_at": now.subtract(hours=1, seconds=1),
@@ -249,7 +249,7 @@ def test_no_next_execution_date() -> None:
             def incremental_datetime(
                 updated_at=dlt.sources.incremental[datetime.datetime](
                     "updated_at", allow_external_schedulers=True
-                )
+                ),
             ):
                 yield {
                     "updated_at": context["data_interval_start"],

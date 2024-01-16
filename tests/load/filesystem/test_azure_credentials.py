@@ -46,9 +46,9 @@ def test_create_azure_sas_token_with_permissions(environment: Dict[str, str]) ->
 
 def test_azure_credentials_from_sas_token(environment: Dict[str, str]) -> None:
     environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = "fake_account_name"
-    environment["CREDENTIALS__AZURE_STORAGE_SAS_TOKEN"] = (
-        "sp=rwdlacx&se=2021-01-01T00:00:00Z&sv=2019-12-12&sr=c&sig=1234567890"
-    )
+    environment[
+        "CREDENTIALS__AZURE_STORAGE_SAS_TOKEN"
+    ] = "sp=rwdlacx&se=2021-01-01T00:00:00Z&sv=2019-12-12&sr=c&sig=1234567890"
 
     config = resolve_configuration(AzureCredentials())
 

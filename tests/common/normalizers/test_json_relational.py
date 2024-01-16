@@ -476,7 +476,9 @@ def test_keeps_dlt_id(norm: RelationalNormalizer) -> None:
 
 def test_propagate_hardcoded_context(norm: RelationalNormalizer) -> None:
     row = {"level": 1, "list": ["a", "b", "c"], "comp": [{"_timestamp": "a"}]}
-    rows = list(norm._normalize_row(row, {"_timestamp": 1238.9, "_dist_key": "SENDER_3000"}, ("table",)))  # type: ignore[arg-type]
+    rows = list(
+        norm._normalize_row(row, {"_timestamp": 1238.9, "_dist_key": "SENDER_3000"}, ("table",))
+    )  # type: ignore[arg-type]
     # context is not added to root element
     root = next(t for t in rows if t[0][0] == "table")[1]
     assert "_timestamp" in root

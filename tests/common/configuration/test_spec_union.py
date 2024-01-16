@@ -181,10 +181,14 @@ def test_union_decorator() -> None:
 
     # pass explicit dict
     assert list(zen_source(credentials={"email": "emx", "password": "pass"}))[0].email == "emx"  # type: ignore[arg-type]
-    assert list(zen_source(credentials={"api_key": "🔑", "api_secret": ":secret:"}))[0].api_key == "🔑"  # type: ignore[arg-type]
+    assert (
+        list(zen_source(credentials={"api_key": "🔑", "api_secret": ":secret:"}))[0].api_key == "🔑"
+    )  # type: ignore[arg-type]
     # mixed credentials will not work
     with pytest.raises(ConfigFieldMissingException):
-        assert list(zen_source(credentials={"api_key": "🔑", "password": "pass"}))[0].api_key == "🔑"  # type: ignore[arg-type]
+        assert (
+            list(zen_source(credentials={"api_key": "🔑", "password": "pass"}))[0].api_key == "🔑"
+        )  # type: ignore[arg-type]
 
 
 class GoogleAnalyticsCredentialsBase(CredentialsConfiguration):
@@ -212,7 +216,7 @@ class GoogleAnalyticsCredentialsOAuth(GoogleAnalyticsCredentialsBase):
 def google_analytics(
     credentials: Union[
         GoogleAnalyticsCredentialsOAuth, GcpServiceAccountCredentials
-    ] = dlt.secrets.value
+    ] = dlt.secrets.value,
 ):
     yield dlt.resource([credentials], name="creds")
 

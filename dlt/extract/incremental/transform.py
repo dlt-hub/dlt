@@ -67,7 +67,8 @@ class IncrementalTransform:
     def __call__(
         self,
         row: TDataItem,
-    ) -> Tuple[bool, bool, bool]: ...
+    ) -> Tuple[bool, bool, bool]:
+        ...
 
 
 class JsonIncremental(IncrementalTransform):

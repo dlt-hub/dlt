@@ -133,10 +133,14 @@ def test_parquet_writer_all_data_fields() -> None:
         writer.write_data_item([data], TABLE_UPDATE_COLUMNS_SCHEMA)
 
     # We want to test precision for these fields is trimmed to millisecond
-    data["col4_precision"] = data["col4_precision"].replace(  # type: ignore[attr-defined]
+    data["col4_precision"] = data[
+        "col4_precision"
+    ].replace(  # type: ignore[attr-defined]
         microsecond=int(str(data["col4_precision"].microsecond)[:3] + "000")  # type: ignore[attr-defined]
     )
-    data["col11_precision"] = data["col11_precision"].replace(  # type: ignore[attr-defined]
+    data["col11_precision"] = data[
+        "col11_precision"
+    ].replace(  # type: ignore[attr-defined]
         microsecond=int(str(data["col11_precision"].microsecond)[:3] + "000")  # type: ignore[attr-defined]
     )
 

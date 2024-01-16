@@ -214,8 +214,7 @@ def test_secrets_toml_credentials_from_native_repr(
         GcpServiceAccountCredentialsWithoutDefaults(), sections=("source",)
     )
     assert (
-        c.private_key
-        == "-----BEGIN PRIVATE"
+        c.private_key == "-----BEGIN PRIVATE"
         " KEY-----\nMIIEuwIBADANBgkqhkiG9w0BAQEFAASCBKUwggShAgEAAoIBAQCNEN0bL39HmD+S\n...\n-----END"
         " PRIVATE KEY-----\n"
     )
@@ -389,28 +388,33 @@ def test_write_toml_value(toml_providers: ConfigProvidersContext) -> None:
         if not provider.is_writable:
             continue
 
-        new_doc = tomlkit.parse("""
+        new_doc = tomlkit.parse(
+            """
 int_val=2232
 
 [table]
 inner_int_val=2121
-        """)
+        """
+        )
 
         # key == None replaces the whole document
         provider.set_value(None, new_doc, None)
         assert provider._toml == new_doc
 
         # key != None merges documents
-        to_merge_doc = tomlkit.parse("""
+        to_merge_doc = tomlkit.parse(
+            """
 int_val=2137
 
 [babble]
 word1="do"
 word2="you"
 
-        """)
+        """
+        )
         provider.set_value("", to_merge_doc, None)
-        merged_doc = tomlkit.parse("""
+        merged_doc = tomlkit.parse(
+            """
 int_val=2137
 
 [babble]
@@ -420,7 +424,8 @@ word2="you"
 [table]
 inner_int_val=2121
 
-        """)
+        """
+        )
     assert provider._toml == merged_doc
 
     # currently we ignore the key when merging tomlkit
@@ -434,34 +439,51 @@ inner_int_val=2121
 
 def test_toml_string_provider() -> None:
     # test basic reading
-    provider = StringTomlProvider("""
+    provider = StringTomlProvider(
+        """
 [section1.subsection]
 key1 = "value1"
 
 [section2.subsection]
 key2 = "value2"
-""")
+"""
+    )
 
-    assert provider.get_value("key1", "", "section1", "subsection") == ("value1", "section1.subsection.key1")  # type: ignore[arg-type]
-    assert provider.get_value("key2", "", "section2", "subsection") == ("value2", "section2.subsection.key2")  # type: ignore[arg-type]
+    assert provider.get_value("key1", "", "section1", "subsection") == (
+        "value1",
+        "section1.subsection.key1",
+    )  # type: ignore[arg-type]
+    assert provider.get_value("key2", "", "section2", "subsection") == (
+        "value2",
+        "section2.subsection.key2",
+    )  # type: ignore[arg-type]
 
     # test basic writing
     provider = StringTomlProvider("")
     assert provider.dumps() == ""
 
     provider.set_value("key1", "value1", "section1", "subsection")
-    assert provider.dumps() == """[section1.subsection]
+    assert (
+        provider.dumps()
+        == """[section1.subsection]
 key1 = \"value1\"
 """
+    )
 
     provider.set_value("key1", "other_value", "section1", "subsection")
-    assert provider.dumps() == """[section1.subsection]
+    assert (
+        provider.dumps()
+        == """[section1.subsection]
 key1 = \"other_value\"
 """
+    )
     provider.set_value("key1", "other_value", "section2", "subsection")
-    assert provider.dumps() == """[section1.subsection]
+    assert (
+        provider.dumps()
+        == """[section1.subsection]
 key1 = \"other_value\"
 
 [section2.subsection]
 key1 = \"other_value\"
 """
+    )

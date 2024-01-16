@@ -82,7 +82,8 @@ class SectionedConfiguration(BaseConfiguration):
 
     if TYPE_CHECKING:
 
-        def __init__(self, password: str = None) -> None: ...
+        def __init__(self, password: str = None) -> None:
+            ...
 
 
 @pytest.fixture(scope="function")

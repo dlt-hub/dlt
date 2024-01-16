@@ -31,7 +31,7 @@ from dlt.pipeline import Pipeline
 
 
 def retry_load(
-    retry_on_pipeline_steps: Sequence[TPipelineStep] = ("load",)
+    retry_on_pipeline_steps: Sequence[TPipelineStep] = ("load",),
 ) -> Callable[[BaseException], bool]:
     """A retry strategy for Tenacity that, with default setting, will repeat `load` step for all exceptions that are not terminal
 

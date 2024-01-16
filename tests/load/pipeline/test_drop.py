@@ -28,14 +28,14 @@ def _attach(pipeline: Pipeline) -> Pipeline:
 def droppable_source() -> List[DltResource]:
     @dlt.resource
     def droppable_a(
-        a: dlt.sources.incremental[int] = dlt.sources.incremental("a", 0)
+        a: dlt.sources.incremental[int] = dlt.sources.incremental("a", 0),
     ) -> Iterator[Dict[str, Any]]:
         yield dict(a=1, b=2, c=3)
         yield dict(a=4, b=23, c=24)
 
     @dlt.resource
     def droppable_b(
-        asd: dlt.sources.incremental[int] = dlt.sources.incremental("asd", 0)
+        asd: dlt.sources.incremental[int] = dlt.sources.incremental("asd", 0),
     ) -> Iterator[Dict[str, Any]]:
         # Child table
         yield dict(asd=2323, qe=555, items=[dict(m=1, n=2), dict(m=3, n=4)])

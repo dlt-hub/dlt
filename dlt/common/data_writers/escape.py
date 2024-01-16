@@ -20,7 +20,10 @@ SQL_ESCAPE_RE = _make_sql_escape_re(SQL_ESCAPE_DICT)
 
 
 def _escape_extended(
-    v: str, prefix: str = "E'", escape_dict: Dict[str, str] = None, escape_re: re.Pattern = None  # type: ignore[type-arg]
+    v: str,
+    prefix: str = "E'",
+    escape_dict: Dict[str, str] = None,
+    escape_re: re.Pattern = None,  # type: ignore[type-arg]
 ) -> str:
     escape_dict = escape_dict or SQL_ESCAPE_DICT
     escape_re = escape_re or SQL_ESCAPE_RE

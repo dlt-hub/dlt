@@ -198,7 +198,10 @@ def test_schema_descriptions_and_annotations(schema_storage: SchemaStorage):
         schema.tables["blocks"]["columns"]["_dlt_load_id"]["description"]
         == "load id coming from the extractor"
     )
-    assert schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"] == "column annotation preserved on save"  # type: ignore[typeddict-item]
+    assert (
+        schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"]
+        == "column annotation preserved on save"
+    )  # type: ignore[typeddict-item]
 
     # mod and save
     schema.tables["blocks"]["description"] += "Saved"
@@ -213,7 +216,9 @@ def test_schema_descriptions_and_annotations(schema_storage: SchemaStorage):
     assert loaded_schema.tables["blocks"]["columns"]["_dlt_load_id"]["description"].endswith(
         "Saved"
     )
-    assert loaded_schema.tables["blocks"]["columns"]["_dlt_load_id"]["x-column-annotation"].endswith("Saved")  # type: ignore[typeddict-item]
+    assert loaded_schema.tables["blocks"]["columns"]["_dlt_load_id"][
+        "x-column-annotation"
+    ].endswith("Saved")  # type: ignore[typeddict-item]
 
 
 def test_replace_schema_content() -> None:

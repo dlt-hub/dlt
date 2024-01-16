@@ -105,4 +105,5 @@ class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             create_indexes: Optional[bool] = None,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...

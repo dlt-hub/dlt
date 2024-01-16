@@ -25,4 +25,5 @@ class PoolRunnerConfiguration(BaseConfiguration):
             start_method: str = None,
             workers: int = None,
             run_sleep: float = 0.1,
-        ) -> None: ...
+        ) -> None:
+            ...

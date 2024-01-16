@@ -211,7 +211,9 @@ def test_resource_name_is_invalid_table_name_and_columns() -> None:
 
 
 def test_columns_argument() -> None:
-    @dlt.resource(name="user", columns={"tags": {"data_type": "complex", "x-extra": "x-annotation"}})  # type: ignore[typeddict-unknown-key]
+    @dlt.resource(
+        name="user", columns={"tags": {"data_type": "complex", "x-extra": "x-annotation"}}
+    )  # type: ignore[typeddict-unknown-key]
     def get_users():
         yield {"u": "u", "tags": [1, 2, 3]}
 
@@ -360,21 +362,21 @@ def test_source_sections() -> None:
     assert list(resource_f_2()) == ["NAME OVERRIDDEN LEVEL"]
 
     # values in function name section
-    os.environ[f"{known_sections.SOURCES.upper()}__SECTION_SOURCE__INIT_SOURCE_F_1__VAL"] = (
-        "SECTION INIT_SOURCE_F_1 LEVEL"
-    )
+    os.environ[
+        f"{known_sections.SOURCES.upper()}__SECTION_SOURCE__INIT_SOURCE_F_1__VAL"
+    ] = "SECTION INIT_SOURCE_F_1 LEVEL"
     assert list(init_source_f_1()) == ["SECTION INIT_SOURCE_F_1 LEVEL"]
-    os.environ[f"{known_sections.SOURCES.upper()}__SECTION_SOURCE__INIT_RESOURCE_F_2__VAL"] = (
-        "SECTION INIT_RESOURCE_F_2 LEVEL"
-    )
+    os.environ[
+        f"{known_sections.SOURCES.upper()}__SECTION_SOURCE__INIT_RESOURCE_F_2__VAL"
+    ] = "SECTION INIT_RESOURCE_F_2 LEVEL"
     assert list(init_resource_f_2()) == ["SECTION INIT_RESOURCE_F_2 LEVEL"]
-    os.environ[f"{known_sections.SOURCES.upper()}__NAME_OVERRIDDEN__SOURCE_F_1__VAL"] = (
-        "NAME SOURCE_F_1 LEVEL"
-    )
+    os.environ[
+        f"{known_sections.SOURCES.upper()}__NAME_OVERRIDDEN__SOURCE_F_1__VAL"
+    ] = "NAME SOURCE_F_1 LEVEL"
     assert list(source_f_1()) == ["NAME SOURCE_F_1 LEVEL"]
-    os.environ[f"{known_sections.SOURCES.upper()}__NAME_OVERRIDDEN__RESOURCE_F_2__VAL"] = (
-        "NAME RESOURCE_F_2 LEVEL"
-    )
+    os.environ[
+        f"{known_sections.SOURCES.upper()}__NAME_OVERRIDDEN__RESOURCE_F_2__VAL"
+    ] = "NAME RESOURCE_F_2 LEVEL"
     assert list(resource_f_2()) == ["NAME RESOURCE_F_2 LEVEL"]
 
 
@@ -423,9 +425,9 @@ def test_resources_injected_sections() -> None:
     )
 
     # standalone resources must accept the injected sections for lookups
-    os.environ["SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL"] = (
+    os.environ[
         "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL"
-    )
+    ] = "SOURCES__EXTERNAL_RESOURCES__SOURCE_VAL"
     os.environ["SOURCES__EXTERNAL_RESOURCES__VAL"] = "SOURCES__EXTERNAL_RESOURCES__VAL"
     os.environ["SOURCES__SECTION_SOURCE__VAL"] = "SOURCES__SECTION_SOURCE__VAL"
     os.environ["SOURCES__NAME_OVERRIDDEN__VAL"] = "SOURCES__NAME_OVERRIDDEN__VAL"
@@ -472,12 +474,12 @@ def test_resources_injected_sections() -> None:
         ]
 
     # now with environ values that specify source/resource name: the module of the source, the name of the resource
-    os.environ["SOURCES__EXTERNAL_RESOURCES__INIT_RESOURCE_F_2__VAL"] = (
+    os.environ[
         "SOURCES__EXTERNAL_RESOURCES__INIT_RESOURCE_F_2__VAL"
-    )
-    os.environ["SOURCES__EXTERNAL_RESOURCES__RESOURCE_F_2__VAL"] = (
+    ] = "SOURCES__EXTERNAL_RESOURCES__INIT_RESOURCE_F_2__VAL"
+    os.environ[
         "SOURCES__EXTERNAL_RESOURCES__RESOURCE_F_2__VAL"
-    )
+    ] = "SOURCES__EXTERNAL_RESOURCES__RESOURCE_F_2__VAL"
     s = with_external()
     with inject_section(
         ConfigSectionContext(

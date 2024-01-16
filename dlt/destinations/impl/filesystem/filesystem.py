@@ -65,9 +65,7 @@ class LoadFilesystemJob(LoadJob):
         )
 
     def make_remote_path(self) -> str:
-        return (
-            f"{self.config.protocol}://{posixpath.join(self.dataset_path, self.destination_file_name)}"
-        )
+        return f"{self.config.protocol}://{posixpath.join(self.dataset_path, self.destination_file_name)}"
 
     def state(self) -> TLoadJobState:
         return "completed"

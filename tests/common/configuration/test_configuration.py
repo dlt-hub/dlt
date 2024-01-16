@@ -130,7 +130,8 @@ class FieldWithNoDefaultConfiguration(RunConfiguration):
 
     if TYPE_CHECKING:
 
-        def __init__(self, no_default: str = None, sentry_dsn: str = None) -> None: ...
+        def __init__(self, no_default: str = None, sentry_dsn: str = None) -> None:
+            ...
 
 
 @configspec
@@ -158,7 +159,8 @@ class InstrumentedConfiguration(BaseConfiguration):
 
     if TYPE_CHECKING:
 
-        def __init__(self, head: str = None, tube: List[str] = None, heels: str = None) -> None: ...
+        def __init__(self, head: str = None, tube: List[str] = None, heels: str = None) -> None:
+            ...
 
 
 @configspec
@@ -174,7 +176,8 @@ class EmbeddedConfiguration(BaseConfiguration):
             default: str = None,
             instrumented: InstrumentedConfiguration = None,
             sectioned: SectionedConfiguration = None,
-        ) -> None: ...
+        ) -> None:
+            ...
 
 
 @configspec
@@ -707,7 +710,9 @@ def test_removes_trace_value_from_exception_trace_attrs(
 ) -> None:
     with pytest.raises(ConfigFieldMissingException) as cf_missing_exc:
         resolve.resolve_configuration(CoercionTestConfiguration())
-    cf_missing_exc.value.traces["str_val"][0] = cf_missing_exc.value.traces["str_val"][0]._replace(value="SECRET")  # type: ignore[index]
+    cf_missing_exc.value.traces["str_val"][0] = cf_missing_exc.value.traces["str_val"][0]._replace(
+        value="SECRET"
+    )  # type: ignore[index]
     assert cf_missing_exc.value.traces["str_val"][0].value == "SECRET"
     attrs_ = cf_missing_exc.value.attrs()
     # values got cleared up
@@ -940,7 +945,8 @@ def test_configspec_auto_base_config_derivation() -> None:
 
         if TYPE_CHECKING:
 
-            def __init__(self, auto: str = None) -> None: ...
+            def __init__(self, auto: str = None) -> None:
+                ...
 
     assert issubclass(AutoBaseDerivationConfiguration, BaseConfiguration)
     assert hasattr(AutoBaseDerivationConfiguration, "auto")
@@ -1085,8 +1091,14 @@ def test_resolved_trace(environment: Any) -> None:
 
 def test_extract_inner_hint() -> None:
     # extracts base config from an union
-    assert resolve.extract_inner_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]) is GcpServiceAccountCredentialsWithoutDefaults  # type: ignore[arg-type]
-    assert resolve.extract_inner_hint(Union[InstrumentedConfiguration, StrAny, str]) is InstrumentedConfiguration  # type: ignore[arg-type]
+    assert (
+        resolve.extract_inner_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str])
+        is GcpServiceAccountCredentialsWithoutDefaults
+    )  # type: ignore[arg-type]
+    assert (
+        resolve.extract_inner_hint(Union[InstrumentedConfiguration, StrAny, str])
+        is InstrumentedConfiguration
+    )  # type: ignore[arg-type]
     # keeps unions
     assert resolve.extract_inner_hint(Union[StrAny, str]) is Union  # type: ignore[arg-type]
     # ignores specialization in list and dict, leaving origin
@@ -1108,7 +1120,10 @@ def test_is_secret_hint() -> None:
     TTestSecretNt = NewType("TTestSecretNt", GcpServiceAccountCredentialsWithoutDefaults)
     assert resolve.is_secret_hint(TTestSecretNt) is False
     # recognize unions with credentials
-    assert resolve.is_secret_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str]) is True  # type: ignore[arg-type]
+    assert (
+        resolve.is_secret_hint(Union[GcpServiceAccountCredentialsWithoutDefaults, StrAny, str])
+        is True
+    )  # type: ignore[arg-type]
     # we do not recognize unions if they do not contain configuration types
     assert resolve.is_secret_hint(Union[TSecretValue, StrAny, str]) is False  # type: ignore[arg-type]
     assert resolve.is_secret_hint(Optional[str]) is False  # type: ignore[arg-type]

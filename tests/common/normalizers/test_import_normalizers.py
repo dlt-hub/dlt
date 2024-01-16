@@ -53,9 +53,9 @@ def test_import_normalizers() -> None:
     assert config["json"] == {"module": "dlt.common.normalizers.json.relational"}
 
     os.environ["SCHEMA__NAMING"] = "direct"
-    os.environ["SCHEMA__JSON_NORMALIZER"] = (
-        '{"module": "tests.common.normalizers.custom_normalizers"}'
-    )
+    os.environ[
+        "SCHEMA__JSON_NORMALIZER"
+    ] = '{"module": "tests.common.normalizers.custom_normalizers"}'
     config, naming, json_normalizer = import_normalizers(explicit_normalizers())
     assert config["names"] == "direct"
     assert config["json"] == {"module": "tests.common.normalizers.custom_normalizers"}

@@ -61,7 +61,7 @@ def qdrant_snippet():
                 initial_value=start_date_obj,
                 end_value=end_date_obj,
                 allow_external_schedulers=True,
-            )
+            ),
         ):
             # URL For ticket events
             # 'https://d3v-dlthub.zendesk.com/api/v2/incremental/tickets_data.json?start_time=946684800'

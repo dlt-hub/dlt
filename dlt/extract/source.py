@@ -371,7 +371,9 @@ class DltSource(Iterable[TDataItem]):
 
         # managed pipe iterator will set the context on each call to  __next__
         with inject_section(section_context), Container().injectable_context(state_context):
-            pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes(self._resources.selected_pipes)  # type: ignore
+            pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes(
+                self._resources.selected_pipes
+            )  # type: ignore
         pipe_iterator.set_context([section_context, state_context])
         _iter = map(lambda item: item.item, pipe_iterator)
         return flatten_list_or_items(_iter)

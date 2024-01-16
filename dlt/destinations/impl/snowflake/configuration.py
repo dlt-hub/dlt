@@ -145,4 +145,5 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
             keep_staged_files: bool = True,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...

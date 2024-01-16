@@ -11,12 +11,14 @@ if __name__ == "__main__":
 
     # list all schemas
     with connection.cursor() as curr:
-        curr.execute("""select s.nspname as table_schema,
+        curr.execute(
+            """select s.nspname as table_schema,
         s.oid as schema_id,
         u.usename as owner
         from pg_catalog.pg_namespace s
         join pg_catalog.pg_user u on u.usesysid = s.nspowner
-        order by table_schema;""")
+        order by table_schema;"""
+        )
         schemas = [row[0] for row in curr.fetchall()]
 
     # delete all schemas, skipp expected errors

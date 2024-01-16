@@ -43,7 +43,11 @@ def test_adapter_and_hints() -> None:
         some_data,
         vectorize=["content"],
     )
-    assert some_data.columns["content"] == {"name": "content", "data_type": "text", "x-weaviate-vectorize": True}  # type: ignore[index]
+    assert some_data.columns["content"] == {
+        "name": "content",
+        "data_type": "text",
+        "x-weaviate-vectorize": True,
+    }  # type: ignore[index]
 
 
 def test_basic_state_and_schema() -> None:

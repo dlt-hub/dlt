@@ -351,9 +351,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return self.type_mapper.from_db_type(hive_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
-        return (
-            f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c, table_format)}"
-        )
+        return f"{self.sql_client.escape_ddl_identifier(c['name'])} {self.type_mapper.to_db_type(c, table_format)}"
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
@@ -378,15 +376,19 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         # use qualified table names
         qualified_table_name = self.sql_client.make_qualified_ddl_table_name(table_name)
         if is_iceberg and not generate_alter:
-            sql.append(f"""CREATE TABLE {qualified_table_name}
+            sql.append(
+                f"""CREATE TABLE {qualified_table_name}
                     ({columns})
                     LOCATION '{location}'
-                    TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');""")
+                    TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');"""
+            )
         elif not generate_alter:
-            sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
+            sql.append(
+                f"""CREATE EXTERNAL TABLE {qualified_table_name}
                     ({columns})
                     STORED AS PARQUET
-                    LOCATION '{location}';""")
+                    LOCATION '{location}';"""
+            )
         # alter table to add new columns at the end
         else:
             sql.append(f"""ALTER TABLE {qualified_table_name} ADD COLUMNS ({columns});""")

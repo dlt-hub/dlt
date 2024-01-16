@@ -20,7 +20,8 @@ class ItemsNormalizerConfiguration(BaseConfiguration):
 
     if TYPE_CHECKING:
 
-        def __init__(self, add_dlt_id: bool = None, add_dlt_load_id: bool = None) -> None: ...
+        def __init__(self, add_dlt_id: bool = None, add_dlt_load_id: bool = None) -> None:
+            ...
 
 
 @configspec
@@ -51,4 +52,5 @@ class NormalizeConfiguration(PoolRunnerConfiguration):
             _schema_storage_config: SchemaStorageConfiguration = None,
             _normalize_storage_config: NormalizeStorageConfiguration = None,
             _load_storage_config: LoadStorageConfiguration = None,
-        ) -> None: ...
+        ) -> None:
+            ...

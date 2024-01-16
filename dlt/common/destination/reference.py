@@ -74,9 +74,9 @@ class StateInfo(NamedTuple):
 class DestinationClientConfiguration(BaseConfiguration):
     destination_type: Final[str] = None  # which destination to load data to
     credentials: Optional[CredentialsConfiguration]
-    destination_name: Optional[str] = (
-        None  # name of the destination, if not set, destination_type is used
-    )
+    destination_name: Optional[
+        str
+    ] = None  # name of the destination, if not set, destination_type is used
     environment: Optional[str] = None
 
     def fingerprint(self) -> str:
@@ -98,7 +98,8 @@ class DestinationClientConfiguration(BaseConfiguration):
             credentials: Optional[CredentialsConfiguration] = None,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...
 
 
 @configspec
@@ -143,7 +144,8 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
             default_schema_name: Optional[str] = None,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...
 
 
 @configspec
@@ -171,7 +173,8 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
             layout: str = None,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...
 
 
 @configspec
@@ -191,7 +194,8 @@ class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfigura
             staging_config: Optional[DestinationClientStagingConfiguration] = None,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...
 
 
 TLoadJobState = Literal["running", "failed", "retry", "completed"]

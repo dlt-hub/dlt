@@ -45,7 +45,7 @@ class BufferedDataWriter(Generic[TWriter]):
         file_max_items: int = None,
         file_max_bytes: int = None,
         disable_compression: bool = False,
-        _caps: DestinationCapabilitiesContext = None
+        _caps: DestinationCapabilitiesContext = None,
     ):
         self.file_format = file_format
         self._file_format_spec = DataWriter.data_format_from_file_format(self.file_format)
@@ -197,7 +197,9 @@ class BufferedDataWriter(Generic[TWriter]):
                     self._file = self.open(self._file_name, "wb")  # type: ignore
                 else:
                     self._file = self.open(self._file_name, "wt", encoding="utf-8")  # type: ignore
-                self._writer = DataWriter.from_file_format(self.file_format, self._file, caps=self._caps)  # type: ignore[assignment]
+                self._writer = DataWriter.from_file_format(
+                    self.file_format, self._file, caps=self._caps
+                )  # type: ignore[assignment]
                 self._writer.write_header(self._current_columns)
             # write buffer
             if self._buffered_items:

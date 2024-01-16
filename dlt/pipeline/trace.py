@@ -198,11 +198,13 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
 class SupportsTracking(Protocol):
     def on_start_trace(
         self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
-    ) -> None: ...
+    ) -> None:
+        ...
 
     def on_start_trace_step(
         self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
-    ) -> None: ...
+    ) -> None:
+        ...
 
     def on_end_trace_step(
         self,
@@ -211,11 +213,13 @@ class SupportsTracking(Protocol):
         pipeline: SupportsPipeline,
         step_info: Any,
         send_state: bool,
-    ) -> None: ...
+    ) -> None:
+        ...
 
     def on_end_trace(
         self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
-    ) -> None: ...
+    ) -> None:
+        ...
 
 
 # plug in your own tracking modules here

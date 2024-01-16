@@ -104,7 +104,7 @@ def tap(
             os.path.abspath(config_file_path),
             "--catalog",
             os.path.abspath(catalog_file_path),
-            *state_params
+            *state_params,
         )
         yield from get_source_from_stream(pipe_iterator, state)
 

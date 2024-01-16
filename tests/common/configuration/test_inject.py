@@ -265,7 +265,7 @@ def test_use_most_specific_union_type(
 ) -> None:
     @with_config
     def postgres_union(
-        local_credentials: Union[ConnectionStringCredentials, str, StrAny] = dlt.secrets.value
+        local_credentials: Union[ConnectionStringCredentials, str, StrAny] = dlt.secrets.value,
     ):
         return local_credentials
 

@@ -105,7 +105,11 @@ class DltResourceHints:
         if self._table_name_hint_fun and item is None:
             raise DataItemRequiredForDynamicTableHints(self.name)
         # resolve
-        resolved_template: TResourceHints = {k: self._resolve_hint(item, v) for k, v in table_template.items() if k not in ["incremental", "validator", "original_columns"]}  # type: ignore
+        resolved_template: TResourceHints = {
+            k: self._resolve_hint(item, v)
+            for k, v in table_template.items()
+            if k not in ["incremental", "validator", "original_columns"]
+        }  # type: ignore
         table_schema = self._merge_keys(resolved_template)
         table_schema["resource"] = self.name
         validate_dict_ignoring_xkeys(

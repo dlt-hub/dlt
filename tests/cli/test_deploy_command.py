@@ -43,7 +43,7 @@ def test_deploy_command_no_repo(
                 "debug_pipeline.py",
                 deployment_method,
                 deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                **deployment_args
+                **deployment_args,
             )
 
         # test wrapper
@@ -51,7 +51,7 @@ def test_deploy_command_no_repo(
             "debug_pipeline.py",
             deployment_method,
             deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-            **deployment_args
+            **deployment_args,
         )
         assert rc == -3
 
@@ -77,14 +77,14 @@ def test_deploy_command(
                     "debug_pipeline.py",
                     deployment_method,
                     deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                    **deployment_args
+                    **deployment_args,
                 )
             assert "Your current repository has no origin set" in py_ex.value.args[0]
             rc = _dlt.deploy_command_wrapper(
                 "debug_pipeline.py",
                 deployment_method,
                 deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                **deployment_args
+                **deployment_args,
             )
             assert rc == -5
 
@@ -95,13 +95,13 @@ def test_deploy_command(
                     "debug_pipeline.py",
                     deployment_method,
                     deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                    **deployment_args
+                    **deployment_args,
                 )
             rc = _dlt.deploy_command_wrapper(
                 "debug_pipeline.py",
                 deployment_method,
                 deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                **deployment_args
+                **deployment_args,
             )
             assert rc == -2
 
@@ -118,14 +118,14 @@ def test_deploy_command(
                     "debug_pipeline.py",
                     deployment_method,
                     deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                    **deployment_args
+                    **deployment_args,
                 )
             assert "The last pipeline run ended with error" in py_ex2.value.args[0]
             rc = _dlt.deploy_command_wrapper(
                 "debug_pipeline.py",
                 deployment_method,
                 deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                **deployment_args
+                **deployment_args,
             )
             assert rc == -2
 
@@ -142,7 +142,7 @@ def test_deploy_command(
                         "debug_pipeline.py",
                         deployment_method,
                         deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                        **deployment_args
+                        **deployment_args,
                     )
                     _out = buf.getvalue()
                 print(_out)
@@ -163,13 +163,13 @@ def test_deploy_command(
                     "no_pipeline.py",
                     deployment_method,
                     deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                    **deployment_args
+                    **deployment_args,
                 )
             with echo.always_choose(False, always_choose_value=True):
                 rc = _dlt.deploy_command_wrapper(
                     "no_pipeline.py",
                     deployment_method,
                     deploy_command.COMMAND_DEPLOY_REPO_LOCATION,
-                    **deployment_args
+                    **deployment_args,
                 )
                 assert rc == -4

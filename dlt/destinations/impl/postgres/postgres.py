@@ -122,9 +122,7 @@ class PostgresClient(InsertValuesJobClient):
             if c.get(h, False) is True
         )
         column_name = self.capabilities.escape_identifier(c["name"])
-        return (
-            f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
-        )
+        return f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]

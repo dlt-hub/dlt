@@ -177,7 +177,9 @@ class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
             f" {completed_msg}.\n"
         )
         msg += "Jobs details:\n"
-        msg += "\n".join(job.asstr(verbosity) for job in flatten_list_or_items(iter(self.jobs.values())))  # type: ignore
+        msg += "\n".join(
+            job.asstr(verbosity) for job in flatten_list_or_items(iter(self.jobs.values()))
+        )  # type: ignore
         return msg
 
     def __str__(self) -> str:

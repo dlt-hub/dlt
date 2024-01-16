@@ -286,10 +286,11 @@ class SqlMergeJob(SqlBaseJob):
                 )
             # create temp table used to deduplicate, only when we have primary keys
             if primary_keys:
-                create_insert_temp_table_sql, insert_temp_table_name = (
-                    cls.gen_insert_temp_table_sql(
-                        staging_root_table_name, primary_keys, unique_column
-                    )
+                (
+                    create_insert_temp_table_sql,
+                    insert_temp_table_name,
+                ) = cls.gen_insert_temp_table_sql(
+                    staging_root_table_name, primary_keys, unique_column
                 )
                 sql.extend(create_insert_temp_table_sql)
 

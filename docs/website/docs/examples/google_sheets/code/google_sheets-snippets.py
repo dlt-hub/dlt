@@ -19,7 +19,7 @@ def google_sheets_snippet() -> None:
     from dlt.common.typing import DictStrAny, StrAny
 
     def _initialize_sheets(
-        credentials: Union[GcpOAuthCredentials, GcpServiceAccountCredentials]
+        credentials: Union[GcpOAuthCredentials, GcpServiceAccountCredentials],
     ) -> Any:
         # Build the service object.
         service = build("sheets", "v4", credentials=credentials.to_native_credentials())
@@ -80,8 +80,8 @@ def google_sheets_snippet() -> None:
             )
         )
         print(info)
-    # @@@DLT_SNIPPET_END google_sheets_run
-    # @@@DLT_SNIPPET_END example
+        # @@@DLT_SNIPPET_END google_sheets_run
+        # @@@DLT_SNIPPET_END example
         row_counts = pipeline.last_trace.last_normalize_info.row_counts
         print(row_counts.keys())
         assert row_counts["hidden_columns_merged_cells"] == 7

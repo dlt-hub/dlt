@@ -71,7 +71,9 @@ class ResourceExtractionError(PipeException):
         self.func_name = (
             gen.__name__
             if isgenerator(gen)
-            else get_callable_name(gen) if callable(gen) else str(gen)
+            else get_callable_name(gen)
+            if callable(gen)
+            else str(gen)
         )
         super().__init__(
             pipe_name,
@@ -139,8 +141,7 @@ class InvalidResourceDataType(DltResourceException):
         super().__init__(
             resource_name,
             f"Cannot create resource {resource_name} from specified data. If you want to process"
-            " just one data item, enclose it in a list. "
-            + msg,
+            " just one data item, enclose it in a list. " + msg,
         )
 
 

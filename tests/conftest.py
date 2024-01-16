@@ -47,27 +47,35 @@ def pytest_configure(config):
         "TLJiyRkGVZGCi2TtjClamXpFcxAA1rSB"
     )
     delattr(run_configuration.RunConfiguration, "__init__")
-    run_configuration.RunConfiguration = dataclasses.dataclass(run_configuration.RunConfiguration, init=True, repr=False)  # type: ignore
+    run_configuration.RunConfiguration = dataclasses.dataclass(
+        run_configuration.RunConfiguration, init=True, repr=False
+    )  # type: ignore
     # push telemetry to CI
 
     storage_configuration.LoadStorageConfiguration.load_volume_path = os.path.join(
         test_storage_root, "load"
     )
     delattr(storage_configuration.LoadStorageConfiguration, "__init__")
-    storage_configuration.LoadStorageConfiguration = dataclasses.dataclass(storage_configuration.LoadStorageConfiguration, init=True, repr=False)  # type: ignore[misc, call-overload]
+    storage_configuration.LoadStorageConfiguration = dataclasses.dataclass(
+        storage_configuration.LoadStorageConfiguration, init=True, repr=False
+    )  # type: ignore[misc, call-overload]
 
     storage_configuration.NormalizeStorageConfiguration.normalize_volume_path = os.path.join(
         test_storage_root, "normalize"
     )
     # delete __init__, otherwise it will not be recreated by dataclass
     delattr(storage_configuration.NormalizeStorageConfiguration, "__init__")
-    storage_configuration.NormalizeStorageConfiguration = dataclasses.dataclass(storage_configuration.NormalizeStorageConfiguration, init=True, repr=False)  # type: ignore[misc, call-overload]
+    storage_configuration.NormalizeStorageConfiguration = dataclasses.dataclass(
+        storage_configuration.NormalizeStorageConfiguration, init=True, repr=False
+    )  # type: ignore[misc, call-overload]
 
     storage_configuration.SchemaStorageConfiguration.schema_volume_path = os.path.join(
         test_storage_root, "schemas"
     )
     delattr(storage_configuration.SchemaStorageConfiguration, "__init__")
-    storage_configuration.SchemaStorageConfiguration = dataclasses.dataclass(storage_configuration.SchemaStorageConfiguration, init=True, repr=False)  # type: ignore[misc, call-overload]
+    storage_configuration.SchemaStorageConfiguration = dataclasses.dataclass(
+        storage_configuration.SchemaStorageConfiguration, init=True, repr=False
+    )  # type: ignore[misc, call-overload]
 
     assert run_configuration.RunConfiguration.config_files_storage_path == os.path.join(
         test_storage_root, "config/"

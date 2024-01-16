@@ -44,7 +44,7 @@ def resolve_configuration(
     *,
     sections: Tuple[str, ...] = (),
     explicit_value: Any = None,
-    accept_partial: bool = False
+    accept_partial: bool = False,
 ) -> TConfiguration:
     if not isinstance(config, BaseConfiguration):
         raise ConfigurationWrongTypeException(type(config))

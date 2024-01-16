@@ -261,9 +261,14 @@ def test_nested_model_config_propagation() -> None:
     # extra is modified
     assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressExtraAllow"  # type: ignore[index]
     # annotated is preserved
-    assert issubclass(get_origin(model_freeze.__fields__["address"].rebuild_annotation()), Annotated)  # type: ignore[arg-type, index]
+    assert issubclass(
+        get_origin(model_freeze.__fields__["address"].rebuild_annotation()), Annotated
+    )  # type: ignore[arg-type, index]
     # UserAddress is converted to UserAddressAllow only once
-    assert model_freeze.__fields__["address"].annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
+    assert (
+        model_freeze.__fields__["address"].annotation
+        is get_args(model_freeze.__fields__["unity"].annotation)[0]
+    )  # type: ignore[index]
 
     # print(User.__fields__)
     # print(User.__fields__["name"].annotation)

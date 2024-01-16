@@ -271,12 +271,12 @@ def some_data_from_config(
 
 @pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)
 def test_optional_incremental_from_config(item_type: TDataItemFormat) -> None:
-    os.environ["SOURCES__TEST_INCREMENTAL__SOME_DATA_FROM_CONFIG__CREATED_AT__CURSOR_PATH"] = (
-        "created_at"
-    )
-    os.environ["SOURCES__TEST_INCREMENTAL__SOME_DATA_FROM_CONFIG__CREATED_AT__INITIAL_VALUE"] = (
-        "2022-02-03T00:00:00Z"
-    )
+    os.environ[
+        "SOURCES__TEST_INCREMENTAL__SOME_DATA_FROM_CONFIG__CREATED_AT__CURSOR_PATH"
+    ] = "created_at"
+    os.environ[
+        "SOURCES__TEST_INCREMENTAL__SOME_DATA_FROM_CONFIG__CREATED_AT__INITIAL_VALUE"
+    ] = "2022-02-03T00:00:00Z"
 
     p = dlt.pipeline(pipeline_name=uniq_id())
     p.extract(some_data_from_config(1, item_type))
@@ -320,7 +320,9 @@ def test_optional_arg_from_spec_not_passed(item_type: TDataItemFormat) -> None:
 
 @configspec
 class SomeDataOverrideConfiguration(BaseConfiguration):
-    created_at: dlt.sources.incremental = dlt.sources.incremental("created_at", initial_value="2022-02-03T00:00:00Z")  # type: ignore[type-arg]
+    created_at: dlt.sources.incremental = dlt.sources.incremental(
+        "created_at", initial_value="2022-02-03T00:00:00Z"
+    )  # type: ignore[type-arg]
 
 
 # provide what to inject via spec. the spec contain the default
@@ -922,7 +924,7 @@ def test_last_value_func_on_dict() -> None:
 
     @dlt.resource(primary_key="id", table_name=lambda i: i["type"])
     def _get_shuffled_events(
-        last_created_at=dlt.sources.incremental("$", last_value_func=by_event_type)
+        last_created_at=dlt.sources.incremental("$", last_value_func=by_event_type),
     ):
         with open(
             "tests/normalize/cases/github.events.load_page_1_duck.json", "r", encoding="utf-8"
@@ -954,7 +956,7 @@ def test_timezone_naive_datetime() -> None:
     def some_data(
         updated_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
             "updated_at", pendulum_start_dt
-        )
+        ),
     ):
         data = [
             {"updated_at": start_dt + timedelta(hours=1)},
@@ -1046,7 +1048,7 @@ def test_end_value_with_batches(item_type: TDataItemFormat) -> None:
     def batched_sequence(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=1
-        )
+        ),
     ) -> Any:
         start = updated_at.last_value
         data = [{"updated_at": i} for i in range(start, start + 12)]
@@ -1164,7 +1166,7 @@ def test_out_of_range_flags(item_type: TDataItemFormat) -> None:
     def descending(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=10
-        )
+        ),
     ) -> Any:
         for chunk in chunks(list(reversed(range(48))), 10):
             data = [{"updated_at": i} for i in chunk]
@@ -1180,7 +1182,7 @@ def test_out_of_range_flags(item_type: TDataItemFormat) -> None:
     def ascending(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=22, end_value=45
-        )
+        ),
     ) -> Any:
         for chunk in chunks(list(range(22, 500)), 10):
             data = [{"updated_at": i} for i in chunk]
@@ -1196,7 +1198,7 @@ def test_out_of_range_flags(item_type: TDataItemFormat) -> None:
     def descending_single_item(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=10
-        )
+        ),
     ) -> Any:
         for i in reversed(range(14)):
             data = [{"updated_at": i}]
@@ -1212,7 +1214,7 @@ def test_out_of_range_flags(item_type: TDataItemFormat) -> None:
     def ascending_single_item(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", initial_value=10, end_value=22
-        )
+        ),
     ) -> Any:
         for i in range(10, 500):
             data = [{"updated_at": i}]
@@ -1245,14 +1247,19 @@ def test_get_incremental_value_type(item_type: TDataItemFormat) -> None:
         is pendulum.DateTime
     )
     # typing has precedence
-    assert dlt.sources.incremental[pendulum.DateTime]("id", initial_value=1).get_incremental_value_type() is pendulum.DateTime  # type: ignore[arg-type]
+    assert (
+        dlt.sources.incremental[pendulum.DateTime](
+            "id", initial_value=1
+        ).get_incremental_value_type()
+        is pendulum.DateTime
+    )  # type: ignore[arg-type]
 
     # pass default value
     @dlt.resource
     def test_type(
         updated_at=dlt.sources.incremental[str](  # noqa: B008
             "updated_at", allow_external_schedulers=True
-        )
+        ),
     ):
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
@@ -1266,7 +1273,7 @@ def test_get_incremental_value_type(item_type: TDataItemFormat) -> None:
     def test_type_2(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", allow_external_schedulers=True
-        )
+        ),
     ):
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
@@ -1288,7 +1295,7 @@ def test_get_incremental_value_type(item_type: TDataItemFormat) -> None:
     # pass explicit value overriding default that is typed
     @dlt.resource
     def test_type_4(
-        updated_at=dlt.sources.incremental("updated_at", allow_external_schedulers=True)
+        updated_at=dlt.sources.incremental("updated_at", allow_external_schedulers=True),
     ):
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
@@ -1300,7 +1307,7 @@ def test_get_incremental_value_type(item_type: TDataItemFormat) -> None:
     # no generic type information
     @dlt.resource
     def test_type_5(
-        updated_at=dlt.sources.incremental("updated_at", allow_external_schedulers=True)
+        updated_at=dlt.sources.incremental("updated_at", allow_external_schedulers=True),
     ):
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
@@ -1316,7 +1323,7 @@ def test_join_env_scheduler(item_type: TDataItemFormat) -> None:
     def test_type_2(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", allow_external_schedulers=True
-        )
+        ),
     ):
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
@@ -1343,7 +1350,7 @@ def test_join_env_scheduler_pipeline(item_type: TDataItemFormat) -> None:
     def test_type_2(
         updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
             "updated_at", allow_external_schedulers=True
-        )
+        ),
     ):
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)

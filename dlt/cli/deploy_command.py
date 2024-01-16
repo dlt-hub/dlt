@@ -134,9 +134,9 @@ class GithubActionDeployment(BaseDeployment):
         ) as f:
             workflow = yaml.safe_load(f)
         # customize the workflow
-        workflow["name"] = (
-            f"Run {self.state['pipeline_name']} pipeline from {self.pipeline_script_path}"
-        )
+        workflow[
+            "name"
+        ] = f"Run {self.state['pipeline_name']} pipeline from {self.pipeline_script_path}"
         if self.run_on_push is False:
             del workflow["on"]["push"]
         if self.run_manually is False:
@@ -196,8 +196,7 @@ class GithubActionDeployment(BaseDeployment):
         fmt.echo(
             "* The dependencies that will be used to run the pipeline are stored in %s. If you"
             " change add more dependencies, remember to refresh your deployment by running the same"
-            " 'deploy' command again."
-            % fmt.bold(self.artifacts["requirements_txt_name"])
+            " 'deploy' command again." % fmt.bold(self.artifacts["requirements_txt_name"])
         )
         fmt.echo()
         if len(self.secret_envs) == 0 and len(self.envs) == 0:

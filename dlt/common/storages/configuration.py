@@ -38,7 +38,8 @@ class SchemaStorageConfiguration(BaseConfiguration):
             schema_volume_path: str = None,
             import_schema_path: str = None,
             export_schema_path: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...
 
 
 @configspec
@@ -47,7 +48,8 @@ class NormalizeStorageConfiguration(BaseConfiguration):
 
     if TYPE_CHECKING:
 
-        def __init__(self, normalize_volume_path: str = None) -> None: ...
+        def __init__(self, normalize_volume_path: str = None) -> None:
+            ...
 
 
 @configspec
@@ -63,7 +65,8 @@ class LoadStorageConfiguration(BaseConfiguration):
 
         def __init__(
             self, load_volume_path: str = None, delete_completed_jobs: bool = None
-        ) -> None: ...
+        ) -> None:
+            ...
 
 
 FileSystemCredentials = Union[

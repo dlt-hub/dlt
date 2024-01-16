@@ -80,4 +80,5 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
             dataset_separator: str = None,
             vectorizer: str = None,
             module_config: Dict[str, Dict[str, str]] = None,
-        ) -> None: ...
+        ) -> None:
+            ...

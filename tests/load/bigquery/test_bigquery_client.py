@@ -362,8 +362,7 @@ def test_loading_errors(client: BigQueryClient, file_storage: FileStorage) -> No
     assert (
         "Invalid BIGNUMERIC value:"
         " 578960446186580977117854925043439539266.34992332820282019728792003956564819968 Field:"
-        " parse_data__metadata__rasa_x_id;"
-        in job.exception()
+        " parse_data__metadata__rasa_x_id;" in job.exception()
     )
 
 

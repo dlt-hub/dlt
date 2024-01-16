@@ -11,7 +11,9 @@ from dlt.common.storages import FilesystemConfiguration
 
 
 @configspec
-class FilesystemDestinationClientConfiguration(FilesystemConfiguration, DestinationClientStagingConfiguration):  # type: ignore[misc]
+class FilesystemDestinationClientConfiguration(
+    FilesystemConfiguration, DestinationClientStagingConfiguration
+):  # type: ignore[misc]
     destination_type: Final[str] = "filesystem"  # type: ignore
 
     @resolve_type("credentials")
@@ -30,4 +32,5 @@ class FilesystemDestinationClientConfiguration(FilesystemConfiguration, Destinat
             bucket_url: str = None,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...

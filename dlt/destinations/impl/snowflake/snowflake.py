@@ -175,13 +175,15 @@ class SnowflakeLoadJob(LoadJob, FollowupJob):
                     f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE,'
                     " AUTO_COMPRESS = FALSE"
                 )
-            client.execute_sql(f"""COPY INTO {qualified_table_name}
+            client.execute_sql(
+                f"""COPY INTO {qualified_table_name}
                 {from_clause}
                 {files_clause}
                 {credentials_clause}
                 FILE_FORMAT = {source_format}
                 MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
-                """)
+                """
+            )
             if stage_file_path and not keep_staged_files:
                 client.execute_sql(f"REMOVE {stage_file_path}")
 
@@ -293,5 +295,7 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
             return exists, table
         # Snowflake converts all unquoted columns to UPPER CASE
         # Convert back to lower case to enable comparison with dlt schema
-        table = {col_name.lower(): dict(col, name=col_name.lower()) for col_name, col in table.items()}  # type: ignore
+        table = {
+            col_name.lower(): dict(col, name=col_name.lower()) for col_name, col in table.items()
+        }  # type: ignore
         return exists, table

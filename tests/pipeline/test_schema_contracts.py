@@ -606,7 +606,9 @@ def test_dynamic_new_columns(column_mode: str) -> None:
         if item["id"] == 2:
             return [{"name": "id", "data_type": "bigint", "nullable": True}]
 
-    @dlt.resource(name="items", table_name=lambda i: "items", schema_contract={"columns": column_mode})  # type: ignore
+    @dlt.resource(
+        name="items", table_name=lambda i: "items", schema_contract={"columns": column_mode}
+    )  # type: ignore
     def get_items():
         yield {
             "id": 1,

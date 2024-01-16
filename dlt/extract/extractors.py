@@ -209,9 +209,7 @@ class ArrowExtractor(Extractor):
             for tbl in (
                 (
                     # 1. Convert pandas frame(s) to arrow Table
-                    pa.Table.from_pandas(item)
-                    if (pd and isinstance(item, pd.DataFrame))
-                    else item
+                    pa.Table.from_pandas(item) if (pd and isinstance(item, pd.DataFrame)) else item
                 )
                 for item in (items if isinstance(items, list) else [items])
             )

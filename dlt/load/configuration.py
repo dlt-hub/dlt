@@ -27,4 +27,5 @@ class LoaderConfiguration(PoolRunnerConfiguration):
             workers: int = None,
             raise_on_failed_jobs: bool = False,
             _load_storage_config: LoadStorageConfiguration = None,
-        ) -> None: ...
+        ) -> None:
+            ...

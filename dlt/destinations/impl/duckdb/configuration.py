@@ -219,4 +219,5 @@ class DuckDbClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             staging_config: Optional[DestinationClientStagingConfiguration] = None,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            ...

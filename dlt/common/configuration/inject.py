@@ -32,7 +32,8 @@ def with_config(
     auto_pipeline_section: bool = False,
     include_defaults: bool = True,
     accept_partial: bool = False,
-) -> TFun: ...
+) -> TFun:
+    ...
 
 
 @overload
@@ -45,7 +46,8 @@ def with_config(
     auto_pipeline_section: bool = False,
     include_defaults: bool = True,
     accept_partial: bool = False,
-) -> Callable[[TFun], TFun]: ...
+) -> Callable[[TFun], TFun]:
+    ...
 
 
 def with_config(

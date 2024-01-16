@@ -474,8 +474,7 @@ def test_incompatible_dlt_version_warning(repo_dir: str, project_files: FileStor
 
     assert (
         "WARNING: This pipeline requires a newer version of dlt than your installed version"
-        " (0.1.1)."
-        in _out
+        " (0.1.1)." in _out
     )
 
 

@@ -188,13 +188,15 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         with self._sql_client.begin_transaction():
             dataset_name = self._sql_client.dataset_name
             # TODO: if we ever support csv here remember to add column names to COPY
-            self._sql_client.execute_sql(f"""
+            self._sql_client.execute_sql(
+                f"""
                 COPY {dataset_name}.{table_name}
                 FROM '{bucket_path}'
                 {file_type}
                 {dateformat}
                 {compression}
-                {credentials} MAXERROR 0;""")
+                {credentials} MAXERROR 0;"""
+            )
 
     def exception(self) -> str:
         # this part of code should be never reached
@@ -245,9 +247,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
             if c.get(h, False) is True
         )
         column_name = self.capabilities.escape_identifier(c["name"])
-        return (
-            f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
-        )
+        return f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         """Starts SqlLoadJob for files ending with .sql or returns None to let derived classes to handle their specific jobs"""

@@ -158,7 +158,13 @@ def test_getter_accessor_typed(toml_providers: ConfigProvidersContext, environme
     c = dlt.secrets.get("databricks.credentials", ConnectionStringCredentials)
     # as before: the value in trace is the value coming from the provider (as is)
     assert RESOLVED_TRACES["databricks.credentials"] == ResolvedValueTrace(
-        "credentials", credentials_str, None, ConnectionStringCredentials, ["databricks"], SecretsTomlProvider().name, ConnectionStringCredentials  # type: ignore[arg-type]
+        "credentials",
+        credentials_str,
+        None,
+        ConnectionStringCredentials,
+        ["databricks"],
+        SecretsTomlProvider().name,
+        ConnectionStringCredentials,  # type: ignore[arg-type]
     )
     assert c.drivername == "databricks+connector"
     c2 = dlt.secrets.get("destination.credentials", GcpServiceAccountCredentialsWithoutDefaults)
@@ -184,7 +190,9 @@ def test_setter(toml_providers: ConfigProvidersContext, environment: Any) -> Non
     dlt.secrets["pipeline.new.credentials"] = {"api_key": "skjo87a7nnAAaa"}
     assert dlt.secrets["pipeline.new.credentials"] == {"api_key": "skjo87a7nnAAaa"}
     # check the toml directly
-    assert dlt.secrets.writable_provider._toml["pipeline"]["new"]["credentials"] == {"api_key": "skjo87a7nnAAaa"}  # type: ignore[attr-defined]
+    assert dlt.secrets.writable_provider._toml["pipeline"]["new"]["credentials"] == {
+        "api_key": "skjo87a7nnAAaa"
+    }  # type: ignore[attr-defined]
 
     # mod the config and use it to resolve the configuration
     dlt.config["pool"] = {"pool_type": "process", "workers": 21}

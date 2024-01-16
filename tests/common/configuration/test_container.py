@@ -27,7 +27,8 @@ class InjectableTestContext(ContainerInjectableContext):
 
     if TYPE_CHECKING:
 
-        def __init__(self, current_value: str = None) -> None: ...
+        def __init__(self, current_value: str = None) -> None:
+            ...
 
 
 @configspec

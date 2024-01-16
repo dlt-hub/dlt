@@ -120,7 +120,12 @@ def test_filter_parent_table_schema_update(schema: Schema) -> None:
 
 def _add_excludes(schema: Schema) -> None:
     bot_table = new_table("event_bot")
-    bot_table.setdefault("filters", {})["excludes"] = ["re:^metadata", "re:^is_flagged$", "re:^data", "re:^custom_data"]  # type: ignore[typeddict-item]
+    bot_table.setdefault("filters", {})["excludes"] = [
+        "re:^metadata",
+        "re:^is_flagged$",
+        "re:^data",
+        "re:^custom_data",
+    ]  # type: ignore[typeddict-item]
     bot_table["filters"]["includes"] = [
         TSimpleRegex("re:^data__custom$"),
         TSimpleRegex("re:^custom_data__included_object__"),

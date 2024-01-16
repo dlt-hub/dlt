@@ -75,7 +75,8 @@ class SourceSchemaInjectableContext(ContainerInjectableContext):
 
     if TYPE_CHECKING:
 
-        def __init__(self, schema: Schema = None) -> None: ...
+        def __init__(self, schema: Schema = None) -> None:
+            ...
 
 
 TSourceFunParams = ParamSpec("TSourceFunParams")
@@ -95,7 +96,8 @@ def source(
     schema_contract: TSchemaContract = None,
     spec: Type[BaseConfiguration] = None,
     _impl_cls: Type[TDltSourceImpl] = DltSource,  # type: ignore[assignment]
-) -> Callable[TSourceFunParams, DltSource]: ...
+) -> Callable[TSourceFunParams, DltSource]:
+    ...
 
 
 @overload
@@ -110,7 +112,8 @@ def source(
     schema_contract: TSchemaContract = None,
     spec: Type[BaseConfiguration] = None,
     _impl_cls: Type[TDltSourceImpl] = DltSource,  # type: ignore[assignment]
-) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, TDltSourceImpl]]: ...
+) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, TDltSourceImpl]]:
+    ...
 
 
 def source(
@@ -258,7 +261,8 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-) -> DltResource: ...
+) -> DltResource:
+    ...
 
 
 @overload
@@ -275,7 +279,8 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]: ...
+) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]:
+    ...
 
 
 @overload
@@ -293,7 +298,8 @@ def resource(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     standalone: Literal[True] = True,
-) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]: ...
+) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]:
+    ...
 
 
 @overload
@@ -310,7 +316,8 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-) -> DltResource: ...
+) -> DltResource:
+    ...
 
 
 def resource(
@@ -415,7 +422,7 @@ def resource(
         )
 
     def decorator(
-        f: Callable[TResourceFunParams, Any]
+        f: Callable[TResourceFunParams, Any],
     ) -> Callable[TResourceFunParams, DltResource]:
         if not callable(f):
             if data_from:
@@ -522,7 +529,8 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource]: ...
+) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource]:
+    ...
 
 
 @overload
@@ -542,7 +550,8 @@ def transformer(
 ) -> Callable[
     [Callable[Concatenate[TDataItem, TResourceFunParams], Any]],
     Callable[TResourceFunParams, DltResource],
-]: ...
+]:
+    ...
 
 
 @overload
@@ -558,7 +567,8 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-) -> DltResource: ...
+) -> DltResource:
+    ...
 
 
 @overload
@@ -575,7 +585,8 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     standalone: Literal[True] = True,
-) -> Callable[TResourceFunParams, DltResource]: ...
+) -> Callable[TResourceFunParams, DltResource]:
+    ...
 
 
 def transformer(
@@ -703,7 +714,7 @@ TDeferredFunParams = ParamSpec("TDeferredFunParams")
 
 
 def defer(
-    f: Callable[TDeferredFunParams, TBoundItems]
+    f: Callable[TDeferredFunParams, TBoundItems],
 ) -> Callable[TDeferredFunParams, TDeferred[TBoundItems]]:
     @wraps(f)
     def _wrap(*args: Any, **kwargs: Any) -> TDeferred[TBoundItems]:

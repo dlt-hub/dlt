@@ -628,7 +628,9 @@ class PipeIterator(Iterator[PipeItem]):
                     elif callable(item):
                         future = self._ensure_thread_pool().submit(item)
                     # print(future)
-                    self._futures.append(FuturePipeItem(future, pipe_item.step, pipe_item.pipe, pipe_item.meta))  # type: ignore
+                    self._futures.append(
+                        FuturePipeItem(future, pipe_item.step, pipe_item.pipe, pipe_item.meta)
+                    )  # type: ignore
                     # pipe item consumed for now, request a new one
                     pipe_item = None
                     continue
