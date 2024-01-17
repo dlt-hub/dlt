@@ -1,10 +1,10 @@
 ---
-title: Data Enrichment Part One User-agent device enrichment
+title:  User-agent device data enrichment
 description: Enriching the user-agent device data with average device price.
 keywords: [data enrichment, user-agent data, device enrichment]
 ---
 
-# Data Enrichment Part One: User-agent device enrichment
+# Data Enrichment Part One: User-agent device data enrichment
 
 Data enrichment enhances raw data with valuable information from multiple sources, increasing its
 analytical and decision-making value.
@@ -19,31 +19,30 @@ price.
 ## Setup Guide
 
 We use SerpApi to retrieve device prices using Google Shopping, but alternative services or APIs are
-viable. The `fetch_average_price` function gets device prices from SerpAPI, utilizing dlt's state
-function to optimize API calls.
+viable.
 
 :::note
-
 SerpApi free tier offers 100 free calls monthly. For production, consider upgrading to a higher
-plan. :::
+plan.
+:::
 
 
 ## Creating data enrichment pipeline
 You can either follow this documentation to build a data enrichment pipeline or use the provided Colab notebook.
 
-### Colab notebook
+### A. Colab notebook
 The Colab notebook combines three data enrichment processes for a sample dataset, starting with the first
 enrichment of user-agent device data.
 
 The first step is to register on [SerpApi](https://serpapi.com/) and obtain the
 API token key. To set up credentials in Colab secrets:
-1. Click 'Colab secrets' on the left.
-2. Add serp_api_key as an environmental variable with your API key as its value.
+1. In Colab notebook, click 'Colab secrets' on the left.
+2. Add `serp_api_key` as an environmental variable with your API key as its value.
 
 Here's the link to the notebook:
-**[Colab Notebook]**(https://colab.research.google.com/drive/1ZKEkf1LRSld7CWQFS36fUXjhJKPAon7P?usp=sharing).
+**[Colab Notebook](https://colab.research.google.com/drive/1ZKEkf1LRSld7CWQFS36fUXjhJKPAon7P?usp=sharing).**
 
-### Create a pipeline
+### B. Create a pipeline
 You can start by creating the following directory structure:
 
 ```python
@@ -63,20 +62,24 @@ import dlt
 @dlt.resource(write_disposition="append")
 def tracked_data():
     """
-    A generator function that yields a series of dictionaries, each representing user tracking data.
+    A generator function that yields a series of dictionaries, each representing user
+    tracking data.
 
-    This function is decorated with `dlt.resource` to integrate into the DLT (Data Loading Tool) pipeline.
-    The `write_disposition` parameter is set to "append" to ensure that data from this generator is appended to
-    the existing data in the destination table.
+    This function is decorated with `dlt.resource` to integrate into the DLT (Data
+    Loading Tool) pipeline. The `write_disposition` parameter is set to "append" to
+    ensure that data from this generator is appended to the existing data in the
+    destination table.
 
     Yields:
-        dict: A dictionary with keys 'user_id', 'device_name', and 'page_referer', representing the user's
-        tracking data including their device and the page they were referred from.
+        dict: A dictionary with keys 'user_id', 'device_name', and 'page_referer',
+        representing the user's tracking data including their device and the page
+        they were referred from.
     """
 
     # Sample data representing tracked user data
     sample_data = [
-        {"user_id": 1, "device_name": "Sony Experia XZ", "page_referer": "https://b2venture.lightning.force.com/"},
+        {"user_id": 1, "device_name": "Sony Experia XZ", "page_referer":
+          "https://b2venture.lightning.force.com/"},
         {"user_id": 2, "device_name": "Samsung Galaxy S23 Ultra 5G",
          "page_referer": "https://techcrunch.com/2023/07/20/can-dlthub-solve-the-python-library-problem-for-ai-dig-ventures-thinks-so/"},
         {"user_id": 3, "device_name": "Apple iPhone 14 Pro Max",
@@ -134,10 +137,12 @@ import requests
 # @dlt.transformer(data_from=tracked_data)
 def fetch_average_price(user_tracked_data):
     """
-    Fetches the average price of a device from an external API and updates the user_data dictionary.
+    Fetches the average price of a device from an external API and updates the user_data
+    dictionary.
 
-    This function retrieves the average price of a device specified in the user_data dictionary by making an API request.
-    The price data is cached in the device_info state to reduce API calls. If the data for the device is older than 180 days,
+    This function retrieves the average price of a device specified in the user_data
+    dictionary by making an API request. The price data is cached in the device_info
+    state to reduce API calls. If the data for the device is older than 180 days,
     a new API request is made.
 
     Args:
@@ -238,7 +243,12 @@ def fetch_average_price(user_tracked_data):
 
    ```python
    # Create the pipeline
-   pipeline = dlt.pipeline(pipeline_name="Data_enrichment_1", destination="duckdb", dataset_name="data_enrichment_part_1", full_refresh = True)
+   pipeline = dlt.pipeline(
+       pipeline_name="Data_enrichment_One",
+       destination="duckdb",
+       dataset_name="data_enrichment_part_1",
+       full_refresh = True
+   )
 
    # Run the pipeline with the transformed source
    load_info = pipeline.run(tracked_data.add_map(fetch_average_price))
@@ -246,7 +256,8 @@ def fetch_average_price(user_tracked_data):
    print(load_info)
    ```
 
-   :::info Please note that the same outcome can be achieved by using the transformer function. To
+   :::info
+   Please note that the same outcome can be achieved by using the transformer function. To
    do so, you need to add the transformer decorator at the top of the fetch_average_price function.
    For pipeline.run, you can use the following code:
 
@@ -256,7 +267,8 @@ def fetch_average_price(user_tracked_data):
    ```
 
    This will execute the fetch_average_price function with the tracked data and return the average
-   price. :::
+   price.
+   :::
 
 ### Run the pipeline
 
@@ -279,7 +291,7 @@ def fetch_average_price(user_tracked_data):
    dlt pipeline <pipeline_name> show
    ```
 
-   For example, the pipeline_name for the above pipeline example is 'Data_enrichment_1'; you can use
+   For example, the pipeline_name for the above pipeline example is 'Data_enrichment_One'; you can use
    any custom name instead.
 
 
