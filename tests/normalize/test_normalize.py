@@ -8,6 +8,7 @@ from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
 
 from dlt.common import json
 from dlt.common.schema.schema import Schema
+from dlt.common.schema.utils import new_table
 from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.utils import uniq_id
 from dlt.common.typing import StrAny
@@ -526,7 +527,7 @@ def extract_and_normalize_cases(normalize: Normalize, cases: Sequence[str]) -> s
     return normalize_pending(normalize)
 
 
-def normalize_pending(normalize: Normalize) -> str:
+def normalize_pending(normalize: Normalize, schema: Schema = None) -> str:
     # pool not required for map_single
     load_ids = normalize.normalize_storage.extracted_packages.list_packages()
     assert len(load_ids) == 1, "Only one package allowed or rewrite tests"
@@ -534,7 +535,7 @@ def normalize_pending(normalize: Normalize) -> str:
         normalize._step_info_start_load_id(load_id)
         normalize.load_storage.new_packages.create_package(load_id)
         # read schema from package
-        schema = normalize.normalize_storage.extracted_packages.load_schema(load_id)
+        schema = schema or normalize.normalize_storage.extracted_packages.load_schema(load_id)
         # get files
         schema_files = normalize.normalize_storage.extracted_packages.list_new_jobs(load_id)
         # normalize without pool
@@ -632,3 +633,32 @@ def assert_timestamp_data_type(load_storage: LoadStorage, data_type: TDataType) 
     event_schema = load_storage.normalized_packages.load_schema(loads[0])
     # in raw normalize timestamp column must not be coerced to timestamp
     assert event_schema.get_table_columns("event")["timestamp"]["data_type"] == data_type
+
+
+def test_removal_of_normalizer_schema_section(raw_normalize: Normalize) -> None:
+    extract_cases(
+        raw_normalize,
+        [
+            "event.event.user_load_1",
+        ],
+    )
+    load_ids = raw_normalize.normalize_storage.extracted_packages.list_packages()
+    assert len(load_ids) == 1
+    extracted_schema = raw_normalize.normalize_storage.extracted_packages.load_schema(load_ids[0])
+
+    # add some normalizer blocks
+    extracted_schema.tables["event"] = new_table("event")
+    extracted_schema.tables["event__parse_data__intent_ranking"] = new_table(
+        "event__parse_data__intent_ranking"
+    )
+
+    # add x-normalizer info (and other block to control)
+    extracted_schema.tables["event"]["x-normalizer"] = {"evolve-columns-once": True}  # type: ignore
+    extracted_schema.tables["event"]["x-other-info"] = "blah"  # type: ignore
+    extracted_schema.tables["event__parse_data__intent_ranking"]["x-normalizer"] = {}  # type: ignore
+
+    normalize_pending(raw_normalize, extracted_schema)
+    schema = raw_normalize.schema_storage.load_schema("event")
+    assert "x-normalizer" not in schema.tables["event"]
+    assert "x-normalizer" not in schema.tables["event__parse_data__intent_ranking"]
+    assert "x-other-info" in schema.tables["event"]
