@@ -186,6 +186,50 @@ def test_bigquery_partition_by_date(destination_config: DestinationTestConfigura
 
     pipeline.run(demo_source())
 
+    with pipeline.sql_client() as c:
+        with c.execute_query(
+            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE partition_id IS NOT"
+            " NULL);"
+        ) as cur:
+            has_partitions = cur.fetchone()[0]
+            assert isinstance(has_partitions, bool)
+            assert has_partitions
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_bigquery_no_partition_by_date(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+
+    @dlt.resource(
+        write_disposition="merge",
+        primary_key="my_date_column",
+        columns={"my_date_column": {"data_type": "date", "partition": False, "nullable": False}},
+    )
+    def demo_resource() -> Iterator[Dict[str, pendulum.Date]]:
+        for i in range(10):
+            yield {
+                "my_date_column": pendulum.from_timestamp(1700784000 + i * 50_000).date(),
+            }
+
+    @dlt.source(max_table_nesting=0)
+    def demo_source() -> DltResource:
+        return demo_resource
+
+    pipeline.run(demo_source())
+
+    with pipeline.sql_client() as c:
+        with c.execute_query(
+            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE partition_id IS NOT"
+            " NULL);"
+        ) as cur:
+            has_partitions = cur.fetchone()[0]
+            assert isinstance(has_partitions, bool)
+            assert not has_partitions
+
 
 @pytest.mark.parametrize(
     "destination_config",
@@ -214,6 +258,54 @@ def test_bigquery_partition_by_timestamp(destination_config: DestinationTestConf
 
     pipeline.run(demo_source())
 
+    with pipeline.sql_client() as c:
+        with c.execute_query(
+            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE partition_id IS NOT"
+            " NULL);"
+        ) as cur:
+            has_partitions = cur.fetchone()[0]
+            assert isinstance(has_partitions, bool)
+            assert has_partitions
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_bigquery_no_partition_by_timestamp(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+
+    @dlt.resource(
+        write_disposition="merge",
+        primary_key="my_timestamp_column",
+        columns={
+            "my_timestamp_column": {"data_type": "timestamp", "partition": False, "nullable": False}
+        },
+    )
+    def demo_resource() -> Iterator[Dict[str, pendulum.DateTime]]:
+        for i in range(10):
+            yield {
+                "my_timestamp_column": pendulum.from_timestamp(1700784000 + i * 50_000),
+            }
+
+    @dlt.source(max_table_nesting=0)
+    def demo_source() -> DltResource:
+        return demo_resource
+
+    pipeline.run(demo_source())
+
+    with pipeline.sql_client() as c:
+        with c.execute_query(
+            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE partition_id IS NOT"
+            " NULL);"
+        ) as cur:
+            has_partitions = cur.fetchone()[0]
+            assert isinstance(has_partitions, bool)
+            assert not has_partitions
+
 
 @pytest.mark.parametrize(
     "destination_config",
@@ -237,3 +329,45 @@ def test_bigquery_partition_by_integer(destination_config: DestinationTestConfig
         return demo_resource
 
     pipeline.run(demo_source())
+
+    with pipeline.sql_client() as c:
+        with c.execute_query(
+            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE partition_id IS NOT"
+            " NULL);"
+        ) as cur:
+            has_partitions = cur.fetchone()[0]
+            assert isinstance(has_partitions, bool)
+            assert has_partitions
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_bigquery_no_partition_by_integer(destination_config: DestinationTestConfiguration) -> None:
+    pipeline = destination_config.setup_pipeline(f"bigquery_{uniq_id()}", full_refresh=True)
+
+    @dlt.resource(
+        columns={"some_int": {"data_type": "bigint", "partition": False, "nullable": False}},
+    )
+    def demo_resource() -> Iterator[Dict[str, int]]:
+        for i in range(10):
+            yield {
+                "some_int": i,
+            }
+
+    @dlt.source(max_table_nesting=0)
+    def demo_source() -> DltResource:
+        return demo_resource
+
+    pipeline.run(demo_source())
+
+    with pipeline.sql_client() as c:
+        with c.execute_query(
+            "SELECT EXISTS (SELECT 1 FROM INFORMATION_SCHEMA.PARTITIONS WHERE partition_id IS NOT"
+            " NULL);"
+        ) as cur:
+            has_partitions = cur.fetchone()[0]
+            assert isinstance(has_partitions, bool)
+            assert not has_partitions
