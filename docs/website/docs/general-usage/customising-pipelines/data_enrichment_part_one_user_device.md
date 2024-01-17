@@ -1,5 +1,5 @@
 ---
-title: Data Enrichment Part One: User-agent device enrichment
+title: Data Enrichment Part One User-agent device enrichment
 description: Enriching the user-agent device data with average device price.
 keywords: [data enrichment, user-agent data, device enrichment]
 ---
