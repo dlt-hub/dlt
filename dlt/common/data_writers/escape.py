@@ -140,7 +140,7 @@ def escape_databricks_literal(v: Any) -> Any:
     if isinstance(v, (list, dict)):
         return _escape_extended(json.dumps(v), prefix="'", escape_dict=DATABRICKS_ESCAPE_DICT)
     if isinstance(v, bytes):
-        return "X'{v.hex()}'"
+        return f"X'{v.hex()}'"
     if v is None:
         return "NULL"
 

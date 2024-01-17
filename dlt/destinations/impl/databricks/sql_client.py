@@ -22,19 +22,10 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
+from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction
 from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
 from dlt.destinations.impl.databricks import capabilities
 from dlt.common.time import to_py_date, to_py_datetime
-
-
-class DatabricksCursorImpl(DBApiCursorImpl):
-    native_cursor: DatabricksSqlCursor
-
-    def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
-        if chunk_size is None:
-            return self.native_cursor.fetchall(**kwargs)
-        return super().df(chunk_size=chunk_size, **kwargs)
 
 
 class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction):
@@ -126,7 +117,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
             db_args = None
         with self._conn.cursor() as curr:
             curr.execute(query, db_args)
-            yield DatabricksCursorImpl(curr)  # type: ignore[abstract]
+            yield DBApiCursorImpl(curr)  # type: ignore[abstract]
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         if escape:
@@ -142,6 +133,10 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
         if isinstance(ex, databricks_lib.ServerOperationError):
             if "TABLE_OR_VIEW_NOT_FOUND" in str(ex):
                 return DatabaseUndefinedRelation(ex)
+            elif "SCHEMA_NOT_FOUND" in str(ex):
+                return DatabaseUndefinedRelation(ex)
+            elif "PARSE_SYNTAX_ERROR" in str(ex):
+                return DatabaseTransientException(ex)
             return DatabaseTerminalException(ex)
         elif isinstance(ex, databricks_lib.OperationalError):
             return DatabaseTerminalException(ex)
