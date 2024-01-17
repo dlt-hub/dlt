@@ -11,7 +11,7 @@ from dlt.common.schema.typing import LOADS_TABLE_NAME
 from dlt.common.typing import DictStrAny
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.pipeline.exceptions import SqlClientNotAvailable
-
+from dlt.common.storages import FileStorage
 from tests.utils import TEST_STORAGE_ROOT
 
 PIPELINE_TEST_CASES_PATH = "./tests/pipeline/cases/"
@@ -105,13 +105,13 @@ def load_file(path: str, file: str) -> Tuple[str, List[Dict[str, Any]]]:
 
     # load jsonl
     if ext == "jsonl":
-        with open(full_path, "rU", encoding="utf-8") as f:
+        with FileStorage.open_zipsafe_ro(full_path) as f:
             for line in f:
                 result.append(json.loads(line))
 
     # load insert_values (this is a bit volatile if the exact format of the source file changes)
     elif ext == "insert_values":
-        with open(full_path, "rU", encoding="utf-8") as f:
+        with FileStorage.open_zipsafe_ro(full_path) as f:
             lines = f.readlines()
             # extract col names
             cols = lines[0][15:-2].split(",")
