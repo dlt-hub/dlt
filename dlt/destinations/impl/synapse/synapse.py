@@ -12,7 +12,7 @@ from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
-from dlt.destinations.impl.mssql.mssql import MsSqlTypeMapper, MsSqlClient, HINT_TO_MSSQL_ATTR
+from dlt.destinations.impl.mssql.mssql import MsSqlClient
 
 from dlt.destinations.impl.synapse import capabilities
 from dlt.destinations.impl.synapse.sql_client import SynapseSqlClient
@@ -29,11 +29,11 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: SynapseClientConfiguration) -> None:
-        sql_client = SynapseSqlClient(config.normalize_dataset_name(schema), config.credentials)
-        InsertValuesJobClient.__init__(self, schema, config, sql_client)
+        super().__init__(schema, config)
         self.config: SynapseClientConfiguration = config
-        self.sql_client = sql_client
-        self.type_mapper = MsSqlTypeMapper(self.capabilities)
+        self.sql_client = SynapseSqlClient(
+            config.normalize_dataset_name(schema), config.credentials
+        )
 
         self.active_hints = deepcopy(HINT_TO_SYNAPSE_ATTR)
         if not self.config.create_indexes:
