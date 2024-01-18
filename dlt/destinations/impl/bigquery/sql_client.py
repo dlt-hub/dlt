@@ -1,31 +1,30 @@
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence, Type
+from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence
 
 import google.cloud.bigquery as bigquery  # noqa: I250
+from google.api_core import exceptions as api_core_exceptions
+from google.cloud import exceptions as gcp_exceptions
 from google.cloud.bigquery import dbapi as bq_dbapi
 from google.cloud.bigquery.dbapi import Connection as DbApiConnection, Cursor as BQDbApiCursor
-from google.cloud import exceptions as gcp_exceptions
 from google.cloud.bigquery.dbapi import exceptions as dbapi_exceptions
-from google.api_core import exceptions as api_core_exceptions
 
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.typing import StrAny
-
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.exceptions import (
     DatabaseTerminalException,
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
+from dlt.destinations.impl.bigquery import capabilities
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,
     SqlClientBase,
     raise_database_error,
     raise_open_connection_error,
 )
+from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 
-from dlt.destinations.impl.bigquery import capabilities
 
 # terminal reasons as returned in BQ gRPC error response
 # https://cloud.google.com/bigquery/docs/error-messages
@@ -38,7 +37,7 @@ BQ_TERMINAL_REASONS = [
     "stopped",
     "tableUnavailable",
 ]
-# invalidQuery is an transient error -> must be fixed by programmer
+# invalidQuery is a transient error -> must be fixed by programmer
 
 
 class BigQueryDBApiCursorImpl(DBApiCursorImpl):
@@ -47,16 +46,15 @@ class BigQueryDBApiCursorImpl(DBApiCursorImpl):
     native_cursor: BQDbApiCursor  # type: ignore
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
+        if chunk_size is not None:
+            return super().df(chunk_size=chunk_size)
         query_job: bigquery.QueryJob = self.native_cursor._query_job
 
-        if chunk_size is None:
-            try:
-                return query_job.to_dataframe(**kwargs)
-            except ValueError:
-                # no pyarrow/db-types, fallback to our implementation
-                return super().df()
-        else:
-            return super().df(chunk_size=chunk_size)
+        try:
+            return query_job.to_dataframe(**kwargs)
+        except ValueError:
+            # no pyarrow/db-types, fallback to our implementation
+            return super().df()
 
 
 class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
@@ -116,34 +114,32 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     @raise_database_error
     def begin_transaction(self) -> Iterator[DBTransaction]:
         try:
-            # start the transaction if not yet started
-            if not self._session_query:
-                job = self._client.query(
-                    "BEGIN TRANSACTION;",
-                    job_config=bigquery.QueryJobConfig(
-                        create_session=True,
-                        default_dataset=self.fully_qualified_dataset_name(escape=False),
-                    ),
-                )
-                self._session_query = bigquery.QueryJobConfig(
-                    create_session=False,
-                    default_dataset=self.fully_qualified_dataset_name(escape=False),
-                    connection_properties=[
-                        bigquery.query.ConnectionProperty(
-                            key="session_id", value=job.session_info.session_id
-                        )
-                    ],
-                )
-                try:
-                    job.result()
-                except Exception:
-                    # if session creation fails
-                    self._session_query = None
-                    raise
-            else:
+            if self._session_query:
                 raise dbapi_exceptions.ProgrammingError(
                     "Nested transactions not supported on BigQuery"
                 )
+            job = self._client.query(
+                "BEGIN TRANSACTION;",
+                job_config=bigquery.QueryJobConfig(
+                    create_session=True,
+                    default_dataset=self.fully_qualified_dataset_name(escape=False),
+                ),
+            )
+            self._session_query = bigquery.QueryJobConfig(
+                create_session=False,
+                default_dataset=self.fully_qualified_dataset_name(escape=False),
+                connection_properties=[
+                    bigquery.query.ConnectionProperty(
+                        key="session_id", value=job.session_info.session_id
+                    )
+                ],
+            )
+            try:
+                job.result()
+            except Exception:
+                # if session creation fails
+                self._session_query = None
+                raise
             yield self
             self.commit_transaction()
         except Exception:
@@ -152,7 +148,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
 
     def commit_transaction(self) -> None:
         if not self._session_query:
-            # allow to commit without transaction
+            # allow committing without transaction
             return
         self.execute_sql("COMMIT TRANSACTION;CALL BQ.ABORT_SESSION();")
         self._session_query = None
@@ -181,7 +177,6 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     def create_dataset(self) -> None:
         self._client.create_dataset(
             self.fully_qualified_dataset_name(escape=False),
-            exists_ok=False,
             retry=self._default_retry,
             timeout=self.http_timeout,
         )
@@ -201,21 +196,18 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         with self.execute_query(sql, *args, **kwargs) as curr:
             if not curr.description:
                 return None
-            else:
-                try:
-                    f = curr.fetchall()
-                    return f
-                except api_core_exceptions.InvalidArgument as ia_ex:
-                    if "non-table entities cannot be read" in str(ia_ex):
-                        return None
-                    raise
+            try:
+                return curr.fetchall()
+            except api_core_exceptions.InvalidArgument as ia_ex:
+                if "non-table entities cannot be read" in str(ia_ex):
+                    return None
+                raise
 
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         conn: DbApiConnection = None
-        curr: DBApiCursor = None
-        db_args = args if args else kwargs if kwargs else None
+        db_args = args or (kwargs or None)
         try:
             conn = DbApiConnection(client=self._client)
             curr = conn.cursor()
@@ -238,37 +230,37 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
-        if cls.is_dbapi_exception(ex):
-            # google cloud exception in first argument: https://github.com/googleapis/python-bigquery/blob/main/google/cloud/bigquery/dbapi/cursor.py#L205
-            cloud_ex = ex.args[0]
-            reason = cls._get_reason_from_errors(cloud_ex)
-            if reason is None:
-                if isinstance(ex, (dbapi_exceptions.DataError, dbapi_exceptions.IntegrityError)):
-                    return DatabaseTerminalException(ex)
-                elif isinstance(ex, dbapi_exceptions.ProgrammingError):
-                    return DatabaseTransientException(ex)
-            if reason == "notFound":
-                return DatabaseUndefinedRelation(ex)
-            if reason == "invalidQuery" and "was not found" in str(ex) and "Dataset" in str(ex):
-                return DatabaseUndefinedRelation(ex)
-            if (
-                reason == "invalidQuery"
-                and "Not found" in str(ex)
-                and ("Dataset" in str(ex) or "Table" in str(ex))
-            ):
-                return DatabaseUndefinedRelation(ex)
-            if reason == "accessDenied" and "Dataset" in str(ex) and "not exist" in str(ex):
-                return DatabaseUndefinedRelation(ex)
-            if reason == "invalidQuery" and (
-                "Unrecognized name" in str(ex) or "cannot be null" in str(ex)
-            ):
-                # unknown column, inserting NULL into required field
+        if not cls.is_dbapi_exception(ex):
+            return ex
+        # google cloud exception in first argument: https://github.com/googleapis/python-bigquery/blob/main/google/cloud/bigquery/dbapi/cursor.py#L205
+        cloud_ex = ex.args[0]
+        reason = cls._get_reason_from_errors(cloud_ex)
+        if reason is None:
+            if isinstance(ex, (dbapi_exceptions.DataError, dbapi_exceptions.IntegrityError)):
                 return DatabaseTerminalException(ex)
-            if reason in BQ_TERMINAL_REASONS:
-                return DatabaseTerminalException(ex)
-            # anything else is transient
-            return DatabaseTransientException(ex)
-        return ex
+            elif isinstance(ex, dbapi_exceptions.ProgrammingError):
+                return DatabaseTransientException(ex)
+        if reason == "notFound":
+            return DatabaseUndefinedRelation(ex)
+        if reason == "invalidQuery" and "was not found" in str(ex) and "Dataset" in str(ex):
+            return DatabaseUndefinedRelation(ex)
+        if (
+            reason == "invalidQuery"
+            and "Not found" in str(ex)
+            and ("Dataset" in str(ex) or "Table" in str(ex))
+        ):
+            return DatabaseUndefinedRelation(ex)
+        if reason == "accessDenied" and "Dataset" in str(ex) and "not exist" in str(ex):
+            return DatabaseUndefinedRelation(ex)
+        if reason == "invalidQuery" and (
+            "Unrecognized name" in str(ex) or "cannot be null" in str(ex)
+        ):
+            # unknown column, inserting NULL into required field
+            return DatabaseTerminalException(ex)
+        if reason in BQ_TERMINAL_REASONS:
+            return DatabaseTerminalException(ex)
+        # anything else is transient
+        return DatabaseTransientException(ex)
 
     @staticmethod
     def _get_reason_from_errors(gace: api_core_exceptions.GoogleAPICallError) -> Optional[str]:

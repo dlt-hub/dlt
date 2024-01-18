@@ -52,5 +52,17 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             file_upload_timeout: float = 30 * 60.0,
             retry_deadline: float = 60.0,
             destination_name: str = None,
-            environment: str = None,
-        ) -> None: ...
+            environment: str = None
+        ) -> None:
+            super().__init__(
+                credentials=credentials,
+                dataset_name=dataset_name,
+                default_schema_name=default_schema_name,
+                destination_name=destination_name,
+                environment=environment,
+            )
+            self.retry_deadline = retry_deadline
+            self.file_upload_timeout = file_upload_timeout
+            self.http_timeout = http_timeout
+            self.location = location
+            ...
