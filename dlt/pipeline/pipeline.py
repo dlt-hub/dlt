@@ -445,7 +445,6 @@ class Pipeline(SupportsPipeline):
                     runner.run_pool(normalize_step.config, normalize_step)
                 return self._get_step_info(normalize_step)
             except Exception as n_ex:
-                raise
                 step_info = self._get_step_info(normalize_step)
                 raise PipelineStepFailed(
                     self,
