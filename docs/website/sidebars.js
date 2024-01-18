@@ -224,6 +224,13 @@ const sidebars = {
         },
         {
           type: 'category',
+          label: 'Data enrichments',
+          items: [
+            'general-usage/data-enrichments/user_agent_device_data_enrichment',
+          ]
+        },
+        {
+          type: 'category',
           label: 'Run in production',
           link: {
             type: 'generated-index',

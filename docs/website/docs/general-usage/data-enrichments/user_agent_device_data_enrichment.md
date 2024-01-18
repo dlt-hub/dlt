@@ -55,27 +55,33 @@ user_device_enrichment/
 ```
 ### 1. Creating resource
 
-dlt works on the principle of [sources](https://dlthub.com/docs/general-usage/source)
-and [resources.](https://dlthub.com/docs/general-usage/resource)
+   `dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source)
+   and [resources.](https://dlthub.com/docs/general-usage/resource)
 
-```python
-import dlt
+   This data resource yields data typical of what many web analytics and
+   tracking tools can collect. However, the specifics of what data is collected
+   and how it's used can vary significantly among different tracking services.
 
-@dlt.resource(write_disposition="append")
-def tracked_data():
-    """
-    A generator function that yields a series of dictionaries, each representing user
-    tracking data.
+   Create a resource that yields sample data as follows:
 
-    This function is decorated with `dlt.resource` to integrate into the DLT (Data
-    Loading Tool) pipeline. The `write_disposition` parameter is set to "append" to
-    ensure that data from this generator is appended to the existing data in the
-    destination table.
+   ```python
+     import dlt
 
-    Yields:
-        dict: A dictionary with keys 'user_id', 'device_name', and 'page_referer',
-        representing the user's tracking data including their device and the page
-        they were referred from.
+     @dlt.resource(write_disposition="append")
+     def tracked_data():
+     """
+     A generator function that yields a series of dictionaries, each representing
+     user tracking data.
+
+     This function is decorated with `dlt.resource` to integrate into the DLT (Data
+     Loading Tool) pipeline. The `write_disposition` parameter is set to "append" to
+     ensure that data from this generator is appended to the existing data in the
+     destination table.
+
+     Yields:
+         dict: A dictionary with keys 'user_id', 'device_name', and 'page_referer',
+         representing the user's tracking data including their device and the page
+         they were referred from.
     """
 
     # Sample data representing tracked user data
@@ -94,11 +100,7 @@ def tracked_data():
     # Yielding each user's data as a dictionary
     for user_data in sample_data:
         yield user_data
-```
-
-> Data above is typical of what many web analytics and tracking tools can collect. However, the
-> specifics of what data is collected and how it's used can vary significantly among different
-> tracking services.
+   ```
 
 Here's a breakdown of each element:
 
@@ -112,7 +114,7 @@ tracking their journeys and interactions over time.
 ### 2. Create `fetch_average_price` function
 
 This particular function retrieves the average price of a device by utilizing SerpAPI and Google
-shopping listings. To filter the data, the function makes use of dlt state, and only fetches prices
+shopping listings. To filter the data, the function makes use of `dlt` state, and only fetches prices
 from SerpAPI for devices that have not been updated in the most recent run or for those that were
 loaded more than 180 days in the past.
 
@@ -140,22 +142,24 @@ The first step is to register on [SerpApi](https://serpapi.com/) and obtain the 
    # @dlt.transformer(data_from=tracked_data)
    def fetch_average_price(user_tracked_data):
        """
-       Fetches the average price of a device from an external API and updates the user_data
-       dictionary.
+       Fetches the average price of a device from an external API and
+       updates the user_data dictionary.
 
-       This function retrieves the average price of a device specified in the user_data
-       dictionary by making an API request. The price data is cached in the device_info
-       state to reduce API calls. If the data for the device is older than 180 days,
-       a new API request is made.
+       This function retrieves the average price of a device specified in the
+       user_data dictionary by making an API request. The price data is cached
+       in the device_info state to reduce API calls. If the data for the device
+       is older than 180 days, a new API request is made.
 
        Args:
-           user_tracked_data (dict): A dictionary containing user data, including the device name.
+           user_tracked_data (dict): A dictionary containing user data, including
+           the device name.
 
        Returns:
-           dict: The updated user_data dictionary with added device price and updated timestamp.
+           dict: The updated user_data dictionary with added device price and
+           updated timestamp.
        """
 
-       # Retrieve the API key from DLT secrets
+       # Retrieve the API key from dlt secrets
        api_key = dlt.secrets.get("sources.api_key")
 
        # Get the current resource state for device information
@@ -172,8 +176,10 @@ The first step is to register on [SerpApi](https://serpapi.com/) and obtain the 
        device_data = device_info.get(device, {})
 
        # Calculate the time since the last update
-       last_updated = (current_timestamp - device_data.get('timestamp', datetime.datetime.min))
-
+       last_updated = (
+           current_timestamp -
+           device_data.get('timestamp', datetime.datetime.min)
+       )
        # Check if the device is not in state or data is older than 180 days
        if device not in device_info or last_updated > datetime.timedelta(days=180):
            try:
@@ -196,7 +202,8 @@ The first step is to register on [SerpApi](https://serpapi.com/) and obtain the 
            for r in results:
                if r.get("price"):
                    # Split the price string and convert each part to float
-                   price_parts = r.get("price").replace('$', '').replace(',', '').split()
+                   price = r.get("price")
+                   price_parts = price.replace('$', '').replace(',', '').split()
                    for part in price_parts:
                        try:
                            prices.append(float(part))
@@ -205,7 +212,10 @@ The first step is to register on [SerpApi](https://serpapi.com/) and obtain the 
 
            # Calculate the average price and update the device_info
            device_price = round(sum(prices) / len(prices), 2) if prices else None
-           device_info[device] = {'timestamp': current_timestamp, 'price': device_price}
+           device_info[device] = {
+               'timestamp': current_timestamp,
+               'price': device_price
+           }
 
            # Add the device price and timestamp to the user data
            user_tracked_data['device_price_USD'] = device_price
@@ -221,11 +231,7 @@ The first step is to register on [SerpApi](https://serpapi.com/) and obtain the 
 
 ### 3. Create your pipeline
 
-### Create your pipeline
-
 1. In creating the pipeline the `fetch_average_price` can be used in the following ways:
-
-
    - Add map function
    - Transformer function
 
@@ -268,7 +274,10 @@ The first step is to register on [SerpApi](https://serpapi.com/) and obtain the 
 
    ```python
    # using fetch_average_price as a transformer function
-   load_info = pipeline.run(tracked_data | fetch_average_price, table_name="tracked_data")
+   load_info = pipeline.run(
+       tracked_data | fetch_average_price,
+       table_name="tracked_data"
+   )
    ```
 
    This will execute the fetch_average_price function with the tracked data and return the average
