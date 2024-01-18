@@ -37,6 +37,8 @@ def test_run_jaffle_package(
         pytest.skip(
             "dbt-athena requires database to be created and we don't do it in case of Jaffle"
         )
+    if not destination_config.supports_dbt:
+        pytest.skip("dbt is not supported for this destination configuration")
     pipeline = destination_config.setup_pipeline("jaffle_jaffle", full_refresh=True)
     # get runner, pass the env from fixture
     dbt = dlt.dbt.package(pipeline, "https://github.com/dbt-labs/jaffle_shop.git", venv=dbt_venv)
@@ -55,9 +57,10 @@ def test_run_jaffle_package(
     assert all(r.status == "pass" for r in tests)
 
     # get and display dataframe with customers
-    customers = select_data(pipeline, "SELECT * FROM customers")
+    qual_name = pipeline.sql_client().make_qualified_table_name
+    customers = select_data(pipeline, f"SELECT * FROM {qual_name('customers')}")
     assert len(customers) == 100
-    orders = select_data(pipeline, "SELECT * FROM orders")
+    orders = select_data(pipeline, f"SELECT * FROM {qual_name('orders')}")
     assert len(orders) == 99
 
 

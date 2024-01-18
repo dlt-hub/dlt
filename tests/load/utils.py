@@ -163,7 +163,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination != "athena"
+            if destination not in ("athena", "synapse")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -189,6 +189,10 @@ def destinations_configs(
                 supports_dbt=False,
                 extra_info="iceberg",
             )
+        ]
+        # dbt for Synapse has some complications and I couldn't get it to pass all tests.
+        destination_configs += [
+            DestinationTestConfiguration(destination="synapse", supports_dbt=False)
         ]
 
     if default_vector_configs:
@@ -465,7 +469,6 @@ def yield_client_with_storage(
     ) as client:
         client.initialize_storage()
         yield client
-        # print(dataset_name)
         client.sql_client.drop_dataset()
         if isinstance(client, WithStagingDataset):
             with client.with_staging_dataset():

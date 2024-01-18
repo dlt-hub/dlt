@@ -5,7 +5,6 @@ on:
     branches:
       - master
       - devel
-
   workflow_dispatch:
 
 env:
@@ -18,19 +17,14 @@ env:
   ALL_FILESYSTEM_DRIVERS: "[\"memory\"]"
 
 jobs:
-
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-    - name: Check source branch name
-      run: |
-        if [[ "${{ github.head_ref }}" != "synapse" ]]; then
-          exit 1
-        fi
+  get_docs_changes:
+    uses: ./.github/workflows/get_docs_changes.yml
+    if: ${{ !github.event.pull_request.head.repo.fork }}
 
   run_loader:
     name: Tests Synapse loader
+    needs: get_docs_changes
+    if: needs.get_docs_changes.outputs.changes_outside_docs == 'true'    
     strategy:
       fail-fast: false
       matrix:
@@ -69,17 +63,17 @@ jobs:
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E synapse -E s3 -E gs -E az --with sentry-sdk --with pipeline
+        run: poetry install --no-interaction -E synapse -E parquet --with sentry-sdk --with pipeline
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
-          poetry run pytest tests/load --ignore tests/load/pipeline/test_dbt_helper.py
+          poetry run pytest tests/load
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/load --ignore tests/load/pipeline/test_dbt_helper.py
+          poetry run pytest tests/load
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd

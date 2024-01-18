@@ -8466,9 +8466,10 @@ qdrant = ["qdrant-client"]
 redshift = ["psycopg2-binary", "psycopg2cffi"]
 s3 = ["botocore", "s3fs"]
 snowflake = ["snowflake-connector-python"]
+synapse = ["pyodbc"]
 weaviate = ["weaviate-client"]
 
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "cf751b2e1e9c66efde0a11774b5204e3206a14fd04ba4c79b2d37e38db5367ad"
+content-hash = "26c595a857f17a5cbdb348f165c267d8910412325be4e522d0e91224c7fec588"

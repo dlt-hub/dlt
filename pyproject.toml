@@ -96,6 +96,7 @@ cli = ["pipdeptree", "cron-descriptor"]
 athena = ["pyathena", "pyarrow", "s3fs", "botocore"]
 weaviate = ["weaviate-client"]
 mssql = ["pyodbc"]
+synapse = ["pyodbc"]
 qdrant = ["qdrant-client"]
 
 [tool.poetry.scripts]

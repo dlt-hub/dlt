@@ -98,8 +98,14 @@ def escape_mssql_literal(v: Any) -> Any:
             json.dumps(v), prefix="N'", escape_dict=MS_SQL_ESCAPE_DICT, escape_re=MS_SQL_ESCAPE_RE
         )
     if isinstance(v, bytes):
-        base_64_string = base64.b64encode(v).decode("ascii")
-        return f"""CAST('' AS XML).value('xs:base64Binary("{base_64_string}")', 'VARBINARY(MAX)')"""
+        # 8000 is the max value for n in VARBINARY(n)
+        # https://learn.microsoft.com/en-us/sql/t-sql/data-types/binary-and-varbinary-transact-sql
+        if len(v) <= 8000:
+            n = len(v)
+        else:
+            n = "MAX"
+        return f"CONVERT(VARBINARY({n}), '{v.hex()}', 2)"
+
     if isinstance(v, bool):
         return str(int(v))
     if v is None:

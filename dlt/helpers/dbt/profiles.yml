@@ -142,3 +142,19 @@ athena:
       database: "{{ env_var('DLT__AWS_DATA_CATALOG') }}"
       # aws_profile_name: "{{ env_var('DLT__CREDENTIALS__PROFILE_NAME', '') }}"
       work_group: "{{ env_var('DLT__ATHENA_WORK_GROUP', '') }}"
+
+
+# commented out because dbt for Synapse isn't currently properly supported.
+# Leave config here for potential future use.
+# synapse:
+#   target: analytics
+#   outputs:
+#     analytics:
+#       type: synapse
+#       driver: "{{ env_var('DLT__CREDENTIALS__DRIVER') }}"
+#       server: "{{ env_var('DLT__CREDENTIALS__HOST') }}"
+#       port: "{{ env_var('DLT__CREDENTIALS__PORT') | as_number }}"
+#       database: "{{ env_var('DLT__CREDENTIALS__DATABASE') }}"
+#       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+#       user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
+#       password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"    
