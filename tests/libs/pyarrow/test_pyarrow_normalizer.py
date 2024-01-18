@@ -17,7 +17,7 @@ def _normalize(table: pa.Table, columns: List[TColumnSchema]) -> pa.Table:
 
 
 def _row_at_index(table: pa.Table, index: int) -> List[Any]:
-    return [table.column(column_name)[0].as_py() for column_name in table.column_names]
+    return [table.column(column_name)[index].as_py() for column_name in table.column_names]
 
 
 def test_quick_return_if_nothing_to_do() -> None:
