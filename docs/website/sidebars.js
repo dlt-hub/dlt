@@ -217,7 +217,6 @@ const sidebars = {
           type: 'category',
           label: 'Customise pipelines',
           items: [
-            'general-usage/customising-pipelines/user_agent_device_data_enrichment',
             'general-usage/customising-pipelines/renaming_columns',
             'general-usage/customising-pipelines/pseudonymizing_columns',
           ]
