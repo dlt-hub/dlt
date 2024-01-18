@@ -101,7 +101,7 @@ def escape_mssql_literal(v: Any) -> Any:
         # 8000 is the max value for n in VARBINARY(n)
         # https://learn.microsoft.com/en-us/sql/t-sql/data-types/binary-and-varbinary-transact-sql
         if len(v) <= 8000:
-            n = len(v)
+            n = str(len(v))
         else:
             n = "MAX"
         return f"CONVERT(VARBINARY({n}), '{v.hex()}', 2)"
