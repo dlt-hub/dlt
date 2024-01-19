@@ -108,7 +108,7 @@ def pydantic_to_table_schema_columns(
 
         if inner_type is Any:  # Any fields will be inferred from data
             continue
-
+        is_inner_type_pydantic_model = issubclass(inner_type, BaseModel)
         if is_list_generic_type(inner_type):
             inner_type = list
         elif is_dict_generic_type(inner_type) or issubclass(inner_type, BaseModel):
@@ -121,14 +121,22 @@ def pydantic_to_table_schema_columns(
             # try to coerce unknown type to text
             data_type = "text"
 
-        if data_type == "complex" and skip_complex_types:
+        if not is_inner_type_pydantic_model and data_type == "complex" and skip_complex_types:
             continue
 
-        result[name] = {
-            "name": name,
-            "data_type": data_type,
-            "nullable": nullable,
-        }
+        if is_inner_type_pydantic_model:
+            schema_hints = pydantic_to_table_schema_columns(field.annotation)
+            def patch_child(parent_field_name: str, hints: dict) -> dict:
+                return {**hints, "name": f"{parent_field_name}__{hints['name']}"}
+
+            for field_name, hints in schema_hints.items():
+                result[f"{name}__{field_name}"] = patch_child(name, hints)
+        else:
+            result[name] = {
+                "name": name,
+                "data_type": data_type,
+                "nullable": nullable,
+            }
 
     return result
 
