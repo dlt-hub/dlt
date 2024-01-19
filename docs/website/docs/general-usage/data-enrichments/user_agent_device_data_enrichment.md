@@ -299,7 +299,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    dlt pipeline <pipeline_name> show
    ```
 
-   For example, the pipeline_name for the above pipeline example is `data_enrichment_one`; you can use
+   For example, the "pipeline_name" for the above pipeline example is `data_enrichment_one`; you can use
    any custom name instead.
 
 
