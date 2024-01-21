@@ -32,6 +32,7 @@ from dlt.common.schema.typing import (
     TColumnSchema,
     TColumnProp,
     TTableFormat,
+    TTableIndexType,
     TColumnHint,
     TTypeDetectionFunc,
     TTypeDetections,
@@ -618,6 +619,14 @@ def get_table_format(tables: TSchemaTables, table_name: str) -> TTableFormat:
     )
 
 
+def get_table_index_type(tables: TSchemaTables, table_name: str) -> TTableIndexType:
+    """Returns table index type of a table if present. If not, looks up into parent table."""
+    return cast(
+        TTableIndexType,
+        get_inherited_table_hint(tables, table_name, "table_index_type", allow_none=True),
+    )
+
+
 def table_schema_has_type(table: TTableSchema, _typ: TDataType) -> bool:
     """Checks if `table` schema contains column with type _typ"""
     return any(c.get("data_type") == _typ for c in table["columns"].values())
@@ -724,6 +733,7 @@ def new_table(
     resource: str = None,
     schema_contract: TSchemaContract = None,
     table_format: TTableFormat = None,
+    table_index_type: TTableIndexType = None,
 ) -> TTableSchema:
     table: TTableSchema = {
         "name": table_name,
@@ -742,6 +752,8 @@ def new_table(
             table["schema_contract"] = schema_contract
         if table_format:
             table["table_format"] = table_format
+    if table_index_type is not None:
+        table["table_index_type"] = table_index_type
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,

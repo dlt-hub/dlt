@@ -12,6 +12,7 @@ from dlt.common.schema.typing import (
     TWriteDisposition,
     TAnySchemaColumns,
     TTableFormat,
+    TTableIndexType,
     TSchemaContract,
 )
 from dlt.common.typing import TDataItem
@@ -274,6 +275,7 @@ class DltResourceHints:
         merge_key: TTableHintTemplate[TColumnNames] = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
         table_format: TTableHintTemplate[TTableFormat] = None,
+        table_index_type: TTableHintTemplate[TTableIndexType] = None,
     ) -> TResourceHints:
         validator, schema_contract = create_item_validator(columns, schema_contract)
         clean_columns = columns
@@ -289,6 +291,7 @@ class DltResourceHints:
             columns=clean_columns,  # type: ignore
             schema_contract=schema_contract,  # type: ignore
             table_format=table_format,  # type: ignore
+            table_index_type=table_index_type,  # type: ignore
         )
         if not table_name:
             new_template.pop("name")

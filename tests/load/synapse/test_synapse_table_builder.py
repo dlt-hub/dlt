@@ -14,7 +14,10 @@ from dlt.destinations.impl.synapse.configuration import (
 )
 
 from tests.load.utils import TABLE_UPDATE
-from dlt.destinations.impl.synapse.synapse import HINT_TO_SYNAPSE_ATTR
+from dlt.destinations.impl.synapse.synapse import (
+    HINT_TO_SYNAPSE_ATTR,
+    TABLE_INDEX_TYPE_TO_SYNAPSE_ATTR,
+)
 
 
 @pytest.fixture
@@ -70,7 +73,9 @@ def test_create_table(client: SynapseClient) -> None:
     assert '"col6_precision" decimal(6,2)  NOT NULL' in sql
     assert '"col7_precision" varbinary(19)' in sql
     assert '"col11_precision" time(3)  NOT NULL' in sql
-    assert "WITH ( HEAP )" in sql
+    table_index_type = client.config.default_table_index_type
+    table_index_type_attr = TABLE_INDEX_TYPE_TO_SYNAPSE_ATTR[table_index_type]
+    assert f"WITH ( {table_index_type_attr} )" in sql
 
 
 def test_alter_table(client: SynapseClient) -> None:
@@ -97,7 +102,9 @@ def test_alter_table(client: SynapseClient) -> None:
     assert '"col6_precision" decimal(6,2)  NOT NULL' in sql
     assert '"col7_precision" varbinary(19)' in sql
     assert '"col11_precision" time(3)  NOT NULL' in sql
-    assert "WITH ( HEAP )" not in sql
+    table_index_type = client.config.default_table_index_type
+    table_index_type_attr = TABLE_INDEX_TYPE_TO_SYNAPSE_ATTR[table_index_type]
+    assert f"WITH ( {table_index_type_attr} )" not in sql
 
 
 @pytest.mark.parametrize("hint", ["primary_key", "unique"])

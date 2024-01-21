@@ -34,7 +34,7 @@ from dlt.common.exceptions import (
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.schema.exceptions import InvalidDatasetName
-from dlt.common.schema.utils import get_write_disposition, get_table_format
+from dlt.common.schema.utils import get_write_disposition, get_table_format, get_table_index_type
 from dlt.common.configuration import configspec, with_config, resolve_configuration, known_sections
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.accessors import config
@@ -372,6 +372,8 @@ class JobClientBase(ABC):
                 table["write_disposition"] = get_write_disposition(self.schema.tables, table_name)
             if "table_format" not in table:
                 table["table_format"] = get_table_format(self.schema.tables, table_name)
+            if "table_index_type" not in table:
+                table["table_index_type"] = get_table_index_type(self.schema.tables, table_name)
             return table
         except KeyError:
             raise UnknownTableException(table_name)

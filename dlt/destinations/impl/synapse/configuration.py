@@ -1,6 +1,7 @@
 from typing import Final, Any, List, Dict, Optional, ClassVar
 
 from dlt.common.configuration import configspec
+from dlt.common.schema.typing import TTableIndexType
 
 from dlt.destinations.impl.mssql.configuration import (
     MsSqlCredentials,
@@ -30,9 +31,15 @@ class SynapseClientConfiguration(MsSqlClientConfiguration):
     destination_type: Final[str] = "synapse"  # type: ignore
     credentials: SynapseCredentials
 
+    # While Synapse uses CLUSTERED COLUMNSTORE INDEX tables by default, we use
+    # HEAP tables (no indexing) by default. HEAP is a more robust choice, because
+    # columnstore tables do not support varchar(max), nvarchar(max), and varbinary(max).
+    # https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index
+    default_table_index_type: Optional[TTableIndexType] = "heap"
+
     # Determines if `primary_key` and `unique` column hints are applied.
     # Set to False by default because the PRIMARY KEY and UNIQUE constraints
     # are tricky in Synapse: they are NOT ENFORCED and can lead to innacurate
     # results if the user does not ensure all column values are unique.
     # https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-table-constraints
-    create_indexes: bool = False
+    create_indexes: Optional[bool] = False
