@@ -194,8 +194,8 @@ class LogCollector(Collector):
             elapsed_time = current_time - info.start_time
             items_per_second = (count / elapsed_time) if elapsed_time > 0 else 0
 
-            progress = f"{count}/{info.total}" if info.total is not None else f"{count}"
-            percentage = f"({count / info.total * 100:.1f}%)" if info.total is not None else ""
+            progress = f"{count}/{info.total}" if info.total else f"{count}"
+            percentage = f"({count / info.total * 100:.1f}%)" if info.total else ""
             elapsed_time_str = f"{elapsed_time:.2f}s"
             items_per_second_str = f"{items_per_second:.2f}/s"
             message = f"[{self.messages[name]}]" if self.messages[name] is not None else ""
