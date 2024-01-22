@@ -52,3 +52,29 @@ def get_dlt_data_dir() -> str:
 
 def _get_user_home_dir() -> str:
     return os.path.expanduser("~")
+
+
+def create_symlink_to_dlt(symlink_dir: str) -> None:
+    """
+    Creates a symbolic link pointing to the '.dlt' directory.
+
+    This function checks if the '.dlt' directory exists in the current working directory.
+    If it doesn't exist, the function creates it. Then, it checks if the specified symbolic
+    link directory exists. If not, the function creates a symbolic link at the specified
+    symlink location pointing to the '.dlt' directory.
+
+    Parameters:
+        symlink_dir (str): The path where the symbolic link will be created.
+
+    Note:
+        This function is intended for internal use and assumes that the path provided for
+        the symlink is valid. If the symbolic link already exists, it won't be recreated.
+
+    Raises:
+        OSError: If the symlink creation fails due to operating system-related errors.
+    """
+    if not os.path.exists(DOT_DLT):
+        os.makedirs(DOT_DLT)
+    if not os.path.exists(symlink_dir):
+        os.symlink(DOT_DLT, symlink_dir)
+        print(f"Created a visible symlink: {symlink_dir} -> {DOT_DLT}")
