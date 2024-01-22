@@ -1,6 +1,6 @@
 import inspect
 import makefun
-from typing import Optional, Tuple, Union, List, Any, Sequence, cast
+from typing import Optional, Tuple, Union, List, Any, Sequence, cast, Iterator
 from collections.abc import Mapping as C_Mapping
 
 from dlt.common.exceptions import MissingDependencyException
@@ -119,6 +119,28 @@ def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> in
     return meta_arg
 
 
+def wrap_async_generator(wrapped) -> Any:
+    """Wraps an async generator into a list with one awaitable"""
+    if inspect.isasyncgen(wrapped):
+
+        async def run() -> List[TDataItem]:
+            result: List[TDataItem] = []
+            try:
+                item: TDataItems = None
+                while item := await wrapped.__anext__():
+                    if isinstance(item, Iterator):
+                        result.extend(item)
+                    else:
+                        result.append(item)
+            except StopAsyncIteration:
+                pass
+            return result
+
+        yield run()
+    else:
+        return wrapped
+
+
 def wrap_compat_transformer(
     name: str, f: AnyFun, sig: inspect.Signature, *args: Any, **kwargs: Any
 ) -> AnyFun:
@@ -142,8 +164,12 @@ def wrap_resource_gen(
     name: str, f: AnyFun, sig: inspect.Signature, *args: Any, **kwargs: Any
 ) -> AnyFun:
     """Wraps a generator or generator function so it is evaluated on extraction"""
-    if inspect.isgeneratorfunction(inspect.unwrap(f)) or inspect.isgenerator(f):
-        # always wrap generators and generator functions. evaluate only at runtime!
+
+    if (
+        inspect.isgeneratorfunction(inspect.unwrap(f))
+        or inspect.isgenerator(f)
+        or inspect.isasyncgenfunction(f)
+    ):
 
         def _partial() -> Any:
             # print(f"_PARTIAL: {args} {kwargs}")

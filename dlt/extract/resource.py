@@ -123,8 +123,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         data = wrap_additional_type(data)
 
         # several iterable types are not allowed and must be excluded right away
-        if isinstance(data, (AsyncIterator, AsyncIterable)):
-            raise InvalidResourceDataTypeAsync(name, data, type(data))
         if isinstance(data, (str, dict)):
             raise InvalidResourceDataTypeBasic(name, data, type(data))
 
@@ -135,7 +133,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             parent_pipe = DltResource._get_parent_pipe(name, data_from)
 
         # create resource from iterator, iterable or generator function
-        if isinstance(data, (Iterable, Iterator)) or callable(data):
+        if isinstance(data, (Iterable, Iterator, AsyncIterable)) or callable(data):
             pipe = Pipe.from_data(name, data, parent=parent_pipe)
             return cls(
                 pipe,

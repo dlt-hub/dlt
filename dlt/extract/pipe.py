@@ -55,6 +55,7 @@ from dlt.extract.utils import (
     simulate_func_call,
     wrap_compat_transformer,
     wrap_resource_gen,
+    wrap_async_generator,
 )
 
 if TYPE_CHECKING:
@@ -321,6 +322,9 @@ class Pipe(SupportsPipe):
             # verify if transformer can be called
             self._ensure_transform_step(self._gen_idx, gen)
 
+        # ensure that asyn gens are wrapped
+        self.replace_gen(wrap_async_generator(self.gen))
+
         # evaluate transforms
         for step_no, step in enumerate(self._steps):
             # print(f"pipe {self.name} step no {step_no} step({step})")
@@ -366,7 +370,7 @@ class Pipe(SupportsPipe):
 
     def _verify_head_step(self, step: TPipeStep) -> None:
         # first element must be Iterable, Iterator or Callable in resource pipe
-        if not isinstance(step, (Iterable, Iterator)) and not callable(step):
+        if not isinstance(step, (Iterable, Iterator, AsyncIterator)) and not callable(step):
             raise CreatePipeException(
                 self.name, "A head of a resource pipe must be Iterable, Iterator or a Callable"
             )
@@ -791,6 +795,27 @@ class PipeIterator(Iterator[PipeItem]):
         elif self._next_item_mode == "round_robin":
             return self._get_source_item_round_robin()
 
+    def _get_next_item_from_generator(
+        self,
+        gen: Any,
+        step: int,
+        pipe: Pipe,
+        meta: Any,
+    ) -> ResolvablePipeItem:
+        item: ResolvablePipeItem = next(gen)
+        if not item:
+            return item
+        # full pipe item may be returned, this is used by ForkPipe step
+        # to redirect execution of an item to another pipe
+        if isinstance(item, ResolvablePipeItem):
+            return item
+        else:
+            # keep the item assigned step and pipe when creating resolvable item
+            if isinstance(item, DataItemWithMeta):
+                return ResolvablePipeItem(item.data, step, pipe, item.meta)
+            else:
+                return ResolvablePipeItem(item, step, pipe, meta)
+
     def _get_source_item_current(self) -> ResolvablePipeItem:
         # no more sources to iterate
         if len(self._sources) == 0:
@@ -803,17 +828,8 @@ class PipeIterator(Iterator[PipeItem]):
             set_current_pipe_name(pipe.name)
             item = None
             while item is None:
-                item = next(gen)
-            # full pipe item may be returned, this is used by ForkPipe step
-            # to redirect execution of an item to another pipe
-            if isinstance(item, ResolvablePipeItem):
-                return item
-            else:
-                # keep the item assigned step and pipe when creating resolvable item
-                if isinstance(item, DataItemWithMeta):
-                    return ResolvablePipeItem(item.data, step, pipe, item.meta)
-                else:
-                    return ResolvablePipeItem(item, step, pipe, meta)
+                item = self._get_next_item_from_generator(gen, step, pipe, meta)
+            return item
         except StopIteration:
             # remove empty iterator and try another source
             self._sources.pop()
@@ -839,17 +855,8 @@ class PipeIterator(Iterator[PipeItem]):
                 self._round_robin_index = (self._round_robin_index + 1) % sources_count
                 gen, step, pipe, meta = self._sources[self._round_robin_index]
                 set_current_pipe_name(pipe.name)
-                item = next(gen)
-            # full pipe item may be returned, this is used by ForkPipe step
-            # to redirect execution of an item to another pipe
-            if isinstance(item, ResolvablePipeItem):
-                return item
-            else:
-                # keep the item assigned step and pipe when creating resolvable item
-                if isinstance(item, DataItemWithMeta):
-                    return ResolvablePipeItem(item.data, step, pipe, item.meta)
-                else:
-                    return ResolvablePipeItem(item, step, pipe, meta)
+                item = self._get_next_item_from_generator(gen, step, pipe, meta)
+            return item
         except StopIteration:
             # remove empty iterator and try another source
             self._sources.pop(self._round_robin_index)

@@ -1631,7 +1631,7 @@ def test_resource_while_stop() -> None:
     assert pipeline.last_trace.last_normalize_info.row_counts["product"] == 12
 
 
-@pytest.mark.skip("skipped until async generators are implemented")
+# @pytest.mark.skip("skipped until async generators are implemented")
 def test_async_generator() -> None:
     def async_inner_table():
         async def _gen(idx):
@@ -1656,4 +1656,4 @@ def test_async_generator() -> None:
 
     pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
     pipeline_1.run(async_gen_resource(10))
-    pipeline_1.run(async_gen_table(11))
+    pipeline_1.run(async_gen_table(11), table_name="async_gen_table")
