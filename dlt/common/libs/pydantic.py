@@ -124,6 +124,9 @@ def pydantic_to_table_schema_columns(
             # try to coerce unknown type to text
             data_type = "text"
 
+        # This is when we have List[BaseModel]
+        # We need to access first argument
+        # to extract type hint to extract schema
         if data_type == "complex" and inner_type == list:
             args = get_args(annotation)
             # If it is just a generic List annotation
@@ -140,9 +143,12 @@ def pydantic_to_table_schema_columns(
                     "nullable": nullable,
                     "container_type": list
                 }
+                continue
 
         # if not is_inner_type_pydantic_model and data_type == "complex" and skip_complex_types:
         #     continue
+
+        # This case is for a single field schema/model
         elif is_inner_type_pydantic_model:
             schema_hints = pydantic_to_table_schema_columns(field.annotation)
 

@@ -7,6 +7,7 @@ from typing import (
     Optional,
     Sequence,
     Set,
+    Tuple,
     Type,
     TypedDict,
     NewType,
@@ -111,6 +112,7 @@ class TColumnSchema(TColumnSchemaBase, total=False):
     root_key: Optional[bool]
     merge_key: Optional[bool]
     variant: Optional[bool]
+    container_type: Optional[Union[List, Tuple]]
 
 
 TTableSchemaColumns = Dict[str, TColumnSchema]

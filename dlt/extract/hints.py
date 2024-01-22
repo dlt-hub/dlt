@@ -288,6 +288,12 @@ class DltResourceHints:
         clean_columns = columns
         if columns is not None:
             clean_columns = ensure_table_schema_columns_hint(columns)
+            # TODO: extract all schema items with container_type set
+            #       and and create tables
+            for column_name, column_schema in clean_columns.items():
+                if column_schema.get("container_type") is not None:
+                    clean_columns.pop(column_name)
+
             if not callable(clean_columns):
                 clean_columns = clean_columns.values()  # type: ignore
         # create a table schema template where hints can be functions taking TDataItem
