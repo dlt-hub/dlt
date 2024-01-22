@@ -65,7 +65,7 @@ def db_snippet() -> None:
 
     with engine.connect() as conn:
         # Select genome table, stream data in batches of 100 elements
-        query = "SELECT * FROM analysis_description LIMIT 1000"
+        query = "SELECT * FROM analysis LIMIT 1000"
         rows = conn.execution_options(yield_per=100).exec_driver_sql(query)
 
         pipeline = dlt.pipeline(

@@ -26,10 +26,10 @@ def connector_x_snippet() -> None:
             standalone=True,
         )(read_sql_x)(
             "mysql://anonymous@ensembldb.ensembl.org:3306/acanthochromis_polyacanthus_core_100_1",  # type: ignore[arg-type]
-            "SELECT * FROM analysis_description LIMIT 20",
+            "SELECT * FROM analysis LIMIT 20",
         )
         # add incremental on created at
-        genome.apply_hints(incremental=dlt.sources.incremental("analysis_id"))
+        genome.apply_hints(incremental=dlt.sources.incremental("created"))
         return genome
 
     # @@@DLT_SNIPPET_END markdown_source
