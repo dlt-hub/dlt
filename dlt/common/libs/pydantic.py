@@ -71,7 +71,7 @@ class DltConfig(TypedDict, total=False):
 
 
 def pydantic_to_table_schema_columns(
-    model: Union[BaseModel, Type[BaseModel]]
+    model: Union[BaseModel, Type[BaseModel]],
 ) -> TTableSchemaColumns:
     """Convert a pydantic model to a table schema columns dict
 
@@ -108,10 +108,13 @@ def pydantic_to_table_schema_columns(
 
         if inner_type is Any:  # Any fields will be inferred from data
             continue
-        is_inner_type_pydantic_model = issubclass(inner_type, BaseModel)
+
+        is_inner_type_pydantic_model = False
         if is_list_generic_type(inner_type):
             inner_type = list
-        elif is_dict_generic_type(inner_type) or issubclass(inner_type, BaseModel):
+        elif issubclass(inner_type, BaseModel):
+            is_inner_type_pydantic_model = True
+        elif is_dict_generic_type(inner_type):
             inner_type = dict
 
         name = field.alias or field_name
@@ -121,11 +124,28 @@ def pydantic_to_table_schema_columns(
             # try to coerce unknown type to text
             data_type = "text"
 
-        if not is_inner_type_pydantic_model and data_type == "complex" and skip_complex_types:
-            continue
+        if data_type == "complex" and inner_type == list:
+            args = get_args(annotation)
+            # If it is just a generic List annotation
+            # then we skip this field
+            if len(args) == 0:
+                continue
 
-        if is_inner_type_pydantic_model:
+            param_type = args[0]
+            if issubclass(param_type, BaseModel):
+                schema_hints = pydantic_to_table_schema_columns(param_type)
+                nullable = is_optional_type(param_type)
+                result[name] = {
+                    **schema_hints,
+                    "nullable": nullable,
+                    "container_type": list
+                }
+
+        # if not is_inner_type_pydantic_model and data_type == "complex" and skip_complex_types:
+        #     continue
+        elif is_inner_type_pydantic_model:
             schema_hints = pydantic_to_table_schema_columns(field.annotation)
+
             def patch_child(parent_field_name: str, hints: dict) -> dict:
                 return {**hints, "name": f"{parent_field_name}__{hints['name']}"}
 
@@ -269,7 +289,8 @@ def create_list_model(
     # TODO: use LenientList to create list model that automatically discards invalid items
     #   https://github.com/pydantic/pydantic/issues/2274 and https://gist.github.com/dmontagu/7f0cef76e5e0e04198dd608ad7219573
     return create_model(
-        "List" + __name__, items=(List[model], ...)  # type: ignore[return-value,valid-type]
+        "List" + __name__,
+        items=(List[model], ...),  # type: ignore[return-value,valid-type]
     )
 
 

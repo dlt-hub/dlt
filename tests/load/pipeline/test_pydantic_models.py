@@ -1,3 +1,4 @@
+import json
 import dlt
 import typing as t
 
@@ -20,8 +21,16 @@ def test_flattened_model() -> None:
         "child": {"child_attribute": "any string", "optional_child_attribute": None},
     }
 
+    @dlt.resource
+    def res():
+        yield [example_data]
+
+    @dlt.source(max_table_nesting=1)
+    def src():
+        yield res()
+
     p = dlt.pipeline("example", full_refresh=True, destination="duckdb")
-    p.run([example_data], table_name="items", columns=Parent)
+    p.run(src(), table_name="items", columns=Parent)
 
     # in the parent this works
     assert "optional_parent_attribute" in p.default_schema.tables["items"]["columns"].keys()
