@@ -20,13 +20,13 @@ def connector_x_snippet() -> None:
     def genome_resource():
         # create genome resource with merge on `upid` primary key
         genome = dlt.resource(
-            name="genome",
+            name="acanthochromis_polyacanthus",
             write_disposition="merge",
             primary_key="upid",
             standalone=True,
         )(read_sql_x)(
-            "mysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam",  # type: ignore[arg-type]
-            "SELECT * FROM genome ORDER BY created LIMIT 1000",
+            "mysql+pymysql://anonymous@ensembldb.ensembl.org:3306/acanthochromis_polyacanthus_core_100_1",  # type: ignore[arg-type]
+            "SELECT * FROM analysis_description LIMIT 1000",
         )
         # add incremental on created at
         genome.apply_hints(incremental=dlt.sources.incremental("created"))
@@ -47,6 +47,6 @@ def connector_x_snippet() -> None:
 
     # check that stuff was loaded # @@@DLT_REMOVE
     row_counts = pipeline.last_trace.last_normalize_info.row_counts  # @@@DLT_REMOVE
-    assert row_counts["genome"] == 1000  # @@@DLT_REMOVE
+    assert row_counts["acanthochromis_polyacanthus"] == 1000  # @@@DLT_REMOVE
 
     # @@@DLT_SNIPPET_END example
