@@ -264,15 +264,13 @@ def test_replace_table_clearing(
     # use staging tables for replace
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
 
-    if destination_config.destination == "synapse" and replace_strategy == "staging-optimized":
-        # The "staging-optimized" replace strategy makes Synapse suspend the CTAS
-        # queries used to recreate the staging table, and hang, when the number
-        # of load workers is greater than 1.
-        os.environ["LOAD__WORKERS"] = "1"
-
     pipeline = destination_config.setup_pipeline(
         "test_replace_table_clearing", dataset_name="test_replace_table_clearing", full_refresh=True
     )
+
+    if destination_config.destination == "synapse" and replace_strategy == "staging-optimized":
+        # this case requires load concurrency to be disabled (else the test gets stuck)
+        assert pipeline.destination_client().config.auto_disable_concurrency is True  # type: ignore[attr-defined]
 
     @dlt.resource(name="main_resource", write_disposition="replace", primary_key="id")
     def items_with_subitems():
