@@ -1631,29 +1631,86 @@ def test_resource_while_stop() -> None:
     assert pipeline.last_trace.last_normalize_info.row_counts["product"] == 12
 
 
-# @pytest.mark.skip("skipped until async generators are implemented")
-def test_async_generator() -> None:
+#
+# async generators resource tests
+#
+def test_async_generator_resource() -> None:
+    async def async_gen_table():
+        for l_ in ["a", "b", "c"]:
+            await asyncio.sleep(0.1)
+            yield {"letter": l_}
+
+    @dlt.resource
+    async def async_gen_resource():
+        for l_ in ["d", "e", "f"]:
+            await asyncio.sleep(0.1)
+            yield {"letter": l_}
+
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+
+    # pure async function
+    pipeline_1.run(async_gen_table(), table_name="async")
+    with pipeline_1.sql_client() as c:
+        with c.execute_query("SELECT * FROM async") as cur:
+            rows = list(cur.fetchall())
+            assert [r[0] for r in rows] == ["a", "b", "c"]
+
+    # async resource
+    pipeline_1.run(async_gen_resource(), table_name="async")
+    with pipeline_1.sql_client() as c:
+        with c.execute_query("SELECT * FROM async") as cur:
+            rows = list(cur.fetchall())
+            assert [r[0] for r in rows] == ["a", "b", "c", "d", "e", "f"]
+
+
+def test_async_generator_nested() -> None:
     def async_inner_table():
         async def _gen(idx):
             for l_ in ["a", "b", "c"]:
-                await asyncio.sleep(1)
+                await asyncio.sleep(0.1)
                 yield {"async_gen": idx, "letter": l_}
 
         # just yield futures in a loop
-        for idx_ in range(10):
+        for idx_ in range(3):
             yield _gen(idx_)
 
-    async def async_gen_table(idx):
-        for l_ in ["a", "b", "c"]:
-            await asyncio.sleep(1)
-            yield {"async_gen": idx, "letter": l_}
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline_1.run(async_inner_table(), table_name="async")
+    with pipeline_1.sql_client() as c:
+        with c.execute_query("SELECT * FROM async") as cur:
+            rows = list(cur.fetchall())
+            assert [(r[0], r[1]) for r in rows] == [
+                (0, "a"),
+                (0, "b"),
+                (0, "c"),
+                (1, "a"),
+                (1, "b"),
+                (1, "c"),
+                (2, "a"),
+                (2, "b"),
+                (2, "c"),
+            ]
 
+
+def test_async_generator_transformer() -> None:
     @dlt.resource
-    async def async_gen_resource(idx):
+    async def async_resource():
         for l_ in ["a", "b", "c"]:
-            await asyncio.sleep(1)
-            yield {"async_gen": idx, "letter": l_}
+            await asyncio.sleep(0.1)
+            yield {"letter": l_}
+
+    @dlt.transformer(data_from=async_resource)
+    async def async_transformer(items):
+        for item in items:
+            await asyncio.sleep(0.1)
+            yield {
+                "letter": item["letter"] + "t",
+            }
 
     pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
-    pipeline_1.run(async_gen_resource(10))
-    pipeline_1.run(async_gen_table(11), table_name="async_gen_table")
+    pipeline_1.run(async_transformer(), table_name="async")
+
+    with pipeline_1.sql_client() as c:
+        with c.execute_query("SELECT * FROM async") as cur:
+            rows = list(cur.fetchall())
+            assert [r[0] for r in rows] == ["at", "bt", "ct"]

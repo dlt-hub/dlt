@@ -322,8 +322,9 @@ class Pipe(SupportsPipe):
             # verify if transformer can be called
             self._ensure_transform_step(self._gen_idx, gen)
 
-        # ensure that asyn gens are wrapped
-        self.replace_gen(wrap_async_generator(self.gen))
+        # wrap async generator
+        if inspect.isasyncgen(self.gen):
+            self.replace_gen(wrap_async_generator(self.gen))
 
         # evaluate transforms
         for step_no, step in enumerate(self._steps):
@@ -623,6 +624,16 @@ class PipeIterator(Iterator[PipeItem]):
                 pipe_item = None
                 continue
 
+            # handle async iterator items as new source
+            if inspect.isasyncgen(item):
+                self._sources.append(
+                    SourcePipeItem(
+                        wrap_async_generator(item), pipe_item.step, pipe_item.pipe, pipe_item.meta
+                    )
+                )
+                pipe_item = None
+                continue
+
             if isinstance(item, Awaitable) or callable(item):
                 # do we have a free slot or one of the slots is done?
                 if len(self._futures) < self.max_parallel_items or self._next_future() >= 0:
@@ -803,7 +814,7 @@ class PipeIterator(Iterator[PipeItem]):
         meta: Any,
     ) -> ResolvablePipeItem:
         item: ResolvablePipeItem = next(gen)
-        if not item:
+        if item is None:
             return item
         # full pipe item may be returned, this is used by ForkPipe step
         # to redirect execution of an item to another pipe

@@ -1,7 +1,7 @@
 
 import dlt, asyncio
 
-# @dlt.resource(table_name="hello")
+@dlt.resource(table_name="hello")
 async def async_gen_resource(idx):
     for l in ["a", "b", "c"] * 3:
         await asyncio.sleep(0.1)
