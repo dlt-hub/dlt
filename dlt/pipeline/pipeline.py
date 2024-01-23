@@ -45,7 +45,7 @@ from dlt.common.schema.typing import (
     TAnySchemaColumns,
     TSchemaContract,
 )
-from dlt.common.schema.utils import normalize_schema_name, get_write_disposition
+from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
 from dlt.common.typing import DictStrStr, TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
@@ -485,10 +485,7 @@ class Pipeline(SupportsPipeline):
 
         # for synapse we might need to adjust the number of load workers
         if self.destination.destination_name == "synapse":
-            write_disposition = get_write_disposition(
-                self.default_schema.tables, self.default_schema.data_table_names()[0]
-            )
-            workers = client.config.get_load_workers(write_disposition, workers)  # type: ignore[attr-defined]
+            workers = client.config.get_load_workers(self.default_schema.tables, workers)  # type: ignore[attr-defined]
 
         # create default loader config and the loader
         load_config = LoaderConfiguration(

@@ -1,8 +1,9 @@
 from typing import Final, Any, List, Dict, Optional, ClassVar
 
-from dlt.common.configuration import configspec
-from dlt.common.schema.typing import TTableIndexType, TWriteDisposition
 from dlt.common import logger
+from dlt.common.configuration import configspec
+from dlt.common.schema.typing import TTableIndexType, TSchemaTables
+from dlt.common.schema.utils import get_write_disposition
 
 from dlt.destinations.impl.mssql.configuration import (
     MsSqlCredentials,
@@ -60,13 +61,16 @@ class SynapseClientConfiguration(MsSqlClientConfiguration):
         "auto_disable_concurrency",
     ]
 
-    def get_load_workers(self, write_disposition: TWriteDisposition, workers: int) -> int:
+    def get_load_workers(self, tables: TSchemaTables, workers: int) -> int:
+        """Returns the adjusted number of load workers to prevent concurrency issues."""
+
+        write_dispositions = [get_write_disposition(tables, table_name) for table_name in tables]
+        n_replace_dispositions = len([d for d in write_dispositions if d == "replace"])
         if (
-            write_disposition == "replace"
+            n_replace_dispositions > 1
             and self.replace_strategy == "staging-optimized"
             and workers > 1
         ):
-            print("auto_disable_concurrency:", self.auto_disable_concurrency)
             warning_msg_shared = (
                 'Data is being loaded into Synapse with write disposition "replace"'
                 ' and replace strategy "staging-optimized", while the number of'
