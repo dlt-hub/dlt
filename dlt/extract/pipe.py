@@ -373,7 +373,8 @@ class Pipe(SupportsPipe):
         # first element must be Iterable, Iterator or Callable in resource pipe
         if not isinstance(step, (Iterable, Iterator, AsyncIterator)) and not callable(step):
             raise CreatePipeException(
-                self.name, "A head of a resource pipe must be Iterable, Iterator, AsyncIterator or a Callable"
+                self.name,
+                "A head of a resource pipe must be Iterable, Iterator, AsyncIterator or a Callable",
             )
 
     def _wrap_transform_step_meta(self, step_no: int, step: TPipeStep) -> TPipeStep:
@@ -788,6 +789,8 @@ class PipeIterator(Iterator[PipeItem]):
 
         if future.exception():
             ex = future.exception()
+            if isinstance(ex, StopAsyncIteration):
+                return None
             if isinstance(
                 ex, (PipelineException, ExtractorException, DltSourceException, PipeException)
             ):

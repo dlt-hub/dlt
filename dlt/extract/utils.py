@@ -119,23 +119,27 @@ def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> in
     return meta_arg
 
 
-def wrap_async_generator(f: Any) -> Any:
-    """Wraps an async generator into a list with one awaitable"""
+def wrap_async_generator(gen: Any) -> Any:
+    """Wraps an async generator into a list of awaitables"""
+    is_running = False
+    exhausted = False
 
-    async def run() -> List[TDataItem]:
-        result: List[TDataItem] = []
+    async def run() -> TDataItems:
+        nonlocal is_running, exhausted
         try:
-            item: TDataItems = None
-            while item := await f.__anext__():
-                if isinstance(item, Iterator):
-                    result.extend(item)
-                else:
-                    result.append(item)
+            return await gen.__anext__()
         except StopAsyncIteration:
-            pass
-        return result
+            exhausted = True
+            raise
+        finally:
+            is_running = False
 
-    yield run()
+    # it is best to use the round robin strategy here if multiple async generators are used in resources
+    while not exhausted:
+        while is_running:
+            yield None
+        is_running = True
+        yield run()
 
 
 def wrap_compat_transformer(

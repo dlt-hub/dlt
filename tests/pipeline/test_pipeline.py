@@ -1700,12 +1700,11 @@ def test_async_generator_transformer() -> None:
             yield {"letter": l_}
 
     @dlt.transformer(data_from=async_resource)
-    async def async_transformer(items):
-        for item in items:
-            await asyncio.sleep(0.1)
-            yield {
-                "letter": item["letter"] + "t",
-            }
+    async def async_transformer(item):
+        await asyncio.sleep(0.1)
+        yield {
+            "letter": item["letter"] + "t",
+        }
 
     pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
     pipeline_1.run(async_transformer(), table_name="async")
@@ -1713,4 +1712,52 @@ def test_async_generator_transformer() -> None:
     with pipeline_1.sql_client() as c:
         with c.execute_query("SELECT * FROM async") as cur:
             rows = list(cur.fetchall())
-            assert [r[0] for r in rows] == ["at", "bt", "ct"]
+            assert len(rows) == 3
+            assert {r[0] for r in rows} == {"at", "bt", "ct"}
+
+
+@pytest.mark.parametrize("next_item_mode", ["fifo", "round_robin"])
+def test_parallel_async_generators(next_item_mode: str) -> None:
+    os.environ["EXTRACT__NEXT_ITEM_MODE"] = next_item_mode
+    execution_order = []
+
+    @dlt.resource(table_name="async1")
+    async def async_resource1():
+        for l_ in ["a", "b", "c"]:
+            await asyncio.sleep(1)
+            nonlocal execution_order
+            execution_order.append("one")
+            yield {"letter": l_}
+
+    @dlt.resource(table_name="async2")
+    async def async_resource2():
+        await asyncio.sleep(0.5)
+        for l_ in ["e", "f", "g"]:
+            await asyncio.sleep(1)
+            nonlocal execution_order
+            execution_order.append("two")
+            yield {"letter": l_}
+
+    @dlt.source
+    def source():
+        return [async_resource1(), async_resource2()]
+
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline_1.run(source())
+
+    with pipeline_1.sql_client() as c:
+        with c.execute_query("SELECT * FROM async1") as cur:
+            rows = list(cur.fetchall())
+            assert len(rows) == 3
+            assert {r[0] for r in rows} == {"a", "b", "c"}
+
+        with c.execute_query("SELECT * FROM async2") as cur:
+            rows = list(cur.fetchall())
+            assert len(rows) == 3
+            assert {r[0] for r in rows} == {"e", "f", "g"}
+
+    assert (
+        execution_order == ["one", "two", "one", "two", "one", "two"]
+        if next_item_mode == "round_robin"
+        else ["one", "one", "one", "two", "two", "two"]
+    )
