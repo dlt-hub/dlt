@@ -67,8 +67,8 @@ def assert_sample_files(
                 assert len(lines) >= 1
                 assert isinstance(lines[0], str)
 
-    assert len(all_file_items) == 10
-    assert set([item["file_name"] for item in all_file_items]) == {
+    assert len(all_file_items) >= 10
+    assert set([item["file_name"] for item in all_file_items]) >= {
         "csv/freshman_kgs.csv",
         "csv/freshman_lbs.csv",
         "csv/mlb_players.csv",

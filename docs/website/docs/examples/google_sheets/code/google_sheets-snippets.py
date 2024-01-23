@@ -80,8 +80,8 @@ def google_sheets_snippet() -> None:
             )
         )
         print(info)
-    # @@@DLT_SNIPPET_END google_sheets_run
-    # @@@DLT_SNIPPET_END example
+        # @@@DLT_SNIPPET_END google_sheets_run
+        # @@@DLT_SNIPPET_END example
         row_counts = pipeline.last_trace.last_normalize_info.row_counts
         print(row_counts.keys())
         assert row_counts["hidden_columns_merged_cells"] == 7
