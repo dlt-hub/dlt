@@ -195,12 +195,13 @@ def test_async_decorator_experiment(parallelized) -> None:
     threads = set()
 
     def parallelize(f) -> Any:
-        exhausted = False
-        lock = threading.Lock()
-
         """converts regular itarable to generator of functions that can be run in parallel in the pipe"""
+
         @wraps(f)
         def _wrap(*args: Any, **kwargs: Any) -> Any:
+            exhausted = False
+            busy = False
+
             gen = f(*args, **kwargs)
             # unpack generator
             if inspect.isfunction(gen):
@@ -212,18 +213,22 @@ def test_async_decorator_experiment(parallelized) -> None:
             # get next item from generator
             def _gen():
                 nonlocal exhausted
-                with lock:
-                    # await asyncio.sleep(0.1)
-                    try:
-                        return next(gen)
-                    # on stop iteration mark as exhausted
-                    except StopIteration:
-                        exhausted = True
-                        return None
+                # await asyncio.sleep(0.1)
+                try:
+                    return next(gen)
+                # on stop iteration mark as exhausted
+                except StopIteration:
+                    exhausted = True
+                    return None
+                finally:
+                    nonlocal busy
+                    busy = False
+
             try:
                 while not exhausted:
-                    while lock.locked():
+                    while busy:
                         yield None
+                    busy = True
                     yield _gen
             except GeneratorExit:
                 # clean up inner generator

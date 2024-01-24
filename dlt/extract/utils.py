@@ -136,24 +136,27 @@ def wrap_async_generator(
 ) -> Generator[Awaitable[TDataItems], None, None]:
     """Wraps an async generator into a list of awaitables"""
     exhausted = False
-    lock = asyncio.Lock()
+    busy = False
 
     # creates an awaitable that will return the next item from the async generator
     async def run() -> TDataItems:
-        async with lock:
-            try:
-                return await gen.__anext__()
-            # on stop iteration mark as exhausted
-            except StopAsyncIteration:
-                nonlocal exhausted
-                exhausted = True
-                raise
+        try:
+            return await gen.__anext__()
+        # on stop iteration mark as exhausted
+        except StopAsyncIteration:
+            nonlocal exhausted
+            exhausted = True
+            raise
+        finally:
+            nonlocal busy
+            busy = False
 
     # this generator yields None while the async generator is not exhausted
     try:
         while not exhausted:
-            while lock.locked():
+            while busy:
                 yield None
+            busy = True
             yield run()
     except GeneratorExit:
         # clean up async generator
