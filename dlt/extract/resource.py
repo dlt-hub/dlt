@@ -312,15 +312,14 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 gen = gen()
 
             # wrap async gen already here
-            # max items will be handled by the wrapper
             if inspect.isasyncgen(gen):
-                gen = wrap_async_generator(gen, max_items)
-                max_items = -1
+                gen = wrap_async_generator(gen)
 
             try:
                 for i in gen:  # type: ignore # TODO: help me fix this later
                     yield i
-                    count += 1
+                    if i is not None:
+                        count += 1
                     if count == max_items:
                         return
             finally:

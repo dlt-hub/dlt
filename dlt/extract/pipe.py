@@ -805,6 +805,9 @@ class PipeIterator(Iterator[PipeItem]):
         if sources_count == 0:
             return None
         try:
+            # reset to beginning of resource list for fifo mode
+            if self._next_item_mode == "fifo":
+                self._current_source_index = -1
             first_evaluated_index = -1
             while True:
                 print(self._current_source_index)
@@ -826,11 +829,9 @@ class PipeIterator(Iterator[PipeItem]):
                             return ResolvablePipeItem(item.data, step, pipe, item.meta)
                         else:
                             return ResolvablePipeItem(item, step, pipe, meta)
-                first_evaluated_index = (
-                    self._current_source_index
-                    if first_evaluated_index == -1
-                    else first_evaluated_index
-                )
+                # remember the first evaluated index
+                if first_evaluated_index == -1:
+                    first_evaluated_index = self._current_source_index
         except StopIteration:
             # remove empty iterator and try another source
             self._sources.pop(self._current_source_index)
@@ -842,11 +843,6 @@ class PipeIterator(Iterator[PipeItem]):
             raise
         except Exception as ex:
             raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
-        finally:
-            # reset to beginning of resource list for fifo mode
-            if self._next_item_mode == "fifo":
-                self._current_source_index = -1
-                print("tmp")
 
     @staticmethod
     def clone_pipes(
