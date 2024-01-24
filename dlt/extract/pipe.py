@@ -636,6 +636,7 @@ class PipeIterator(Iterator[PipeItem]):
                 if len(self._futures) < self.max_parallel_items or self._next_future() >= 0:
                     # check if Awaitable first - awaitable can also be a callable
                     if isinstance(item, Awaitable):
+                        print("schedule")
                         future = asyncio.run_coroutine_threadsafe(item, self._ensure_async_pool())
                     elif callable(item):
                         future = self._ensure_thread_pool().submit(item)
@@ -800,7 +801,11 @@ class PipeIterator(Iterator[PipeItem]):
             raise ResourceExtractionError(pipe.name, future, str(ex), "future") from ex
 
         item = future.result()
-        if isinstance(item, DataItemWithMeta):
+
+        # we also interpret future items that are None to not be value to be consumed
+        if item is None:
+            return None
+        elif isinstance(item, DataItemWithMeta):
             return ResolvablePipeItem(item.data, step, pipe, item.meta)
         else:
             return ResolvablePipeItem(item, step, pipe, meta)
@@ -816,7 +821,6 @@ class PipeIterator(Iterator[PipeItem]):
                 self._current_source_index = -1
             first_evaluated_index = -1
             while True:
-                print(self._current_source_index)
                 self._current_source_index = (self._current_source_index + 1) % sources_count
                 # if we have checked all sources once and all returned None, then we can sleep a bit
                 if self._current_source_index == first_evaluated_index:

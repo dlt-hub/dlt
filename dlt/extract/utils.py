@@ -149,7 +149,7 @@ def wrap_async_generator(
                 exhausted = True
                 raise
 
-    # this generator yields None while the async generator is not exhauste
+    # this generator yields None while the async generator is not exhausted
     try:
         while not exhausted:
             while lock.locked():
