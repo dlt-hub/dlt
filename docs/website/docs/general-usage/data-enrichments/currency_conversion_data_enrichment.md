@@ -54,8 +54,8 @@ currency_conversion_enrichment/
 
 ### 1. Creating resource
 
-`dlt` works on the principle of [sources](../../general-usage/source) and
-[resources.](../../general-usage/resource)
+`dlt` works on the principle of [sources](../../general-usage/source.md) and
+[resources.](../../general-usage/resource.md)
 
 1. The last part of our data enrichment (part one) involved enriching the data with user-agent
    device data. This included adding two new columns to the dataset as folows:
@@ -183,7 +183,7 @@ API token.
    ```
 
 1. Next, follow the instructions in
-   [Destinations](https://dlthub.com/docs/dlt-ecosystem/destinations/duckdb) to add credentials for
+   [Destinations](../../dlt-ecosystem/destinations/duckdb.md) to add credentials for
    your chosen destination. This will ensure that your data is properly routed to its final
    destination.
 
@@ -200,11 +200,11 @@ API token.
    `Transformers` used to process a resource and are ideal for post-load data transformations in a
    pipeline, compatible with tools like `dbt`, the `dlt SQL client`, or Pandas for intricate data
    manipulation. To read more:
-   [Click here.](../../general-usage/resource#process-resources-with-dlttransformer)
+   [Click here.](../../general-usage/resource.md#process-resources-with-dlttransformer)
 
    Conversely, `add_map` used to customize a resource applies transformations at an item level
    within a resource. It's useful for tasks like anonymizing individual data records. More on this
-   can be found under [Customize resources](../../general-usage/resource#customize-resources) in the
+   can be found under [Customize resources](../../general-usage/resource.md#customize-resources) in the
    documentation.
 
 1. Here, we create the pipeline and use the `add_map` functionality:
@@ -241,7 +241,7 @@ API token.
 ### Run the pipeline
 
 1. Install necessary dependencies for the preferred
-   [destination](../dlt-ecosystem/destinations/), For example, duckdb:
+   [destination](../../dlt-ecosystem/destinations/), For example, duckdb:
 
    ```
    pip install dlt[duckdb]
