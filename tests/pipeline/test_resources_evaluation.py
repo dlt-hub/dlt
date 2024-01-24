@@ -168,7 +168,7 @@ def test_parallel_async_generators(next_item_mode: str, resource_mode: str) -> N
     elif resource_mode in ["second_async"]:
         assert execution_order == ["one", "one", "one", "two", "two", "two"]
     else:
-        assert False, "Should not reach here"
+        raise AssertionError("Unknown combination")
 
 
 def test_limit_async_resource() -> None:
