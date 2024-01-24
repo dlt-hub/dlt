@@ -132,17 +132,24 @@ def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> in
 
 
 def wrap_async_generator(
-    gen: AsyncGenerator[TDataItems, None]
+    gen: AsyncGenerator[TDataItems, None],
+    max_items: Optional[int] = -1,
 ) -> Generator[Awaitable[TDataItems], None, None]:
-    """Wraps an async generatqor into a list of awaitables"""
+    """Wraps an async generator into a list of awaitables"""
     exhausted = False
     lock = asyncio.Lock()
 
     # creates an awaitable that will return the next item from the async generator
     async def run() -> TDataItems:
+        nonlocal max_items
         async with lock:
             try:
+                if max_items == 0:
+                    await gen.aclose()
+                    raise StopAsyncIteration()
+                max_items -= 1
                 return await gen.__anext__()
+            # on stop iteration mark as exhausted
             except StopAsyncIteration:
                 nonlocal exhausted
                 exhausted = True

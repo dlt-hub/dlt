@@ -109,7 +109,7 @@ TPipeStep = Union[
     Callable[[TDataItems], Iterator[ResolvablePipeItem]],
 ]
 
-TPipeNextItemMode = Union[Literal["auto"], Literal["fifo"], Literal["round_robin"]]
+TPipeNextItemMode = Union[Literal["fifo"], Literal["round_robin"]]
 
 
 class ForkPipe:
@@ -144,7 +144,6 @@ class Pipe(SupportsPipe):
         self._gen_idx = 0
         self._steps: List[TPipeStep] = []
         self.parent = parent
-        self.generates_awaitables = False
         # add the steps, this will check and mod transformations
         if steps:
             for step in steps:
@@ -326,7 +325,6 @@ class Pipe(SupportsPipe):
         # wrap async generator
         if inspect.isasyncgen(self.gen):
             self.replace_gen(wrap_async_generator(self.gen))
-            self.generates_awaitables = True
 
         # evaluate transforms
         for step_no, step in enumerate(self._steps):
@@ -497,7 +495,7 @@ class PipeIterator(Iterator[PipeItem]):
         workers: int = 5
         futures_poll_interval: float = 0.01
         copy_on_fork: bool = False
-        next_item_mode: str = "auto"
+        next_item_mode: str = "fifo"
 
         __section__ = "extract"
 
@@ -513,25 +511,12 @@ class PipeIterator(Iterator[PipeItem]):
         self.workers = workers
         self.futures_poll_interval = futures_poll_interval
 
-        self._round_robin_index: int = -1
-        self._initial_sources_count: int = 0
+        self._current_source_index: int = -1
         self._async_pool: asyncio.AbstractEventLoop = None
         self._async_pool_thread: Thread = None
         self._thread_pool: ThreadPoolExecutor = None
         self._sources = sources
-        self._initial_sources_count = len(sources)
         self._futures: List[FuturePipeItem] = []
-
-        # evaluate next item mode, switch to round robin if we have any async generators
-        if next_item_mode == "auto":
-            next_item_mode = (
-                "round_robin" if any(s.pipe.generates_awaitables for s in self._sources) else "fifo"
-            )
-
-        # we process fifo backwards
-        if next_item_mode == "fifo":
-            self._sources.reverse()
-
         self._next_item_mode = next_item_mode
 
     @classmethod
@@ -543,7 +528,7 @@ class PipeIterator(Iterator[PipeItem]):
         max_parallel_items: int = 20,
         workers: int = 5,
         futures_poll_interval: float = 0.01,
-        next_item_mode: TPipeNextItemMode = "auto",
+        next_item_mode: TPipeNextItemMode = "fifo",
     ) -> "PipeIterator":
         # join all dependent pipes
         if pipe.parent:
@@ -570,7 +555,7 @@ class PipeIterator(Iterator[PipeItem]):
         workers: int = 5,
         futures_poll_interval: float = 0.01,
         copy_on_fork: bool = False,
-        next_item_mode: TPipeNextItemMode = "auto",
+        next_item_mode: TPipeNextItemMode = "fifo",
     ) -> "PipeIterator":
         # print(f"max_parallel_items: {max_parallel_items} workers: {workers}")
         sources: List[SourcePipeItem] = []
@@ -629,18 +614,19 @@ class PipeIterator(Iterator[PipeItem]):
             # if item is iterator, then add it as a new source
             if isinstance(item, Iterator):
                 # print(f"adding iterable {item}")
-                self._sources.append(
-                    SourcePipeItem(item, pipe_item.step, pipe_item.pipe, pipe_item.meta)
+                self._sources.insert(
+                    0, SourcePipeItem(item, pipe_item.step, pipe_item.pipe, pipe_item.meta)
                 )
                 pipe_item = None
                 continue
 
             # handle async iterator items as new source
             if inspect.isasyncgen(item):
-                self._sources.append(
+                self._sources.insert(
+                    0,
                     SourcePipeItem(
                         wrap_async_generator(item), pipe_item.step, pipe_item.pipe, pipe_item.meta
-                    )
+                    ),
                 )
                 pipe_item = None
                 continue
@@ -814,85 +800,53 @@ class PipeIterator(Iterator[PipeItem]):
             return ResolvablePipeItem(item, step, pipe, meta)
 
     def _get_source_item(self) -> ResolvablePipeItem:
-        if self._next_item_mode == "fifo":
-            return self._get_source_item_fifo()
-        elif self._next_item_mode == "round_robin":
-            return self._get_source_item_round_robin()
-
-    def _get_next_item_from_generator(
-        self,
-        gen: Any,
-        step: int,
-        pipe: Pipe,
-        meta: Any,
-    ) -> ResolvablePipeItem:
-        item: ResolvablePipeItem = next(gen)
-        if item is None:
-            return item
-        # full pipe item may be returned, this is used by ForkPipe step
-        # to redirect execution of an item to another pipe
-        if isinstance(item, ResolvablePipeItem):
-            return item
-        else:
-            # keep the item assigned step and pipe when creating resolvable item
-            if isinstance(item, DataItemWithMeta):
-                return ResolvablePipeItem(item.data, step, pipe, item.meta)
-            else:
-                return ResolvablePipeItem(item, step, pipe, meta)
-
-    def _get_source_item_fifo(self) -> ResolvablePipeItem:
+        sources_count = len(self._sources)
         # no more sources to iterate
-        if len(self._sources) == 0:
+        if sources_count == 0:
             return None
         try:
-            # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
-            gen, step, pipe, meta = self._sources[-1]
-            # print(f"got {pipe.name}")
-            # register current pipe name during the execution of gen
-            set_current_pipe_name(pipe.name)
-            item = None
-            while item is None:
-                item = self._get_next_item_from_generator(gen, step, pipe, meta)
-            return item
+            first_evaluated_index = -1
+            while True:
+                print(self._current_source_index)
+                self._current_source_index = (self._current_source_index + 1) % sources_count
+                # if we have checked all sources once and all returned None, then we can sleep a bit
+                if self._current_source_index == first_evaluated_index:
+                    sleep(self.futures_poll_interval)
+                # get next item from the current source
+                gen, step, pipe, meta = self._sources[self._current_source_index]
+                set_current_pipe_name(pipe.name)
+                if (item := next(gen)) is not None:
+                    # full pipe item may be returned, this is used by ForkPipe step
+                    # to redirect execution of an item to another pipe
+                    if isinstance(item, ResolvablePipeItem):
+                        return item
+                    else:
+                        # keep the item assigned step and pipe when creating resolvable item
+                        if isinstance(item, DataItemWithMeta):
+                            return ResolvablePipeItem(item.data, step, pipe, item.meta)
+                        else:
+                            return ResolvablePipeItem(item, step, pipe, meta)
+                first_evaluated_index = (
+                    self._current_source_index
+                    if first_evaluated_index == -1
+                    else first_evaluated_index
+                )
         except StopIteration:
             # remove empty iterator and try another source
-            self._sources.pop()
+            self._sources.pop(self._current_source_index)
+            # we need to decrease the index to keep the round robin order
+            if self._next_item_mode == "round_robin":
+                self._current_source_index -= 1
             return self._get_source_item()
         except (PipelineException, ExtractorException, DltSourceException, PipeException):
             raise
         except Exception as ex:
             raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
-
-    def _get_source_item_round_robin(self) -> ResolvablePipeItem:
-        sources_count = len(self._sources)
-        # no more sources to iterate
-        if sources_count == 0:
-            return None
-        # if there are currently more sources than added initially, we need to process the new ones first
-        if sources_count > self._initial_sources_count:
-            return self._get_source_item_fifo()
-        try:
-            # print(f"got {pipe.name}")
-            # register current pipe name during the execution of gen
-            item = None
-            while item is None:
-                self._round_robin_index = (self._round_robin_index + 1) % sources_count
-                gen, step, pipe, meta = self._sources[self._round_robin_index]
-                set_current_pipe_name(pipe.name)
-                item = self._get_next_item_from_generator(gen, step, pipe, meta)
-            return item
-        except StopIteration:
-            # remove empty iterator and try another source
-            self._sources.pop(self._round_robin_index)
-            # we need to decrease the index to keep the round robin order
-            self._round_robin_index -= 1
-            # since in this case we have popped an initial source, we need to decrease the initial sources count
-            self._initial_sources_count -= 1
-            return self._get_source_item_round_robin()
-        except (PipelineException, ExtractorException, DltSourceException, PipeException):
-            raise
-        except Exception as ex:
-            raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
+        finally:
+            # reset to beginning of resource list for fifo mode
+            if self._next_item_mode == "fifo":
+                self._current_source_index = -1
+                print("tmp")
 
     @staticmethod
     def clone_pipes(

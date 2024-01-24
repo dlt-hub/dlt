@@ -1,5 +1,6 @@
 from copy import deepcopy
 import inspect
+import asyncio
 from typing import (
     AsyncIterable,
     AsyncIterator,
@@ -24,6 +25,7 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
+from dlt.extract.utils import wrap_async_generator
 
 from dlt.extract.typing import (
     DataItemWithMeta,
@@ -308,6 +310,13 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             count = 0
             if inspect.isfunction(gen):
                 gen = gen()
+
+            # wrap async gen already here
+            # max items will be handled by the wrapper
+            if inspect.isasyncgen(gen):
+                gen = wrap_async_generator(gen, max_items)
+                max_items = -1
+
             try:
                 for i in gen:  # type: ignore # TODO: help me fix this later
                     yield i

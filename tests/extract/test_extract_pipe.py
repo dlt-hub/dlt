@@ -44,8 +44,8 @@ def test_next_item_mode() -> None:
 
     # round robin mode
     _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="round_robin"))
-    # items will be round robin, nested iterators are fully iterated and appear inline as soon as they are encountered
-    assert [pi.item for pi in _l] == [1, 11, 20, 2, 12, 21, 55, 56, 77, 88, 89, 13, 3, 14, 4, 15]
+    # items will be round robin, nested iterators are integrated into the round robin
+    assert [pi.item for pi in _l] == [1, 11, 20, 2, 12, 21, 3, 13, 55, 4, 14, 56, 15, 77, 88, 89]
 
 
 def test_rotation_on_none() -> None:
