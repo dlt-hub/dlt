@@ -24,8 +24,10 @@ To enable this is currency conversion data enrichment. A few important steps are
 We use the [ExchangeRate-API](https://app.exchangerate-api.com/) to fetch the latest currency
 conversion rates. However, you can use any service you prefer.
 
-:::note ExchangeRate-API free tier offers 1500 free calls monthly. For production, consider
-upgrading to a higher plan. :::
+:::note
+ExchangeRate-API free tier offers 1500 free calls monthly. For production, consider
+upgrading to a higher plan.
+:::
 
 ## Creating data enrichment pipeline
 
@@ -223,7 +225,8 @@ API token.
    print(load_info)
    ```
 
-   :::info Please note that the same outcome can be achieved by using the transformer function. To
+   :::info
+   Please note that the same outcome can be achieved by using the transformer function. To
    do so, you need to add the transformer decorator at the top of the `converted_amount` function.
    For `pipeline.run`, you can use the following code:
 
@@ -236,7 +239,8 @@ API token.
    ```
 
    This will execute the `converted_amount` function with the data enriched in part one and return
-   the converted currencies. :::
+   the converted currencies.
+   :::
 
 ### Run the pipeline
 
