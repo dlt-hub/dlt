@@ -1,6 +1,18 @@
 import inspect
 import makefun
-from typing import Optional, Tuple, Union, List, Any, Sequence, cast, Iterator
+import asyncio
+from typing import (
+    Optional,
+    Tuple,
+    Union,
+    List,
+    Any,
+    Sequence,
+    cast,
+    AsyncGenerator,
+    Awaitable,
+    Generator,
+)
 from collections.abc import Mapping as C_Mapping
 
 from dlt.common.exceptions import MissingDependencyException
@@ -119,26 +131,27 @@ def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> in
     return meta_arg
 
 
-def wrap_async_generator(gen: Any) -> Any:
-    """Wraps an async generator into a list of awaitables"""
-    is_running = False
+def wrap_async_generator(
+    gen: AsyncGenerator[TDataItems, None]
+) -> Generator[Awaitable[TDataItems], None, None]:
+    """Wraps an async generatqor into a list of awaitables"""
     exhausted = False
+    lock = asyncio.Lock()
 
+    # creates an awaitable that will return the next item from the async generator
     async def run() -> TDataItems:
-        nonlocal is_running, exhausted
-        try:
-            return await gen.__anext__()
-        except StopAsyncIteration:
-            exhausted = True
-            raise
-        finally:
-            is_running = False
+        async with lock:
+            try:
+                return await gen.__anext__()
+            except StopAsyncIteration:
+                nonlocal exhausted
+                exhausted = True
+                raise
 
-    # it is best to use the round robin strategy here if multiple async generators are used in resources
+    # this generator yields None while the async generator is not exhauste
     while not exhausted:
-        while is_running:
+        while lock.locked():
             yield None
-        is_running = True
         yield run()
 
 

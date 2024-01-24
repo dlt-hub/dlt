@@ -1716,7 +1716,7 @@ def test_async_generator_transformer() -> None:
             assert {r[0] for r in rows} == {"at", "bt", "ct"}
 
 
-@pytest.mark.parametrize("next_item_mode", ["fifo", "round_robin"])
+@pytest.mark.parametrize("next_item_mode", ["auto", "fifo", "round_robin"])
 def test_parallel_async_generators(next_item_mode: str) -> None:
     os.environ["EXTRACT__NEXT_ITEM_MODE"] = next_item_mode
     execution_order = []
@@ -1756,8 +1756,9 @@ def test_parallel_async_generators(next_item_mode: str) -> None:
             assert len(rows) == 3
             assert {r[0] for r in rows} == {"e", "f", "g"}
 
+    # auto mode will switch to round robin if we have awaitables
     assert (
         execution_order == ["one", "two", "one", "two", "one", "two"]
-        if next_item_mode == "round_robin"
+        if next_item_mode in ["auto", "round_robin"]
         else ["one", "one", "one", "two", "two", "two"]
     )
