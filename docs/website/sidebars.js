@@ -60,6 +60,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/hubspot',
             'dlt-ecosystem/verified-sources/inbox',
             'dlt-ecosystem/verified-sources/jira',
+            'dlt-ecosystem/verified-sources/kafka',
             'dlt-ecosystem/verified-sources/matomo',
             'dlt-ecosystem/verified-sources/mongodb',
             'dlt-ecosystem/verified-sources/mux',
