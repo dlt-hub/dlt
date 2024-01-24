@@ -9,19 +9,13 @@ from dlt.destinations.impl.qdrant.qdrant_adapter import qdrant_adapter, VECTORIZ
 from dlt.destinations.impl.qdrant.qdrant_client import QdrantClient
 from tests.pipeline.utils import assert_load_info
 from tests.load.qdrant.utils import drop_active_pipeline_data, assert_collection
+from tests.load.utils import sequence_generator
 
 
 @pytest.fixture(autouse=True)
 def drop_qdrant_data() -> Iterator[None]:
     yield
     drop_active_pipeline_data()
-
-
-def sequence_generator():
-    count = 1
-    while True:
-        yield [{"content": str(count + i)} for i in range(3)]
-        count += 3
 
 
 def test_adapter_and_hints() -> None:

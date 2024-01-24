@@ -538,3 +538,10 @@ def prepare_load_package(
     load_storage.commit_new_load_package(load_id)
     schema = load_storage.normalized_packages.load_schema(load_id)
     return load_id, schema
+
+
+def sequence_generator():
+    count = 1
+    while True:
+        yield [{"content": str(count + i)} for i in range(3)]
+        count += 3

@@ -1,6 +1,6 @@
 import os
 from copy import deepcopy
-from typing import Iterator, Dict
+from typing import Iterator, Dict, Generator, List
 
 import pytest
 import sqlfluff
@@ -14,10 +14,11 @@ from dlt.common.utils import custom_environ
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
+from dlt.destinations.impl.bigquery.bigquery_adapter import bigquery_adapter
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.extract import DltResource
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
-from tests.load.utils import TABLE_UPDATE
+from tests.load.utils import TABLE_UPDATE, sequence_generator
 
 
 @pytest.fixture
@@ -371,3 +372,17 @@ def test_bigquery_no_partition_by_integer(destination_config: DestinationTestCon
             has_partitions = cur.fetchone()[0]
             assert isinstance(has_partitions, bool)
             assert not has_partitions
+
+
+def test_adapter_and_hints() -> None:
+    @dlt.resource(columns=[{"name": "content", "data_type": "text"}])
+    def some_data() -> Generator[Dict[str, str], None, None]:
+        yield from next(sequence_generator())
+
+    assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore
+
+    # adapter merges with existing columns
+    bigquery_adapter(
+        some_data,
+    )
+    assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore
