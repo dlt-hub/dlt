@@ -39,8 +39,8 @@ def test_next_item_mode() -> None:
 
     # default mode is "fifo"
     _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="fifo"))
-    # items will be in order of the pipes, nested iterator items appear inline
-    assert [pi.item for pi in _l] == [1, 2, 55, 56, 77, 88, 89, 3, 4, 11, 12, 13, 14, 15, 20, 21]
+    # items will be in order of the pipes, nested iterator items appear inline, None triggers rotation
+    assert [pi.item for pi in _l] == [1, 2, 55, 56, 3, 77, 88, 89, 4, 11, 12, 13, 14, 15, 20, 21]
 
     # round robin mode
     _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="round_robin"))

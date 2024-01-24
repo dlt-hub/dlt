@@ -715,6 +715,12 @@ class PipeIterator(Iterator[PipeItem]):
 
         # print("stopping loop")
         if self._async_pool:
+            # wait for all async generators to be closed
+            future = asyncio.run_coroutine_threadsafe(
+                self._async_pool.shutdown_asyncgens(), self._ensure_async_pool()
+            )
+            while not future.done():
+                sleep(self.futures_poll_interval)
             self._async_pool.call_soon_threadsafe(stop_background_loop, self._async_pool)
             # print("joining thread")
             self._async_pool_thread.join()

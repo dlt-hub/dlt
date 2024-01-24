@@ -157,7 +157,7 @@ def wrap_async_generator(
             yield run()
     except GeneratorExit:
         # clean up async generator
-        asyncio.ensure_future(gen.aclose())
+        pass
 
 
 def wrap_compat_transformer(
