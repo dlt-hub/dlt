@@ -239,7 +239,7 @@ def test_async_decorator_experiment(parallelized) -> None:
     @parallelize
     def resource1():
         for l_ in ["a", "b", "c"]:
-            time.sleep(0.3)
+            time.sleep(0.5)
             nonlocal execution_order
             execution_order.append("one")
             threads.add(threading.get_ident())
@@ -247,9 +247,9 @@ def test_async_decorator_experiment(parallelized) -> None:
 
     @parallelize
     def resource2():
-        time.sleep(0.1)
+        time.sleep(0.25)
         for l_ in ["e", "f", "g"]:
-            time.sleep(0.3)
+            time.sleep(0.5)
             nonlocal execution_order
             execution_order.append("two")
             threads.add(threading.get_ident())
