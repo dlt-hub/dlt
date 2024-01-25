@@ -48,17 +48,21 @@ class SynapseClientConfiguration(MsSqlClientConfiguration):
     # are tricky in Synapse: they are NOT ENFORCED and can lead to innacurate
     # results if the user does not ensure all column values are unique.
     # https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-table-constraints
-    create_indexes: Optional[bool] = False
+    create_indexes: bool = False
     """Whether `primary_key` and `unique` column hints are applied."""
 
     # Concurrency is disabled by overriding the configured number of workers to 1 at runtime.
-    auto_disable_concurrency: Optional[bool] = True
+    auto_disable_concurrency: bool = True
     """Whether concurrency is automatically disabled in cases where it might cause issues."""
+
+    staging_use_msi: bool = False
+    """Whether the managed identity of the Synapse workspace is used to authorize access to the staging Storage Account."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "default_table_index_type",
         "create_indexes",
         "auto_disable_concurrency",
+        "staging_use_msi",
     ]
 
     def get_load_workers(self, tables: TSchemaTables, workers: int) -> int:

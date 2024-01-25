@@ -1,17 +1,28 @@
+import os
 from typing import ClassVar, Sequence, List, Dict, Any, Optional, cast
 from copy import deepcopy
 from textwrap import dedent
+from urllib.parse import urlparse, urlunparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.reference import SupportsStagingDestination, NewLoadJob
+from dlt.common.destination.reference import (
+    SupportsStagingDestination,
+    NewLoadJob,
+    CredentialsConfiguration,
+)
 
 from dlt.common.schema import TTableSchema, TColumnSchema, Schema, TColumnHint
+from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.schema.typing import TTableSchemaColumns, TTableIndexType
 
+from dlt.common.configuration.specs import AzureCredentialsWithoutDefaults
+
+from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlJobParams
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.insert_job_client import InsertValuesJobClient
-from dlt.destinations.job_client_impl import SqlJobClientBase
+from dlt.destinations.job_client_impl import SqlJobClientBase, LoadJob, CopyRemoteFileLoadJob
+from dlt.destinations.exceptions import LoadJobTerminalException
 
 from dlt.destinations.impl.mssql.mssql import (
     MsSqlTypeMapper,
@@ -35,7 +46,7 @@ TABLE_INDEX_TYPE_TO_SYNAPSE_ATTR: Dict[TTableIndexType, str] = {
 }
 
 
-class SynapseClient(MsSqlClient):
+class SynapseClient(MsSqlClient, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, schema: Schema, config: SynapseClientConfiguration) -> None:
@@ -140,6 +151,21 @@ class SynapseClient(MsSqlClient):
             table_index_type = sql_client.execute_sql(sql)[0][0]
             return cast(TTableIndexType, table_index_type)
 
+    def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        job = super().start_file_load(table, file_path, load_id)
+        if not job:
+            assert NewReferenceJob.is_reference_job(
+                file_path
+            ), "Synapse must use staging to load files"
+            job = SynapseCopyFileLoadJob(
+                table,
+                file_path,
+                self.sql_client,
+                cast(AzureCredentialsWithoutDefaults, self.config.staging_config.credentials),
+                self.config.staging_use_msi,
+            )
+        return job
+
 
 class SynapseStagingCopyJob(SqlStagingCopyJob):
     @classmethod
@@ -173,3 +199,86 @@ class SynapseStagingCopyJob(SqlStagingCopyJob):
             )
 
         return sql
+
+
+class SynapseCopyFileLoadJob(CopyRemoteFileLoadJob):
+    def __init__(
+        self,
+        table: TTableSchema,
+        file_path: str,
+        sql_client: SqlClientBase[Any],
+        staging_credentials: Optional[AzureCredentialsWithoutDefaults] = None,
+        staging_use_msi: bool = False,
+    ) -> None:
+        self.staging_use_msi = staging_use_msi
+        super().__init__(table, file_path, sql_client, staging_credentials)
+
+    def execute(self, table: TTableSchema, bucket_path: str) -> None:
+        # get format
+        ext = os.path.splitext(bucket_path)[1][1:]
+        if ext == "parquet":
+            if table_schema_has_type(table, "time"):
+                # Synapse interprets Parquet TIME columns as bigint, resulting in
+                # an incompatibility error.
+                raise LoadJobTerminalException(
+                    self.file_name(),
+                    "Synapse cannot load TIME columns from Parquet files. Switch to direct INSERT"
+                    " file format or convert `datetime.time` objects in your data to `str` or"
+                    " `datetime.datetime`",
+                )
+            file_type = "PARQUET"
+
+            # dlt-generated DDL statements will still create the table, but
+            # enabling AUTO_CREATE_TABLE prevents a MalformedInputException.
+            auto_create_table = "ON"
+        else:
+            raise ValueError(f"Unsupported file type {ext} for Synapse.")
+
+        staging_credentials = self._staging_credentials
+        assert staging_credentials is not None
+        assert isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
+        azure_storage_account_name = staging_credentials.azure_storage_account_name
+        https_path = self._get_https_path(bucket_path, azure_storage_account_name)
+        table_name = table["name"]
+
+        if self.staging_use_msi:
+            credential = "IDENTITY = 'Managed Identity'"
+        else:
+            sas_token = staging_credentials.azure_storage_sas_token
+            credential = f"IDENTITY = 'Shared Access Signature', SECRET = '{sas_token}'"
+
+        # Copy data from staging file into Synapse table.
+        with self._sql_client.begin_transaction():
+            dataset_name = self._sql_client.dataset_name
+            sql = dedent(f"""
+                COPY INTO [{dataset_name}].[{table_name}]
+                FROM '{https_path}'
+                WITH (
+                    FILE_TYPE = '{file_type}',
+                    CREDENTIAL = ({credential}),
+                    AUTO_CREATE_TABLE = '{auto_create_table}'
+                )
+            """)
+            self._sql_client.execute_sql(sql)
+
+    def exception(self) -> str:
+        # this part of code should be never reached
+        raise NotImplementedError()
+
+    def _get_https_path(self, bucket_path: str, storage_account_name: str) -> str:
+        """
+        Converts a path in the form of az://<container_name>/<path> to
+        https://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
+        as required by Synapse.
+        """
+        bucket_url = urlparse(bucket_path)
+        # "blob" endpoint has better performance than "dfs" endoint
+        # https://learn.microsoft.com/en-us/sql/t-sql/statements/copy-into-transact-sql?view=azure-sqldw-latest#external-locations
+        endpoint = "blob"
+        _path = "/" + bucket_url.netloc + bucket_url.path
+        https_url = bucket_url._replace(
+            scheme="https",
+            netloc=f"{storage_account_name}.{endpoint}.core.windows.net",
+            path=_path,
+        )
+        return urlunparse(https_url)

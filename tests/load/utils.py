@@ -95,6 +95,7 @@ class DestinationTestConfiguration:
     bucket_url: Optional[str] = None
     stage_name: Optional[str] = None
     staging_iam_role: Optional[str] = None
+    staging_use_msi: bool = False
     extra_info: Optional[str] = None
     supports_merge: bool = True  # TODO: take it from client base class
     force_iceberg: bool = False
@@ -118,6 +119,7 @@ class DestinationTestConfiguration:
         os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = self.bucket_url or ""
         os.environ["DESTINATION__STAGE_NAME"] = self.stage_name or ""
         os.environ["DESTINATION__STAGING_IAM_ROLE"] = self.staging_iam_role or ""
+        os.environ["DESTINATION__STAGING_USE_MSI"] = str(self.staging_use_msi) or ""
         os.environ["DESTINATION__FORCE_ICEBERG"] = str(self.force_iceberg) or ""
 
         """For the filesystem destinations we disable compression to make analyzing the result easier"""
@@ -253,6 +255,21 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="synapse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="synapse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                staging_use_msi=True,
+                extra_info="az-managed-identity",
             ),
         ]
 

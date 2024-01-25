@@ -9,8 +9,8 @@ def capabilities() -> DestinationCapabilitiesContext:
 
     caps.preferred_loader_file_format = "insert_values"
     caps.supported_loader_file_formats = ["insert_values"]
-    caps.preferred_staging_file_format = None
-    caps.supported_staging_file_formats = []
+    caps.preferred_staging_file_format = "parquet"
+    caps.supported_staging_file_formats = ["parquet"]
 
     caps.insert_values_writer_type = "select_union"  # https://stackoverflow.com/a/77014299
 
