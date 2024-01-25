@@ -386,3 +386,6 @@ def test_adapter_and_hints() -> None:
         some_data,
     )
     assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore
+
+
+# TODO: Use sqlglot to test generated AST

@@ -106,10 +106,10 @@ class BigQueryLoadJob(LoadJob, FollowupJob):
                 f"Got reason {reason} for job {self.file_name}, job considered still"
                 f" running. ({self.bq_load_job.error_result})"
             )
-            # the status of the job couldn't be obtained, job still running
+            # the status of the job couldn't be obtained, job still running.
             return "running"
         else:
-            # retry on all other reasons, including `backendError` which requires retry when the job is done
+            # retry on all other reasons, including `backendError` which requires retry when the job is done.
             return "retry"
 
     def bigquery_job_id(self) -> str:
@@ -201,10 +201,10 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         """Returns a completed SqlLoadJob or restored BigQueryLoadJob
 
         See base class for details on SqlLoadJob.
-        BigQueryLoadJob is restored with a job id derived from `file_path`
+        BigQueryLoadJob is restored with a job ID derived from `file_path`.
 
         Args:
-            file_path (str): a path to a job file
+            file_path (str): a path to a job file.
 
         Returns:
             LoadJob: completed SqlLoadJob or restored BigQueryLoadJob
@@ -244,10 +244,10 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             except api_core_exceptions.GoogleAPICallError as gace:
                 reason = BigQuerySqlClient._get_reason_from_errors(gace)
                 if reason == "notFound":
-                    # google.api_core.exceptions.NotFound: 404 - table not found
+                    # google.api_core.exceptions.NotFound: 404 – table not found
                     raise UnknownTableException(table["name"]) from gace
                 elif reason == "duplicate":
-                    # google.api_core.exceptions.Conflict: 409 PUT - already exists
+                    # google.api_core.exceptions.Conflict: 409 PUT – already exists
                     return self.restore_file_load(file_path)
                 elif reason in BQ_TERMINAL_REASONS:
                     # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
@@ -283,7 +283,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 sql[0] = (
                     f"{sql[0]}\nPARTITION BY DATE({self.capabilities.escape_identifier(c['name'])})"
                 )
-            # Automatic partitioning of an INT64 type requires us to be prescriptive - we treat the column as a UNIX timestamp.
+            # Automatic partitioning of an INT64 type requires us to be prescriptive – we treat the column as a UNIX timestamp.
             # This is due to the bounds requirement of GENERATE_ARRAY function for partitioning.
             # The 10,000 partitions limit makes it infeasible to cover the entire `bigint` range.
             # The array bounds, with daily partitions (86400 seconds in a day), are somewhat arbitrarily chosen.
@@ -331,7 +331,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             return False, schema_table
 
     def _create_load_job(self, table: TTableSchema, file_path: str) -> bigquery.LoadJob:
-        # append to table for merge loads (append to stage) and regular appends
+        # append to table for merge loads (append to stage) and regular appends.
         table_name = table["name"]
 
         # determine whether we load from local or uri
@@ -341,7 +341,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             bucket_path = NewReferenceJob.resolve_reference(file_path)
             ext = os.path.splitext(bucket_path)[1][1:]
 
-        # choose a correct source format
+        # Select a correct source format
         source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
         decimal_target_types: List[str] = None
         if ext == "parquet":

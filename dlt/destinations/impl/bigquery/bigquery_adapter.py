@@ -2,6 +2,10 @@ from typing import Any
 
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.extract import DltResource, resource as make_resource
+from typing import Dict, Any, Literal, Set, get_args
+
+from dlt.common.schema.typing import TColumnNames, TTableSchemaColumns
+from dlt.extract import DltResource, resource as make_resource
 
 
 def bigquery_adapter(
