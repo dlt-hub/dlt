@@ -5,8 +5,10 @@ from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable, Iterable
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.common.typing import TDataItems
 from dlt.common import json
+from dlt.common.configuration.container import Container
+from dlt.common.pipeline import StateInjectableContext
+from dlt.common.pipeline import destination_state, reset_destination_state, commit_pipeline_state
 
-from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import FileStorage
@@ -21,10 +23,6 @@ from dlt.destinations.impl.sink import capabilities
 from dlt.destinations.impl.sink.configuration import SinkClientConfiguration, TSinkCallable
 
 
-# TODO: implement proper state storage somewhere, can this somehow go into the loadpackage?
-job_execution_storage: Dict[str, int] = {}
-
-
 class SinkLoadJob(LoadJob, ABC):
     def __init__(
         self,
@@ -32,27 +30,28 @@ class SinkLoadJob(LoadJob, ABC):
         file_path: str,
         config: SinkClientConfiguration,
         schema: Schema,
-        job_execution_storage: Dict[str, int],
+        load_state: Dict[str, int],
     ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._file_path = file_path
         self._config = config
         self._table = table
         self._schema = schema
-        self._job_execution_storage = job_execution_storage
 
-        # TODO: is this the correct way to tell dlt to retry this job in the next attempt?
         self._state: TLoadJobState = "running"
         try:
-            current_index = self._job_execution_storage.get(self._parsed_file_name.file_id, 0)
+            current_index = load_state.get(self._parsed_file_name.file_id, 0)
             for batch in self.run(current_index):
                 self.call_callable_with_items(batch)
                 current_index += len(batch)
-                self._job_execution_storage[self._parsed_file_name.file_id] = current_index
+                load_state[self._parsed_file_name.file_id] = current_index
             self._state = "completed"
         except Exception as e:
             self._state = "retry"
             raise e
+        finally:
+            # save progress
+            commit_pipeline_state()
 
     @abstractmethod
     def run(self, start_index: int) -> Iterable[TDataItems]:
@@ -121,52 +120,6 @@ class SinkJsonlLoadJob(SinkLoadJob):
             yield current_batch
 
 
-# class SinkInsertValueslLoadJob(SinkLoadJob):
-#     def run(self) -> None:
-#         from dlt.common import json
-
-#         # stream items
-#         with FileStorage.open_zipsafe_ro(self._file_path) as f:
-#             header = f.readline().strip()
-#             values_mark = f.readline()
-
-#             # properly formatted file has a values marker at the beginning
-#             assert values_mark == "VALUES\n"
-
-#             # extract column names
-#             assert header.startswith("INSERT INTO") and header.endswith(")")
-#             header = header[15:-1]
-#             column_names = header.split(",")
-
-#             # build batches
-#             current_batch: TDataItems = []
-#             current_row: str = ""
-#             for line in f:
-#                 current_row += line
-#                 if line.endswith(");"):
-#                     current_row = current_row[1:-2]
-#                 elif line.endswith("),\n"):
-#                     current_row = current_row[1:-3]
-#                 else:
-#                     continue
-
-#                 values = current_row.split(",")
-#                 values = [None if v == "NULL" else v for v in values]
-#                 current_row = ""
-#                 print(values)
-#                 print(current_row)
-
-#                 # zip and send to callable
-#                 current_batch.append(dict(zip(column_names, values)))
-#                 d = dict(zip(column_names, values))
-#                 print(json.dumps(d, pretty=True))
-#                 if len(current_batch) == self._config.batch_size:
-#                     self.call_callable_with_items(current_batch)
-#                     current_batch = []
-
-#             self.call_callable_with_items(current_batch)
-
-
 class SinkClient(JobClientBase):
     """Sink Client"""
 
@@ -175,8 +128,6 @@ class SinkClient(JobClientBase):
     def __init__(self, schema: Schema, config: SinkClientConfiguration) -> None:
         super().__init__(schema, config)
         self.config: SinkClientConfiguration = config
-        global job_execution_storage
-        self.job_execution_storage = job_execution_storage
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         pass
@@ -193,23 +144,21 @@ class SinkClient(JobClientBase):
         return super().update_stored_schema(only_tables, expected_update)
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
+        load_state = destination_state().setdefault(load_id, {})
         if file_path.endswith("parquet"):
-            return SinkParquetLoadJob(
-                table, file_path, self.config, self.schema, job_execution_storage
-            )
+            return SinkParquetLoadJob(table, file_path, self.config, self.schema, load_state)
         if file_path.endswith("jsonl"):
-            return SinkJsonlLoadJob(
-                table, file_path, self.config, self.schema, job_execution_storage
-            )
-        # if file_path.endswith("insert_values"):
-        #    return SinkInsertValueslLoadJob(table, file_path, self.config, self.schema)
+            return SinkJsonlLoadJob(table, file_path, self.config, self.schema, load_state)
         return None
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
     def complete_load(self, load_id: str) -> None:
-        pass
+        # pop all state for this load on success
+        state = destination_state()
+        state.pop(load_id, None)
+        commit_pipeline_state()
 
     def __enter__(self) -> "SinkClient":
         return self

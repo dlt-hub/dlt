@@ -7,6 +7,7 @@ import os
 
 from dlt.common import sleep, logger
 from dlt.common.configuration import with_config, known_sections
+from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.accessors import config
 from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
 from dlt.common.schema.utils import get_child_tables, get_top_level_table
@@ -35,6 +36,7 @@ from dlt.common.destination.reference import (
     SupportsStagingDestination,
     TDestination,
 )
+from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 
 from dlt.destinations.job_impl import EmptyLoadJob
 
@@ -558,10 +560,16 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         # get top load id and mark as being processed
         with self.collector(f"Load {schema.name} in {load_id}"):
-            # the same load id may be processed across multiple runs
-            if not self.current_load_id:
-                self._step_info_start_load_id(load_id)
-            self.load_single_package(load_id, schema)
+            with inject_section(
+                ConfigSectionContext(
+                    sections=(known_sections.LOAD,),
+                    destination_state_key=self.destination.destination_name,
+                )
+            ):
+                # the same load id may be processed across multiple runs
+                if not self.current_load_id:
+                    self._step_info_start_load_id(load_id)
+                self.load_single_package(load_id, schema)
 
         return TRunMetrics(False, len(self.load_storage.list_normalized_packages()))
 

@@ -470,6 +470,7 @@ class TPipelineState(TypedDict, total=False):
     """A section of state that is not synchronized with the destination and does not participate in change merging and version control"""
 
     sources: NotRequired[Dict[str, Dict[str, Any]]]
+    destinations: NotRequired[Dict[str, Dict[str, Any]]]
 
 
 class TSourceState(TPipelineState):
@@ -594,9 +595,13 @@ class StateInjectableContext(ContainerInjectableContext):
 
     can_create_default: ClassVar[bool] = False
 
+    commit: Optional[Callable[[], None]] = None
+
     if TYPE_CHECKING:
 
-        def __init__(self, state: TPipelineState = None) -> None: ...
+        def __init__(
+            self, state: TPipelineState = None, commit: Optional[Callable[[], None]] = None
+        ) -> None: ...
 
 
 def pipeline_state(
@@ -677,6 +682,50 @@ def source_state() -> DictStrAny:
 
 
 _last_full_state: TPipelineState = None
+
+
+def destination_state() -> DictStrAny:
+    container = Container()
+
+    # get the destination  name from the section context
+    destination_state_key: str = None
+    with contextlib.suppress(ContextDefaultCannotBeCreated):
+        sections_context = container[ConfigSectionContext]
+        destination_state_key = sections_context.destination_state_key
+
+    if not destination_state_key:
+        raise SourceSectionNotAvailable()
+
+    state, _ = pipeline_state(Container())
+
+    destination_state: DictStrAny = state.setdefault("destinations", {}).setdefault(
+        destination_state_key, {}
+    )
+    return destination_state
+
+
+def reset_destination_state() -> None:
+    container = Container()
+
+    # get the destination  name from the section context
+    destination_state_key: str = None
+    with contextlib.suppress(ContextDefaultCannotBeCreated):
+        sections_context = container[ConfigSectionContext]
+        destination_state_key = sections_context.destination_state_key
+
+    if not destination_state_key:
+        raise SourceSectionNotAvailable()
+
+    state, _ = pipeline_state(Container())
+
+    state.setdefault("destinations", {}).pop(destination_state_key)
+
+
+def commit_pipeline_state() -> None:
+    container = Container()
+    # get injected state if present. injected state is typically "managed" so changes will be persisted
+    state_ctx = container[StateInjectableContext]
+    state_ctx.commit()
 
 
 def _delete_source_state_keys(

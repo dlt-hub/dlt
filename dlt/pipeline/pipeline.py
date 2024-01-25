@@ -143,11 +143,20 @@ def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
             # activate pipeline so right state is always provided
             self.activate()
+
             # backup and restore state
             should_extract_state = may_extract_state and self.config.restore_from_destination
             with self.managed_state(extract_state=should_extract_state) as state:
+                # commit hook
+                def commit_state() -> None:
+                    # save the state
+                    bump_version_if_modified(state)
+                    self._save_state(state)
+
                 # add the state to container as a context
-                with self._container.injectable_context(StateInjectableContext(state=state)):
+                with self._container.injectable_context(
+                    StateInjectableContext(state=state, commit=commit_state)
+                ):
                     return f(self, *args, **kwargs)
 
         return _wrap  # type: ignore
@@ -246,7 +255,14 @@ class Pipeline(SupportsPipeline):
     STATE_FILE: ClassVar[str] = "state.json"
     STATE_PROPS: ClassVar[List[str]] = list(
         set(get_type_hints(TPipelineState).keys())
-        - {"sources", "destination_type", "destination_name", "staging_type", "staging_name"}
+        - {
+            "sources",
+            "destination_type",
+            "destination_name",
+            "staging_type",
+            "staging_name",
+            "destinations",
+        }
     )
     LOCAL_STATE_PROPS: ClassVar[List[str]] = list(get_type_hints(TPipelineLocalState).keys())
     DEFAULT_DATASET_SUFFIX: ClassVar[str] = "_dataset"

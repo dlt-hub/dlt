@@ -234,6 +234,8 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
     p.run([items(), items2()])
     assert_items_in_range(calls["items"], 0, 100)
     assert_items_in_range(calls["items2"], 0, 100)
+    # destination state should be cleared after load
+    assert p.state["destinations"]["sink"] == {}
 
     # provoke errors
     calls = {}
@@ -242,16 +244,25 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
     with pytest.raises(PipelineStepFailed):
         p.run([items(), items2()])
 
-    # partly loaded
+    # we should have data for one load id saved here
+    assert len(p.state["destinations"]["sink"]) == 1
+    # get saved indexes
+    values = list(list(p.state["destinations"]["sink"].values())[0].values())
+
+    # partly loaded, pointers in state should be right
     if batch_size == 1:
         assert_items_in_range(calls["items"], 0, 25)
         assert_items_in_range(calls["items2"], 0, 45)
+        # one pointer for state, one for items, one for items2...
+        assert values == [1, 25, 45]
     elif batch_size == 10:
         assert_items_in_range(calls["items"], 0, 20)
         assert_items_in_range(calls["items2"], 0, 40)
+        assert values == [1, 20, 40]
     elif batch_size == 23:
         assert_items_in_range(calls["items"], 0, 23)
         assert_items_in_range(calls["items2"], 0, 23)
+        assert values == [1, 23, 23]
     else:
         raise AssertionError("Unknown batch size")
 
@@ -260,6 +271,8 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
     provoke_error = {}
     calls = {}
     p.load()
+    # state should be cleared again
+    assert p.state["destinations"]["sink"] == {}
 
     # both calls combined should have every item called just once
     assert_items_in_range(calls["items"] + first_calls["items"], 0, 100)

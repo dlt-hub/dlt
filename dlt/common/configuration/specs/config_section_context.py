@@ -12,6 +12,7 @@ class ConfigSectionContext(ContainerInjectableContext):
     sections: Tuple[str, ...] = ()
     merge_style: TMergeFunc = None
     source_state_key: str = None
+    destination_state_key: str = None
 
     def merge(self, existing: "ConfigSectionContext") -> None:
         """Merges existing context into incoming using a merge style function"""
@@ -79,4 +80,5 @@ class ConfigSectionContext(ContainerInjectableContext):
             sections: Tuple[str, ...] = (),
             merge_style: TMergeFunc = None,
             source_state_key: str = None,
+            destination_state_key: str = None,
         ) -> None: ...
