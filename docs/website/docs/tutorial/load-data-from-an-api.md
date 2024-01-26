@@ -258,7 +258,7 @@ and `updated_at.last_value` to tell GitHub to return issues updated only **after
 
 ## Next steps
 
-Continue your journey with the [Resource groupping and secrets](grouping-resources) tutorial.
+Continue your journey with the [Resource Grouping and Secrets](grouping-resources) tutorial.
 
 If you want to take full advantage of the `dlt` library, then we strongly suggest that you build your sources out of existing **building blocks:**
 
