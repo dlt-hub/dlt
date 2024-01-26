@@ -144,24 +144,6 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
             table[TABLE_INDEX_TYPE_HINT] = self.config.default_table_index_type  # type: ignore[typeddict-unknown-key]
         return table
 
-    def get_storage_table_index_type(self, table_name: str) -> TTableIndexType:
-        """Returns table index type of table in storage destination."""
-        with self.sql_client as sql_client:
-            schema_name = sql_client.fully_qualified_dataset_name(escape=False)
-            sql = dedent(f"""
-                SELECT
-                    CASE i.type_desc
-                        WHEN 'HEAP' THEN 'heap'
-                        WHEN 'CLUSTERED COLUMNSTORE' THEN 'clustered_columnstore_index'
-                    END AS table_index_type
-                FROM sys.indexes i
-                INNER JOIN sys.tables t ON t.object_id = i.object_id
-                INNER JOIN sys.schemas s ON s.schema_id = t.schema_id
-                WHERE s.name = '{schema_name}' AND t.name = '{table_name}'
-            """)
-            table_index_type = sql_client.execute_sql(sql)[0][0]
-            return cast(TTableIndexType, table_index_type)
-
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         job = super().start_file_load(table, file_path, load_id)
         if not job:
