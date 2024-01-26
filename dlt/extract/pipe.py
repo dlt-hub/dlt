@@ -323,7 +323,7 @@ class Pipe(SupportsPipe):
             self._ensure_transform_step(self._gen_idx, gen)
 
         # wrap async generator
-        if inspect.isasyncgen(self.gen):
+        if isinstance(self.gen, AsyncIterator):
             self.replace_gen(wrap_async_iterator(self.gen))
 
         # evaluate transforms
@@ -636,7 +636,6 @@ class PipeIterator(Iterator[PipeItem]):
                 if len(self._futures) < self.max_parallel_items or self._next_future() >= 0:
                     # check if Awaitable first - awaitable can also be a callable
                     if isinstance(item, Awaitable):
-                        print("schedule")
                         future = asyncio.run_coroutine_threadsafe(item, self._ensure_async_pool())
                     elif callable(item):
                         future = self._ensure_thread_pool().submit(item)

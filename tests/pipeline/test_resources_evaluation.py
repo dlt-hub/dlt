@@ -4,6 +4,35 @@ import dlt, asyncio, pytest, os, threading, inspect, time
 from functools import wraps
 
 
+def test_async_iterator_resource() -> None:
+    # define an asynchronous iterator
+    class AsyncIterator:
+        def __init__(self):
+            self.counter = 0
+
+        def __aiter__(self):
+            return self
+
+        # return the next awaitable
+        async def __anext__(self):
+            # check for no further items
+            if self.counter >= 5:
+                raise StopAsyncIteration
+            # increment the counter
+            self.counter += 1
+            # simulate work
+            await asyncio.sleep(0.1)
+            # return the counter value
+            return {"i": self.counter}
+
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline_1.run(AsyncIterator, table_name="async")
+    with pipeline_1.sql_client() as c:
+        with c.execute_query("SELECT * FROM async") as cur:
+            rows = list(cur.fetchall())
+            assert [r[0] for r in rows] == [1, 2, 3, 4, 5]
+
+
 #
 # async generators resource tests
 #

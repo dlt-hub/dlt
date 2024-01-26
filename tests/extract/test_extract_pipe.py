@@ -698,10 +698,11 @@ def test_close_on_async_generator() -> None:
         try:
             close_pipe_yielding = True
             for i in range(0, 10000):
-                asyncio.sleep(0.01)
+                await asyncio.sleep(0.01)
                 yield i
             close_pipe_yielding = False
-        except GeneratorExit:
+        # we have a different exception here
+        except asyncio.CancelledError:
             close_pipe_got_exit = True
 
     def raise_gen(item: int):
