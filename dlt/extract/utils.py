@@ -143,13 +143,14 @@ def wrap_async_iterator(
     async def run() -> TDataItems:
         nonlocal exhausted
         try:
-            item = await gen.__anext__()
             # if marked exhausted by the main thread and we are wrapping a generator
             # we can close it here
-            if exhausted and isinstance(gen, AsyncGenerator):
-                await gen.aclose()
+            if exhausted:
+                raise StopAsyncIteration()
+            item = await gen.__anext__()
             return item
         # on stop iteration mark as exhausted
+        # also called when futures are cancelled
         except StopAsyncIteration:
             exhausted = True
             raise

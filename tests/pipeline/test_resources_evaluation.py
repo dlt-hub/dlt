@@ -17,7 +17,7 @@ def test_async_iterator_resource() -> None:
         async def __anext__(self):
             # check for no further items
             if self.counter >= 5:
-                raise StopAsyncIteration
+                raise StopAsyncIteration()
             # increment the counter
             self.counter += 1
             # simulate work

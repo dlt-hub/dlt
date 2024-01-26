@@ -42,15 +42,15 @@ def test_next_item_mode() -> None:
     # items will be in order of the pipes, nested iterator items appear inline, None triggers a bit of rotation
     assert [pi.item for pi in _l] == [1, 2, 3, 4, 10, 5, 6, 8, 7, 9, 11, 12, 13, 14, 15]
 
-    # force strict mode, no rotation at all when crossing the initial source count
+    # force fifo, no rotation at all when crossing the initial source count
     _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="fifo", max_parallel_items=1))
-    # items will be in order of the pipes, nested iterator items appear inline, None triggers rotation
-    assert [pi.item for pi in _l] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+    # order the same as above - same rules apply
+    assert [pi.item for pi in _l] == [1, 2, 3, 4, 10, 5, 6, 8, 7, 9, 11, 12, 13, 14, 15]
 
     # round robin eval
     _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="round_robin"))
     # items will be in order of the pipes, nested iterator items appear inline, None triggers rotation
-    assert [pi.item for pi in _l] == [1, 12, 14, 2, 13, 15, 10, 3, 11, 4, 5, 8, 6, 9, 7]
+    assert [pi.item for pi in _l] == [1, 12, 14, 2, 13, 15, 3, 10, 4, 11, 5, 6, 8, 9, 7]
 
     # round robin with max parallel items triggers strict fifo in some cases (after gen2 and 3 are exhausted we already have the first yielded gen,
     # items appear in order as sources are processed strictly from front)
@@ -58,7 +58,9 @@ def test_next_item_mode() -> None:
         PipeIterator.from_pipes(get_pipes(), next_item_mode="round_robin", max_parallel_items=1)
     )
     # items will be in order of the pipes, nested iterator items appear inline, None triggers rotation
-    assert [pi.item for pi in _l] == [1, 12, 14, 2, 13, 15, 3, 4, 5, 6, 7, 8, 9, 10, 11]
+    # NOTE: 4, 10, 5 - after 4 there's NONE in fifo so we do next element (round robin style)
+    # NOTE: 6, 8, 7 - after 6 there's NONE - same thing
+    assert [pi.item for pi in _l] == [1, 12, 14, 2, 13, 15, 3, 4, 10, 5, 6, 8, 7, 9, 11]
 
 
 def test_rotation_on_none() -> None:
@@ -715,13 +717,14 @@ def test_close_on_async_generator() -> None:
                 yield i
             close_pipe_yielding = False
         # we have a different exception here
-        except asyncio.CancelledError:
+        except GeneratorExit:
             close_pipe_got_exit = True
 
-    def raise_gen(item: int):
+    # execute in a thread
+    async def raise_gen(item: int):
         if item == 10:
-            raise RuntimeError("we fail")
-        yield item
+            raise RuntimeError("we fail async")
+        return item
 
     assert_pipes_closed(raise_gen, long_gen)
 
