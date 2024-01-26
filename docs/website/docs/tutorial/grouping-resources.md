@@ -1,5 +1,5 @@
 ---
-title: Resource groupping and secrets
+title: Resource Grouping and Secrets
 description: Advanced tutorial on loading data from an API
 keywords: [api, source, decorator, dynamic resource, github, tutorial]
 ---
