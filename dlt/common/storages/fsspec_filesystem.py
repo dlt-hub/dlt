@@ -170,7 +170,7 @@ class FileItemDict(DictStrAny):
             IOBase: The fsspec file.
         """
         opened_file: IO[Any]
-        # if the user has already extracted the content, we use it so there will be no need to
+        # if the user has already extracted the content, we use it so there is no need to
         # download the file again.
         if "file_content" in self:
             bytes_io = BytesIO(self["file_content"])
@@ -185,7 +185,12 @@ class FileItemDict(DictStrAny):
                 **text_kwargs,
             )
         else:
-            opened_file = self.fsspec.open(self["file_url"], mode=mode, **kwargs)
+            opened_file = self.fsspec.open(
+                self["file_url"],
+                mode=mode,
+                compression="gzip" if self["file_url"].endswith(".gz") else None,
+                **kwargs,
+            )
         return opened_file
 
     def read_bytes(self) -> bytes:
