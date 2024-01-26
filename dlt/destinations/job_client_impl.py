@@ -50,7 +50,6 @@ from dlt.common.destination.reference import (
     FollowupJob,
     CredentialsConfiguration,
 )
-from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     DestinationSchemaTampered,
@@ -397,10 +396,7 @@ WHERE """
         sql_scripts, schema_update = self._build_schema_update_sql(only_tables)
         # stay within max query size when doing DDL. some db backends use bytes not characters so decrease limit by half
         # assuming that most of the characters in DDL encode into single bytes
-        for sql_fragment in concat_strings_with_limit(
-            sql_scripts, "\n", self.capabilities.max_query_length // 2
-        ):
-            self.sql_client.execute_sql(sql_fragment)
+        self.sql_client.execute_many(sql_scripts)
         self._update_schema_in_storage(self.schema)
         return schema_update
 

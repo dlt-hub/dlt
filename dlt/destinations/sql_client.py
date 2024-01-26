@@ -19,6 +19,7 @@ from typing import (
 
 from dlt.common.typing import TFun
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.utils import concat_strings_with_limit
 
 from dlt.destinations.exceptions import (
     DestinationConnectionError,
@@ -119,9 +120,23 @@ SELECT 1
         return self.execute_sql("".join(fragments), *args, **kwargs)  # type: ignore
 
     def execute_many(
-        self, statements: Sequence[AnyStr], *args: Any, **kwargs: Any
+        self, statements: Sequence[str], *args: Any, **kwargs: Any
     ) -> Optional[Sequence[Sequence[Any]]]:
-        return self.execute_sql("".join(statements), *args, **kwargs)  # type: ignore
+        """Executes multiple SQL statements as efficiently as possible. When client supports multiple statements in a single query
+        they are executed together in as few database calls as possible.
+        """
+        ret = []
+        if self.capabilities.supports_multiple_statements:
+            for sql_fragment in concat_strings_with_limit(
+                list(statements), "\n", self.capabilities.max_query_length // 2
+            ):
+                ret.append(self.execute_sql(sql_fragment, *args, **kwargs))
+        else:
+            for statement in statements:
+                result = self.execute_sql(statement, *args, **kwargs)
+                if result is not None:
+                    ret.append(result)
+        return ret
 
     @abstractmethod
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
