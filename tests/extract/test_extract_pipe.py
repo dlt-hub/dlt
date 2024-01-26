@@ -16,19 +16,19 @@ from dlt.extract.pipe import ManagedPipeIterator, Pipe, PipeItem, PipeIterator
 
 def test_next_item_mode() -> None:
     def nested_gen_level_2():
-        yield from [88, None, 89]
+        yield from [6, None, 7]
 
     def nested_gen():
-        yield from [55, 56, None, 77, nested_gen_level_2()]
+        yield from [3, 4, None, 5, nested_gen_level_2(), 8, 9]
 
     def source_gen1():
-        yield from [1, 2, nested_gen(), 3, 4]
+        yield from [1, 2, nested_gen(), 10, 11]
 
     def source_gen2():
-        yield from range(11, 16)
+        yield from [12, 13]
 
     def source_gen3():
-        yield from range(20, 22)
+        yield from [14, 15]
 
     def get_pipes():
         return [
@@ -39,13 +39,26 @@ def test_next_item_mode() -> None:
 
     # default mode is "fifo"
     _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="fifo"))
-    # items will be in order of the pipes, nested iterator items appear inline, None triggers rotation
-    assert [pi.item for pi in _l] == [1, 2, 55, 56, 3, 77, 88, 89, 4, 11, 12, 13, 14, 15, 20, 21]
+    # items will be in order of the pipes, nested iterator items appear inline, None triggers a bit of rotation
+    assert [pi.item for pi in _l] == [1, 2, 3, 4, 10, 5, 6, 8, 7, 9, 11, 12, 13, 14, 15]
 
-    # round robin mode
+    # force strict mode, no rotation at all when crossing the initial source count
+    _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="fifo", max_parallel_items=1))
+    # items will be in order of the pipes, nested iterator items appear inline, None triggers rotation
+    assert [pi.item for pi in _l] == [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15]
+
+    # round robin eval
     _l = list(PipeIterator.from_pipes(get_pipes(), next_item_mode="round_robin"))
-    # items will be round robin, nested iterators are integrated into the round robin
-    assert [pi.item for pi in _l] == [1, 11, 20, 2, 12, 21, 3, 13, 55, 4, 14, 56, 15, 77, 88, 89]
+    # items will be in order of the pipes, nested iterator items appear inline, None triggers rotation
+    assert [pi.item for pi in _l] == [1, 12, 14, 2, 13, 15, 10, 3, 11, 4, 5, 8, 6, 9, 7]
+
+    # round robin with max parallel items triggers strict fifo in some cases (after gen2 and 3 are exhausted we already have the first yielded gen,
+    # items appear in order as sources are processed strictly from front)
+    _l = list(
+        PipeIterator.from_pipes(get_pipes(), next_item_mode="round_robin", max_parallel_items=1)
+    )
+    # items will be in order of the pipes, nested iterator items appear inline, None triggers rotation
+    assert [pi.item for pi in _l] == [1, 12, 14, 2, 13, 15, 3, 4, 5, 6, 7, 8, 9, 10, 11]
 
 
 def test_rotation_on_none() -> None:

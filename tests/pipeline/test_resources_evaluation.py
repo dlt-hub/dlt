@@ -1,11 +1,11 @@
 from typing import Any
 
-import dlt, asyncio, pytest, os, threading, inspect, time
-from functools import wraps
+import dlt, asyncio, pytest, os
 
 
 def test_async_iterator_resource() -> None:
     # define an asynchronous iterator
+    @dlt.resource()
     class AsyncIterator:
         def __init__(self):
             self.counter = 0

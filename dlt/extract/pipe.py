@@ -817,7 +817,7 @@ class PipeIterator(Iterator[PipeItem]):
         # while we have more new sources than available future slots, we do strict fifo where we
         # only ever check the first source, this is to prevent an uncontrolled number of sources
         # being created in certain scenarios
-        force_strict_fifo = (sources_count - self._initial_sources_count) > self.max_parallel_items
+        force_strict_fifo = (sources_count - self._initial_sources_count) >= self.max_parallel_items
         try:
             # always reset to start of list for fifo mode
             if self._next_item_mode == "fifo":
@@ -826,9 +826,11 @@ class PipeIterator(Iterator[PipeItem]):
             while True:
                 # in strict fifo mode we never check more than the top most source
                 if force_strict_fifo:
+                    print("strict")
                     self._current_source_index = 0
                 else:
                     self._current_source_index = (self._current_source_index + 1) % sources_count
+                print(self._current_source_index)
                 # if we have checked all sources once and all returned None, then we can sleep a bit
                 if self._current_source_index == first_evaluated_index:
                     sleep(self.futures_poll_interval)
@@ -858,7 +860,6 @@ class PipeIterator(Iterator[PipeItem]):
             # we need to decrease the index to keep the round robin order
             if self._next_item_mode == "round_robin":
                 self._current_source_index -= 1
-
             return self._get_source_item()
         except (PipelineException, ExtractorException, DltSourceException, PipeException):
             raise
