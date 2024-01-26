@@ -7,13 +7,12 @@ keywords: [data enrichment, currency conversion, latest market rates]
 # Data enrichment part two: Currency conversion data enrichment
 
 Currency conversion data enrichment means adding additional information to currency-related data.
-Often, you have a data set of monetary value in one currency. It would be best to have these amounts
-in a different currency for different reasons (like reporting, analysis, or operations in a global
-context).
+Often, you have a data set of monetary value in one currency. For various reasons such as reporting,
+analysis, or global operations, it may be necessary to convert these amounts into different currencies.
 
 ## Currency conversion process
 
-To enable currency conversion data enrichment, here are a few important steps:
+Here are a few important steps for currency conversion data enrichment:
 
 1. Define base and target currencies. e.g., USD (base) to EUR (target).
 1. Obtain current exchange rates from a reliable source like a financial data API.
@@ -201,7 +200,7 @@ API token.
    processing.
 
    `Transformers` are a form of `dlt resource` that takes input from other resources
-   via `data_from` argument in order to enrich or transform the data.
+   via `data_from` argument to enrich or transform the data.
    [Click here.](../../general-usage/resource.md#process-resources-with-dlttransformer)
 
    Conversely, `add_map` used to customize a resource applies transformations at an item level
