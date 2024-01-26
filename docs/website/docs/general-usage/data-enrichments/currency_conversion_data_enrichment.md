@@ -12,7 +12,7 @@ analysis, or global operations, it may be necessary to convert these amounts int
 
 ## Currency conversion process
 
-Here are a few important steps for currency conversion data enrichment:
+Here is step-by-step process for currency conversion data enrichment:
 
 1. Define base and target currencies. e.g., USD (base) to EUR (target).
 1. Obtain current exchange rates from a reliable source like a financial data API.
