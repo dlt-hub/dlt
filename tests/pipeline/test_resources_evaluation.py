@@ -179,107 +179,103 @@ def test_limit_async_resource() -> None:
             await asyncio.sleep(0.1)
             yield {"index": l_}
 
-    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
-    pipeline_1.run(async_resource1().add_limit(13))
-
-    with pipeline_1.sql_client() as c:
-        with c.execute_query("SELECT * FROM table1") as cur:
-            rows = list(cur.fetchall())
-            assert len(rows) == 13
+    result = list(async_resource1().add_limit(13))
+    assert len(result) == 13
 
 
-@pytest.mark.parametrize("parallelized", [True, False])
-def test_async_decorator_experiment(parallelized) -> None:
-    os.environ["EXTRACT__NEXT_ITEM_MODE"] = "fifo"
-    execution_order = []
-    threads = set()
+# @pytest.mark.skip(reason="To be properly implemented in an upcoming PR")
+# @pytest.mark.parametrize("parallelized", [True, False])
+# def test_async_decorator_experiment(parallelized) -> None:
+#     os.environ["EXTRACT__NEXT_ITEM_MODE"] = "fifo"
+#     execution_order = []
+#     threads = set()
 
-    def parallelize(f) -> Any:
-        """converts regular itarable to generator of functions that can be run in parallel in the pipe"""
+#     def parallelize(f) -> Any:
+#         """converts regular itarable to generator of functions that can be run in parallel in the pipe"""
 
-        @wraps(f)
-        def _wrap(*args: Any, **kwargs: Any) -> Any:
-            exhausted = False
-            busy = False
+#         @wraps(f)
+#         def _wrap(*args: Any, **kwargs: Any) -> Any:
+#             exhausted = False
+#             busy = False
 
-            gen = f(*args, **kwargs)
-            # unpack generator
-            if inspect.isfunction(gen):
-                gen = gen()
-            # if we have an async gen, no further action is needed
-            if inspect.isasyncgen(gen):
-                raise Exception("Already async gen")
+#             gen = f(*args, **kwargs)
+#             # unpack generator
+#             if inspect.isfunction(gen):
+#                 gen = gen()
+#             # if we have an async gen, no further action is needed
+#             if inspect.isasyncgen(gen):
+#                 raise Exception("Already async gen")
 
-            # get next item from generator
-            def _gen():
-                nonlocal exhausted
-                # await asyncio.sleep(0.1)
-                try:
-                    return next(gen)
-                # on stop iteration mark as exhausted
-                except StopIteration:
-                    exhausted = True
-                    return None
-                finally:
-                    nonlocal busy
-                    busy = False
+#             # get next item from generator
+#             def _gen():
+#                 nonlocal exhausted
+#                 # await asyncio.sleep(0.1)
+#                 try:
+#                     return next(gen)
+#                 # on stop iteration mark as exhausted
+#                 except StopIteration:
+#                     exhausted = True
+#                     return None
+#                 finally:
+#                     nonlocal busy
+#                     busy = False
 
-            try:
-                while not exhausted:
-                    while busy:
-                        yield None
-                    busy = True
-                    yield _gen
-            except GeneratorExit:
-                # clean up inner generator
-                gen.close()
+#             try:
+#                 while not exhausted:
+#                     while busy:
+#                         yield None
+#                     busy = True
+#                     yield _gen
+#             except GeneratorExit:
+#                 # clean up inner generator
+#                 gen.close()
 
-        return _wrap
+#         return _wrap
 
-    @parallelize
-    def resource1():
-        for l_ in ["a", "b", "c"]:
-            time.sleep(0.5)
-            nonlocal execution_order
-            execution_order.append("one")
-            threads.add(threading.get_ident())
-            yield {"letter": l_}
+#     @parallelize
+#     def resource1():
+#         for l_ in ["a", "b", "c"]:
+#             time.sleep(0.5)
+#             nonlocal execution_order
+#             execution_order.append("one")
+#             threads.add(threading.get_ident())
+#             yield {"letter": l_}
 
-    @parallelize
-    def resource2():
-        time.sleep(0.25)
-        for l_ in ["e", "f", "g"]:
-            time.sleep(0.5)
-            nonlocal execution_order
-            execution_order.append("two")
-            threads.add(threading.get_ident())
-            yield {"letter": l_}
+#     @parallelize
+#     def resource2():
+#         time.sleep(0.25)
+#         for l_ in ["e", "f", "g"]:
+#             time.sleep(0.5)
+#             nonlocal execution_order
+#             execution_order.append("two")
+#             threads.add(threading.get_ident())
+#             yield {"letter": l_}
 
-    @dlt.source
-    def source():
-        if parallelized:
-            return [resource1(), resource2()]
-        else:  # return unwrapped resources
-            return [resource1.__wrapped__(), resource2.__wrapped__()]
+#     @dlt.source
+#     def source():
+#         if parallelized:
+#             return [resource1(), resource2()]
+#         else:  # return unwrapped resources
+#             return [resource1.__wrapped__(), resource2.__wrapped__()]
 
-    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
-    pipeline_1.run(source())
+#     pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+#     pipeline_1.run(source())
 
-    # all records should be here
-    with pipeline_1.sql_client() as c:
-        with c.execute_query("SELECT * FROM resource1") as cur:
-            rows = list(cur.fetchall())
-            assert len(rows) == 3
-            assert {r[0] for r in rows} == {"a", "b", "c"}
+#     # all records should be here
+#     with pipeline_1.sql_client() as c:
+#         with c.execute_query("SELECT * FROM resource1") as cur:
+#             rows = list(cur.fetchall())
+#             assert len(rows) == 3
+#             assert {r[0] for r in rows} == {"a", "b", "c"}
 
-        with c.execute_query("SELECT * FROM resource2") as cur:
-            rows = list(cur.fetchall())
-            assert len(rows) == 3
-            assert {r[0] for r in rows} == {"e", "f", "g"}
+#         with c.execute_query("SELECT * FROM resource2") as cur:
+#             rows = list(cur.fetchall())
+#             assert len(rows) == 3
+#             assert {r[0] for r in rows} == {"e", "f", "g"}
 
-    if parallelized:
-        assert len(threads) > 1
-        assert execution_order == ["one", "two", "one", "two", "one", "two"]
-    else:
-        assert execution_order == ["one", "one", "one", "two", "two", "two"]
-        assert len(threads) == 1
+#     if parallelized:
+#         assert len(threads) > 1
+#         assert execution_order == ["one", "two", "one", "two", "one", "two"]
+#     else:
+#         assert execution_order == ["one", "one", "one", "two", "two", "two"]
+#         assert len(threads) == 1

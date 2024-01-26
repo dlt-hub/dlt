@@ -25,7 +25,7 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
-from dlt.extract.utils import wrap_async_generator
+from dlt.extract.utils import wrap_async_iterator
 
 from dlt.extract.typing import (
     DataItemWithMeta,
@@ -312,8 +312,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 gen = gen()
 
             # wrap async gen already here
-            if inspect.isasyncgen(gen):
-                gen = wrap_async_generator(gen)
+            if isinstance(gen, AsyncIterator):
+                gen = wrap_async_iterator(gen)
 
             try:
                 for i in gen:  # type: ignore # TODO: help me fix this later

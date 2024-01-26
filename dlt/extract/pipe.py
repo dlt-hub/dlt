@@ -55,7 +55,7 @@ from dlt.extract.utils import (
     simulate_func_call,
     wrap_compat_transformer,
     wrap_resource_gen,
-    wrap_async_generator,
+    wrap_async_iterator,
 )
 
 if TYPE_CHECKING:
@@ -109,7 +109,7 @@ TPipeStep = Union[
     Callable[[TDataItems], Iterator[ResolvablePipeItem]],
 ]
 
-TPipeNextItemMode = Union[Literal["fifo"], Literal["round_robin"]]
+TPipeNextItemMode = Literal["fifo", "round_robin"]
 
 
 class ForkPipe:
@@ -324,7 +324,7 @@ class Pipe(SupportsPipe):
 
         # wrap async generator
         if inspect.isasyncgen(self.gen):
-            self.replace_gen(wrap_async_generator(self.gen))
+            self.replace_gen(wrap_async_iterator(self.gen))
 
         # evaluate transforms
         for step_no, step in enumerate(self._steps):
@@ -510,14 +510,14 @@ class PipeIterator(Iterator[PipeItem]):
         self.max_parallel_items = max_parallel_items
         self.workers = workers
         self.futures_poll_interval = futures_poll_interval
-
-        self._current_source_index: int = -1
         self._async_pool: asyncio.AbstractEventLoop = None
         self._async_pool_thread: Thread = None
         self._thread_pool: ThreadPoolExecutor = None
         self._sources = sources
         self._futures: List[FuturePipeItem] = []
         self._next_item_mode = next_item_mode
+        self._initial_sources_count = len(sources)
+        self._current_source_index: int = -1
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
@@ -621,11 +621,11 @@ class PipeIterator(Iterator[PipeItem]):
                 continue
 
             # handle async iterator items as new source
-            if inspect.isasyncgen(item):
+            if isinstance(item, AsyncIterator):
                 self._sources.insert(
                     0,
                     SourcePipeItem(
-                        wrap_async_generator(item), pipe_item.step, pipe_item.pipe, pipe_item.meta
+                        wrap_async_iterator(item), pipe_item.step, pipe_item.pipe, pipe_item.meta
                     ),
                 )
                 pipe_item = None
@@ -815,13 +815,21 @@ class PipeIterator(Iterator[PipeItem]):
         # no more sources to iterate
         if sources_count == 0:
             return None
+        # while we have more new sources than available future slots, we do strict fifo where we
+        # only ever check the first source, this is to prevent an uncontrolled number of sources
+        # being created in certain scenarios
+        force_strict_fifo = (sources_count - self._initial_sources_count) > self.max_parallel_items
         try:
-            # reset to beginning of resource list for fifo mode
+            # always reset to start of list for fifo mode
             if self._next_item_mode == "fifo":
                 self._current_source_index = -1
             first_evaluated_index = -1
             while True:
-                self._current_source_index = (self._current_source_index + 1) % sources_count
+                # in strict fifo mode we never check more than the top most source
+                if force_strict_fifo:
+                    self._current_source_index = 0
+                else:
+                    self._current_source_index = (self._current_source_index + 1) % sources_count
                 # if we have checked all sources once and all returned None, then we can sleep a bit
                 if self._current_source_index == first_evaluated_index:
                     sleep(self.futures_poll_interval)
@@ -845,9 +853,13 @@ class PipeIterator(Iterator[PipeItem]):
         except StopIteration:
             # remove empty iterator and try another source
             self._sources.pop(self._current_source_index)
+            # decrease initial source count if we popped an initial source
+            if self._current_source_index >= abs(self._initial_sources_count - sources_count):
+                self._initial_sources_count -= 1
             # we need to decrease the index to keep the round robin order
             if self._next_item_mode == "round_robin":
                 self._current_source_index -= 1
+
             return self._get_source_item()
         except (PipelineException, ExtractorException, DltSourceException, PipeException):
             raise

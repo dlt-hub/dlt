@@ -9,6 +9,7 @@ from typing import (
     Any,
     Sequence,
     cast,
+    AsyncIterator,
     AsyncGenerator,
     Awaitable,
     Generator,
@@ -131,8 +132,8 @@ def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> in
     return meta_arg
 
 
-def wrap_async_generator(
-    gen: AsyncGenerator[TDataItems, None]
+def wrap_async_iterator(
+    gen: AsyncIterator[TDataItems],
 ) -> Generator[Awaitable[TDataItems], None, None]:
     """Wraps an async generator into a list of awaitables"""
     exhausted = False
@@ -140,11 +141,16 @@ def wrap_async_generator(
 
     # creates an awaitable that will return the next item from the async generator
     async def run() -> TDataItems:
+        nonlocal exhausted
         try:
-            return await gen.__anext__()
+            item = await gen.__anext__()
+            # if marked exhausted by the main thread and we are wrapping a generator
+            # we can close it here
+            if exhausted and isinstance(gen, AsyncGenerator):
+                await gen.aclose()
+            return item
         # on stop iteration mark as exhausted
         except StopAsyncIteration:
-            nonlocal exhausted
             exhausted = True
             raise
         finally:
@@ -158,9 +164,10 @@ def wrap_async_generator(
                 yield None
             busy = True
             yield run()
+    # this gets called from the main thread when the wrapping generater is closed
     except GeneratorExit:
-        # clean up async generator
-        pass
+        # mark as exhausted
+        exhausted = True
 
 
 def wrap_compat_transformer(

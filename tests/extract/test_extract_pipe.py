@@ -603,6 +603,10 @@ close_pipe_yielding = False
 
 
 def test_close_on_async_exception() -> None:
+    global close_pipe_got_exit, close_pipe_yielding
+    close_pipe_got_exit = False
+    close_pipe_yielding = False
+
     def long_gen():
         global close_pipe_got_exit, close_pipe_yielding
 
@@ -628,6 +632,10 @@ def test_close_on_async_exception() -> None:
 
 
 def test_close_on_thread_pool_exception() -> None:
+    global close_pipe_got_exit, close_pipe_yielding
+    close_pipe_got_exit = False
+    close_pipe_yielding = False
+
     def long_gen():
         global close_pipe_got_exit, close_pipe_yielding
 
@@ -655,6 +663,10 @@ def test_close_on_thread_pool_exception() -> None:
 
 
 def test_close_on_sync_exception() -> None:
+    global close_pipe_got_exit, close_pipe_yielding
+    close_pipe_got_exit = False
+    close_pipe_yielding = False
+
     def long_gen():
         global close_pipe_got_exit, close_pipe_yielding
 
@@ -662,6 +674,32 @@ def test_close_on_sync_exception() -> None:
         try:
             close_pipe_yielding = True
             yield from range(0, 10000)
+            close_pipe_yielding = False
+        except GeneratorExit:
+            close_pipe_got_exit = True
+
+    def raise_gen(item: int):
+        if item == 10:
+            raise RuntimeError("we fail")
+        yield item
+
+    assert_pipes_closed(raise_gen, long_gen)
+
+
+def test_close_on_async_generator() -> None:
+    global close_pipe_got_exit, close_pipe_yielding
+    close_pipe_got_exit = False
+    close_pipe_yielding = False
+
+    async def long_gen():
+        global close_pipe_got_exit, close_pipe_yielding
+
+        # will be closed by PipeIterator
+        try:
+            close_pipe_yielding = True
+            for i in range(0, 10000):
+                asyncio.sleep(0.01)
+                yield i
             close_pipe_yielding = False
         except GeneratorExit:
             close_pipe_got_exit = True
