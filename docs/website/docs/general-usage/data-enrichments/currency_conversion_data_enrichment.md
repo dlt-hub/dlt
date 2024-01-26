@@ -13,7 +13,7 @@ context).
 
 ## Currency conversion process
 
-To enable currency conversion data enrichment, there are a few important steps involved:
+To enable currency conversion data enrichment, here are a few important steps:
 
 1. Define base and target currencies. e.g., USD (base) to EUR (target).
 1. Obtain current exchange rates from a reliable source like a financial data API.
@@ -200,7 +200,7 @@ API token.
    The `dlt` library's `transformer` and `add_map` functions serve distinct purposes in data
    processing.
 
-   `Transformers` are a form of A form of `dlt resource` that takes input from other resources
+   `Transformers` are a form of `dlt resource` that takes input from other resources
    via `data_from` argument in order to enrich or transform the data.
    [Click here.](../../general-usage/resource.md#process-resources-with-dlttransformer)
 
