@@ -74,11 +74,28 @@ class SqlStagingCopyJob(SqlBaseJob):
     failed_text: str = "Tried to generate a staging copy sql job for the following tables:"
 
     @classmethod
-    def generate_sql(
+    def _generate_clone_sql(
         cls,
         table_chain: Sequence[TTableSchema],
         sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
+    ) -> List[str]:
+        """Drop and clone the table for supported destinations"""
+        sql: List[str] = []
+        for table in table_chain:
+            with sql_client.with_staging_dataset(staging=True):
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            sql.append(f"DROP TABLE IF EXISTS {table_name};")
+            # recreate destination table with data cloned from staging table
+            sql.append(f"CREATE TABLE {table_name} CLONE {staging_table_name};")
+        return sql
+
+    @classmethod
+    def _generate_insert_sql(
+        cls,
+        table_chain: Sequence[TTableSchema],
+        sql_client: SqlClientBase[Any],
+        params: SqlJobParams = None,
     ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
@@ -97,6 +114,17 @@ class SqlStagingCopyJob(SqlBaseJob):
                 f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};"
             )
         return sql
+
+    @classmethod
+    def generate_sql(
+        cls,
+        table_chain: Sequence[TTableSchema],
+        sql_client: SqlClientBase[Any],
+        params: SqlJobParams = None,
+    ) -> List[str]:
+        if params["replace"] and sql_client.capabilities.supports_clone_table:
+            return cls._generate_clone_sql(table_chain, sql_client)
+        return cls._generate_insert_sql(table_chain, sql_client, params)
 
 
 class SqlMergeJob(SqlBaseJob):

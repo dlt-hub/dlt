@@ -26,4 +26,5 @@ def capabilities() -> DestinationCapabilitiesContext:
     # caps.supports_transactions = False
     caps.alter_add_multi_column = True
     caps.supports_multiple_statements = False
+    caps.supports_clone_table = True
     return caps

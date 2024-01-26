@@ -28,7 +28,7 @@ from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.databricks import capabilities
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
-from dlt.destinations.sql_jobs import SqlStagingCopyJob, SqlMergeJob, SqlJobParams
+from dlt.destinations.sql_jobs import SqlMergeJob, SqlJobParams
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
@@ -195,25 +195,6 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         raise NotImplementedError()
 
 
-class DatabricksStagingCopyJob(SqlStagingCopyJob):
-    @classmethod
-    def generate_sql(
-        cls,
-        table_chain: Sequence[TTableSchema],
-        sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
-    ) -> List[str]:
-        sql: List[str] = []
-        for table in table_chain:
-            with sql_client.with_staging_dataset(staging=True):
-                staging_table_name = sql_client.make_qualified_table_name(table["name"])
-            table_name = sql_client.make_qualified_table_name(table["name"])
-            sql.append(f"DROP TABLE IF EXISTS {table_name};")
-            # recreate destination table with data cloned from staging table
-            sql.append(f"CREATE TABLE {table_name} CLONE {staging_table_name};")
-        return sql
-
-
 class DatabricksMergeJob(SqlMergeJob):
     @classmethod
     def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
@@ -271,13 +252,6 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
     ) -> List[str]:
         # Override because databricks requires multiple columns in a single ADD COLUMN clause
         return ["ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
-
-    def _create_replace_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
-    ) -> List[NewLoadJob]:
-        if self.config.replace_strategy == "staging-optimized":
-            return [DatabricksStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
-        return super()._create_replace_followup_jobs(table_chain)
 
     def _get_table_update_sql(
         self,
