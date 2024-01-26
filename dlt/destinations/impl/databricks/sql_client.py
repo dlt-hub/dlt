@@ -86,17 +86,6 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
                 f = curr.fetchall()
                 return f
 
-    def execute_many(
-        self, statements: Sequence[AnyStr], *args: Any, **kwargs: Any
-    ) -> Optional[Sequence[Sequence[Any]]]:
-        """Databricks does not support multi-statement execution"""
-        ret = []
-        for statement in statements:
-            result = self.execute_sql(statement, *args, **kwargs)
-            if result is not None:
-                ret.append(result)
-        return ret
-
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:

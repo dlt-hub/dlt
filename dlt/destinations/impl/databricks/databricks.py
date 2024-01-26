@@ -127,8 +127,6 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         credentials_clause = ""
         files_clause = ""
         # stage_file_path = ""
-        format_options = ""
-        copy_options = "COPY_OPTIONS ('mergeSchema'='true')"
 
         if bucket_path:
             bucket_url = urlparse(bucket_path)
@@ -180,17 +178,13 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             )
 
         # decide on source format, stage_file_path will either be a local file or a bucket path
-        source_format = "JSON"
-        if file_name.endswith("parquet"):
-            source_format = "PARQUET"
+        source_format = "PARQUET"  # Only parquet is supported
 
         statement = f"""COPY INTO {qualified_table_name}
             {from_clause}
             {files_clause}
             {credentials_clause}
             FILEFORMAT = {source_format}
-            {format_options}
-            {copy_options}
             """
         client.execute_sql(statement)
 
@@ -272,17 +266,11 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return [DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)]
 
-    # def _create_staging_copy_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-    #     return DatabricksStagingCopyJob.from_table_chain(table_chain, self.sql_client)
-
     def _make_add_column_sql(
         self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
     ) -> List[str]:
         # Override because databricks requires multiple columns in a single ADD COLUMN clause
         return ["ADD COLUMN\n" + ",\n".join(self._get_column_def_sql(c) for c in new_columns)]
-
-    # def _create_optimized_replace_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-    #     return DatabricksStagingCopyJob.from_table_chain(table_chain, self.sql_client)
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
@@ -308,14 +296,6 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
             sql[0] = sql[0] + "\nCLUSTER BY (" + ",".join(cluster_list) + ")"
 
         return sql
-
-    def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
-        sql_scripts, schema_update = self._build_schema_update_sql(only_tables)
-        # stay within max query size when doing DDL. some db backends use bytes not characters so decrease limit by half
-        # assuming that most of the characters in DDL encode into single bytes
-        self.sql_client.execute_many(sql_scripts)
-        self._update_schema_in_storage(self.schema)
-        return schema_update
 
     def _from_db_type(
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
