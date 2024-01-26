@@ -10,9 +10,9 @@ URL parser data enrichment is extracting various URL components to gain addition
 context about the URL. This extracted information can be used for data analysis, marketing, SEO, and
 more.
 
-## Setup Guide
+## URL parsing process
 
-To enable this is URL parser data enrichment. A few important steps are involved:
+Here is step-by-step process for URL parser data enrichment :
 
 1. Get the URL data that is needed to be parsed from a source or create one.
 1. Send the URL data to an API like [URL Parser API](https://urlparse.com/).
@@ -23,7 +23,8 @@ To enable this is URL parser data enrichment. A few important steps are involved
 We use **[URL Parse API](https://urlparse.com/)** to extract the information about the URL. However,
 you can use any API you prefer.
 
-:::tip `URL Parse API` is free, with a 1000 requests/hour limit, which can be increased on request.
+:::tip
+`URL Parse API` is free, with 1000 requests/hour limit, which can be increased on request.
 :::
 
 By default the URL Parse API will return a JSON response like:
@@ -121,10 +122,11 @@ Here's the resource that yields the sample data as discussed above:
 
      # Sample data representing tracked user data
      sample_data = [
-        {"user_id": 1, "device_name": "Sony Experia XZ", "page_referer":
-          "https://b2venture.lightning.force.com/"},
-        {"user_id": 2, "device_name": "Samsung Galaxy S23 Ultra 5G",
-          "page_referer": "https://techcrunch.com/2023/07/20/can-dlthub-solve-the-python-library-problem-for-ai-dig-ventures-thinks-so/"},
+        {
+                "user_id": 1,
+                "device_name": "Sony Experia XZ",
+                "page_referer": "https://b2venture.lightning.force.com/"
+        },
          """
          Data for other users
          """
@@ -182,9 +184,8 @@ need to register to use this service neither get an API key.
    The `dlt` library's `transformer` and `add_map` functions serve distinct purposes in data
    processing.
 
-   `Transformers` used to process a resource and are ideal for post-load data transformations in a
-   pipeline, compatible with tools like `dbt`, the `dlt SQL client`, or Pandas for intricate data
-   manipulation. To read more:
+   `Transformers` are a form of `dlt resource` that takes input from other resources
+   via `data_from` argument to enrich or transform the data.
    [Click here.](../../general-usage/resource.md#process-resources-with-dlttransformer)
 
    Conversely, `add_map` used to customize a resource applies transformations at an item level
@@ -208,7 +209,8 @@ need to register to use this service neither get an API key.
    print(load_info)
    ```
 
-   :::info Please note that the same outcome can be achieved by using the transformer function. To
+   :::info
+   Please note that the same outcome can be achieved by using the transformer function. To
    do so, you need to add the transformer decorator at the top of the `url_parser` function. For
    `pipeline.run`, you can use the following code:
 
@@ -220,7 +222,8 @@ need to register to use this service neither get an API key.
    )
    ```
 
-   This will execute the `url_parser` function with the tracked data and return parsed URL. :::
+   This will execute the `url_parser` function with the tracked data and return parsed URL.
+   :::
 
 ### Run the pipeline
 
