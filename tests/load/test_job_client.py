@@ -387,7 +387,7 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
             "time",
         ):
             continue
-        if client.config.destination_type in "mssql" and c["data_type"] in ("complex"):
+        if client.config.destination_type == "mssql" and c["data_type"] in ("complex"):
             continue
         if client.config.destination_type == "databricks" and c["data_type"] in ("complex", "time"):
             continue
