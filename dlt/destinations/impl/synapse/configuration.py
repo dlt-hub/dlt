@@ -2,7 +2,7 @@ from typing import Final, Any, List, Dict, Optional, ClassVar
 
 from dlt.common import logger
 from dlt.common.configuration import configspec
-from dlt.common.schema.typing import TTableIndexType, TSchemaTables
+from dlt.common.schema.typing import TSchemaTables
 from dlt.common.schema.utils import get_write_disposition
 
 from dlt.destinations.impl.mssql.configuration import (
@@ -10,6 +10,8 @@ from dlt.destinations.impl.mssql.configuration import (
     MsSqlClientConfiguration,
 )
 from dlt.destinations.impl.mssql.configuration import MsSqlCredentials
+
+from dlt.destinations.impl.synapse.synapse_adapter import TTableIndexType
 
 
 @configspec

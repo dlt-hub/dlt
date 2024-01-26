@@ -36,7 +36,6 @@ from dlt.common.schema.typing import (
     TAnySchemaColumns,
     TSchemaContract,
     TTableFormat,
-    TTableIndexType,
 )
 from dlt.extract.utils import (
     ensure_table_schema_columns_hint,
@@ -257,7 +256,6 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
-    table_index_type: TTableHintTemplate[TTableIndexType] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
 ) -> DltResource: ...
@@ -275,7 +273,6 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
-    table_index_type: TTableHintTemplate[TTableIndexType] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
 ) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]: ...
@@ -293,7 +290,6 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
-    table_index_type: TTableHintTemplate[TTableIndexType] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     standalone: Literal[True] = True,
@@ -312,7 +308,6 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
-    table_index_type: TTableHintTemplate[TTableIndexType] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
 ) -> DltResource: ...
@@ -329,7 +324,6 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
-    table_index_type: TTableHintTemplate[TTableIndexType] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     standalone: bool = False,
@@ -409,7 +403,6 @@ def resource(
             merge_key=merge_key,
             schema_contract=schema_contract,
             table_format=table_format,
-            table_index_type=table_index_type,
         )
         return DltResource.from_data(
             _data,

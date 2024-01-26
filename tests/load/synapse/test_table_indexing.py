@@ -5,16 +5,13 @@ from textwrap import dedent
 
 import dlt
 from dlt.common.schema import TColumnSchema
-from dlt.common.schema.typing import TTableIndexType, TSchemaTables
-from dlt.common.schema.utils import get_table_index_type
 
 from dlt.destinations.sql_client import SqlClientBase
 
+from dlt.destinations.impl.synapse import synapse_adapter
+from dlt.destinations.impl.synapse.synapse_adapter import TTableIndexType
+
 from tests.load.utils import TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES
-from tests.load.pipeline.utils import (
-    destinations_configs,
-    DestinationTestConfiguration,
-)
 
 
 TABLE_INDEX_TYPE_COLUMN_SCHEMA_PARAM_GRID = [
@@ -28,15 +25,9 @@ TABLE_INDEX_TYPE_COLUMN_SCHEMA_PARAM_GRID = [
 
 
 @pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["synapse"]),
-    ids=lambda x: x.name,
-)
-@pytest.mark.parametrize(
     "table_index_type,column_schema", TABLE_INDEX_TYPE_COLUMN_SCHEMA_PARAM_GRID
 )
 def test_default_table_index_type_configuration(
-    destination_config: DestinationTestConfiguration,
     table_index_type: TTableIndexType,
     column_schema: Union[List[TColumnSchema], None],
 ) -> None:
@@ -51,10 +42,13 @@ def test_default_table_index_type_configuration(
     def items_without_table_index_type_specified() -> Iterator[Any]:
         yield TABLE_ROW_ALL_DATA_TYPES
 
-    pipeline = destination_config.setup_pipeline(
-        f"test_default_table_index_type_{table_index_type}",
+    pipeline = dlt.pipeline(
+        pipeline_name=f"test_default_table_index_type_{table_index_type}",
+        destination="synapse",
+        dataset_name=f"test_default_table_index_type_{table_index_type}",
         full_refresh=True,
     )
+
     job_client = pipeline.destination_client()
     # Assert configuration value gets properly propagated to job client configuration.
     assert job_client.config.default_table_index_type == table_index_type  # type: ignore[attr-defined]
@@ -80,13 +74,14 @@ def test_default_table_index_type_configuration(
         @dlt.resource(
             name="items_with_table_index_type_specified",
             write_disposition="append",
-            table_index_type="clustered_columnstore_index",
             columns=column_schema,
         )
         def items_with_table_index_type_specified() -> Iterator[Any]:
             yield TABLE_ROW_ALL_DATA_TYPES
 
-        pipeline.run(items_with_table_index_type_specified)
+        pipeline.run(
+            synapse_adapter(items_with_table_index_type_specified, "clustered_columnstore_index")
+        )
         applied_table_index_type = job_client.get_storage_table_index_type(  # type: ignore[attr-defined]
             "items_with_table_index_type_specified"
         )
@@ -96,34 +91,33 @@ def test_default_table_index_type_configuration(
 
 
 @pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["synapse"]),
-    ids=lambda x: x.name,
-)
-@pytest.mark.parametrize(
     "table_index_type,column_schema", TABLE_INDEX_TYPE_COLUMN_SCHEMA_PARAM_GRID
 )
 def test_resource_table_index_type_configuration(
-    destination_config: DestinationTestConfiguration,
     table_index_type: TTableIndexType,
     column_schema: Union[List[TColumnSchema], None],
 ) -> None:
     @dlt.resource(
         name="items_with_table_index_type_specified",
         write_disposition="append",
-        table_index_type=table_index_type,
         columns=column_schema,
     )
     def items_with_table_index_type_specified() -> Iterator[Any]:
         yield TABLE_ROW_ALL_DATA_TYPES
 
-    pipeline = destination_config.setup_pipeline(
-        f"test_table_index_type_{table_index_type}",
+    pipeline = dlt.pipeline(
+        pipeline_name=f"test_table_index_type_{table_index_type}",
+        destination="synapse",
+        dataset_name=f"test_table_index_type_{table_index_type}",
         full_refresh=True,
     )
 
+    # An invalid value for `table_index_type` should raise a ValueError.
+    with pytest.raises(ValueError):
+        pipeline.run(synapse_adapter(items_with_table_index_type_specified, "foo"))  # type: ignore[arg-type]
+
     # Run the pipeline and create the tables.
-    pipeline.run(items_with_table_index_type_specified)
+    pipeline.run(synapse_adapter(items_with_table_index_type_specified, table_index_type))
 
     # For all tables, assert the applied index type equals the expected index type.
     # Child tables, if any, inherit the index type of their parent.

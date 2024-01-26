@@ -1,13 +1,13 @@
 import typing as t
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
-from dlt.common.schema.typing import TTableIndexType
-from dlt.destinations.impl.synapse import capabilities
 
+from dlt.destinations.impl.synapse import capabilities
 from dlt.destinations.impl.synapse.configuration import (
     SynapseCredentials,
     SynapseClientConfiguration,
 )
+from dlt.destinations.impl.synapse.synapse_adapter import TTableIndexType
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.synapse.synapse import SynapseClient

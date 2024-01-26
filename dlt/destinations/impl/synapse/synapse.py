@@ -12,8 +12,8 @@ from dlt.common.destination.reference import (
 )
 
 from dlt.common.schema import TTableSchema, TColumnSchema, Schema, TColumnHint
-from dlt.common.schema.utils import table_schema_has_type
-from dlt.common.schema.typing import TTableSchemaColumns, TTableIndexType
+from dlt.common.schema.utils import table_schema_has_type, get_inherited_table_hint
+from dlt.common.schema.typing import TTableSchemaColumns
 
 from dlt.common.configuration.specs import AzureCredentialsWithoutDefaults
 
@@ -34,6 +34,10 @@ from dlt.destinations.impl.mssql.mssql import (
 from dlt.destinations.impl.synapse import capabilities
 from dlt.destinations.impl.synapse.sql_client import SynapseSqlClient
 from dlt.destinations.impl.synapse.configuration import SynapseClientConfiguration
+from dlt.destinations.impl.synapse.synapse_adapter import (
+    TABLE_INDEX_TYPE_HINT,
+    TTableIndexType,
+)
 
 
 HINT_TO_SYNAPSE_ATTR: Dict[TColumnHint, str] = {
@@ -68,7 +72,7 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
         if table is None:
             table_index_type = self.config.default_table_index_type
         else:
-            table_index_type = table.get("table_index_type")
+            table_index_type = cast(TTableIndexType, table.get(TABLE_INDEX_TYPE_HINT))
             if table_index_type == "clustered_columnstore_index":
                 new_columns = self._get_columstore_valid_columns(new_columns)
 
@@ -128,9 +132,16 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
             # configuration. Why? "For small lookup tables, less than 60 million rows,
             # consider using HEAP or clustered index for faster query performance."
             # https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index#heap-tables
-            table["table_index_type"] = "heap"
-        if table["table_index_type"] is None:
-            table["table_index_type"] = self.config.default_table_index_type
+            table[TABLE_INDEX_TYPE_HINT] = "heap"  # type: ignore[typeddict-unknown-key]
+        elif table_name in self.schema.data_table_names():
+            if TABLE_INDEX_TYPE_HINT not in table:
+                # If present in parent table, fetch hint from there.
+                table[TABLE_INDEX_TYPE_HINT] = get_inherited_table_hint(  # type: ignore[typeddict-unknown-key]
+                    self.schema.tables, table_name, TABLE_INDEX_TYPE_HINT, allow_none=True
+                )
+        if table[TABLE_INDEX_TYPE_HINT] is None:  # type: ignore[typeddict-item]
+            # Hint still not defined, fall back to default.
+            table[TABLE_INDEX_TYPE_HINT] = self.config.default_table_index_type  # type: ignore[typeddict-unknown-key]
         return table
 
     def get_storage_table_index_type(self, table_name: str) -> TTableIndexType:
