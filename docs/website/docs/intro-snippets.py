@@ -18,13 +18,14 @@ def intro_snippet() -> None:
         response.raise_for_status()
         data.append(response.json())
     # Extract, normalize, and load the data
-    load_info = pipeline.run(data, table_name="player")
+    load_info = pipeline.run(data, table_name='player')
     # @@@DLT_SNIPPET_END api
 
     assert_load_info(load_info)
 
 
 def csv_snippet() -> None:
+
     # @@@DLT_SNIPPET_START csv
     import dlt
     import pandas as pd
@@ -49,8 +50,8 @@ def csv_snippet() -> None:
 
     assert_load_info(load_info)
 
-
 def db_snippet() -> None:
+
     # @@@DLT_SNIPPET_START db
     import dlt
     from sqlalchemy import create_engine
@@ -59,27 +60,27 @@ def db_snippet() -> None:
     # MySQL instance to get data.
     # NOTE: you'll need to install pymysql with `pip install pymysql`
     # NOTE: loading data from public mysql instance may take several seconds
-    engine = create_engine(
-        "mysql+pymysql://anonymous@ensembldb.ensembl.org:3306/acanthochromis_polyacanthus_core_100_1"
-    )
+    engine = create_engine("mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam")
 
     with engine.connect() as conn:
         # Select genome table, stream data in batches of 100 elements
-        query = "SELECT * FROM analysis LIMIT 1000"
+        query = "SELECT * FROM genome LIMIT 1000"
         rows = conn.execution_options(yield_per=100).exec_driver_sql(query)
 
         pipeline = dlt.pipeline(
             pipeline_name="from_database",
             destination="duckdb",
-            dataset_name="acanthochromis_polyacanthus_data",
+            dataset_name="genome_data",
         )
 
         # Convert the rows into dictionaries on the fly with a map function
         load_info = pipeline.run(
-            map(lambda row: dict(row._mapping), rows), table_name="acanthochromis_polyacanthus"
+            map(lambda row: dict(row._mapping), rows),
+            table_name="genome"
         )
 
     print(load_info)
     # @@@DLT_SNIPPET_END db
 
     assert_load_info(load_info)
+
