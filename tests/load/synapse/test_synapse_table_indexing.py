@@ -12,6 +12,9 @@ from dlt.destinations.impl.synapse import synapse_adapter
 from dlt.destinations.impl.synapse.synapse_adapter import TTableIndexType
 
 from tests.load.utils import TABLE_UPDATE, TABLE_ROW_ALL_DATA_TYPES
+from tests.load.pipeline.utils import (
+    drop_pipeline,
+)  # this import ensures all test data gets removed
 from tests.load.synapse.utils import get_storage_table_index_type
 
 
