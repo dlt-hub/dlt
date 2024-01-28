@@ -264,14 +264,6 @@ def destinations_configs(
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
             ),
-            DestinationTestConfiguration(
-                destination="synapse",
-                staging="filesystem",
-                file_format="parquet",
-                bucket_url=AZ_BUCKET,
-                staging_use_msi=True,
-                extra_info="az-managed-identity",
-            ),
         ]
 
     if all_staging_configs:
@@ -304,6 +296,14 @@ def destinations_configs(
                 bucket_url=GCS_BUCKET,
                 extra_info="gcs-authorization",
             ),
+            DestinationTestConfiguration(
+                destination="synapse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                staging_use_msi=True,
+                extra_info="az-managed-identity",
+            ),            
         ]
 
     # add local filesystem destinations if requested
