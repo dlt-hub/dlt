@@ -268,10 +268,6 @@ def test_replace_table_clearing(
         "test_replace_table_clearing", dataset_name="test_replace_table_clearing", full_refresh=True
     )
 
-    if destination_config.destination == "synapse" and replace_strategy == "staging-optimized":
-        # this case requires load concurrency to be disabled (else the test gets stuck)
-        assert pipeline.destination_client().config.auto_disable_concurrency is True  # type: ignore[attr-defined]
-
     @dlt.resource(name="main_resource", write_disposition="replace", primary_key="id")
     def items_with_subitems():
         data = {

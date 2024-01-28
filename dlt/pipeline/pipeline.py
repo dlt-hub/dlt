@@ -483,10 +483,6 @@ class Pipeline(SupportsPipeline):
         # make sure that destination is set and client is importable and can be instantiated
         client, staging_client = self._get_destination_clients(self.default_schema)
 
-        # for synapse we might need to adjust the number of load workers
-        if self.destination.destination_name == "synapse":
-            workers = client.config.get_load_workers(self.default_schema.tables, workers)  # type: ignore[attr-defined]
-
         # create default loader config and the loader
         load_config = LoaderConfiguration(
             workers=workers,

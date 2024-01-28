@@ -4,6 +4,8 @@ from copy import deepcopy
 from textwrap import dedent
 from urllib.parse import urlparse, urlunparse
 
+from dlt import current
+
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     SupportsStagingDestination,
@@ -181,15 +183,15 @@ class SynapseStagingCopyJob(SqlStagingCopyJob):
                 f" {staging_table_name};"
             )
             # recreate staging table
-            # In some cases, when multiple instances of this CTAS query are
-            # executed concurrently, Synapse suspends the queries and hangs.
-            # This can be prevented by setting the env var LOAD__WORKERS = "1".
-            sql.append(
-                f"CREATE TABLE {staging_table_name}"
-                " WITH ( DISTRIBUTION = ROUND_ROBIN, HEAP )"  # distribution must be explicitly specified with CTAS
-                f" AS SELECT * FROM {table_name}"
-                " WHERE 1 = 0;"  # no data, table structure only
-            )
+            job_client = current.pipeline().destination_client()  # type: ignore[operator]
+            with job_client.with_staging_dataset():
+                # get table columns from schema
+                columns = [c for c in job_client.schema.get_table_columns(table["name"]).values()]
+                # generate CREATE TABLE statement
+                create_table_stmt = job_client._get_table_update_sql(
+                    table["name"], columns, generate_alter=False
+                )
+            sql.extend(create_table_stmt)
 
         return sql
 
