@@ -303,7 +303,7 @@ def destinations_configs(
                 bucket_url=AZ_BUCKET,
                 staging_use_msi=True,
                 extra_info="az-managed-identity",
-            ),            
+            ),
         ]
 
     # add local filesystem destinations if requested
