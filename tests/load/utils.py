@@ -152,6 +152,7 @@ def destinations_configs(
     subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
     file_format: Optional[TLoaderFileFormat] = None,
+    supports_dbt: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
     # sanity check
     for item in subset:
@@ -165,7 +166,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "synapse")
+            if destination not in ("athena", "mssql", "synapse")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -192,9 +193,9 @@ def destinations_configs(
                 extra_info="iceberg",
             )
         ]
-        # dbt for Synapse has some complications and I couldn't get it to pass all tests.
         destination_configs += [
-            DestinationTestConfiguration(destination="synapse", supports_dbt=False)
+            DestinationTestConfiguration(destination="mssql", supports_dbt=False),
+            DestinationTestConfiguration(destination="synapse", supports_dbt=False),
         ]
 
     if default_vector_configs:
@@ -346,6 +347,10 @@ def destinations_configs(
     if file_format:
         destination_configs = [
             conf for conf in destination_configs if conf.file_format == file_format
+        ]
+    if supports_dbt is not None:
+        destination_configs = [
+            conf for conf in destination_configs if conf.supports_dbt == supports_dbt
         ]
 
     # filter out excluded configs

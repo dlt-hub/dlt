@@ -28,7 +28,9 @@ def dbt_venv() -> Iterator[Venv]:
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_dbt=True),
+    ids=lambda x: x.name,
 )
 def test_run_jaffle_package(
     destination_config: DestinationTestConfiguration, dbt_venv: Venv
@@ -37,8 +39,6 @@ def test_run_jaffle_package(
         pytest.skip(
             "dbt-athena requires database to be created and we don't do it in case of Jaffle"
         )
-    if not destination_config.supports_dbt:
-        pytest.skip("dbt is not supported for this destination configuration")
     pipeline = destination_config.setup_pipeline("jaffle_jaffle", full_refresh=True)
     # get runner, pass the env from fixture
     dbt = dlt.dbt.package(pipeline, "https://github.com/dbt-labs/jaffle_shop.git", venv=dbt_venv)
@@ -65,13 +65,12 @@ def test_run_jaffle_package(
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_dbt=True),
+    ids=lambda x: x.name,
 )
 def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_venv: Venv) -> None:
     from docs.examples.chess.chess import chess
-
-    if not destination_config.supports_dbt:
-        pytest.skip("dbt is not supported for this destination configuration")
 
     # provide chess url via environ
     os.environ["CHESS_URL"] = "https://api.chess.com/pub/"
@@ -117,15 +116,14 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_dbt=True),
+    ids=lambda x: x.name,
 )
 def test_run_chess_dbt_to_other_dataset(
     destination_config: DestinationTestConfiguration, dbt_venv: Venv
 ) -> None:
     from docs.examples.chess.chess import chess
-
-    if not destination_config.supports_dbt:
-        pytest.skip("dbt is not supported for this destination configuration")
 
     # provide chess url via environ
     os.environ["CHESS_URL"] = "https://api.chess.com/pub/"
