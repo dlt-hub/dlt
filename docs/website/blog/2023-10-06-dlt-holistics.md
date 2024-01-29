@@ -463,7 +463,7 @@ This modern data stack offers an efficient and effective way to bridge the gap b
 
 ## Additional Resources:
 
-- Want to discuss `dlt`? Join the `dlt` [Slack Community](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+- Want to discuss `dlt`? Join the `dlt` [Slack Community](https://dlthub.com/community)
 - Check out our friends over at [Holistics](https://www.holistics.io/). 
 - [`dlt` MongoDB Source](https://dlthub.com/docs/dlt-ecosystem/verified-sources/mongodb).
 - Holistics 4.0: [Analytics as Code](https://docs.holistics.io/as-code/get-started).

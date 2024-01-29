@@ -426,5 +426,5 @@ Read more about [performance.](reference/performance.md)
 ### Other advanced topics
 
 `dlt` is a constantly growing library that supports many features and use cases needed by the
-community. [Join our Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+community. [Join our Slack](https://dlthub.com/community)
 to find recent releases or discuss what you can build with `dlt`.
