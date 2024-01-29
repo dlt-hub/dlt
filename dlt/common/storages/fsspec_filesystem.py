@@ -170,9 +170,9 @@ class FileItemDict(DictStrAny):
         else:
             return fsspec_filesystem(self["file_url"], self.credentials)[0]
 
-    def open(
+    def open(  # noqa: A003
         self, mode: str = "rb", compression: str = "auto", **kwargs: Any
-    ) -> IO[Any]:  # noqa: A003
+    ) -> IO[Any]:
         """Open the file as a fsspec file.
 
         This method opens the file represented by this dictionary as a file-like object using
