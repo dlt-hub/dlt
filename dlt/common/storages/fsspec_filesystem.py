@@ -223,7 +223,7 @@ class FileItemDict(DictStrAny):
         )
 
 
-def guess_mime_type(file_name: str) -> Tuple[str]:
+def guess_mime_type(file_name: str) -> Sequence[Optional[str], Optional[str]]:
     return mimetypes.guess_type(posixpath.basename(file_name), strict=False) or (
         "application/" + (posixpath.splitext(file_name)[1][1:] or "octet-stream"),
         None,
