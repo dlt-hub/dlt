@@ -132,6 +132,8 @@ def pydantic_to_table_schema_columns(
             continue
 
         # This case is for a single field schema/model
+        # we need to generate snake_case field names
+        # and return flattened field schemas
         if is_inner_type_pydantic_model:
             schema_hints = pydantic_to_table_schema_columns(field.annotation)
 
