@@ -45,4 +45,4 @@ Anyway: [Try it out yourself!](https://github.com/dlt-hub/dlt-init-openapi)
 - **More heuristics:** Many more heuristics to extract resources, their dependencies, infer the incremental and merge loading.
 - **Tight integration with FastAPI on the code level to get even more heuristics!**
 
-[Your feedback and help is greatly appreciated.](https://github.com/dlt-hub/dlt/blob/devel/CONTRIBUTING.md) [Join our community, and let’s build together.](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+[Your feedback and help is greatly appreciated.](https://github.com/dlt-hub/dlt/blob/devel/CONTRIBUTING.md) [Join our community, and let’s build together.](https://dlthub.com/community)

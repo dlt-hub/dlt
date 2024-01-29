@@ -132,7 +132,7 @@ As the output in both of methods is the same (parquet files) - the actual load s
 ### What’s next:
 - [Reads our docs on Arrow](https://dlthub.com/docs/dlt-ecosystem/verified-sources/arrow-pandas)
 - [Add merge and incremental loads to code above](https://dlthub.com/docs/examples/connector_x_arrow/)
-- I'm on [dltHub Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA) all the time.
+- I'm on [dltHub Slack](https://dlthub.com/community) all the time.
 
 ### Disclaimers
 

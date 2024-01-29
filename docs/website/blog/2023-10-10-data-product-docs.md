@@ -109,4 +109,4 @@ Stop thinking about data, code and docs in isolation - they do not function inde
 Want to create data products with dlt? What are you waiting for?
 
 - Dive into our [Getting Started.](https://dlthub.com/docs/getting-started)
-- [Join the ⭐Slack Community⭐ for discussion and help!](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+- [Join the ⭐Slack Community⭐ for discussion and help!](https://dlthub.com/community)
