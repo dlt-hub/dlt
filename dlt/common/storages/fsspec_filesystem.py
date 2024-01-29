@@ -28,6 +28,7 @@ class FileItem(TypedDict, total=False):
     file_url: str
     file_name: str
     mime_type: str
+    encoding: Optional[str]
     modification_date: pendulum.DateTime
     size_in_bytes: int
     file_content: Optional[bytes]
@@ -157,18 +158,27 @@ class FileItemDict(DictStrAny):
         else:
             return fsspec_filesystem(self["file_url"], self.credentials)[0]
 
-    def open(self, mode: str = "rb", **kwargs: Any) -> IO[Any]:  # noqa: A003
+    def open(self, mode: str = "rb", compression="auto", **kwargs: Any) -> IO[Any]:  # noqa: A003
         """Open the file as a fsspec file.
 
         This method opens the file represented by this dictionary as a file-like object using
         the fsspec library.
 
         Args:
+            mode (Optional[str]): Open mode.
+            compression (Optional[str]): A flag to enable/disable compression.
+                Can have one of three values: "disable" - no compression applied,
+                "enable" - gzip compression applied, "auto" (default) -
+                compression applied only for files compressed with gzip.
             **kwargs (Any): The arguments to pass to the fsspec open function.
 
         Returns:
             IOBase: The fsspec file.
         """
+        if compression not in ("auto", "disable", "enable"):
+            raise ValueError("""The argument `compression` must have one of the following values:
+"auto", "enable", "disable".""")
+
         opened_file: IO[Any]
         # if the user has already extracted the content, we use it so there is no need to
         # download the file again.
@@ -185,11 +195,15 @@ class FileItemDict(DictStrAny):
                 **text_kwargs,
             )
         else:
+            if compression == "auto":
+                compression_arg = "gzip" if self["encoding"] == "gzip" else None
+            elif compression == "enable":
+                compression_arg = "gzip"
+            elif compression == "disable":
+                compression_arg = None
+
             opened_file = self.fsspec.open(
-                self["file_url"],
-                mode=mode,
-                compression="gzip" if self["file_url"].endswith(".gz") else None,
-                **kwargs,
+                self["file_url"], mode=mode, compression=compression_arg, **kwargs
             )
         return opened_file
 
@@ -207,10 +221,11 @@ class FileItemDict(DictStrAny):
         )
 
 
-def guess_mime_type(file_name: str) -> str:
-    return mimetypes.guess_type(posixpath.basename(file_name), strict=False)[
-        0
-    ] or "application/" + (posixpath.splitext(file_name)[1][1:] or "octet-stream")
+def guess_mime_type(file_name: str) -> (str, str):
+    return mimetypes.guess_type(posixpath.basename(file_name), strict=False) or (
+        "application/" + (posixpath.splitext(file_name)[1][1:] or "octet-stream"),
+        None,
+    )
 
 
 def glob_files(
@@ -254,10 +269,13 @@ def glob_files(
             file = f"/{file}"
         file_name = posixpath.relpath(file, bucket_path)
         file_url = f"{bucket_url_parsed.scheme}://{file}"
+
+        mime_type, encoding = guess_mime_type(file_name)
         yield FileItem(
             file_name=file_name,
             file_url=file_url,
-            mime_type=guess_mime_type(file_name),
+            mime_type=mime_type,
+            encoding=encoding,
             modification_date=MTIME_DISPATCH[bucket_url_parsed.scheme](md),
             size_in_bytes=int(md["size"]),
         )
