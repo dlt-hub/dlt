@@ -70,12 +70,22 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
-        table = self.get_load_table(table_name)
+        table = self.get_load_table(table_name, staging=self.in_staging_mode)
         if table is None:
             table_index_type = self.config.default_table_index_type
         else:
             table_index_type = cast(TTableIndexType, table.get(TABLE_INDEX_TYPE_HINT))
-            if table_index_type == "clustered_columnstore_index":
+            if self.in_staging_mode:
+                final_table = self.get_load_table(table_name, staging=False)
+                final_table_index_type = cast(
+                    TTableIndexType, final_table.get(TABLE_INDEX_TYPE_HINT)
+                )
+            else:
+                final_table_index_type = table_index_type
+            if final_table_index_type == "clustered_columnstore_index":
+                # Even if the staging table has index type "heap", we still adjust
+                # the column data types to prevent errors when writing into the
+                # final table that has index type "clustered_columnstore_index".
                 new_columns = self._get_columstore_valid_columns(new_columns)
 
         _sql_result = SqlJobClientBase._get_table_update_sql(
@@ -129,12 +139,20 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
         table = super().get_load_table(table_name, staging)
         if table is None:
             return None
-        if table_name in self.schema.dlt_table_names():
-            # dlt tables should always be heap tables, regardless of the user
-            # configuration. Why? "For small lookup tables, less than 60 million rows,
-            # consider using HEAP or clustered index for faster query performance."
-            # https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index#heap-tables
+        if staging and self.config.replace_strategy == "insert-from-staging":
+            # Staging tables should always be heap tables, because "when you are
+            # temporarily landing data in dedicated SQL pool, you may find that
+            # using a heap table makes the overall process faster."
+            # "staging-optimized" is not included, because in that strategy the
+            # staging table becomes the final table, so we should already create
+            # it with the desired index type.
             table[TABLE_INDEX_TYPE_HINT] = "heap"  # type: ignore[typeddict-unknown-key]
+        elif table_name in self.schema.dlt_table_names():
+            # dlt tables should always be heap tables, because "for small lookup
+            # tables, less than 60 million rows, consider using HEAP or clustered
+            # index for faster query performance."
+            table[TABLE_INDEX_TYPE_HINT] = "heap"  # type: ignore[typeddict-unknown-key]
+        # https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index#heap-tables
         elif table_name in self.schema.data_table_names():
             if TABLE_INDEX_TYPE_HINT not in table:
                 # If present in parent table, fetch hint from there.

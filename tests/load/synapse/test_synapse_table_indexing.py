@@ -98,13 +98,22 @@ def test_default_table_index_type_configuration(
 @pytest.mark.parametrize(
     "table_index_type,column_schema", TABLE_INDEX_TYPE_COLUMN_SCHEMA_PARAM_GRID
 )
+@pytest.mark.parametrize(
+    # Also test staging replace strategies, to make sure the final table index
+    # type is not affected by staging table index type adjustments.
+    "replace_strategy",
+    ["insert-from-staging", "staging-optimized"],
+)
 def test_resource_table_index_type_configuration(
     table_index_type: TTableIndexType,
     column_schema: Union[List[TColumnSchema], None],
+    replace_strategy: str,
 ) -> None:
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+
     @dlt.resource(
         name="items_with_table_index_type_specified",
-        write_disposition="append",
+        write_disposition="replace",
         columns=column_schema,
     )
     def items_with_table_index_type_specified() -> Iterator[Any]:
