@@ -3,7 +3,19 @@ import mimetypes
 import pathlib
 import posixpath
 from io import BytesIO
-from typing import cast, Tuple, TypedDict, Optional, Union, Iterator, Any, IO, Dict, Callable
+from typing import (
+    cast,
+    Tuple,
+    TypedDict,
+    Optional,
+    Union,
+    Iterator,
+    Any,
+    IO,
+    Dict,
+    Callable,
+    Sequence,
+)
 from urllib.parse import urlparse
 
 from fsspec import AbstractFileSystem
