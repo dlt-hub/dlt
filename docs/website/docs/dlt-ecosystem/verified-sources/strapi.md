@@ -8,7 +8,7 @@ keywords: [strapi api, strapi verified source, strapi]
 
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
-[Join our Slack community](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+[Join our Slack community](https://dlthub.com/community)
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 

@@ -238,6 +238,6 @@ Having the 2 options to run Cloud or Core versions of dbt enables better integra
 
 Want more?
 
-- [Join the ⭐Slack Community⭐ for discussion and help!](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+- [Join the ⭐Slack Community⭐ for discussion and help!](https://dlthub.com/community)
 - Dive into our [Getting Started.](https://dlthub.com/docs/getting-started)
 - Star us on [GitHub](https://github.com/dlt-hub/dlt)!
