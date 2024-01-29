@@ -236,10 +236,12 @@ class FileItemDict(DictStrAny):
 
 
 def guess_mime_type(file_name: str) -> Sequence[str]:
-    return mimetypes.guess_type(posixpath.basename(file_name), strict=False) or (
-        "application/" + (posixpath.splitext(file_name)[1][1:] or "octet-stream"),
-        None,
-    )
+    type_ = list(mimetypes.guess_type(posixpath.basename(file_name), strict=False))
+
+    if not type_[0]:
+        type_[0] = "application/" + (posixpath.splitext(file_name)[1][1:] or "octet-stream")
+
+    return type_
 
 
 def glob_files(
