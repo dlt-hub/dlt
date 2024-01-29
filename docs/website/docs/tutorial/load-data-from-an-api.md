@@ -32,9 +32,9 @@ response = requests.get(url)
 response.raise_for_status()
 
 pipeline = dlt.pipeline(
-    pipeline_name='github_issues',
-    destination='duckdb',
-    dataset_name='github_data',
+    pipeline_name="github_issues",
+    destination="duckdb",
+    dataset_name="github_data",
 )
 # The response contains a list of issues
 load_info = pipeline.run(response.json(), table_name="issues")
@@ -152,9 +152,9 @@ def get_issues(
         url = response.links["next"]["url"]
 
 pipeline = dlt.pipeline(
-    pipeline_name='github_issues_incremental',
-    destination='duckdb',
-    dataset_name='github_data_append',
+    pipeline_name="github_issues_incremental",
+    destination="duckdb",
+    dataset_name="github_data_append",
 )
 
 load_info = pipeline.run(get_issues)
@@ -212,15 +212,15 @@ from dlt.sources.helpers import requests
     primary_key="id",
 )
 def get_issues(
-    updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
+    updated_at=dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
     # NOTE: we read only open issues to minimize number of calls to
     # the API. There's a limit of ~50 calls for not authenticated
     # Github users
     url = (
-        f"https://api.github.com/repos/dlt-hub/dlt/issues"
+        "https://api.github.com/repos/dlt-hub/dlt/issues"
         f"?since={updated_at.last_value}&per_page=100&sort=updated"
-        f"&directions=desc&state=open"
+        "&directions=desc&state=open"
     )
 
     while True:
@@ -234,9 +234,9 @@ def get_issues(
         url = response.links["next"]["url"]
 
 pipeline = dlt.pipeline(
-    pipeline_name='github_issues_merge',
-    destination='duckdb',
-    dataset_name='github_data_merge',
+    pipeline_name="github_issues_merge",
+    destination="duckdb",
+    dataset_name="github_data_merge",
 )
 load_info = pipeline.run(get_issues)
 row_counts = pipeline.last_trace.last_normalize_info

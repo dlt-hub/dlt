@@ -110,12 +110,12 @@ def load_data_with_retry(pipeline, data):
                 load_info = pipeline.run(data)
                 logger.info(str(load_info))
 
-            # raise on failed jobs
-            load_info.raise_on_failed_jobs()
-            # send notification
-            send_slack_message(
-                pipeline.runtime_config.slack_incoming_hook, "Data was successfully loaded!"
-            )
+                # raise on failed jobs
+                load_info.raise_on_failed_jobs()
+                # send notification
+                send_slack_message(
+                    pipeline.runtime_config.slack_incoming_hook, "Data was successfully loaded!"
+                )
     except Exception:
         # we get here after all the failed retries
         # send notification
