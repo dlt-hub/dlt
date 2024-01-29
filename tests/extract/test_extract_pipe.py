@@ -717,7 +717,7 @@ def test_close_on_async_generator() -> None:
                 yield i
             close_pipe_yielding = False
         # we have a different exception here
-        except GeneratorExit:
+        except asyncio.CancelledError:
             close_pipe_got_exit = True
 
     # execute in a thread
