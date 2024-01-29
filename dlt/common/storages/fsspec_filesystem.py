@@ -158,7 +158,9 @@ class FileItemDict(DictStrAny):
         else:
             return fsspec_filesystem(self["file_url"], self.credentials)[0]
 
-    def open(self, mode: str = "rb", compression="auto", **kwargs: Any) -> IO[Any]:  # noqa: A003
+    def open(
+        self, mode: str = "rb", compression: str = "auto", **kwargs: Any
+    ) -> IO[Any]:  # noqa: A003
         """Open the file as a fsspec file.
 
         This method opens the file represented by this dictionary as a file-like object using
@@ -221,7 +223,7 @@ class FileItemDict(DictStrAny):
         )
 
 
-def guess_mime_type(file_name: str) -> (str, str):
+def guess_mime_type(file_name: str) -> Tuple[str]:
     return mimetypes.guess_type(posixpath.basename(file_name), strict=False) or (
         "application/" + (posixpath.splitext(file_name)[1][1:] or "octet-stream"),
         None,
