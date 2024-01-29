@@ -343,7 +343,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         # Select a correct source format
         source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
-        decimal_target_types: List[str] = None
+        decimal_target_types: Optional[List[str]] = None
         if ext == "parquet":
             # if table contains complex types, we cannot load with parquet
             if table_schema_has_type(table, "complex"):

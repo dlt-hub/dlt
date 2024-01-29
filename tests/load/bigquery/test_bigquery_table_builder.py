@@ -1,6 +1,6 @@
 import os
 from copy import deepcopy
-from typing import Iterator, Dict, Generator, List
+from typing import Iterator, Dict, Any
 
 import pytest
 import sqlfluff
@@ -17,7 +17,11 @@ from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
 from dlt.destinations.impl.bigquery.bigquery_adapter import bigquery_adapter
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.extract import DltResource
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
+from tests.load.pipeline.utils import (
+    destinations_configs,
+    DestinationTestConfiguration,
+    drop_active_pipeline_data,
+)
 from tests.load.utils import TABLE_UPDATE, sequence_generator
 
 
@@ -374,18 +378,49 @@ def test_bigquery_no_partition_by_integer(destination_config: DestinationTestCon
             assert not has_partitions
 
 
-def test_adapter_and_hints() -> None:
-    @dlt.resource(columns=[{"name": "content", "data_type": "text"}])
-    def some_data() -> Generator[Dict[str, str], None, None]:
+@pytest.fixture(autouse=True)
+def drop_bigquery_schema() -> Iterator[None]:
+    yield
+    drop_active_pipeline_data()
+
+
+def test_adapter_hints_parsing_partitioning() -> None:
+    @dlt.resource(columns=[{"name": "content", "data_type": "bigint"}])
+    def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
 
-    assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore
+    assert some_data.columns["content"] == {"name": "content", "data_type": "bigint"}  # type: ignore
 
-    # adapter merges with existing columns
-    bigquery_adapter(
-        some_data,
+    bigquery_adapter(some_data, partition="content")
+    assert some_data.columns["content"] == {"name": "content", "data_type": "bigint", "x-bigquery-partition": True}  # type: ignore
+
+
+def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
+    @dlt.resource(
+        columns=[{"name": "col1", "data_type": "bigint"}, {"name": "col2", "data_type": "bigint"}]
     )
-    assert some_data.columns["content"] == {"name": "content", "data_type": "text"}  # type: ignore
+    def some_data() -> Iterator[Dict[str, Any]]:
+        yield from [{"col1": str(i), "col2": i} for i in range(3)]
+
+    assert some_data.columns == {
+        "col1": {"data_type": "bigint", "name": "col1"},
+        "col2": {"data_type": "bigint", "name": "col2"},
+    }
+
+    with pytest.raises(ValueError, match="^`partition` must be a single column name as a string.$"):
+        bigquery_adapter(some_data, partition=["col1", "col2"])
 
 
-# TODO: Use sqlglot to test generated AST
+def test_adapter_hints_parsing_clustering() -> None:
+    @dlt.resource(columns=[{"name": "content", "data_type": "bigint"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    assert some_data.columns["content"] == {"name": "content", "data_type": "bigint"}  # type: ignore
+
+    bigquery_adapter(some_data, cluster=["content"])
+    assert some_data.columns["content"] == {"name": "content", "data_type": "bigint", "x-bigquery-cluster": True}  # type: ignore
+
+
+def test_adapter_hints_parsing_table_expiration() -> None:
+    pytest.skip("Not implemented yet")

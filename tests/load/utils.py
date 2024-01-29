@@ -1,7 +1,7 @@
 import contextlib
 import codecs
 import os
-from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union
+from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
 import shutil
 from pathlib import Path
 from dataclasses import dataclass
@@ -540,7 +540,7 @@ def prepare_load_package(
     return load_id, schema
 
 
-def sequence_generator():
+def sequence_generator() -> Generator[List[Dict[str, str]], None, None]:
     count = 1
     while True:
         yield [{"content": str(count + i)} for i in range(3)]
