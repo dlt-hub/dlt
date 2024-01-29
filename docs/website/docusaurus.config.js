@@ -89,7 +89,7 @@ const config = {
           },
           { to: 'blog', label: 'Blog', position: 'left' },
           {
-            href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA',
+            href: 'https://dlthub.com/community',
             label: 'Join community',
             position: 'right',
             className: 'slack-navbar',
@@ -131,7 +131,7 @@ const config = {
             items: [
               {
                 label: 'Slack',
-                href: 'https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA',
+                href: 'https://dlthub.com/community',
                 className: 'footer-link'
               },
               {

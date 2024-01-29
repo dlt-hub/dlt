@@ -174,5 +174,5 @@ It worked! we can see how GPT can learn about an open source library by using `d
 *** 
 [ What's more? ]
 - Learn more about [dlt] 👉 [here](https://dlthub.com/docs/intro) 
-- Need help or want to discuss? Join our [Slack community](https://dlthub-community.slack.com/ssb/redirect) ! See you there 😊
+- Need help or want to discuss? Join our [Slack community](https://dlthub.com/community) ! See you there 😊
 
