@@ -14,10 +14,11 @@ from typing import (
 )
 from typing_extensions import Annotated, get_args, get_origin
 
+from dlt.common.data_types import py_type_to_sc_type
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema import DataValidationError
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns
-from dlt.common.data_types import py_type_to_sc_type
+from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.typing import (
     TDataItem,
     TDataItems,
@@ -50,6 +51,9 @@ except ImportError:
     pass
 
 _TPydanticModel = TypeVar("_TPydanticModel", bound=BaseModel)
+
+
+snake_case_naming_convention = SnakeCaseNamingConvention()
 
 
 class ListModel(BaseModel, Generic[_TPydanticModel]):
@@ -131,11 +135,12 @@ def pydantic_to_table_schema_columns(
         if is_inner_type_pydantic_model:
             schema_hints = pydantic_to_table_schema_columns(field.annotation)
 
-            def patch_child(parent_field_name: str, hints: dict) -> dict:
-                return {**hints, "name": f"{parent_field_name}__{hints['name']}"}
-
             for field_name, hints in schema_hints.items():
-                result[f"{name}__{field_name}"] = patch_child(name, hints)
+                schema_key = snake_case_naming_convention.make_path(name, field_name)
+                result[schema_key] = {
+                    **hints,
+                    "name": snake_case_naming_convention.make_path(name, hints["name"]),
+                }
         else:
             result[name] = {
                 "name": name,
