@@ -492,7 +492,7 @@ def test_adapter_hints_round_mutual_exclusivity_requirement() -> None:
 
 
 def test_adapter_hints_parsing_table_expiration() -> None:
-    pytest.skip("Not implemented yet")
+    pytest.skip("Not implemented yet.")
 
 
 def test_adapter_hints_parsing_description() -> None:

@@ -146,7 +146,7 @@ def bigquery_adapter(
             raise ValueError(f"{table_expiration_datetime} could not be parsed!") from e
 
     if column_hints or table_hints:
-        resource.apply_hints(columns=column_hints, table=table_hints)
+        resource.apply_hints(columns=column_hints, additional_table_hints=table_hints)
     else:
         raise ValueError(
             "AT LEAST one of `partition`, `cluster`, `round_half_away_from_zero`,"
