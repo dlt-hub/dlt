@@ -1629,31 +1629,3 @@ def test_resource_while_stop() -> None:
     load_info = pipeline.run(product())
     assert_load_info(load_info)
     assert pipeline.last_trace.last_normalize_info.row_counts["product"] == 12
-
-
-@pytest.mark.skip("skipped until async generators are implemented")
-def test_async_generator() -> None:
-    def async_inner_table():
-        async def _gen(idx):
-            for l_ in ["a", "b", "c"]:
-                await asyncio.sleep(1)
-                yield {"async_gen": idx, "letter": l_}
-
-        # just yield futures in a loop
-        for idx_ in range(10):
-            yield _gen(idx_)
-
-    async def async_gen_table(idx):
-        for l_ in ["a", "b", "c"]:
-            await asyncio.sleep(1)
-            yield {"async_gen": idx, "letter": l_}
-
-    @dlt.resource
-    async def async_gen_resource(idx):
-        for l_ in ["a", "b", "c"]:
-            await asyncio.sleep(1)
-            yield {"async_gen": idx, "letter": l_}
-
-    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
-    pipeline_1.run(async_gen_resource(10))
-    pipeline_1.run(async_gen_table(11))

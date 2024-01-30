@@ -49,7 +49,7 @@ for player in ["magnuscarlsen", "rpragchess"]:
     response.raise_for_status()
     data.append(response.json())
 # Extract, normalize, and load the data
-load_info = pipeline.run(data, table_name='player')
+load_info = pipeline.run(data, table_name="player")
 ```
 <!--@@@DLT_SNIPPET_END api-->
 
@@ -143,23 +143,24 @@ from sqlalchemy import create_engine
 # MySQL instance to get data.
 # NOTE: you'll need to install pymysql with `pip install pymysql`
 # NOTE: loading data from public mysql instance may take several seconds
-engine = create_engine("mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam")
+engine = create_engine(
+    "mysql+pymysql://anonymous@ensembldb.ensembl.org:3306/acanthochromis_polyacanthus_core_100_1"
+)
 
 with engine.connect() as conn:
     # Select genome table, stream data in batches of 100 elements
-    query = "SELECT * FROM genome LIMIT 1000"
+    query = "SELECT * FROM analysis LIMIT 1000"
     rows = conn.execution_options(yield_per=100).exec_driver_sql(query)
 
     pipeline = dlt.pipeline(
         pipeline_name="from_database",
         destination="duckdb",
-        dataset_name="genome_data",
+        dataset_name="acanthochromis_polyacanthus_data",
     )
 
     # Convert the rows into dictionaries on the fly with a map function
     load_info = pipeline.run(
-        map(lambda row: dict(row._mapping), rows),
-        table_name="genome"
+        map(lambda row: dict(row._mapping), rows), table_name="acanthochromis_polyacanthus"
     )
 
 print(load_info)
