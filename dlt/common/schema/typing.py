@@ -60,7 +60,7 @@ TColumnHint = Literal[
     "merge_key",
 ]
 """Known hints of a column used to declare hint regexes."""
-TWriteDisposition = Literal["skip", "append", "replace", "merge"]
+TWriteDisposition = Literal["skip", "append", "replace", "merge", "scd2"]
 TTableFormat = Literal["iceberg"]
 TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"

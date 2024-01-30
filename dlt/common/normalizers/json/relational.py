@@ -1,9 +1,9 @@
-from typing import Dict, List, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
-from dlt.common.data_types.typing import TDataType
+from typing import Dict, Mapping, Optional, Sequence, Tuple, cast, TypedDict, Any
+
+from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
 from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.typing import TJSONNormalizer
-from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
-
+from dlt.common import json
 from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
@@ -21,6 +21,7 @@ EMPTY_KEY_IDENTIFIER = "_empty"  # replace empty keys with this
 
 class TDataItemRow(TypedDict, total=False):
     _dlt_id: str  # unique id of current row
+    _dlt_hash: Optional[str]  # hash of the row
 
 
 class TDataItemRowRoot(TDataItemRow, total=False):
@@ -160,6 +161,11 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         row["_dlt_id"] = row_id
         return row_id
 
+    def _add_row_hash(self, table: str, row: TDataItemRow) -> str:
+        row_hash = digest128(json.dumps(row, sort_keys=True))
+        row["_dlt_hash"] = row_hash
+        return row_hash
+
     def _get_propagated_values(self, table: str, row: TDataItemRow, _r_lvl: int) -> StrAny:
         extend: DictStrAny = {}
 
@@ -232,6 +238,10 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         row_id = flattened_row.get("_dlt_id", None)
         if not row_id:
             row_id = self._add_row_id(table, flattened_row, parent_row_id, pos, _r_lvl)
+        # add row hash (TODO: only add when needed, either via column hint or do it when scd2 wd is used)
+        row_hash = flattened_row.get("_dlt_hash", None)
+        if not row_hash:
+            row_hash = self._add_row_hash(table, flattened_row)
 
         # find fields to propagate to child tables in config
         extend.update(self._get_propagated_values(table, flattened_row, _r_lvl))

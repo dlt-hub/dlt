@@ -240,6 +240,15 @@ class Schema:
                         updated_table_partial["columns"] = {}
                     updated_table_partial["columns"][new_col_name] = new_col_def
 
+        # insert columns defs for scd2 (TODO: where to do this properly, maybe in a step after the normalization?)
+        for col in ["_dlt_valid_from", "_dlt_valid_until"]:
+            if col not in table["columns"].keys():
+                updated_table_partial["columns"][col] = {
+                    "name": col,
+                    "data_type": "timestamp",
+                    "nullable": True,
+                }
+
         return new_row, updated_table_partial
 
     def apply_schema_contract(
