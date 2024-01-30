@@ -264,6 +264,7 @@ def pipeline_command(
         else:
             fmt.echo("Found schema with name %s" % fmt.bold(p.default_schema_name))
         format = command_kwargs.get("format")
+        remove_defaults = command_kwargs.get("remove_defaults")
         s = p.default_schema
         if format == "json":
             schema_str = json.dumps(s.to_dict(remove_defaults=remove_defaults), pretty=True)
