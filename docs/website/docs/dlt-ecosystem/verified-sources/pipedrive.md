@@ -265,7 +265,7 @@ verified source.
 
    ```python
    load_data = pipedrive_source() # calls the source function
-   load_info = pipeline.run(load_info) #runs the pipeline with selected source configuration
+   load_info = pipeline.run(load_data) #runs the pipeline with selected source configuration
    print(load_info)
    ```
 
