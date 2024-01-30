@@ -111,7 +111,7 @@ def coerce_value(to_type: TDataType, from_type: TDataType, value: Any) -> Any:
             try:
                 return json.loads(value)
             except Exception:
-                pass
+                raise ValueError("Cannot load text as json for complex type")
 
     if to_type == "text":
         if from_type == "complex":
