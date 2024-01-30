@@ -192,12 +192,12 @@ This is the simplest way to see `dlt` in action.
 3. Read the [Tutorial](tutorial/intro) to learn how to build a pipeline that loads data from an API.
 4. Check out the [How-to guides](walkthroughs/) for recepies on common use cases for creating, running and deploying pipelines.
 5. Ask us on
-[Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+[Slack](https://dlthub.com/community)
 if you have any questions about use cases or the library.
 
 ## Join the `dlt` community
 
 1. Give the library a ⭐ and check out the code on [GitHub](https://github.com/dlt-hub/dlt).
 1. Ask questions and share how you use the library on
-[Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA).
+[Slack](https://dlthub.com/community).
 1. Report problems and make feature requests [here](https://github.com/dlt-hub/dlt/issues/new/choose).

@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for suggesting a feature for dlt!
-        If you like to discuss your idea first, please join our [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+        If you like to discuss your idea first, please join our [Slack](https://dlthub.com/community)
         and pose your questions in the #3-technical-help channel.
         For minor features and improvements, feel free to open a [pull request](https://github.com/dlt-hub/dlt/pulls) directly.
   - type: textarea

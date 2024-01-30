@@ -13,7 +13,7 @@ pip install "dlt[duckdb]"
 ```
 
 :::tip
-Need help with this tutorial? Join our [Slack community](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) for quick support.
+Need help with this tutorial? Join our [Slack community](https://dlthub.com/community) for quick support.
 :::
 
 ## Create a pipeline
@@ -258,7 +258,7 @@ and `updated_at.last_value` to tell GitHub to return issues updated only **after
 
 ## Next steps
 
-Continue your journey with the [Resource groupping and secrets](grouping-resources) tutorial.
+Continue your journey with the [Resource Grouping and Secrets](grouping-resources) tutorial.
 
 If you want to take full advantage of the `dlt` library, then we strongly suggest that you build your sources out of existing **building blocks:**
 
