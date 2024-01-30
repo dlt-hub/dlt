@@ -106,7 +106,6 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         table_name: str,
         load_id: str,
         client: DatabricksSqlClient,
-        stage_name: Optional[str] = None,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
@@ -129,11 +128,8 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         if bucket_path:
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
-            # referencing an external s3/azure stage does not require explicit credentials
-            if bucket_scheme in ["s3", "az", "abfs", "gc", "gcs"] and stage_name:
-                from_clause = f"FROM ('{bucket_path}')"
             # referencing an staged files via a bucket URL requires explicit AWS credentials
-            elif (
+            if (
                 bucket_scheme == "s3"
                 and staging_credentials
                 and isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
@@ -228,7 +224,6 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
                 table["name"],
                 load_id,
                 self.sql_client,
-                stage_name=self.config.stage_name,
                 staging_credentials=(
                     self.config.staging_config.credentials if self.config.staging_config else None
                 ),
