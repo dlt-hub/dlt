@@ -1,4 +1,4 @@
-import contextlib
+import contextlib, threading
 from functools import reduce
 import datetime  # noqa: 251
 from typing import Dict, List, Optional, Tuple, Set, Iterator, Iterable, Callable
@@ -9,7 +9,13 @@ from dlt.common import sleep, logger
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.accessors import config
-from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
+from dlt.common.pipeline import (
+    LoadInfo,
+    LoadMetrics,
+    SupportsPipeline,
+    WithStepInfo,
+    LoadPackageStateInjectableContext,
+)
 from dlt.common.schema.utils import get_child_tables, get_top_level_table
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
@@ -20,8 +26,10 @@ from dlt.common.exceptions import (
     DestinationTerminalException,
     DestinationTransientException,
 )
+from dlt.common.configuration.container import Container
+
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.schema.typing import TTableSchema, TWriteDisposition
+from dlt.common.schema.typing import TTableSchema
 from dlt.common.storages import LoadStorage
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
@@ -520,7 +528,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                                 failed_job.job_file_info.job_id(),
                                 failed_job.failed_message,
                             )
-                    # possibly raise on too many retires
+                    # possibly raise on too many retries
                     if self.config.raise_on_max_retries:
                         for new_job in package_info.jobs["new_jobs"]:
                             r_c = new_job.job_file_info.retry_count
@@ -558,12 +566,23 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         schema = self.load_storage.normalized_packages.load_schema(load_id)
         logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
 
+        # prepare load package state context
+        load_package_state = self.load_storage.normalized_packages.get_load_package_state(load_id)
+        state_save_lock = threading.Lock()
+
+        def commit_load_package_state() -> None:
+            with state_save_lock:
+                self.load_storage.normalized_packages.save_load_package_state(
+                    load_id, load_package_state
+                )
+
+        container = Container()
         # get top load id and mark as being processed
         with self.collector(f"Load {schema.name} in {load_id}"):
-            with inject_section(
-                ConfigSectionContext(
-                    sections=(known_sections.LOAD,),
-                    destination_state_key=self.destination.destination_name,
+            with container.injectable_context(
+                LoadPackageStateInjectableContext(
+                    state=load_package_state,
+                    commit=commit_load_package_state,
                 )
             ):
                 # the same load id may be processed across multiple runs

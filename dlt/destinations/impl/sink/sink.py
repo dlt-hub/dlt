@@ -1,13 +1,11 @@
 from abc import ABC, abstractmethod
 from types import TracebackType
-from typing import ClassVar, Dict, Optional, Sequence, Type, Iterable, Iterable
+from typing import ClassVar, Dict, Optional, Type, Iterable, Iterable
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.common.typing import TDataItems
 from dlt.common import json
-from dlt.common.configuration.container import Container
-from dlt.common.pipeline import StateInjectableContext
-from dlt.common.pipeline import destination_state, reset_destination_state, commit_pipeline_state
+from dlt.common.pipeline import load_package_state, commit_load_package_state
 
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema
@@ -30,7 +28,7 @@ class SinkLoadJob(LoadJob, ABC):
         file_path: str,
         config: SinkClientConfiguration,
         schema: Schema,
-        load_state: Dict[str, int],
+        load_package_state: Dict[str, int],
     ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._file_path = file_path
@@ -39,19 +37,21 @@ class SinkLoadJob(LoadJob, ABC):
         self._schema = schema
 
         self._state: TLoadJobState = "running"
+        self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
         try:
-            current_index = load_state.get(self._parsed_file_name.file_id, 0)
+            current_index = load_package_state.get(self._storage_id, 0)
             for batch in self.run(current_index):
                 self.call_callable_with_items(batch)
                 current_index += len(batch)
-                load_state[self._parsed_file_name.file_id] = current_index
+                load_package_state[self._storage_id] = current_index
+
             self._state = "completed"
         except Exception as e:
             self._state = "retry"
             raise e
         finally:
             # save progress
-            commit_pipeline_state()
+            commit_load_package_state()
 
     @abstractmethod
     def run(self, start_index: int) -> Iterable[TDataItems]:
@@ -144,7 +144,8 @@ class SinkClient(JobClientBase):
         return super().update_stored_schema(only_tables, expected_update)
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
-        load_state = destination_state().setdefault(load_id, {})
+        # save our state in destination name scope
+        load_state = load_package_state().setdefault(self.config.destination_name, {})
         if file_path.endswith("parquet"):
             return SinkParquetLoadJob(table, file_path, self.config, self.schema, load_state)
         if file_path.endswith("jsonl"):
@@ -156,9 +157,9 @@ class SinkClient(JobClientBase):
 
     def complete_load(self, load_id: str) -> None:
         # pop all state for this load on success
-        state = destination_state()
-        state.pop(load_id, None)
-        commit_pipeline_state()
+        state = load_package_state()
+        state.pop(self.config.destination_name, None)
+        commit_load_package_state()
 
     def __enter__(self) -> "SinkClient":
         return self

@@ -47,7 +47,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import DictStrStr, TFun, TSecretValue, is_optional_type
+from dlt.common.typing import DictStrAny, TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,
@@ -147,16 +147,8 @@ def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
             # backup and restore state
             should_extract_state = may_extract_state and self.config.restore_from_destination
             with self.managed_state(extract_state=should_extract_state) as state:
-                # commit hook
-                def commit_state() -> None:
-                    # save the state
-                    bump_version_if_modified(state)
-                    self._save_state(state)
-
                 # add the state to container as a context
-                with self._container.injectable_context(
-                    StateInjectableContext(state=state, commit=commit_state)
-                ):
+                with self._container.injectable_context(StateInjectableContext(state=state)):
                     return f(self, *args, **kwargs)
 
         return _wrap  # type: ignore
@@ -839,6 +831,10 @@ class Pipeline(SupportsPipeline):
             return self._get_load_storage().get_load_package_info(load_id)
         except LoadPackageNotFound:
             return self._get_normalize_storage().extracted_packages.get_load_package_info(load_id)
+
+    def get_load_package_state(self, load_id: str) -> DictStrAny:
+        """Returns information on extracted/normalized/completed package with given load_id, all jobs and their statuses."""
+        return self._get_load_storage().get_load_package_state(load_id)
 
     def list_failed_jobs_in_package(self, load_id: str) -> Sequence[LoadJobInfo]:
         """List all failed jobs and associated error messages for a specified `load_id`"""

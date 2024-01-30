@@ -16,6 +16,7 @@ from typing import (
     Set,
     get_args,
     cast,
+    Any,
 )
 
 from dlt.common import pendulum, json
@@ -200,6 +201,9 @@ class PackageStorage:
     PACKAGE_COMPLETED_FILE_NAME = (  # completed package marker file, currently only to store data with os.stat
         "package_completed.json"
     )
+    LOAD_PACKAGE_STATE_FILE_NAME = (  # internal state of the load package, will not be synced to the destination
+        "load_package_state.json"
+    )
 
     def __init__(self, storage: FileStorage, initial_state: TLoadPackageState) -> None:
         """Creates storage that manages load packages with root at `storage` and initial package state `initial_state`"""
@@ -335,6 +339,8 @@ class PackageStorage:
         self.storage.create_folder(os.path.join(load_id, PackageStorage.COMPLETED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.FAILED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.STARTED_JOBS_FOLDER))
+        # create new (and empty) state
+        self.save_load_package_state(load_id, {})
 
     def complete_loading_package(self, load_id: str, load_state: TLoadPackageState) -> str:
         """Completes loading the package by writing marker file with`package_state. Returns path to the completed package"""
@@ -379,6 +385,30 @@ class PackageStorage:
             os.path.join(load_id, PackageStorage.SCHEMA_UPDATES_FILE_NAME), mode="wb"
         ) as f:
             json.dump(schema_update, f)
+
+    #
+    # Loadpackage state
+    #
+    def get_load_package_state(self, load_id: str) -> DictStrAny:
+        package_path = self.get_package_path(load_id)
+        if not self.storage.has_folder(package_path):
+            raise LoadPackageNotFound(load_id)
+        try:
+            state = self.storage.load(
+                os.path.join(package_path, PackageStorage.LOAD_PACKAGE_STATE_FILE_NAME)
+            )
+            return cast(DictStrAny, json.loads(state))
+        except FileNotFoundError:
+            return {}
+
+    def save_load_package_state(self, load_id: str, state: DictStrAny) -> None:
+        package_path = self.get_package_path(load_id)
+        if not self.storage.has_folder(package_path):
+            raise LoadPackageNotFound(load_id)
+        self.storage.save(
+            os.path.join(package_path, PackageStorage.LOAD_PACKAGE_STATE_FILE_NAME),
+            json.dumps(state),
+        )
 
     #
     # Get package info

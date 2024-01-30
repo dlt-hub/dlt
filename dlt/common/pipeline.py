@@ -595,12 +595,21 @@ class StateInjectableContext(ContainerInjectableContext):
 
     can_create_default: ClassVar[bool] = False
 
-    commit: Optional[Callable[[], None]] = None
+    if TYPE_CHECKING:
+
+        def __init__(self, state: TPipelineState = None) -> None: ...
+
+
+@configspec
+class LoadPackageStateInjectableContext(ContainerInjectableContext):
+    state: DictStrAny
+    commit: Optional[Callable[[], None]]
+    can_create_default: ClassVar[bool] = False
 
     if TYPE_CHECKING:
 
         def __init__(
-            self, state: TPipelineState = None, commit: Optional[Callable[[], None]] = None
+            self, state: DictStrAny = None, commit: Optional[Callable[[], None]] = None
         ) -> None: ...
 
 
@@ -684,47 +693,23 @@ def source_state() -> DictStrAny:
 _last_full_state: TPipelineState = None
 
 
-def destination_state() -> DictStrAny:
+def load_package_state() -> DictStrAny:
     container = Container()
-
-    # get the destination  name from the section context
-    destination_state_key: str = None
-    with contextlib.suppress(ContextDefaultCannotBeCreated):
-        sections_context = container[ConfigSectionContext]
-        destination_state_key = sections_context.destination_state_key
-
-    if not destination_state_key:
-        raise SourceSectionNotAvailable()
-
-    state, _ = pipeline_state(Container())
-
-    destination_state: DictStrAny = state.setdefault("destinations", {}).setdefault(
-        destination_state_key, {}
-    )
-    return destination_state
+    # get injected state if present. injected load package state is typically "managed" so changes will be persisted
+    # if you need to save the load package state during a load, you need to call commit_load_package_state
+    try:
+        state_ctx = container[LoadPackageStateInjectableContext]
+    except ContextDefaultCannotBeCreated:
+        raise Exception("Load package state not available")
+    return state_ctx.state
 
 
-def reset_destination_state() -> None:
+def commit_load_package_state() -> None:
     container = Container()
-
-    # get the destination  name from the section context
-    destination_state_key: str = None
-    with contextlib.suppress(ContextDefaultCannotBeCreated):
-        sections_context = container[ConfigSectionContext]
-        destination_state_key = sections_context.destination_state_key
-
-    if not destination_state_key:
-        raise SourceSectionNotAvailable()
-
-    state, _ = pipeline_state(Container())
-
-    state.setdefault("destinations", {}).pop(destination_state_key)
-
-
-def commit_pipeline_state() -> None:
-    container = Container()
-    # get injected state if present. injected state is typically "managed" so changes will be persisted
-    state_ctx = container[StateInjectableContext]
+    try:
+        state_ctx = container[LoadPackageStateInjectableContext]
+    except ContextDefaultCannotBeCreated:
+        raise Exception("Load package state not available")
     state_ctx.commit()
 
 

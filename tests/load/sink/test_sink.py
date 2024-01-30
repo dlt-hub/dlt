@@ -231,11 +231,11 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
 
     # no errors are set, all items should be processed
     p = dlt.pipeline("sink_test", destination=test_sink, full_refresh=True)
-    p.run([items(), items2()])
+    load_id = p.run([items(), items2()]).loads_ids[0]
     assert_items_in_range(calls["items"], 0, 100)
     assert_items_in_range(calls["items2"], 0, 100)
     # destination state should be cleared after load
-    assert p.state["destinations"]["sink"] == {}
+    assert p.get_load_package_state(load_id) == {}
 
     # provoke errors
     calls = {}
@@ -245,24 +245,27 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
         p.run([items(), items2()])
 
     # we should have data for one load id saved here
-    assert len(p.state["destinations"]["sink"]) == 1
-    # get saved indexes
-    values = list(list(p.state["destinations"]["sink"].values())[0].values())
+    load_id = p.list_normalized_load_packages()[0]
+    load_package_state = p.get_load_package_state(load_id)
+
+    assert len(load_package_state) == 1
+    # get saved indexes mapped to table (this test will only work for one job per table)
+    values = {k.split(".")[0]: v for k, v in list(load_package_state.values())[0].items()}
 
     # partly loaded, pointers in state should be right
     if batch_size == 1:
         assert_items_in_range(calls["items"], 0, 25)
         assert_items_in_range(calls["items2"], 0, 45)
         # one pointer for state, one for items, one for items2...
-        assert values == [1, 25, 45]
+        assert values == {"_dlt_pipeline_state": 1, "items": 25, "items2": 45}
     elif batch_size == 10:
         assert_items_in_range(calls["items"], 0, 20)
         assert_items_in_range(calls["items2"], 0, 40)
-        assert values == [1, 20, 40]
+        assert values == {"_dlt_pipeline_state": 1, "items": 20, "items2": 40}
     elif batch_size == 23:
         assert_items_in_range(calls["items"], 0, 23)
         assert_items_in_range(calls["items2"], 0, 23)
-        assert values == [1, 23, 23]
+        assert values == {"_dlt_pipeline_state": 1, "items": 23, "items2": 23}
     else:
         raise AssertionError("Unknown batch size")
 
@@ -272,7 +275,8 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
     calls = {}
     p.load()
     # state should be cleared again
-    assert p.state["destinations"]["sink"] == {}
+    load_package_state = p.get_load_package_state(load_id)
+    assert load_package_state == {}
 
     # both calls combined should have every item called just once
     assert_items_in_range(calls["items"] + first_calls["items"], 0, 100)

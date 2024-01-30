@@ -18,14 +18,13 @@ def intro_snippet() -> None:
         response.raise_for_status()
         data.append(response.json())
     # Extract, normalize, and load the data
-    load_info = pipeline.run(data, table_name='player')
+    load_info = pipeline.run(data, table_name="player")
     # @@@DLT_SNIPPET_END api
 
     assert_load_info(load_info)
 
 
 def csv_snippet() -> None:
-
     # @@@DLT_SNIPPET_START csv
     import dlt
     import pandas as pd
@@ -50,8 +49,8 @@ def csv_snippet() -> None:
 
     assert_load_info(load_info)
 
-def db_snippet() -> None:
 
+def db_snippet() -> None:
     # @@@DLT_SNIPPET_START db
     import dlt
     from sqlalchemy import create_engine
@@ -74,13 +73,9 @@ def db_snippet() -> None:
         )
 
         # Convert the rows into dictionaries on the fly with a map function
-        load_info = pipeline.run(
-            map(lambda row: dict(row._mapping), rows),
-            table_name="genome"
-        )
+        load_info = pipeline.run(map(lambda row: dict(row._mapping), rows), table_name="genome")
 
     print(load_info)
     # @@@DLT_SNIPPET_END db
 
     assert_load_info(load_info)
-
