@@ -121,7 +121,7 @@ class DltResourceHints:
         merge_key: TTableHintTemplate[TColumnNames] = None,
         incremental: Incremental[Any] = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
-        additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None
+        additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
     ) -> None:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 
