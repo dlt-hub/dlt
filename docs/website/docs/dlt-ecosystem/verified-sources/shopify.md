@@ -94,8 +94,8 @@ For more information, read the
       access_token=" Please set me up!" #Partner API acess token
       ```
 
-1. Update `private_app_password` with the `Admin API access token`.
-1. Similarly, update the `access_token` with the `Partner API access token`.
+1. Update `private_app_password` with the "Admin API access token".
+1. Similarly, update the `access_token` with the "Partner API access token".
 
    >To load data using Shopify API, update the `private_app_password`.
    >To load data using Shopify partner API, update the `access_token`.
