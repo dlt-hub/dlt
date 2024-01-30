@@ -227,6 +227,7 @@ const sidebars = {
           items: [
             'general-usage/data-enrichments/user_agent_device_data_enrichment',
             'general-usage/data-enrichments/currency_conversion_data_enrichment'
+            'general-usage/data-enrichments/url-parser-data-enrichment'
           ]
         },
         {

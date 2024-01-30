@@ -81,21 +81,14 @@ def fsspec_filesystem(
     )
 
 
-def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSystem, str]:
-    """Instantiates an authenticated fsspec `FileSystem` from `config` argument.
+def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
+    """Prepare arguments for fsspec filesystem constructor.
 
-    Authenticates the following filesystems:
-    * s3
-    * az, abfs
-    * gcs, gs
+    Args:
+        config (FilesystemConfiguration): The filesystem configuration.
 
-    Additional fsspec filesystem arguments and client arguments are gathered from the
-    FilesystemConfiguration object and passed to the `url_to_fs` factory.
-
-    All other filesystems are not authenticated
-
-    Returns: (fsspec filesystem, normalized url)
-
+    Returns:
+        DictStrAny: The arguments for the fsspec filesystem constructor.
     """
     proto = config.protocol
     fs_kwargs: DictStrAny = {"use_listings_cache": False}
@@ -110,7 +103,22 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
         fs_kwargs["client_kwargs"].update(credentials.pop("client_kwargs"))
 
     fs_kwargs.update(credentials)
+    return fs_kwargs
 
+
+def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSystem, str]:
+    """Instantiates an authenticated fsspec `FileSystem` from `config` argument.
+
+    Authenticates following filesystems:
+    * s3
+    * az, abfs
+    * gcs, gs
+
+    All other filesystems are not authenticated
+
+    Returns: (fsspec filesystem, normalized url)
+    """
+    fs_kwargs = prepare_fsspec_args(config)
     try:
         return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore
     except ModuleNotFoundError as e:

@@ -7,7 +7,7 @@ body:
     attributes:
       value: |
         Thanks for reporting a bug for dlt! Please fill out the sections below.
-        If you are not sure if this is a bug or not, please join our [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+        If you are not sure if this is a bug or not, please join our [Slack](https://dlthub.com/community)
         and ask in the #3-technical-help channel.
   - type: input
     attributes:
@@ -34,7 +34,7 @@ body:
     attributes:
       label: Steps to reproduce
       description: >
-        How can we replicate the issue? If it's not straightforward to reproduce, please join our [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+        How can we replicate the issue? If it's not straightforward to reproduce, please join our [Slack](https://dlthub.com/community)
         and ask in the #3-technical-help channel.
       placeholder: >
         Provide a step-by-step description of how to reproduce the problem you are running into.
