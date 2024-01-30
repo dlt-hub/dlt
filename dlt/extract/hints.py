@@ -292,7 +292,7 @@ class DltResourceHints:
             #       and and create tables
             for column_name, column_schema in clean_columns.items():
                 if column_schema.get("container_type") is not None:
-                    clean_columns.pop(column_name)
+                    clean_columns.pop(column_name)  # type: ignore[union-attr]
 
             if not callable(clean_columns):
                 clean_columns = clean_columns.values()  # type: ignore
