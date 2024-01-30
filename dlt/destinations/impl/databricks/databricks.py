@@ -125,8 +125,6 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         )
         from_clause = ""
         credentials_clause = ""
-        files_clause = ""
-        # stage_file_path = ""
 
         if bucket_path:
             bucket_url = urlparse(bucket_path)
@@ -182,7 +180,6 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
 
         statement = f"""COPY INTO {qualified_table_name}
             {from_clause}
-            {files_clause}
             {credentials_clause}
             FILEFORMAT = {source_format}
             """
