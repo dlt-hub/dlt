@@ -1,9 +1,11 @@
 import io
+import gzip
 import mimetypes
 import pathlib
 import posixpath
 from io import BytesIO
 from typing import (
+    Literal,
     cast,
     Tuple,
     TypedDict,
@@ -171,7 +173,10 @@ class FileItemDict(DictStrAny):
             return fsspec_filesystem(self["file_url"], self.credentials)[0]
 
     def open(  # noqa: A003
-        self, mode: str = "rb", compression: str = "auto", **kwargs: Any
+        self,
+        mode: str = "rb",
+        compression: Literal["auto", "disable", "enable"] = "auto",
+        **kwargs: Any,
     ) -> IO[Any]:
         """Open the file as a fsspec file.
 
@@ -189,15 +194,26 @@ class FileItemDict(DictStrAny):
         Returns:
             IOBase: The fsspec file.
         """
-        if compression not in ("auto", "disable", "enable"):
+        if compression == "auto":
+            compression_arg = "gzip" if self["encoding"] == "gzip" else None
+        elif compression == "enable":
+            compression_arg = "gzip"
+        elif compression == "disable":
+            compression_arg = None
+        else:
             raise ValueError("""The argument `compression` must have one of the following values:
-"auto", "enable", "disable".""")
+                "auto", "enable", "disable".""")
 
         opened_file: IO[Any]
         # if the user has already extracted the content, we use it so there is no need to
         # download the file again.
         if "file_content" in self:
-            bytes_io = BytesIO(self["file_content"])
+            content = (
+                gzip.decompress(self["file_content"])
+                if compression_arg == "gzip"
+                else self["file_content"]
+            )
+            bytes_io = BytesIO(content)
 
             if "t" not in mode:
                 return bytes_io
@@ -209,13 +225,6 @@ class FileItemDict(DictStrAny):
                 **text_kwargs,
             )
         else:
-            if compression == "auto":
-                compression_arg = "gzip" if self["encoding"] == "gzip" else None
-            elif compression == "enable":
-                compression_arg = "gzip"
-            elif compression == "disable":
-                compression_arg = None
-
             opened_file = self.fsspec.open(
                 self["file_url"], mode=mode, compression=compression_arg, **kwargs
             )
@@ -227,7 +236,6 @@ class FileItemDict(DictStrAny):
         Returns:
             bytes: The file content.
         """
-        content: bytes
         return (  # type: ignore
             self["file_content"]
             if "file_content" in self and self["file_content"] is not None
@@ -273,12 +281,16 @@ def glob_files(
     glob_result = fs_client.glob(filter_url, detail=True)
     if isinstance(glob_result, list):
         raise NotImplementedError(
-            "Cannot request details when using fsspec.glob. For ADSL (Azure) please use version"
+            "Cannot request details when using fsspec.glob. For adlfs (Azure) please use version"
             " 2023.9.0 or later"
         )
 
     for file, md in glob_result.items():
         if md["type"] != "file":
+            continue
+        # filter out weird files that look like folders
+        size = int(md["size"])
+        if file.endswith("/") and size == 0:
             continue
         # make that absolute path on a file://
         if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
@@ -293,5 +305,5 @@ def glob_files(
             mime_type=mime_type,
             encoding=encoding,
             modification_date=MTIME_DISPATCH[bucket_url_parsed.scheme](md),
-            size_in_bytes=int(md["size"]),
+            size_in_bytes=size,
         )
