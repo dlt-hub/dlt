@@ -718,6 +718,8 @@ def test_close_on_async_generator() -> None:
             close_pipe_yielding = False
         except GeneratorExit:
             close_pipe_got_exit = True
+        except asyncio.CancelledError:
+            close_pipe_got_exit = True
 
     # execute in a thread
     async def raise_gen(item: int):
