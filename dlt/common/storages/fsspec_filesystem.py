@@ -288,10 +288,7 @@ def glob_files(
     for file, md in glob_result.items():
         if md["type"] != "file":
             continue
-        # filter out weird files that look like folders
-        size = int(md["size"])
-        if file.endswith("/") and size == 0:
-            continue
+
         # make that absolute path on a file://
         if bucket_url_parsed.scheme == "file" and not file.startswith("/"):
             file = f"/{file}"
