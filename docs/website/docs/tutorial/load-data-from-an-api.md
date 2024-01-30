@@ -13,7 +13,7 @@ pip install "dlt[duckdb]"
 ```
 
 :::tip
-Need help with this tutorial? Join our [Slack community](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) for quick support.
+Need help with this tutorial? Join our [Slack community](https://dlthub.com/community) for quick support.
 :::
 
 ## Create a pipeline

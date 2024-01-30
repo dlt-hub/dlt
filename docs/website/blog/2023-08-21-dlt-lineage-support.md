@@ -124,4 +124,4 @@ In summary, the integration of lineage through `dlt` empowers organizations to c
 ## Start using dlt today
 What are you waiting for?
 * Dive into our [getting started docs](https://dlthub.com/docs/getting-started)
-* [Join the slack community for discussion and help!](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+* [Join the slack community for discussion and help!](https://dlthub.com/community)

@@ -60,6 +60,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/hubspot',
             'dlt-ecosystem/verified-sources/inbox',
             'dlt-ecosystem/verified-sources/jira',
+            'dlt-ecosystem/verified-sources/kafka',
             'dlt-ecosystem/verified-sources/matomo',
             'dlt-ecosystem/verified-sources/mongodb',
             'dlt-ecosystem/verified-sources/mux',
@@ -226,6 +227,7 @@ const sidebars = {
           label: 'Data enrichments',
           items: [
             'general-usage/data-enrichments/user_agent_device_data_enrichment',
+            'general-usage/data-enrichments/currency_conversion_data_enrichment',
             'general-usage/data-enrichments/url-parser-data-enrichment'
           ]
         },

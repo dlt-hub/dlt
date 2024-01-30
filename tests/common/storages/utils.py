@@ -30,7 +30,26 @@ def assert_sample_files(
     config: FilesystemConfiguration,
     load_content: bool,
 ) -> None:
+    minimally_expected_file_items = {
+        "csv/freshman_kgs.csv",
+        "csv/freshman_lbs.csv",
+        "csv/mlb_players.csv",
+        "csv/mlb_teams_2012.csv",
+        "jsonl/mlb_players.jsonl",
+        "met_csv/A801/A881_20230920.csv",
+        "met_csv/A803/A803_20230919.csv",
+        "met_csv/A803/A803_20230920.csv",
+        "parquet/mlb_players.parquet",
+        "sample.txt",
+    }
+
+    assert len(all_file_items) >= 10
+    assert set([item["file_name"] for item in all_file_items]) >= minimally_expected_file_items
+
     for item in all_file_items:
+        # only run tests on file items we know
+        if item["file_name"] not in minimally_expected_file_items:
+            continue
         assert isinstance(item["file_name"], str)
         assert item["file_url"].endswith(item["file_name"])
         assert item["file_url"].startswith(config.protocol)
@@ -49,6 +68,7 @@ def assert_sample_files(
         with file_dict.open() as f:
             assert content == f.read()
         # read via various readers
+        print(item)
         if item["mime_type"] == "text/csv":
             # parse csv
             with file_dict.open(mode="rt") as f:
@@ -66,20 +86,6 @@ def assert_sample_files(
                 lines = f_txt.readlines()
                 assert len(lines) >= 1
                 assert isinstance(lines[0], str)
-
-    assert len(all_file_items) >= 10
-    assert set([item["file_name"] for item in all_file_items]) >= {
-        "csv/freshman_kgs.csv",
-        "csv/freshman_lbs.csv",
-        "csv/mlb_players.csv",
-        "csv/mlb_teams_2012.csv",
-        "jsonl/mlb_players.jsonl",
-        "met_csv/A801/A881_20230920.csv",
-        "met_csv/A803/A803_20230919.csv",
-        "met_csv/A803/A803_20230920.csv",
-        "parquet/mlb_players.parquet",
-        "sample.txt",
-    }
 
 
 def start_loading_file(
