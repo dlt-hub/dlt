@@ -385,23 +385,23 @@ def drop_bigquery_schema() -> Iterator[None]:
 
 
 def test_adapter_no_hints() -> None:
-    @dlt.resource(columns=[{"name": "content", "data_type": "bigint"}])
+    @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
     def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
 
     assert some_data.columns == {
-        "content": {"name": "content", "data_type": "bigint"},
+        "int_col": {"name": "int_col", "data_type": "bigint"},
     }
 
 
 def test_adapter_hints_parsing_partitioning() -> None:
-    @dlt.resource(columns=[{"name": "content", "data_type": "bigint"}])
+    @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
     def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
 
-    bigquery_adapter(some_data, partition="content")
+    bigquery_adapter(some_data, partition="int_col")
     assert some_data.columns == {
-        "content": {"name": "content", "data_type": "bigint", "x-bigquery-partition": True},
+        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-partition": True},
     }
 
 
@@ -422,29 +422,73 @@ def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
 
 
 def test_adapter_hints_parsing_clustering() -> None:
-    @dlt.resource(columns=[{"name": "content", "data_type": "bigint"}])
+    @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
     def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
 
-    bigquery_adapter(some_data, cluster="content")
+    bigquery_adapter(some_data, cluster="int_col")
     assert some_data.columns == {
-        "content": {"name": "content", "data_type": "bigint", "x-bigquery-cluster": True},
+        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-cluster": True},
     }
 
 
 def test_adapter_hints_empty() -> None:
-    @dlt.resource(columns=[{"name": "content", "data_type": "bigint"}])
+    @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    with pytest.raises(
+        ValueError,
+        match="^AT LEAST one of `partition`, `cluster`, `round_half_away_from_zero`",
+    ):
+        bigquery_adapter(some_data)
+
+
+def test_adapter_hints_round_half_even() -> None:
+    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
+    def some_data() -> Iterator[Dict[str, float]]:
+        yield from [{"double_col": float(i)} for i in range(3)]
+
+    bigquery_adapter(some_data, round_half_even="double_col")
+    assert some_data.columns == {
+        "double_col": {
+            "name": "double_col",
+            "data_type": "double",
+            "x-bigquery-round-half-even": True,
+        },
+    }
+
+
+def test_adapter_hints_round_half_away_from_zero() -> None:
+    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    bigquery_adapter(some_data, round_half_away_from_zero="double_col")
+    assert some_data.columns == {
+        "double_col": {
+            "name": "double_col",
+            "data_type": "double",
+            "x-bigquery-round-half-away-from-zero": True,
+        },
+    }
+
+
+def test_adapter_hints_round_mutual_exclusivity_requirement() -> None:
+    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
     def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
 
     with pytest.raises(
         ValueError,
         match=(
-            "^At least one of `partition`, `cluster`, `table_description` or"
-            " `table_expiration_datetime` must be specified.$"
+            "are present in both `round_half_away_from_zero` and `round_half_even` "
+            "which is not allowed. They must be mutually exclusive.$"
         ),
     ):
-        bigquery_adapter(some_data)
+        bigquery_adapter(
+            some_data, round_half_away_from_zero="double_col", round_half_even="double_col"
+        )
 
 
 def test_adapter_hints_parsing_table_expiration() -> None:

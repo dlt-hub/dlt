@@ -104,6 +104,8 @@ def bigquery_adapter(
                 "`round_half_away_from_zero` must be a list of column names or a single column"
                 " name."
             )
+        for column_name in round_half_away_from_zero:
+            column_hints[column_name] = {"name": column_name, ROUND_HALF_AWAY_FROM_ZERO_HINT: True}  # type: ignore
 
     if round_half_even:
         if isinstance(round_half_even, str):
@@ -112,8 +114,9 @@ def bigquery_adapter(
             raise ValueError(
                 "`round_half_even` must be a list of column names or a single column name."
             )
+        for column_name in round_half_even:
+            column_hints[column_name] = {"name": column_name, ROUND_HALF_EVEN_HINT: True}  # type: ignore
 
-    # Check mutual exclusivity
     if round_half_away_from_zero and round_half_even:
         if intersection_columns := set(round_half_away_from_zero).intersection(
             set(round_half_even)
@@ -122,12 +125,6 @@ def bigquery_adapter(
                 f"Columns `{intersection_columns}` are present in both `round_half_away_from_zero`"
                 " and `round_half_even` which is not allowed. They must be mutually exclusive."
             )
-
-    for column_name in round_half_away_from_zero:
-        column_hints[column_name] = {"name": column_name, ROUND_HALF_AWAY_FROM_ZERO_HINT: True}  # type: ignore
-
-    for column_name in round_half_even:
-        column_hints[column_name] = {"name": column_name, ROUND_HALF_EVEN_HINT: True}  # type: ignore
 
     if table_description:
         if not isinstance(table_description, str):
@@ -146,7 +143,7 @@ def bigquery_adapter(
             parsed_table_expiration_datetime = parser.parse(table_expiration_datetime)
             table_hints.update({TABLE_EXPIRATION_HINT: parsed_table_expiration_datetime})
         except ValueError as e:
-            raise ValueError(f"{table_expiration_datetime} could not be parsed.") from e
+            raise ValueError(f"{table_expiration_datetime} could not be parsed!") from e
 
     if column_hints or table_hints:
         resource.apply_hints(columns=column_hints, table=table_hints)
