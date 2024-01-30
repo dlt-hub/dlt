@@ -61,7 +61,7 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - name: Install dependencies
-        run: poetry install --no-interaction -E qdrant -E parquet --with sentry-sdk --with pipeline
+        run: poetry install --no-interaction -E qdrant -E duckdb -E parquet --with sentry-sdk --with pipeline
       - run: |
           poetry run pytest tests/load/
         if: runner.os != 'Windows'
