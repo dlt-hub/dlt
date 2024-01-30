@@ -340,7 +340,7 @@ class PackageStorage:
         self.storage.create_folder(os.path.join(load_id, PackageStorage.FAILED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.STARTED_JOBS_FOLDER))
         # create new (and empty) state
-        self.save_load_package_state(load_id, {})
+        # self.save_load_package_state(load_id, {})
 
     def complete_loading_package(self, load_id: str, load_state: TLoadPackageState) -> str:
         """Completes loading the package by writing marker file with`package_state. Returns path to the completed package"""
