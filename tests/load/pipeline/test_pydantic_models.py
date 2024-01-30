@@ -36,6 +36,19 @@ def test_flattens_model_when_skip_complex_types_is_set() -> None:
     p = dlt.pipeline("example", full_refresh=True, destination="duckdb")
     p.run(src(), table_name="items", columns=Parent)
 
+    with p.sql_client() as client:
+        with client.execute_query("SELECT * FROM items") as cursor:
+            loaded_values = {
+                col[0]: val
+                for val, col in zip(cursor.fetchall()[0], cursor.description)
+                if col[0] not in ("_dlt_id", "_dlt_load_id")
+            }
+            assert loaded_values == {
+                "child__child_attribute": "any string",
+                "child__optional_child_attribute": None,
+                "optional_parent_attribute": None,
+            }
+
     keys = p.default_schema.tables["items"]["columns"].keys()
     assert keys == {
         "child__child_attribute",
@@ -93,6 +106,20 @@ def test_flattens_model_when_skip_complex_types_is_not_set():
 
     p = dlt.pipeline("example", full_refresh=True, destination="duckdb")
     p.run(src(), table_name="items", columns=Parent)
+
+    with p.sql_client() as client:
+        with client.execute_query("SELECT * FROM items") as cursor:
+            loaded_values = {
+                col[0]: val
+                for val, col in zip(cursor.fetchall()[0], cursor.description)
+                if col[0] not in ("_dlt_id", "_dlt_load_id")
+            }
+
+            assert loaded_values == {
+                "child": '{"child_attribute":"any string","optional_child_attribute":null}',
+                "optional_parent_attribute": None,
+                "data_dictionary": '{"child_attribute":"any string"}',
+            }
 
     keys = p.default_schema.tables["items"]["columns"].keys()
     assert keys == {
