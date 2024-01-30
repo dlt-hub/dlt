@@ -105,7 +105,11 @@ class DltResourceHints:
         if self._table_name_hint_fun and item is None:
             raise DataItemRequiredForDynamicTableHints(self.name)
         # resolve
-        resolved_template: TResourceHints = {k: self._resolve_hint(item, v) for k, v in table_template.items() if k not in ["incremental", "validator", "original_columns"]}  # type: ignore
+        resolved_template: TResourceHints = {
+            k: self._resolve_hint(item, v)
+            for k, v in table_template.items()
+            if k not in ["incremental", "validator", "original_columns"]
+        }  # type: ignore
         table_schema = self._merge_keys(resolved_template)
         table_schema["resource"] = self.name
         validate_dict_ignoring_xkeys(
@@ -290,7 +294,7 @@ class DltResourceHints:
             clean_columns = ensure_table_schema_columns_hint(columns)
             # TODO: extract all schema items with container_type set
             #       and and create tables
-            for column_name, column_schema in clean_columns.items():
+            for column_name, column_schema in clean_columns.items():  # type: ignore[union-attr]
                 if column_schema.get("container_type") is not None:
                     clean_columns.pop(column_name)  # type: ignore[union-attr]
 
