@@ -384,15 +384,25 @@ def drop_bigquery_schema() -> Iterator[None]:
     drop_active_pipeline_data()
 
 
+def test_adapter_no_hints() -> None:
+    @dlt.resource(columns=[{"name": "content", "data_type": "bigint"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    assert some_data.columns == {
+        "content": {"name": "content", "data_type": "bigint"},
+    }
+
+
 def test_adapter_hints_parsing_partitioning() -> None:
     @dlt.resource(columns=[{"name": "content", "data_type": "bigint"}])
     def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
 
-    assert some_data.columns["content"] == {"name": "content", "data_type": "bigint"}  # type: ignore
-
     bigquery_adapter(some_data, partition="content")
-    assert some_data.columns["content"] == {"name": "content", "data_type": "bigint", "x-bigquery-partition": True}  # type: ignore
+    assert some_data.columns == {
+        "content": {"name": "content", "data_type": "bigint", "x-bigquery-partition": True},
+    }
 
 
 def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
@@ -416,11 +426,30 @@ def test_adapter_hints_parsing_clustering() -> None:
     def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
 
-    assert some_data.columns["content"] == {"name": "content", "data_type": "bigint"}  # type: ignore
+    bigquery_adapter(some_data, cluster="content")
+    assert some_data.columns == {
+        "content": {"name": "content", "data_type": "bigint", "x-bigquery-cluster": True},
+    }
 
-    bigquery_adapter(some_data, cluster=["content"])
-    assert some_data.columns["content"] == {"name": "content", "data_type": "bigint", "x-bigquery-cluster": True}  # type: ignore
+
+def test_adapter_hints_empty() -> None:
+    @dlt.resource(columns=[{"name": "content", "data_type": "bigint"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "^At least one of `partition`, `cluster`, `table_description` or"
+            " `table_expiration_datetime` must be specified.$"
+        ),
+    ):
+        bigquery_adapter(some_data)
 
 
 def test_adapter_hints_parsing_table_expiration() -> None:
     pytest.skip("Not implemented yet")
+
+
+def test_adapter_hints_parsing_description() -> None:
+    pytest.skip("Not implemented yet.")
