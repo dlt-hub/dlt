@@ -302,5 +302,5 @@ def glob_files(
             mime_type=mime_type,
             encoding=encoding,
             modification_date=MTIME_DISPATCH[bucket_url_parsed.scheme](md),
-            size_in_bytes=size,
+            size_in_bytes=int(md["size"]),
         )
