@@ -41,6 +41,13 @@ from dlt.pipeline import (
 from dlt.pipeline import progress
 from dlt import destinations
 
+try:
+    from dlt.cli.magics import register_notebook_magics
+
+    register_notebook_magics()
+except Exception:
+    pass
+
 pipeline = _pipeline
 current = _current
 mark = _mark

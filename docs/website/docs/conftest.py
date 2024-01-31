@@ -1,6 +1,7 @@
 import os
-import pytest
 from unittest.mock import patch
+
+import pytest
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import (

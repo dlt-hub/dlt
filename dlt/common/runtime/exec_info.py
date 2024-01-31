@@ -1,15 +1,14 @@
-import io
-import os
 import contextlib
-import sys
+import io
 import multiprocessing
+import os
 import platform
+import sys
 
-from dlt.common.runtime.typing import TExecutionContext, TVersion, TExecInfoNames
-from dlt.common.typing import StrStr, StrAny, Literal, List
+from dlt.common.runtime.typing import TExecInfoNames, TExecutionContext, TVersion
+from dlt.common.typing import List, StrAny, StrStr
 from dlt.common.utils import filter_env_vars
-from dlt.version import __version__, DLT_PKG_NAME
-
+from dlt.version import DLT_PKG_NAME, __version__
 
 # if one of these environment variables is set, we assume to be running in CI env
 CI_ENVIRONMENT_TELL = [
@@ -65,9 +64,34 @@ def is_github_actions() -> bool:
 
 def is_notebook() -> bool:
     try:
+        # Import get_ipython from IPython
+        from IPython import get_ipython
+
+        # Get the class name of the current IPython instance
+        shell = get_ipython().__class__.__name__
+        # Check if the shell is a Jupyter notebook (ZMQInteractiveShell)
+        if shell == "ZMQInteractiveShell":
+            return True
+        # Additionally, check for Databricks notebook environment
+        if "dbutils" in globals():
+            return True
+        # If none of the above, it's not a notebook
+        return False
+    except (NameError, ModuleNotFoundError):
+        # Return False if get_ipython() is not available or IPython is not installed
+
+        return False
+
+
+def is_ipython() -> bool:
+    try:
         return bool(str(get_ipython()))  # type: ignore
     except NameError:
         return False
+
+
+def is_databricks() -> bool:
+    return "DATABRICKS_RUNTIME_VERSION" in os.environ
 
 
 def is_colab() -> bool:
