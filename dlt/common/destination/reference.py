@@ -48,6 +48,7 @@ from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithout
 
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
+TLoaderMergeStrategy = Literal["merge", "scd2"]
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
 TDestinationClient = TypeVar("TDestinationClient", bound="JobClientBase")
 
@@ -111,6 +112,8 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """name of default schema to be used to name effective dataset to load data to"""
     replace_strategy: TLoaderReplaceStrategy = "truncate-and-insert"
     """How to handle replace disposition for this destination, can be classic or staging"""
+    merge_strategy: TLoaderMergeStrategy = "merge"
+    """How to handle merging, can be classic merge on primary key or merge keys, or scd2"""
 
     def normalize_dataset_name(self, schema: Schema) -> str:
         """Builds full db dataset (schema) name out of configured dataset name and schema name: {dataset_name}_{schema.name}. The resulting name is normalized.

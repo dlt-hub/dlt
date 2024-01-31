@@ -149,6 +149,14 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def _add_row_id(
         self, table: str, row: TDataItemRow, parent_row_id: str, pos: int, _r_lvl: int
     ) -> str:
+        # sometimes row id needs to be hash for now hardcode here
+        cleaned_row = {k: v for k, v in row.items() if not k.startswith("_dlt")}
+        row_hash = digest128(json.dumps(cleaned_row, sort_keys=True))
+        row["_dlt_id"] = row_hash
+        if _r_lvl > 0:
+            DataItemNormalizer._link_row(cast(TDataItemRowChild, row), parent_row_id, pos)
+        return row_hash
+
         # row_id is always random, no matter if primary_key is present or not
         row_id = generate_dlt_id()
         if _r_lvl > 0:
@@ -160,11 +168,6 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 DataItemNormalizer._link_row(cast(TDataItemRowChild, row), parent_row_id, pos)
         row["_dlt_id"] = row_id
         return row_id
-
-    def _add_row_hash(self, table: str, row: TDataItemRow) -> str:
-        row_hash = digest128(json.dumps(row, sort_keys=True))
-        row["_dlt_hash"] = row_hash
-        return row_hash
 
     def _get_propagated_values(self, table: str, row: TDataItemRow, _r_lvl: int) -> StrAny:
         extend: DictStrAny = {}
@@ -234,14 +237,11 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         flattened_row, lists = self._flatten(table, dict_row, _r_lvl)
         # always extend row
         DataItemNormalizer._extend_row(extend, flattened_row)
+
         # infer record hash or leave existing primary key if present
         row_id = flattened_row.get("_dlt_id", None)
         if not row_id:
             row_id = self._add_row_id(table, flattened_row, parent_row_id, pos, _r_lvl)
-        # add row hash (TODO: only add when needed, either via column hint or do it when scd2 wd is used)
-        row_hash = flattened_row.get("_dlt_hash", None)
-        if not row_hash:
-            row_hash = self._add_row_hash(table, flattened_row)
 
         # find fields to propagate to child tables in config
         extend.update(self._get_propagated_values(table, flattened_row, _r_lvl))

@@ -224,7 +224,14 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         return []
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        return [SqlMergeJob.from_table_chain(table_chain, self.sql_client)]
+        now = pendulum.now()
+        return [
+            SqlMergeJob.from_table_chain(
+                table_chain,
+                self.sql_client,
+                {"merge_stragegy": self.config.merge_strategy, "validity_date": now},
+            )
+        ]
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]

@@ -1,4 +1,5 @@
 from typing import Any, Callable, List, Sequence, Tuple, cast, TypedDict, Optional
+from typing_extensions import NotRequired
 
 import yaml
 from dlt.common.runtime.logger import pretty_format_exception
@@ -10,13 +11,17 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.common.destination.reference import TLoaderMergeStrategy
+from datetime import datetime  # noqa: I251
 
 
 class SqlJobParams(TypedDict):
-    replace: Optional[bool]
+    replace: NotRequired[bool]
+    merge_stragegy: NotRequired[TLoaderMergeStrategy]
+    validity_date: NotRequired[datetime]
 
 
-DEFAULTS: SqlJobParams = {"replace": False}
+DEFAULTS: SqlJobParams = {"replace": False, "merge_stragegy": "merge", "validity_date": None}
 
 
 class SqlBaseJob(NewLoadJobImpl):
@@ -35,7 +40,7 @@ class SqlBaseJob(NewLoadJobImpl):
 
         The `table_chain` contains a list schemas of a tables with parent-child relationship, ordered by the ancestry (the root of the tree is first on the list).
         """
-        params = cast(SqlJobParams, {**DEFAULTS, **(params or {})})  # type: ignore
+        params = cast(SqlJobParams, {**DEFAULTS, **(params or {})})
         top_table = table_chain[0]
         file_info = ParsedLoadJobFileName(
             top_table["name"], ParsedLoadJobFileName.new_file_id(), 0, "sql"
@@ -120,11 +125,73 @@ class SqlMergeJob(SqlBaseJob):
         First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all child tables in the destination dataset.
         At the end we copy the data from the staging dataset into destination dataset.
         """
-        return cls.gen_merge_sql(table_chain, sql_client)
+        if params["merge_stragegy"] == "scd2":
+            return cls.gen_scd2_sql(table_chain, sql_client, params)
+        else:
+            return cls.gen_merge_sql(table_chain, sql_client)
+
+    @classmethod
+    @classmethod
+    def gen_scd2_sql(
+        cls,
+        table_chain: Sequence[TTableSchema],
+        sql_client: SqlClientBase[Any],
+        params: Optional[SqlJobParams] = None,
+    ) -> List[str]:
+        sql: List[str] = []
+
+        validity_date = params["validity_date"]
+        hash_clause = cls._gen_key_table_clauses(["_dlt_id"], [])
+
+        for table in table_chain:
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            with sql_client.with_staging_dataset(staging=True):
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+
+            # we need to remember the original valid from dates in all tables, so copy those into the staging dataset
+            sql.append(
+                f"UPDATE {staging_table_name} SET _dlt_valid_from = (SELECT"
+                f" {table_name}._dlt_valid_from FROM {table_name} WHERE"
+                f" {staging_table_name}._dlt_id = {table_name}._dlt_id);"
+            )
+
+            # delete all rows that will be updated from all tables
+            key_table_clauses = cls.gen_key_table_clauses(
+                table_name, staging_table_name, hash_clause, for_delete=True
+            )
+            for clause in key_table_clauses:
+                sql.append(f"DELETE {clause};")
+
+            # now we only have colums in the main dataset left that are expired, so set valid until column
+            sql.append(
+                f"UPDATE {table_name} SET _dlt_valid_until = '{validity_date}' WHERE"
+                " _dlt_valid_until IS NULL;"
+            )
+
+            # copy all new rows from staging
+            columns = ", ".join(
+                map(
+                    sql_client.capabilities.escape_identifier,
+                    get_columns_names_with_prop(table, "name"),
+                )
+            )
+            sql.append(
+                f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};"
+            )
+
+            # make sure all new columns have valid_from timestamp
+            sql.append(
+                f"UPDATE {table_name} SET _dlt_valid_from = '{validity_date}' WHERE"
+                " _dlt_valid_from IS NULL;"
+            )
+
+        return sql
 
     @classmethod
     def _gen_key_table_clauses(
-        cls, primary_keys: Sequence[str], merge_keys: Sequence[str]
+        cls,
+        primary_keys: Sequence[str],
+        merge_keys: Sequence[str],
     ) -> List[str]:
         """Generate sql clauses to select rows to delete via merge and primary key. Return select all clause if no keys defined."""
         clauses: List[str] = []
@@ -205,7 +272,9 @@ class SqlMergeJob(SqlBaseJob):
 
     @classmethod
     def gen_merge_sql(
-        cls, table_chain: Sequence[TTableSchema], sql_client: SqlClientBase[Any]
+        cls,
+        table_chain: Sequence[TTableSchema],
+        sql_client: SqlClientBase[Any],
     ) -> List[str]:
         sql: List[str] = []
         root_table = table_chain[0]
