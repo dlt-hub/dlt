@@ -1,4 +1,5 @@
 import pytest
+import gzip
 from typing import List, Sequence, Tuple
 from fsspec import AbstractFileSystem
 
@@ -40,16 +41,19 @@ def assert_sample_files(
         "met_csv/A803/A803_20230919.csv",
         "met_csv/A803/A803_20230920.csv",
         "parquet/mlb_players.parquet",
+        "gzip/taxi.csv.gz",
         "sample.txt",
     }
 
     assert len(all_file_items) >= 10
-    assert set([item["file_name"] for item in all_file_items]) >= minimally_expected_file_items
 
     for item in all_file_items:
-        # only run tests on file items we know
-        if item["file_name"] not in minimally_expected_file_items:
+        # skip pseudo files that look like folders
+        if item["file_url"].endswith("/"):
             continue
+        # only accept file items we know
+        assert item["file_name"] in minimally_expected_file_items
+
         assert isinstance(item["file_name"], str)
         assert item["file_url"].endswith(item["file_name"])
         assert item["file_url"].startswith(config.protocol)
@@ -66,15 +70,20 @@ def assert_sample_files(
         dict_content = file_dict.read_bytes()
         assert content == dict_content
         with file_dict.open() as f:
-            assert content == f.read()
+            # content will be decompressed for gzip encoding
+            if item["encoding"] == "gzip":
+                content = gzip.decompress(content)
+            open_content = f.read()
+            assert content == open_content
         # read via various readers
-        print(item)
         if item["mime_type"] == "text/csv":
             # parse csv
             with file_dict.open(mode="rt") as f:
                 from csv import DictReader
 
-                elements = list(DictReader(f))
+                # fieldnames below are not really correct but allow to load first 3 columns
+                # even if first row does not have header names
+                elements = list(DictReader(f, fieldnames=["A", "B", "C"]))
                 assert len(elements) > 0
         if item["mime_type"] == "application/parquet":
             # verify it is a real parquet
@@ -86,6 +95,8 @@ def assert_sample_files(
                 lines = f_txt.readlines()
                 assert len(lines) >= 1
                 assert isinstance(lines[0], str)
+        if item["file_name"].endswith(".gz"):
+            assert item["encoding"] == "gzip"
 
 
 def start_loading_file(
