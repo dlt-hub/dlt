@@ -82,6 +82,11 @@ class DltResourceHints:
         return None if self._hints is None else self._hints.get("columns")
 
     @property
+    def additional_table_hints(self) -> Optional[Dict[str, TTableHintTemplate[Any]]]:
+        """Gets columns' schema that can be modified in place"""
+        return None if self._hints is None else self._hints.get("additional_table_hints")  # type: ignore
+
+    @property
     def schema_contract(self) -> TTableHintTemplate[TSchemaContract]:
         return self._hints.get("schema_contract")
 

@@ -498,9 +498,7 @@ def test_adapter_hints_parsing_description() -> None:
 
     table_description = "Once upon a time a small table got hinted."
     bigquery_adapter(some_data, table_description=table_description)
-    assert some_data._hints["additional_table_hints"] == {  # type: ignore
-        "x-bigquery-table-description": table_description
-    }
+    assert some_data.additional_table_hints == {"x-bigquery-table-description": table_description}
 
 
 def test_adapter_hints_parsing_table_expiration() -> None:
@@ -509,6 +507,6 @@ def test_adapter_hints_parsing_table_expiration() -> None:
         yield from next(sequence_generator())
 
     bigquery_adapter(some_data, table_expiration_datetime="2030-01-01")
-    assert some_data._hints["additional_table_hints"] == {  # type: ignore
+    assert some_data.additional_table_hints == {
         "x-bigquery-table-expiration": pendulum.datetime(2030, 1, 1, 0, 0, tz=None)
     }
