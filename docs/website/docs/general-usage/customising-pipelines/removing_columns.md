@@ -33,7 +33,6 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    ```python
    def remove_columns(doc, remove_columns=None):
 
-
        if remove_columns is None:
            remove_columns = []
 
@@ -45,6 +44,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
 
        return doc
    ```
+
    `doc`: The document (row) from which columns will be removed.
 
    `remove_columns`: List of column names to be removed, defaults to None.
