@@ -217,7 +217,9 @@ class GoogleDriveFileSystem(AbstractFileSystem):
                 file_id = self.root_file_id
             else:
                 file_id = self.path_to_file_id(path, trashed=trashed)
+
             files = self._list_directory_by_id(file_id, trashed=trashed, path_prefix=path)
+            raise ValueError(files)
             if files:
                 self.dircache[path] = files
             else:
