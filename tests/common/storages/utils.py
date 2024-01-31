@@ -48,9 +48,6 @@ def assert_sample_files(
     assert len(all_file_items) >= 10
 
     for item in all_file_items:
-        # skip pseudo files that look like folders
-        if item["file_url"].endswith("/"):
-            continue
         # only accept file items we know
         assert item["file_name"] in minimally_expected_file_items
 
