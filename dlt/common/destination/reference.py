@@ -114,6 +114,8 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """How to handle replace disposition for this destination, can be classic or staging"""
     merge_strategy: TLoaderMergeStrategy = "merge"
     """How to handle merging, can be classic merge on primary key or merge keys, or scd2"""
+    load_timestamp: str = None
+    """Configurable timestamp for load strategies that record validity dates"""
 
     def normalize_dataset_name(self, schema: Schema) -> str:
         """Builds full db dataset (schema) name out of configured dataset name and schema name: {dataset_name}_{schema.name}. The resulting name is normalized.

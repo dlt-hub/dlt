@@ -224,7 +224,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         return []
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        now = pendulum.now()
+        now = self.config.load_timestamp or pendulum.now().to_iso8601_string()
         return [
             SqlMergeJob.from_table_chain(
                 table_chain,
