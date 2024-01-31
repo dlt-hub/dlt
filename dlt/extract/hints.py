@@ -39,7 +39,6 @@ class TResourceHints(TypedDict, total=False):
     schema_contract: TTableHintTemplate[TSchemaContract]
     validator: ValidateItem
     original_columns: TTableHintTemplate[TAnySchemaColumns]
-    additional_table_hints: TTableHintTemplate[Any]
 
 
 class DltResourceHints:
@@ -190,6 +189,11 @@ class DltResourceHints:
                     t["schema_contract"] = schema_contract
                 else:
                     t.pop("schema_contract", None)
+            if additional_table_hints is not None:
+                if additional_table_hints:
+                    t["additional_table_hints"] = additional_table_hints  # type: ignore
+                else:
+                    t.pop("additional_table_hints", None)  # type: ignore
             # recreate validator if column definition or contract changed
             if schema_contract is not None or columns is not None:
                 t["validator"], schema_contract = create_item_validator(

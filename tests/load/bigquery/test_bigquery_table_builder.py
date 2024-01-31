@@ -491,9 +491,24 @@ def test_adapter_hints_round_mutual_exclusivity_requirement() -> None:
         )
 
 
-def test_adapter_hints_parsing_table_expiration() -> None:
-    pytest.skip("Not implemented yet.")
-
-
 def test_adapter_hints_parsing_description() -> None:
-    pytest.skip("Not implemented yet.")
+    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    table_description = "Once upon a time a small table got hinted."
+    bigquery_adapter(some_data, table_description=table_description)
+    assert some_data._hints["additional_table_hints"] == {  # type: ignore
+        "x-bigquery-table-description": table_description
+    }
+
+
+def test_adapter_hints_parsing_table_expiration() -> None:
+    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    bigquery_adapter(some_data, table_expiration_datetime="2030-01-01")
+    assert some_data._hints["additional_table_hints"] == {  # type: ignore
+        "x-bigquery-table-expiration": pendulum.datetime(2030, 1, 1, 0, 0, tz=None)
+    }
