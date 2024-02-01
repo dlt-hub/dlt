@@ -290,7 +290,7 @@ def stripe():
         yield data
 
     # create resources for several endpoints on a single decorator function
-    for endpoint in Endpoints:
+    for endpoint in endpoints:
         yield dlt.resource(
             get_resource,
             name=endpoint.value,
