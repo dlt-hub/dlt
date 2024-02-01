@@ -52,6 +52,7 @@ For more information on staging, see the [staging support](#staging-support) sec
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
+* [jsonl](../file-formats/jsonl.md) supported when staging is enabled. **Note**: Currently loading compressed jsonl files is not supported. `data_writer.disable_compression` should be set to `true` in dlt config
 * [parquet](../file-formats/parquet.md) supported when staging is enabled
 
 ## Staging support
