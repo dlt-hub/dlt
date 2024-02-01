@@ -20,7 +20,8 @@ from typing import (
 )
 from urllib.parse import urlparse
 
-from fsspec import AbstractFileSystem, register_implementation
+from fsspec.registry import known_implementations, register_implementation
+from fsspec import AbstractFileSystem
 from fsspec.core import url_to_fs
 
 from dlt import version
@@ -76,6 +77,52 @@ CREDENTIALS_DISPATCH: Dict[str, Callable[[FilesystemConfiguration], DictStrAny]]
     "azure": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
 }
 
+CUSTOM_IMPLEMENTATIONS = {
+    "dummyfs": {
+        "fq_classname": "dummyfs.DummyFileSystem",
+        "errtxt": "Dummy only",
+    },
+    "gdrive": {
+        "fq_classname": "dlt.common.storages.fsspecs.google_drive.GoogleDriveFileSystem",
+        "errtxt": "Please install gdrivefs to access GoogleDriveFileSystem",
+    },
+    "gitpythonfs": {
+        "fq_classname": "dlt.common.storages.implementations.gitpythonfs.GitPythonFileSystem",
+        "errtxt": "Please install gitpythonfs to access GitPythonFileSystem",
+    },
+}
+
+
+def register_implementation_in_fsspec(protocol: str) -> None:
+    """Dynamically register a filesystem implementation with fsspec.
+
+    This is useful if the implementation is not officially known in the fsspec codebase.
+
+    The registration's scope is the current process.
+
+    Is a no-op if an implementation is already registerd for the given protocol.
+
+    Args:
+        protocol (str): The protocol to register.
+
+    Returns: None
+    """
+    if protocol in known_implementations:
+        return
+
+    if not protocol in CUSTOM_IMPLEMENTATIONS:
+        raise ValueError(
+            f"Unknown protocol: '{protocol}' is not an fsspec known "
+            "implementations nor a dlt custom implementations."
+        )
+
+    registration_details = CUSTOM_IMPLEMENTATIONS[protocol]
+    register_implementation(
+        protocol,
+        registration_details["fq_classname"],
+        errtxt=registration_details["errtxt"],
+    )
+
 
 def fsspec_filesystem(
     protocol: str,
@@ -112,11 +159,6 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
     fs_kwargs: DictStrAny = {"use_listings_cache": False, "listings_expiry_time": 60.0}
     credentials = CREDENTIALS_DISPATCH.get(protocol, lambda _: {})(config)
 
-    if protocol == "gdrive":
-        from dlt.common.storages.fsspecs.google_drive import GoogleDriveFileSystem
-
-        register_implementation("gdrive", GoogleDriveFileSystem, "GoogleDriveFileSystem")
-
     if config.kwargs is not None:
         fs_kwargs.update(config.kwargs)
     if config.client_kwargs is not None:
@@ -142,6 +184,7 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
     Returns: (fsspec filesystem, normalized url)
     """
     fs_kwargs = prepare_fsspec_args(config)
+    register_implementation_in_fsspec(config.protocol)
 
     try:
         return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore

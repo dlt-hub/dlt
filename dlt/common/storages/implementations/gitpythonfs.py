@@ -13,7 +13,7 @@ def register_implementation_in_fsspec() -> None:
 
     This is needed if the implementation is not officially registered in the fsspec codebase.
     It will also override ("clobber") an existing implementation having the same protocol.
-    The registration is only valid for the current process.
+    The registration's scope is the current process.
     """
     register_implementation(
         "gitpythonfs",
