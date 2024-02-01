@@ -1,4 +1,4 @@
-from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, Any, Iterable, Type
+from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, Any, Iterable, Type, cast
 from urllib.parse import urlparse, urlunparse
 
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -32,6 +32,7 @@ from dlt.destinations.sql_jobs import SqlMergeJob, SqlJobParams
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
+from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 from dlt import config
 
 
@@ -107,15 +108,16 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         table_name: str,
         load_id: str,
         client: DatabricksSqlClient,
-        staging_credentials: Optional[CredentialsConfiguration] = None,
+        staging_config: FilesystemConfiguration,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
         super().__init__(file_name)
+        staging_credentials = staging_config.credentials
 
         qualified_table_name = client.make_qualified_table_name(table_name)
 
         # extract and prepare some vars
-        bucket_path = (
+        bucket_path = orig_bucket_path = (
             NewReferenceJob.resolve_reference(file_path)
             if NewReferenceJob.is_reference_job(file_path)
             else ""
@@ -131,10 +133,8 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             bucket_url = urlparse(bucket_path)
             bucket_scheme = bucket_url.scheme
             # referencing an staged files via a bucket URL requires explicit AWS credentials
-            if (
-                bucket_scheme == "s3"
-                and staging_credentials
-                and isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
+            if bucket_scheme == "s3" and isinstance(
+                staging_credentials, AwsCredentialsWithoutDefaults
             ):
                 s3_creds = staging_credentials.to_session_credentials()
                 credentials_clause = f"""WITH(CREDENTIAL(
@@ -145,10 +145,8 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
                 ))
                 """
                 from_clause = f"FROM '{bucket_path}'"
-            elif (
-                bucket_scheme in ["az", "abfs"]
-                and staging_credentials
-                and isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
+            elif bucket_scheme in ["az", "abfs"] and isinstance(
+                staging_credentials, AzureCredentialsWithoutDefaults
             ):
                 # Explicit azure credentials are needed to load from bucket without a named stage
                 credentials_clause = f"""WITH(CREDENTIAL(AZURE_SAS_TOKEN='{staging_credentials.azure_storage_sas_token}'))"""
@@ -185,6 +183,11 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
                 )
             source_format = "JSON"
             format_options_clause = "FORMAT_OPTIONS('inferTimestamp'='true')"
+            # Databricks fails when trying to load empty json files, so we have to check the file size
+            fs, _ = fsspec_from_config(staging_config)
+            file_size = fs.size(orig_bucket_path)
+            if file_size == 0:  # Empty file, do nothing
+                return
 
         statement = f"""COPY INTO {qualified_table_name}
             {from_clause}
@@ -237,9 +240,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
                 table["name"],
                 load_id,
                 self.sql_client,
-                staging_credentials=(
-                    self.config.staging_config.credentials if self.config.staging_config else None
-                ),
+                staging_config=cast(FilesystemConfiguration, self.config.staging_config),
             )
         return job
 
