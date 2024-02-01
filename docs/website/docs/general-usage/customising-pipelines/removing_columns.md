@@ -18,12 +18,13 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    import dlt
 
    @dlt.source
-   def dummy_source(prefix: str = None):
-       #This function creates a dummy data source.
+   def dummy_source():
+       # This function creates a dummy data source.
        @dlt.resource(write_disposition='replace')
        def dummy_data():
-             for _ in range(3):
-               yield {'id': _, 'name': f'Jane Washington {_}', 'country_code': 40 + _}
+
+             for i in range(3):
+               yield {'id': i, 'name': f'Jane Washington {i}', 'country_code': 40 + i}
        return dummy_data()
    ```
    This function creates three columns `id`, `name` and `country_code`.
@@ -31,7 +32,9 @@ Let's create a sample pipeline demonstrating the process of removing a column.
 1. Next, create a function to filter out columns from the data before loading it into a database as follows:
 
    ```python
-   def remove_columns(doc, remove_columns=None):
+   from typing import Dict, List, Optional
+
+   def remove_columns(doc: Dict, remove_columns: Optional[List[str]] = None) -> Dict:
 
        if remove_columns is None:
            remove_columns = []
@@ -45,7 +48,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
        return doc
    ```
 
-   `doc`: The document (row) from which columns will be removed.
+   `doc`: The document (dict) from which columns will be removed.
 
    `remove_columns`: List of column names to be removed, defaults to None.
 
@@ -55,10 +58,10 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    # Example columns to remove:
    remove_columns_list = ["country_code"]
 
-   # 1. Create an instance of the source so you can edit it.
+   # Create an instance of the source so you can edit it.
    data_source = dummy_source()
 
-   # 2. Modify this source instance's resource
+   # Modify this source instance's resource
    data_source = (
        data_source.dummy_data.add_map(
            lambda doc: remove_columns(doc, remove_columns_list)
@@ -85,7 +88,8 @@ Let's create a sample pipeline demonstrating the process of removing a column.
        dataset_name='filtered_data'
    )
 
+   # Run the pipeline with the transformed source
    load_info = pipeline.run(data_source)
-   print(   load_info)
+   print(load_info)
    ```
 
