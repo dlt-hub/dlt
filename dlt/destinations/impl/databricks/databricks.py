@@ -32,6 +32,7 @@ from dlt.destinations.sql_jobs import SqlMergeJob, SqlJobParams
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
+from dlt import config
 
 
 class DatabricksTypeMapper(TypeMapper):
@@ -124,6 +125,7 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
         )
         from_clause = ""
         credentials_clause = ""
+        format_options_clause = ""
 
         if bucket_path:
             bucket_url = urlparse(bucket_path)
@@ -138,6 +140,7 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
                 credentials_clause = f"""WITH(CREDENTIAL(
                 AWS_ACCESS_KEY='{s3_creds["aws_access_key_id"]}',
                 AWS_SECRET_KEY='{s3_creds["aws_secret_access_key"]}',
+
                 AWS_SESSION_TOKEN='{s3_creds["aws_session_token"]}'
                 ))
                 """
@@ -172,12 +175,22 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             )
 
         # decide on source format, stage_file_path will either be a local file or a bucket path
-        source_format = "PARQUET"  # Only parquet is supported
+        if file_name.endswith(".parquet"):
+            source_format = "PARQUET"  # Only parquet is supported
+        elif file_name.endswith(".jsonl"):
+            if not config.get("data_writer.disable_compression"):
+                raise LoadJobTerminalException(
+                    file_path,
+                    "Databricks loader does not support gzip compressed JSON files. Please disable compression in the data writer configuration: https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression",
+                )
+            source_format = "JSON"
+            format_options_clause = "FORMAT_OPTIONS('inferTimestamp'='true')"
 
         statement = f"""COPY INTO {qualified_table_name}
             {from_clause}
             {credentials_clause}
             FILEFORMAT = {source_format}
+            {format_options_clause}
             """
         client.execute_sql(statement)
 
