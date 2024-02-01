@@ -150,9 +150,6 @@ Synapse supports the following [column hints](https://dlthub.com/docs/general-us
 
 > ❗ These hints are **disabled by default**. This is because the `PRIMARY KEY` and `UNIQUE` [constraints](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-table-constraints) are tricky in Synapse: they are **not enforced** and can lead to innacurate results if the user does not ensure all column values are unique. For the column hints to take effect, the `create_indexes` configuration needs to be set to `True`, see [additional destination options](#additional-destination-options).
 
-## Load concurrency issue
-`dlt` uses threading to enable concurrent processing and [parallel loading](../../reference/performance.md#load). Concurrency does not work properly in all cases when using the `staging-optimized` [`replace` strategy](../../general-usage/full-loading.md), because Synapse suspends the CTAS queries that `dlt` uses behind the scenes and gets stuck. To prevent this from happening, `dlt` automatically sets the number of load workers to 1 to disable concurrency when replacing data using the `staging-optimized` strategy. Set `auto_disable_concurrency = "false"` if you don't want this to happen (see [additional destination options](#additional-destination-options))
-
 ## Staging support
 Synapse supports Azure Blob Storage (both standard and [ADLS Gen2](https://learn.microsoft.com/en-us/azure/storage/blobs/data-lake-storage-introduction)) as a file staging destination. `dlt` first uploads Parquet files to the blob container, and then instructs Synapse to read the Parquet file and load its data into a Synapse table using the [COPY INTO](https://learn.microsoft.com/en-us/sql/t-sql/statements/copy-into-transact-sql) statement.
 
@@ -178,7 +175,6 @@ The following settings can optionally be configured:
 [destination.synapse]
 default_table_index_type = "heap"
 create_indexes = "false"
-auto_disable_concurrency = "true"
 staging_use_msi = "false"
 
 [destination.synapse.credentials]
@@ -196,7 +192,6 @@ destination.synapse.credentials = "synapse://loader:your_loader_password@your_sy
 Descriptions:
 - `default_table_index_type` sets the [table index type](#table-index-type) that is used if no table index type is specified on the resource. 
 - `create_indexes` determines if `primary_key` and `unique` [column hints](#supported-column-hints) are applied.
-- `auto_disable_concurrency` determines if concurrency is automatically disabled in cases where it might cause issues.
 - `staging_use_msi` determines if the Managed Identity of the Synapse workspace is used to authorize access to the [staging](#staging-support) Storage Account. Ensure the Managed Identity has the [Storage Blob Data Reader](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#storage-blob-data-reader) role (or a higher-priviliged role) assigned on the blob container if you set this option to `"true"`.
 - `port` used for the ODBC connection.
 - `connect_timeout` sets the timeout for the `pyodbc` connection attempt, in seconds.
