@@ -470,7 +470,6 @@ class TPipelineState(TypedDict, total=False):
     """A section of state that is not synchronized with the destination and does not participate in change merging and version control"""
 
     sources: NotRequired[Dict[str, Dict[str, Any]]]
-    destinations: NotRequired[Dict[str, Dict[str, Any]]]
 
 
 class TSourceState(TPipelineState):
