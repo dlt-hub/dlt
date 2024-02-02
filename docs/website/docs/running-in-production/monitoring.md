@@ -48,6 +48,27 @@ GitHub Actions workflow DAG:
 Using `dlt` [tracing](tracing.md), you can configure [Sentry](https://sentry.io) DSN to start
 receiving rich information on executed pipelines, including encountered errors and exceptions.
 
+
+### Rows count
+To find the number of rows loaded per table, use the following command:
+
+```shell
+dlt pipeline <pipeline_name> trace
+```
+
+This command will display the names of the tables that were loaded and the number of rows in each table.
+For example, below is the plot of the monitored source showing the number of resources on the X-axis and
+the number of rows loaded on the Y-axis:
+
+<img src="https://storage.googleapis.com/dlt-blog-images/docs_data_monitoring_rows_count_.png" alt="image" width="60%">
+
+### Data load times
+Data loading times for each table can be obtained using the following command:
+
+```shell
+dlt pipeline <pipeline_name> load-package
+```
+
 ## Data monitoring
 
 Data quality monitoring is considered with ensuring that quality data arrives to the data warehouse
