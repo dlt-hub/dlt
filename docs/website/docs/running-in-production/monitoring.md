@@ -63,7 +63,7 @@ the number of rows loaded on the Y-axis:
 ![image](https://storage.googleapis.com/dlt-blog-images/docs_data_monitoring_rows_count)
 
 ### Data load time
-Data loading time for each table can be obtained using the following command:
+Data loading time for each table can be obtained by using the following command:
 
 ```shell
 dlt pipeline <pipeline_name> load-package
