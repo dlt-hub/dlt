@@ -199,6 +199,12 @@ class DltResourceHints:
                     t["additional_table_hints"] = additional_table_hints  # type: ignore
                 else:
                     t.pop("additional_table_hints", None)  # type: ignore
+            if additional_table_hints is not None:
+                for k, v in additional_table_hints.items():
+                    if v:
+                        t[k] = v  # type: ignore[literal-required]
+                    else:
+                        t.pop(k, None)  # type: ignore[misc]
             # recreate validator if column definition or contract changed
             if schema_contract is not None or columns is not None:
                 t["validator"], schema_contract = create_item_validator(
