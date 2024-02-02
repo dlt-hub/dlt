@@ -60,7 +60,7 @@ This command will display the names of the tables that were loaded and the numbe
 For example, below is the plot of the monitored source showing the number of resources on the X-axis and
 the number of rows loaded on the Y-axis:
 
-<img src="https://storage.googleapis.com/dlt-blog-images/docs_data_monitoring_rows_count_.png" alt="image" width="60%">
+![image](https://storage.googleapis.com/dlt-blog-images/docs_data_monitoring_rows_count_.png)
 
 ### Data load times
 Data loading times for each table can be obtained using the following command:
