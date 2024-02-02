@@ -57,10 +57,16 @@ dlt pipeline <pipeline_name> trace
 ```
 
 This command will display the names of the tables that were loaded and the number of rows in each table.
-For example, below is the plot of the monitored source showing the number of resources on the X-axis and
-the number of rows loaded on the Y-axis:
+The above command provides the row count for the Chess source. As shown below:
 
-![image](https://storage.googleapis.com/dlt-blog-images/docs_data_monitoring_rows_count)
+```shell
+Step normalize COMPLETED in 0.97 seconds.
+Normalized data for the following tables:
+- _dlt_pipeline_state: 1 row(s)
+- players_games: 1179 row(s)
+- players_online_status: 4 row(s)
+- players_profiles: 4 row(s)
+```
 
 ### Data load time
 Data loading time for each table can be obtained by using the following command:
