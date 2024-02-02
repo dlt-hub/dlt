@@ -19,6 +19,7 @@ from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TColumnType, TSchemaTables, TTableFormat
+from dlt.common.schema.utils import table_schema_has_type
 
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
@@ -104,6 +105,7 @@ class DatabricksTypeMapper(TypeMapper):
 class DatabricksLoadJob(LoadJob, FollowupJob):
     def __init__(
         self,
+        table: TTableSchema,
         file_path: str,
         table_name: str,
         load_id: str,
@@ -181,6 +183,27 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
                     file_path,
                     "Databricks loader does not support gzip compressed JSON files. Please disable compression in the data writer configuration: https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression",
                 )
+            if table_schema_has_type(table, "decimal"):
+                raise LoadJobTerminalException(
+                    file_path,
+                    "Databricks loader cannot load DECIMAL type columns from json files. Switch to parquet format to load decimals.",
+                )
+            if table_schema_has_type(table, "binary"):
+                raise LoadJobTerminalException(
+                    file_path,
+                    "Databricks loader cannot load BINARY type columns from json files. Switch to parquet format to load byte values.",
+                )
+            if table_schema_has_type(table, "complex"):
+                raise LoadJobTerminalException(
+                    file_path,
+                    "Databricks loader cannot load complex columns (lists and dicts) from json files. Switch to parquet format to load complex types.",
+                )
+            if table_schema_has_type(table, "date"):
+                raise LoadJobTerminalException(
+                    file_path,
+                    "Databricks loader cannot load DATE type columns from json files. Switch to parquet format to load dates.",
+                )
+
             source_format = "JSON"
             format_options_clause = "FORMAT_OPTIONS('inferTimestamp'='true')"
             # Databricks fails when trying to load empty json files, so we have to check the file size
@@ -236,6 +259,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
 
         if not job:
             job = DatabricksLoadJob(
+                table,
                 file_path,
                 table["name"],
                 load_id,

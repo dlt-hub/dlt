@@ -52,8 +52,15 @@ For more information on staging, see the [staging support](#staging-support) sec
 
 ## Supported file formats
 * [insert-values](../file-formats/insert-format.md) is used by default
-* [jsonl](../file-formats/jsonl.md) supported when staging is enabled. **Note**: Currently loading compressed jsonl files is not supported. `data_writer.disable_compression` should be set to `true` in dlt config
+* [jsonl](../file-formats/jsonl.md) supported when staging is enabled (see limitations below)
 * [parquet](../file-formats/parquet.md) supported when staging is enabled
+
+The `jsonl` format has some limitations when used with Databricks:
+
+1. Compression must be disabled to load jsonl files in databricks. Set `data_writer.disable_compression` to `true` in dlt config when using this format.
+2. The following data types are not supported when using `jsonl` format with `databricks`: `decimal`, `complex`, `date`, `binary`. Use `parquet` if your data contains these types.
+3. `bigint` data type with precision is not supported with `jsonl` format
+
 
 ## Staging support
 
@@ -61,11 +68,9 @@ Databricks supports both Amazon S3 and Azure Blob Storage as staging locations. 
 
 ### Databricks and Amazon S3
 
-Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your bucket with the bucket_url and credentials. For s3, the dlt Databricks loader will use the AWS credentials provided for s3 to access the s3 bucket if not specified otherwise (see config options below). You can specify your s3 bucket directly in your d
+Please refer to the [S3 documentation](./filesystem.md#aws-s3) for details on connecting your s3 bucket with the bucket_url and credentials.
 
-lt configuration:
-
-To set up Databricks with s3 as a staging destination:
+Example to set up Databricks with s3 as a staging destination:
 
 ```python
 import dlt
@@ -83,7 +88,9 @@ pipeline = dlt.pipeline(
 
 ### Databricks and Azure Blob Storage
 
-Refer to the [Azure Blob Storage filesystem documentation](./filesystem.md#azure-blob-storage) for setting up your container with the bucket_url and credentials. For Azure Blob Storage, Databricks can directly load data from the storage container specified in the configuration:
+Refer to the [Azure Blob Storage filesystem documentation](./filesystem.md#azure-blob-storage) for details on connecting your Azure Blob Storage container with the bucket_url and credentials.
+
+Example to set up Databricks with Azure as a staging destination:
 
 ```python
 # Create a dlt pipeline that will load
