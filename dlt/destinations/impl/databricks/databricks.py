@@ -247,9 +247,6 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
-    def _create_merge_job(self, table_chain: Sequence[TTableSchema]) -> NewLoadJob:
-        return DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)
-
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return [DatabricksMergeJob.from_table_chain(table_chain, self.sql_client)]
 

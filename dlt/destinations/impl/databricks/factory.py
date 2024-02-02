@@ -27,8 +27,6 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
     def __init__(
         self,
         credentials: t.Union[DatabricksCredentials, t.Dict[str, t.Any], str] = None,
-        stage_name: t.Optional[str] = None,
-        keep_staged_files: bool = False,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         **kwargs: t.Any,
@@ -40,14 +38,10 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         Args:
             credentials: Credentials to connect to the databricks database. Can be an instance of `DatabricksCredentials` or
                 a connection string in the format `databricks://user:password@host:port/database`
-            stage_name: Name of the stage to use for staging files. If not provided, the default stage will be used.
-            keep_staged_files: Should staged files be kept after loading. If False, staged files will be deleted after loading.
             **kwargs: Additional arguments passed to the destination config
         """
         super().__init__(
             credentials=credentials,
-            stage_name=stage_name,
-            keep_staged_files=keep_staged_files,
             destination_name=destination_name,
             environment=environment,
             **kwargs,
