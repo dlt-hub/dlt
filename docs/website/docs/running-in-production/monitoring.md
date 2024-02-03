@@ -63,9 +63,11 @@ The above command provides the row count for the Chess source. As shown below:
 Step normalize COMPLETED in 0.97 seconds.
 Normalized data for the following tables:
 - _dlt_pipeline_state: 1 row(s)
-- players_games: 1179 row(s)
-- players_online_status: 4 row(s)
-- players_profiles: 4 row(s)
+- payments: 1329 row(s)
+- tickets: 1492 row(s)
+- orders: 2940 row(s)
+- shipment: 2382 row(s)
+- retailers: 1342 row(s)
 ```
 
 To load these info back to the destination you can use the following:
