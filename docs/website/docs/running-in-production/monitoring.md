@@ -60,7 +60,7 @@ This command will display the names of the tables that were loaded and the numbe
 The above command provides the row count for the Chess source. As shown below:
 
 ```shell
-Step normalize COMPLETED in 0.97 seconds.
+Step normalize COMPLETED in 2.37 seconds.
 Normalized data for the following tables:
 - _dlt_pipeline_state: 1 row(s)
 - payments: 1329 row(s)
