@@ -115,7 +115,7 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         statements = [
             f"DROP VIEW IF EXISTS {self.make_qualified_table_name(table)};" for table in tables
         ]
-        self.execute_fragments(statements)
+        self.execute_many(statements)
 
     def execute_sql(
         self, sql: AnyStr, *args: Any, **kwargs: Any
