@@ -148,7 +148,7 @@ class GoogleDriveFile(AbstractBufferedFile):
         if status in [200, 201]:
             # server thinks we are finished, this should happen
             # only when closing
-            self.file_id = json.loads(body.decode())["id"]
+            self.file_id = json.loads(body.decode())["id"]  # type: ignore
         elif "range" in head:
             assert status == 308
         else:
@@ -165,7 +165,7 @@ class GoogleDriveFile(AbstractBufferedFile):
         parent_id = self.fs.path_to_file_id(self.fs._parent(self.path))
         head = {"Content-Type": "application/json; charset=UTF-8"}
         # also allows description, MIME type, version, thumbnail...
-        body = json.dumps({"name": self.path.rsplit("/", 1)[-1], "parents": [parent_id]}).encode()
+        body = json.dumps({"name": self.path.rsplit("/", 1)[-1], "parents": [parent_id]}).encode()  # type: ignore
         req = self.fs.service._http.request
         # TODO : this creates a new file. If the file exists, you should
         #   update it by getting the ID and using PATCH, else you get two
