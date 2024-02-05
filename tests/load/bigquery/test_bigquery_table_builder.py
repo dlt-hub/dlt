@@ -384,7 +384,7 @@ def drop_bigquery_schema() -> Iterator[None]:
     drop_active_pipeline_data()
 
 
-def test_adapter_no_hints() -> None:
+def test_adapter_no_hints_parsing() -> None:
     @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
     def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
@@ -394,15 +394,12 @@ def test_adapter_no_hints() -> None:
     }
 
 
-def test_adapter_hints_parsing_partitioning() -> None:
-    @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
-    def some_data() -> Iterator[Dict[str, str]]:
-        yield from next(sequence_generator())
+def test_adapter_no_hints() -> None:
+    @dlt.resource(columns=[{"name": "a", "data_type": "bigint"}, {"name": "b", "data_type": "text"}])
+    def some_data() -> Iterator[Dict[str, Any]]:
+        yield from [{"a": i, "b": str(i)} for i in range(3)]
 
-    bigquery_adapter(some_data, partition="int_col")
-    assert some_data.columns == {
-        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-partition": True},
-    }
+    pytest.skip("not implemented yet")
 
 
 def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
@@ -419,6 +416,36 @@ def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
 
     with pytest.raises(ValueError, match="^`partition` must be a single column name as a string.$"):
         bigquery_adapter(some_data, partition=["col1", "col2"])
+
+
+def test_adapter_hints_parsing_partitioning() -> None:
+    @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    bigquery_adapter(some_data, partition="int_col")
+    assert some_data.columns == {
+        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-partition": True},
+    }
+
+
+def test_adapter_hints_partitioning() -> None:
+    pytest.skip("Not implemented")
+
+
+def test_adapter_hints_round_half_away_from_zero() -> None:
+    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    bigquery_adapter(some_data, round_half_away_from_zero="double_col")
+    assert some_data.columns == {
+        "double_col": {
+            "name": "double_col",
+            "data_type": "double",
+            "x-bigquery-round-half-away-from-zero": True,
+        },
+    }
 
 
 def test_adapter_hints_parsing_clustering() -> None:
@@ -455,21 +482,6 @@ def test_adapter_hints_round_half_even() -> None:
             "name": "double_col",
             "data_type": "double",
             "x-bigquery-round-half-even": True,
-        },
-    }
-
-
-def test_adapter_hints_round_half_away_from_zero() -> None:
-    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
-    def some_data() -> Iterator[Dict[str, str]]:
-        yield from next(sequence_generator())
-
-    bigquery_adapter(some_data, round_half_away_from_zero="double_col")
-    assert some_data.columns == {
-        "double_col": {
-            "name": "double_col",
-            "data_type": "double",
-            "x-bigquery-round-half-away-from-zero": True,
         },
     }
 
