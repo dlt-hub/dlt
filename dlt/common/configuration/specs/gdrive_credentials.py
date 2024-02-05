@@ -510,7 +510,7 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         if parent is None:
             parent = self.root_file_id
 
-        top_file_id = self._get_directory_child_by_name(items[0], parent, trashed=trashed)
+        top_file_id: str = self._get_directory_child_by_name(items[0], parent, trashed=trashed)
         if len(items) == 1:
             return top_file_id
         else:
