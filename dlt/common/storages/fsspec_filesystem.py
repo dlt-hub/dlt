@@ -201,8 +201,10 @@ class FileItemDict(DictStrAny):
         elif compression == "disable":
             compression_arg = None
         else:
-            raise ValueError("""The argument `compression` must have one of the following values:
-                "auto", "enable", "disable".""")
+            raise ValueError(
+                """The argument `compression` must have one of the following values:
+                "auto", "enable", "disable"."""
+            )
 
         opened_file: IO[Any]
         # if the user has already extracted the content, we use it so there is no need to
@@ -276,6 +278,7 @@ def glob_files(
 
     bucket_path = bucket_url_parsed._replace(scheme="").geturl()
     bucket_path = bucket_path[2:] if bucket_path.startswith("//") else bucket_path
+    bucket_path = bucket_path.split("?")[0]
     filter_url = posixpath.join(bucket_path, file_glob)
 
     glob_result = fs_client.glob(filter_url, detail=True)

@@ -19,20 +19,18 @@ scope_dict = {
 
 
 DIR_MIME_TYPE = "application/vnd.google-apps.folder"
-fields = ",".join(
-    [
-        "name",
-        "id",
-        "size",
-        "description",
-        "trashed",
-        "mimeType",
-        "version",
-        "createdTime",
-        "modifiedTime",
-        "capabilities",
-    ]
-)
+fields = ",".join([
+    "name",
+    "id",
+    "size",
+    "description",
+    "trashed",
+    "mimeType",
+    "version",
+    "createdTime",
+    "modifiedTime",
+    "capabilities",
+])
 
 
 def _normalize_path(prefix, name):
@@ -48,7 +46,8 @@ def _finfo_from_response(f, path_prefix=None):
         name = _normalize_path(path_prefix, f["name"])
     else:
         name = f["name"]
-    info = {"name": "/" + name, "size": int(f.get("size", 0)), "type": ftype}
+
+    info = {"name": name.strip("/"), "size": int(f.get("size", 0)), "type": ftype}
     f.update(info)
     return f
 
@@ -219,7 +218,6 @@ class GoogleDriveFileSystem(AbstractFileSystem):
                 file_id = self.path_to_file_id(path, trashed=trashed)
 
             files = self._list_directory_by_id(file_id, trashed=trashed, path_prefix=path)
-            raise ValueError(files)
             if files:
                 self.dircache[path] = files
             else:
@@ -235,17 +233,24 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         all_files = []
         page_token = None
         afields = "nextPageToken, files(%s)" % fields
-        query = f"'{file_id}' in parents  "
+        query = f"'{file_id}' in parents "
         if not trashed:
             query += "and trashed = false "
+
         while True:
             response = self.service.list(
-                q=query, spaces=self.spaces, fields=afields, pageToken=page_token
+                q=query,
+                spaces=self.spaces,
+                fields=afields,
+                pageToken=page_token,
+                includeItemsFromAllDrives=True,
+                supportsAllDrives=True,
+                corpora="allDrives",
             ).execute()
+
             for f in response.get("files", []):
                 all_files.append(_finfo_from_response(f, path_prefix))
 
-            more = response.get("incompleteSearch", False)
             page_token = response.get("nextPageToken", None)
             if page_token is None:
                 break
@@ -256,8 +261,10 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         items = path.strip("/").split("/")
         if path in ["", "/", "root", self.root_file_id]:
             return self.root_file_id
+
         if parent is None:
             parent = self.root_file_id
+
         top_file_id = self._get_directory_child_by_name(items[0], parent, trashed=trashed)
         if len(items) == 1:
             return top_file_id
@@ -269,8 +276,9 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         all_children = self._list_directory_by_id(directory_file_id, trashed=trashed)
         possible_children = []
         for child in all_children:
-            if child["name"] == child_name:
+            if child["name"].strip("/") == child_name:
                 possible_children.append(child["id"])
+
         if len(possible_children) == 0:
             raise FileNotFoundError(
                 f"Directory {directory_file_id} has no child named {child_name}"
