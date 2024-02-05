@@ -35,6 +35,7 @@ def test_load_item(
     include_time = destination_config.destination not in (
         "athena",
         "redshift",
+        "databricks",
     )  # athena/redshift can't load TIME columns from parquet
     item, records = arrow_table_all_data_types(
         item_type, include_json=False, include_time=include_time

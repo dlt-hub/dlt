@@ -99,6 +99,7 @@ class DestinationTestConfiguration:
     supports_merge: bool = True  # TODO: take it from client base class
     force_iceberg: bool = False
     supports_dbt: bool = True
+    disable_compression: bool = False
 
     @property
     def name(self) -> str:
@@ -121,7 +122,7 @@ class DestinationTestConfiguration:
         os.environ["DESTINATION__FORCE_ICEBERG"] = str(self.force_iceberg) or ""
 
         """For the filesystem destinations we disable compression to make analyzing the result easier"""
-        if self.destination == "filesystem":
+        if self.destination == "filesystem" or self.disable_compression:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
     def setup_pipeline(
@@ -247,6 +248,36 @@ def destinations_configs(
                 destination="snowflake",
                 staging="filesystem",
                 file_format="jsonl",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="databricks",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
+                disable_compression=True,
+            ),
+            DestinationTestConfiguration(
+                destination="databricks",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AZ_BUCKET,
+                extra_info="s3-authorization",
+                disable_compression=True,
+            ),
+            DestinationTestConfiguration(
+                destination="databricks",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="databricks",
+                staging="filesystem",
+                file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
             ),

@@ -788,7 +788,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         column_schemas["col11_precision"]["precision"] = 0
 
     # drop TIME from databases not supporting it via parquet
-    if destination_config.destination in ["redshift", "athena"]:
+    if destination_config.destination in ["redshift", "athena", "databricks"]:
         data_types.pop("col11")
         data_types.pop("col11_null")
         data_types.pop("col11_precision")
