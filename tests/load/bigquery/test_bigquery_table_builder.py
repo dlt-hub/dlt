@@ -395,7 +395,9 @@ def test_adapter_no_hints_parsing() -> None:
 
 
 def test_adapter_no_hints() -> None:
-    @dlt.resource(columns=[{"name": "a", "data_type": "bigint"}, {"name": "b", "data_type": "text"}])
+    @dlt.resource(
+        columns=[{"name": "a", "data_type": "bigint"}, {"name": "b", "data_type": "text"}]
+    )
     def some_data() -> Iterator[Dict[str, Any]]:
         yield from [{"a": i, "b": str(i)} for i in range(3)]
 
