@@ -125,11 +125,14 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
 
 def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSystem, str]:
     """Instantiates an authenticated fsspec `FileSystem` from `config` argument.
+
     Authenticates following filesystems:
     * s3
     * az, abfs
     * gcs, gs
+
     All other filesystems are not authenticated
+
     Returns: (fsspec filesystem, normalized url)
     """
     fs_kwargs = prepare_fsspec_args(config)
