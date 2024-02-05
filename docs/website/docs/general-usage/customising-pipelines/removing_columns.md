@@ -17,14 +17,14 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    ```python
    import dlt
 
+   # This function creates a dummy data source.
    @dlt.source
    def dummy_source():
-       # This function creates a dummy data source.
-       @dlt.resource(write_disposition='replace')
+       @dlt.resource(write_disposition="replace")
        def dummy_data():
+           for i in range(3):
+               yield {"id": i, "name": f"Jane Washington {i}", "country_code": 40 + i}
 
-             for i in range(3):
-               yield {'id': i, 'name': f'Jane Washington {i}', 'country_code': 40 + i}
        return dummy_data()
    ```
    This function creates three columns `id`, `name` and `country_code`.
@@ -35,7 +35,6 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    from typing import Dict, List, Optional
 
    def remove_columns(doc: Dict, remove_columns: Optional[List[str]] = None) -> Dict:
-
        if remove_columns is None:
            remove_columns = []
 
@@ -62,10 +61,8 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    data_source = dummy_source()
 
    # Modify this source instance's resource
-   data_source = (
-       data_source.dummy_data.add_map(
-           lambda doc: remove_columns(doc, remove_columns_list)
-       )
+   data_source = data_source.dummy_data.add_map(
+       lambda doc: remove_columns(doc, remove_columns_list)
    )
    ```
 1. You can optionally inspect the result:
@@ -87,7 +84,6 @@ Let's create a sample pipeline demonstrating the process of removing a column.
        destination='bigquery',
        dataset_name='filtered_data'
    )
-
    # Run the pipeline with the transformed source
    load_info = pipeline.run(data_source)
    print(load_info)
