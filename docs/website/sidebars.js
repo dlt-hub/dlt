@@ -220,6 +220,7 @@ const sidebars = {
           items: [
             'general-usage/customising-pipelines/renaming_columns',
             'general-usage/customising-pipelines/pseudonymizing_columns',
+            'general-usage/customising-pipelines/removing_columns',
           ]
         },
         {
