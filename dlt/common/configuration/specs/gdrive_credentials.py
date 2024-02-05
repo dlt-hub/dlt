@@ -1,5 +1,4 @@
 import re
-import json
 import os
 from urllib.parse import urlparse, parse_qs
 from typing import Any, Dict, List, Literal, Optional
@@ -11,6 +10,8 @@ from googleapiclient.errors import HttpError
 from google.auth.credentials import AnonymousCredentials, Credentials
 from google.oauth2 import service_account
 import pydata_google_auth  # type: ignore
+
+from dlt.common import json
 
 
 scope_dict = {
@@ -128,18 +129,18 @@ class GoogleDriveFile(AbstractBufferedFile):
         self.buffer.seek(0)
         data = self.buffer.getvalue()
         head = {}
-        l = len(data)
+        length = len(data)
         if final and self.autocommit:
-            if l:
-                part = "%i-%i" % (self.offset, self.offset + l - 1)
-                head["Content-Range"] = "bytes %s/%i" % (part, self.offset + l)
+            if length:
+                part = "%i-%i" % (self.offset, self.offset + length - 1)
+                head["Content-Range"] = "bytes %s/%i" % (part, self.offset + length)
             else:
                 # closing when buffer is empty
                 head["Content-Range"] = "bytes */%i" % self.offset
                 data = None
         else:
-            head["Content-Range"] = "bytes %i-%i/*" % (self.offset, self.offset + l - 1)
-        head.update({"Content-Type": "application/octet-stream", "Content-Length": str(l)})
+            head["Content-Range"] = "bytes %i-%i/*" % (self.offset, self.offset + length - 1)
+        head.update({"Content-Type": "application/octet-stream", "Content-Length": str(length)})
         req = self.fs.service._http.request
         head, body = req(self.location, method="PUT", body=data, headers=head)
         status = int(head["status"])
@@ -273,7 +274,7 @@ class GoogleDriveFileSystem(AbstractFileSystem):
             cred = self._connect_cache()
         elif method == "anon":
             cred = AnonymousCredentials()
-        elif method is "service_account":
+        elif method == "service_account":
             cred = self._connect_service_account()
         else:
             raise ValueError(f"Invalid connection method `{method}`.")
