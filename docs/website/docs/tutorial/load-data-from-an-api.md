@@ -13,7 +13,7 @@ pip install "dlt[duckdb]"
 ```
 
 :::tip
-Need help with this tutorial? Join our [Slack community](https://join.slack.com/t/dlthub-community/shared_invite/zt-1slox199h-HAE7EQoXmstkP_bTqal65g) for quick support.
+Need help with this tutorial? Join our [Slack community](https://dlthub.com/community) for quick support.
 :::
 
 ## Create a pipeline
@@ -32,9 +32,9 @@ response = requests.get(url)
 response.raise_for_status()
 
 pipeline = dlt.pipeline(
-    pipeline_name='github_issues',
-    destination='duckdb',
-    dataset_name='github_data',
+    pipeline_name="github_issues",
+    destination="duckdb",
+    dataset_name="github_data",
 )
 # The response contains a list of issues
 load_info = pipeline.run(response.json(), table_name="issues")
@@ -152,9 +152,9 @@ def get_issues(
         url = response.links["next"]["url"]
 
 pipeline = dlt.pipeline(
-    pipeline_name='github_issues_incremental',
-    destination='duckdb',
-    dataset_name='github_data_append',
+    pipeline_name="github_issues_incremental",
+    destination="duckdb",
+    dataset_name="github_data_append",
 )
 
 load_info = pipeline.run(get_issues)
@@ -212,15 +212,15 @@ from dlt.sources.helpers import requests
     primary_key="id",
 )
 def get_issues(
-    updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
+    updated_at=dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
     # NOTE: we read only open issues to minimize number of calls to
     # the API. There's a limit of ~50 calls for not authenticated
     # Github users
     url = (
-        f"https://api.github.com/repos/dlt-hub/dlt/issues"
+        "https://api.github.com/repos/dlt-hub/dlt/issues"
         f"?since={updated_at.last_value}&per_page=100&sort=updated"
-        f"&directions=desc&state=open"
+        "&directions=desc&state=open"
     )
 
     while True:
@@ -234,9 +234,9 @@ def get_issues(
         url = response.links["next"]["url"]
 
 pipeline = dlt.pipeline(
-    pipeline_name='github_issues_merge',
-    destination='duckdb',
-    dataset_name='github_data_merge',
+    pipeline_name="github_issues_merge",
+    destination="duckdb",
+    dataset_name="github_data_merge",
 )
 load_info = pipeline.run(get_issues)
 row_counts = pipeline.last_trace.last_normalize_info
@@ -258,7 +258,7 @@ and `updated_at.last_value` to tell GitHub to return issues updated only **after
 
 ## Next steps
 
-Continue your journey with the [Resource groupping and secrets](grouping-resources) tutorial.
+Continue your journey with the [Resource Grouping and Secrets](grouping-resources) tutorial.
 
 If you want to take full advantage of the `dlt` library, then we strongly suggest that you build your sources out of existing **building blocks:**
 

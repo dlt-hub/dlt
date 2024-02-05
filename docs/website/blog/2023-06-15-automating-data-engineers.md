@@ -123,4 +123,4 @@ Not only that, but doing things this way lets your team focus on what they do be
 3. Don’t explore json with data engineers - let analyst explore structured data.
 
 Ready to stop the pain? Read [this explainer on how to do schema evolution with dlt](https://dlthub.com/docs/blog/schema-evolution).
-Want to discuss? Join our [slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA).
+Want to discuss? Join our [slack](https://dlthub.com/community).

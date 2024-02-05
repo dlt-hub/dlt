@@ -74,11 +74,28 @@ class SqlStagingCopyJob(SqlBaseJob):
     failed_text: str = "Tried to generate a staging copy sql job for the following tables:"
 
     @classmethod
-    def generate_sql(
+    def _generate_clone_sql(
         cls,
         table_chain: Sequence[TTableSchema],
         sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
+    ) -> List[str]:
+        """Drop and clone the table for supported destinations"""
+        sql: List[str] = []
+        for table in table_chain:
+            with sql_client.with_staging_dataset(staging=True):
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            sql.append(f"DROP TABLE IF EXISTS {table_name};")
+            # recreate destination table with data cloned from staging table
+            sql.append(f"CREATE TABLE {table_name} CLONE {staging_table_name};")
+        return sql
+
+    @classmethod
+    def _generate_insert_sql(
+        cls,
+        table_chain: Sequence[TTableSchema],
+        sql_client: SqlClientBase[Any],
+        params: SqlJobParams = None,
     ) -> List[str]:
         sql: List[str] = []
         for table in table_chain:
@@ -97,6 +114,17 @@ class SqlStagingCopyJob(SqlBaseJob):
                 f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name};"
             )
         return sql
+
+    @classmethod
+    def generate_sql(
+        cls,
+        table_chain: Sequence[TTableSchema],
+        sql_client: SqlClientBase[Any],
+        params: SqlJobParams = None,
+    ) -> List[str]:
+        if params["replace"] and sql_client.capabilities.supports_clone_table:
+            return cls._generate_clone_sql(table_chain, sql_client)
+        return cls._generate_insert_sql(table_chain, sql_client, params)
 
 
 class SqlMergeJob(SqlBaseJob):
@@ -187,6 +215,21 @@ class SqlMergeJob(SqlBaseJob):
         return [cls._to_temp_table(select_statement, temp_table_name)], temp_table_name
 
     @classmethod
+    def gen_delete_from_sql(
+        cls,
+        table_name: str,
+        unique_column: str,
+        delete_temp_table_name: str,
+        temp_table_column: str,
+    ) -> str:
+        """Generate DELETE FROM statement deleting the records found in the deletes temp table."""
+        return f"""DELETE FROM {table_name}
+            WHERE {unique_column} IN (
+                SELECT * FROM {delete_temp_table_name}
+            );
+        """
+
+    @classmethod
     def _new_temp_table_name(cls, name_prefix: str) -> str:
         return f"{name_prefix}_{uniq_id()}"
 
@@ -261,12 +304,9 @@ class SqlMergeJob(SqlBaseJob):
                 unique_column, key_table_clauses
             )
             sql.extend(create_delete_temp_table_sql)
-            # delete top table
-            sql.append(
-                f"DELETE FROM {root_table_name} WHERE {unique_column} IN (SELECT * FROM"
-                f" {delete_temp_table_name});"
-            )
-            # delete other tables
+
+            # delete from child tables first. This is important for databricks which does not support temporary tables,
+            # but uses temporary views instead
             for table in table_chain[1:]:
                 table_name = sql_client.make_qualified_table_name(table["name"])
                 root_key_columns = get_columns_names_with_prop(table, "root_key")
@@ -281,15 +321,25 @@ class SqlMergeJob(SqlBaseJob):
                     )
                 root_key_column = sql_client.capabilities.escape_identifier(root_key_columns[0])
                 sql.append(
-                    f"DELETE FROM {table_name} WHERE {root_key_column} IN (SELECT * FROM"
-                    f" {delete_temp_table_name});"
+                    cls.gen_delete_from_sql(
+                        table_name, root_key_column, delete_temp_table_name, unique_column
+                    )
                 )
+
+            # delete from top table now that child tables have been prcessed
+            sql.append(
+                cls.gen_delete_from_sql(
+                    root_table_name, unique_column, delete_temp_table_name, unique_column
+                )
+            )
+
             # create temp table used to deduplicate, only when we have primary keys
             if primary_keys:
-                create_insert_temp_table_sql, insert_temp_table_name = (
-                    cls.gen_insert_temp_table_sql(
-                        staging_root_table_name, primary_keys, unique_column
-                    )
+                (
+                    create_insert_temp_table_sql,
+                    insert_temp_table_name,
+                ) = cls.gen_insert_temp_table_sql(
+                    staging_root_table_name, primary_keys, unique_column
                 )
                 sql.extend(create_insert_temp_table_sql)
 

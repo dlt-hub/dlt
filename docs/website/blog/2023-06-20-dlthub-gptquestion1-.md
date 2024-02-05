@@ -92,7 +92,7 @@ In this article, we asked ChatGPT questions about `dlt`, the open source library
 
 >We intended to ask ChatGPT different questions about `dlt` and see if there are any misunderstandings. For example: how `dlt` can be intergrated in various use cases or how data teams can use `dlt` in different projects. Seems it worked really well and answered our questions precisely based on our documentation and blog! Moreover, when we tried to ask some random questions, ChatGPT also gave us proper answers! GPT really seems to understands what we were trying to communicate with it! 
 
-**What questions you would love to ask? Share with us in our [Slack community](https://dlthub-community.slack.com/ssb/redirect) ! See you there 😊**
+**What questions you would love to ask? Share with us in our [Slack community](https://dlthub.com/community) ! See you there 😊**
 
 *** 
 [ What's more? ]

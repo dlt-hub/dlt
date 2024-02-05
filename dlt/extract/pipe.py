@@ -55,6 +55,7 @@ from dlt.extract.utils import (
     simulate_func_call,
     wrap_compat_transformer,
     wrap_resource_gen,
+    wrap_async_iterator,
 )
 
 if TYPE_CHECKING:
@@ -108,7 +109,7 @@ TPipeStep = Union[
     Callable[[TDataItems], Iterator[ResolvablePipeItem]],
 ]
 
-TPipeNextItemMode = Union[Literal["fifo"], Literal["round_robin"]]
+TPipeNextItemMode = Literal["fifo", "round_robin"]
 
 
 class ForkPipe:
@@ -321,6 +322,10 @@ class Pipe(SupportsPipe):
             # verify if transformer can be called
             self._ensure_transform_step(self._gen_idx, gen)
 
+        # wrap async generator
+        if isinstance(self.gen, AsyncIterator):
+            self.replace_gen(wrap_async_iterator(self.gen))
+
         # evaluate transforms
         for step_no, step in enumerate(self._steps):
             # print(f"pipe {self.name} step no {step_no} step({step})")
@@ -366,9 +371,10 @@ class Pipe(SupportsPipe):
 
     def _verify_head_step(self, step: TPipeStep) -> None:
         # first element must be Iterable, Iterator or Callable in resource pipe
-        if not isinstance(step, (Iterable, Iterator)) and not callable(step):
+        if not isinstance(step, (Iterable, Iterator, AsyncIterator)) and not callable(step):
             raise CreatePipeException(
-                self.name, "A head of a resource pipe must be Iterable, Iterator or a Callable"
+                self.name,
+                "A head of a resource pipe must be Iterable, Iterator, AsyncIterator or a Callable",
             )
 
     def _wrap_transform_step_meta(self, step_no: int, step: TPipeStep) -> TPipeStep:
@@ -498,20 +504,20 @@ class PipeIterator(Iterator[PipeItem]):
         max_parallel_items: int,
         workers: int,
         futures_poll_interval: float,
+        sources: List[SourcePipeItem],
         next_item_mode: TPipeNextItemMode,
     ) -> None:
         self.max_parallel_items = max_parallel_items
         self.workers = workers
         self.futures_poll_interval = futures_poll_interval
-
-        self._round_robin_index: int = -1
-        self._initial_sources_count: int = 0
         self._async_pool: asyncio.AbstractEventLoop = None
         self._async_pool_thread: Thread = None
         self._thread_pool: ThreadPoolExecutor = None
-        self._sources: List[SourcePipeItem] = []
+        self._sources = sources
         self._futures: List[FuturePipeItem] = []
-        self._next_item_mode = next_item_mode
+        self._next_item_mode: TPipeNextItemMode = next_item_mode
+        self._initial_sources_count = len(sources)
+        self._current_source_index: int = 0
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
@@ -533,12 +539,10 @@ class PipeIterator(Iterator[PipeItem]):
         pipe.evaluate_gen()
         if not isinstance(pipe.gen, Iterator):
             raise PipeGenInvalid(pipe.name, pipe.gen)
+
         # create extractor
-        extract = cls(max_parallel_items, workers, futures_poll_interval, next_item_mode)
-        # add as first source
-        extract._sources.append(SourcePipeItem(pipe.gen, 0, pipe, None))
-        cls._initial_sources_count = 1
-        return extract
+        sources = [SourcePipeItem(pipe.gen, 0, pipe, None)]
+        return cls(max_parallel_items, workers, futures_poll_interval, sources, next_item_mode)
 
     @classmethod
     @with_config(spec=PipeIteratorConfiguration)
@@ -554,7 +558,8 @@ class PipeIterator(Iterator[PipeItem]):
         next_item_mode: TPipeNextItemMode = "fifo",
     ) -> "PipeIterator":
         # print(f"max_parallel_items: {max_parallel_items} workers: {workers}")
-        extract = cls(max_parallel_items, workers, futures_poll_interval, next_item_mode)
+        sources: List[SourcePipeItem] = []
+
         # clone all pipes before iterating (recursively) as we will fork them (this add steps) and evaluate gens
         pipes, _ = PipeIterator.clone_pipes(pipes)
 
@@ -574,18 +579,16 @@ class PipeIterator(Iterator[PipeItem]):
                 if not isinstance(pipe.gen, Iterator):
                     raise PipeGenInvalid(pipe.name, pipe.gen)
                 # add every head as source only once
-                if not any(i.pipe == pipe for i in extract._sources):
-                    extract._sources.append(SourcePipeItem(pipe.gen, 0, pipe, None))
+                if not any(i.pipe == pipe for i in sources):
+                    sources.append(SourcePipeItem(pipe.gen, 0, pipe, None))
 
         # reverse pipes for current mode, as we start processing from the back
-        if next_item_mode == "fifo":
-            pipes.reverse()
+        pipes.reverse()
         for pipe in pipes:
             _fork_pipeline(pipe)
 
-        extract._initial_sources_count = len(extract._sources)
-
-        return extract
+        # create extractor
+        return cls(max_parallel_items, workers, futures_poll_interval, sources, next_item_mode)
 
     def __next__(self) -> PipeItem:
         pipe_item: Union[ResolvablePipeItem, SourcePipeItem] = None
@@ -615,6 +618,16 @@ class PipeIterator(Iterator[PipeItem]):
                 # print(f"adding iterable {item}")
                 self._sources.append(
                     SourcePipeItem(item, pipe_item.step, pipe_item.pipe, pipe_item.meta)
+                )
+                pipe_item = None
+                continue
+
+            # handle async iterator items as new source
+            if isinstance(item, AsyncIterator):
+                self._sources.append(
+                    SourcePipeItem(
+                        wrap_async_iterator(item), pipe_item.step, pipe_item.pipe, pipe_item.meta
+                    ),
                 )
                 pipe_item = None
                 continue
@@ -689,20 +702,25 @@ class PipeIterator(Iterator[PipeItem]):
         def stop_background_loop(loop: asyncio.AbstractEventLoop) -> None:
             loop.stop()
 
-        # stop all futures
-        for f, _, _, _ in self._futures:
-            if not f.done():
-                f.cancel()
-        self._futures.clear()
-
         # close all generators
         for gen, _, _, _ in self._sources:
             if inspect.isgenerator(gen):
                 gen.close()
         self._sources.clear()
 
-        # print("stopping loop")
+        # stop all futures
+        for f, _, _, _ in self._futures:
+            if not f.done():
+                f.cancel()
+
+        # let tasks cancel
         if self._async_pool:
+            # wait for all async generators to be closed
+            future = asyncio.run_coroutine_threadsafe(
+                self._async_pool.shutdown_asyncgens(), self._ensure_async_pool()
+            )
+            while not future.done():
+                sleep(self.futures_poll_interval)
             self._async_pool.call_soon_threadsafe(stop_background_loop, self._async_pool)
             # print("joining thread")
             self._async_pool_thread.join()
@@ -711,6 +729,8 @@ class PipeIterator(Iterator[PipeItem]):
         if self._thread_pool:
             self._thread_pool.shutdown(wait=True)
             self._thread_pool = None
+
+        self._futures.clear()
 
     def _ensure_async_pool(self) -> asyncio.AbstractEventLoop:
         # lazily create async pool is separate thread
@@ -773,6 +793,8 @@ class PipeIterator(Iterator[PipeItem]):
 
         if future.exception():
             ex = future.exception()
+            if isinstance(ex, StopAsyncIteration):
+                return None
             if isinstance(
                 ex, (PipelineException, ExtractorException, DltSourceException, PipeException)
             ):
@@ -780,84 +802,61 @@ class PipeIterator(Iterator[PipeItem]):
             raise ResourceExtractionError(pipe.name, future, str(ex), "future") from ex
 
         item = future.result()
-        if isinstance(item, DataItemWithMeta):
+
+        # we also interpret future items that are None to not be value to be consumed
+        if item is None:
+            return None
+        elif isinstance(item, DataItemWithMeta):
             return ResolvablePipeItem(item.data, step, pipe, item.meta)
         else:
             return ResolvablePipeItem(item, step, pipe, meta)
 
     def _get_source_item(self) -> ResolvablePipeItem:
-        if self._next_item_mode == "fifo":
-            return self._get_source_item_current()
-        elif self._next_item_mode == "round_robin":
-            return self._get_source_item_round_robin()
-
-    def _get_source_item_current(self) -> ResolvablePipeItem:
-        # no more sources to iterate
-        if len(self._sources) == 0:
-            return None
-        try:
-            # get items from last added iterator, this makes the overall Pipe as close to FIFO as possible
-            gen, step, pipe, meta = self._sources[-1]
-            # print(f"got {pipe.name}")
-            # register current pipe name during the execution of gen
-            set_current_pipe_name(pipe.name)
-            item = None
-            while item is None:
-                item = next(gen)
-            # full pipe item may be returned, this is used by ForkPipe step
-            # to redirect execution of an item to another pipe
-            if isinstance(item, ResolvablePipeItem):
-                return item
-            else:
-                # keep the item assigned step and pipe when creating resolvable item
-                if isinstance(item, DataItemWithMeta):
-                    return ResolvablePipeItem(item.data, step, pipe, item.meta)
-                else:
-                    return ResolvablePipeItem(item, step, pipe, meta)
-        except StopIteration:
-            # remove empty iterator and try another source
-            self._sources.pop()
-            return self._get_source_item()
-        except (PipelineException, ExtractorException, DltSourceException, PipeException):
-            raise
-        except Exception as ex:
-            raise ResourceExtractionError(pipe.name, gen, str(ex), "generator") from ex
-
-    def _get_source_item_round_robin(self) -> ResolvablePipeItem:
         sources_count = len(self._sources)
         # no more sources to iterate
         if sources_count == 0:
             return None
-        # if there are currently more sources than added initially, we need to process the new ones first
-        if sources_count > self._initial_sources_count:
-            return self._get_source_item_current()
         try:
-            # print(f"got {pipe.name}")
-            # register current pipe name during the execution of gen
-            item = None
-            while item is None:
-                self._round_robin_index = (self._round_robin_index + 1) % sources_count
-                gen, step, pipe, meta = self._sources[self._round_robin_index]
-                set_current_pipe_name(pipe.name)
-                item = next(gen)
-            # full pipe item may be returned, this is used by ForkPipe step
-            # to redirect execution of an item to another pipe
-            if isinstance(item, ResolvablePipeItem):
-                return item
+            first_evaluated_index: int = None
+            # always reset to end of list for fifo mode, also take into account that new sources can be added
+            # if too many new sources is added we switch to fifo not to exhaust them
+            if (
+                self._next_item_mode == "fifo"
+                or (sources_count - self._initial_sources_count) >= self.max_parallel_items
+            ):
+                self._current_source_index = sources_count - 1
             else:
-                # keep the item assigned step and pipe when creating resolvable item
-                if isinstance(item, DataItemWithMeta):
-                    return ResolvablePipeItem(item.data, step, pipe, item.meta)
-                else:
-                    return ResolvablePipeItem(item, step, pipe, meta)
+                self._current_source_index = (self._current_source_index - 1) % sources_count
+            while True:
+                # if we have checked all sources once and all returned None, then we can sleep a bit
+                if self._current_source_index == first_evaluated_index:
+                    sleep(self.futures_poll_interval)
+                # get next item from the current source
+                gen, step, pipe, meta = self._sources[self._current_source_index]
+                set_current_pipe_name(pipe.name)
+                if (item := next(gen)) is not None:
+                    # full pipe item may be returned, this is used by ForkPipe step
+                    # to redirect execution of an item to another pipe
+                    if isinstance(item, ResolvablePipeItem):
+                        return item
+                    else:
+                        # keep the item assigned step and pipe when creating resolvable item
+                        if isinstance(item, DataItemWithMeta):
+                            return ResolvablePipeItem(item.data, step, pipe, item.meta)
+                        else:
+                            return ResolvablePipeItem(item, step, pipe, meta)
+                # remember the first evaluated index
+                if first_evaluated_index is None:
+                    first_evaluated_index = self._current_source_index
+                # always go round robin if None was returned
+                self._current_source_index = (self._current_source_index - 1) % sources_count
         except StopIteration:
             # remove empty iterator and try another source
-            self._sources.pop(self._round_robin_index)
-            # we need to decrease the index to keep the round robin order
-            self._round_robin_index -= 1
-            # since in this case we have popped an initial source, we need to decrease the initial sources count
-            self._initial_sources_count -= 1
-            return self._get_source_item_round_robin()
+            self._sources.pop(self._current_source_index)
+            # decrease initial source count if we popped an initial source
+            if self._current_source_index < self._initial_sources_count:
+                self._initial_sources_count -= 1
+            return self._get_source_item()
         except (PipelineException, ExtractorException, DltSourceException, PipeException):
             raise
         except Exception as ex:

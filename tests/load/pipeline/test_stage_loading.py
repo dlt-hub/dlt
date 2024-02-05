@@ -177,6 +177,7 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     if destination_config.destination in (
         "redshift",
         "athena",
+        "databricks",
     ) and destination_config.file_format in ("parquet", "jsonl"):
         # Redshift copy doesn't support TIME column
         exclude_types.append("time")
@@ -189,6 +190,9 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     ):
         # Redshift can't load fixed width binary columns from parquet
         exclude_columns.append("col7_precision")
+    if destination_config.destination == "databricks" and destination_config.file_format == "jsonl":
+        exclude_types.extend(["decimal", "binary", "wei", "complex", "date"])
+        exclude_columns.append("col1_precision")
 
     column_schemas, data_types = table_update_and_row(
         exclude_types=exclude_types, exclude_columns=exclude_columns

@@ -13,7 +13,7 @@ Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local l
 </h3>
 
 <div align="center">
-  <a target="_blank" href="https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA" style="background:none">
+  <a target="_blank" href="https://dlthub.com/community" style="background:none">
     <img src="https://img.shields.io/badge/slack-join-dlt.svg?labelColor=191937&color=6F6FF7&logo=slack" style="width: 260px;"  />
   </a>
 </div>
@@ -101,7 +101,7 @@ We suggest that you allow only `patch` level updates automatically:
 
 The dlt project is quickly growing, and we're excited to have you join our community! Here's how you can get involved:
 
-- **Connect with the Community**: Join other dlt users and contributors on our [Slack](https://join.slack.com/t/dlthub-community/shared_invite/zt-1n5193dbq-rCBmJ6p~ckpSFK4hCF2dYA)
+- **Connect with the Community**: Join other dlt users and contributors on our [Slack](https://dlthub.com/community)
 - **Report issues and suggest features**: Please use the [GitHub Issues](https://github.com/dlt-hub/dlt/issues) to report bugs or suggest new features. Before creating a new issue, make sure to search the tracker for possible duplicates and add a comment if you find one.
 - **Track progress of our work and our plans**: Please check out our [public Github project](https://github.com/orgs/dlt-hub/projects/9)
 - **Contribute Verified Sources**: Contribute your custom sources to the [dlt-hub/verified-sources](https://github.com/dlt-hub/verified-sources) to help other folks in handling their data tasks.

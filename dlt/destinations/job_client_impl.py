@@ -50,7 +50,6 @@ from dlt.common.destination.reference import (
     FollowupJob,
     CredentialsConfiguration,
 )
-from dlt.common.utils import concat_strings_with_limit
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     DestinationSchemaTampered,
@@ -76,15 +75,19 @@ class SqlLoadJob(LoadJob):
         with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
             sql = f.read()
 
+        # Some clients (e.g. databricks) do not support multiple statements in one execute call
+        if not sql_client.capabilities.supports_multiple_statements:
+            sql_client.execute_many(self._split_fragments(sql))
         # if we detect ddl transactions, only execute transaction if supported by client
-        if (
+        elif (
             not self._string_containts_ddl_queries(sql)
             or sql_client.capabilities.supports_ddl_transactions
         ):
             # with sql_client.begin_transaction():
             sql_client.execute_sql(sql)
         else:
-            sql_client.execute_sql(sql)
+            # sql_client.execute_sql(sql)
+            sql_client.execute_many(self._split_fragments(sql))
 
     def state(self) -> TLoadJobState:
         # this job is always done
@@ -99,6 +102,9 @@ class SqlLoadJob(LoadJob):
             if re.search(cmd, sql, re.IGNORECASE):
                 return True
         return False
+
+    def _split_fragments(self, sql: str) -> List[str]:
+        return [s + (";" if not s.endswith(";") else "") for s in sql.split(";") if s.strip()]
 
     @staticmethod
     def is_sql_job(file_path: str) -> bool:
@@ -295,6 +301,15 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
     ) -> None:
         self.sql_client.close_connection()
 
+    def _get_storage_table_query_columns(self) -> List[str]:
+        """Column names used when querying table from information schema.
+        Override for databases that use different namings.
+        """
+        fields = ["column_name", "data_type", "is_nullable"]
+        if self.capabilities.schema_supports_numeric_precision:
+            fields += ["numeric_precision", "numeric_scale"]
+        return fields
+
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         def _null_to_bool(v: str) -> bool:
             if v == "NO":
@@ -303,9 +318,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
                 return True
             raise ValueError(v)
 
-        fields = ["column_name", "data_type", "is_nullable"]
-        if self.capabilities.schema_supports_numeric_precision:
-            fields += ["numeric_precision", "numeric_scale"]
+        fields = self._get_storage_table_query_columns()
         db_params = self.sql_client.make_qualified_table_name(table_name, escape=False).split(
             ".", 3
         )
@@ -383,10 +396,7 @@ WHERE """
         sql_scripts, schema_update = self._build_schema_update_sql(only_tables)
         # stay within max query size when doing DDL. some db backends use bytes not characters so decrease limit by half
         # assuming that most of the characters in DDL encode into single bytes
-        for sql_fragment in concat_strings_with_limit(
-            sql_scripts, "\n", self.capabilities.max_query_length // 2
-        ):
-            self.sql_client.execute_sql(sql_fragment)
+        self.sql_client.execute_many(sql_scripts)
         self._update_schema_in_storage(self.schema)
         return schema_update
 

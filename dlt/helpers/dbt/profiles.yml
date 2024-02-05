@@ -158,3 +158,16 @@ athena:
 #       schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
 #       user: "{{ env_var('DLT__CREDENTIALS__USERNAME') }}"
 #       password: "{{ env_var('DLT__CREDENTIALS__PASSWORD') }}"    
+
+
+databricks:
+  target: analytics
+  outputs:
+    analytics:
+      type: databricks
+      catalog: "{{ env_var('DLT__CREDENTIALS__CATALOG') }}"
+      schema: "{{ var('destination_dataset_name', var('source_dataset_name')) }}"
+      host: "{{ env_var('DLT__CREDENTIALS__SERVER_HOSTNAME') }}"
+      http_path: "{{ env_var('DLT__CREDENTIALS__HTTP_PATH') }}"
+      token: "{{ env_var('DLT__CREDENTIALS__ACCESS_TOKEN') }}"
+      threads: 4

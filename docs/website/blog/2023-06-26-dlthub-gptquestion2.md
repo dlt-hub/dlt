@@ -105,5 +105,5 @@ Want to ask your own questions to the `dlt` AI Assistant? Just click on the "Get
 *** 
 [ What's more? ]
 - Learn more about `dlt` 👉 [here](https://dlthub.com/docs/intro) 
-- Want to discuss more? Join our [Slack community](https://dlthub-community.slack.com/ssb/redirect) !
+- Want to discuss more? Join our [Slack community](https://dlthub.com/community) !
 - Try out with dlt demo  👉 [Colab Demo](https://colab.research.google.com/drive/1KU1G_08Yihh5p-o1BsCuhA1OkH5zwgkf?usp=sharing)  ! 

@@ -53,6 +53,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     timestamp_precision: int = 6
     max_rows_per_insert: Optional[int] = None
     insert_values_writer_type: str = "default"
+    supports_multiple_statements: bool = True
+    supports_clone_table: bool = False
+    """Destination supports CREATE TABLE ... CLONE ... statements"""
 
     # do not allow to create default value, destination caps must be always explicitly inserted into container
     can_create_default: ClassVar[bool] = False
@@ -78,4 +81,5 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.is_max_text_data_type_length_in_bytes = True
         caps.supports_ddl_transactions = True
         caps.supports_transactions = True
+        caps.supports_multiple_statements = True
         return caps
