@@ -212,7 +212,7 @@ class DltResourceHints:
         if additional_table_hints is not None:
             # loop through provided hints and add, overwrite, or remove them
             for k, v in additional_table_hints.items():
-                if v:
+                if v is not None:
                     t[k] = v  # type: ignore[literal-required]
                 else:
                     t.pop(k, None)  # type: ignore[misc]
