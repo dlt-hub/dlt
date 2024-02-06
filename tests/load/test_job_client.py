@@ -28,13 +28,13 @@ from dlt.destinations.exceptions import (
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.common.destination.reference import WithStagingDataset
 
+from tests.cases import table_update_and_row, assert_all_data_types_row
 from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
 from tests.common.utils import load_json_case
 from tests.load.utils import (
     TABLE_UPDATE,
     TABLE_UPDATE_COLUMNS_SCHEMA,
     TABLE_ROW_ALL_DATA_TYPES,
-    assert_all_data_types_row,
     expect_load_file,
     load_table,
     yield_client_with_storage,
@@ -387,7 +387,10 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
             "time",
         ):
             continue
-        if client.config.destination_type == "mssql" and c["data_type"] in ("complex"):
+        # mssql and synapse have no native data type for the complex type.
+        if client.config.destination_type in ("mssql", "synapse") and c["data_type"] in ("complex"):
+            continue
+        if client.config.destination_type == "databricks" and c["data_type"] in ("complex", "time"):
             continue
         assert c["data_type"] == expected_c["data_type"]
 
@@ -502,9 +505,14 @@ def test_load_with_all_types(
     if not client.capabilities.preferred_loader_file_format:
         pytest.skip("preferred loader file format not set, destination will only work with staging")
     table_name = "event_test_table" + uniq_id()
+    column_schemas, data_types = table_update_and_row(
+        exclude_types=["time"] if client.config.destination_type == "databricks" else None,
+    )
     # we should have identical content with all disposition types
     client.schema.update_table(
-        new_table(table_name, write_disposition=write_disposition, columns=TABLE_UPDATE)
+        new_table(
+            table_name, write_disposition=write_disposition, columns=list(column_schemas.values())
+        )
     )
     client.schema.bump_version()
     client.update_stored_schema()
@@ -521,12 +529,12 @@ def test_load_with_all_types(
         canonical_name = client.sql_client.make_qualified_table_name(table_name)
     # write row
     with io.BytesIO() as f:
-        write_dataset(client, f, [TABLE_ROW_ALL_DATA_TYPES], TABLE_UPDATE_COLUMNS_SCHEMA)
+        write_dataset(client, f, [data_types], column_schemas)
         query = f.getvalue().decode()
     expect_load_file(client, file_storage, query, table_name)
     db_row = list(client.sql_client.execute_sql(f"SELECT * FROM {canonical_name}")[0])
     # content must equal
-    assert_all_data_types_row(db_row)
+    assert_all_data_types_row(db_row, schema=column_schemas)
 
 
 @pytest.mark.parametrize(

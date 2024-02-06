@@ -27,6 +27,7 @@ Above we want to use **filesystem** built-in destination. You can use shorthand 
 <!--@@@DLT_SNIPPET_START ./snippets/destination-snippets.py::class_type-->
 ```py
 import dlt
+
 pipeline = dlt.pipeline("pipeline", destination="dlt.destinations.filesystem")
 ```
 <!--@@@DLT_SNIPPET_END ./snippets/destination-snippets.py::class_type-->
@@ -37,6 +38,7 @@ Above we use built in **filesystem** destination by providing a class type `file
 ```py
 import dlt
 from dlt.destinations import filesystem
+
 pipeline = dlt.pipeline("pipeline", destination=filesystem)
 ```
 <!--@@@DLT_SNIPPET_END ./snippets/destination-snippets.py::class-->
@@ -50,6 +52,7 @@ You can instantiate **destination class** yourself to configure it explicitly. W
 <!--@@@DLT_SNIPPET_START ./snippets/destination-snippets.py::instance-->
 ```py
 import dlt
+
 azure_bucket = filesystem("az://dlt-azure-bucket", destination_name="production_az_bucket")
 pipeline = dlt.pipeline("pipeline", destination=azure_bucket)
 ```
@@ -99,7 +102,10 @@ import dlt
 from dlt.destinations import postgres
 
 # pass full credentials - together with the password (not recommended)
-pipeline = dlt.pipeline("pipeline", destination=postgres(credentials="postgresql://loader:loader@localhost:5432/dlt_data"))
+pipeline = dlt.pipeline(
+    "pipeline",
+    destination=postgres(credentials="postgresql://loader:loader@localhost:5432/dlt_data"),
+)
 ```
 <!--@@@DLT_SNIPPET_END ./snippets/destination-snippets.py::config_explicit-->
 
@@ -126,7 +132,9 @@ from dlt.sources.credentials import AzureCredentials
 credentials = AzureCredentials()
 # fill only the account name, leave key to be taken from secrets
 credentials.azure_storage_account_name = "production_storage"
-pipeline = dlt.pipeline("pipeline", destination=filesystem("az://dlt-azure-bucket", credentials=credentials))
+pipeline = dlt.pipeline(
+    "pipeline", destination=filesystem("az://dlt-azure-bucket", credentials=credentials)
+)
 ```
 <!--@@@DLT_SNIPPET_END ./snippets/destination-snippets.py::config_partial_spec-->
 

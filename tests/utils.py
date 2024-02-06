@@ -46,6 +46,8 @@ IMPLEMENTED_DESTINATIONS = {
     "mssql",
     "qdrant",
     "sink",
+    "synapse",
+    "databricks",
 }
 NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant", "sink"}
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS

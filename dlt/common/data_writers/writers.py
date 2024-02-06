@@ -175,18 +175,29 @@ class InsertValuesWriter(DataWriter):
         # do not write INSERT INTO command, this must be added together with table name by the loader
         self._f.write("INSERT INTO {}(")
         self._f.write(",".join(map(self._caps.escape_identifier, headers)))
-        self._f.write(")\nVALUES\n")
+        if self._caps.insert_values_writer_type == "default":
+            self._f.write(")\nVALUES\n")
+        elif self._caps.insert_values_writer_type == "select_union":
+            self._f.write(")\n")
 
     def write_data(self, rows: Sequence[Any]) -> None:
         super().write_data(rows)
 
-        def write_row(row: StrAny) -> None:
+        def write_row(row: StrAny, last_row: bool = False) -> None:
             output = ["NULL"] * len(self._headers_lookup)
             for n, v in row.items():
                 output[self._headers_lookup[n]] = self._caps.escape_literal(v)
-            self._f.write("(")
-            self._f.write(",".join(output))
-            self._f.write(")")
+            if self._caps.insert_values_writer_type == "default":
+                self._f.write("(")
+                self._f.write(",".join(output))
+                self._f.write(")")
+                if not last_row:
+                    self._f.write(",\n")
+            elif self._caps.insert_values_writer_type == "select_union":
+                self._f.write("SELECT ")
+                self._f.write(",".join(output))
+                if not last_row:
+                    self._f.write("\nUNION ALL\n")
 
         # if next chunk add separator
         if self._chunks_written > 0:
@@ -195,10 +206,9 @@ class InsertValuesWriter(DataWriter):
         # write rows
         for row in rows[:-1]:
             write_row(row)
-            self._f.write(",\n")
 
         # write last row without separator so we can write footer eventually
-        write_row(rows[-1])
+        write_row(rows[-1], last_row=True)
         self._chunks_written += 1
 
     def write_footer(self) -> None:

@@ -20,6 +20,8 @@ from dlt.destinations.type_mapping import TypeMapper
 
 
 HINT_TO_MSSQL_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
+VARCHAR_MAX_N: int = 4000
+VARBINARY_MAX_N: int = 8000
 
 
 class MsSqlTypeMapper(TypeMapper):

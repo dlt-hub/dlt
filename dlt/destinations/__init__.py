@@ -11,6 +11,8 @@ from dlt.destinations.impl.qdrant.factory import qdrant
 from dlt.destinations.impl.motherduck.factory import motherduck
 from dlt.destinations.impl.weaviate.factory import weaviate
 from dlt.destinations.impl.sink.factory import sink
+from dlt.destinations.impl.synapse.factory import synapse
+from dlt.destinations.impl.databricks.factory import databricks
 
 
 __all__ = [
@@ -26,4 +28,7 @@ __all__ = [
     "qdrant",
     "motherduck",
     "weaviate",
+    "synapse",
+    "databricks",
+    "sink"
 ]

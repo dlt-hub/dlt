@@ -263,7 +263,13 @@ def pipeline_command(
             fmt.warning("Pipeline does not have a default schema")
         else:
             fmt.echo("Found schema with name %s" % fmt.bold(p.default_schema_name))
-        schema_str = p.default_schema.to_pretty_yaml(remove_defaults=True)
+        format_ = command_kwargs.get("format")
+        remove_defaults_ = command_kwargs.get("remove_defaults")
+        s = p.default_schema
+        if format_ == "json":
+            schema_str = json.dumps(s.to_dict(remove_defaults=remove_defaults_), pretty=True)
+        else:
+            schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
         fmt.echo(schema_str)
 
     if operation == "drop":

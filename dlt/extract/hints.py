@@ -1,5 +1,5 @@
 from copy import copy, deepcopy
-from typing import List, TypedDict, cast, Any
+from typing import List, TypedDict, cast, Any, Optional, Dict
 
 from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
 from dlt.common.schema.typing import (
@@ -125,6 +125,7 @@ class DltResourceHints:
         merge_key: TTableHintTemplate[TColumnNames] = None,
         incremental: Incremental[Any] = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
+        additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
     ) -> None:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 
@@ -208,6 +209,14 @@ class DltResourceHints:
                 t["incremental"] = None
             else:
                 t["incremental"] = incremental
+        if additional_table_hints is not None:
+            # loop through provided hints and add, overwrite, or remove them
+            for k, v in additional_table_hints.items():
+                if v is not None:
+                    t[k] = v  # type: ignore[literal-required]
+                else:
+                    t.pop(k, None)  # type: ignore[misc]
+
         self.set_hints(t)
 
     def set_hints(self, hints_template: TResourceHints) -> None:
