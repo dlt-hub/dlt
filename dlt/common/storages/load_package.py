@@ -17,6 +17,7 @@ from typing import (
     get_args,
     cast,
     Any,
+    Tuple,
 )
 
 from dlt.common import pendulum, json
@@ -27,13 +28,63 @@ from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
 from dlt.common.storages import FileStorage
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize
+from dlt.common.typing import DictStrAny, SupportsHumanize
 from dlt.common.utils import flatten_list_or_items
+from dlt.common.versioned_state import (
+    generate_state_version_hash,
+    bump_state_version_if_modified,
+    TVersionedState,
+    default_versioned_state,
+)
+from typing_extensions import NotRequired
+
+
+class TLoadPackageState(TVersionedState, total=False):
+    created: int
+    """Timestamp when the loadpackage was created"""
+
+    """A section of state that does not participate in change merging and version control"""
+    destinations: NotRequired[Dict[str, Dict[str, Any]]]
+    """private space for destinations to store state relevant only to the load package"""
+
+
+# allows to upgrade state when restored with a new version of state logic/schema
+LOADPACKAGE_STATE_ENGINE_VERSION = 1
+
+
+def generate_loadpackage_state_version_hash(state: TLoadPackageState) -> str:
+    return generate_state_version_hash(state)
+
+
+def bump_loadpackage_state_version_if_modified(state: TLoadPackageState) -> Tuple[int, str, str]:
+    return bump_state_version_if_modified(state)
+
+
+def migrate_loadpackage_state(
+    state: DictStrAny, from_engine: int, to_engine: int
+) -> TLoadPackageState:
+    if from_engine == to_engine:
+        return cast(TLoadPackageState, state)
+
+    # check state engine
+    if from_engine != to_engine:
+        raise Exception("No upgrade path for loadpackage state")
+
+    state["_state_engine_version"] = from_engine
+    return cast(TLoadPackageState, state)
+
+
+def default_loadpackage_state() -> TLoadPackageState:
+    return {
+        **default_versioned_state(),
+        "_state_engine_version": LOADPACKAGE_STATE_ENGINE_VERSION,
+    }
+
 
 # folders to manage load jobs in a single load package
 TJobState = Literal["new_jobs", "failed_jobs", "started_jobs", "completed_jobs"]
 WORKING_FOLDERS: Set[TJobState] = set(get_args(TJobState))
-TLoadPackageState = Literal["new", "extracted", "normalized", "loaded", "aborted"]
+TLoadPackageStatus = Literal["new", "extracted", "normalized", "loaded", "aborted"]
 
 
 class ParsedLoadJobFileName(NamedTuple):
@@ -125,7 +176,7 @@ class LoadJobInfo(NamedTuple):
 class _LoadPackageInfo(NamedTuple):
     load_id: str
     package_path: str
-    state: TLoadPackageState
+    state: TLoadPackageStatus
     schema: Schema
     schema_update: TSchemaTables
     completed_at: datetime.datetime
@@ -205,7 +256,7 @@ class PackageStorage:
         "load_package_state.json"
     )
 
-    def __init__(self, storage: FileStorage, initial_state: TLoadPackageState) -> None:
+    def __init__(self, storage: FileStorage, initial_state: TLoadPackageStatus) -> None:
         """Creates storage that manages load packages with root at `storage` and initial package state `initial_state`"""
         self.storage = storage
         self.initial_state = initial_state
@@ -339,10 +390,13 @@ class PackageStorage:
         self.storage.create_folder(os.path.join(load_id, PackageStorage.COMPLETED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.FAILED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.STARTED_JOBS_FOLDER))
-        # create new (and empty) state
-        # self.save_load_package_state(load_id, {})
+        # ensure created timestamp is set in state when load package is created
+        state = self.get_load_package_state(load_id)
+        if not state.get("created"):
+            state["created"] = pendulum.now().timestamp()
+            self.save_load_package_state(load_id, state)
 
-    def complete_loading_package(self, load_id: str, load_state: TLoadPackageState) -> str:
+    def complete_loading_package(self, load_id: str, load_state: TLoadPackageStatus) -> str:
         """Completes loading the package by writing marker file with`package_state. Returns path to the completed package"""
         load_path = self.get_package_path(load_id)
         # save marker file
@@ -389,22 +443,26 @@ class PackageStorage:
     #
     # Loadpackage state
     #
-    def get_load_package_state(self, load_id: str) -> DictStrAny:
+    def get_load_package_state(self, load_id: str) -> TLoadPackageState:
         package_path = self.get_package_path(load_id)
         if not self.storage.has_folder(package_path):
             raise LoadPackageNotFound(load_id)
         try:
-            state = self.storage.load(
+            state_dump = self.storage.load(
                 os.path.join(package_path, PackageStorage.LOAD_PACKAGE_STATE_FILE_NAME)
             )
-            return cast(DictStrAny, json.loads(state))
+            state = json.loads(state_dump)
+            return migrate_loadpackage_state(
+                state, state["_state_engine_version"], LOADPACKAGE_STATE_ENGINE_VERSION
+            )
         except FileNotFoundError:
-            return {}
+            return default_loadpackage_state()
 
-    def save_load_package_state(self, load_id: str, state: DictStrAny) -> None:
+    def save_load_package_state(self, load_id: str, state: TLoadPackageState) -> None:
         package_path = self.get_package_path(load_id)
         if not self.storage.has_folder(package_path):
             raise LoadPackageNotFound(load_id)
+        bump_loadpackage_state_version_if_modified(state)
         self.storage.save(
             os.path.join(package_path, PackageStorage.LOAD_PACKAGE_STATE_FILE_NAME),
             json.dumps(state),

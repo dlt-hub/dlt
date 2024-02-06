@@ -19,6 +19,7 @@ from dlt.common.storages.load_package import (
     PackageStorage,
     ParsedLoadJobFileName,
     TJobState,
+    TLoadPackageState,
 )
 from dlt.common.storages.exceptions import JobWithUnsupportedWriterException, LoadPackageNotFound
 
@@ -186,7 +187,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         except LoadPackageNotFound:
             return self.normalized_packages.get_load_package_info(load_id)
 
-    def get_load_package_state(self, load_id: str) -> DictStrAny:
+    def get_load_package_state(self, load_id: str) -> TLoadPackageState:
         """Gets state of normlized or loaded package with given load_id, all jobs and their statuses."""
         try:
             return self.loaded_packages.get_load_package_state(load_id)

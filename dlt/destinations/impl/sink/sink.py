@@ -145,7 +145,11 @@ class SinkClient(JobClientBase):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         # save our state in destination name scope
-        load_state = load_package_state().setdefault(self.config.destination_name, {})
+        load_state = (
+            load_package_state()
+            .setdefault("destinations", {})
+            .setdefault(self.config.destination_name, {})
+        )
         if file_path.endswith("parquet"):
             return SinkParquetLoadJob(table, file_path, self.config, self.schema, load_state)
         if file_path.endswith("jsonl"):
@@ -158,7 +162,7 @@ class SinkClient(JobClientBase):
     def complete_load(self, load_id: str) -> None:
         # pop all state for this load on success
         state = load_package_state()
-        state.pop(self.config.destination_name, None)
+        state["destinations"].pop(self.config.destination_name, None)
         commit_load_package_state()
 
     def __enter__(self) -> "SinkClient":

@@ -30,5 +30,5 @@ __all__ = [
     "weaviate",
     "synapse",
     "databricks",
-    "sink"
+    "sink",
 ]

@@ -45,6 +45,8 @@ from dlt.common.typing import DictStrAny, REPattern, StrAny, SupportsHumanize
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
 from dlt.common.data_writers.writers import DataWriterMetrics, TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
+from dlt.common.versioned_state import TVersionedState
+from dlt.common.storages.load_package import TLoadPackageState
 
 
 class _StepInfo(NamedTuple):
@@ -448,7 +450,7 @@ class TPipelineLocalState(TypedDict, total=False):
     """Hash of state that was recently synced with destination"""
 
 
-class TPipelineState(TypedDict, total=False):
+class TPipelineState(TVersionedState, total=False):
     """Schema for a pipeline state that is stored within the pipeline working directory"""
 
     pipeline_name: str
@@ -463,9 +465,6 @@ class TPipelineState(TypedDict, total=False):
     staging_type: Optional[str]
 
     # properties starting with _ are not automatically applied to pipeline object when state is restored
-    _state_version: int
-    _version_hash: str
-    _state_engine_version: int
     _local: TPipelineLocalState
     """A section of state that is not synchronized with the destination and does not participate in change merging and version control"""
 
@@ -601,14 +600,14 @@ class StateInjectableContext(ContainerInjectableContext):
 
 @configspec
 class LoadPackageStateInjectableContext(ContainerInjectableContext):
-    state: DictStrAny
+    state: TLoadPackageState
     commit: Optional[Callable[[], None]]
     can_create_default: ClassVar[bool] = False
 
     if TYPE_CHECKING:
 
         def __init__(
-            self, state: DictStrAny = None, commit: Optional[Callable[[], None]] = None
+            self, state: TLoadPackageState = None, commit: Optional[Callable[[], None]] = None
         ) -> None: ...
 
 
@@ -692,7 +691,7 @@ def source_state() -> DictStrAny:
 _last_full_state: TPipelineState = None
 
 
-def load_package_state() -> DictStrAny:
+def load_package_state() -> TLoadPackageState:
     container = Container()
     # get injected state if present. injected load package state is typically "managed" so changes will be persisted
     # if you need to save the load package state during a load, you need to call commit_load_package_state

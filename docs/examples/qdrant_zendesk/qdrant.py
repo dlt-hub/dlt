@@ -10,13 +10,12 @@ from qdrant_client import QdrantClient
 
 from dlt.common.configuration.inject import with_config
 
+
 # function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
 @dlt.source(max_table_nesting=2)
 def zendesk_support(
     credentials: Dict[str, str] = dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = pendulum.datetime(  # noqa: B008
-        year=2000, month=1, day=1
-    ),
+    start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
     end_date: Optional[TAnyDateTime] = None,
 ):
     """
@@ -80,12 +79,14 @@ def _parse_date_or_none(value: Optional[str]) -> Optional[pendulum.DateTime]:
         return None
     return ensure_pendulum_datetime(value)
 
+
 # modify dates to return datetime objects instead
 def _fix_date(ticket):
     ticket["updated_at"] = _parse_date_or_none(ticket["updated_at"])
     ticket["created_at"] = _parse_date_or_none(ticket["created_at"])
     ticket["due_at"] = _parse_date_or_none(ticket["due_at"])
     return ticket
+
 
 # function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
 def get_pages(
@@ -127,6 +128,7 @@ def get_pages(
         if not response_json["end_of_stream"]:
             get_url = response_json["next_page"]
 
+
 if __name__ == "__main__":
     # create a pipeline with an appropriate name
     pipeline = dlt.pipeline(
@@ -145,7 +147,6 @@ if __name__ == "__main__":
     )
 
     print(load_info)
-
 
     # running the Qdrant client to connect to your Qdrant database
 

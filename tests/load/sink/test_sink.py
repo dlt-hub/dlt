@@ -235,7 +235,7 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
     assert_items_in_range(calls["items"], 0, 100)
     assert_items_in_range(calls["items2"], 0, 100)
     # destination state should be cleared after load
-    assert p.get_load_package_state(load_id) == {}
+    assert p.get_load_package_state(load_id)["destinations"] == {}
 
     # provoke errors
     calls = {}
@@ -246,9 +246,10 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
 
     # we should have data for one load id saved here
     load_id = p.list_normalized_load_packages()[0]
-    load_package_state = p.get_load_package_state(load_id)
+    load_package_state = p.get_load_package_state(load_id)["destinations"]
 
     assert len(load_package_state) == 1
+
     # get saved indexes mapped to table (this test will only work for one job per table)
     values = {k.split(".")[0]: v for k, v in list(load_package_state.values())[0].items()}
 
@@ -275,7 +276,7 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
     calls = {}
     p.load()
     # state should be cleared again
-    load_package_state = p.get_load_package_state(load_id)
+    load_package_state = p.get_load_package_state(load_id)["destinations"]
     assert load_package_state == {}
 
     # both calls combined should have every item called just once
