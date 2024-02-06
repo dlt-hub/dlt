@@ -134,7 +134,7 @@ def pydantic_to_table_schema_columns(
 
         if data_type == "complex" and skip_complex_types:
             continue
-        elif is_inner_type_pydantic_model and skip_complex_types:
+        elif is_inner_type_pydantic_model and not skip_complex_types:
             # This case is for a single field schema/model
             # we need to generate snake_case field names
             # and return flattened field schemas
@@ -146,7 +146,7 @@ def pydantic_to_table_schema_columns(
                     **hints,
                     "name": snake_case_naming_convention.make_path(name, hints["name"]),
                 }
-        elif is_inner_type_pydantic_model and not skip_complex_types:
+        elif is_inner_type_pydantic_model and skip_complex_types:
             result[name] = {
                 "name": name,
                 "data_type": "complex",
