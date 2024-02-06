@@ -15,7 +15,7 @@ from dlt.common.destination.reference import Destination
 from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException, PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.state_sync import (
-    generate_state_version_hash,
+    generate_pipeline_state_version_hash,
     migrate_pipeline_state,
     PIPELINE_STATE_ENGINE_VERSION,
 )
@@ -493,7 +493,7 @@ def test_migrate_pipeline_state(test_storage: FileStorage) -> None:
     assert state["_state_engine_version"] == 3
     assert "_local" in state
     assert "_version_hash" in state
-    assert state["_version_hash"] == generate_state_version_hash(state)
+    assert state["_version_hash"] == generate_pipeline_state_version_hash(state)
 
     # full migration
     state_v1 = load_json_case("state/state.v1")
@@ -529,7 +529,7 @@ def test_migrate_pipeline_state(test_storage: FileStorage) -> None:
     assert p.dataset_name == "debug_pipeline_data"
     assert p.default_schema_name == "example_source"
     state = p.state
-    assert state["_version_hash"] == generate_state_version_hash(state)
+    assert state["_version_hash"] == generate_pipeline_state_version_hash(state)
 
     # specifically check destination v3 to v4 migration
     state_v3 = {
