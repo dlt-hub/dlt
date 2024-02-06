@@ -414,6 +414,30 @@ def test_extract_multiple_sources() -> None:
     assert set(p._schema_storage.list_schemas()) == {"default", "default_2"}
 
 
+def test_mark_hints() -> None:
+    # this resource emits table schema with first item
+    @dlt.resource
+    def with_mark():
+        yield dlt.mark.with_hints(
+            {"id": 1},
+            dlt.mark.make_hints(
+                table_name="spec_table", write_disposition="merge", primary_key="id"
+            ),
+        )
+        yield {"id": 2}
+
+    p = dlt.pipeline(destination="dummy", pipeline_name="mark_pipeline")
+    p.extract(with_mark())
+    storage = ExtractStorage(p._normalize_storage_config())
+    expect_extracted_file(storage, "mark", "spec_table", json.dumps([{"id": 1}, {"id": 2}]))
+    p.normalize()
+    # no "with_mark" table in the schema: we update resource hints before any table schema is computed
+    assert "with_mark" not in p.default_schema.tables
+    assert "spec_table" in p.default_schema.tables
+    # resource name is kept
+    assert p.default_schema.tables["spec_table"]["resource"] == "with_mark"
+
+
 def test_restore_state_on_dummy() -> None:
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
 
