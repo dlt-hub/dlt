@@ -13,7 +13,7 @@ from dlt.common.configuration.specs import AzureCredentials, AzureCredentialsWit
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import (
     register_implementation_in_fsspec,
-    MTIME_DISPATCH,
+    extract_mtime,
     glob_files,
 )
 from dlt.common.utils import uniq_id
@@ -96,7 +96,7 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
     def check_file_changed():
         details = filesystem.info(file_url)
         assert details["size"] == 11
-        assert (MTIME_DISPATCH[config.protocol](details) - now).seconds < 60
+        assert (extract_mtime(details, config.protocol) - now).seconds < 60
 
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     config = get_config()

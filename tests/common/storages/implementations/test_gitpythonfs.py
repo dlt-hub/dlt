@@ -173,7 +173,7 @@ def test_ls_file_details(repo_fixture: Iterator[Any]) -> None:
     assert isinstance(
         details["mode"], str
     ), "Should be a string representation of octal, without the 0o prefix."
-    assert isinstance(details["committed_date"], int)
+    assert isinstance(details["mtime"], int)
 
 
 def test_git_refs(repo_fixture: Iterator[Any]) -> None:

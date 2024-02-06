@@ -49,21 +49,20 @@ class FileItem(TypedDict, total=False):
     file_content: Optional[bytes]
 
 
-# Map of protocol to mtime resolver
-# we only need to support a small finite set of protocols
-MTIME_DISPATCH = {
-    "s3": lambda f: ensure_pendulum_datetime(f["LastModified"]),
-    "adl": lambda f: ensure_pendulum_datetime(f["LastModified"]),
-    "az": lambda f: ensure_pendulum_datetime(f["last_modified"]),
-    "gcs": lambda f: ensure_pendulum_datetime(f["updated"]),
-    "file": lambda f: ensure_pendulum_datetime(f["mtime"]),
-    "memory": lambda f: ensure_pendulum_datetime(f["created"]),
-    "gdrive": lambda f: ensure_pendulum_datetime(f["modifiedTime"]),
+DEFAULT_MTIME_FIELD_NAME = "mtime"
+MTIME_FIELD_NAMES = {
+    "file": "mtime",
+    "s3": "LastModified",
+    "adl": "LastModified",
+    "az": "last_modified",
+    "gcs": "updated",
+    "memory": "created",
+    "gdrive": "modifiedTime",
 }
 # Support aliases
-MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]
-MTIME_DISPATCH["s3a"] = MTIME_DISPATCH["s3"]
-MTIME_DISPATCH["abfs"] = MTIME_DISPATCH["az"]
+MTIME_FIELD_NAMES["gs"] = MTIME_FIELD_NAMES["gcs"]
+MTIME_FIELD_NAMES["s3a"] = MTIME_FIELD_NAMES["s3"]
+MTIME_FIELD_NAMES["abfs"] = MTIME_FIELD_NAMES["az"]
 
 # Map of protocol to a filesystem type
 CREDENTIALS_DISPATCH: Dict[str, Callable[[FilesystemConfiguration], DictStrAny]] = {
@@ -110,7 +109,7 @@ def register_implementation_in_fsspec(protocol: str) -> None:
     if protocol in known_implementations:
         return
 
-    if not protocol in CUSTOM_IMPLEMENTATIONS:
+    if protocol not in CUSTOM_IMPLEMENTATIONS:
         raise ValueError(
             f"Unknown protocol: '{protocol}' is not an fsspec known "
             "implementations nor a dlt custom implementations."
@@ -304,6 +303,32 @@ def guess_mime_type(file_name: str) -> Sequence[str]:
     return type_
 
 
+def extract_mtime(file_metadata: Dict[str, Any], protocol: str = None) -> pendulum.DateTime:
+    """Extract the modification time from file listing metadata.
+
+    Args:
+        file_metadata (Dict[str, Any]): The file metadata.
+        protocol (str) [Optional]: The protocol. If not provided, None or not a known protocol,
+            then default field name `mtime` is tried. `mtime` is used for the "file" fsspec
+            implementation and our custom fsspec implementations.
+
+    Returns:
+        pendulum.DateTime: The modification time.
+
+    Raises:
+        KeyError: If the resolved field name is not found in the metadata. Current dlt use-cases
+            depend on a modified date. For example, transactional files, incremental destination
+            loading.
+    """
+    field_name = MTIME_FIELD_NAMES.get(protocol, DEFAULT_MTIME_FIELD_NAME)
+    try:
+        return ensure_pendulum_datetime(file_metadata[field_name])
+    except KeyError:
+        if protocol not in MTIME_FIELD_NAMES:
+            extra_message = " {DEFAULT_MTIME_FIELD_NAME} was used by default."
+        raise KeyError(f"`{field_name}` not found in metadata.{extra_message}")
+
+
 def glob_files(
     fs_client: AbstractFileSystem, bucket_url: str, file_glob: str = "**"
 ) -> Iterator[FileItem]:
@@ -350,12 +375,14 @@ def glob_files(
             path=posixpath.join(bucket_url_parsed.path, file_name)
         ).geturl()
 
+        modification_date = extract_mtime(md, bucket_url_parsed.scheme)
+
         mime_type, encoding = guess_mime_type(file_name)
         yield FileItem(
             file_name=file_name,
             file_url=file_url,
             mime_type=mime_type,
             encoding=encoding,
-            modification_date=MTIME_DISPATCH[bucket_url_parsed.scheme](md),
+            modification_date=modification_date,
             size_in_bytes=int(md["size"]),
         )
