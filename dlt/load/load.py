@@ -566,23 +566,14 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         schema = self.load_storage.normalized_packages.load_schema(load_id)
         logger.info(f"Loaded schema name {schema.name} and version {schema.stored_version}")
 
-        # prepare load package state context
-        load_package_state = self.load_storage.normalized_packages.get_load_package_state(load_id)
-        state_save_lock = threading.Lock()
-
-        def commit_load_package_state() -> None:
-            with state_save_lock:
-                self.load_storage.normalized_packages.save_load_package_state(
-                    load_id, load_package_state
-                )
-
         container = Container()
         # get top load id and mark as being processed
         with self.collector(f"Load {schema.name} in {load_id}"):
             with container.injectable_context(
                 LoadPackageStateInjectableContext(
-                    state=load_package_state,
-                    commit=commit_load_package_state,
+                    storage=self.load_storage.normalized_packages,
+                    load_id=load_id,
+                    destination_name=self.initial_client_config.destination_name,
                 )
             ):
                 # the same load id may be processed across multiple runs

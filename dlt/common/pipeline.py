@@ -3,6 +3,8 @@ import os
 import datetime  # noqa: 251
 import humanize
 import contextlib
+import threading
+
 from typing import (
     Any,
     Callable,
@@ -40,6 +42,8 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnNames, TColumnSchema, TWriteDisposition, TSchemaContract
 from dlt.common.source import get_current_pipe_name
 from dlt.common.storages.load_storage import LoadPackageInfo
+from dlt.common.storages.load_package import PackageStorage
+
 from dlt.common.time import ensure_pendulum_datetime, precise_time
 from dlt.common.typing import DictStrAny, REPattern, StrAny, SupportsHumanize
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
@@ -600,14 +604,23 @@ class StateInjectableContext(ContainerInjectableContext):
 
 @configspec
 class LoadPackageStateInjectableContext(ContainerInjectableContext):
-    state: TLoadPackageState
-    commit: Optional[Callable[[], None]]
+    storage: PackageStorage
+    load_id: str
+    destination_name: Optional[str]
     can_create_default: ClassVar[bool] = False
+
+    def commit(self) -> None:
+        with self.state_save_lock:
+            self.storage.save_load_package_state(self.load_id, self.state)
+
+    def on_resolved(self) -> None:
+        self.state_save_lock = threading.Lock()
+        self.state = self.storage.get_load_package_state(self.load_id)
 
     if TYPE_CHECKING:
 
         def __init__(
-            self, state: TLoadPackageState = None, commit: Optional[Callable[[], None]] = None
+            self, load_id: str, storage: PackageStorage, destination_name: Optional[str]
         ) -> None: ...
 
 
@@ -692,6 +705,7 @@ _last_full_state: TPipelineState = None
 
 
 def load_package_state() -> TLoadPackageState:
+    """Get full load package state present in current context. Across all threads this will be the same in memory dict."""
     container = Container()
     # get injected state if present. injected load package state is typically "managed" so changes will be persisted
     # if you need to save the load package state during a load, you need to call commit_load_package_state
@@ -703,12 +717,29 @@ def load_package_state() -> TLoadPackageState:
 
 
 def commit_load_package_state() -> None:
+    """Commit load package state present in current context. This is thread safe."""
     container = Container()
     try:
         state_ctx = container[LoadPackageStateInjectableContext]
     except ContextDefaultCannotBeCreated:
         raise Exception("Load package state not available")
     state_ctx.commit()
+
+
+def load_package_destination_state() -> DictStrAny:
+    """Get segment of load package state that is specific to the current destination."""
+    lp_state = load_package_state()
+    destination_name = Container()[LoadPackageStateInjectableContext].destination_name
+    return lp_state.setdefault("destinations", {}).setdefault(destination_name, {})
+
+
+def clear_loadpackage_destination_state(commit: bool = True) -> None:
+    """Clear segment of load package state that is specific to the current destination. Optionally commit to load package."""
+    lp_state = load_package_state()
+    destination_name = Container()[LoadPackageStateInjectableContext].destination_name
+    lp_state["destinations"].pop(destination_name, None)
+    if commit:
+        commit_load_package_state()
 
 
 def _delete_source_state_keys(
