@@ -52,6 +52,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     schema_supports_numeric_precision: bool = True
     timestamp_precision: int = 6
     max_rows_per_insert: Optional[int] = None
+    insert_values_writer_type: str = "default"
     supports_multiple_statements: bool = True
     supports_clone_table: bool = False
     """Destination supports CREATE TABLE ... CLONE ... statements"""
