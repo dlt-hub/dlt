@@ -19,7 +19,7 @@ If you are considering doing a data engineering project consider the following
 - Ideally the api should have some use case that you are modelling and showing the data for
 - Ideally, you build end to end pipelines to showcase extraction, ingestion, modelling and displaying data.
 
-his article outlines 10 APIs, detailing their use cases, any free tier limitations, and authentication needs.
+This article outlines 10 APIs, detailing their use cases, any free tier limitations, and authentication needs.
 
 ## APIs Overview
 
