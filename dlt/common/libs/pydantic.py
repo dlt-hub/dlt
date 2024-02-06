@@ -113,7 +113,6 @@ def pydantic_to_table_schema_columns(
         if inner_type is Any:  # Any fields will be inferred from data
             continue
 
-        is_inner_type_pydantic_model = False
         if is_list_generic_type(inner_type):
             inner_type = list
         elif is_dict_generic_type(inner_type):
@@ -121,17 +120,24 @@ def pydantic_to_table_schema_columns(
         elif issubclass(inner_type, BaseModel):
             is_inner_type_pydantic_model = True
 
+        is_inner_type_pydantic_model = False
         name = field.alias or field_name
         try:
             data_type = py_type_to_sc_type(inner_type)
         except TypeError:
-            # try to coerce unknown type to text
-            data_type = "text"
+            if issubclass(inner_type, BaseModel):
+                data_type = "complex"
+                is_inner_type_pydantic_model = True
+            else:
+                # try to coerce unknown type to text
+                data_type = "text"
 
-        # This case is for a single field schema/model
-        # we need to generate snake_case field names
-        # and return flattened field schemas
-        if is_inner_type_pydantic_model and skip_complex_types:
+        if data_type == "complex" and skip_complex_types:
+            continue
+        elif is_inner_type_pydantic_model and skip_complex_types:
+            # This case is for a single field schema/model
+            # we need to generate snake_case field names
+            # and return flattened field schemas
             schema_hints = pydantic_to_table_schema_columns(field.annotation)
 
             for field_name, hints in schema_hints.items():
@@ -140,8 +146,6 @@ def pydantic_to_table_schema_columns(
                     **hints,
                     "name": snake_case_naming_convention.make_path(name, hints["name"]),
                 }
-        elif data_type == "complex" and skip_complex_types:
-            continue
         elif is_inner_type_pydantic_model and not skip_complex_types:
             result[name] = {
                 "name": name,
