@@ -116,14 +116,16 @@ def test_flattens_model_when_skip_complex_types_is_not_set():
             }
 
             assert loaded_values == {
-                "child": '{"child_attribute":"any string","optional_child_attribute":null}',
+                "child__child_attribute": "any string",
+                "child__optional_child_attribute": None,
                 "optional_parent_attribute": None,
                 "data_dictionary": '{"child_attribute":"any string"}',
             }
 
     keys = p.default_schema.tables["items"]["columns"].keys()
     assert keys == {
-        "child",
+        "child__child_attribute",
+        "child__optional_child_attribute",
         "optional_parent_attribute",
         "data_dictionary",
         "_dlt_load_id",
@@ -131,11 +133,6 @@ def test_flattens_model_when_skip_complex_types_is_not_set():
     }
 
     columns = p.default_schema.tables["items"]["columns"]
-    assert columns["child"] == {
-        "name": "child",
-        "data_type": "complex",
-        "nullable": False,
-    }
 
     assert columns["optional_parent_attribute"] == {
         "name": "optional_parent_attribute",
