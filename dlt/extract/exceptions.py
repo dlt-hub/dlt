@@ -88,7 +88,7 @@ class PipeGenInvalid(PipeException):
             " extract method."
         )
         msg += (
-            "dlt will evaluate functions that were passed as data argument. If you passed a"
+            " dlt will evaluate functions that were passed as data argument. If you passed a"
             " function the returned data type is not iterable. "
         )
         type_name = str(type(gen))
