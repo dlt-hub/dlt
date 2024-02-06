@@ -1,9 +1,11 @@
 import os
 from copy import deepcopy
-from typing import Iterator, Dict, Any
+from typing import Iterator, Dict, Any, List, Union
 
 import pytest
 import sqlfluff
+import sqlglot
+from sqlglot.diff import Keep, Insert, Remove, Move, Update
 
 import dlt
 from dlt.common.configuration import resolve_configuration
@@ -394,16 +396,6 @@ def test_adapter_no_hints_parsing() -> None:
     }
 
 
-def test_adapter_no_hints() -> None:
-    @dlt.resource(
-        columns=[{"name": "a", "data_type": "bigint"}, {"name": "b", "data_type": "text"}]
-    )
-    def some_data() -> Iterator[Dict[str, Any]]:
-        yield from [{"a": i, "b": str(i)} for i in range(3)]
-
-    pytest.skip("not implemented yet")
-
-
 def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
     @dlt.resource(
         columns=[{"name": "col1", "data_type": "bigint"}, {"name": "col2", "data_type": "bigint"}]
@@ -431,8 +423,58 @@ def test_adapter_hints_parsing_partitioning() -> None:
     }
 
 
-def test_adapter_hints_partitioning() -> None:
-    pytest.skip("Not implemented")
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_hints_partitioning(destination_config: DestinationTestConfiguration) -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "bigint"}])
+    def some_data() -> Iterator[Dict[str, Any]]:
+        yield from [{"col1": str(i)} for i in range(3)]
+
+    @dlt.source()
+    def demo_source() -> DltResource:
+        return some_data
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        full_refresh=True,
+    )
+    # noinspection PyArgumentList
+    pipeline.run(demo_source(), table_name="no_hints")
+
+    with pipeline.sql_client() as c:
+        with c.execute_query(
+            "SELECT ddl FROM `INFORMATION_SCHEMA.TABLES` WHERE table_name = 'no_hints'"
+        ) as cur:
+            no_hints_ddl: str = cur.fetchone()[0]
+            ast_no_hints = sqlglot.parse_one(no_hints_ddl, read="bigquery")
+            assert no_hints_ddl
+
+    # A new table is created – hence we can exclude update expressions.
+
+    bigquery_adapter(some_data, partition="col1")
+
+    # noinspection PyArgumentList
+    pipeline.run(demo_source(), table_name="hinted")
+
+    with pipeline.sql_client() as c:
+        with c.execute_query(
+            "SELECT ddl FROM `INFORMATION_SCHEMA.TABLES` WHERE table_name = 'hinted'"
+        ) as cur:
+            hints_ddl: str = cur.fetchone()[0]
+            ast_hints = sqlglot.parse_one(hints_ddl, read="bigquery")
+            assert hints_ddl
+
+    # A new table is created, hence we can exclude update expressions.
+    diff_no_keeps: List[Union[Insert, Remove, Move]] = [
+        diff_
+        for diff_ in sqlglot.diff(ast_no_hints, ast_hints)
+        if not isinstance(diff_, (Keep, Update))
+        and diff_.expression.this not in ("hinted", "no_hints")
+    ]
+    assert diff_no_keeps
 
 
 def test_adapter_hints_round_half_away_from_zero() -> None:
