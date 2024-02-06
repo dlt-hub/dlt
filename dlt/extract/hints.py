@@ -292,11 +292,6 @@ class DltResourceHints:
         clean_columns = columns
         if columns is not None:
             clean_columns = ensure_table_schema_columns_hint(columns)
-            # TODO: extract all schema items with container_type set
-            #       and and create tables
-            for column_name, column_schema in clean_columns.items():  # type: ignore[union-attr]
-                if column_schema.get("container_type") is not None:
-                    clean_columns.pop(column_name)  # type: ignore[union-attr]
 
             if not callable(clean_columns):
                 clean_columns = clean_columns.values()  # type: ignore
