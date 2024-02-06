@@ -292,7 +292,6 @@ class DltResourceHints:
         clean_columns = columns
         if columns is not None:
             clean_columns = ensure_table_schema_columns_hint(columns)
-
             if not callable(clean_columns):
                 clean_columns = clean_columns.values()  # type: ignore
         # create a table schema template where hints can be functions taking TDataItem
