@@ -1,9 +1,12 @@
 import typing as t
 
 import dlt
+import pytest
 
 from pydantic import BaseModel
 from dlt.common.libs.pydantic import DltConfig
+
+from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 
 class Child(BaseModel):
@@ -11,7 +14,14 @@ class Child(BaseModel):
     optional_child_attribute: t.Optional[str] = None
 
 
-def test_flattens_model_when_skip_complex_types_is_set() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_flattens_model_when_skip_complex_types_is_set(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     class Parent(BaseModel):
         child: Child
         optional_parent_attribute: t.Optional[str] = None
@@ -33,7 +43,7 @@ def test_flattens_model_when_skip_complex_types_is_set() -> None:
     def src():
         yield res()
 
-    p = dlt.pipeline("example", full_refresh=True, destination="duckdb")
+    p = destination_config.setup_pipeline("example", full_refresh=True)
     p.run(src(), table_name="items", columns=Parent)
 
     with p.sql_client() as client:
