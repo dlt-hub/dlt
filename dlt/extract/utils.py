@@ -21,6 +21,7 @@ from dlt.common.pipeline import reset_resource_state
 from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
 from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name
+from dlt.common.schema.annotations import class_to_table
 
 from dlt.extract.exceptions import (
     InvalidResourceDataTypeFunctionNotAGenerator,
@@ -65,6 +66,11 @@ def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColum
         isinstance(columns, pydantic.BaseModel) or issubclass(columns, pydantic.BaseModel)
     ):
         return pydantic.pydantic_to_table_schema_columns(columns)
+    elif isinstance(columns, type):
+        # try to build a table from class annotations
+        table_schema = class_to_table(columns)
+        if len(table_schema["columns"]) > 0:
+            return table_schema["columns"]
 
     raise ValueError(f"Unsupported columns type: {type(columns)}")
 
