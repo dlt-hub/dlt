@@ -1,6 +1,6 @@
 ---
 slug: practice-api-sources
-title: "Practice data sources for data projects"
+title: "API playground: Free API list for personal data projects"
 image: https://storage.googleapis.com/dlt-blog-images/blog-api.png
 authors:
   name: Adrian Brudaru
