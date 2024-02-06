@@ -248,7 +248,9 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
     load_id = p.list_normalized_load_packages()[0]
     load_package_state = p.get_load_package_state(load_id)["destinations"]
 
+    # should be only one destination: sink
     assert len(load_package_state) == 1
+    assert "sink" in load_package_state
 
     # get saved indexes mapped to table (this test will only work for one job per table)
     values = {k.split(".")[0]: v for k, v in list(load_package_state.values())[0].items()}

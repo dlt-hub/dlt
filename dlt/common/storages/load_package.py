@@ -63,6 +63,8 @@ def bump_loadpackage_state_version_if_modified(state: TLoadPackageState) -> Tupl
 def migrate_loadpackage_state(
     state: DictStrAny, from_engine: int, to_engine: int
 ) -> TLoadPackageState:
+    # TODO: if you start adding new versions, we need proper tests for these migrations!
+    # NOTE: do not touch destinations state, it is not versioned
     if from_engine == to_engine:
         return cast(TLoadPackageState, state)
 
