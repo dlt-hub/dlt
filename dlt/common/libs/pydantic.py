@@ -130,7 +130,13 @@ def pydantic_to_table_schema_columns(
                 # try to coerce unknown type to text
                 data_type = "text"
 
-        if is_inner_type_pydantic_model:
+        if is_inner_type_pydantic_model and not skip_complex_types:
+            result[name] = {
+                "name": name,
+                "data_type": "complex",
+                "nullable": nullable,
+            }
+        elif is_inner_type_pydantic_model:
             # This case is for a single field schema/model
             # we need to generate snake_case field names
             # and return flattened field schemas
