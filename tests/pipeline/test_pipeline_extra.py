@@ -328,3 +328,35 @@ def test_considers_model_as_complex_when_skip_complex_types_is_not_set():
         "data_type": "complex",
         "nullable": False,
     }
+
+
+def test_skips_complex_fields_when_skip_complex_types_is_true_and_field_is_not_a_pydantic_model():
+    class Parent(BaseModel):
+        data_list: List[int] = []
+        data_dictionary: Dict[str, Any] = None
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+    example_data = {
+        "optional_parent_attribute": None,
+        "data_list": [12, 12, 23, 23, 45],
+        "data_dictionary": {
+            "child_attribute": "any string",
+        },
+    }
+
+    p = dlt.pipeline("example", destination="duckdb")
+    p.run([example_data], table_name="items", columns=Parent)
+
+    table_names = [item["name"] for item in p.default_schema.data_tables()]
+    assert "items__data_list" in table_names
+
+    # But `data_list` and `data_dictionary` will be loaded
+    with p.sql_client() as client:
+        with client.execute_query("SELECT * FROM items") as cursor:
+            loaded_values = {
+                col[0]: val
+                for val, col in zip(cursor.fetchall()[0], cursor.description)
+                if col[0] not in ("_dlt_id", "_dlt_load_id")
+            }
+
+            assert loaded_values == {"data_dictionary__child_attribute": "any string"}
