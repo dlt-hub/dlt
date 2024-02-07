@@ -87,7 +87,7 @@ def test_create_and_update_loadpackage_state(load_storage: LoadStorage) -> None:
     # check timestamp
     time = pendulum.from_timestamp(state["created"])
     now = pendulum.now()
-    (now - time).in_seconds() < 2
+    assert (now - time).in_seconds() < 2
 
 
 def test_loadpackage_state_injectable_context(load_storage: LoadStorage) -> None:
