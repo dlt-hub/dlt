@@ -20,7 +20,7 @@ from typing import (
 )
 from urllib.parse import urlparse
 
-from fsspec import AbstractFileSystem
+from fsspec import AbstractFileSystem, register_implementation
 from fsspec.core import url_to_fs
 
 from dlt import version
@@ -107,9 +107,14 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
     Returns:
         DictStrAny: The arguments for the fsspec filesystem constructor.
     """
-    proto = config.protocol
+    protocol = config.protocol
     fs_kwargs: DictStrAny = {"use_listings_cache": False}
-    credentials = CREDENTIALS_DISPATCH.get(proto, lambda _: {})(config)
+    credentials = CREDENTIALS_DISPATCH.get(protocol, lambda _: {})(config)
+
+    if protocol == "gdrive":
+        from dlt.common.storages.fsspecs.google_drive import GoogleDriveFileSystem
+
+        register_implementation("gdrive", GoogleDriveFileSystem, "GoogleDriveFileSystem")
 
     if config.kwargs is not None:
         fs_kwargs.update(config.kwargs)

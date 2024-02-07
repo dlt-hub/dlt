@@ -3,16 +3,29 @@ import os
 from urllib.parse import urlparse, parse_qs
 from typing import Any, Dict, List, Literal, Optional
 
-from fsspec import register_implementation
-from fsspec.spec import AbstractFileSystem, AbstractBufferedFile
-from googleapiclient.discovery import build
-from googleapiclient.errors import HttpError
-from google.auth.credentials import AnonymousCredentials, Credentials
-from google.oauth2 import service_account
-import pydata_google_auth  # type: ignore
-
 from dlt.common import json
+from dlt.common.exceptions import MissingDependencyException
 
+from fsspec.spec import AbstractFileSystem, AbstractBufferedFile
+
+try:
+    from googleapiclient.discovery import build
+    from googleapiclient.errors import HttpError
+except ModuleNotFoundError:
+    raise MissingDependencyException("GoogleDriveFileSystem", ["google-api-python-client"])
+
+try:
+    from google.auth.credentials import AnonymousCredentials, Credentials
+    from google.oauth2 import service_account
+except ModuleNotFoundError:
+    raise MissingDependencyException(
+        "GoogleDriveFileSystem", ["google-auth-httplib2 google-auth-oauthlib"]
+    )
+
+try:
+    import pydata_google_auth
+except ModuleNotFoundError:
+    raise MissingDependencyException("GoogleDriveFileSystem", ["pydata-google-auth"])
 
 scope_dict = {
     "full_control": "https://www.googleapis.com/auth/drive",
@@ -564,6 +577,3 @@ class GoogleDriveFileSystem(AbstractFileSystem):
             GoogleDriveFile: The opened file.
         """
         return GoogleDriveFile(self, path, mode=mode, **kwargs)
-
-
-register_implementation("gdrive", GoogleDriveFileSystem, "GoogleDriveFileSystem")
