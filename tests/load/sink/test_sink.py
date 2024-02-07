@@ -234,8 +234,11 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
     load_id = p.run([items(), items2()]).loads_ids[0]
     assert_items_in_range(calls["items"], 0, 100)
     assert_items_in_range(calls["items2"], 0, 100)
-    # destination state should be cleared after load
-    assert p.get_load_package_state(load_id)["destinations"] == {}
+
+    # destination state should have all items
+    destination_state = p.get_load_package_state(load_id)["destination_state"]
+    values = {k.split(".")[0]: v for k, v in destination_state.items()}
+    assert values == {"_dlt_pipeline_state": 1, "items": 100, "items2": 100}
 
     # provoke errors
     calls = {}
@@ -246,14 +249,10 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
 
     # we should have data for one load id saved here
     load_id = p.list_normalized_load_packages()[0]
-    load_package_state = p.get_load_package_state(load_id)["destinations"]
-
-    # should be only one destination: sink
-    assert len(load_package_state) == 1
-    assert "sink" in load_package_state
+    destination_state = p.get_load_package_state(load_id)["destination_state"]
 
     # get saved indexes mapped to table (this test will only work for one job per table)
-    values = {k.split(".")[0]: v for k, v in list(load_package_state.values())[0].items()}
+    values = {k.split(".")[0]: v for k, v in destination_state.items()}
 
     # partly loaded, pointers in state should be right
     if batch_size == 1:
@@ -277,9 +276,11 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
     provoke_error = {}
     calls = {}
     p.load()
-    # state should be cleared again
-    load_package_state = p.get_load_package_state(load_id)["destinations"]
-    assert load_package_state == {}
+
+    # destination state should have all items
+    destination_state = p.get_load_package_state(load_id)["destination_state"]
+    values = {k.split(".")[0]: v for k, v in destination_state.items()}
+    assert values == {"_dlt_pipeline_state": 1, "items": 100, "items2": 100}
 
     # both calls combined should have every item called just once
     assert_items_in_range(calls["items"] + first_calls["items"], 0, 100)

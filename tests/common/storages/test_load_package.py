@@ -11,12 +11,12 @@ from tests.common.storages.utils import start_loading_file, assert_package_info,
 from tests.utils import autouse_test_storage
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration.container import Container
-from dlt.common.pipeline import (
+from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
-    load_package_destination_state,
+    destination_state,
     load_package_state,
     commit_load_package_state,
-    clear_loadpackage_destination_state,
+    clear_destination_state,
 )
 
 
@@ -98,7 +98,6 @@ def test_loadpackage_state_injectable_context(load_storage: LoadStorage) -> None
         LoadPackageStateInjectableContext(
             storage=load_storage.new_packages,
             load_id="copy",
-            destination_name="some_destination_name",
         )
     ):
         # test general load package state
@@ -122,20 +121,26 @@ def test_loadpackage_state_injectable_context(load_storage: LoadStorage) -> None
         assert second_injected_instance == injected_state
 
         # check scoped destination states
-        assert load_storage.new_packages.get_load_package_state("copy").get("destinations") is None
-        destination_state = load_package_destination_state()
-        destination_state["new_key"] = "new_value"
+        assert (
+            load_storage.new_packages.get_load_package_state("copy").get("destination_state")
+            is None
+        )
+        dstate = destination_state()
+        dstate["new_key"] = "new_value"
         commit_load_package_state()
-        assert load_storage.new_packages.get_load_package_state("copy").get("destinations") == {
-            "some_destination_name": {"new_key": "new_value"}
-        }
+        assert load_storage.new_packages.get_load_package_state("copy").get(
+            "destination_state"
+        ) == {"new_key": "new_value"}
 
         # this also shows up on the previously injected state
-        assert injected_state["destinations"]["some_destination_name"]["new_key"] == "new_value"
+        assert injected_state["destination_state"]["new_key"] == "new_value"
 
         # clear destination state
-        clear_loadpackage_destination_state()
-        assert load_storage.new_packages.get_load_package_state("copy").get("destinations") == {}
+        clear_destination_state()
+        assert (
+            load_storage.new_packages.get_load_package_state("copy").get("destination_state")
+            == None
+        )
 
 
 def test_job_elapsed_time_seconds(load_storage: LoadStorage) -> None:

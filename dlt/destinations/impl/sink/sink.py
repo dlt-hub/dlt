@@ -5,10 +5,10 @@ from typing import ClassVar, Dict, Optional, Type, Iterable, Iterable
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.common.typing import TDataItems
 from dlt.common import json
-from dlt.common.pipeline import (
-    load_package_destination_state,
+from dlt.pipeline.current import (
+    destination_state,
     commit_load_package_state,
-    clear_loadpackage_destination_state,
+    clear_destination_state,
 )
 
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -149,7 +149,7 @@ class SinkClient(JobClientBase):
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
         # save our state in destination name scope
-        load_state = load_package_destination_state()
+        load_state = destination_state()
         if file_path.endswith("parquet"):
             return SinkParquetLoadJob(table, file_path, self.config, self.schema, load_state)
         if file_path.endswith("jsonl"):
@@ -159,9 +159,7 @@ class SinkClient(JobClientBase):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
-    def complete_load(self, load_id: str) -> None:
-        # pop all state for this load on success
-        clear_loadpackage_destination_state()
+    def complete_load(self, load_id: str) -> None: ...
 
     def __enter__(self) -> "SinkClient":
         return self

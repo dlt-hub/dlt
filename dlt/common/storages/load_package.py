@@ -1,6 +1,8 @@
 import contextlib
 import os
 from copy import deepcopy
+import threading
+
 import datetime  # noqa: 251
 import humanize
 from pathlib import Path
@@ -18,9 +20,16 @@ from typing import (
     cast,
     Any,
     Tuple,
+    TYPE_CHECKING,
 )
 
 from dlt.common import pendulum, json
+
+from dlt.common.configuration import configspec
+from dlt.common.configuration.specs import ContainerInjectableContext
+from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
+from dlt.common.configuration.container import Container
+
 from dlt.common.data_writers import DataWriter, new_file_id
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.exceptions import TerminalValueError
@@ -44,7 +53,7 @@ class TLoadPackageState(TVersionedState, total=False):
     """Timestamp when the loadpackage was created"""
 
     """A section of state that does not participate in change merging and version control"""
-    destinations: NotRequired[Dict[str, Dict[str, Any]]]
+    destination_state: NotRequired[Dict[str, Any]]
     """private space for destinations to store state relevant only to the load package"""
 
 
@@ -593,3 +602,58 @@ class PackageStorage:
     @staticmethod
     def _job_elapsed_time_seconds(file_path: str, now_ts: float = None) -> float:
         return (now_ts or pendulum.now().timestamp()) - os.path.getmtime(file_path)
+
+
+@configspec
+class LoadPackageStateInjectableContext(ContainerInjectableContext):
+    storage: PackageStorage
+    load_id: str
+    can_create_default: ClassVar[bool] = False
+
+    def commit(self) -> None:
+        with self.state_save_lock:
+            self.storage.save_load_package_state(self.load_id, self.state)
+
+    def on_resolved(self) -> None:
+        self.state_save_lock = threading.Lock()
+        self.state = self.storage.get_load_package_state(self.load_id)
+
+    if TYPE_CHECKING:
+
+        def __init__(self, load_id: str, storage: PackageStorage) -> None: ...
+
+
+def load_package_state() -> TLoadPackageState:
+    """Get full load package state present in current context. Across all threads this will be the same in memory dict."""
+    container = Container()
+    # get injected state if present. injected load package state is typically "managed" so changes will be persisted
+    # if you need to save the load package state during a load, you need to call commit_load_package_state
+    try:
+        state_ctx = container[LoadPackageStateInjectableContext]
+    except ContextDefaultCannotBeCreated:
+        raise Exception("Load package state not available")
+    return state_ctx.state
+
+
+def commit_load_package_state() -> None:
+    """Commit load package state present in current context. This is thread safe."""
+    container = Container()
+    try:
+        state_ctx = container[LoadPackageStateInjectableContext]
+    except ContextDefaultCannotBeCreated:
+        raise Exception("Load package state not available")
+    state_ctx.commit()
+
+
+def destination_state() -> DictStrAny:
+    """Get segment of load package state that is specific to the current destination."""
+    lp_state = load_package_state()
+    return lp_state.setdefault("destination_state", {})
+
+
+def clear_destination_state(commit: bool = True) -> None:
+    """Clear segment of load package state that is specific to the current destination. Optionally commit to load package."""
+    lp_state = load_package_state()
+    lp_state.pop("destination_state", None)
+    if commit:
+        commit_load_package_state()

@@ -14,10 +14,10 @@ from dlt.common.pipeline import (
     LoadMetrics,
     SupportsPipeline,
     WithStepInfo,
-    LoadPackageStateInjectableContext,
 )
 from dlt.common.schema.utils import get_child_tables, get_top_level_table
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
+from dlt.common.storages.load_package import LoadPackageStateInjectableContext
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.runtime.logger import pretty_format_exception
@@ -573,7 +573,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 LoadPackageStateInjectableContext(
                     storage=self.load_storage.normalized_packages,
                     load_id=load_id,
-                    destination_name=self.initial_client_config.destination_name,
                 )
             ):
                 # the same load id may be processed across multiple runs
