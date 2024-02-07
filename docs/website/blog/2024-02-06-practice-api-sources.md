@@ -21,6 +21,22 @@ If you are considering doing a data engineering project, consider the following:
 
 This article outlines 10 APIs, detailing their use cases, any free tier limitations, and authentication needs.
 
+## Material teaching data loading with dlt:
+
+### Data talks club data engineering zoomcamp
+* [Video](https://www.youtube.com/watch?v=oLXhBM7nf2Q)
+* [Course step by step](https://github.com/DataTalksClub/data-engineering-zoomcamp/blob/main/cohorts/2024/workshops/dlt_resources/data_ingestion_workshop.md)
+* [Colab notebook](https://colab.research.google.com/drive/1kLyD3AL-tYf_HqCXYnA3ZLwHGpzbLmoj#scrollTo=5aPjk0O3S_Ag&forceEdit=true&sandboxMode=true)
+
+### Data talks club open source spotlight
+* [Video](https://www.youtube.com/watch?v=eMbhyOECpcE)
+* [Notebook](https://github.com/dlt-hub/dlt_demos/blob/main/spotlight_demo.ipynb)
+
+### Docs
+* [Getting started](https://dlthub.com/docs/getting-started)
+* [Advanced pipeline tutorial](https://dlthub.com/docs/build-a-pipeline-tutorial)
+
+
 ## APIs Overview
 
 ### 1. **PokeAPI**
