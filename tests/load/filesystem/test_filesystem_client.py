@@ -50,6 +50,9 @@ def test_filesystem_destination_configuration() -> None:
 @pytest.mark.parametrize("layout", ALL_LAYOUTS)
 def test_successful_load(write_disposition: str, layout: str, default_buckets_env: str) -> None:
     """Test load is successful with an empty destination dataset"""
+    if default_buckets_env.startswith("gdrive://"):
+        pytest.skip("GDrive is not supported for this test")
+
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
     else:
