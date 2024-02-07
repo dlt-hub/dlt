@@ -3,6 +3,7 @@ import inspect
 from typing import Type, List, Any, Tuple, Union, Dict
 from typing_extensions import Annotated, get_origin, get_args
 from decimal import Decimal
+from dlt.common.data_types import py_type_to_sc_type
 
 from dataclasses import dataclass
 from dlt.common.schema.typing import TTableSchema, TColumnSchema, TWriteDisposition, TDataType
@@ -88,9 +89,9 @@ def to_full_type(t: Type[Any]) -> TColumnSchema:
             if arg is type(None):
                 result["nullable"] = True
             else:
-                result["data_type"] = TypeMap.get(arg, None)
+                result["data_type"] = py_type_to_sc_type(arg)
     else:
-        result["data_type"] = TypeMap.get(t, None)
+        result["data_type"] = py_type_to_sc_type(t)
     return result
 
 
@@ -123,12 +124,17 @@ def to_column_hints(h: List[Type[Any]]) -> TColumnSchema:
     return result
 
 
-def class_to_table(cls: Type[Any]) -> TTableSchema:
+def class_to_table(ctt: Type[Any]) -> TTableSchema:
+
+    cls, hints = unwrap(ctt)
+
     # initial checks
     if not inspect.isclass(cls):
         return {}
 
     table: TTableSchema = {"columns": {}}
+    if hints:
+        table = {**table, **to_table_hints(hints)}
 
     # return if there are no type annotations
     if not (annotations := getattr(cls, "__annotations__", None)):
@@ -137,11 +143,6 @@ def class_to_table(cls: Type[Any]) -> TTableSchema:
     # convert annotations to table schema
     for name, value in annotations.items():
         t, hints = unwrap(value)
-
-        # extract table hints
-        if name == "__table__":
-            table = {**table, **to_table_hints(hints)}
-            continue
 
         # skip private attributes for now
         if name.startswith("_"):

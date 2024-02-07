@@ -15,6 +15,7 @@ from typing import (
     Generator,
 )
 from collections.abc import Mapping as C_Mapping
+from typing_extensions import Annotated, get_origin
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import reset_resource_state
@@ -62,15 +63,15 @@ def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColum
     elif isinstance(columns, Sequence):
         # Assume list of columns
         return {col["name"]: col for col in columns}
+    elif get_origin(columns) is Annotated:
+        return class_to_table(columns)["columns"]
     elif pydantic is not None and (
         isinstance(columns, pydantic.BaseModel) or issubclass(columns, pydantic.BaseModel)
     ):
         return pydantic.pydantic_to_table_schema_columns(columns)
     elif isinstance(columns, type):
         # try to build a table from class annotations
-        table_schema = class_to_table(columns)
-        if len(table_schema["columns"]) > 0:
-            return table_schema["columns"]
+        return class_to_table(columns)["columns"]
 
     raise ValueError(f"Unsupported columns type: {type(columns)}")
 
@@ -81,7 +82,7 @@ def ensure_table_schema_columns_hint(
     """Convert column schema hint to a hint returning `TTableSchemaColumns`.
     A callable hint is wrapped in another function which converts the original result.
     """
-    if callable(columns) and not isinstance(columns, type):
+    if callable(columns) and not isinstance(columns, type) and not get_origin(columns) is Annotated:
 
         def wrapper(item: TDataItem) -> TTableSchemaColumns:
             return ensure_table_schema_columns(
