@@ -6,7 +6,7 @@ import pytest
 import sqlfluff
 import sqlglot
 from sqlglot.diff import Keep, Insert, Remove, Move, Update, exp
-from sqlglot.expressions import NotNullColumnConstraint, PartitionedByProperty
+from sqlglot.expressions import NotNullColumnConstraint, PartitionedByProperty, Func, Column
 
 import dlt
 from dlt.common.configuration import resolve_configuration
@@ -499,20 +499,21 @@ def test_adapter_hints_parsing_round_half_away_from_zero() -> None:
     }
 
 
-def test_adapter_hints_round_half_away_from_zero() -> None:
-    @dlt.resource(columns=[{"name": "col1", "data_type": "bigint"}])
-    def no_hints() -> Iterator[Dict[str, int]]:
-        yield from [{"col1": i} for i in range(10)]
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_hints_round_half_away_from_zero(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "double"}])
+    def no_hints() -> Iterator[Dict[str, float]]:
+        yield from [{"col1": float(i)} for i in range(10)]
 
-    # TODO: Replace with adapter.
-    @dlt.resource(
-        columns={"col1": {"data_type": "bigint", "partition": True, "nullable": False}},
+    hints = bigquery_adapter(
+        no_hints._clone(new_name="hints"), round_half_away_from_zero="double_col"
     )
-    def hints() -> Iterator[Dict[str, int]]:
-        for i in range(10):
-            yield {
-                "col1": i,
-            }
 
     @dlt.source(max_table_nesting=0)
     def sources() -> List[DltResource]:
@@ -543,23 +544,16 @@ def test_adapter_hints_round_half_away_from_zero() -> None:
 
     diff = sqlglot.diff(ast_no_hints, ast_hints)
 
-    # Each table can only have one partition.
-    partition_inserts = list(
-        filter(
-            lambda a: isinstance(a, Insert)
-            and isinstance(getattr(a, "expression", None), PartitionedByProperty),
-            diff,
-        )
-    )
-    assert len(partition_inserts) == 1
+    rounding_changes = [
+        action
+        for action in diff
+        if isinstance(action, Func)
+        and action.this.name == "ROUND_HALF_AWAY_FROM_ZERO"
+        and any(isinstance(arg, Column) and arg.name == "col1" for arg in action.args.values())
+    ]
 
-    partition_insert = partition_inserts[0]
-
-    # Traverse the ast to make sure the correct column was partitioned on.
-    if ast := getattr(partition_insert, "expression", None):
-        assert ast.find(exp.Column).name == "col1"
-    else:
-        raise ValueError("Expected a partition definition in the AST diff, but none was found.")
+    if not rounding_changes:
+        raise ValueError("No alteration found for 'col1' using ROUND_HALF_AWAY_FROM_ZERO.")
 
 
 def test_adapter_hints_parsing_clustering() -> None:
