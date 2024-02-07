@@ -6,12 +6,11 @@ from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.typing import TAnyDateTime
 from dlt.sources.helpers.requests import client
 
+
 @dlt.source(max_table_nesting=2)
 def zendesk_support(
     credentials: Dict[str, str] = dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = pendulum.datetime(  # noqa: B008
-        year=2000, month=1, day=1
-    ),
+    start_date: Optional[TAnyDateTime] = pendulum.datetime(year=2000, month=1, day=1),  # noqa: B008
     end_date: Optional[TAnyDateTime] = None,
 ):
     """
@@ -112,6 +111,7 @@ def get_pages(
         # See https://developer.zendesk.com/api-reference/ticketing/ticket-management/incremental_exports/#json-format
         if not response_json["end_of_stream"]:
             get_url = response_json["next_page"]
+
 
 if __name__ == "__main__":
     # create dlt pipeline

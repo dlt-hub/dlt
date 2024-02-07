@@ -5,7 +5,6 @@ from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, ne
 from dlt.common.schema.typing import (
     TColumnNames,
     TColumnProp,
-    TColumnSchema,
     TPartialTableSchema,
     TTableSchema,
     TTableSchemaColumns,
@@ -23,7 +22,6 @@ from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate, ValidateIte
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
     InconsistentTableTemplate,
-    TableNameMissing,
 )
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
@@ -40,8 +38,64 @@ class TResourceHints(TypedDict, total=False):
     merge_key: TTableHintTemplate[TColumnNames]
     incremental: Incremental[Any]
     schema_contract: TTableHintTemplate[TSchemaContract]
+    table_format: TTableHintTemplate[TTableFormat]
     validator: ValidateItem
     original_columns: TTableHintTemplate[TAnySchemaColumns]
+
+
+class HintsMeta:
+    __slots__ = "hints"
+
+    hints: TResourceHints
+
+    def __init__(self, hints: TResourceHints) -> None:
+        self.hints = hints
+
+
+def make_hints(
+    table_name: TTableHintTemplate[str] = None,
+    parent_table_name: TTableHintTemplate[str] = None,
+    write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+    columns: TTableHintTemplate[TAnySchemaColumns] = None,
+    primary_key: TTableHintTemplate[TColumnNames] = None,
+    merge_key: TTableHintTemplate[TColumnNames] = None,
+    schema_contract: TTableHintTemplate[TSchemaContract] = None,
+    table_format: TTableHintTemplate[TTableFormat] = None,
+) -> TResourceHints:
+    """A convenience function to create resource hints. Accepts both static and dynamic hints based on data.
+
+    This method accepts the same table hints arguments as `dlt.resource` decorator.
+    """
+    validator, schema_contract = create_item_validator(columns, schema_contract)
+    clean_columns = columns
+    if columns is not None:
+        clean_columns = ensure_table_schema_columns_hint(columns)
+        if not callable(clean_columns):
+            clean_columns = clean_columns.values()  # type: ignore
+    # create a table schema template where hints can be functions taking TDataItem
+    new_template: TResourceHints = new_table(
+        table_name,  # type: ignore
+        parent_table_name,  # type: ignore
+        write_disposition=write_disposition,  # type: ignore
+        columns=clean_columns,  # type: ignore
+        schema_contract=schema_contract,  # type: ignore
+        table_format=table_format,  # type: ignore
+    )
+    if not table_name:
+        new_template.pop("name")
+    # remember original columns
+    if columns is not None:
+        new_template["original_columns"] = columns
+    # always remove resource
+    new_template.pop("resource", None)  # type: ignore
+    if primary_key is not None:
+        new_template["primary_key"] = primary_key
+    if merge_key is not None:
+        new_template["merge_key"] = merge_key
+    if validator:
+        new_template["validator"] = validator
+    DltResourceHints.validate_dynamic_hints(new_template)
+    return new_template
 
 
 class DltResourceHints:
@@ -126,6 +180,7 @@ class DltResourceHints:
         incremental: Incremental[Any] = None,
         schema_contract: TTableHintTemplate[TSchemaContract] = None,
         additional_table_hints: Optional[Dict[str, TTableHintTemplate[Any]]] = None,
+        table_format: TTableHintTemplate[TTableFormat] = None,
     ) -> None:
         """Creates or modifies existing table schema by setting provided hints. Accepts both static and dynamic hints based on data.
 
@@ -142,7 +197,7 @@ class DltResourceHints:
         t = None
         if not self._hints:
             # if there's no template yet, create and set new one
-            t = self.new_table_template(
+            t = make_hints(
                 table_name,
                 parent_table_name,
                 write_disposition,
@@ -150,6 +205,7 @@ class DltResourceHints:
                 primary_key,
                 merge_key,
                 schema_contract,
+                table_format,
             )
         else:
             # set single hints
@@ -202,8 +258,13 @@ class DltResourceHints:
                 )
                 if schema_contract is not None:
                     t["schema_contract"] = schema_contract
+            if table_format is not None:
+                if table_format:
+                    t["table_format"] = table_format
+                else:
+                    t.pop("table_format", None)
 
-        # set properties that cannot be passed to new_table_template
+        # set properties that cannot be passed to make_hints
         if incremental is not None:
             if incremental is Incremental.EMPTY:
                 t["incremental"] = None
@@ -232,6 +293,19 @@ class DltResourceHints:
             callable(v) for k, v in hints_template.items() if k != "name"
         )
         self._hints = hints_template
+
+    def merge_hints(self, hints_template: TResourceHints) -> None:
+        self.apply_hints(
+            table_name=hints_template.get("name"),
+            parent_table_name=hints_template.get("parent"),
+            write_disposition=hints_template.get("write_disposition"),
+            columns=hints_template.get("original_columns"),
+            primary_key=hints_template.get("primary_key"),
+            merge_key=hints_template.get("merge_key"),
+            incremental=hints_template.get("incremental"),
+            schema_contract=hints_template.get("schema_contract"),
+            table_format=hints_template.get("table_format"),
+        )
 
     @staticmethod
     def _clone_hints(hints_template: TResourceHints) -> TResourceHints:
@@ -272,48 +346,6 @@ class DltResourceHints:
             DltResourceHints._merge_key("merge_key", t_.pop("merge_key"), partial)  # type: ignore
 
         return partial
-
-    @staticmethod
-    def new_table_template(
-        table_name: TTableHintTemplate[str],
-        parent_table_name: TTableHintTemplate[str] = None,
-        write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-        columns: TTableHintTemplate[TAnySchemaColumns] = None,
-        primary_key: TTableHintTemplate[TColumnNames] = None,
-        merge_key: TTableHintTemplate[TColumnNames] = None,
-        schema_contract: TTableHintTemplate[TSchemaContract] = None,
-        table_format: TTableHintTemplate[TTableFormat] = None,
-    ) -> TResourceHints:
-        validator, schema_contract = create_item_validator(columns, schema_contract)
-        clean_columns = columns
-        if columns is not None:
-            clean_columns = ensure_table_schema_columns_hint(columns)
-            if not callable(clean_columns):
-                clean_columns = clean_columns.values()  # type: ignore
-        # create a table schema template where hints can be functions taking TDataItem
-        new_template: TResourceHints = new_table(
-            table_name,  # type: ignore
-            parent_table_name,  # type: ignore
-            write_disposition=write_disposition,  # type: ignore
-            columns=clean_columns,  # type: ignore
-            schema_contract=schema_contract,  # type: ignore
-            table_format=table_format,  # type: ignore
-        )
-        if not table_name:
-            new_template.pop("name")
-        # remember original columns
-        if columns is not None:
-            new_template["original_columns"] = columns
-        # always remove resource
-        new_template.pop("resource", None)  # type: ignore
-        if primary_key:
-            new_template["primary_key"] = primary_key
-        if merge_key:
-            new_template["merge_key"] = merge_key
-        if validator:
-            new_template["validator"] = validator
-        DltResourceHints.validate_dynamic_hints(new_template)
-        return new_template
 
     @staticmethod
     def validate_dynamic_hints(template: TResourceHints) -> None:

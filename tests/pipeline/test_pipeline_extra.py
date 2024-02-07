@@ -192,6 +192,32 @@ def test_extract_pydantic_models() -> None:
     )
 
 
+def test_mark_hints_pydantic_columns() -> None:
+    pipeline = dlt.pipeline(destination="duckdb")
+
+    class User(BaseModel):
+        user_id: int
+        name: str
+
+    # this resource emits table schema with first item
+    @dlt.resource
+    def with_mark():
+        yield dlt.mark.with_hints(
+            {"user_id": 1, "name": "zenek"},
+            dlt.mark.make_hints(columns=User, primary_key="user_id"),
+        )
+
+    pipeline.run(with_mark)
+    # pydantic schema used to create columns
+    assert "with_mark" in pipeline.default_schema.tables
+    # resource name is kept
+    table = pipeline.default_schema.tables["with_mark"]
+    assert table["resource"] == "with_mark"
+    assert table["columns"]["user_id"]["data_type"] == "bigint"
+    assert table["columns"]["user_id"]["primary_key"] is True
+    assert table["columns"]["name"]["data_type"] == "text"
+
+
 @pytest.mark.parametrize("file_format", ("parquet", "insert_values", "jsonl"))
 def test_columns_hint_with_file_formats(file_format: TLoaderFileFormat) -> None:
     @dlt.resource(write_disposition="replace", columns=[{"name": "text", "data_type": "text"}])

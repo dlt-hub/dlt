@@ -35,7 +35,7 @@ from dlt.extract.exceptions import (
     SourceDataIsNone,
     SourceIsAClassTypeError,
     SourceNotAFunction,
-    SourceSchemaNotAvailable,
+    CurrentSourceSchemaNotAvailable,
 )
 from dlt.extract.typing import TableNameMeta
 
@@ -500,7 +500,7 @@ def test_source_schema_context() -> None:
     global_schema = Schema("global")
 
     # not called from the source
-    with pytest.raises(SourceSchemaNotAvailable):
+    with pytest.raises(CurrentSourceSchemaNotAvailable):
         dlt.current.source_schema()
 
     def _assert_source_schema(s: DltSource, expected_name: str) -> None:

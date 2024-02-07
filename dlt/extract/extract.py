@@ -31,7 +31,7 @@ from dlt.common.storages import NormalizeStorageConfiguration, LoadPackageInfo, 
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.utils import get_callable_name, get_full_class_name
 
-from dlt.extract.decorators import SourceSchemaInjectableContext
+from dlt.extract.decorators import SourceInjectableContext, SourceSchemaInjectableContext
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
 from dlt.extract.pipe import PipeIterator
 from dlt.extract.source import DltSource
@@ -322,7 +322,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     ) -> str:
         # generate load package to be able to commit all the sources together later
         load_id = self.extract_storage.create_load_package(source.discover_schema())
-        with Container().injectable_context(SourceSchemaInjectableContext(source.schema)):
+        with Container().injectable_context(
+            SourceSchemaInjectableContext(source.schema)
+        ), Container().injectable_context(SourceInjectableContext(source)):
             # inject the config section with the current source name
             with inject_section(
                 ConfigSectionContext(

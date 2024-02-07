@@ -37,6 +37,7 @@ from dlt.common.schema.typing import (
     TSchemaContract,
     TTableFormat,
 )
+from dlt.extract.hints import make_hints
 from dlt.extract.utils import (
     ensure_table_schema_columns_hint,
     simulate_func_call,
@@ -48,6 +49,7 @@ from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.typing import AnyFun, ParamSpec, Concatenate, TDataItem, TDataItems
 from dlt.common.utils import get_callable_name, get_module_name, is_inner_callable
 from dlt.extract.exceptions import (
+    CurrentSourceNotAvailable,
     DynamicNameNotStandaloneResource,
     InvalidTransformerDataTypeGeneratorFunctionRequired,
     ResourceFunctionExpected,
@@ -56,7 +58,7 @@ from dlt.extract.exceptions import (
     SourceIsAClassTypeError,
     ExplicitSourceNameInvalid,
     SourceNotAFunction,
-    SourceSchemaNotAvailable,
+    CurrentSourceSchemaNotAvailable,
 )
 from dlt.extract.incremental import IncrementalResourceWrapper
 
@@ -67,7 +69,7 @@ from dlt.extract.resource import DltResource, TUnboundDltResource
 
 @configspec
 class SourceSchemaInjectableContext(ContainerInjectableContext):
-    """A context containing the source schema, present when decorated function is executed"""
+    """A context containing the source schema, present when dlt.source/resource decorated function is executed"""
 
     schema: Schema
 
@@ -76,6 +78,19 @@ class SourceSchemaInjectableContext(ContainerInjectableContext):
     if TYPE_CHECKING:
 
         def __init__(self, schema: Schema = None) -> None: ...
+
+
+@configspec
+class SourceInjectableContext(ContainerInjectableContext):
+    """A context containing the source schema, present when dlt.resource decorated function is executed"""
+
+    source: DltSource
+
+    can_create_default: ClassVar[bool] = False
+
+    if TYPE_CHECKING:
+
+        def __init__(self, source: DltSource = None) -> None: ...
 
 
 TSourceFunParams = ParamSpec("TSourceFunParams")
@@ -395,7 +410,7 @@ def resource(
     def make_resource(
         _name: str, _section: str, _data: Any, incremental: IncrementalResourceWrapper = None
     ) -> DltResource:
-        table_template = DltResource.new_table_template(
+        table_template = make_hints(
             table_name,
             write_disposition=write_disposition,
             columns=columns,
@@ -694,7 +709,15 @@ def get_source_schema() -> Schema:
     try:
         return Container()[SourceSchemaInjectableContext].schema
     except ContextDefaultCannotBeCreated:
-        raise SourceSchemaNotAvailable()
+        raise CurrentSourceSchemaNotAvailable()
+
+
+def get_source() -> DltSource:
+    """When executed from the function decorated with @dlt.resource, returns currently extracted source"""
+    try:
+        return Container()[SourceInjectableContext].source
+    except ContextDefaultCannotBeCreated:
+        raise CurrentSourceNotAvailable()
 
 
 TBoundItems = TypeVar("TBoundItems", bound=TDataItems)
