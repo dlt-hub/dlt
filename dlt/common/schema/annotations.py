@@ -63,16 +63,6 @@ class WriteDisposition:
 # Converters
 #
 
-TypeMap: Dict[Any, TDataType] = {
-    str: "text",
-    int: "bigint",
-    float: "double",
-    date: "date",
-    datetime: "time",
-    bool: "bool",
-    Decimal: "decimal",
-}
-
 
 def unwrap(t: Type[Any]) -> Tuple[Any, List[Any]]:
     """Returns python type info and wrapped types if this was annotated type"""
