@@ -5,7 +5,8 @@ from typing import Iterator, Dict, Any, List, Union
 import pytest
 import sqlfluff
 import sqlglot
-from sqlglot.diff import Keep, Insert, Remove, Move, Update
+from sqlglot.diff import Keep, Insert, Remove, Move, Update, exp
+from sqlglot.expressions import NotNullColumnConstraint, PartitionedByProperty
 
 import dlt
 from dlt.common.configuration import resolve_configuration
@@ -430,21 +431,39 @@ def test_adapter_hints_parsing_partitioning() -> None:
 )
 def test_adapter_hints_partitioning(destination_config: DestinationTestConfiguration) -> None:
     @dlt.resource(columns=[{"name": "col1", "data_type": "bigint"}])
-    def some_data() -> Iterator[Dict[str, Any]]:
-        yield from [{"col1": str(i)} for i in range(3)]
+    def no_hints() -> Iterator[Dict[str, int]]:
+        yield from [{"col1": i} for i in range(10)]
 
-    @dlt.source()
-    def demo_source() -> DltResource:
-        return some_data
+    # TODO: Replace with adapter.
+    @dlt.resource(
+        columns={"col1": {"data_type": "bigint", "partition": True, "nullable": False}},
+    )
+    def hints() -> Iterator[Dict[str, int]]:
+        for i in range(10):
+            yield {
+                "col1": i,
+            }
+
+    @dlt.source(max_table_nesting=0)
+    def sources() -> List[DltResource]:
+        return [no_hints, hints]
 
     pipeline = destination_config.setup_pipeline(
         f"bigquery_{uniq_id()}",
         full_refresh=True,
     )
+
     # noinspection PyArgumentList
-    pipeline.run(demo_source(), table_name="no_hints")
+    pipeline.run(sources())
 
     with pipeline.sql_client() as c:
+        with c.execute_query(
+            "SELECT ddl FROM `INFORMATION_SCHEMA.TABLES` WHERE table_name = 'hints'"
+        ) as cur:
+            hints_ddl: str = cur.fetchone()[0]
+            ast_hints = sqlglot.parse_one(hints_ddl, read="bigquery")
+            assert hints_ddl
+
         with c.execute_query(
             "SELECT ddl FROM `INFORMATION_SCHEMA.TABLES` WHERE table_name = 'no_hints'"
         ) as cur:
@@ -452,31 +471,25 @@ def test_adapter_hints_partitioning(destination_config: DestinationTestConfigura
             ast_no_hints = sqlglot.parse_one(no_hints_ddl, read="bigquery")
             assert no_hints_ddl
 
-    # A new table is created – hence we can exclude update expressions.
+    diff = sqlglot.diff(ast_no_hints, ast_hints)
 
-    bigquery_adapter(some_data, partition="col1")
+    # Each table can only have one partition.
+    partition_inserts = list(filter(lambda a: isinstance(a, Insert) and isinstance(getattr(a, "expression", None), PartitionedByProperty), diff))
+    assert len(partition_inserts) == 1
 
-    # noinspection PyArgumentList
-    pipeline.run(demo_source(), table_name="hinted")
+    partition_insert = partition_inserts[0]
 
-    with pipeline.sql_client() as c:
-        with c.execute_query(
-            "SELECT ddl FROM `INFORMATION_SCHEMA.TABLES` WHERE table_name = 'hinted'"
-        ) as cur:
-            hints_ddl: str = cur.fetchone()[0]
-            ast_hints = sqlglot.parse_one(hints_ddl, read="bigquery")
-            assert hints_ddl
-
-    # A new table is created, hence we can exclude update expressions.
-    diff_no_keeps: List[Union[Insert, Remove, Move]] = [
-        diff_
-        for diff_ in sqlglot.diff(ast_no_hints, ast_hints)
-        if not isinstance(diff_, (Keep, Update))
-        and diff_.expression.this not in ("hinted", "no_hints")
-    ]
-    assert diff_no_keeps
+    # Traverse the ast to make sure the correct column was partitioned on.
+    if ast := getattr(partition_insert, "expression", None):
+        assert ast.find(exp.Column).name == "col1"
+    else:
+        raise ValueError("Expected a partition definition in the AST diff, but none was found.")
 
 
+
+
+
+getattr
 def test_adapter_hints_round_half_away_from_zero() -> None:
     @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
     def some_data() -> Iterator[Dict[str, str]]:
