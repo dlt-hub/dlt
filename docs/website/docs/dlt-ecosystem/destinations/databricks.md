@@ -7,6 +7,7 @@ keywords: [Databricks, destination, data warehouse]
 ---
 
 # Databricks
+*Big thanks to Evan Phillips and [swishbi.com](https://swishbi.com/) for contributing code, time and test environment*
 
 ## Install dlt with Databricks
 **To install the DLT library with Databricks dependencies:**
