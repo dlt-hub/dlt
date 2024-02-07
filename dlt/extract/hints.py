@@ -216,6 +216,13 @@ class DltResourceHints:
         # set properties that can't be passed to new_table_template
         if incremental is not None:
             t["incremental"] = None if incremental is Incremental.EMPTY else incremental
+        if additional_table_hints is not None:
+            # loop through provided hints and add, overwrite, or remove them
+            for k, v in additional_table_hints.items():
+                if v is not None:
+                    t[k] = v  # type: ignore[literal-required]
+                else:
+                    t.pop(k, None)  # type: ignore[misc]
         self.set_hints(t)
 
     def set_hints(self, hints_template: TResourceHints) -> None:

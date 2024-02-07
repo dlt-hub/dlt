@@ -1,11 +1,10 @@
 import pytest
-from copy import deepcopy
 import sqlfluff
 
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
-pytest.importorskip("dlt.destinations.mssql.mssql", reason="MSSQL ODBC driver not installed")
+pytest.importorskip("dlt.destinations.impl.mssql.mssql", reason="MSSQL ODBC driver not installed")
 
 from dlt.destinations.impl.mssql.mssql import MsSqlClient
 from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, MsSqlCredentials

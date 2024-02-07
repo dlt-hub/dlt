@@ -45,6 +45,7 @@ IMPLEMENTED_DESTINATIONS = {
     "motherduck",
     "mssql",
     "qdrant",
+    "synapse",
     "databricks",
 }
 NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant"}
