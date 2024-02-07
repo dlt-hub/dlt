@@ -434,6 +434,76 @@ def test_adapter_hints_partitioning(destination_config: DestinationTestConfigura
     def no_hints() -> Iterator[Dict[str, int]]:
         yield from [{"col1": i} for i in range(10)]
 
+    hints = bigquery_adapter(no_hints._clone(new_name="hints"), partition="col1")
+
+    @dlt.source(max_table_nesting=0)
+    def sources() -> List[DltResource]:
+        return [no_hints, hints]
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        full_refresh=True,
+    )
+
+    # noinspection PyArgumentList
+    pipeline.run(sources())
+
+    with pipeline.sql_client() as c:
+        with c.execute_query(
+            "SELECT ddl FROM `INFORMATION_SCHEMA.TABLES` WHERE table_name = 'hints'"
+        ) as cur:
+            hints_ddl: str = cur.fetchone()[0]
+            ast_hints = sqlglot.parse_one(hints_ddl, read="bigquery")
+            assert hints_ddl
+
+        with c.execute_query(
+            "SELECT ddl FROM `INFORMATION_SCHEMA.TABLES` WHERE table_name = 'no_hints'"
+        ) as cur:
+            no_hints_ddl: str = cur.fetchone()[0]
+            ast_no_hints = sqlglot.parse_one(no_hints_ddl, read="bigquery")
+            assert no_hints_ddl
+
+    diff = sqlglot.diff(ast_no_hints, ast_hints)
+
+    # Each table can only have one partition.
+    partition_inserts = list(
+        filter(
+            lambda a: isinstance(a, Insert)
+            and isinstance(getattr(a, "expression", None), PartitionedByProperty),
+            diff,
+        )
+    )
+    assert len(partition_inserts) == 1
+
+    partition_insert = partition_inserts[0]
+
+    # Traverse the ast to make sure the correct column was partitioned on.
+    if ast := getattr(partition_insert, "expression", None):
+        assert ast.find(exp.Column).name == "col1"
+    else:
+        raise ValueError("Expected a partition definition in the AST diff, but none was found.")
+
+
+def test_adapter_hints_parsing_round_half_away_from_zero() -> None:
+    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    bigquery_adapter(some_data, round_half_away_from_zero="double_col")
+    assert some_data.columns == {
+        "double_col": {
+            "name": "double_col",
+            "data_type": "double",
+            "x-bigquery-round-half-away-from-zero": True,
+        },
+    }
+
+
+def test_adapter_hints_round_half_away_from_zero() -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "bigint"}])
+    def no_hints() -> Iterator[Dict[str, int]]:
+        yield from [{"col1": i} for i in range(10)]
+
     # TODO: Replace with adapter.
     @dlt.resource(
         columns={"col1": {"data_type": "bigint", "partition": True, "nullable": False}},
@@ -474,7 +544,13 @@ def test_adapter_hints_partitioning(destination_config: DestinationTestConfigura
     diff = sqlglot.diff(ast_no_hints, ast_hints)
 
     # Each table can only have one partition.
-    partition_inserts = list(filter(lambda a: isinstance(a, Insert) and isinstance(getattr(a, "expression", None), PartitionedByProperty), diff))
+    partition_inserts = list(
+        filter(
+            lambda a: isinstance(a, Insert)
+            and isinstance(getattr(a, "expression", None), PartitionedByProperty),
+            diff,
+        )
+    )
     assert len(partition_inserts) == 1
 
     partition_insert = partition_inserts[0]
@@ -484,25 +560,6 @@ def test_adapter_hints_partitioning(destination_config: DestinationTestConfigura
         assert ast.find(exp.Column).name == "col1"
     else:
         raise ValueError("Expected a partition definition in the AST diff, but none was found.")
-
-
-
-
-
-getattr
-def test_adapter_hints_round_half_away_from_zero() -> None:
-    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
-    def some_data() -> Iterator[Dict[str, str]]:
-        yield from next(sequence_generator())
-
-    bigquery_adapter(some_data, round_half_away_from_zero="double_col")
-    assert some_data.columns == {
-        "double_col": {
-            "name": "double_col",
-            "data_type": "double",
-            "x-bigquery-round-half-away-from-zero": True,
-        },
-    }
 
 
 def test_adapter_hints_parsing_clustering() -> None:
