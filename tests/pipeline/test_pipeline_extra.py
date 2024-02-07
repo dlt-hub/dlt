@@ -269,7 +269,7 @@ def test_flattens_model_when_skip_complex_types_is_set() -> None:
     }
 
 
-def test_flattens_model_when_skip_complex_types_is_not_set():
+def test_considers_model_as_complex_when_skip_complex_types_is_not_set():
     class Parent(BaseModel):
         child: Child
         optional_parent_attribute: Optional[str] = None
