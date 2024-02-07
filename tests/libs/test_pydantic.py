@@ -274,7 +274,6 @@ def test_nested_model_config_propagation() -> None:
     # print(model_freeze.__fields__["address"].annotation)
 
 
-
 def test_item_list_validation() -> None:
     class ItemModel(BaseModel):
         b: bool
@@ -556,3 +555,15 @@ def test_considers_dictionary_as_complex_when_skip_complex_types_is_false():
         "name": "data_list",
         "nullable": False,
     }
+
+
+def test_skip_complex_types_when_skip_complex_types_is_true_and_field_is_not_pydantic_model():
+    class MyParent(Parent):
+        data_list: List[str] = []
+        data_dictionary: Dict[str, Any] = None
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+    schema = pydantic_to_table_schema_columns(MyParent)
+
+    assert "data_dictionary" not in schema
+    assert "data_list" not in schema
