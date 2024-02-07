@@ -232,12 +232,7 @@ class DltResourceHints:
                     # normalize columns
                     columns = ensure_table_schema_columns(columns)
                     # this updates all columns with defaults
-                    print("PREV")
-                    print(t["columns"])
                     t["columns"] = update_dict_nested(t["columns"], columns)
-                    print("POST")
-                    print(t["columns"])
-                    print("------")
                 else:
                     # set to empty columns
                     t["columns"] = ensure_table_schema_columns(columns)
