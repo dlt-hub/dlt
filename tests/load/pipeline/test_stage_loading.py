@@ -94,7 +94,13 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
     # check item of first row in db
     with pipeline.sql_client() as sql_client:
-        rows = sql_client.execute_sql("SELECT url FROM issues WHERE id = 388089021 LIMIT 1")
+        if destination_config.destination in ["mssql", "synapse"]:
+            qual_name = sql_client.make_qualified_table_name
+            rows = sql_client.execute_sql(
+                f"SELECT TOP 1 url FROM {qual_name('issues')} WHERE id = 388089021"
+            )
+        else:
+            rows = sql_client.execute_sql("SELECT url FROM issues WHERE id = 388089021 LIMIT 1")
         assert rows[0][0] == "https://api.github.com/repos/duckdb/duckdb/issues/71"
 
     if destination_config.supports_merge:
@@ -109,10 +115,23 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
         # check changes where merged in
         with pipeline.sql_client() as sql_client:
-            rows = sql_client.execute_sql("SELECT number FROM issues WHERE id = 1232152492 LIMIT 1")
-            assert rows[0][0] == 105
-            rows = sql_client.execute_sql("SELECT number FROM issues WHERE id = 1142699354 LIMIT 1")
-            assert rows[0][0] == 300
+            if destination_config.destination in ["mssql", "synapse"]:
+                qual_name = sql_client.make_qualified_table_name
+                rows_1 = sql_client.execute_sql(
+                    f"SELECT TOP 1 number FROM {qual_name('issues')} WHERE id = 1232152492"
+                )
+                rows_2 = sql_client.execute_sql(
+                    f"SELECT TOP 1 number FROM {qual_name('issues')} WHERE id = 1142699354"
+                )
+            else:
+                rows_1 = sql_client.execute_sql(
+                    "SELECT number FROM issues WHERE id = 1232152492 LIMIT 1"
+                )
+                rows_2 = sql_client.execute_sql(
+                    "SELECT number FROM issues WHERE id = 1142699354 LIMIT 1"
+                )
+            assert rows_1[0][0] == 105
+            assert rows_2[0][0] == 300
 
     # test append
     info = pipeline.run(
@@ -158,8 +177,12 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     if destination_config.destination in (
         "redshift",
         "athena",
+        "databricks",
     ) and destination_config.file_format in ("parquet", "jsonl"):
         # Redshift copy doesn't support TIME column
+        exclude_types.append("time")
+    if destination_config.destination == "synapse" and destination_config.file_format == "parquet":
+        # TIME columns are not supported for staged parquet loads into Synapse
         exclude_types.append("time")
     if destination_config.destination == "redshift" and destination_config.file_format in (
         "parquet",
@@ -167,6 +190,9 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     ):
         # Redshift can't load fixed width binary columns from parquet
         exclude_columns.append("col7_precision")
+    if destination_config.destination == "databricks" and destination_config.file_format == "jsonl":
+        exclude_types.extend(["decimal", "binary", "wei", "complex", "date"])
+        exclude_columns.append("col1_precision")
 
     column_schemas, data_types = table_update_and_row(
         exclude_types=exclude_types, exclude_columns=exclude_columns
@@ -199,7 +225,8 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     assert_load_info(info)
 
     with pipeline.sql_client() as sql_client:
-        db_rows = sql_client.execute_sql("SELECT * FROM data_types")
+        qual_name = sql_client.make_qualified_table_name
+        db_rows = sql_client.execute_sql(f"SELECT * FROM {qual_name('data_types')}")
         assert len(db_rows) == 10
         db_row = list(db_rows[0])
         # parquet is not really good at inserting json, best we get are strings in JSON columns

@@ -788,7 +788,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         column_schemas["col11_precision"]["precision"] = 0
 
     # drop TIME from databases not supporting it via parquet
-    if destination_config.destination in ["redshift", "athena"]:
+    if destination_config.destination in ["redshift", "athena", "synapse", "databricks"]:
         data_types.pop("col11")
         data_types.pop("col11_null")
         data_types.pop("col11_precision")
@@ -827,15 +827,16 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     assert len(package_info.jobs["completed_jobs"]) == expected_completed_jobs
 
     with pipeline.sql_client() as sql_client:
+        qual_name = sql_client.make_qualified_table_name
         assert [
-            row[0] for row in sql_client.execute_sql("SELECT * FROM other_data ORDER BY 1")
+            row[0]
+            for row in sql_client.execute_sql(f"SELECT * FROM {qual_name('other_data')} ORDER BY 1")
         ] == [1, 2, 3, 4, 5]
-        assert [row[0] for row in sql_client.execute_sql("SELECT * FROM some_data ORDER BY 1")] == [
-            1,
-            2,
-            3,
-        ]
-        db_rows = sql_client.execute_sql("SELECT * FROM data_types")
+        assert [
+            row[0]
+            for row in sql_client.execute_sql(f"SELECT * FROM {qual_name('some_data')} ORDER BY 1")
+        ] == [1, 2, 3]
+        db_rows = sql_client.execute_sql(f"SELECT * FROM {qual_name('data_types')}")
         assert len(db_rows) == 10
         db_row = list(db_rows[0])
         # "snowflake" and "bigquery" do not parse JSON form parquet string so double parse

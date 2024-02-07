@@ -88,6 +88,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/bigquery',
             'dlt-ecosystem/destinations/duckdb',
             'dlt-ecosystem/destinations/mssql',
+            'dlt-ecosystem/destinations/synapse',
             'dlt-ecosystem/destinations/filesystem',
             'dlt-ecosystem/destinations/postgres',
             'dlt-ecosystem/destinations/redshift',
@@ -220,6 +221,7 @@ const sidebars = {
           items: [
             'general-usage/customising-pipelines/renaming_columns',
             'general-usage/customising-pipelines/pseudonymizing_columns',
+            'general-usage/customising-pipelines/removing_columns',
           ]
         },
         {

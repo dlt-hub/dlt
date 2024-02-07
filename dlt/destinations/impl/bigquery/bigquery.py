@@ -30,6 +30,7 @@ from dlt.destinations.impl.bigquery import capabilities
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
+from dlt.destinations.sql_jobs import SqlMergeJob, SqlJobParams
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob, SqlJobParams
@@ -149,28 +150,6 @@ class BigQueryMergeJob(SqlMergeJob):
         return sql
 
 
-class BigqueryStagingCopyJob(SqlStagingCopyJob):
-    @classmethod
-    def generate_sql(
-        cls,
-        table_chain: Sequence[TTableSchema],
-        sql_client: SqlClientBase[Any],
-        params: Optional[SqlJobParams] = None,
-    ) -> List[str]:
-        sql: List[str] = []
-        for table in table_chain:
-            with sql_client.with_staging_dataset(staging=True):
-                staging_table_name = sql_client.make_qualified_table_name(table["name"])
-            table_name = sql_client.make_qualified_table_name(table["name"])
-            sql.extend(
-                (
-                    f"DROP TABLE IF EXISTS {table_name};",
-                    f"CREATE TABLE {table_name} CLONE {staging_table_name};",
-                )
-            )
-        return sql
-
-
 class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
@@ -189,13 +168,6 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def _create_merge_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
-
-    def _create_replace_followup_jobs(
-        self, table_chain: Sequence[TTableSchema]
-    ) -> List[NewLoadJob]:
-        if self.config.replace_strategy == "staging-optimized":
-            return [BigqueryStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
-        return super()._create_replace_followup_jobs(table_chain)
 
     def restore_file_load(self, file_path: str) -> LoadJob:
         """Returns a completed SqlLoadJob or restored BigQueryLoadJob
@@ -280,9 +252,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             elif (c := partition_list[0])["data_type"] == "date":
                 sql[0] = f"{sql[0]}\nPARTITION BY {self.capabilities.escape_identifier(c['name'])}"
             elif (c := partition_list[0])["data_type"] == "timestamp":
-                sql[0] = (
-                    f"{sql[0]}\nPARTITION BY DATE({self.capabilities.escape_identifier(c['name'])})"
-                )
+                sql[
+                    0
+                ] = f"{sql[0]}\nPARTITION BY DATE({self.capabilities.escape_identifier(c['name'])})"
             # Automatic partitioning of an INT64 type requires us to be prescriptive - we treat the column as a UNIX timestamp.
             # This is due to the bounds requirement of GENERATE_ARRAY function for partitioning.
             # The 10,000 partitions limit makes it infeasible to cover the entire `bigint` range.
@@ -300,9 +272,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         name = self.capabilities.escape_identifier(c["name"])
-        return (
-            f"{name} {self.type_mapper.to_db_type(c, table_format)} {self._gen_not_null(c.get('nullable', True))}"
-        )
+        return f"{name} {self.type_mapper.to_db_type(c, table_format)} {self._gen_not_null(c.get('nullable', True))}"
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         schema_table: TTableSchemaColumns = {}

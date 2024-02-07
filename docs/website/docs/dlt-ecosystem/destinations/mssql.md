@@ -16,16 +16,14 @@ pip install dlt[mssql]
 
 ### Prerequisites
 
-Microsoft ODBC driver for SQL Server must be installed to use this destination.
-This can't be included with `dlt`s python dependencies so you must installed it separately on your system.
+_Microsoft ODBC Driver for SQL Server_ must be installed to use this destination.
+This can't be included with `dlt`'s python dependencies, so you must install it separately on your system. You can find the official installation instructions [here](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16).
 
-See instructions here to [install Microsoft ODBC Driver 18 for SQL Server on Windows, Mac and Linux](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16)
+Supported driver versions:
+* `ODBC Driver 18 for SQL Server`
+* `ODBC Driver 17 for SQL Server`
 
-Following ODBC drivers are supported:
-* ODBC Driver 18 for SQL Server
-* ODBC Driver 17 for SQL Server
-
-[You can configure driver name explicitly](#additional-destination-options) as well.
+You can [configure driver name](#additional-destination-options) explicitly as well.
 
 ### Create a pipeline
 

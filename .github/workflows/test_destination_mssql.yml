@@ -71,11 +71,11 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
-          poetry run pytest tests/load --ignore tests/load/pipeline/test_dbt_helper.py
+          poetry run pytest tests/load
         if: runner.os != 'Windows'
         name: Run tests Linux/MAC
       - run: |
-          poetry run pytest tests/load --ignore tests/load/pipeline/test_dbt_helper.py
+          poetry run pytest tests/load
         if: runner.os == 'Windows'
         name: Run tests Windows
         shell: cmd

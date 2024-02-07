@@ -106,8 +106,8 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         )
         table_names = [row[0] for row in rows]
         self.drop_tables(*table_names)
-
-        self.execute_sql("DROP SCHEMA IF EXISTS %s;" % self.fully_qualified_dataset_name())
+        # Drop schema
+        self._drop_schema()
 
     def _drop_views(self, *tables: str) -> None:
         if not tables:
@@ -115,7 +115,10 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         statements = [
             f"DROP VIEW IF EXISTS {self.make_qualified_table_name(table)};" for table in tables
         ]
-        self.execute_fragments(statements)
+        self.execute_many(statements)
+
+    def _drop_schema(self) -> None:
+        self.execute_sql("DROP SCHEMA IF EXISTS %s;" % self.fully_qualified_dataset_name())
 
     def execute_sql(
         self, sql: AnyStr, *args: Any, **kwargs: Any

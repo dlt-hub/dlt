@@ -97,10 +97,12 @@ class DestinationTestConfiguration:
     bucket_url: Optional[str] = None
     stage_name: Optional[str] = None
     staging_iam_role: Optional[str] = None
+    staging_use_msi: bool = False
     extra_info: Optional[str] = None
     supports_merge: bool = True  # TODO: take it from client base class
     force_iceberg: bool = False
     supports_dbt: bool = True
+    disable_compression: bool = False
 
     @property
     def name(self) -> str:
@@ -120,10 +122,11 @@ class DestinationTestConfiguration:
         os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = self.bucket_url or ""
         os.environ["DESTINATION__STAGE_NAME"] = self.stage_name or ""
         os.environ["DESTINATION__STAGING_IAM_ROLE"] = self.staging_iam_role or ""
+        os.environ["DESTINATION__STAGING_USE_MSI"] = str(self.staging_use_msi) or ""
         os.environ["DESTINATION__FORCE_ICEBERG"] = str(self.force_iceberg) or ""
 
         """For the filesystem destinations we disable compression to make analyzing the result easier"""
-        if self.destination == "filesystem":
+        if self.destination == "filesystem" or self.disable_compression:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
     def setup_pipeline(
@@ -152,6 +155,7 @@ def destinations_configs(
     subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
     file_format: Optional[TLoaderFileFormat] = None,
+    supports_dbt: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
     # sanity check
     for item in subset:
@@ -165,7 +169,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination != "athena"
+            if destination not in ("athena", "mssql", "synapse")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -191,6 +195,10 @@ def destinations_configs(
                 supports_dbt=False,
                 extra_info="iceberg",
             )
+        ]
+        destination_configs += [
+            DestinationTestConfiguration(destination="mssql", supports_dbt=False),
+            DestinationTestConfiguration(destination="synapse", supports_dbt=False),
         ]
 
     if default_vector_configs:
@@ -252,6 +260,36 @@ def destinations_configs(
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
             ),
+            DestinationTestConfiguration(
+                destination="databricks",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
+                disable_compression=True,
+            ),
+            DestinationTestConfiguration(
+                destination="databricks",
+                staging="filesystem",
+                file_format="jsonl",
+                bucket_url=AZ_BUCKET,
+                extra_info="s3-authorization",
+                disable_compression=True,
+            ),
+            DestinationTestConfiguration(
+                destination="databricks",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
+                extra_info="s3-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="synapse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
+            ),
         ]
 
     if all_staging_configs:
@@ -283,6 +321,14 @@ def destinations_configs(
                 file_format="jsonl",
                 bucket_url=GCS_BUCKET,
                 extra_info="gcs-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="synapse",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                staging_use_msi=True,
+                extra_info="az-managed-identity",
             ),
         ]
 
@@ -327,6 +373,10 @@ def destinations_configs(
     if file_format:
         destination_configs = [
             conf for conf in destination_configs if conf.file_format == file_format
+        ]
+    if supports_dbt is not None:
+        destination_configs = [
+            conf for conf in destination_configs if conf.supports_dbt == supports_dbt
         ]
 
     # filter out excluded configs
@@ -467,7 +517,6 @@ def yield_client_with_storage(
     ) as client:
         client.initialize_storage()
         yield client
-        # print(dataset_name)
         client.sql_client.drop_dataset()
         if isinstance(client, WithStagingDataset):
             with client.with_staging_dataset():

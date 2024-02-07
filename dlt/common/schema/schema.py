@@ -546,11 +546,19 @@ class Schema:
             )
         ]
 
+    def data_table_names(self) -> List[str]:
+        """Returns list of table table names. Excludes dlt table names."""
+        return [t["name"] for t in self.data_tables()]
+
     def dlt_tables(self) -> List[TTableSchema]:
         """Gets dlt tables"""
         return [
             t for t in self._schema_tables.values() if t["name"].startswith(self._dlt_tables_prefix)
         ]
+
+    def dlt_table_names(self) -> List[str]:
+        """Returns list of dlt table names."""
+        return [t["name"] for t in self.dlt_tables()]
 
     def get_preferred_type(self, col_name: str) -> Optional[TDataType]:
         return next((m[1] for m in self._compiled_preferred_types if m[0].search(col_name)), None)
