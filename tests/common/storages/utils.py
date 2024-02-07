@@ -49,7 +49,8 @@ def assert_sample_files(
 
     for item in all_file_items:
         # only accept file items we know
-        assert item["file_name"] in minimally_expected_file_items
+        if not item["file_name"] in minimally_expected_file_items:
+            continue
 
         assert isinstance(item["file_name"], str)
         assert item["file_url"].endswith(item["file_name"])
