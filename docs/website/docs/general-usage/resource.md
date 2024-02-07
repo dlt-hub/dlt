@@ -8,7 +8,7 @@ keywords: [resource, api endpoint, dlt.resource]
 
 ## Declare a resource
 
-A [resource](glossary.md#resource) is a function that yields data. To create a
+A [resource](glossary.md#resource) is a ([optionally async](https://dlthub.com/docs/reference/performance#parallelism)) function that yields data. To create a
 resource, we add the `@dlt.resource` decorator to that function.
 
 Commonly used arguments:
@@ -136,7 +136,6 @@ behaviour of creating child tables for these fields.
 
 We do not support `RootModel` that validate simple types. You can add such validator yourself, see [data filtering section](#filter-transform-and-pivot-data).
 
-
 ### Dispatch data to many tables
 
 You can load data to many tables from a single resource. The most common case is a stream of events
@@ -227,7 +226,7 @@ pipeline.run(users(limit=100) | user_details)
 ### Declare a standalone resource
 A standalone resource is defined on a function that is top level in a module (not inner function) that accepts config and secrets values. Additionally
 if `standalone` flag is specified, the decorated function signature and docstring will be preserved. `dlt.resource` will just wrap the
-function decorated function and user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
+decorated function and user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
 ```python
 @dlt.resource(standalone=True)
 def filesystem(bucket_url=dlt.config.value):
@@ -338,6 +337,45 @@ To just change a name of a table to which resource will load data, do the follow
 tables = sql_database()
 tables.users.table_name = "other_users"
 ```
+
+### Adjust schema when you yield data
+
+You can set or update the table name, columns and other schema elements when your resource is executed and you already yield data. Such changes will be merged
+with the existing schema in the same way `apply_hints` method above works. There are many reason to adjust schema at runtime. For example when using Airflow, you
+should avoid lengthy operations (ie. reflecting database tables) during creation of the DAG so it is better do do it when DAG executes. You may also emit partial
+hints (ie. precision and scale for decimal types) for column to help `dlt` type inference.
+
+```python
+@dlt.resource
+def sql_table(credentials, schema, table):
+    # create sql alchemy engine
+    engine = engine_from_credentials(credentials)
+    engine.execution_options(stream_results=True)
+    metadata = MetaData(schema=schema)
+    # reflect the table schema
+    table_obj = Table(table, metadata, autoload_with=engine)
+
+    for idx, batch in enumerate(table_rows(engine, table_obj)):
+      if idx == 0:
+        # emit first row with hints, table_to_columns and get_primary_key are helpers that extract dlt schema from
+        # SqlAlchemy model
+        yield dlt.mark.with_hints(
+            batch,
+            dlt.mark.make_hints(columns=table_to_columns(table_obj), primary_key=get_primary_key(table_obj)),
+        )
+      else:
+        # just yield all the other rows
+        yield batch
+
+```
+
+In the example above we use `dlt.mark.with_hints` and `dlt.mark.make_hints` to emit columns and primary key with the first extracted item. Table schema will
+be adjusted after the `batch` is processed in the extract pipeline but before any schema contracts are applied and data is persisted in load package.
+
+:::tip
+You can emit columns as Pydantic model and use dynamic hints (ie. lambda for table name) as well. You should avoid redefining `Incremental` this way.
+:::
+
 
 ### Duplicate and rename resources
 There are cases when you your resources are generic (ie. bucket filesystem) and you want to load several instances of it (ie. files from different folders) to separate tables. In example below we use `filesystem` source to load csvs from two different folders into separate tables:

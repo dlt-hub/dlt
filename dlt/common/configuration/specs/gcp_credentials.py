@@ -1,5 +1,5 @@
 import sys
-from typing import Any, Final, List, Tuple, Union
+from typing import Any, Final, List, Tuple, Union, Dict
 
 from dlt.common import json, pendulum
 from dlt.common.configuration.specs.api_credentials import OAuth2Credentials
@@ -27,7 +27,9 @@ class GcpCredentials(CredentialsConfiguration):
 
     project_id: str = None
 
-    location: str = (  # DEPRECATED! and present only for backward compatibility. please set bigquery location in BigQuery configuration
+    location: (
+        str
+    ) = (  # DEPRECATED! and present only for backward compatibility. please set bigquery location in BigQuery configuration
         "US"
     )
 
@@ -47,6 +49,20 @@ class GcpCredentials(CredentialsConfiguration):
 
     def __str__(self) -> str:
         return f"{self.project_id}"
+
+    def to_gcs_credentials(self) -> Dict[str, Any]:
+        """
+        Dict of keyword arguments can be passed to gcsfs.
+        Delegates default GCS credential handling to gcsfs.
+        """
+        return {
+            "project": self.project_id,
+            "token": (
+                None
+                if isinstance(self, CredentialsWithDefault) and self.has_default_credentials()
+                else dict(self)
+            ),
+        }
 
 
 @configspec

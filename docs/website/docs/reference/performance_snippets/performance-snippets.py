@@ -68,6 +68,15 @@ def parallel_extract_callables_snippet() -> None:
     # @@@DLT_SNIPPET_START parallel_extract_awaitables
     import asyncio
 
+    @dlt.resource
+    async def a_list_items(start, limit):
+        # simulate a slow REST API where you wait 0.3 sec for each item
+        index = start
+        while index < start + limit:
+            await asyncio.sleep(0.3)
+            yield index
+            index += 1
+
     @dlt.transformer
     async def a_get_details(item_id):
         # simulate a slow REST API where you wait 0.3 sec for each item
@@ -76,7 +85,7 @@ def parallel_extract_callables_snippet() -> None:
         # just return the results, if you yield, generator will be evaluated in main thread
         return {"row": item_id}
 
-    print(list(list_items(0, 10) | a_get_details))
+    print(list(a_list_items(0, 10) | a_get_details))
     # @@@DLT_SNIPPET_END parallel_extract_awaitables
 
 

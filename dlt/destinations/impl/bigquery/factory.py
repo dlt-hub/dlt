@@ -9,6 +9,7 @@ if t.TYPE_CHECKING:
     from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
 
 
+# noinspection PyPep8Naming
 class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
     spec = BigQueryClientConfiguration
 

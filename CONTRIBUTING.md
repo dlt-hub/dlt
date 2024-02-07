@@ -105,7 +105,7 @@ Before publishing a new release, make sure to bump the project's version accordi
 2. Use `poetry version patch` to increase the **patch** version
 3. Run `make build-library` to apply the changes to the project.
 4. Create a new branch, and submit the PR to **devel**. Go through standard process to merge it.
-5. Create a merge PR from `devel` to `master` and merge it.
+5. Create a merge PR from `devel` to `master` and merge it with a merge commit.
 
 ### Hotfix release
 1. Check out the **master** branch

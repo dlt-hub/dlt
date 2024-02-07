@@ -24,6 +24,7 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
+from dlt.extract.utils import wrap_async_iterator
 
 from dlt.extract.typing import (
     DataItemWithMeta,
@@ -36,7 +37,7 @@ from dlt.extract.typing import (
     ValidateItem,
 )
 from dlt.extract.pipe import Pipe, ManagedPipeIterator, TPipeStep
-from dlt.extract.hints import DltResourceHints, TResourceHints
+from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired,
@@ -45,7 +46,6 @@ from dlt.extract.exceptions import (
     InvalidResourceDataType,
     InvalidResourceDataTypeIsNone,
     InvalidTransformerGeneratorFunction,
-    InvalidResourceDataTypeAsync,
     InvalidResourceDataTypeBasic,
     InvalidResourceDataTypeMultiplePipes,
     ParametrizedResourceUnbound,
@@ -58,6 +58,15 @@ from dlt.extract.wrappers import wrap_additional_type
 def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
     """Marks `item` to be dispatched to table `table_name` when yielded from resource function."""
     return DataItemWithMeta(TableNameMeta(table_name), item)
+
+
+def with_hints(item: TDataItems, hints: TResourceHints) -> DataItemWithMeta:
+    """Marks `item` to update the resource with specified `hints`.
+
+    Create `TResourceHints` with `make_hints`.
+    Setting `table_name` will dispatch the `item` to a specified table, like `with_table_name`
+    """
+    return DataItemWithMeta(HintsMeta(hints), item)
 
 
 class DltResource(Iterable[TDataItem], DltResourceHints):
@@ -123,8 +132,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         data = wrap_additional_type(data)
 
         # several iterable types are not allowed and must be excluded right away
-        if isinstance(data, (AsyncIterator, AsyncIterable)):
-            raise InvalidResourceDataTypeAsync(name, data, type(data))
         if isinstance(data, (str, dict)):
             raise InvalidResourceDataTypeBasic(name, data, type(data))
 
@@ -135,7 +142,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             parent_pipe = DltResource._get_parent_pipe(name, data_from)
 
         # create resource from iterator, iterable or generator function
-        if isinstance(data, (Iterable, Iterator)) or callable(data):
+        if isinstance(data, (Iterable, Iterator, AsyncIterable)) or callable(data):
             pipe = Pipe.from_data(name, data, parent=parent_pipe)
             return cls(
                 pipe,
@@ -306,16 +313,26 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
         def _gen_wrap(gen: TPipeStep) -> TPipeStep:
             """Wrap a generator to take the first `max_items` records"""
-            nonlocal max_items
             count = 0
+            is_async_gen = False
             if inspect.isfunction(gen):
                 gen = gen()
+
+            # wrap async gen already here
+            if isinstance(gen, AsyncIterator):
+                gen = wrap_async_iterator(gen)
+                is_async_gen = True
+
             try:
                 for i in gen:  # type: ignore # TODO: help me fix this later
                     yield i
-                    count += 1
-                    if count == max_items:
-                        return
+                    if i is not None:
+                        count += 1
+                        # async gen yields awaitable so we must count one awaitable more
+                        # so the previous one is evaluated and yielded.
+                        # new awaitable will be cancelled
+                        if count == max_items + int(is_async_gen):
+                            return
             finally:
                 if inspect.isgenerator(gen):
                     gen.close()

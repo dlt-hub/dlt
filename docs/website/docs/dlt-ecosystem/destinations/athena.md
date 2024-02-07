@@ -92,7 +92,7 @@ athena_work_group="my_workgroup"
 
 ## Data loading
 
-Data loading happens by storing parquet files in an s3 bucket and defining a schema on athena. If you query data via sql queries on athena, the returned data is read by
+Data loading happens by storing parquet files in an s3 bucket and defining a schema on athena. If you query data via SQL queries on athena, the returned data is read by
 scanning your bucket and reading all relevant parquet files in there.
 
 `dlt` internal tables are saved as Iceberg tables.

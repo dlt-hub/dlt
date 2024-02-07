@@ -19,13 +19,13 @@ def read_sql_x(
 def genome_resource():
     # create genome resource with merge on `upid` primary key
     genome = dlt.resource(
-        name="genome",
+        name="acanthochromis_polyacanthus",
         write_disposition="merge",
-        primary_key="upid",
+        primary_key="analysis_id",
         standalone=True,
     )(read_sql_x)(
-        "mysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam",  # type: ignore[arg-type]
-        "SELECT * FROM genome ORDER BY created LIMIT 1000",
+        "mysql://anonymous@ensembldb.ensembl.org:3306/acanthochromis_polyacanthus_core_100_1",  # type: ignore[arg-type]
+        "SELECT * FROM analysis LIMIT 20",
     )
     # add incremental on created at
     genome.apply_hints(incremental=dlt.sources.incremental("created"))

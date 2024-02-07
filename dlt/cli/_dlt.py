@@ -498,7 +498,10 @@ def main() -> int:
     )
     pipe_cmd_schema = pipeline_subparsers.add_parser("schema", help="Displays default schema")
     pipe_cmd_schema.add_argument(
-        "--format", choices=["json", "yaml"], default="yaml", help="Display schema in this format"
+        "--format",
+        choices=["json", "yaml"],
+        default="yaml",
+        help="Display schema in this format",
     )
     pipe_cmd_schema.add_argument(
         "--remove-defaults", action="store_true", help="Does not show default hint values"

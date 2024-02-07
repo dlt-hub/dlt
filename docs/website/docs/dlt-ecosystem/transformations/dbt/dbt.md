@@ -1,16 +1,16 @@
 ---
-title: Transforming data with dbt
+title: Transform the data with dbt
 description: Transforming the data loaded by a dlt pipeline with dbt
 keywords: [transform, dbt, runner]
 ---
 
-# Transforming data using dbt
+# Transform the data with dbt
 
 [dbt](https://github.com/dbt-labs/dbt-core) is a framework that allows simple structuring of your transformations into DAGs. The benefits of
 using dbt include:
 
 - End-to-end cross-db compatibility for dlt→dbt pipelines.
-- Easy to use by sql analysts, low learning curve.
+- Easy to use by SQL analysts, low learning curve.
 - Highly flexible and configurable in usage, supports templating, can run backfills etc.
 - Supports testing and accelerates troubleshooting.
 

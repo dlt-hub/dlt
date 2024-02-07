@@ -6,7 +6,7 @@ keywords: [how to, share a dataset]
 
 # Share a dataset: DuckDB -> BigQuery
 
-In previous walkthroughs you used the local stack to create and run your pipeline. This saved you
+In previous how-to guides you used the local stack to create and run your pipeline. This saved you
 the headache of setting up cloud account, credentials and often also money. Our choice for local
 "warehouse" is `duckdb`, fast, feature rich and working everywhere. However, at some point you want
 to move to production or share the results with your colleagues. The local `duckdb` file is not

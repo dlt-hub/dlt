@@ -9,17 +9,7 @@ on:
   workflow_dispatch:
 
 env:
-  CREDENTIALS__PROJECT_ID: chat-analytics-rasa-ci
-  CREDENTIALS__CLIENT_EMAIL: chat-analytics-loader@chat-analytics-rasa-ci.iam.gserviceaccount.com
-  CREDENTIALS__PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
-  CREDENTIALS__TOKEN_URI: https://oauth2.googleapis.com/token
-  CREDENTIALS__CLIENT_ID: 929384042504-3mtjaj1s7vuvf53j88mgdq4te7akkjm3.apps.googleusercontent.com
-  CREDENTIALS__CLIENT_SECRET: ${{ secrets.CREDENTIALS__CLIENT_SECRET }}
-  CREDENTIALS__REFRESH_TOKEN: ${{ secrets.CREDENTIALS__REFRESH_TOKEN }}
-
-  # needed for bigquery staging tests
-  # DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4LGORLZOK
-  # DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
 
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
@@ -81,8 +71,8 @@ jobs:
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction -E bigquery --with providers -E parquet --with sentry-sdk --with pipeline
 
-      # - name: Install self
-      #   run: poetry install --no-interaction
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
           poetry run pytest tests/helpers/providers tests/load

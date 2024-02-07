@@ -2,6 +2,7 @@ import io
 import os
 import contextlib
 import pytest
+import logging
 from subprocess import CalledProcessError
 
 import dlt
@@ -176,6 +177,9 @@ def test_pipeline_command_failed_jobs(repo_dir: str, project_files: FileStorage)
         print(cpe.stdout)
         print(cpe.stderr)
         raise
+
+    # disable logging output for discovery cache for this test
+    logging.getLogger("googleapiclient.discovery_cache").setLevel(logging.ERROR)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
         pipeline_command.pipeline_command("trace", "chess_pipeline", None, 0)
