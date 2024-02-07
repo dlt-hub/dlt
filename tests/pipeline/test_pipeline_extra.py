@@ -207,14 +207,7 @@ class Child(BaseModel):
     optional_child_attribute: Optional[str] = None
 
 
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
-    ids=lambda x: x.name,
-)
-def test_flattens_model_when_skip_complex_types_is_set(
-    destination_config: DestinationTestConfiguration,
-) -> None:
+def test_flattens_model_when_skip_complex_types_is_set() -> None:
     class Parent(BaseModel):
         child: Child
         optional_parent_attribute: Optional[str] = None
@@ -228,16 +221,8 @@ def test_flattens_model_when_skip_complex_types_is_set(
         },
     }
 
-    @dlt.resource
-    def res():
-        yield [example_data]
-
-    @dlt.source(max_table_nesting=1)
-    def src():
-        yield res()
-
-    p = destination_config.setup_pipeline("example", full_refresh=True)
-    p.run(src(), table_name="items", columns=Parent)
+    p = dlt.pipeline("example", destination="duckdb")
+    p.run([example_data], table_name="items", columns=Parent)
 
     with p.sql_client() as client:
         with client.execute_query("SELECT * FROM items") as cursor:
@@ -246,6 +231,8 @@ def test_flattens_model_when_skip_complex_types_is_set(
                 for val, col in zip(cursor.fetchall()[0], cursor.description)
                 if col[0] not in ("_dlt_id", "_dlt_load_id")
             }
+
+            # Check if child dictionary is flattened and added to schema
             assert loaded_values == {
                 "child__child_attribute": "any string",
                 "child__optional_child_attribute": None,
@@ -282,14 +269,7 @@ def test_flattens_model_when_skip_complex_types_is_set(
     }
 
 
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
-    ids=lambda x: x.name,
-)
-def test_flattens_model_when_skip_complex_types_is_not_set(
-    destination_config: DestinationTestConfiguration,
-):
+def test_flattens_model_when_skip_complex_types_is_not_set():
     class Parent(BaseModel):
         child: Child
         optional_parent_attribute: Optional[str] = None
@@ -307,16 +287,8 @@ def test_flattens_model_when_skip_complex_types_is_not_set(
         },
     }
 
-    @dlt.resource
-    def res():
-        yield [example_data]
-
-    @dlt.source(max_table_nesting=1)
-    def src():
-        yield res()
-
-    p = destination_config.setup_pipeline("example", full_refresh=True)
-    p.run(src(), table_name="items", columns=Parent)
+    p = dlt.pipeline("example", destination="duckdb")
+    p.run([example_data], table_name="items", columns=Parent)
 
     with p.sql_client() as client:
         with client.execute_query("SELECT * FROM items") as cursor:
@@ -326,6 +298,8 @@ def test_flattens_model_when_skip_complex_types_is_not_set(
                 if col[0] not in ("_dlt_id", "_dlt_load_id")
             }
 
+            # Check if complex fields preserved
+            # their contents and were not flattened
             assert loaded_values == {
                 "child": '{"child_attribute":"any string","optional_child_attribute":null}',
                 "optional_parent_attribute": None,
