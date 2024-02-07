@@ -44,7 +44,6 @@ __all__ = [
     "GcpServiceAccountCredentials",
     "GcpOAuthCredentialsWithoutDefaults",
     "GcpOAuthCredentials",
-    "GoogleDriveFileSystem",
     "GcpCredentials",
     "ConnectionStringCredentials",
     "OAuth2Credentials",
