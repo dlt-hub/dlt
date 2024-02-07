@@ -23,7 +23,7 @@ except ModuleNotFoundError:
     )
 
 try:
-    import pydata_google_auth
+    import pydata_google_auth  # type: ignore
 except ModuleNotFoundError:
     raise MissingDependencyException("GoogleDriveFileSystem", ["pydata-google-auth"])
 
