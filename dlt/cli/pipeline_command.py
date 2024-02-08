@@ -6,6 +6,7 @@ from dlt.cli.exceptions import CliCommandException
 from dlt.common import json
 from dlt.common.pipeline import resource_state, get_dlt_pipelines_dir, TSourceState
 from dlt.common.destination.reference import TDestinationReferenceArg
+from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import group_tables_by_resource, remove_defaults
@@ -97,7 +98,8 @@ def pipeline_command(
             fmt.echo()
         return extracted_packages, norm_packages
 
-    fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
+    if operation != "schema":
+        fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
 
     if operation == "show":
         from dlt.common.runtime import signals
@@ -259,17 +261,54 @@ def pipeline_command(
                 )
 
     if operation == "schema":
+        format = command_kwargs.get("format")
+        remove_defaults = command_kwargs.get("remove_defaults")
         if not p.default_schema_name:
             fmt.warning("Pipeline does not have a default schema")
-        else:
-            fmt.echo("Found schema with name %s" % fmt.bold(p.default_schema_name))
-        format_ = command_kwargs.get("format")
-        remove_defaults_ = command_kwargs.get("remove_defaults")
+        elif format != "sql" and format != "sdf":
+            fmt.echo("Found schema with name %s" % fmt.bold(p.default_schema_name))        
         s = p.default_schema
-        if format_ == "json":
-            schema_str = json.dumps(s.to_dict(remove_defaults=remove_defaults_), pretty=True)
-        else:
-            schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults_)
+        if format == "json":
+            schema_str = json.dumps(s.to_dict(remove_defaults=remove_defaults), pretty=True)
+        elif format == "yaml":
+            schema_str = s.to_pretty_yaml(remove_defaults=remove_defaults)
+        elif format == "sql":
+            with p.destination_client() as client:
+                if not isinstance(client, SqlJobClientBase):
+                    raise CliCommandException(
+                        "pipeline",
+                        "Schema SQL generation is only supported for SQL destinations",
+                    )
+                sql, _ = client._build_schema_update_sql(full_create=True)
+            schema_str = "\n\n".join(sql)
+        elif format == "sdf":
+            with p.destination_client() as client:
+                if not isinstance(client, SqlJobClientBase):
+                    raise CliCommandException(
+                        "pipeline",
+                        "Schema SDF generation is only supported for SQL destinations",
+                    )
+                table_dicts = []
+                for table in s.tables.values():
+                    table_dicts.append(
+                        {
+                            "table": {
+                                "name": client.sql_client.make_qualified_table_name(
+                                    table["name"], escape=False
+                                ),
+                                "columns": [
+                                    {"name": c["name"], "classifiers": c.get("classifiers", [])}
+                                    for c in table["columns"].values()
+                                ],
+                            }
+                        }
+                    )
+                schema_str = "---\n".join(
+                    [
+                        yaml.dump(t, allow_unicode=True, default_flow_style=False, sort_keys=False)
+                        for t in table_dicts
+                    ]
+                )
         fmt.echo(schema_str)
 
     if operation == "drop":
