@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import ClassVar, Optional, Sequence, Tuple, List, cast, Any
+from typing import ClassVar, Optional, Sequence, Tuple, List, cast
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -30,10 +30,8 @@ from dlt.destinations.impl.bigquery import capabilities
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
-from dlt.destinations.sql_jobs import SqlMergeJob, SqlJobParams
 from dlt.destinations.job_impl import NewReferenceJob
-from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob, SqlJobParams
+from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.type_mapping import TypeMapper
 
 

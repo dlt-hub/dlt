@@ -2,6 +2,7 @@ from typing import Any, Optional
 
 from dateutil import parser
 
+from dlt.common.pendulum import timezone
 from dlt.common.schema.typing import (
     TColumnNames,
     TTableSchemaColumns,
@@ -51,6 +52,7 @@ def bigquery_adapter(
             See https://cloud.google.com/bigquery/docs/schemas#rounding_mode for more information.
         table_description (str, optional): A description for the BigQuery table.
         table_expiration_datetime (str, optional): String representing the datetime when the BigQuery table expires.
+            This is always interpreted as UTC, BigQuery's default.
 
     Returns:
         A `DltResource` object that is ready to be loaded into BigQuery.
@@ -140,7 +142,9 @@ def bigquery_adapter(
                 " BigQuery table."
             )
         try:
-            parsed_table_expiration_datetime = parser.parse(table_expiration_datetime)
+            parsed_table_expiration_datetime = parser.parse(table_expiration_datetime).replace(
+                tzinfo=timezone.utc
+            )
             table_hints.update({TABLE_EXPIRATION_HINT: parsed_table_expiration_datetime})
         except ValueError as e:
             raise ValueError(f"{table_expiration_datetime} could not be parsed!") from e
