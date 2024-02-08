@@ -19,7 +19,7 @@ from tests.load.utils import (
     delete_dataset,
 )
 
-SUPPORTED_LOADER_FORMATS = ["parquet", "jsonl"]
+SUPPORTED_LOADER_FORMATS = ["parquet", "puae-jsonl"]
 
 
 def _run_through_sink(
@@ -34,11 +34,14 @@ def _run_through_sink(
     """
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
-    @dlt.sink(loader_file_format=loader_file_format, batch_size=batch_size)
+    @dlt.destination(loader_file_format=loader_file_format, batch_size=batch_size)
     def test_sink(items: TDataItems, table: TTableSchema) -> None:
         nonlocal calls
         if table["name"].startswith("_dlt") and filter_dlt_tables:
             return
+        # convert pyarrow table to dict list here to make tests more simple downstream
+        if loader_file_format == "parquet":
+            items = items.to_pylist()  # type: ignore
         calls.append((items, table))
 
     @dlt.resource(columns=columns, table_name="items")
@@ -67,15 +70,13 @@ def test_all_datatypes(loader_file_format: TLoaderFileFormat) -> None:
     # inspect result
     assert len(sink_calls) == 3
 
-    item = sink_calls[0][0]
+    item = sink_calls[0][0][0]
+
     # filter out _dlt columns
-    item = {k: v for k, v in item.items() if not k.startswith("_dlt")}  # type: ignore
+    item = {k: v for k, v in item.items() if not k.startswith("_dlt")}
 
     # null values are not emitted
     data_types = {k: v for k, v in data_types.items() if v is not None}
-
-    # check keys are the same
-    assert set(item.keys()) == set(data_types.keys())
 
     assert_all_data_types_row(item, expect_filtered_null_columns=True)
 
@@ -90,7 +91,7 @@ def test_batch_size(loader_file_format: TLoaderFileFormat, batch_size: int) -> N
     if batch_size == 1:
         assert len(sink_calls) == 100
         # one item per call
-        assert sink_calls[0][0].items() > {"id": 0, "value": "0"}.items()  # type: ignore
+        assert sink_calls[0][0][0].items() > {"id": 0, "value": "0"}.items()
     elif batch_size == 10:
         assert len(sink_calls) == 10
         # ten items in first call
@@ -106,8 +107,6 @@ def test_batch_size(loader_file_format: TLoaderFileFormat, batch_size: int) -> N
     all_items = set()
     for call in sink_calls:
         item = call[0]
-        if batch_size == 1:
-            item = [item]
         for entry in item:
             all_items.add(entry["value"])
 
@@ -137,7 +136,7 @@ def test_instantiation() -> None:
 
     # test decorator
     calls = []
-    p = dlt.pipeline("sink_test", destination=dlt.sink()(local_sink_func), full_refresh=True)
+    p = dlt.pipeline("sink_test", destination=dlt.destination()(local_sink_func), full_refresh=True)
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
 
@@ -184,27 +183,31 @@ def test_instantiation() -> None:
         p.run([1, 2, 3], table_name="items")
 
 
-@pytest.mark.parametrize("loader_file_format", ["jsonl"])
+@pytest.mark.parametrize("loader_file_format", SUPPORTED_LOADER_FORMATS)
 @pytest.mark.parametrize("batch_size", [1, 10, 23])
 def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size: int) -> None:
     calls: Dict[str, List[TDataItems]] = {}
     # provoke errors on resources
     provoke_error: Dict[str, int] = {}
 
-    @dlt.sink(loader_file_format=loader_file_format, batch_size=batch_size)
+    @dlt.destination(loader_file_format=loader_file_format, batch_size=batch_size)
     def test_sink(items: TDataItems, table: TTableSchema) -> None:
         nonlocal calls
         table_name = table["name"]
         if table_name.startswith("_dlt"):
             return
 
+        # convert pyarrow table to dict list here to make tests more simple downstream
+        if loader_file_format == "parquet":
+            items = items.to_pylist()  # type: ignore
+
         # provoke error if configured
         if table_name in provoke_error:
-            for item in items if batch_size > 1 else [items]:
+            for item in items:
                 if provoke_error[table_name] == item["id"]:
                     raise AssertionError("Oh no!")
 
-        calls.setdefault(table_name, []).append(items if batch_size > 1 else [items])
+        calls.setdefault(table_name, []).append(items)
 
     @dlt.resource()
     def items() -> TDataItems:

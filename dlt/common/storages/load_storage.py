@@ -40,6 +40,11 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         supported_file_formats: Iterable[TLoaderFileFormat],
         config: LoadStorageConfiguration = config.value,
     ) -> None:
+        # puae-jsonl jobs have the extension .jsonl, so cater for this here
+        if supported_file_formats and "puae-jsonl" in supported_file_formats:
+            supported_file_formats = list(supported_file_formats)
+            supported_file_formats.append("jsonl")
+
         if not LoadStorage.ALL_SUPPORTED_FILE_FORMATS.issuperset(supported_file_formats):
             raise TerminalValueError(supported_file_formats)
         if preferred_file_format and preferred_file_format not in supported_file_formats:
@@ -81,7 +86,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def list_new_jobs(self, load_id: str) -> Sequence[str]:
         """Lists all jobs in new jobs folder of normalized package storage and checks if file formats are supported"""
         new_jobs = self.normalized_packages.list_new_jobs(load_id)
-        # # make sure all jobs have supported writers
+        # make sure all jobs have supported writers
         wrong_job = next(
             (
                 j

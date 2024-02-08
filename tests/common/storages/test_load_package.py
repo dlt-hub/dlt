@@ -71,7 +71,7 @@ def test_create_and_update_loadpackage_state(load_storage: LoadStorage) -> None:
     state = load_storage.new_packages.get_load_package_state("copy")
     assert state["_state_version"] == 0
     assert state["_version_hash"] is not None
-    assert state["created"] is not None
+    assert state["created_at"] is not None
     old_state = state.copy()
 
     state["new_key"] = "new_value"  # type: ignore
@@ -82,10 +82,10 @@ def test_create_and_update_loadpackage_state(load_storage: LoadStorage) -> None:
     assert state["_state_version"] == 1
     assert state["_version_hash"] != old_state["_version_hash"]
     # created timestamp should be conserved
-    assert state["created"] == old_state["created"]
+    assert state["created_at"] == old_state["created_at"]
 
     # check timestamp
-    time = pendulum.from_timestamp(state["created"])
+    time = pendulum.parse(state["created_at"])
     now = pendulum.now()
     assert (now - time).in_seconds() < 2
 
@@ -139,7 +139,7 @@ def test_loadpackage_state_injectable_context(load_storage: LoadStorage) -> None
         clear_destination_state()
         assert (
             load_storage.new_packages.get_load_package_state("copy").get("destination_state")
-            == None
+            is None
         )
 
 

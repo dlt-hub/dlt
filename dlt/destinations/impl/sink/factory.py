@@ -18,7 +18,7 @@ class sink(Destination[SinkClientConfiguration, "SinkClient"]):
     spec = SinkClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:
-        return capabilities(self.config_params.get("loader_file_format", "parquet"))
+        return capabilities(self.config_params.get("loader_file_format", "puae-jsonl"))
 
     @property
     def client_class(self) -> t.Type["SinkClient"]:

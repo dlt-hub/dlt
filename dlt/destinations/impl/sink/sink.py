@@ -8,7 +8,6 @@ from dlt.common import json
 from dlt.pipeline.current import (
     destination_state,
     commit_load_package_state,
-    clear_destination_state,
 )
 
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
@@ -32,7 +31,7 @@ class SinkLoadJob(LoadJob, ABC):
         file_path: str,
         config: SinkClientConfiguration,
         schema: Schema,
-        load_package_state: Dict[str, int],
+        destination_state: Dict[str, int],
     ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._file_path = file_path
@@ -43,11 +42,11 @@ class SinkLoadJob(LoadJob, ABC):
         self._state: TLoadJobState = "running"
         self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
         try:
-            current_index = load_package_state.get(self._storage_id, 0)
+            current_index = destination_state.get(self._storage_id, 0)
             for batch in self.run(current_index):
                 self.call_callable_with_items(batch)
                 current_index += len(batch)
-                load_package_state[self._storage_id] = current_index
+                destination_state[self._storage_id] = current_index
 
             self._state = "completed"
         except Exception as e:
@@ -64,20 +63,8 @@ class SinkLoadJob(LoadJob, ABC):
     def call_callable_with_items(self, items: TDataItems) -> None:
         if not items:
             return
-
-        # coerce items into correct format specified by schema
-        coerced_items: TDataItems = []
-        for item in items:
-            coerced_item, table_update = self._schema.coerce_row(self._table["name"], None, item)
-            assert not table_update
-            coerced_items.append(coerced_item)
-
-        # send single item on batch size 1
-        if self._config.batch_size == 1:
-            coerced_items = coerced_items[0]
-
         # call callable
-        self._config.credentials.resolved_callable(coerced_items, self._table)
+        self._config.credentials.resolved_callable(items, self._table)
 
     def state(self) -> TLoadJobState:
         return self._state
@@ -102,8 +89,7 @@ class SinkParquetLoadJob(SinkLoadJob):
                 if start_batch > 0:
                     start_batch -= 1
                     continue
-                batch = record_batch.to_pylist()
-                yield batch
+                yield record_batch
 
 
 class SinkJsonlLoadJob(SinkLoadJob):
@@ -112,12 +98,14 @@ class SinkJsonlLoadJob(SinkLoadJob):
 
         # stream items
         with FileStorage.open_zipsafe_ro(self._file_path) as f:
-            for line in f:
+            encoded_json = json.typed_loads(f.read())
+
+            for item in encoded_json:
                 # find correct start position
                 if start_index > 0:
                     start_index -= 1
                     continue
-                current_batch.append(json.loads(line))
+                current_batch.append(item)
                 if len(current_batch) == self._config.batch_size:
                     yield current_batch
                     current_batch = []

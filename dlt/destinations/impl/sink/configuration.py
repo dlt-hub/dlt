@@ -62,7 +62,7 @@ class SinkClientCredentials(CredentialsConfiguration):
 class SinkClientConfiguration(DestinationClientConfiguration):
     destination_type: Final[str] = "sink"  # type: ignore
     credentials: SinkClientCredentials = None
-    loader_file_format: TLoaderFileFormat = "jsonl"
+    loader_file_format: TLoaderFileFormat = "puae-jsonl"
     batch_size: int = 10
 
     if TYPE_CHECKING:
@@ -71,6 +71,6 @@ class SinkClientConfiguration(DestinationClientConfiguration):
             self,
             *,
             credentials: Union[SinkClientCredentials, TSinkCallable, str] = None,
-            loader_file_format: TLoaderFileFormat = "jsonl",
+            loader_file_format: TLoaderFileFormat = "puae-jsonl",
             batch_size: int = 10,
         ) -> None: ...

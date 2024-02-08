@@ -427,6 +427,7 @@ class Pipeline(SupportsPipeline):
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive():
             workers = 1
+
         if loader_file_format and loader_file_format in INTERNAL_LOADER_FILE_FORMATS:
             raise ValueError(f"{loader_file_format} is one of internal dlt file formats.")
         # check if any schema is present, if not then no data was extracted

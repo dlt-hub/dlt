@@ -49,7 +49,7 @@ from typing_extensions import NotRequired
 
 
 class TLoadPackageState(TVersionedState, total=False):
-    created: int
+    created_at: str
     """Timestamp when the loadpackage was created"""
 
     """A section of state that does not participate in change merging and version control"""
@@ -403,8 +403,8 @@ class PackageStorage:
         self.storage.create_folder(os.path.join(load_id, PackageStorage.STARTED_JOBS_FOLDER))
         # ensure created timestamp is set in state when load package is created
         state = self.get_load_package_state(load_id)
-        if not state.get("created"):
-            state["created"] = pendulum.now().timestamp()
+        if not state.get("created_at"):
+            state["created_at"] = pendulum.now().to_iso8601_string()
             self.save_load_package_state(load_id, state)
 
     def complete_loading_package(self, load_id: str, load_state: TLoadPackageStatus) -> str:

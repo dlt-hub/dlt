@@ -1,7 +1,7 @@
 ---
-title: Sink / Reverse ETL
+title: Destination Decorator / Reverse ETL
 description: Sink function `dlt` destination for reverse ETL
-keywords: [reverse etl, sink, function]
+keywords: [reverse etl, sink, function, decorator, destination]
 ---
 
 # Sink function / Reverse ETL
@@ -18,28 +18,28 @@ pip install dlt
 Let's start by initializing a new dlt project as follows:
 
 ```bash
-dlt init chess sink
+dlt init chess decorator
 ```
-> 💡 This command will initialize your pipeline with chess as the source and Sink as the destination.
+> 💡 This command will initialize your pipeline with chess as the source and decorator as the destination.
 
 The above command generates several files and directories, including `.dlt/secrets.toml`.
 
-### 2. Set up a sink function for your pipeline
-The sink destination differs from other destinations in that you do not need to provide connection credentials, but rather you provide a function which 
+### 2. Set up a destination function for your pipeline
+The destination decorator differs from other destinations in that you do not need to provide connection credentials, but rather you provide a function which 
 gets called for all items loaded during a pipeline run or load operation. For the chess example, you can add the following lines at the top of the file.
-With the @dlt.sink decorator you can convert any function that takes two arguments into a dlt destination. 
+With the @dlt.destination decorator you can convert any function that takes two arguments into a dlt destination. 
 
 ```python
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 
-@dlt.sink(batch_size=10)
+@dlt.destination(batch_size=10)
 def sink(items: TDataItems, table: TTableSchema) -> None:
     print(table["name"])
     print(items)
 ```
 
-To enable this sink destination in your chess example, replace the line `destination='sink'` with `destination=sink` (without the quotes) to directly reference
+To enable this destination decorator in your chess example, replace the line `destination='sink'` with `destination=sink` (without the quotes) to directly reference
 the sink from your pipeline constructor. Now you can run your pipeline and see the output of all the items coming from the chess pipeline to your console.
 
 :::tip
@@ -52,14 +52,13 @@ the sink from your pipeline constructor. Now you can run your pipeline and see t
 The full signature of the sink decorator and a function is
 
 ```python
-@dlt.sink(batch_size=10, loader_file_format="jsonl", name="my_sink")
+@dlt.destination(batch_size=10, loader_file_format="jsonl", name="my_sink")
 def sink(items: TDataItems, table: TTableSchema) -> None:
     ...
 ```
 
 #### Decorator
-* The `batch_size` parameter on the sink decorator defines how many items per function call are batched together and sent as an array. If batch_size is set to one, 
-there will be one item without an array per call.
+* The `batch_size` parameter on the sink decorator defines how many items per function call are batched together and sent as an array.
 * The `loader_file_format` parameter on the sink decorator defines in which format files are stored in the load package before being sent to the sink function, 
 this can be `jsonl` or `parquet`.
 * The `name` parameter on the sink decorator defines the name of the destination that get's created by the sink decorator. 
@@ -85,7 +84,7 @@ There are multiple ways to reference the sink function you want to use. These ar
 ```python
 # file my_pipeline.py
 
-@dlt.sink(batch_size=10)
+@dlt.destination(batch_size=10)
 def local_sink_func(items: TDataItems, table: TTableSchema) -> None:
     ...
 
