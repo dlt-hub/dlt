@@ -528,39 +528,25 @@ def test_adapter_hints_round_half_away_from_zero(
     pipeline.run(sources())
 
     with pipeline.sql_client() as c:
-        with c.execute_query(
-            "SELECT ddl FROM `INFORMATION_SCHEMA.TABLES` WHERE table_name = 'hints'"
-        ) as cur:
-            hints_ddl: str = cur.fetchone()[0]
-            ast_hints = sqlglot.parse_one(hints_ddl, read="bigquery")
-            assert hints_ddl
+        with c.execute_query("""
+                SELECT table_name, rounding_mode
+                FROM `INFORMATION_SCHEMA.COLUMNS`
+                WHERE table_name IN ('no_hints', 'hints')
+                  AND column_name = 'col1';""") as cur:
+            results = cur.fetchall()
 
-        with c.execute_query(
-            "SELECT ddl FROM `INFORMATION_SCHEMA.TABLES` WHERE table_name = 'no_hints'"
-        ) as cur:
-            no_hints_ddl: str = cur.fetchone()[0]
-            ast_no_hints = sqlglot.parse_one(no_hints_ddl, read="bigquery")
-            assert no_hints_ddl
-            native_connection: google.cloud.bigquery.client.Client = c.native_connection
-            fully_qualified_table_name = c.make_qualified_table_name(table_name="no_hints").replace(
-                "`", ""
+            hints_rounding_mode = None
+            no_hints_rounding_mode = None
+
+            for row in results:
+                if row["table_name"] == "no_hints":  # type: ignore
+                    no_hints_rounding_mode = row["rounding_mode"]  # type: ignore
+                elif row["table_name"] == "hints":  # type: ignore
+                    hints_rounding_mode = row["rounding_mode"]  # type: ignore
+
+            assert (no_hints_rounding_mode is None) and (
+                hints_rounding_mode == "ROUND_HALF_AWAY_FROM_ZERO"
             )
-            table = native_connection.get_table(fully_qualified_table_name)
-            print(table.schema)
-
-    diff = sqlglot.diff(ast_no_hints, ast_hints)
-    print(diff)
-
-    rounding_changes = [
-        action
-        for action in diff
-        if isinstance(action, Func)
-        and action.this.name == "ROUND_HALF_AWAY_FROM_ZERO"
-        and any(isinstance(arg, Column) and arg.name == "col1" for arg in action.args.values())
-    ]
-
-    if not rounding_changes:
-        raise ValueError("No alteration found for 'col1' using ROUND_HALF_AWAY_FROM_ZERO.")
 
 
 def test_adapter_hints_parsing_clustering() -> None:
