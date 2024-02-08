@@ -18,14 +18,14 @@ pip install dlt
 Let's start by initializing a new dlt project as follows:
 
 ```bash
-dlt init chess decorator
+dlt init chess sink
 ```
-> 💡 This command will initialize your pipeline with chess as the source and decorator as the destination.
+> 💡 This command will initialize your pipeline with chess as the source and sink as the destination.
 
 The above command generates several files and directories, including `.dlt/secrets.toml`.
 
 ### 2. Set up a destination function for your pipeline
-The destination decorator differs from other destinations in that you do not need to provide connection credentials, but rather you provide a function which 
+The sink destination differs from other destinations in that you do not need to provide connection credentials, but rather you provide a function which 
 gets called for all items loaded during a pipeline run or load operation. For the chess example, you can add the following lines at the top of the file.
 With the @dlt.destination decorator you can convert any function that takes two arguments into a dlt destination. 
 
