@@ -97,6 +97,7 @@ const sidebars = {
             'dlt-ecosystem/destinations/motherduck',
             'dlt-ecosystem/destinations/weaviate',
             'dlt-ecosystem/destinations/qdrant',
+            'dlt-ecosystem/destinations/databricks',
           ]
         },
       ],
