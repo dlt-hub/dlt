@@ -60,35 +60,29 @@ If you already have your Databricks workspace set up, you can skip to the [Loade
 3. Go to "Data" and click on "Create Metastore"
 
     Name your metastore and select a region.
-    If you'd like to set up a storage container for the whole metastore you can add your ADSL URL and Access Connector Id here. You can also do this on a granular level when creating the catalog.
+    If you'd like to set up a storage container for the whole metastore you can add your ADLS URL and Access Connector Id here. You can also do this on a granular level when creating the catalog.
 
     In the next step assign your metastore to your workspace.
 
-4. Go back to your workspace and click on "Compute" in the left-hand menu
+4. Go back to your workspace and click on "Catalog" in the left-hand menu
 
-5. Create a new cluster
-
-    Make sure to set "Access Mode" to either "Single User" or "Shared" to be able to use the Unity Catalog.
-
-6. Once your cluster is created, go to "Catalog" on the left sidebar
-
-7. Click "+ Add" and select "Add Storage Credential"
+5. Click "+ Add" and select "Add Storage Credential"
 
     Create a name and paste in the resource ID of the Databricks Access Connector from the Azure portal.
     It will look something like this: `/subscriptions/<subscription_id>/resourceGroups/<resource_group>/providers/Microsoft.Databricks/accessConnectors/<connector_name>`
 
 
-8. Click "+ Add" again and select "Add external location"
+6. Click "+ Add" again and select "Add external location"
 
     Set the URL of our storage container. This should be in the form: `abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>`
 
     Once created you can test the connection to make sure the container is accessible from databricks.
 
-9. Now you can create a catalog
+7. Now you can create a catalog
 
     Go to "Catalog" and click "Create Catalog". Name your catalog and select the storage location you created in the previous step.
 
-10. Create your access token
+8. Create your access token
 
     Click your email in the top right corner and go to "User Settings". Go to "Developer" -> "Access Tokens".
     Generate a new token and save it. You will use it in your `dlt` configuration.
@@ -110,7 +104,7 @@ This will install dlt with **databricks** extra which contains Databricks Python
 
 This should have your connection parameters and your personal access token.
 
-You will find your server hostname and HTTP path in the your cluster settings -> Advanced Options -> JDBC/ODBC.
+You will find your server hostname and HTTP path in the Databricks workspace dashboard. Go to "SQL Warehouses", select your warehouse (default is called "Starter Warehouse") and go to "Connection details".
 
 Example:
 
