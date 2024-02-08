@@ -30,9 +30,10 @@ If you already have your Databricks workspace set up, you can skip to the [Loade
 
     In your Azure Portal search for Databricks and create a new workspace. In the "Pricing Tier" section, select "Premium" to be able to use the Unity Catalog.
 
-2. Create a storage account
+2. Create an ADLS Gen 2 storage account
 
-    Search for "Storage accounts" in the Azure Portal and create a new storage account. Make sure to select "StorageV2 (general purpose v2)" as the account kind.
+    Search for "Storage accounts" in the Azure Portal and create a new storage account.
+    Make sure it's a Data Lake Storage Gen 2 account, you do this by enabling "hierarchical namespace" when creating the account. Refer to the [Azure documentation](https://learn.microsoft.com/en-us/azure/storage/blobs/create-data-lake-storage-account) for further info.
 
 3. Create a container in the storage account
 
