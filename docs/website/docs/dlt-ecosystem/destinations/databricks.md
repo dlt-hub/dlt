@@ -15,7 +15,85 @@ keywords: [Databricks, destination, data warehouse]
 pip install dlt[databricks]
 ```
 
-## Setup Guide
+## Set up your Databricks workspace
+
+To use the Databricks destination, you need:
+
+* A Databricks workspace with a Unity Catalog metastore connected
+* A Gen 2 Azure storage account and container
+
+If you already have your Databricks workspace set up, you can skip to the [Loader setup Guide](#loader-setup-guide).
+
+### 1. Create a Databricks workspace in Azure
+
+1. Create a Databricks workspace in Azure
+
+    In your Azure Portal search for Databricks and create a new workspace. In the "Pricing Tier" section, select "Premium" to be able to use the Unity Catalog.
+
+2. Create a storage account
+
+    Search for "Storage accounts" in the Azure Portal and create a new storage account. Make sure to select "StorageV2 (general purpose v2)" as the account kind.
+
+3. Create a container in the storage account
+
+    In the storage account, create a new container. This will be used as a datastore for your Databricks catalog.
+
+4. Create an Access Connector for Azure Databricks
+
+    This will allow Databricks to access your storage account.
+    In the Azure Portal search for "Access Connector for Azure Databricks" and create a new connector.
+
+5. Grant access to your storage container
+
+    Navigate to the storage container you created before and select "Access control (IAM)" in the left-hand menu.
+
+    Add a new role assignment and select "Storage Blob Data Contributor" as the role. Under "Members" select "Managed Identity" and add the Databricks Access Connector you created in the previous step.
+
+### 2. Set up a metastore and Unity Catalog and get your access token
+
+1. Now go to your Databricks workspace
+
+    To get there from the Azure Portal, search for "Databricks" and select your Databricks and click "Launch Workspace".
+
+2. In the top right corner, click on your email address and go to "Manage Account"
+
+3. Go to "Data" and click on "Create Metastore"
+
+    Name your metastore and select a region.
+    If you'd like to set up a storage container for the whole metastore you can add your ADSL URL and Access Connector Id here. You can also do this on a granular level when creating the catalog.
+
+    In the next step assign your metastore to your workspace.
+
+4. Go back to your workspace and click on "Compute" in the left-hand menu
+
+5. Create a new cluster
+
+    Make sure to set "Access Mode" to either "Single User" or "Shared" to be able to use the Unity Catalog.
+
+6. Once your cluster is created, go to "Catalog" on the left sidebar
+
+7. Click "+ Add" and select "Add Storage Credential"
+
+    Create a name and paste in the resource ID of the Databricks Access Connector from the Azure portal.
+    It will look something like this: `/subscriptions/<subscription_id>/resourceGroups/<resource_group>/providers/Microsoft.Databricks/accessConnectors/<connector_name>`
+
+
+8. Click "+ Add" again and select "Add external location"
+
+    Set the URL of our storage container. This should be in the form: `abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>`
+
+    Once created you can test the connection to make sure the container is accessible from databricks.
+
+9. Now you can create a catalog
+
+    Go to "Catalog" and click "Create Catalog". Name your catalog and select the storage location you created in the previous step.
+
+10. Create your access token
+
+    Click your email in the top right corner and go to "User Settings". Go to "Developer" -> "Access Tokens".
+    Generate a new token and save it. You will use it in your `dlt` configuration.
+
+## Loader setup Guide
 
 **1. Initialize a project with a pipeline that loads to Databricks by running**
 ```
@@ -32,7 +110,9 @@ This will install dlt with **databricks** extra which contains Databricks Python
 
 This should have your connection parameters and your personal access token.
 
-It should now look like:
+You will find your server hostname and HTTP path in the your cluster settings -> Advanced Options -> JDBC/ODBC.
+
+Example:
 
 ```toml
 [destination.databricks.credentials]
