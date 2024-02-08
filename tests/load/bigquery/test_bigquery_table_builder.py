@@ -2,6 +2,7 @@ import os
 from copy import deepcopy
 from typing import Iterator, Dict, Any, List, Union
 
+import google
 import pytest
 import sqlfluff
 import sqlglot
@@ -485,15 +486,16 @@ def test_adapter_hints_partitioning(destination_config: DestinationTestConfigura
 
 
 def test_adapter_hints_parsing_round_half_away_from_zero() -> None:
-    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
-    def some_data() -> Iterator[Dict[str, str]]:
-        yield from next(sequence_generator())
+    @dlt.resource(columns=[{"name": "col1", "data_type": "wei"}])
+    def hints() -> Iterator[Dict[str, float]]:
+        yield from [{"col1": float(i)} for i in range(10)]
 
-    bigquery_adapter(some_data, round_half_away_from_zero="double_col")
-    assert some_data.columns == {
-        "double_col": {
-            "name": "double_col",
-            "data_type": "double",
+    bigquery_adapter(hints, round_half_away_from_zero="col1")
+
+    assert hints.columns == {
+        "col1": {
+            "name": "col1",
+            "data_type": "wei",
             "x-bigquery-round-half-away-from-zero": True,
         },
     }
@@ -507,13 +509,11 @@ def test_adapter_hints_parsing_round_half_away_from_zero() -> None:
 def test_adapter_hints_round_half_away_from_zero(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    @dlt.resource(columns=[{"name": "col1", "data_type": "double"}])
+    @dlt.resource(columns=[{"name": "col1", "data_type": "wei"}])
     def no_hints() -> Iterator[Dict[str, float]]:
         yield from [{"col1": float(i)} for i in range(10)]
 
-    hints = bigquery_adapter(
-        no_hints._clone(new_name="hints"), round_half_away_from_zero="double_col"
-    )
+    hints = bigquery_adapter(no_hints._clone(new_name="hints"), round_half_away_from_zero="col1")
 
     @dlt.source(max_table_nesting=0)
     def sources() -> List[DltResource]:
@@ -541,8 +541,15 @@ def test_adapter_hints_round_half_away_from_zero(
             no_hints_ddl: str = cur.fetchone()[0]
             ast_no_hints = sqlglot.parse_one(no_hints_ddl, read="bigquery")
             assert no_hints_ddl
+            native_connection: google.cloud.bigquery.client.Client = c.native_connection
+            fully_qualified_table_name = c.make_qualified_table_name(table_name="no_hints").replace(
+                "`", ""
+            )
+            table = native_connection.get_table(fully_qualified_table_name)
+            print(table.schema)
 
     diff = sqlglot.diff(ast_no_hints, ast_hints)
+    print(diff)
 
     rounding_changes = [
         action

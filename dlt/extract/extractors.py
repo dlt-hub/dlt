@@ -18,7 +18,7 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
     TPartialTableSchema,
 )
-
+from dlt.extract.hints import HintsMeta
 from dlt.extract.resource import DltResource
 from dlt.extract.typing import TableNameMeta
 from dlt.extract.storage import ExtractStorage, ExtractorItemStorage
@@ -85,6 +85,12 @@ class Extractor:
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         """Write `items` to `resource` optionally computing table schemas and revalidating/filtering data"""
+        if isinstance(meta, HintsMeta):
+            # update the resource with new hints, remove all caches so schema is recomputed
+            # and contracts re-applied
+            resource.merge_hints(meta.hints)
+            self._reset_contracts_cache()
+
         if table_name := self._get_static_table_name(resource, meta):
             # write item belonging to table with static name
             self._write_to_static_table(resource, table_name, items)
@@ -152,7 +158,7 @@ class Extractor:
         self, resource: DltResource, table_name: str, items: TDataItems
     ) -> TDataItems:
         """
-        Computes new table and does contract checks, if false is returned, the table may not be created and not items should be written
+        Computes new table and does contract checks, if false is returned, the table may not be created and no items should be written
         """
         computed_table = self._compute_table(resource, items)
         # overwrite table name (if coming from meta)
@@ -189,6 +195,12 @@ class Extractor:
                     filtered_columns = self._filtered_columns.setdefault(table_name, {})
                     filtered_columns[name] = mode
         return items
+
+    def _reset_contracts_cache(self) -> None:
+        """Removes all cached contracts, filtered columns and tables"""
+        self._table_contracts.clear()
+        self._filtered_tables.clear()
+        self._filtered_columns.clear()
 
 
 class JsonLExtractor(Extractor):

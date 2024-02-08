@@ -377,11 +377,19 @@ class SourceIsAClassTypeError(DltSourceException):
         )
 
 
-class SourceSchemaNotAvailable(DltSourceException):
+class CurrentSourceSchemaNotAvailable(DltSourceException):
     def __init__(self) -> None:
         super().__init__(
             "Current source schema is available only when called from a function decorated with"
             " dlt.source or dlt.resource"
+        )
+
+
+class CurrentSourceNotAvailable(DltSourceException):
+    def __init__(self) -> None:
+        super().__init__(
+            "Current source is available only when called from a function decorated with"
+            " dlt.resource or dlt.transformer during the extract step"
         )
 
 
