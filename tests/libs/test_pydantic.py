@@ -10,7 +10,6 @@ from typing import (
     Union,
     Optional,
     List,
-    Dict,
     Any,
 )
 from typing_extensions import Annotated, get_args, get_origin
@@ -261,9 +260,11 @@ def test_nested_model_config_propagation() -> None:
     # extra is modified
     assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressExtraAllow"  # type: ignore[index]
     # annotated is preserved
-    assert issubclass(get_origin(model_freeze.__fields__["address"].rebuild_annotation()), Annotated)  # type: ignore[arg-type, index]
+    type_origin = get_origin(model_freeze.__fields__["address"].rebuild_annotation())  # type: ignore[index]
+    assert issubclass(type_origin, Annotated)  # type: ignore[arg-type]
     # UserAddress is converted to UserAddressAllow only once
-    assert model_freeze.__fields__["address"].annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
+    type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
+    assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
 
     # print(User.__fields__)
     # print(User.__fields__["name"].annotation)
@@ -480,3 +481,89 @@ def test_item_validation() -> None:
         validate_item("items", mixed_model, {"b": False, "a": False}, "discard_row", "evolve")
         is None
     )
+
+
+class ChildModel(BaseModel):
+    child_attribute: str
+    optional_child_attribute: Optional[str] = None
+
+
+class Parent(BaseModel):
+    child: ChildModel
+    optional_parent_attribute: Optional[str] = None
+
+
+def test_pydantic_model_flattened_when_skip_complex_types_is_true():
+    class MyParent(Parent):
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+    schema = pydantic_to_table_schema_columns(MyParent)
+
+    assert schema == {
+        "child__child_attribute": {
+            "data_type": "text",
+            "name": "child__child_attribute",
+            "nullable": False,
+        },
+        "child__optional_child_attribute": {
+            "data_type": "text",
+            "name": "child__optional_child_attribute",
+            "nullable": True,
+        },
+        "optional_parent_attribute": {
+            "data_type": "text",
+            "name": "optional_parent_attribute",
+            "nullable": True,
+        },
+    }
+
+
+def test_considers_model_as_complex_when_skip_complex_types_is_false():
+    class MyParent(Parent):
+        data_dictionary: Dict[str, Any] = None
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": False}
+
+    schema = pydantic_to_table_schema_columns(MyParent)
+
+    assert schema == {
+        "child": {"data_type": "complex", "name": "child", "nullable": False},
+        "data_dictionary": {"data_type": "complex", "name": "data_dictionary", "nullable": False},
+        "optional_parent_attribute": {
+            "data_type": "text",
+            "name": "optional_parent_attribute",
+            "nullable": True,
+        },
+    }
+
+
+def test_considers_dictionary_as_complex_when_skip_complex_types_is_false():
+    class MyParent(Parent):
+        data_list: List[str] = []
+        data_dictionary: Dict[str, Any] = None
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": False}
+
+    schema = pydantic_to_table_schema_columns(MyParent)
+
+    assert schema["data_dictionary"] == {
+        "data_type": "complex",
+        "name": "data_dictionary",
+        "nullable": False,
+    }
+
+    assert schema["data_list"] == {
+        "data_type": "complex",
+        "name": "data_list",
+        "nullable": False,
+    }
+
+
+def test_skip_complex_types_when_skip_complex_types_is_true_and_field_is_not_pydantic_model():
+    class MyParent(Parent):
+        data_list: List[str] = []
+        data_dictionary: Dict[str, Any] = None
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+    schema = pydantic_to_table_schema_columns(MyParent)
+
+    assert "data_dictionary" not in schema
+    assert "data_list" not in schema

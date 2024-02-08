@@ -1,6 +1,5 @@
 from copy import deepcopy
 import inspect
-import asyncio
 from typing import (
     AsyncIterable,
     AsyncIterator,
@@ -38,7 +37,7 @@ from dlt.extract.typing import (
     ValidateItem,
 )
 from dlt.extract.pipe import Pipe, ManagedPipeIterator, TPipeStep
-from dlt.extract.hints import DltResourceHints, TResourceHints
+from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired,
@@ -47,7 +46,6 @@ from dlt.extract.exceptions import (
     InvalidResourceDataType,
     InvalidResourceDataTypeIsNone,
     InvalidTransformerGeneratorFunction,
-    InvalidResourceDataTypeAsync,
     InvalidResourceDataTypeBasic,
     InvalidResourceDataTypeMultiplePipes,
     ParametrizedResourceUnbound,
@@ -60,6 +58,15 @@ from dlt.extract.wrappers import wrap_additional_type
 def with_table_name(item: TDataItems, table_name: str) -> DataItemWithMeta:
     """Marks `item` to be dispatched to table `table_name` when yielded from resource function."""
     return DataItemWithMeta(TableNameMeta(table_name), item)
+
+
+def with_hints(item: TDataItems, hints: TResourceHints) -> DataItemWithMeta:
+    """Marks `item` to update the resource with specified `hints`.
+
+    Create `TResourceHints` with `make_hints`.
+    Setting `table_name` will dispatch the `item` to a specified table, like `with_table_name`
+    """
+    return DataItemWithMeta(HintsMeta(hints), item)
 
 
 class DltResource(Iterable[TDataItem], DltResourceHints):

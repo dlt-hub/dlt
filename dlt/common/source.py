@@ -34,7 +34,10 @@ def unset_current_pipe_name() -> None:
 
 
 def get_current_pipe_name() -> str:
-    """Gets pipe name associated with current thread"""
+    """When executed from withing dlt.resource decorated function, gets pipe name associated with current thread.
+
+    Pipe name is the same as resource name for all currently known cases. In some multithreading cases, pipe name may be not available.
+    """
     name = _CURRENT_PIPE_NAME.get(threading.get_ident())
     if name is None:
         raise ResourceNameNotAvailable()
