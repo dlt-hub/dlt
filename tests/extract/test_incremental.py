@@ -854,28 +854,49 @@ def test_apply_hints_incremental(item_type: TDataItemFormat) -> None:
 
     @dlt.resource
     def some_data(created_at: Optional[dlt.sources.incremental[int]] = None):
+        # make sure that incremental from apply_hints is here
+        assert created_at is not None
+        assert created_at.last_value_func is max
         yield source_items
 
     # the incremental wrapper is created for a resource and the incremental value is provided via apply hints
     r = some_data()
-    assert list(r) == source_items
-    r.apply_hints(incremental=dlt.sources.incremental("created_at"))
+    assert r is not some_data
+    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
+    if item_type == "pandas":
+        assert list(r)[0].equals(source_items[0])
+    else:
+        assert list(r) == source_items
+    p.extract(r)
+    assert "incremental" in r.state
+    assert list(r) == []
+
+    # same thing with explicit None
+    r = some_data(created_at=None).with_name("copy")
+    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
+    if item_type == "pandas":
+        assert list(r)[0].equals(source_items[0])
+    else:
+        assert list(r) == source_items
     p.extract(r)
     assert "incremental" in r.state
     assert list(r) == []
 
     # as above but we provide explicit incremental when creating resource
     p = p.drop()
-    r = some_data(created_at=dlt.sources.incremental("created_at", last_value_func=min))
-    # explicit has precedence here
-    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
+    r = some_data(created_at=dlt.sources.incremental("created_at", last_value_func=max))
+    # explicit has precedence here and hints will be ignored
+    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=min))
     p.extract(r)
     assert "incremental" in r.state
-    # min value
-    assert r.state["incremental"]["created_at"]["last_value"] == 1
+    # max value
+    assert r.state["incremental"]["created_at"]["last_value"] == 3
 
     @dlt.resource
     def some_data_w_default(created_at=dlt.sources.incremental("created_at", last_value_func=min)):
+        # make sure that incremental from apply_hints is here
+        assert created_at is not None
+        assert created_at.last_value_func is max
         yield source_items
 
     # default is overridden by apply hints

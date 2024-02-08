@@ -119,7 +119,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self.start_value: Any = initial_value
         """Value of last_value at the beginning of current pipeline run"""
         self.resource_name: Optional[str] = None
-        self.primary_key: Optional[TTableHintTemplate[TColumnNames]] = primary_key
+        self._primary_key: Optional[TTableHintTemplate[TColumnNames]] = primary_key
         self.allow_external_schedulers = allow_external_schedulers
 
         self._cached_state: IncrementalColumnState = None
@@ -133,6 +133,18 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
         self._transformers: Dict[str, IncrementalTransform] = {}
 
+    @property
+    def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
+        return self._primary_key
+
+    @primary_key.setter
+    def primary_key(self, value: str) -> None:
+        # set key in incremental and data type transformers
+        self._primary_key = value
+        if self._transformers:
+            for transform in self._transformers.values():
+                transform.primary_key = value
+
     def _make_transforms(self) -> None:
         types = [("arrow", ArrowIncremental), ("json", JsonIncremental)]
         for dt, kls in types:
@@ -143,7 +155,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 self.end_value,
                 self._cached_state,
                 self.last_value_func,
-                self.primary_key,
+                self._primary_key,
             )
 
     @classmethod
@@ -163,7 +175,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             self.cursor_path,
             initial_value=self.initial_value,
             last_value_func=self.last_value_func,
-            primary_key=self.primary_key,
+            primary_key=self._primary_key,
             end_value=self.end_value,
             allow_external_schedulers=self.allow_external_schedulers,
         )
@@ -178,7 +190,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         >>>
         >>> my_resource(updated=incremental(initial_value='2023-01-01', end_value='2023-02-01'))
         """
-        kwargs = dict(self, last_value_func=self.last_value_func, primary_key=self.primary_key)
+        kwargs = dict(self, last_value_func=self.last_value_func, primary_key=self._primary_key)
         for key, value in dict(
             other, last_value_func=other.last_value_func, primary_key=other.primary_key
         ).items():
@@ -395,7 +407,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             return rows
 
         transformer = self._get_transformer(rows)
-        transformer.primary_key = self.primary_key
 
         if isinstance(rows, list):
             return [
@@ -476,7 +487,7 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
             elif isinstance(p.default, Incremental):
                 new_incremental = p.default.copy()
 
-            if not new_incremental or new_incremental.is_partial():
+            if (not new_incremental or new_incremental.is_partial()) and not self._incremental:
                 if is_optional_type(p.annotation):
                     bound_args.arguments[p.name] = None  # Remove partial spec
                     return func(*bound_args.args, **bound_args.kwargs)
@@ -486,7 +497,8 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
                 )
             # pass Generic information from annotation to new_incremental
             if (
-                not hasattr(new_incremental, "__orig_class__")
+                new_incremental
+                and not hasattr(new_incremental, "__orig_class__")
                 and p.annotation
                 and get_args(p.annotation)
             ):
@@ -494,7 +506,7 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
 
             # set the incremental only if not yet set or if it was passed explicitly
             # NOTE: the _incremental may be also set by applying hints to the resource see `set_template` in `DltResource`
-            if p.name in bound_args.arguments or not self._incremental:
+            if (new_incremental and p.name in bound_args.arguments) or not self._incremental:
                 self._incremental = new_incremental
             self._incremental.resolve()
             # in case of transformers the bind will be called before this wrapper is set: because transformer is called for a first time late in the pipe
@@ -531,6 +543,9 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
             return item
         if self._incremental.primary_key is None:
             self._incremental.primary_key = self.primary_key
+        elif self.primary_key is None:
+            # propagate from incremental
+            self.primary_key = self._incremental.primary_key
         return self._incremental(item, meta)
 
 
