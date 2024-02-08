@@ -29,7 +29,7 @@ from typing import (
 try:
     from types import UnionType
 except ImportError:
-    UnionType = type(str | int)
+    UnionType = Union[str, int]
 
 from typing_extensions import TypeAlias, ParamSpec, Concatenate, Annotated, get_args, get_origin
 
