@@ -421,7 +421,7 @@ def test_adapter_hints_parsing_partitioning() -> None:
 
     bigquery_adapter(some_data, partition="int_col")
     assert some_data.columns == {
-        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-partition": True},
+        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-column-partition": True},
     }
 
 
@@ -496,7 +496,7 @@ def test_adapter_hints_parsing_round_half_away_from_zero() -> None:
         "col1": {
             "name": "col1",
             "data_type": "wei",
-            "x-bigquery-round-half-away-from-zero": True,
+            "x-bigquery-column-round-half-away-from-zero": True,
         },
     }
 
@@ -559,7 +559,7 @@ def test_adapter_hints_parsing_round_half_even() -> None:
         "double_col": {
             "name": "double_col",
             "data_type": "double",
-            "x-bigquery-round-half-even": True,
+            "x-bigquery-column-round-half-even": True,
         },
     }
 
@@ -615,7 +615,7 @@ def test_adapter_hints_parsing_clustering() -> None:
 
     bigquery_adapter(some_data, cluster="int_col")
     assert some_data.columns == {
-        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-cluster": True},
+        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-column-cluster": True},
     }
 
 
