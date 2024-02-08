@@ -25,6 +25,12 @@ from typing import (
     runtime_checkable,
     IO,
 )
+
+try:
+    from types import UnionType
+except ImportError:
+    UnionType = type(str | int)
+
 from typing_extensions import TypeAlias, ParamSpec, Concatenate, Annotated, get_args, get_origin
 
 from dlt.common.pendulum import timedelta, pendulum
@@ -79,7 +85,8 @@ class SupportsVariant(Protocol, Generic[TVariantBase]):
     See `Wei` type declaration which returns Decimal or str for values greater than supported by destination warehouse.
     """
 
-    def __call__(self) -> Union[TVariantBase, TVariantRV]: ...
+    def __call__(self) -> Union[TVariantBase, TVariantRV]:
+        ...
 
 
 class SupportsHumanize(Protocol):
@@ -103,15 +110,26 @@ def extract_type_if_modifier(t: Type[Any]) -> Type[Any]:
 
 
 def is_union_type(hint: Type[Any]) -> bool:
-    if get_origin(hint) is Union:
+    origin = get_origin(hint)
+    # We need to handle UnionType because with Python>=3.10
+    # new Optional syntax was introduced which treats Optionals
+    # as unions and probably internally there is no additional
+    # type hints to handle this edge case, see the examples below
+    # >>> type(str | int)
+    # <class 'types.UnionType'>
+    # >>> type(str | None)
+    # <class 'types.UnionType'>
+    if origin is Union or origin is UnionType:
         return True
+
     if hint := extract_type_if_modifier(hint):
         return is_union_type(hint)
+
     return False
 
 
 def is_optional_type(t: Type[Any]) -> bool:
-    if get_origin(t) is Union:
+    if is_union_type(t):
         return type(None) in get_args(t)
     if t := extract_type_if_modifier(t):
         return is_optional_type(t)
@@ -232,7 +250,7 @@ TReturnVal = TypeVar("TReturnVal")
 
 
 def copy_sig(
-    wrapper: Callable[TInputArgs, Any]
+    wrapper: Callable[TInputArgs, Any],
 ) -> Callable[[Callable[..., TReturnVal]], Callable[TInputArgs, TReturnVal]]:
     """Copies docstring and signature from wrapper to func but keeps the func return value type"""
 
