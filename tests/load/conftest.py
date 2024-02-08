@@ -2,13 +2,24 @@ import os
 import pytest
 from typing import Iterator
 
-from tests.load.utils import DEFAULT_BUCKETS, ALL_BUCKETS
-from tests.utils import preserve_environ
+from tests.load.utils import ALL_BUCKETS, DEFAULT_BUCKETS, WITH_GDRIVE_BUCKETS
 
 
 @pytest.fixture(scope="function", params=DEFAULT_BUCKETS)
 def default_buckets_env(request) -> Iterator[str]:
     """Parametrized fixture to configure filesystem destination bucket in env for each test bucket"""
+    os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = request.param
+    yield request.param
+
+
+# temporary solution to include gdrive bucket in tests,
+# while gdrive is not working as a destination
+@pytest.fixture(scope="function", params=WITH_GDRIVE_BUCKETS)
+def with_gdrive_buckets_env(request) -> Iterator[str]:
+    """
+    The alternative fixture to the `default_buckets_env`, but
+    it also includes a Google Drive bucket.
+    """
     os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = request.param
     yield request.param
 
