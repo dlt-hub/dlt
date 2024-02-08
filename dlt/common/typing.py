@@ -2,6 +2,7 @@ from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from datetime import datetime, date  # noqa: I251
 import inspect
 import os
+import sys
 from re import Pattern as _REPattern
 from typing import (
     ForwardRef,
@@ -26,9 +27,9 @@ from typing import (
     IO,
 )
 
-try:
+if sys.version_info >= (3, 10):
     from types import UnionType
-except ImportError:
+else:
     # it is defined as type(int | str)
     UnionType = Union[int, str]
 
