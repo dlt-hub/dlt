@@ -328,6 +328,11 @@ def test_nested_model_config_propagation() -> None:
 if sys.version_info > (3, 9):
     # Run for Python>=3.10
     def test_nested_model_config_propagation_python_310():
+        """We would like to test that using Optional and new | syntax works as expected
+        when generating a schema thus two versions of user model are defined and both instantiated
+        then we generate schema for both and check if results are the same.
+        """
+
         class UserLabel(BaseModel):
             label: str
 
@@ -356,6 +361,22 @@ if sys.version_info > (3, 9):
 
             dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
 
+        class UserUsingOptional(BaseModel):
+            user_id: int
+            name: Annotated[str, "PII", "name"]
+            created_at: Optional[datetime]
+            labels: List[str]
+            user_label: UserLabel
+            user_labels: List[UserLabel]
+            address: Annotated[UserAddress, "PII", "address"]
+            unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
+            location: Annotated[Optional[Union[str, List[str]]], None]
+            something_required: Annotated[Union[str, int], type(None)]
+            final_location: Final[Annotated[Union[str, int], None]]  # type: ignore[misc]
+            final_optional: Final[Annotated[Optional[str], None]]  # type: ignore[misc]
+
+            dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
         model_freeze = apply_schema_contract_to_model(User, "evolve", "freeze")
         from typing import get_type_hints
 
@@ -371,7 +392,7 @@ if sys.version_info > (3, 9):
 
         # We need to check if pydantic_to_table_schema_columns is idempotent
         # and can generate the same schema from the class and from the class intance.
-        user = User(
+        params = dict(
             user_id=1,
             name="random name",
             created_at=datetime.now(),
@@ -407,9 +428,19 @@ if sys.version_info > (3, 9):
             something_required=123,
             final_optional=None,
         )
+        user = User(**params)
+        user_using_optional = UserUsingOptional(**params)
         schema_from_user_class = pydantic_to_table_schema_columns(User)
         schema_from_user_instance = pydantic_to_table_schema_columns(user)
+        schema_from_user_class_using_optional = pydantic_to_table_schema_columns(
+            user_using_optional
+        )
+        schema_from_user_instance_using_optional = pydantic_to_table_schema_columns(
+            user_using_optional
+        )
         assert schema_from_user_class == schema_from_user_instance
+        assert schema_from_user_class_using_optional == schema_from_user_instance_using_optional
+        assert schema_from_user_class == schema_from_user_class_using_optional
         assert schema_from_user_class["location"]["nullable"] is True
         assert schema_from_user_class["final_location"]["nullable"] is False
         assert schema_from_user_class["something_required"]["nullable"] is False
