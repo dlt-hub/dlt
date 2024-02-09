@@ -4,6 +4,7 @@ from urllib.parse import urlparse, parse_qs
 from typing import Any, Dict, List, Literal, Optional
 
 from dlt.common import json
+from dlt.common.configuration.specs import GcpCredentials
 from dlt.common.exceptions import MissingDependencyException
 
 from fsspec.spec import AbstractFileSystem, AbstractBufferedFile
@@ -212,11 +213,10 @@ class GoogleDriveFileSystem(AbstractFileSystem):
 
     def __init__(
         self,
+        credentials: GcpCredentials,
         root_file_id: Optional[str] = None,
-        token: Optional[Literal["anon", "browser", "cache", "service_account"]] = "browser",
         access: Optional[Literal["full_control", "read_only"]] = "full_control",
         spaces: Optional[Literal["drive", "appDataFolder", "photos"]] = "drive",
-        creds: Optional[Dict[str, Any]] = None,
         **kwargs: Any,
     ):
         """Google Drive as a file-system.
@@ -224,31 +224,22 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         Args:
             root_file_id (Optional[str]):
                 A Drive or a shared folder id.
-            token (Optional[Literal["anon", "browser", "cache", "service_account"]]):
-                One of "anon", "browser", "cache", "service_account". Using "browser" will prompt a URL to
-                be put in a browser, and cache the response for future use with token="cache".
-                "browser" will remove any previously cached token file if it exists.
+            credentials (GcpCredentials): Google Service credentials.
             access (Optional[Literal["full_control", "read_only"]]):
                 One of "full_control", "read_only".
             spaces (Optional[Literal["drive", "appDataFolder", "photos"]]):
                 Category of files to search, can be 'drive', 'appDataFolder' and 'photos'.
                 Of these, only the first is general.
-            creds (Optional[Dict[str, Any]]):
-                Required just for "service_account" token, a dict containing the service account
-                credentials obtainend in GCP console. The dict content is the same as the json file
-                downloaded from GCP console. More details can be found here:
-                https://cloud.google.com/iam/docs/service-account-creds
             **kwargs:
                 Passed to the parent.
         """
         super().__init__(**kwargs)
         self.access = access
         self.scopes = [scope_dict[access]]
-        self.token = token
+        self.credentials = credentials
         self.spaces = spaces
         self.root_file_id = root_file_id or "root"
-        self.creds = creds
-        self.connect(method="cache")
+        self.connect(method="dlt")
 
     @staticmethod
     def _get_kwargs_from_urls(path: str) -> Dict[str, Any]:
@@ -281,6 +272,8 @@ class GoogleDriveFileSystem(AbstractFileSystem):
 
         if os.path.exists("token.json"):
             cred = Credentials.from_authorized_user_file("token.json", SCOPES)
+        elif method == "dlt":
+            cred = self.credentials.to_native_credentials()
         elif method == "browser":
             cred = self._connect_browser()
         elif method == "cache":
@@ -291,6 +284,7 @@ class GoogleDriveFileSystem(AbstractFileSystem):
             cred = self._connect_service_account()
         else:
             raise ValueError(f"Invalid connection method `{method}`.")
+
         srv = build("drive", "v3", credentials=cred)
 
         self._drives = srv.drives()

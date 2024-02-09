@@ -71,7 +71,7 @@ CREDENTIALS_DISPATCH: Dict[str, Callable[[FilesystemConfiguration], DictStrAny]]
     "az": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
     "gcs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
     "gs": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
-    "gdrive": lambda config: cast(GcpCredentials, config.credentials).to_gcs_credentials(),
+    "gdrive": lambda config: {"credentials": cast(GcpCredentials, config.credentials)},
     "abfs": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
     "azure": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
 }
