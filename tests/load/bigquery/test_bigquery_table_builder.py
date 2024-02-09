@@ -659,8 +659,8 @@ def test_adapter_hints_clustering(destination_config: DestinationTestConfigurati
             [] if hints_table.clustering_fields is None else hints_table.clustering_fields
         )
 
-        assert "col1" not in no_hints_cluster_fields, "`no_hints` table IS clustered by `col1`."
-        assert "col1" in hints_cluster_fields, "`hints` table IS NOT clustered by `col1`."
+        assert not no_hints_cluster_fields, "`no_hints` table IS clustered by `col1`."
+        assert ["col1"] == hints_cluster_fields, "`hints` table IS NOT clustered by `col1`."
 
 
 def test_adapter_hints_empty() -> None:
@@ -692,14 +692,15 @@ def test_adapter_hints_round_mutual_exclusivity_requirement() -> None:
         )
 
 
-def test_adapter_hints_parsing_description() -> None:
+def test_adapter_hints_parsing_table_description() -> None:
     @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
     def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
 
     table_description = "Once upon a time a small table got hinted."
     bigquery_adapter(some_data, table_description=table_description)
-    assert some_data.additional_table_hints == {"x-bigquery-table-description": table_description}
+
+    assert some_data._hints["x-bigquery-table-description"] == table_description  # type: ignore
 
 
 @pytest.mark.parametrize(
@@ -707,7 +708,7 @@ def test_adapter_hints_parsing_description() -> None:
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_adapter_hints_description(destination_config: DestinationTestConfiguration) -> None:
+def test_adapter_hints_table_description(destination_config: DestinationTestConfiguration) -> None:
     @dlt.resource(columns=[{"name": "col1", "data_type": "text"}])
     def no_hints() -> Iterator[Dict[str, str]]:
         yield from [{"col1": str(i)} for i in range(10)]
@@ -748,9 +749,8 @@ def test_adapter_hints_parsing_table_expiration() -> None:
         yield from next(sequence_generator())
 
     bigquery_adapter(some_data, table_expiration_datetime="2030-01-01")
-    assert some_data.additional_table_hints == {
-        "x-bigquery-table-expiration": pendulum.datetime(2030, 1, 1)
-    }
+
+    assert some_data._hints["x-bigquery-table-expiration"] == pendulum.datetime(2030, 1, 1)  # type: ignore
 
 
 @pytest.mark.parametrize(

@@ -138,11 +138,6 @@ class DltResourceHints:
         return None if self._hints is None else self._hints.get("columns")
 
     @property
-    def additional_table_hints(self) -> Optional[Dict[str, TTableHintTemplate[Any]]]:
-        """Gets columns' schema that can be modified in place"""
-        return None if self._hints is None else self._hints.get("additional_table_hints")  # type: ignore
-
-    @property
     def schema_contract(self) -> TTableHintTemplate[TSchemaContract]:
         return self._hints.get("schema_contract")
 
@@ -257,16 +252,13 @@ class DltResourceHints:
                 else:
                     t.pop("schema_contract", None)
             if additional_table_hints is not None:
-                if additional_table_hints:
-                    t["additional_table_hints"] = additional_table_hints  # type: ignore
-                else:
-                    t.pop("additional_table_hints", None)  # type: ignore
-            if additional_table_hints is not None:
                 for k, v in additional_table_hints.items():
                     if v:
                         t[k] = v  # type: ignore[literal-required]
                     else:
                         t.pop(k, None)  # type: ignore[misc]
+                t.pop("additional_table_hints", None)  # type: ignore
+
             # recreate validator if column definition or contract changed
             if schema_contract is not None or columns is not None:
                 t["validator"], schema_contract = create_item_validator(
@@ -283,13 +275,7 @@ class DltResourceHints:
         # set properties that can't be passed to make_hints
         if incremental is not None:
             t["incremental"] = None if incremental is Incremental.EMPTY else incremental
-        if additional_table_hints is not None:
-            # loop through provided hints and add, overwrite, or remove them
-            for k, v in additional_table_hints.items():
-                if v is not None:
-                    t[k] = v  # type: ignore[literal-required]
-                else:
-                    t.pop(k, None)  # type: ignore[misc]
+
         self.set_hints(t)
 
     def set_hints(self, hints_template: TResourceHints) -> None:
