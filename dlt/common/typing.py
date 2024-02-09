@@ -46,7 +46,6 @@ except ImportError:
     # in versions higher than 3.9
     UnionType = Never
 
-
 from dlt.common.pendulum import timedelta, pendulum
 
 if TYPE_CHECKING:
@@ -99,7 +98,8 @@ class SupportsVariant(Protocol, Generic[TVariantBase]):
     See `Wei` type declaration which returns Decimal or str for values greater than supported by destination warehouse.
     """
 
-    def __call__(self) -> Union[TVariantBase, TVariantRV]: ...
+    def __call__(self) -> Union[TVariantBase, TVariantRV]:
+        ...
 
 
 class SupportsHumanize(Protocol):

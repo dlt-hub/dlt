@@ -266,6 +266,43 @@ def test_nested_model_config_propagation() -> None:
     type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
     assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
 
+    # We need to check if pydantic_to_table_schema_columns is idempotent
+    # and can generate the same schema from the class and from the class intance.
+    user = User(
+        user_id=1,
+        name="random name",
+        created_at=datetime.now(),
+        labels=["str"],
+        user_label=UserLabel(label="123"),
+        user_labels=[
+            UserLabel(label="123"),
+        ],
+        address=UserAddress(
+            street="random street",
+            zip_code=[1234566, 4567789],
+            label=UserLabel(label="123"),
+            ro_labels={
+                "x": UserLabel(label="123"),
+            },
+            wr_labels={
+                "y": [
+                    UserLabel(label="123"),
+                ]
+            },
+            ro_list=[
+                UserLabel(label="123"),
+            ],
+            wr_list=[
+                {
+                    "x": UserLabel(label="123"),
+                }
+            ],
+        ),
+        unity=UserLabel(label="123"),
+    )
+    schema_from_user_class = pydantic_to_table_schema_columns(User)
+    schema_from_user_instance = pydantic_to_table_schema_columns(user)
+    assert schema_from_user_class == schema_from_user_instance
     # print(User.__fields__)
     # print(User.__fields__["name"].annotation)
     # print(model_freeze.model_config)
