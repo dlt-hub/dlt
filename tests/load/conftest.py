@@ -3,6 +3,7 @@ import pytest
 from typing import Iterator
 
 from tests.load.utils import ALL_BUCKETS, DEFAULT_BUCKETS, WITH_GDRIVE_BUCKETS
+from tests.utils import preserve_environ
 
 
 @pytest.fixture(scope="function", params=DEFAULT_BUCKETS)
