@@ -273,6 +273,7 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         if os.path.exists("token.json"):
             cred = Credentials.from_authorized_user_file("token.json", SCOPES)
         elif method == "dlt":
+            self.credentials.auth("https://www.googleapis.com/auth/drive.appdata")
             cred = self.credentials.to_native_credentials()
         elif method == "browser":
             cred = self._connect_browser()
