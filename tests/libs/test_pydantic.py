@@ -1,3 +1,4 @@
+import sys
 from copy import copy
 import pytest
 from typing import (
@@ -322,6 +323,97 @@ def test_nested_model_config_propagation() -> None:
     # print(model_freeze.__fields__)
     # print(model_freeze.__fields__["name"].annotation)
     # print(model_freeze.__fields__["address"].annotation)
+
+
+if sys.version_info > (3, 9):
+    # Run for Python>=3.10
+    def test_nested_model_config_propagation_python_310():
+        class UserLabel(BaseModel):
+            label: str
+
+        class UserAddress(BaseModel):
+            street: str
+            zip_code: Sequence[int]
+            label: UserLabel | None
+            ro_labels: Mapping[str, UserLabel]
+            wr_labels: MutableMapping[str, List[UserLabel]]
+            ro_list: Sequence[UserLabel]
+            wr_list: MutableSequence[Dict[str, UserLabel]]
+
+        class User(BaseModel):
+            user_id: int
+            name: Annotated[str, "PII", "name"]
+            created_at: datetime | None
+            labels: List[str]
+            user_label: UserLabel
+            user_labels: List[UserLabel]
+            address: Annotated[UserAddress, "PII", "address"]
+            unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
+            location: Annotated[Union[str, list] | None, None]
+            final_location: Final[Annotated[Union[str, int], None]]
+            something_required: Annotated[Union[str, int], type(None)]
+            final_optional: Final[Annotated[str | None, None]]
+
+            dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+        model_freeze = apply_schema_contract_to_model(User, "evolve", "freeze")
+        from typing import get_type_hints
+
+        # print(model_freeze.__fields__)
+        # extra is modified
+        assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressExtraAllow"  # type: ignore[index]
+        # annotated is preserved
+        type_origin = get_origin(model_freeze.__fields__["address"].rebuild_annotation())  # type: ignore[index]
+        assert issubclass(type_origin, Annotated)  # type: ignore[arg-type]
+        # UserAddress is converted to UserAddressAllow only once
+        type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
+        assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
+
+        # We need to check if pydantic_to_table_schema_columns is idempotent
+        # and can generate the same schema from the class and from the class intance.
+        user = User(
+            user_id=1,
+            name="random name",
+            created_at=datetime.now(),
+            labels=["str"],
+            user_label=UserLabel(label="123"),
+            user_labels=[
+                UserLabel(label="123"),
+            ],
+            address=UserAddress(
+                street="random street",
+                zip_code=[1234566, 4567789],
+                label=UserLabel(label="123"),
+                ro_labels={
+                    "x": UserLabel(label="123"),
+                },
+                wr_labels={
+                    "y": [
+                        UserLabel(label="123"),
+                    ]
+                },
+                ro_list=[
+                    UserLabel(label="123"),
+                ],
+                wr_list=[
+                    {
+                        "x": UserLabel(label="123"),
+                    }
+                ],
+            ),
+            unity=UserLabel(label="123"),
+            location="Florida keys",
+            final_location="Ginnie Springs",
+            something_required=123,
+            final_optional=None,
+        )
+        schema_from_user_class = pydantic_to_table_schema_columns(User)
+        schema_from_user_instance = pydantic_to_table_schema_columns(user)
+        assert schema_from_user_class == schema_from_user_instance
+        assert schema_from_user_class["location"]["nullable"] is True
+        assert schema_from_user_class["final_location"]["nullable"] is False
+        assert schema_from_user_class["something_required"]["nullable"] is False
+        assert schema_from_user_class["final_optional"]["nullable"] is True
 
 
 def test_item_list_validation() -> None:
