@@ -27,10 +27,13 @@ from typing import (
     IO,
 )
 
-if sys.version_info >= (3, 10):
+try:
     from types import UnionType
-else:
-    # it is defined as type(int | str)
+except ImportError:
+    # Since new Union syntax was introduced in Python 3.10
+    # we need to substitute it here for older versions.
+    # it is defined as type(int | str) but for us having it
+    # as shown here should suffice.
     UnionType = Union[int, str]
 
 from typing_extensions import TypeAlias, ParamSpec, Concatenate, Annotated, get_args, get_origin
@@ -121,6 +124,8 @@ def is_union_type(hint: Type[Any]) -> bool:
     # <class 'types.UnionType'>
     # >>> type(str | None)
     # <class 'types.UnionType'>
+    # type(Union[int, str])
+    # <class 'typing._GenericAlias'>
     if origin is Union or origin is UnionType:
         return True
 
