@@ -2,6 +2,7 @@ from copy import copy
 import pytest
 from typing import (
     ClassVar,
+    Final,
     Sequence,
     Mapping,
     Dict,
@@ -250,6 +251,10 @@ def test_nested_model_config_propagation() -> None:
         user_labels: List[UserLabel]
         address: Annotated[UserAddress, "PII", "address"]
         unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
+        location: Annotated[Optional[Union[str, list]], None]
+        final_location: Final[Annotated[Union[str, int], None]]
+        something_required: Annotated[Union[str, int], type(None)]
+        final_optional: Final[Annotated[Optional[str], None]]
 
         dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
 
@@ -299,10 +304,18 @@ def test_nested_model_config_propagation() -> None:
             ],
         ),
         unity=UserLabel(label="123"),
+        location="Florida keys",
+        final_location="Ginnie Springs",
+        something_required=123,
+        final_optional=None,
     )
     schema_from_user_class = pydantic_to_table_schema_columns(User)
     schema_from_user_instance = pydantic_to_table_schema_columns(user)
     assert schema_from_user_class == schema_from_user_instance
+    assert schema_from_user_class["location"]["nullable"] is True
+    assert schema_from_user_class["final_location"]["nullable"] is False
+    assert schema_from_user_class["something_required"]["nullable"] is False
+    assert schema_from_user_class["final_optional"]["nullable"] is True
     # print(User.__fields__)
     # print(User.__fields__["name"].annotation)
     # print(model_freeze.model_config)
