@@ -79,6 +79,7 @@ def test_optional() -> None:
     assert is_optional_type(ClassVar[TOptionalLi]) is True  # type: ignore[arg-type]
     assert is_optional_type(Annotated[TOptionalLi, Optional]) is True  # type: ignore[arg-type]
     assert is_optional_type(Annotated[TOptionalLi, "random metadata string"]) is True  # type: ignore[arg-type]
+    assert is_optional_type(Optional[Annotated[str, "random metadata string"]]) is True  # type: ignore[arg-type]
     assert is_optional_type(TOptionalTyDi) is True  # type: ignore[arg-type]
     assert is_optional_type(TTestTyDi) is False
     assert extract_union_types(TOptionalLi) == [TTestLi, type(None)]  # type: ignore[arg-type]

@@ -28,7 +28,7 @@ from typing import (
 )
 
 try:
-    from types import UnionType
+    from types import UnionType  # type: ignore[attr-defined]
 except ImportError:
     # Since new Union syntax was introduced in Python 3.10
     # we need to substitute it here for older versions.
