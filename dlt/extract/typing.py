@@ -11,7 +11,9 @@ from typing import (
     TypeVar,
     Union,
     Awaitable,
+    TYPE_CHECKING,
 )
+from concurrent.futures import Future
 
 from dlt.common.typing import TAny, TDataItem, TDataItems
 
@@ -158,3 +160,9 @@ class ValidateItem(ItemTransform[TDataItem]):
     def bind(self, pipe: SupportsPipe) -> ItemTransform[TDataItem]:
         self.table_name = pipe.name
         return self
+
+
+if TYPE_CHECKING:
+    TItemFuture = Future[Union[TDataItems, DataItemWithMeta]]
+else:
+    TItemFuture = Future
