@@ -252,10 +252,10 @@ def test_nested_model_config_propagation() -> None:
         user_labels: List[UserLabel]
         address: Annotated[UserAddress, "PII", "address"]
         unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
-        location: Annotated[Optional[Union[str, list]], None]
-        final_location: Final[Annotated[Union[str, int], None]]
+        location: Annotated[Optional[Union[str, List[str]]], None]
         something_required: Annotated[Union[str, int], type(None)]
-        final_optional: Final[Annotated[Optional[str], None]]
+        final_location: Final[Annotated[Union[str, int], None]]  # type: ignore[misc]
+        final_optional: Final[Annotated[Optional[str], None]]  # type: ignore[misc]
 
         dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
 
@@ -349,10 +349,10 @@ if sys.version_info > (3, 9):
             user_labels: List[UserLabel]
             address: Annotated[UserAddress, "PII", "address"]
             unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
-            location: Annotated[Union[str, list] | None, None]
-            final_location: Final[Annotated[Union[str, int], None]]
+            location: Annotated[Union[str, List[str]] | None, None]
             something_required: Annotated[Union[str, int], type(None)]
-            final_optional: Final[Annotated[str | None, None]]
+            final_location: Final[Annotated[Union[str, int], None]]  # type: ignore[misc]
+            final_optional: Final[Annotated[str | None, None]]  # type: ignore[misc]
 
             dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
 
