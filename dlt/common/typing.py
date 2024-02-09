@@ -2,7 +2,6 @@ from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from datetime import datetime, date  # noqa: I251
 import inspect
 import os
-import sys
 from re import Pattern as _REPattern
 from typing import (
     ForwardRef,
@@ -27,16 +26,26 @@ from typing import (
     IO,
 )
 
+from typing_extensions import (
+    Annotated,
+    Never,
+    ParamSpec,
+    TypeAlias,
+    Concatenate,
+    get_args,
+    get_origin,
+)
+
 try:
     from types import UnionType  # type: ignore[attr-defined]
 except ImportError:
     # Since new Union syntax was introduced in Python 3.10
     # we need to substitute it here for older versions.
     # it is defined as type(int | str) but for us having it
-    # as shown here should suffice.
-    UnionType = Union[int, str]
+    # as shown here should suffice because it is valid only
+    # in versions higher than 3.9
+    UnionType = Never
 
-from typing_extensions import TypeAlias, ParamSpec, Concatenate, Annotated, get_args, get_origin
 
 from dlt.common.pendulum import timedelta, pendulum
 
@@ -90,8 +99,7 @@ class SupportsVariant(Protocol, Generic[TVariantBase]):
     See `Wei` type declaration which returns Decimal or str for values greater than supported by destination warehouse.
     """
 
-    def __call__(self) -> Union[TVariantBase, TVariantRV]:
-        ...
+    def __call__(self) -> Union[TVariantBase, TVariantRV]: ...
 
 
 class SupportsHumanize(Protocol):
@@ -136,7 +144,9 @@ def is_union_type(hint: Type[Any]) -> bool:
 
 
 def is_optional_type(t: Type[Any]) -> bool:
-    if is_union_type(t) and type(None) in get_args(t):
+    origin = get_origin(t)
+    is_union = origin is Union or origin is UnionType
+    if is_union and type(None) in get_args(t):
         return True
 
     if t := extract_type_if_modifier(t):
