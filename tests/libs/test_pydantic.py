@@ -325,7 +325,7 @@ def test_nested_model_config_propagation() -> None:
     # print(model_freeze.__fields__["address"].annotation)
 
 
-if sys.version_info > (3, 9):
+if sys.version_info >= (3, 10):
     # Run for Python>=3.10
     def test_nested_model_config_propagation_python_310():
         """We would like to test that using Optional and new | syntax works as expected
