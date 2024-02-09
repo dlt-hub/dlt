@@ -121,12 +121,8 @@ def is_union_type(hint: Type[Any]) -> bool:
     # <class 'types.UnionType'>
     # >>> type(str | None)
     # <class 'types.UnionType'>
-    if sys.version_info >= (3, 10):
-        if origin is Union or origin is UnionType:
-            return True
-    else:
-        if origin is Union:
-            return True
+    if origin is Union or origin is UnionType:
+        return True
 
     if hint := extract_type_if_modifier(hint):
         return is_union_type(hint)
