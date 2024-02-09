@@ -131,10 +131,12 @@ def is_union_type(hint: Type[Any]) -> bool:
 
 
 def is_optional_type(t: Type[Any]) -> bool:
-    if is_union_type(t):
-        return type(None) in get_args(t)
+    if is_union_type(t) and type(None) in get_args(t):
+        return True
+
     if t := extract_type_if_modifier(t):
         return is_optional_type(t)
+
     return False
 
 
