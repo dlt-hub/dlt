@@ -43,7 +43,7 @@ except ImportError:
     # we need to substitute it here for older versions.
     # it is defined as type(int | str) but for us having it
     # as shown here should suffice because it is valid only
-    # in versions higher than 3.9
+    # in versions of Python>=3.10.
     UnionType = Never
 
 from dlt.common.pendulum import timedelta, pendulum
