@@ -132,7 +132,7 @@ Before delving into detailed analyses on those metrics, here's an overview of wh
     <tr>
       <td><a href="#table-relationships">Inter Table Relationships </a></td>
       <td>Simplifies data modeling in Model View with drag-and-drop relationships, auto or manual detection, and cardinality editing.</td>
-      <td>GoodData separates date fields into distinct tables, creating a star schema, and automatically identifies keys using source naming conventions.</td>
+      <td>GoodData separates date fields into distinct tables, creating a star schema, automatically identifies keys using source naming conventions, and allows drag-and-drop relationships creation.</td>
       <td>Metabase lets you specify keys at the table level, globally in the admin panel, or within Models and questions, connecting tables through SQL queries or models.</td>
     </tr>
     <tr>
@@ -144,7 +144,7 @@ Before delving into detailed analyses on those metrics, here's an overview of wh
     <tr>
       <td><a href="#granularity-mngmt"> Data granularity Management: Column Creation & Aggregation capabilities </a></td>
       <td>Power BI permits the creation of custom fields, and tables, facilitating data granularity adjustments and customized aggregation.</td>
-      <td>Custom calculated fields need the Brick integrator. But, datetime granularity is simplified with custom truncation settings.</td>
+      <td>Custom calculated fields and other transformations can be achieved with a SQL query under the dataset. Datetime granularity is simplified with custom truncation settings.</td>
       <td>Like Power BI, it allows users to create models with custom aggregation levels and add custom fields through Custom Expressions.</td>
     </tr>
     <tr>
@@ -353,7 +353,7 @@ Power BI has one of the most popular setups for data modelling, all contained wi
 
 ### GoodData
 
-As for GoodData, the logical modelling layer is quite different than the first two. As discussed in the data types section, and shown in the image, the date type fields are taken and defined as separate tables (or datasets). The reason for doing so is in the spirit of creating a star schema; where one date table serves every table that requires a date dimension. GoodData takes into consideration the star and snowflake schemas as it splits all fields up into facts, labels and attributes. However, as simple as it might be on Power BI to assign primary and foreign keys by drag and drop methods, GoodData requires that fields be names according to a particular convention in the source to be recognized as keys automatically. There is no other way to define them within the tool.
+As for GoodData, the logical modelling layer is quite different than the other two. As discussed in the data types section, and shown in the image, the date type fields are taken and defined as separate tables (or datasets). The reason for doing so is in the spirit of creating a star schema; where one date table serves every table that requires a date dimension. GoodData takes into consideration the star and snowflake schemas as it splits all fields up into facts, labels and attributes. GoodData requires that fields be named according to a particular convention in the source to be recognized as keys automatically. However, it is also possible to assign primary and foreign keys by drag and drop methods.
 
 </div>
 </div>
@@ -405,7 +405,7 @@ Power BI has two custom languages known to its developers. One of them is DAX - 
 
 ### GoodData
 
-GoodData has its own query language called MAQL, or Multi Dimension Analytical Query Language. It is what is used to define metrics, expressions, functions, or other simple or statistical queries. It works on top of the logical data models defined, and hence is aware of the table relationships and dimensions. That is what sets is apart from SQL, which is for relational databases, while MAQL is designed to perform for multi-dimensional models.
+GoodData has its own query language called MAQL, or Multi Dimension Analytical Query Language. It is what is used to define metrics, expressions, functions, or other simple or statistical queries. It works on top of the logical data models defined, and hence is aware of the table relationships and dimensions. That is what sets is apart from SQL, which is for relational databases, while MAQL is designed to perform for multi-dimensional models. SQL can still be used to specify a [SQL dataset](https://www.gooddata.com/docs/cloud/model-data/create-logical-data-model/create-sql-datasets/) in scope of the logical data model. MAQL is then used on top of this stored query instead of a physical table.
 
 </div>
 </div>
@@ -457,7 +457,7 @@ Power BI introduces the ability the create custom fields and columns where you m
 
 ### GoodData
 
-However, GoodData requires that if you’d like to add custom calculated fields, that it be done using the integrator Brick - functionalities that are offered by GoodData embedded analytics products, but are so far missing while simply creating a dashboard in the cloud version of the tool. Nonetheless, it helps manage granularity for datetime fields directly by a setting your own custom truncation to them. This can be done so easily by viewing the details on the datetime objects that are cast as a separate table/dataset by GoodData.
+GoodData allows you to switch each dataset from being mapped to a physical table to being defined by a custom SQL query. This feature enables you to add custom-calculated fields, filter out specific data, or even join multiple tables as needed. You can then map the fields to the results of that SQL query. Additionally, GoodData helps manage granularity for datetime fields directly by a setting your own custom truncation to them. This can be done so easily by viewing the details on the datetime objects that are cast as a separate table/dataset by GoodData.
 
 </div>
 </div>
