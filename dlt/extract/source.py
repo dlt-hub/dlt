@@ -25,7 +25,7 @@ from dlt.common.utils import graph_find_scc_nodes, flatten_list_or_items, graph_
 
 from dlt.extract.typing import TDecompositionStrategy
 from dlt.extract.pipe import Pipe, ManagedPipeIterator
-from dlt.extract.hints import DltResourceHints
+from dlt.extract.hints import DltResourceHints, make_hints
 from dlt.extract.resource import DltResource
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
@@ -64,7 +64,7 @@ class DltResourceDict(Dict[str, DltResource]):
                         resource = self[pipe.name]
                     except KeyError:
                         # resource for pipe not found: return mock resource
-                        mock_template = DltResourceHints.new_table_template(
+                        mock_template = make_hints(
                             pipe.name, write_disposition=resource.write_disposition
                         )
                         resource = DltResource(pipe, mock_template, False, section=resource.section)
