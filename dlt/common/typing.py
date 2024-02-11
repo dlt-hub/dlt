@@ -98,8 +98,7 @@ class SupportsVariant(Protocol, Generic[TVariantBase]):
     See `Wei` type declaration which returns Decimal or str for values greater than supported by destination warehouse.
     """
 
-    def __call__(self) -> Union[TVariantBase, TVariantRV]:
-        ...
+    def __call__(self) -> Union[TVariantBase, TVariantRV]: ...
 
 
 class SupportsHumanize(Protocol):

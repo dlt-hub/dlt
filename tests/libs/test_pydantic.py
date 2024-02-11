@@ -118,6 +118,75 @@ TEST_MODEL_INSTANCE = Model(
 )
 
 
+class UserLabel(BaseModel):
+    label: str
+
+
+class UserAddress(BaseModel):
+    street: str
+    zip_code: Sequence[int]
+    label: Optional[UserLabel]
+    ro_labels: Mapping[str, UserLabel]
+    wr_labels: MutableMapping[str, List[UserLabel]]
+    ro_list: Sequence[UserLabel]
+    wr_list: MutableSequence[Dict[str, UserLabel]]
+
+
+class User(BaseModel):
+    user_id: int
+    name: Annotated[str, "PII", "name"]
+    created_at: Optional[datetime]
+    labels: List[str]
+    user_label: UserLabel
+    user_labels: List[UserLabel]
+    address: Annotated[UserAddress, "PII", "address"]
+    unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
+    location: Annotated[Optional[Union[str, List[str]]], None]
+    something_required: Annotated[Union[str, int], type(None)]
+    final_location: Final[Annotated[Union[str, int], None]]  # type: ignore[misc]
+    final_optional: Final[Annotated[Optional[str], None]]  # type: ignore[misc]
+
+    dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+
+
+USER_INSTANCE_DATA = dict(
+    user_id=1,
+    name="random name",
+    created_at=datetime.now(),
+    labels=["str"],
+    user_label=dict(label="123"),
+    user_labels=[
+        dict(label="123"),
+    ],
+    address=dict(
+        street="random street",
+        zip_code=[1234566, 4567789],
+        label=dict(label="123"),
+        ro_labels={
+            "x": dict(label="123"),
+        },
+        wr_labels={
+            "y": [
+                dict(label="123"),
+            ]
+        },
+        ro_list=[
+            dict(label="123"),
+        ],
+        wr_list=[
+            {
+                "x": dict(label="123"),
+            }
+        ],
+    ),
+    unity=dict(label="123"),
+    location="Florida keys",
+    final_location="Ginnie Springs",
+    something_required=123,
+    final_optional=None,
+)
+
+
 @pytest.mark.parametrize("instance", [True, False])
 def test_pydantic_model_to_columns(instance: bool) -> None:
     if instance:
@@ -151,6 +220,18 @@ def test_pydantic_model_to_columns(instance: bool) -> None:
     # Any type fields are excluded from schema
     assert "any_field" not in result
     assert "json_any_field" not in result
+
+
+def test_pydantic_model_to_columns_annotated() -> None:
+    # We need to check if pydantic_to_table_schema_columns is idempotent
+    # and can generate the same schema from the class and from the class instance.
+    schema_from_user_class = pydantic_to_table_schema_columns(User)
+    schema_from_user_instance = pydantic_to_table_schema_columns(User(**USER_INSTANCE_DATA))  # type: ignore
+    assert schema_from_user_class == schema_from_user_instance
+    assert schema_from_user_class["location"]["nullable"] is True
+    assert schema_from_user_class["final_location"]["nullable"] is False
+    assert schema_from_user_class["something_required"]["nullable"] is False
+    assert schema_from_user_class["final_optional"]["nullable"] is True
 
 
 def test_pydantic_model_skip_complex_types() -> None:
@@ -231,34 +312,7 @@ def test_model_for_column_mode() -> None:
 
 
 def test_nested_model_config_propagation() -> None:
-    class UserLabel(BaseModel):
-        label: str
-
-    class UserAddress(BaseModel):
-        street: str
-        zip_code: Sequence[int]
-        label: Optional[UserLabel]
-        ro_labels: Mapping[str, UserLabel]
-        wr_labels: MutableMapping[str, List[UserLabel]]
-        ro_list: Sequence[UserLabel]
-        wr_list: MutableSequence[Dict[str, UserLabel]]
-
-    class User(BaseModel):
-        user_id: int
-        name: Annotated[str, "PII", "name"]
-        created_at: Optional[datetime]
-        labels: List[str]
-        user_label: UserLabel
-        user_labels: List[UserLabel]
-        address: Annotated[UserAddress, "PII", "address"]
-        unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
-        location: Annotated[Optional[Union[str, List[str]]], None]
-        something_required: Annotated[Union[str, int], type(None)]
-        final_location: Final[Annotated[Union[str, int], None]]  # type: ignore[misc]
-        final_optional: Final[Annotated[Optional[str], None]]  # type: ignore[misc]
-
-        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
-
+    # TODO: finish writing this test
     model_freeze = apply_schema_contract_to_model(User, "evolve", "freeze")
     from typing import get_type_hints
 
@@ -272,51 +326,6 @@ def test_nested_model_config_propagation() -> None:
     type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
     assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
 
-    # We need to check if pydantic_to_table_schema_columns is idempotent
-    # and can generate the same schema from the class and from the class intance.
-    user = User(
-        user_id=1,
-        name="random name",
-        created_at=datetime.now(),
-        labels=["str"],
-        user_label=UserLabel(label="123"),
-        user_labels=[
-            UserLabel(label="123"),
-        ],
-        address=UserAddress(
-            street="random street",
-            zip_code=[1234566, 4567789],
-            label=UserLabel(label="123"),
-            ro_labels={
-                "x": UserLabel(label="123"),
-            },
-            wr_labels={
-                "y": [
-                    UserLabel(label="123"),
-                ]
-            },
-            ro_list=[
-                UserLabel(label="123"),
-            ],
-            wr_list=[
-                {
-                    "x": UserLabel(label="123"),
-                }
-            ],
-        ),
-        unity=UserLabel(label="123"),
-        location="Florida keys",
-        final_location="Ginnie Springs",
-        something_required=123,
-        final_optional=None,
-    )
-    schema_from_user_class = pydantic_to_table_schema_columns(User)
-    schema_from_user_instance = pydantic_to_table_schema_columns(user)
-    assert schema_from_user_class == schema_from_user_instance
-    assert schema_from_user_class["location"]["nullable"] is True
-    assert schema_from_user_class["final_location"]["nullable"] is False
-    assert schema_from_user_class["something_required"]["nullable"] is False
-    assert schema_from_user_class["final_optional"]["nullable"] is True
     # print(User.__fields__)
     # print(User.__fields__["name"].annotation)
     # print(model_freeze.model_config)
@@ -325,126 +334,71 @@ def test_nested_model_config_propagation() -> None:
     # print(model_freeze.__fields__["address"].annotation)
 
 
-if sys.version_info >= (3, 10):
-    # Run for Python>=3.10
-    def test_nested_model_config_propagation_python_310():
-        """We would like to test that using Optional and new | syntax works as expected
-        when generating a schema thus two versions of user model are defined and both instantiated
-        then we generate schema for both and check if results are the same.
-        """
+@pytest.mark.skipif(sys.version_info < (3, 10), reason="Runs only on Python 3.10 and later")
+def test_nested_model_config_propagation_optional_with_pipe():
+    """We would like to test that using Optional and new | syntax works as expected
+    when generating a schema thus two versions of user model are defined and both instantiated
+    then we generate schema for both and check if results are the same.
+    """
 
-        class UserLabel(BaseModel):
-            label: str
+    class UserLabelPipe(BaseModel):
+        label: str
 
-        class UserAddress(BaseModel):
-            street: str
-            zip_code: Sequence[int]
-            label: UserLabel | None
-            ro_labels: Mapping[str, UserLabel]
-            wr_labels: MutableMapping[str, List[UserLabel]]
-            ro_list: Sequence[UserLabel]
-            wr_list: MutableSequence[Dict[str, UserLabel]]
+    class UserAddressPipe(BaseModel):
+        street: str
+        zip_code: Sequence[int]
+        label: UserLabelPipe | None  # type: ignore[misc, syntax, unused-ignore]
+        ro_labels: Mapping[str, UserLabelPipe]
+        wr_labels: MutableMapping[str, List[UserLabelPipe]]
+        ro_list: Sequence[UserLabelPipe]
+        wr_list: MutableSequence[Dict[str, UserLabelPipe]]
 
-        class User(BaseModel):
-            user_id: int
-            name: Annotated[str, "PII", "name"]
-            created_at: datetime | None
-            labels: List[str]
-            user_label: UserLabel
-            user_labels: List[UserLabel]
-            address: Annotated[UserAddress, "PII", "address"]
-            unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
-            location: Annotated[Union[str, List[str]] | None, None]
-            something_required: Annotated[Union[str, int], type(None)]
-            final_location: Final[Annotated[Union[str, int], None]]  # type: ignore[misc]
-            final_optional: Final[Annotated[str | None, None]]  # type: ignore[misc]
+    class UserPipe(BaseModel):
+        user_id: int
+        name: Annotated[str, "PII", "name"]
+        created_at: datetime | None  # type: ignore[misc, syntax, unused-ignore]
+        labels: List[str]
+        user_label: UserLabelPipe
+        user_labels: List[UserLabelPipe]
+        address: Annotated[UserAddressPipe, "PII", "address"]
+        unity: Union[UserAddressPipe, UserLabelPipe, Dict[str, UserAddressPipe]]
+        location: Annotated[Union[str, List[str]] | None, None]  # type: ignore[misc, syntax, unused-ignore]
+        something_required: Annotated[Union[str, int], type(None)]
+        final_location: Final[Annotated[Union[str, int], None]]  # type: ignore[misc, syntax, unused-ignore]
+        final_optional: Final[Annotated[str | None, None]]  # type: ignore[misc, syntax, unused-ignore]
 
-            dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+        dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
 
-        class UserUsingOptional(BaseModel):
-            user_id: int
-            name: Annotated[str, "PII", "name"]
-            created_at: Optional[datetime]
-            labels: List[str]
-            user_label: UserLabel
-            user_labels: List[UserLabel]
-            address: Annotated[UserAddress, "PII", "address"]
-            unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
-            location: Annotated[Optional[Union[str, List[str]]], None]
-            something_required: Annotated[Union[str, int], type(None)]
-            final_location: Final[Annotated[Union[str, int], None]]  # type: ignore[misc]
-            final_optional: Final[Annotated[Optional[str], None]]  # type: ignore[misc]
+    # TODO: move to separate test
+    model_freeze = apply_schema_contract_to_model(UserPipe, "evolve", "freeze")
+    from typing import get_type_hints
 
-            dlt_config: ClassVar[DltConfig] = {"skip_complex_types": True}
+    # print(model_freeze.__fields__)
+    # extra is modified
+    assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressPipeExtraAllow"  # type: ignore[index]
+    # annotated is preserved
+    type_origin = get_origin(model_freeze.__fields__["address"].rebuild_annotation())  # type: ignore[index]
+    assert issubclass(type_origin, Annotated)  # type: ignore[arg-type]
+    # UserAddress is converted to UserAddressAllow only once
+    type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
+    assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
 
-        model_freeze = apply_schema_contract_to_model(User, "evolve", "freeze")
-        from typing import get_type_hints
+    # We need to check if pydantic_to_table_schema_columns is idempotent
+    # and can generate the same schema from the class and from the class instance.
 
-        # print(model_freeze.__fields__)
-        # extra is modified
-        assert model_freeze.__fields__["address"].annotation.__name__ == "UserAddressExtraAllow"  # type: ignore[index]
-        # annotated is preserved
-        type_origin = get_origin(model_freeze.__fields__["address"].rebuild_annotation())  # type: ignore[index]
-        assert issubclass(type_origin, Annotated)  # type: ignore[arg-type]
-        # UserAddress is converted to UserAddressAllow only once
-        type_annotation = model_freeze.__fields__["address"].annotation  # type: ignore[index]
-        assert type_annotation is get_args(model_freeze.__fields__["unity"].annotation)[0]  # type: ignore[index]
-
-        # We need to check if pydantic_to_table_schema_columns is idempotent
-        # and can generate the same schema from the class and from the class intance.
-        params = dict(
-            user_id=1,
-            name="random name",
-            created_at=datetime.now(),
-            labels=["str"],
-            user_label=UserLabel(label="123"),
-            user_labels=[
-                UserLabel(label="123"),
-            ],
-            address=UserAddress(
-                street="random street",
-                zip_code=[1234566, 4567789],
-                label=UserLabel(label="123"),
-                ro_labels={
-                    "x": UserLabel(label="123"),
-                },
-                wr_labels={
-                    "y": [
-                        UserLabel(label="123"),
-                    ]
-                },
-                ro_list=[
-                    UserLabel(label="123"),
-                ],
-                wr_list=[
-                    {
-                        "x": UserLabel(label="123"),
-                    }
-                ],
-            ),
-            unity=UserLabel(label="123"),
-            location="Florida keys",
-            final_location="Ginnie Springs",
-            something_required=123,
-            final_optional=None,
-        )
-        user = User(**params)
-        user_using_optional = UserUsingOptional(**params)
-        schema_from_user_class = pydantic_to_table_schema_columns(User)
-        schema_from_user_instance = pydantic_to_table_schema_columns(user)
-        schema_from_user_class_using_optional = pydantic_to_table_schema_columns(
-            user_using_optional
-        )
-        schema_from_user_instance_using_optional = pydantic_to_table_schema_columns(
-            user_using_optional
-        )
-        assert schema_from_user_class == schema_from_user_instance
-        assert schema_from_user_class_using_optional == schema_from_user_instance_using_optional
-        assert schema_from_user_class == schema_from_user_class_using_optional
-        assert schema_from_user_class["location"]["nullable"] is True
-        assert schema_from_user_class["final_location"]["nullable"] is False
-        assert schema_from_user_class["something_required"]["nullable"] is False
-        assert schema_from_user_class["final_optional"]["nullable"] is True
+    user = UserPipe(**USER_INSTANCE_DATA)  # type: ignore
+    user_using_optional = User(**USER_INSTANCE_DATA)  # type: ignore
+    schema_from_user_class = pydantic_to_table_schema_columns(UserPipe)
+    schema_from_user_instance = pydantic_to_table_schema_columns(user)
+    schema_from_user_class_using_optional = pydantic_to_table_schema_columns(user_using_optional)
+    schema_from_user_instance_using_optional = pydantic_to_table_schema_columns(user_using_optional)
+    assert schema_from_user_class == schema_from_user_instance
+    assert schema_from_user_class_using_optional == schema_from_user_instance_using_optional
+    assert schema_from_user_class == schema_from_user_class_using_optional
+    assert schema_from_user_class["location"]["nullable"] is True
+    assert schema_from_user_class["final_location"]["nullable"] is False
+    assert schema_from_user_class["something_required"]["nullable"] is False
+    assert schema_from_user_class["final_optional"]["nullable"] is True
 
 
 def test_item_list_validation() -> None:
