@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import ClassVar, Optional, Sequence, Tuple, List, cast
+from typing import ClassVar, Optional, Sequence, Tuple, List, cast, Dict, Any
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -33,6 +33,14 @@ from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.type_mapping import TypeMapper
+from dlt.destinations.impl.bigquery.bigquery_adapter import (
+    PARTITION_HINT,
+    CLUSTER_HINT,
+    TABLE_DESCRIPTION_HINT,
+    TABLE_EXPIRATION_HINT,
+    ROUND_HALF_EVEN_HINT,
+    ROUND_HALF_AWAY_FROM_ZERO_HINT,
+)
 
 
 class BigQueryTypeMapper(TypeMapper):
@@ -268,11 +276,17 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             sql[0] = sql[0] + "\nCLUSTER BY " + ",".join(cluster_list)
         return sql
 
-    def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
-        name = self.capabilities.escape_identifier(c["name"])
-        return (
-            f"{name} {self.type_mapper.to_db_type(c, table_format)} {self._gen_not_null(c.get('nullable', True))}"
+    # noinspection PyTypedDict
+    def _get_column_def_sql(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
+        name = self.capabilities.escape_identifier(column["name"])
+        column_def_sql = (
+            f"{name} {self.type_mapper.to_db_type(column, table_format)} {self._gen_not_null(column.get('nullable', True))}"
         )
+        if column.get(ROUND_HALF_EVEN_HINT, False):
+            column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_EVEN')"
+        if column.get(ROUND_HALF_AWAY_FROM_ZERO_HINT, False):
+            column_def_sql += " OPTIONS (rounding_mode='ROUND_HALF_AWAY_FROM_ZERO')"
+        return column_def_sql
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         schema_table: TTableSchemaColumns = {}

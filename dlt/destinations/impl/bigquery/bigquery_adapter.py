@@ -11,10 +11,10 @@ from dlt.common.typing import DictStrAny
 from dlt.extract import DltResource, resource as make_resource
 
 
-PARTITION_HINT = "x-bigquery-column-partition"
-CLUSTER_HINT = "x-bigquery-column-cluster"
-ROUND_HALF_AWAY_FROM_ZERO_HINT = "x-bigquery-column-round-half-away-from-zero"
-ROUND_HALF_EVEN_HINT = "x-bigquery-column-round-half-even"
+PARTITION_HINT = "x-bigquery-partition"
+CLUSTER_HINT = "x-bigquery-cluster"
+ROUND_HALF_AWAY_FROM_ZERO_HINT = "x-bigquery-round-half-away-from-zero"
+ROUND_HALF_EVEN_HINT = "x-bigquery-round-half-even"
 TABLE_EXPIRATION_HINT = "x-bigquery-table-expiration"
 TABLE_DESCRIPTION_HINT = "x-bigquery-table-description"
 
