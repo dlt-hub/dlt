@@ -123,7 +123,6 @@ def extract_type_if_modifier(t: Type[Any]) -> Type[Any]:
 
 
 def is_union_type(hint: Type[Any]) -> bool:
-    origin = get_origin(hint)
     # We need to handle UnionType because with Python>=3.10
     # new Optional syntax was introduced which treats Optionals
     # as unions and probably internally there is no additional
@@ -134,6 +133,7 @@ def is_union_type(hint: Type[Any]) -> bool:
     # <class 'types.UnionType'>
     # type(Union[int, str])
     # <class 'typing._GenericAlias'>
+    origin = get_origin(hint)
     if origin is Union or origin is UnionType:
         return True
 
