@@ -166,12 +166,14 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             else:
                 raise LoadJobTerminalException(
                     file_path,
-                    f"Databricks cannot load data from staging bucket {bucket_path}. Only s3 and azure buckets are supported",
+                    f"Databricks cannot load data from staging bucket {bucket_path}. Only s3 and"
+                    " azure buckets are supported",
                 )
         else:
             raise LoadJobTerminalException(
                 file_path,
-                "Cannot load from local file. Databricks does not support loading from local files. Configure staging with an s3 or azure storage bucket.",
+                "Cannot load from local file. Databricks does not support loading from local files."
+                " Configure staging with an s3 or azure storage bucket.",
             )
 
         # decide on source format, stage_file_path will either be a local file or a bucket path
@@ -181,27 +183,33 @@ class DatabricksLoadJob(LoadJob, FollowupJob):
             if not config.get("data_writer.disable_compression"):
                 raise LoadJobTerminalException(
                     file_path,
-                    "Databricks loader does not support gzip compressed JSON files. Please disable compression in the data writer configuration: https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression",
+                    "Databricks loader does not support gzip compressed JSON files. Please disable"
+                    " compression in the data writer configuration:"
+                    " https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression",
                 )
             if table_schema_has_type(table, "decimal"):
                 raise LoadJobTerminalException(
                     file_path,
-                    "Databricks loader cannot load DECIMAL type columns from json files. Switch to parquet format to load decimals.",
+                    "Databricks loader cannot load DECIMAL type columns from json files. Switch to"
+                    " parquet format to load decimals.",
                 )
             if table_schema_has_type(table, "binary"):
                 raise LoadJobTerminalException(
                     file_path,
-                    "Databricks loader cannot load BINARY type columns from json files. Switch to parquet format to load byte values.",
+                    "Databricks loader cannot load BINARY type columns from json files. Switch to"
+                    " parquet format to load byte values.",
                 )
             if table_schema_has_type(table, "complex"):
                 raise LoadJobTerminalException(
                     file_path,
-                    "Databricks loader cannot load complex columns (lists and dicts) from json files. Switch to parquet format to load complex types.",
+                    "Databricks loader cannot load complex columns (lists and dicts) from json"
+                    " files. Switch to parquet format to load complex types.",
                 )
             if table_schema_has_type(table, "date"):
                 raise LoadJobTerminalException(
                     file_path,
-                    "Databricks loader cannot load DATE type columns from json files. Switch to parquet format to load dates.",
+                    "Databricks loader cannot load DATE type columns from json files. Switch to"
+                    " parquet format to load dates.",
                 )
 
             source_format = "JSON"
@@ -311,7 +319,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
 
     def _get_storage_table_query_columns(self) -> List[str]:
         fields = super()._get_storage_table_query_columns()
-        fields[
-            1
-        ] = "full_data_type"  # Override because this is the only way to get data type with precision
+        fields[1] = (  # Override because this is the only way to get data type with precision
+            "full_data_type"
+        )
         return fields
