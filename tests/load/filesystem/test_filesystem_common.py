@@ -49,7 +49,6 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
         details = next(d for d in files if d["name"] == file_url)
         assert details["size"] == 10
 
-    @retry(stop=stop_after_attempt(10), wait=wait_fixed(1))
     def check_file_changed():
         details = filesystem.info(file_url)
         assert details["size"] == 11
@@ -72,6 +71,9 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
         check_file_changed()
     finally:
         filesystem.rm(file_url)
+        assert not filesystem.exists(file_url)
+        with pytest.raises(FileNotFoundError):
+            filesystem.info(file_url)
 
 
 @pytest.mark.parametrize("load_content", (True, False))

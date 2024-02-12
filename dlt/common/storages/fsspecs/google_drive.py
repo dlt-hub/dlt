@@ -27,17 +27,19 @@ SCOPES = {
 
 
 DIR_MIME_TYPE = "application/vnd.google-apps.folder"
-FILE_INFO_FIELDS = ",".join([
-    "name",
-    "id",
-    "size",
-    "description",
-    "mimeType",
-    "version",
-    "createdTime",
-    "modifiedTime",
-    "capabilities",
-])
+FILE_INFO_FIELDS = ",".join(
+    [
+        "name",
+        "id",
+        "size",
+        "description",
+        "mimeType",
+        "version",
+        "createdTime",
+        "modifiedTime",
+        "capabilities",
+    ]
+)
 
 
 DEFAULT_BLOCK_SIZE = 5 * 2**20
@@ -112,6 +114,7 @@ class GoogleDriveFileSystem(AbstractFileSystem):
                 Whether to create parent directories if they don't exist.
                 Defaults to True.
         """
+        # if there are more than two components, create parents (first component is root id, second - path being created)
         if create_parents and len(path.split("/")) > 2:
             self.makedirs(self._parent(path), exist_ok=True)
         parent_id = self.path_to_file_id(self._parent(path))
@@ -143,13 +146,14 @@ class GoogleDriveFileSystem(AbstractFileSystem):
                 return
             else:
                 raise FileExistsError(path)
+        # if there are more than two components, create parents (first component is root id, second - path being created)
         if len(path.split("/")) > 2:
             self.makedirs(self._parent(path), exist_ok=True)
         self.mkdir(path, create_parents=False)
 
     def _is_path_root_id(self, path: str) -> bool:
         """Checks if path is root id"""
-        return len(path.split("/")) == 0
+        return len(path.split("/")) == 1
 
     def _delete(self, file_id: str) -> None:
         """Delete a file.
@@ -188,7 +192,7 @@ class GoogleDriveFileSystem(AbstractFileSystem):
             self._delete(file_id)
         self.invalidate_cache(file_id)
         try:
-            if self._is_path_root_id(path):
+            if not self._is_path_root_id(path):
                 parent_id = self.path_to_file_id(self._parent(path))
                 # drop file id if exists
                 FILE_ID_CACHE.pop((parent_id, path.split("/")[-1]), None)
@@ -211,10 +215,15 @@ class GoogleDriveFileSystem(AbstractFileSystem):
             raise ValueError("Path is not a directory")
         self.rm(path, recursive=False)
 
+    def info(self, path: str, **kwargs: Any) -> Dict[str, Any]:
+        file_id = self.path_to_file_id(path)
+        return self._info_by_id(file_id, self._parent(path))
+
     def _info_by_id(self, file_id: str, path_prefix: Optional[str] = None) -> Dict[str, Any]:
         response = self.service.get(
             fileId=file_id,
             fields=FILE_INFO_FIELDS,
+            supportsAllDrives=True,
         ).execute()
         return self._file_info_from_response(response, path_prefix)
 
@@ -224,7 +233,9 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         mime_type is something like "text/plain"
         """
         file_id = self.path_to_file_id(path)
-        return self.service.export(fileId=file_id, mimeType=mime_type).execute()
+        return self.service.export(
+            fileId=file_id, mimeType=mime_type, supportsAllDrives=True
+        ).execute()
 
     def ls(self, path: str, detail: Optional[bool] = False) -> Any:
         """List files in a directory.
@@ -289,20 +300,20 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         return all_files
 
     def path_to_file_id(
-        self, path: str, parent: Optional[str] = None, parent_path: str = ""
+        self, path: str, parent_id: Optional[str] = None, parent_path: str = ""
     ) -> str:
         """Get the file ID from a path.
 
         Args:
             path (str): The path to get the file ID from.
-            parent (Optional[str]): The parent directory id to search.
+            parent_id (Optional[str]): The parent directory id to search.
             parent_path (Optional[str]): Path corresponding to parent id
 
         Returns:
             str: The file ID.
         """
         items = path.strip("/").split("/", 3)
-        if not parent:
+        if not parent_id:
             # must have root id
             if len(items) == 0:
                 raise ValueError(
@@ -311,26 +322,26 @@ class GoogleDriveFileSystem(AbstractFileSystem):
                 )
             if len(items) == 1:
                 return items[0]  #  only root id present
-            parent, file_name = items[:2]
+            parent_id, file_name = items[:2]
             descendants = items[2:]
-            parent_path = parent
+            parent_path = parent_id
         else:
             if len(items) == 0 or len(path) == 0:
-                return parent
+                return parent_id
             file_name = items[0]
             descendants = items[1:]
 
         # use cached file ids
-        top_file_id = FILE_ID_CACHE.get((parent, file_name))
+        top_file_id = FILE_ID_CACHE.get((parent_id, file_name))
         if not top_file_id:
-            top_file_id = self._find_file_id_in_dir(file_name, parent, parent_path)
-            FILE_ID_CACHE[(parent, file_name)] = top_file_id
+            top_file_id = self._find_file_id_in_dir(file_name, parent_id, parent_path)
+            FILE_ID_CACHE[(parent_id, file_name)] = top_file_id
         if not descendants:
             return top_file_id
         else:
             sub_path = posixpath.join(*descendants)
             return self.path_to_file_id(
-                sub_path, parent=top_file_id, parent_path=posixpath.join(parent_path, file_name)
+                sub_path, parent_id=top_file_id, parent_path=posixpath.join(parent_path, file_name)
             )
 
     def _find_file_id_in_dir(self, file_name: str, dir_file_id: str, dir_path: str) -> Any:
