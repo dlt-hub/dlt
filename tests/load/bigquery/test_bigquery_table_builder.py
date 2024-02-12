@@ -661,8 +661,8 @@ def test_adapter_hints_multiple_clustering(destination_config: DestinationTestCo
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        fqtn_no_hints = c.make_qualified_table_name("no_hints").replace("`", "")
-        fqtn_hints = c.make_qualified_table_name("hints").replace("`", "")
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
+        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
 
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
@@ -704,8 +704,8 @@ def test_adapter_hints_clustering(destination_config: DestinationTestConfigurati
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        fqtn_no_hints = c.make_qualified_table_name("no_hints").replace("`", "")
-        fqtn_hints = c.make_qualified_table_name("hints").replace("`", "")
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
+        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
 
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
@@ -791,8 +791,8 @@ def test_adapter_hints_table_description(destination_config: DestinationTestConf
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        fqtn_no_hints = c.make_qualified_table_name("no_hints").replace("`", "")
-        fqtn_hints = c.make_qualified_table_name("hints").replace("`", "")
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
+        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
 
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
@@ -840,8 +840,8 @@ def test_adapter_hints_table_expiration(destination_config: DestinationTestConfi
     with pipeline.sql_client() as c:
         nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        fqtn_no_hints = c.make_qualified_table_name("no_hints").replace("`", "")
-        fqtn_hints = c.make_qualified_table_name("hints").replace("`", "")
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
+        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
 
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
