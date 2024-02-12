@@ -11,8 +11,7 @@ keywords: [readers source and filesystem, filesystem, readers source]
 or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
 :::
 
-This verified source easily streams files from AWS s3, GCS, Azure, or local filesystem using the reader
-source.
+This verified source easily streams files from AWS S3, Google Cloud Storage, Google Drive, Azure, or local filesystem using the reader source.
 
 Sources and resources that can be used with this verified source are:
 
@@ -32,6 +31,7 @@ This source can access various bucket types, including:
 
 - AWS S3.
 - Google Cloud Storage.
+- Google Drive.
 - Azure Blob Storage.
 - Local Storage
 
@@ -48,7 +48,7 @@ To get AWS keys for S3 access:
 For more info, see
 [AWS official documentation.](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
 
-#### Google Cloud Storage credentials
+#### Google Cloud Storage / Google Drive credentials
 
 To get GCS access:
 
@@ -111,7 +111,7 @@ For more information, read the
    aws_access_key_id="Please set me up!"
    aws_secret_access_key="Please set me up!"
 
-   # For GCS storage bucket access:
+   # For GCS bucket / Google Drive access:
    client_email="Please set me up!"
    private_key="Please set me up!"
    project_id="Please set me up!"
@@ -137,7 +137,10 @@ For more information, read the
 
    ```toml
    [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
-   bucket_url="s3://my-bucket/csv_files/"
+   # bucket_url="az://my-bucket/csv_files/" - for Azure Blob Storage
+   # bucket_url="gdrive://my-bucket/csv_files/" - for Google Drive folder
+   # bucket_url="gs://my-bucket/csv_files/" - for Google Storage
+   bucket_url="s3://my-bucket/csv_files/" - for AWS S3
    ```
    :::caution
    For Azure, use adlfs>=2023.9.0. Older versions mishandle globs.
