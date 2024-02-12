@@ -278,7 +278,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         if cluster_list := {
             c["name"] for c in new_columns if c.get("cluster") or c.get(CLUSTER_HINT, False)
         }:
-            sql[0] = sql[0] + "\nCLUSTER BY " + ",".join(cluster_list)
+            sql[0] = sql[0] + "\nCLUSTER BY " + ", ".join(cluster_list)
         return sql
 
     # noinspection PyTypedDict

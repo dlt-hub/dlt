@@ -678,10 +678,10 @@ def test_adapter_hints_multiple_clustering(
         )
 
         assert not no_hints_cluster_fields, "`no_hints` table IS clustered some column."
-        assert [
+        assert {
             "col1",
             "col2",
-        ] == hints_cluster_fields, "`hints` table IS NOT clustered by `col1` and `col2`."
+        } == set(hints_cluster_fields), "`hints` table IS NOT clustered by `col1` and `col2`."
 
 
 @pytest.mark.parametrize(
