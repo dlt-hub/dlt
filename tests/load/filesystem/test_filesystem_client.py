@@ -48,7 +48,7 @@ def test_filesystem_destination_configuration() -> None:
 
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))
 @pytest.mark.parametrize("layout", ALL_LAYOUTS)
-def test_successful_load(write_disposition: str, layout: str, default_buckets_env: str) -> None:
+def test_successful_load(write_disposition: str, layout: str, with_gdrive_buckets_env: str) -> None:
     """Test load is successful with an empty destination dataset"""
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout

@@ -1,8 +1,11 @@
 import os
 import posixpath
 from typing import Union, Dict
+from urllib.parse import urlparse
 
 import pytest
+
+from tenacity import retry, stop_after_attempt, wait_fixed
 
 from dlt.common import pendulum
 from dlt.common.configuration.inject import with_config
@@ -31,6 +34,7 @@ def test_filesystem_configuration() -> None:
         == Union[AzureCredentialsWithoutDefaults, AzureCredentials]
     )
     assert dict(config) == {
+        "read_only": False,
         "bucket_url": "az://root",
         "credentials": None,
         "client_kwargs": None,
@@ -38,7 +42,18 @@ def test_filesystem_configuration() -> None:
     }
 
 
-def test_filesystem_instance(all_buckets_env: str) -> None:
+def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
+    @retry(stop=stop_after_attempt(10), wait=wait_fixed(1))
+    def check_file_exists():
+        files = filesystem.ls(url, detail=True)
+        details = next(d for d in files if d["name"] == file_url)
+        assert details["size"] == 10
+
+    def check_file_changed():
+        details = filesystem.info(file_url)
+        assert details["size"] == 11
+        assert (MTIME_DISPATCH[config.protocol](details) - now).seconds < 60
+
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     config = get_config()
     assert bucket_url.startswith(config.protocol)
@@ -51,28 +66,34 @@ def test_filesystem_instance(all_buckets_env: str) -> None:
     file_url = posixpath.join(url, filename)
     try:
         filesystem.pipe(file_url, b"test bytes")
-        files = filesystem.ls(url, detail=True)
-        details = next(d for d in files if d["name"] == file_url)
-        # print(details)
-        # print(MTIME_DISPATCH[config.protocol](details))
-        assert (MTIME_DISPATCH[config.protocol](details) - now).seconds < 60
+        check_file_exists()
+        filesystem.pipe(file_url, b"test bytes2")
+        check_file_changed()
     finally:
         filesystem.rm(file_url)
+        assert not filesystem.exists(file_url)
+        with pytest.raises(FileNotFoundError):
+            filesystem.info(file_url)
 
 
 @pytest.mark.parametrize("load_content", (True, False))
-def test_filesystem_dict(default_buckets_env: str, load_content: bool) -> None:
+def test_filesystem_dict(with_gdrive_buckets_env: str, load_content: bool) -> None:
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     config = get_config()
+    # enable caches
+    config.read_only = True
     if config.protocol in ["memory", "file"]:
         pytest.skip(f"{config.protocol} not supported in this test")
-    glob_folder = "standard_source"
+    glob_folder = "standard_source/samples"
+    # may contain query string
+    bucket_url_parsed = urlparse(bucket_url)
+    bucket_url = bucket_url_parsed._replace(
+        path=posixpath.join(bucket_url_parsed.path, glob_folder)
+    ).geturl()
     filesystem, _ = fsspec_from_config(config)
     # use glob to get data
     try:
-        all_file_items = list(
-            glob_files(filesystem, posixpath.join(bucket_url, glob_folder, "samples"))
-        )
+        all_file_items = list(glob_files(filesystem, bucket_url))
         assert_sample_files(all_file_items, filesystem, config, load_content)
     except NotImplementedError as ex:
         pytest.skip(f"Skipping due to {str(ex)}")
@@ -106,6 +127,7 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         bucket_url="az://root", kwargs={"use_ssl": True}, client_kwargs={"verify": "public.crt"}
     )
     assert dict(config) == {
+        "read_only": False,
         "bucket_url": "az://root",
         "credentials": None,
         "kwargs": {"use_ssl": True},
