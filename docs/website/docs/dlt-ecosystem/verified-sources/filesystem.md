@@ -50,7 +50,7 @@ For more info, see
 
 #### Google Cloud Storage / Google Drive credentials
 
-To get GCS access:
+To get GCS/GDrive access:
 
 1. Log in to [console.cloud.google.com](http://console.cloud.google.com/).
 1. Create a [service account](https://cloud.google.com/iam/docs/service-accounts-create#creating).
