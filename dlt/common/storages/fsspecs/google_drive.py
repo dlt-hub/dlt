@@ -94,7 +94,6 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         """Connect to Google Drive."""
 
         if self.credentials:
-            raise ValueError(self.credentials.to_gcs_credentials())
             if isinstance(self.credentials, GcpOAuthCredentials):
                 self.credentials.auth(self.scopes)
             cred = self.credentials.to_native_credentials()
