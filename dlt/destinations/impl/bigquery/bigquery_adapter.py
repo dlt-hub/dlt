@@ -8,6 +8,7 @@ from dlt.common.schema.typing import (
     TTableSchemaColumns,
 )
 from dlt.common.typing import DictStrAny
+from dlt.destinations.utils import ensure_resource
 from dlt.extract import DltResource, resource as make_resource
 
 
@@ -66,12 +67,7 @@ def bigquery_adapter(
         [DltResource with hints applied]
     """
     # Wrap `data` in a resource if not an instance already.
-    resource: DltResource
-    if not isinstance(data, DltResource):
-        resource_name = None if hasattr(data, "__name__") else "content"
-        resource = make_resource(data, name=resource_name)
-    else:
-        resource = data
+    resource = ensure_resource(data)
 
     column_hints: TTableSchemaColumns = {}
     table_hints: DictStrAny = {}
