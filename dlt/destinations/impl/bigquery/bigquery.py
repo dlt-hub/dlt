@@ -252,9 +252,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             elif (c := partition_list[0])["data_type"] == "date":
                 sql[0] = f"{sql[0]}\nPARTITION BY {self.capabilities.escape_identifier(c['name'])}"
             elif (c := partition_list[0])["data_type"] == "timestamp":
-                sql[
-                    0
-                ] = f"{sql[0]}\nPARTITION BY DATE({self.capabilities.escape_identifier(c['name'])})"
+                sql[0] = (
+                    f"{sql[0]}\nPARTITION BY DATE({self.capabilities.escape_identifier(c['name'])})"
+                )
             # Automatic partitioning of an INT64 type requires us to be prescriptive - we treat the column as a UNIX timestamp.
             # This is due to the bounds requirement of GENERATE_ARRAY function for partitioning.
             # The 10,000 partitions limit makes it infeasible to cover the entire `bigint` range.
@@ -272,7 +272,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
         name = self.capabilities.escape_identifier(c["name"])
-        return f"{name} {self.type_mapper.to_db_type(c, table_format)} {self._gen_not_null(c.get('nullable', True))}"
+        return (
+            f"{name} {self.type_mapper.to_db_type(c, table_format)} {self._gen_not_null(c.get('nullable', True))}"
+        )
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         schema_table: TTableSchemaColumns = {}
