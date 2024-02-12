@@ -133,14 +133,14 @@ For more information, read the
    ```
 
    For remote file systems you need to add the schema, it will be used to get the protocol being
-   used, for example:
+   used:
 
    ```toml
    [sources.filesystem] # use [sources.readers.credentials] for the "readers" source
    # bucket_url="az://my-bucket/csv_files/" - for Azure Blob Storage
    # bucket_url="gdrive://my-bucket/csv_files/" - for Google Drive folder
    # bucket_url="gs://my-bucket/csv_files/" - for Google Storage
-   bucket_url="s3://my-bucket/csv_files/" - for AWS S3
+   bucket_url="s3://my-bucket/csv_files/" # for AWS S3
    ```
    :::caution
    For Azure, use adlfs>=2023.9.0. Older versions mishandle globs.
