@@ -27,19 +27,17 @@ SCOPES = {
 
 
 DIR_MIME_TYPE = "application/vnd.google-apps.folder"
-FILE_INFO_FIELDS = ",".join(
-    [
-        "name",
-        "id",
-        "size",
-        "description",
-        "mimeType",
-        "version",
-        "createdTime",
-        "modifiedTime",
-        "capabilities",
-    ]
-)
+FILE_INFO_FIELDS = ",".join([
+    "name",
+    "id",
+    "size",
+    "description",
+    "mimeType",
+    "version",
+    "createdTime",
+    "modifiedTime",
+    "capabilities",
+])
 
 
 DEFAULT_BLOCK_SIZE = 5 * 2**20
@@ -96,6 +94,7 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         """Connect to Google Drive."""
 
         if self.credentials:
+            raise ValueError(self.credentials.to_gcs_credentials())
             if isinstance(self.credentials, GcpOAuthCredentials):
                 self.credentials.auth(self.scopes)
             cred = self.credentials.to_native_credentials()
