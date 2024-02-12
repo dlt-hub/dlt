@@ -5,6 +5,8 @@ from urllib.parse import urlparse
 
 import pytest
 
+from tenacity import retry, stop_after_attempt, wait_fixed
+
 from dlt.common import pendulum
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import AzureCredentials, AzureCredentialsWithoutDefaults
@@ -41,6 +43,18 @@ def test_filesystem_configuration() -> None:
 
 
 def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
+    @retry(stop=stop_after_attempt(10), wait=wait_fixed(1))
+    def check_file_exists():
+        files = filesystem.ls(url, detail=True)
+        details = next(d for d in files if d["name"] == file_url)
+        assert details["size"] == 10
+
+    @retry(stop=stop_after_attempt(10), wait=wait_fixed(1))
+    def check_file_changed():
+        details = filesystem.info(file_url)
+        assert details["size"] == 11
+        assert (MTIME_DISPATCH[config.protocol](details) - now).seconds < 60
+
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     config = get_config()
     assert bucket_url.startswith(config.protocol)
@@ -53,15 +67,9 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
     file_url = posixpath.join(url, filename)
     try:
         filesystem.pipe(file_url, b"test bytes")
-        files = filesystem.ls(url, detail=True)
-        details = next(d for d in files if d["name"] == file_url)
-        assert details["size"] == 10
+        check_file_exists()
         filesystem.pipe(file_url, b"test bytes2")
-        details = filesystem.info(file_url)
-        assert details["size"] == 11
-        # print(details)
-        # print(MTIME_DISPATCH[config.protocol](details))
-        assert (MTIME_DISPATCH[config.protocol](details) - now).seconds < 60
+        check_file_changed()
     finally:
         filesystem.rm(file_url)
 
