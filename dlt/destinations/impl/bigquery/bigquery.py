@@ -246,13 +246,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
 
-        if partition_list := list(
-            {
-                c["name"]: c
-                for c in new_columns
-                if c.get("partition") or c.get(PARTITION_HINT, False)
-            }.values()
-        ):
+        if partition_list := [
+            c for c in new_columns if c.get("partition") or c.get(PARTITION_HINT, False)
+        ]:
             if len(partition_list) > 1:
                 col_names = [self.capabilities.escape_identifier(c["name"]) for c in partition_list]
                 raise DestinationSchemaWillNotUpdate(
@@ -275,9 +271,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                     f" RANGE_BUCKET({self.capabilities.escape_identifier(c['name'])},"
                     " GENERATE_ARRAY(-172800000, 691200000, 86400))"
                 )
-        if cluster_list := {
+        if cluster_list := [
             c["name"] for c in new_columns if c.get("cluster") or c.get(CLUSTER_HINT, False)
-        }:
+        ]:
             sql[0] = sql[0] + "\nCLUSTER BY " + ", ".join(cluster_list)
         return sql
 

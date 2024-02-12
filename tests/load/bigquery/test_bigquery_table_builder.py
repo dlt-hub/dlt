@@ -642,12 +642,27 @@ def test_adapter_hints_multiple_clustering(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     @dlt.resource(
-        columns=[{"name": "col1", "data_type": "bigint"}, {"name": "col2", "data_type": "text"}]
+        columns=[
+            {"name": "col1", "data_type": "bigint"},
+            {"name": "col2", "data_type": "text"},
+            {"name": "col3", "data_type": "text"},
+            {"name": "col4", "data_type": "text"},
+        ]
     )
     def no_hints() -> Iterator[Dict[str, Any]]:
-        yield from [{"col1": i, "col2": str(i)} for i in range(10)]
+        yield from [
+            {
+                "col1": i,
+                "col2": str(i),
+                "col3": str(i),
+                "col4": str(i),
+            }
+            for i in range(10)
+        ]
 
-    hints = bigquery_adapter(no_hints._clone(new_name="hints"), cluster=["col1", "col2"])
+    hints = bigquery_adapter(
+        no_hints._clone(new_name="hints"), cluster=["col1", "col2", "col3", "col4"]
+    )
 
     @dlt.source(max_table_nesting=0)
     def sources() -> List[DltResource]:
@@ -678,10 +693,12 @@ def test_adapter_hints_multiple_clustering(
         )
 
         assert not no_hints_cluster_fields, "`no_hints` table IS clustered some column."
-        assert {
+        assert [
             "col1",
             "col2",
-        } == set(hints_cluster_fields), "`hints` table IS NOT clustered by `col1` and `col2`."
+            "col3",
+            "col4",
+        ] == hints_cluster_fields
 
 
 @pytest.mark.parametrize(
