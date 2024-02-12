@@ -1,6 +1,4 @@
 import posixpath
-import re
-import os
 from typing import Any, Dict, List, Literal, Optional, Tuple
 
 from dlt.common import json
@@ -35,7 +33,6 @@ FILE_INFO_FIELDS = ",".join(
         "id",
         "size",
         "description",
-        "trashed",
         "mimeType",
         "version",
         "createdTime",
@@ -43,25 +40,6 @@ FILE_INFO_FIELDS = ",".join(
         "capabilities",
     ]
 )
-
-
-def _normalize_path(prefix: str, name: str) -> str:
-    raw_prefix = prefix.strip("/")
-    return "/".join([raw_prefix, name])
-
-
-def _finfo_from_response(f: Dict[str, Any], path_prefix: str = None) -> Dict[str, Any]:
-    # strictly speaking, other types might be capable of having children,
-    # such as packages
-    ftype = "directory" if f.get("mimeType") == DIR_MIME_TYPE else "file"
-    if path_prefix:
-        name = _normalize_path(path_prefix, f["name"])
-    else:
-        name = f["name"]
-
-    info = {"name": name, "size": int(f.get("size", 0)), "type": ftype}
-    f.update(info)
-    return f
 
 
 DEFAULT_BLOCK_SIZE = 5 * 2**20
@@ -86,6 +64,13 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         The gdrive url has following format: gdrive://<root_file_id/<file_path>
         Where <root_file_id> is a file id of the folder where the <file_path> is present.
 
+        Google Drive provides consistency when file ids are used. Changes are reflected immediately.
+        In case of listings (ls) the consistency is eventual. Changes are reflected with a delay.
+        As ls is used to retrieve file id from file name, we will be unable to build consistent filesystem
+        with google drive API. Use this with care.
+
+        Based on original fsspec Google Drive implementation: https://github.com/fsspec/gdrivefs
+
         Args:
             credentials (GcpCredentials): Google Service credentials. If not provided, anonymous credentials
                 are used
@@ -102,7 +87,6 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         super().__init__(**kwargs)
         self.trash_delete = trash_delete
         self.access = access
-        self.trashed = False
         self.scopes = [SCOPES[access]]
         self.credentials = credentials
         self.spaces = spaces
@@ -113,7 +97,7 @@ class GoogleDriveFileSystem(AbstractFileSystem):
 
         if self.credentials:
             if isinstance(self.credentials, GcpOAuthCredentials):
-                self.credentials.auth()
+                self.credentials.auth(self.scopes)
             cred = self.credentials.to_native_credentials()
         else:
             cred = AnonymousCredentials()
@@ -141,8 +125,7 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         }
         file = self.service.create(body=meta, supportsAllDrives=True).execute()
         # cache the new dir
-        FILE_ID_CACHE[(parent_id, name)] = file
-        print(f"new dir cached: {parent_id} {name}")
+        FILE_ID_CACHE[(parent_id, name)] = file["id"]
         try:
             self.invalidate_cache(parent_id)
         except Exception:
@@ -208,8 +191,10 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         self.invalidate_cache(file_id)
         try:
             if self._is_path_root_id(path):
-                file_id = self.path_to_file_id(self._parent(path))
-                self.invalidate_cache(file_id)
+                parent_id = self.path_to_file_id(self._parent(path))
+                # drop file id if exists
+                FILE_ID_CACHE.pop((parent_id, path.split("/")[-1]), None)
+                self.invalidate_cache(parent_id)
         except Exception:
             # allow for parent to not exist as valid path
             pass
@@ -217,8 +202,6 @@ class GoogleDriveFileSystem(AbstractFileSystem):
     def invalidate_cache(self, file_id: str) -> None:
         # remove listing from cache by file id
         self.dircache.pop(file_id, None)
-        # TODO: add more selective cache wipe or use dircache for file IDs
-        FILE_ID_CACHE.clear()
 
     def rmdir(self, path: str) -> None:
         """Remove a directory.
@@ -235,7 +218,7 @@ class GoogleDriveFileSystem(AbstractFileSystem):
             fileId=file_id,
             fields=FILE_INFO_FIELDS,
         ).execute()
-        return _finfo_from_response(response, path_prefix)
+        return self._file_info_from_response(response, path_prefix)
 
     def export(self, path: str, mime_type: str) -> Any:
         """Convert a Google-native file to other format and download
@@ -285,8 +268,6 @@ class GoogleDriveFileSystem(AbstractFileSystem):
         page_token = None
         all_fields = "nextPageToken, files(%s)" % FILE_INFO_FIELDS
         query = f"'{dir_file_id}' in parents "
-        if not self.trashed:
-            query += "and trashed = false "
 
         while True:
             response = self.service.list(
@@ -300,13 +281,13 @@ class GoogleDriveFileSystem(AbstractFileSystem):
             ).execute()
 
             for f in response.get("files", []):
-                all_files.append(_finfo_from_response(f, dir_path))
+                all_files.append(self._file_info_from_response(f, dir_path))
 
             page_token = response.get("nextPageToken", None)
             if page_token is None:
                 break
 
-        # self.dircache[dir_file_id] = all_files
+        self.dircache[dir_file_id] = all_files
         return all_files
 
     def path_to_file_id(
@@ -327,34 +308,35 @@ class GoogleDriveFileSystem(AbstractFileSystem):
             # must have root id
             if len(items) == 0:
                 raise ValueError(
-                    "Google drive path must start with folder root id ie. gdrive://15eC3e5MNew2XAIefWNlG8VlEa0ISnnaG/..."
+                    "Google drive path must start with folder root id ie."
+                    " gdrive://15eC3e5MNew2XAIefWNlG8VlEa0ISnnaG/..."
                 )
             if len(items) == 1:
                 return items[0]  #  only root id present
-            parent, child_name = items[:2]
+            parent, file_name = items[:2]
             descendants = items[2:]
             parent_path = parent
         else:
             if len(items) == 0 or len(path) == 0:
                 return parent
-            child_name = items[0]
+            file_name = items[0]
             descendants = items[1:]
 
         # use cached file ids
-        top_file_id = FILE_ID_CACHE.get((parent, child_name))
+        top_file_id = FILE_ID_CACHE.get((parent, file_name))
         if not top_file_id:
-            top_file_id = self._get_directory_child_by_name(child_name, parent, parent_path)
-            FILE_ID_CACHE[(parent, child_name)] = top_file_id
+            top_file_id = self._find_file_id_in_dir(file_name, parent, parent_path)
+            FILE_ID_CACHE[(parent, file_name)] = top_file_id
         if not descendants:
             return top_file_id
         else:
-            sub_path = "/".join(descendants)
+            sub_path = posixpath.join(*descendants)
             return self.path_to_file_id(
-                sub_path, parent=top_file_id, parent_path=posixpath.join(parent_path, child_name)
+                sub_path, parent=top_file_id, parent_path=posixpath.join(parent_path, file_name)
             )
 
-    def _get_directory_child_by_name(self, child_name: str, dir_file_id: str, dir_path: str) -> Any:
-        """Get the file ID of a child in a directory.
+    def _find_file_id_in_dir(self, file_name: str, dir_file_id: str, dir_path: str) -> Any:
+        """Get the file ID of a file with a given name in a directory.
 
         Args:
             child_name (str): The name of the child to get the file ID of.
@@ -362,22 +344,22 @@ class GoogleDriveFileSystem(AbstractFileSystem):
             dir_path (str): Path corresponding to dir_file_id
 
         Returns:
-            str: The file ID of the child.
+            str: The file ID of the file_name.
         """
         all_children = self._list_directory_by_id(dir_file_id, dir_path=dir_path)
         possible_children = []
         for child in all_children:
-            if child["name"].strip("/").split("/")[-1] == child_name:
+            if child["name"].strip("/").split("/")[-1] == file_name:
                 possible_children.append(child["id"])
 
         if len(possible_children) == 0:
-            raise FileNotFoundError(f"Directory {dir_file_id} has no child named {child_name}")
+            raise FileNotFoundError(f"Directory {dir_file_id} has no child named {file_name}")
         if len(possible_children) == 1:
             return possible_children[0]
         else:
             raise KeyError(
                 f"Directory {dir_file_id} has more than one "
-                f"child named {child_name}. Unable to resolve path "
+                f"child named {file_name}. Unable to resolve path "
                 "to file_id."
             )
 
@@ -394,6 +376,19 @@ class GoogleDriveFileSystem(AbstractFileSystem):
             GoogleDriveFile: The opened file.
         """
         return GoogleDriveFile(self, path, mode=mode, **kwargs)
+
+    @staticmethod
+    def _file_info_from_response(file: Dict[str, Any], path_prefix: str = None) -> Dict[str, Any]:
+        """Create fsspec compatible file info"""
+        ftype = "directory" if file.get("mimeType") == DIR_MIME_TYPE else "file"
+        if path_prefix:
+            name = posixpath.join(path_prefix, file["name"])
+        else:
+            name = file["name"]
+
+        info = {"name": name, "size": int(file.get("size", 0)), "type": ftype}
+        file.update(info)
+        return file
 
 
 class GoogleDriveFile(AbstractBufferedFile):
@@ -489,6 +484,7 @@ class GoogleDriveFile(AbstractBufferedFile):
         req = self.fs.service._http.request
         head, body = req(self.location, method="PUT", body=data, headers=head)
         status = int(head["status"])
+        # TODO: raise an exception similar to google api wrapper
         assert status < 400, "Init upload failed"
         if status in [200, 201]:
             # server thinks we are finished, this should happen
@@ -497,8 +493,8 @@ class GoogleDriveFile(AbstractBufferedFile):
             self.file_id = file_meta["id"]
             # file_parent_id = file_meta["parents"][0]
             file_name = file_meta["name"]
-            print(f"new file cached: {self.parent_id} {file_name}")
-            FILE_ID_CACHE[(self.parent_id, file_name)] = body.decode()
+            FILE_ID_CACHE[(self.parent_id, file_name)] = self.file_id
+            # TODO: invalidate listing cache
         elif "range" in head:
             assert status == 308
         else:

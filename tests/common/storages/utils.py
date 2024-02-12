@@ -45,9 +45,6 @@ def assert_sample_files(
         "gzip/taxi.csv.gz",
         "sample.txt",
     }
-
-    print(all_file_items)
-    print(len(all_file_items))
     assert len(all_file_items) == len(minimally_expected_file_items)
 
     for item in all_file_items:

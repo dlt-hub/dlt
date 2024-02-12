@@ -32,6 +32,7 @@ def test_filesystem_configuration() -> None:
         == Union[AzureCredentialsWithoutDefaults, AzureCredentials]
     )
     assert dict(config) == {
+        "read_only": False,
         "bucket_url": "az://root",
         "credentials": None,
         "client_kwargs": None,
@@ -116,6 +117,7 @@ def test_filesystem_configuration_with_additional_arguments() -> None:
         bucket_url="az://root", kwargs={"use_ssl": True}, client_kwargs={"verify": "public.crt"}
     )
     assert dict(config) == {
+        "read_only": False,
         "bucket_url": "az://root",
         "credentials": None,
         "kwargs": {"use_ssl": True},
