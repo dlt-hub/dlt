@@ -6,7 +6,7 @@ from dlt.common.runtime.logger import pretty_format_exception
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-from dlt.common.utils import uniq_id
+from dlt.common.utils import uniq_id, identity
 from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
@@ -202,16 +202,19 @@ class SqlMergeJob(SqlBaseJob):
 
     @classmethod
     def gen_insert_temp_table_sql(
-        cls, staging_root_table_name: str, primary_keys: Sequence[str], unique_column: str
+        cls,
+        staging_root_table_name: str,
+        primary_keys: Sequence[str],
+        unique_column: str,
+        condition: str = "1 = 1",
     ) -> Tuple[List[str], str]:
         temp_table_name = cls._new_temp_table_name("insert")
-        select_statement = f"""
-        SELECT {unique_column}
-        FROM (
-            SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY (SELECT NULL)) AS _dlt_dedup_rn, {unique_column}
-            FROM {staging_root_table_name}
-        ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1
-        """
+        select_statement = cls.gen_select_from_deduplicated_sql(
+            table_name=staging_root_table_name,
+            select_columns=[unique_column],
+            key_columns=primary_keys,
+            condition=condition,
+        )
         return [cls._to_temp_table(select_statement, temp_table_name)], temp_table_name
 
     @classmethod
@@ -227,6 +230,42 @@ class SqlMergeJob(SqlBaseJob):
             WHERE {unique_column} IN (
                 SELECT * FROM {delete_temp_table_name}
             );
+        """
+
+    @classmethod
+    def gen_select_from_deduplicated_sql(
+        cls,
+        table_name: str,
+        key_columns: Sequence[str],
+        escape_identifier: Callable[[str], str] = identity,
+        columns: Sequence[str] = None,
+        order_column: str = "(SELECT NULL)",
+        condition: str = "1 = 1",
+        select_columns: Sequence[str] = None,
+        exclude_columns: Sequence[str] = None,
+    ) -> str:
+        """Generate SELECT FROM statement that deduplicates records based one or multiple deduplication keys."""
+        columns_str = "*"
+        select_columns_str = "*"
+        if columns is not None:
+            columns_str = ", ".join(map(escape_identifier, columns))
+            if select_columns is None:
+                if exclude_columns is None:
+                    exclude_columns = []
+                select_columns = [c for c in columns if c not in exclude_columns]
+        if select_columns is not None:
+            select_columns_str = ", ".join(map(escape_identifier, select_columns))
+        key_columns_str = ", ".join(key_columns)
+        return f"""
+            SELECT {select_columns_str}
+            FROM (
+                SELECT
+                    ROW_NUMBER() OVER (partition BY {key_columns_str} ORDER BY {order_column} DESC) AS _dlt_dedup_rn,
+                    {columns_str}
+                FROM {table_name}
+            ) AS _dlt_dedup_numbered
+            WHERE _dlt_dedup_rn = 1
+                AND {condition}
         """
 
     @classmethod
@@ -253,6 +292,22 @@ class SqlMergeJob(SqlBaseJob):
         sql: List[str] = []
         root_table = table_chain[0]
 
+        escape_identifier = sql_client.capabilities.escape_identifier
+        escape_literal = sql_client.capabilities.escape_literal
+
+        insert_condition = "1 = 1"
+        write_disposition = root_table["write_disposition"]
+        if write_disposition == "replicate":
+            # define variables specific to "replicate" write disposition
+            cdc_config = root_table["cdc_config"]
+            op_col = cdc_config["operation_column"]
+            seq_col = cdc_config["sequence_column"]
+            insert_literal = escape_literal(cdc_config["operation_mapper"]["insert"])
+            update_literal = escape_literal(cdc_config["operation_mapper"]["update"])
+            insert_condition = (
+                f"{escape_identifier(op_col)} IN ({insert_literal}, {update_literal})"
+            )
+
         # get top level table full identifiers
         root_table_name = sql_client.make_qualified_table_name(root_table["name"])
         with sql_client.with_staging_dataset(staging=True):
@@ -260,13 +315,13 @@ class SqlMergeJob(SqlBaseJob):
         # get merge and primary keys from top level
         primary_keys = list(
             map(
-                sql_client.capabilities.escape_identifier,
+                escape_identifier,
                 get_columns_names_with_prop(root_table, "primary_key"),
             )
         )
         merge_keys = list(
             map(
-                sql_client.capabilities.escape_identifier,
+                escape_identifier,
                 get_columns_names_with_prop(root_table, "merge_key"),
             )
         )
@@ -298,7 +353,7 @@ class SqlMergeJob(SqlBaseJob):
                     " it is not possible to link child tables to it.",
                 )
             # get first unique column
-            unique_column = sql_client.capabilities.escape_identifier(unique_columns[0])
+            unique_column = escape_identifier(unique_columns[0])
             # create temp table with unique identifier
             create_delete_temp_table_sql, delete_temp_table_name = cls.gen_delete_temp_table_sql(
                 unique_column, key_table_clauses
@@ -339,7 +394,7 @@ class SqlMergeJob(SqlBaseJob):
                     create_insert_temp_table_sql,
                     insert_temp_table_name,
                 ) = cls.gen_insert_temp_table_sql(
-                    staging_root_table_name, primary_keys, unique_column
+                    staging_root_table_name, primary_keys, unique_column, insert_condition
                 )
                 sql.extend(create_insert_temp_table_sql)
 
@@ -348,23 +403,33 @@ class SqlMergeJob(SqlBaseJob):
             table_name = sql_client.make_qualified_table_name(table["name"])
             with sql_client.with_staging_dataset(staging=True):
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
-            columns = ", ".join(
-                map(
-                    sql_client.capabilities.escape_identifier,
-                    get_columns_names_with_prop(table, "name"),
-                )
-            )
+            columns = get_columns_names_with_prop(table, "name")
+            if write_disposition == "replicate":
+                columns = [c for c in columns if c not in (op_col, seq_col)]
+            column_str = ", ".join(map(escape_identifier, columns))
             insert_sql = (
-                f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name}"
+                f"INSERT INTO {table_name}({column_str}) SELECT {column_str} FROM"
+                f" {staging_table_name}"
             )
             if len(primary_keys) > 0:
                 if len(table_chain) == 1:
-                    insert_sql = f"""INSERT INTO {table_name}({columns})
-                        SELECT {columns} FROM (
-                            SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY (SELECT NULL)) AS _dlt_dedup_rn, {columns}
-                            FROM {staging_table_name}
-                        ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1;
-                    """
+                    select_sql = cls.gen_select_from_deduplicated_sql(
+                        table_name=staging_table_name,
+                        columns=get_columns_names_with_prop(table, "name"),
+                        key_columns=primary_keys,
+                        escape_identifier=escape_identifier,
+                    )
+                    if write_disposition == "replicate":
+                        select_sql = cls.gen_select_from_deduplicated_sql(
+                            table_name=staging_table_name,
+                            columns=get_columns_names_with_prop(table, "name"),
+                            key_columns=primary_keys,
+                            escape_identifier=escape_identifier,
+                            order_column=seq_col,
+                            condition=insert_condition,
+                            exclude_columns=[op_col, seq_col],
+                        )
+                    insert_sql = f"""INSERT INTO {table_name}({column_str}) {select_sql};"""
                 else:
                     uniq_column = unique_column if table.get("parent") is None else root_key_column
                     insert_sql += (
@@ -374,6 +439,5 @@ class SqlMergeJob(SqlBaseJob):
             if insert_sql.strip()[-1] != ";":
                 insert_sql += ";"
             sql.append(insert_sql)
-            # -- DELETE FROM {staging_table_name} WHERE 1=1;
 
         return sql

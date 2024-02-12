@@ -139,7 +139,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     )
                 logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
                 table = client.get_load_table(job_info.table_name)
-                if table["write_disposition"] not in ["append", "replace", "merge"]:
+                if table["write_disposition"] not in ["append", "replace", "merge", "replicate"]:
                     raise LoadClientUnsupportedWriteDisposition(
                         job_info.table_name, table["write_disposition"], file_path
                     )
