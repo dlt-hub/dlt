@@ -619,6 +619,64 @@ def test_adapter_hints_parsing_clustering() -> None:
     }
 
 
+def test_adapter_hints_parsing_multiple_clustering() -> None:
+    @dlt.resource(
+        columns=[{"name": "col1", "data_type": "bigint"}, {"name": "col2", "data_type": "text"}]
+    )
+    def some_data() -> Iterator[Dict[str, Any]]:
+        yield from [{"col1": i, "col2": str(i)} for i in range(10)]
+
+    bigquery_adapter(some_data, cluster=["col1", "col2"])
+    assert some_data.columns == {
+        "col1": {"name": "col1", "data_type": "bigint", "x-bigquery-cluster": True},
+        "col2": {"name": "col2", "data_type": "text", "x-bigquery-cluster": True},
+    }
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_hints_multiple_clustering(destination_config: DestinationTestConfiguration) -> None:
+    @dlt.resource(
+        columns=[{"name": "col1", "data_type": "bigint"}, {"name": "col2", "data_type": "text"}]
+    )
+    def no_hints() -> Iterator[Dict[str, Any]]:
+        yield from [{"col1": i, "col2": str(i)} for i in range(10)]
+
+    hints = bigquery_adapter(no_hints._clone(new_name="hints"), cluster=["col1", "col2"])
+
+    @dlt.source(max_table_nesting=0)
+    def sources() -> List:
+        return [no_hints, hints]
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        full_refresh=True,
+    )
+
+    # noinspection PyArgumentList
+    pipeline.run(sources())
+
+    with pipeline.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection
+
+        fqtn_no_hints = c.make_qualified_table_name("no_hints").replace("`", "")
+        fqtn_hints = c.make_qualified_table_name("hints").replace("`", "")
+
+        no_hints_table = nc.get_table(fqtn_no_hints)
+        hints_table = nc.get_table(fqtn_hints)
+
+        no_hints_cluster_fields = (
+            [] if no_hints_table.clustering_fields is None else no_hints_table.clustering_fields
+        )
+        hints_cluster_fields = (
+            [] if hints_table.clustering_fields is None else hints_table.clustering_fields
+        )
+
+        assert not no_hints_cluster_fields, "`no_hints` table IS clustered some column."
+        assert ["col1", "col2"] == hints_cluster_fields, "`hints` table IS NOT clustered by `col1` and `col2`."
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
