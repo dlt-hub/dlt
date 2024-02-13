@@ -77,7 +77,8 @@ class SourceSchemaInjectableContext(ContainerInjectableContext):
 
     if TYPE_CHECKING:
 
-        def __init__(self, schema: Schema = None) -> None: ...
+        def __init__(self, schema: Schema = None) -> None:
+            ...
 
 
 @configspec
@@ -90,7 +91,8 @@ class SourceInjectableContext(ContainerInjectableContext):
 
     if TYPE_CHECKING:
 
-        def __init__(self, source: DltSource = None) -> None: ...
+        def __init__(self, source: DltSource = None) -> None:
+            ...
 
 
 TSourceFunParams = ParamSpec("TSourceFunParams")
@@ -110,7 +112,8 @@ def source(
     schema_contract: TSchemaContract = None,
     spec: Type[BaseConfiguration] = None,
     _impl_cls: Type[TDltSourceImpl] = DltSource,  # type: ignore[assignment]
-) -> Callable[TSourceFunParams, DltSource]: ...
+) -> Callable[TSourceFunParams, DltSource]:
+    ...
 
 
 @overload
@@ -125,7 +128,8 @@ def source(
     schema_contract: TSchemaContract = None,
     spec: Type[BaseConfiguration] = None,
     _impl_cls: Type[TDltSourceImpl] = DltSource,  # type: ignore[assignment]
-) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, TDltSourceImpl]]: ...
+) -> Callable[[Callable[TSourceFunParams, Any]], Callable[TSourceFunParams, TDltSourceImpl]]:
+    ...
 
 
 def source(
@@ -273,7 +277,8 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-) -> DltResource: ...
+) -> DltResource:
+    ...
 
 
 @overload
@@ -290,7 +295,8 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]: ...
+) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]:
+    ...
 
 
 @overload
@@ -308,7 +314,8 @@ def resource(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     standalone: Literal[True] = True,
-) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]: ...
+) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]:
+    ...
 
 
 @overload
@@ -325,7 +332,8 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-) -> DltResource: ...
+) -> DltResource:
+    ...
 
 
 def resource(
@@ -343,6 +351,7 @@ def resource(
     spec: Type[BaseConfiguration] = None,
     standalone: bool = False,
     data_from: TUnboundDltResource = None,
+    parallelize: bool = False,
 ) -> Any:
     """When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
 
@@ -442,6 +451,9 @@ def resource(
         if not standalone and callable(name):
             raise DynamicNameNotStandaloneResource(get_callable_name(f))
 
+        if parallelize:
+            f = parallel(f)
+
         # resource_section = name if name and not callable(name) else get_callable_name(f)
         resource_name = name if name and not callable(name) else get_callable_name(f)
 
@@ -537,7 +549,8 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource]: ...
+) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource]:
+    ...
 
 
 @overload
@@ -557,7 +570,8 @@ def transformer(
 ) -> Callable[
     [Callable[Concatenate[TDataItem, TResourceFunParams], Any]],
     Callable[TResourceFunParams, DltResource],
-]: ...
+]:
+    ...
 
 
 @overload
@@ -573,7 +587,8 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-) -> DltResource: ...
+) -> DltResource:
+    ...
 
 
 @overload
@@ -590,7 +605,8 @@ def transformer(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     standalone: Literal[True] = True,
-) -> Callable[TResourceFunParams, DltResource]: ...
+) -> Callable[TResourceFunParams, DltResource]:
+    ...
 
 
 def transformer(
@@ -734,5 +750,40 @@ def defer(
             return f(*args, **kwargs)
 
         return _curry
+
+    return _wrap
+
+
+def parallel(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParams, Any]:
+    @wraps(f)
+    def _wrap(*args, **kwargs):
+        gen = f(*args, **kwargs)
+        if inspect.isfunction(gen):
+            gen = gen()
+        if inspect.isasyncgen(gen):
+            raise ValueError("Async generators are not supported with paralellize")
+
+        exhausted = False
+        busy = False
+
+        def _parallel_gen():
+            try:
+                return next(gen)
+            except StopIteration:
+                nonlocal exhausted
+                exhausted = True
+                return None
+            finally:
+                nonlocal busy
+                busy = False
+
+        while not exhausted:
+            try:
+                while busy:
+                    yield None
+                busy = True
+                yield _parallel_gen
+            except GeneratorExit:
+                gen.close()
 
     return _wrap
