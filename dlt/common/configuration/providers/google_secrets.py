@@ -1,12 +1,34 @@
 import base64
+import string
+import re
 from typing import Tuple
 
 from dlt.common import json
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.normalizers.utils import has_punctuation_characters
 from .toml import VaultTomlProvider
 from .provider import get_key_name
+
+
+def strip_punctuation(in_string: str) -> str:
+    """Replace punctuation characters in a string
+
+    Note: We exclude `_` and `-` from punctuation characters
+
+    Args:
+        in_string(str): input string
+
+    Returns:
+        (str): a string without punctuatio characters and whitespaces
+    """
+    whitespace = re.compile("\s+")
+    punctuation_chars = set(string.punctuation) - {"-", "_"}
+    for char in in_string:
+        if char in punctuation_chars:
+            in_string = in_string.replace(char, "")
+
+    in_string = in_string.strip()
+    return whitespace.sub("_", in_string)
 
 
 class GoogleSecretsProvider(VaultTomlProvider):
@@ -21,17 +43,7 @@ class GoogleSecretsProvider(VaultTomlProvider):
 
     @staticmethod
     def get_key_name(key: str, *sections: str) -> str:
-        key_name = get_key_name(key, "-", *sections)
-        return key_name
-
-    @property
-    def name(self) -> str:
-        return "Google Secrets"
-
-    def _update_from_vault(
-        self, full_key: str, key: str, hint: type, pipeline_name: str, sections: Tuple[str, ...]
-    ) -> None:
-        """Update secrets from vault
+        """Make key name for the secret
 
         Per Google the secret name can contain, so we will use snake_case normalizer
 
@@ -40,12 +52,14 @@ class GoogleSecretsProvider(VaultTomlProvider):
             3. Hyphens,
             4. Underscores.
         """
-        from dlt.common.normalizers.naming import snake_case
+        key = strip_punctuation(key)
+        sections = [strip_punctuation(section) for section in sections if section]
+        key_name = get_key_name(key, "-", *sections)
+        return key_name
 
-        naming_convention = snake_case.NamingConvention()
-        if has_punctuation_characters(pipeline_name):
-            pipeline_name = naming_convention.normalize_identifier(pipeline_name)
-        super()._update_from_vault(full_key, key, hint, pipeline_name, *sections)
+    @property
+    def name(self) -> str:
+        return "Google Secrets"
 
     def _look_vault(self, full_key: str, hint: type) -> str:
         try:
