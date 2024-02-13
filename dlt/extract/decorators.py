@@ -456,7 +456,7 @@ def resource(
             raise DynamicNameNotStandaloneResource(get_callable_name(f))
 
         if parallelized:
-            f = parallel(f)
+            f = parallelize(f)
 
         # resource_section = name if name and not callable(name) else get_callable_name(f)
         resource_name = name if name and not callable(name) else get_callable_name(f)
@@ -758,9 +758,9 @@ def defer(
     return _wrap
 
 
-def parallel(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParams, Any]:
+def parallelize(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParams, Any]:
     @wraps(f)
-    def _wrap(*args, **kwargs):
+    def _wrap(*args: Any, **kwargs: Any) -> Any:  # TODO: Type correctly
         gen = f(*args, **kwargs)
         if inspect.isfunction(gen):
             gen = gen()
@@ -770,7 +770,7 @@ def parallel(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParam
         exhausted = False
         busy = False
 
-        def _parallel_gen():
+        def _parallel_gen() -> Any:  # TODO: Type correctly
             try:
                 return next(gen)
             except StopIteration:
