@@ -277,6 +277,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> DltResource:
     ...
 
@@ -295,6 +296,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]:
     ...
 
@@ -314,6 +316,7 @@ def resource(
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     standalone: Literal[True] = True,
+    parallelized: bool = False,
 ) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]:
     ...
 
@@ -332,6 +335,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> DltResource:
     ...
 
@@ -351,7 +355,7 @@ def resource(
     spec: Type[BaseConfiguration] = None,
     standalone: bool = False,
     data_from: TUnboundDltResource = None,
-    parallelize: bool = False,
+    parallelized: bool = False,
 ) -> Any:
     """When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
 
@@ -451,7 +455,7 @@ def resource(
         if not standalone and callable(name):
             raise DynamicNameNotStandaloneResource(get_callable_name(f))
 
-        if parallelize:
+        if parallelized:
             f = parallel(f)
 
         # resource_section = name if name and not callable(name) else get_callable_name(f)
@@ -785,5 +789,6 @@ def parallel(f: Callable[TResourceFunParams, Any]) -> Callable[TResourceFunParam
                 yield _parallel_gen
             except GeneratorExit:
                 gen.close()
+                raise
 
     return _wrap

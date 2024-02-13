@@ -1,4 +1,7 @@
 from typing import Any
+import time
+import threading
+import random
 
 import dlt, asyncio, pytest, os
 
@@ -212,99 +215,111 @@ def test_limit_async_resource() -> None:
     assert len(result) == 13
 
 
-# @pytest.mark.skip(reason="To be properly implemented in an upcoming PR")
-# @pytest.mark.parametrize("parallelized", [True, False])
-# def test_async_decorator_experiment(parallelized) -> None:
-#     os.environ["EXTRACT__NEXT_ITEM_MODE"] = "fifo"
-#     execution_order = []
-#     threads = set()
+@pytest.mark.parametrize("parallelized", [True, False])
+def test_parallelized_resource(parallelized: bool) -> None:
+    os.environ["EXTRACT__NEXT_ITEM_MODE"] = "fifo"
+    execution_order = []
+    threads = set()
 
-#     def parallelize(f) -> Any:
-#         """converts regular itarable to generator of functions that can be run in parallel in the pipe"""
+    @dlt.resource(parallelized=parallelized)
+    def resource1():
+        for l_ in ["a", "b", "c"]:
+            time.sleep(0.5)
+            nonlocal execution_order
+            execution_order.append("one")
+            threads.add(threading.get_ident())
+            yield {"letter": l_}
 
-#         @wraps(f)
-#         def _wrap(*args: Any, **kwargs: Any) -> Any:
-#             exhausted = False
-#             busy = False
+    @dlt.resource(parallelized=parallelized)
+    def resource2():
+        time.sleep(0.25)
+        for l_ in ["e", "f", "g"]:
+            time.sleep(0.5)
+            nonlocal execution_order
+            execution_order.append("two")
+            threads.add(threading.get_ident())
+            yield {"letter": l_}
 
-#             gen = f(*args, **kwargs)
-#             # unpack generator
-#             if inspect.isfunction(gen):
-#                 gen = gen()
-#             # if we have an async gen, no further action is needed
-#             if inspect.isasyncgen(gen):
-#                 raise Exception("Already async gen")
+    @dlt.source
+    def source():
+        return [resource1(), resource2()]
 
-#             # get next item from generator
-#             def _gen():
-#                 nonlocal exhausted
-#                 # await asyncio.sleep(0.1)
-#                 try:
-#                     return next(gen)
-#                 # on stop iteration mark as exhausted
-#                 except StopIteration:
-#                     exhausted = True
-#                     return None
-#                 finally:
-#                     nonlocal busy
-#                     busy = False
+    pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
+    pipeline_1.run(source())
 
-#             try:
-#                 while not exhausted:
-#                     while busy:
-#                         yield None
-#                     busy = True
-#                     yield _gen
-#             except GeneratorExit:
-#                 # clean up inner generator
-#                 gen.close()
+    # all records should be here
+    with pipeline_1.sql_client() as c:
+        with c.execute_query("SELECT * FROM resource1") as cur:
+            rows = list(cur.fetchall())
+            assert len(rows) == 3
+            assert {r[0] for r in rows} == {"a", "b", "c"}
 
-#         return _wrap
+        with c.execute_query("SELECT * FROM resource2") as cur:
+            rows = list(cur.fetchall())
+            assert len(rows) == 3
+            assert {r[0] for r in rows} == {"e", "f", "g"}
 
-#     @parallelize
-#     def resource1():
-#         for l_ in ["a", "b", "c"]:
-#             time.sleep(0.5)
-#             nonlocal execution_order
-#             execution_order.append("one")
-#             threads.add(threading.get_ident())
-#             yield {"letter": l_}
+    if parallelized:
+        assert len(threads) > 1
+        assert execution_order == ["one", "two", "one", "two", "one", "two"]
+    else:
+        assert execution_order == ["one", "one", "one", "two", "two", "two"]
+        assert len(threads) == 1
 
-#     @parallelize
-#     def resource2():
-#         time.sleep(0.25)
-#         for l_ in ["e", "f", "g"]:
-#             time.sleep(0.5)
-#             nonlocal execution_order
-#             execution_order.append("two")
-#             threads.add(threading.get_ident())
-#             yield {"letter": l_}
 
-#     @dlt.source
-#     def source():
-#         if parallelized:
-#             return [resource1(), resource2()]
-#         else:  # return unwrapped resources
-#             return [resource1.__wrapped__(), resource2.__wrapped__()]
+# Parametrize with different resource counts to excersize the worker pool:
+# 1. More than number of workers
+# 2. 1 resource only
+# 3. Exact number of workers
+# 4. More than future pool max size
+# 5. Exact future pool max size
+@pytest.mark.parametrize("n_resources", [8, 1, 5, 25, 20])
+def test_parallelized_resource_extract_order(n_resources: int) -> None:
+    os.environ["EXTRACT__NEXT_ITEM_MODE"] = "fifo"
 
-#     pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", full_refresh=True)
-#     pipeline_1.run(source())
+    item_counts = [random.randrange(10, 30) for _ in range(n_resources)]
+    item_ranges = []  # Create numeric ranges that each resource will yield
+    # Use below to check the extraction order
+    for i, n_items in enumerate(item_counts):
+        if i == 0:
+            start_range = 0
+        else:
+            start_range = sum(item_counts[:i])
+        end_range = start_range + n_items
+        item_ranges.append(range(start_range, end_range))
 
-#     # all records should be here
-#     with pipeline_1.sql_client() as c:
-#         with c.execute_query("SELECT * FROM resource1") as cur:
-#             rows = list(cur.fetchall())
-#             assert len(rows) == 3
-#             assert {r[0] for r in rows} == {"a", "b", "c"}
+    def _sleep_duration() -> float:
+        # Sleep for random duration each yield
+        return random.uniform(0.005, 0.012)
 
-#         with c.execute_query("SELECT * FROM resource2") as cur:
-#             rows = list(cur.fetchall())
-#             assert len(rows) == 3
-#             assert {r[0] for r in rows} == {"e", "f", "g"}
+    @dlt.source
+    def some_source():
+        def some_data(resource_num: int):
+            for item in item_ranges[resource_num]:
+                print(f"RESOURCE {resource_num}")
+                # Sleep for a random duration each yield
+                time.sleep(random.uniform(0.005, 0.012))
+                yield f"item-{item}"
+                print(f"RESOURCE {resource_num}:", item)
 
-#     if parallelized:
-#         assert len(threads) > 1
-#         assert execution_order == ["one", "two", "one", "two", "one", "two"]
-#     else:
-#         assert execution_order == ["one", "one", "one", "two", "two", "two"]
-#         assert len(threads) == 1
+        for i in range(n_resources):
+            yield dlt.resource(some_data, name=f"some_data_{i}", parallelized=True)(i)
+
+    source = some_source()
+    result = list(source)
+    result = [int(item.split("-")[1]) for item in result]
+
+    assert len(result) == sum(item_counts)
+
+    # Check extracted results from each resource
+    chunked_results = []
+    start_range = 0
+    for item_range in item_ranges:
+        chunked_results.append([item for item in result if item in item_range])
+
+    for i, chunk in enumerate(chunked_results):
+        # All items are included
+        assert len(chunk) == item_counts[i]
+        assert len(set(chunk)) == len(chunk)
+        # Items are extracted in order per resource
+        assert chunk == sorted(chunk)
