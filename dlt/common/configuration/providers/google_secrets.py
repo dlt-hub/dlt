@@ -1,9 +1,10 @@
 import base64
+from typing import Tuple
 
 from dlt.common import json
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.exceptions import MissingDependencyException
-
+from dlt.common.normalizers.utils import has_punctuation_characters
 from .toml import VaultTomlProvider
 from .provider import get_key_name
 
@@ -20,11 +21,31 @@ class GoogleSecretsProvider(VaultTomlProvider):
 
     @staticmethod
     def get_key_name(key: str, *sections: str) -> str:
-        return get_key_name(key, "-", *sections)
+        key_name = get_key_name(key, "-", *sections)
+        return key_name
 
     @property
     def name(self) -> str:
         return "Google Secrets"
+
+    def _update_from_vault(
+        self, full_key: str, key: str, hint: type, pipeline_name: str, sections: Tuple[str, ...]
+    ) -> None:
+        """Update secrets from vault
+
+        Per Google the secret name can contain, so we will use snake_case normalizer
+
+            1. Uppercase and lowercase letters,
+            2. Numerals,
+            3. Hyphens,
+            4. Underscores.
+        """
+        from dlt.common.normalizers.naming import snake_case
+
+        naming_convention = snake_case.NamingConvention()
+        if has_punctuation_characters(pipeline_name):
+            pipeline_name = naming_convention.normalize_identifier(pipeline_name)
+        super()._update_from_vault(full_key, key, hint, pipeline_name, *sections)
 
     def _look_vault(self, full_key: str, hint: type) -> str:
         try:

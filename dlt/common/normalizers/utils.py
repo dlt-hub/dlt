@@ -1,3 +1,4 @@
+import string
 from importlib import import_module
 from typing import Any, Type, Tuple, cast, List
 
@@ -76,3 +77,24 @@ def generate_dlt_ids(n_ids: int) -> List[str]:
 
 def generate_dlt_id() -> str:
     return uniq_id_base64(DLT_ID_LENGTH_BYTES)
+
+
+def has_punctuation_characters(in_string: str) -> bool:
+    """Check if the given string has any punctuation character
+
+    Note: We exclude `_` and `-` from punctuation characters
+
+    Args:
+        in_string(str): input string
+
+    Returns:
+        (bool): the result of check for punctuation characters
+    """
+    for char in in_string:
+        if char in ["-", "_"]:
+            continue
+
+        if char in string.punctuation:
+            return True
+
+    return False
