@@ -54,7 +54,7 @@ To get GCS/GDrive access:
 
 1. Log in to [console.cloud.google.com](http://console.cloud.google.com/).
 1. Create a [service account](https://cloud.google.com/iam/docs/service-accounts-create#creating).
-1. Enable "Google Analytics API"; see
+1. Enable "Cloud Storage API" / "Google Drive API"; see
    [Google's guide](https://support.google.com/googleapi/answer/6158841?hl=en).
 1. In IAM & Admin > Service Accounts, find your account, click the three-dot menu > "Manage Keys" >
    "ADD KEY" > "CREATE" to get a JSON credential file.
