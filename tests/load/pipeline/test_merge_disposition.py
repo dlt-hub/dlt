@@ -448,18 +448,17 @@ def test_deduplicate_single_load(destination_config: DestinationTestConfiguratio
     counts = load_table_counts(p, "duplicates", "duplicates__child")
     assert counts["duplicates"] == 1 if destination_config.supports_merge else 2
     assert counts["duplicates__child"] == 3 if destination_config.supports_merge else 6
+    qual_name = p.sql_client().make_qualified_table_name("duplicates")
+    select_data(p, f"SELECT * FROM {qual_name}")[0]
 
-    @dlt.resource(write_disposition="merge", primary_key="id")
+    @dlt.resource(write_disposition="merge", primary_key=("id", "subkey"))
     def duplicates_no_child():
-        yield [
-            {"id": 1, "name": "row1"},
-            {"id": 1, "name": "row2"},
-        ]
+        yield [{"id": 1, "subkey": "AX", "name": "row1"}, {"id": 1, "subkey": "AX", "name": "row2"}]
 
     info = p.run(duplicates_no_child())
     assert_load_info(info)
     counts = load_table_counts(p, "duplicates_no_child")
-    assert counts["duplicates_no_child"] == 1
+    assert counts["duplicates_no_child"] == 1 if destination_config.supports_merge else 2
 
 
 @pytest.mark.parametrize(
