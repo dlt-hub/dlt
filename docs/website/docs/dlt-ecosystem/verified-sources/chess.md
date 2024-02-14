@@ -224,3 +224,13 @@ To create your data loading pipeline for players and load data, follow these ste
    # print the information on data that was loaded
    print(info)
    ```
+
+## Additional Setup guides
+- [Load data from chess to athena in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-athena)
+- [Load data from chess to bigquery in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-bigquery)
+- [Load data from chess to databricks in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-databricks)
+- [Load data from chess to duckdb in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-duckdb)
+- [Load data from chess to postgres in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-postgres)
+- [Load data from chess to redshift in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-redshift)
+- [Load data from chess to snowflake in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-snowflake)
+- [Load data from chess to synapse in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-synapse)
