@@ -13,8 +13,10 @@ from typing import (
     AsyncGenerator,
     Awaitable,
     Generator,
+    Iterator,
 )
 from collections.abc import Mapping as C_Mapping
+from functools import wraps
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import reset_resource_state
@@ -26,7 +28,13 @@ from dlt.extract.exceptions import (
     InvalidResourceDataTypeFunctionNotAGenerator,
     InvalidStepFunctionArguments,
 )
-from dlt.extract.typing import TTableHintTemplate, TDataItem, TFunHintTemplate, SupportsPipe
+from dlt.extract.typing import (
+    TTableHintTemplate,
+    TDataItem,
+    TFunHintTemplate,
+    SupportsPipe,
+    TGenOrGenFunction,
+)
 
 try:
     from dlt.common.libs import pydantic
@@ -169,6 +177,41 @@ def wrap_async_iterator(
     except GeneratorExit:
         # mark as exhausted
         exhausted = True
+
+
+def wrap_parallel_iterator(f: TGenOrGenFunction) -> TGenOrGenFunction:
+    """Wraps a generator for parallel extraction"""
+
+    def _wrapper(*args: Any, **kwargs: Any) -> Generator[TDataItems, None, None]:
+        gen = f(*args, **kwargs) if callable(f) else f
+
+        exhausted = False
+        busy = False
+
+        def _parallel_gen() -> TDataItems:
+            nonlocal busy
+            try:
+                return next(gen)
+            except StopIteration:
+                nonlocal exhausted
+                exhausted = True
+                return None
+            finally:
+                busy = False
+
+        while not exhausted:
+            try:
+                while busy:
+                    yield None
+                busy = True
+                yield _parallel_gen
+            except GeneratorExit:
+                # gen.close()
+                raise
+
+    if callable(f):
+        return wraps(f)(_wrapper)
+    return _wrapper()
 
 
 def wrap_compat_transformer(

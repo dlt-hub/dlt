@@ -24,7 +24,7 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
-from dlt.extract.utils import wrap_async_iterator
+from dlt.extract.utils import wrap_async_iterator, wrap_parallel_iterator
 
 from dlt.extract.typing import (
     DataItemWithMeta,
@@ -49,6 +49,7 @@ from dlt.extract.exceptions import (
     InvalidTransformerGeneratorFunction,
     InvalidResourceDataTypeBasic,
     InvalidResourceDataTypeMultiplePipes,
+    InvalidParallelResourceDataType,
     ParametrizedResourceUnbound,
     ResourceNameMissing,
     ResourceNotATransformer,
@@ -340,6 +341,19 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         # transformers should be limited by their input, so we only limit non-transformers
         if not self.is_transformer:
             self._pipe.replace_gen(_gen_wrap(self._pipe.gen))
+        return self
+
+    def parallelize(self) -> "DltResource":
+        """Wraps the resource to execute each item in a threadpool to allow multiple resources to extract in parallel."""
+
+        if (
+            not inspect.isgenerator(self._pipe.gen)
+            and not inspect.isgeneratorfunction(self._pipe.gen)
+            and not self.is_transformer
+        ):
+            raise InvalidParallelResourceDataType(self.name, self._pipe.gen, type(self._pipe.gen))
+
+        self._pipe.replace_gen(wrap_parallel_iterator(self._pipe.gen))
         return self
 
     def add_step(

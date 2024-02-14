@@ -36,6 +36,7 @@ from dlt.extract.exceptions import (
     SourceIsAClassTypeError,
     SourceNotAFunction,
     CurrentSourceSchemaNotAvailable,
+    InvalidParallelResourceDataType,
 )
 from dlt.extract.typing import TableNameMeta
 
@@ -853,3 +854,51 @@ def test_class_source() -> None:
 @pytest.mark.skip("Not implemented")
 def test_class_resource() -> None:
     pass
+
+
+def test_parallelized_resource_decorator() -> None:
+    """Test paralellized resources are wrapped correctly.
+    Note: tests for parallel execution are in test_resource_evaluation
+    """
+
+    def some_gen():
+        yield from [1, 2, 3]
+
+    # Create resource with decorated function
+    resource = dlt.resource(some_gen, parallelized=True)
+
+    # Generator func is wrapped with parallelized gen that yields callables
+    result = next(resource._pipe.gen())  # type: ignore
+    assert result() == 1
+
+    # Same but wrapping generator directly
+    resource = dlt.resource(some_gen(), parallelized=True)
+
+    result = next(resource._pipe.gen)  # type: ignore
+    assert result() == 1
+
+    # Wrap a transformer
+    def some_tx(item):
+        yield item + 1
+
+    resource = dlt.resource(some_gen, parallelized=True)
+
+    transformer = dlt.transformer(some_tx, parallelized=True, data_from=resource)
+    pipe_gen = transformer._pipe.gen
+    # Calling transformer returns the parallel wrapper generator
+    inner = pipe_gen(1)  # type: ignore
+    assert next(inner)() == 2  # type: ignore
+
+    # Invalid parallel resources
+
+    # From async generator
+    with pytest.raises(InvalidParallelResourceDataType):
+
+        @dlt.resource(parallelized=True)
+        async def some_data():
+            yield 1
+            yield 2
+
+    # From list
+    with pytest.raises(InvalidParallelResourceDataType):
+        dlt.resource([1, 2, 3], name="T", parallelized=True)

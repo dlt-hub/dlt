@@ -12,6 +12,7 @@ from typing import (
     Union,
     Awaitable,
     TYPE_CHECKING,
+    Generator,
 )
 from concurrent.futures import Future
 
@@ -26,6 +27,12 @@ TPipedDataItems = Union[TDataItems, TDeferredDataItems, TAwaitableDataItems]
 TDynHintType = TypeVar("TDynHintType")
 TFunHintTemplate = Callable[[TDataItem], TDynHintType]
 TTableHintTemplate = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
+
+
+TGenOrGenFunction = Union[
+    Generator[TDataItems, Optional[Any], Optional[Any]],
+    Callable[..., Generator[TDataItems, Optional[Any], Optional[Any]]],
+]  # ]
 
 
 class DataItemWithMeta:

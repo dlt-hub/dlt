@@ -334,6 +334,11 @@ class DltSource(Iterable[TDataItem]):
             resource.add_limit(max_items)
         return self
 
+    def parallelize(self) -> "DltSource":
+        for resource in self.resources.selected.values():
+            resource.parallelize()
+        return self
+
     @property
     def run(self) -> SupportsPipelineRun:
         """A convenience method that will call `run` run on the currently active `dlt` pipeline. If pipeline instance is not found, one with default settings will be created."""
