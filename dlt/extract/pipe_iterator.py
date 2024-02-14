@@ -253,10 +253,8 @@ class PipeIterator(Iterator[PipeItem]):
             first_evaluated_index: int = None
             # always reset to end of list for fifo mode, also take into account that new sources can be added
             # if too many new sources is added we switch to fifo not to exhaust them
-            if (
-                self._next_item_mode == "fifo"
-                or sources_count - self._initial_sources_count
-                >= self._worker_pool.max_parallel_items
+            if self._next_item_mode == "fifo" or (
+                sources_count - self._initial_sources_count >= self._worker_pool.max_parallel_items
             ):
                 self._current_source_index = sources_count - 1
             else:
