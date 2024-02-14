@@ -12,7 +12,6 @@ from dlt.common.schema.typing import (
     TAnySchemaColumns,
     TTableFormat,
     TSchemaContract,
-    TCdcConfig,
 )
 from dlt.common.typing import TDataItem
 from dlt.common.utils import update_dict_nested
@@ -62,7 +61,6 @@ def make_hints(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
-    cdc_config: TTableHintTemplate[TCdcConfig] = None,
 ) -> TResourceHints:
     """A convenience function to create resource hints. Accepts both static and dynamic hints based on data.
 
@@ -82,7 +80,6 @@ def make_hints(
         columns=clean_columns,  # type: ignore
         schema_contract=schema_contract,  # type: ignore
         table_format=table_format,  # type: ignore
-        cdc_config=cdc_config,  # type: ignore
     )
     if not table_name:
         new_template.pop("name")

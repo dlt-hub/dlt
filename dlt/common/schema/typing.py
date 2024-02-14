@@ -61,7 +61,7 @@ TColumnHint = Literal[
     "merge_key",
 ]
 """Known hints of a column used to declare hint regexes."""
-TWriteDisposition = Literal["skip", "append", "replace", "merge", "replicate"]
+TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 TTableFormat = Literal["iceberg"]
 TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"
@@ -112,6 +112,7 @@ class TColumnSchema(TColumnSchemaBase, total=False):
     root_key: Optional[bool]
     merge_key: Optional[bool]
     variant: Optional[bool]
+    hard_delete: Optional[bool]
 
 
 TTableSchemaColumns = Dict[str, TColumnSchema]
@@ -150,38 +151,6 @@ class NormalizerInfo(TypedDict, total=True):
     new_table: bool
 
 
-class TCdcOperationMapperStr(TypedDict, total=True):
-    """
-    Dictionary that informs dlt which string literals are used
-    in the change data to identify inserts, updates, and deletes.
-    """
-
-    insert: str
-    update: str
-    delete: str
-
-
-class TCdcOperationMapperInt(TypedDict, total=True):
-    """
-    Dictionary that informs dlt which integer literals are used
-    in the change data to identify inserts, updates, and deletes.
-    """
-
-    insert: int
-    update: int
-    delete: int
-
-
-class TCdcConfig(TypedDict, total=True):
-    """Dictionary that informs dlt how change data is organized."""
-
-    operation_column: str
-    """Name of the column containing the operation type ("insert", "update", or "delete") for the change record."""
-    operation_mapper: Union[TCdcOperationMapperStr, TCdcOperationMapperInt]
-    sequence_column: str
-    """Name of the column containing a sequence identifier that can be used to order the change records."""
-
-
 # TypedDict that defines properties of a table
 
 
@@ -198,7 +167,6 @@ class TTableSchema(TypedDict, total=False):
     columns: TTableSchemaColumns
     resource: Optional[str]
     table_format: Optional[TTableFormat]
-    cdc_config: Optional[TCdcConfig]
 
 
 class TPartialTableSchema(TTableSchema):

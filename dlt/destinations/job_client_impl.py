@@ -35,6 +35,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
+from dlt.common.schema.utils import get_columns_names_with_prop, has_column_with_prop
 from dlt.common.destination.reference import (
     StateInfo,
     StorageSchemaInfo,
@@ -250,7 +251,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         write_disposition = table_chain[0]["write_disposition"]
         if write_disposition == "append":
             jobs.extend(self._create_append_followup_jobs(table_chain))
-        elif write_disposition in ("merge", "replicate"):
+        elif write_disposition == "merge":
             jobs.extend(self._create_merge_followup_jobs(table_chain))
         elif write_disposition == "replace":
             jobs.extend(self._create_replace_followup_jobs(table_chain))
@@ -581,7 +582,7 @@ class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):
             self.in_staging_mode = False
 
     def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
-        if table["write_disposition"] in ("merge", "replicate"):
+        if table["write_disposition"] == "merge":
             return True
         elif table["write_disposition"] == "replace" and (
             self.config.replace_strategy in ["insert-from-staging", "staging-optimized"]
@@ -594,11 +595,9 @@ class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):
     ) -> Sequence[TColumnSchema]:
         updates = super()._create_table_update(table_name, storage_columns)
         table = self.schema.get_table(table_name)
-        if "write_disposition" in table and table["write_disposition"] == "replicate":
-            # operation and sequence columns should only be present in staging table
-            # not in final table
+        if has_column_with_prop(table, "hard_delete"):
+            # hard_delete column should only be present in staging table, not in final table
             if not self.in_staging_mode:
-                op_col = table["cdc_config"]["operation_column"]
-                seq_col = table["cdc_config"]["sequence_column"]
-                updates = [d for d in updates if d["name"] not in (op_col, seq_col)]
+                hard_delete_column = get_columns_names_with_prop(table, "hard_delete")[0]
+                updates = [d for d in updates if d["name"] != hard_delete_column]
         return updates

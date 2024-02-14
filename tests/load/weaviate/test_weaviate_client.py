@@ -67,7 +67,7 @@ def file_storage() -> FileStorage:
     return FileStorage(TEST_STORAGE_ROOT, file_type="b", makedirs=True)
 
 
-@pytest.mark.parametrize("write_disposition", ["append", "replace", "merge", "replicate"])
+@pytest.mark.parametrize("write_disposition", ["append", "replace", "merge"])
 def test_all_data_types(
     client: WeaviateClient, write_disposition: TWriteDisposition, file_storage: FileStorage
 ) -> None:

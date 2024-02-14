@@ -1,3 +1,26 @@
+ACTIVE_DESTINATIONS = ["postgres"]
+#ACTIVE_DESTINATIONS = ["mssql", "duckdb", "postgres"]
+
+[load]
+raise_on_max_retries = 1
+
+[destination.mssql]
+#merge_strategy = "cdc"
+
+[destination.mssql.credentials]
+database = "dlt_data"
+username = "loader"
+host = "localhost"
+port = 1433
+driver = "ODBC Driver 17 for SQL Server"
+
+[destination.postgres.credentials]
+database = "dlt_data"
+username = "loader"
+host = "localhost"
+port = 5432
+connect_timeout = 15
+
 [runtime]
 sentry_dsn="https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752"
 

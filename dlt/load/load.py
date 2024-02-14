@@ -21,6 +21,7 @@ from dlt.common.exceptions import (
 )
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema, TWriteDisposition
+from dlt.common.schema.utils import has_column_with_prop
 from dlt.common.storages import LoadStorage
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
@@ -139,7 +140,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     )
                 logger.info(f"Will load file {file_path} with table name {job_info.table_name}")
                 table = client.get_load_table(job_info.table_name)
-                if table["write_disposition"] not in ["append", "replace", "merge", "replicate"]:
+                if table["write_disposition"] not in ["append", "replace", "merge"]:
                     raise LoadClientUnsupportedWriteDisposition(
                         job_info.table_name, table["write_disposition"], file_path
                     )
@@ -246,8 +247,14 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 for job in table_jobs
             ):
                 return None
-            # if there are no jobs for the table, skip it, unless the write disposition is replace, as we need to create and clear the child tables
-            if not table_jobs and top_merged_table["write_disposition"] != "replace":
+            # if there are no jobs for the table, skip it, unless child tables need to be replaced
+            needs_replacement = False
+            if top_merged_table["write_disposition"] == "replace" or (
+                top_merged_table["write_disposition"] == "merge"
+                and has_column_with_prop(top_merged_table, "hard_delete")
+            ):
+                needs_replacement = True
+            if not table_jobs and not needs_replacement:
                 continue
             table_chain.append(table)
         # there must be at least table

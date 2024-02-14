@@ -37,7 +37,6 @@ from dlt.common.schema.typing import (
     TTypeDetections,
     TWriteDisposition,
     TSchemaContract,
-    TCdcConfig,
 )
 from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
@@ -318,19 +317,6 @@ def validate_stored_schema(stored_schema: TStoredSchema) -> None:
             if parent_table_name not in stored_schema["tables"]:
                 raise ParentTableNotFoundException(table_name, parent_table_name)
 
-        # check for "replicate" tables that miss a primary key or "cdc_config"
-        if table.get("write_disposition") == "replicate":
-            if len(get_columns_names_with_prop(table, "primary_key", True)) == 0:
-                raise SchemaException(
-                    f'Primary key missing for table "{table_name}" with "replicate" write'
-                    " disposition."
-                )
-            if "cdc_config" not in table:
-                raise SchemaException(
-                    f'"cdc_config" missing for table "{table_name}" with "replicate" write'
-                    " disposition."
-                )
-
 
 def migrate_schema(schema_dict: DictStrAny, from_engine: int, to_engine: int) -> TStoredSchema:
     if from_engine == to_engine:
@@ -587,6 +573,13 @@ def get_columns_names_with_prop(
     ]
 
 
+def has_column_with_prop(
+    table: TTableSchema, column_prop: Union[TColumnProp, str], include_incomplete: bool = False
+) -> bool:
+    """Checks if `table` schema contains column with property `column_prop`."""
+    return len(get_columns_names_with_prop(table, column_prop, include_incomplete)) > 0
+
+
 def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTables:
     aggregated_update: TSchemaTables = {}
     for schema_update in schema_updates:
@@ -738,7 +731,6 @@ def new_table(
     resource: str = None,
     schema_contract: TSchemaContract = None,
     table_format: TTableFormat = None,
-    cdc_config: TCdcConfig = None,
 ) -> TTableSchema:
     table: TTableSchema = {
         "name": table_name,
@@ -757,8 +749,6 @@ def new_table(
             table["schema_contract"] = schema_contract
         if table_format:
             table["table_format"] = table_format
-        if cdc_config is not None:
-            table["cdc_config"] = cdc_config
     if validate_schema:
         validate_dict_ignoring_xkeys(
             spec=TColumnSchema,

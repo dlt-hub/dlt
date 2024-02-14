@@ -36,7 +36,6 @@ from dlt.common.schema.typing import (
     TAnySchemaColumns,
     TSchemaContract,
     TTableFormat,
-    TCdcConfig,
 )
 from dlt.extract.hints import make_hints
 from dlt.extract.utils import (
@@ -272,7 +271,6 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
-    cdc_config: TTableHintTemplate[TCdcConfig] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
 ) -> DltResource: ...
@@ -290,7 +288,6 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
-    cdc_config: TTableHintTemplate[TCdcConfig] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
 ) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]: ...
@@ -308,7 +305,6 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
-    cdc_config: TTableHintTemplate[TCdcConfig] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     standalone: Literal[True] = True,
@@ -327,7 +323,6 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
-    cdc_config: TTableHintTemplate[TCdcConfig] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
 ) -> DltResource: ...
@@ -344,7 +339,6 @@ def resource(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     schema_contract: TTableHintTemplate[TSchemaContract] = None,
     table_format: TTableHintTemplate[TTableFormat] = None,
-    cdc_config: TTableHintTemplate[TCdcConfig] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
     standalone: bool = False,
@@ -380,7 +374,7 @@ def resource(
         table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        write_disposition (Literal["skip", "append", "replace", "merge", "replicate"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+        write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas.
@@ -424,7 +418,6 @@ def resource(
             merge_key=merge_key,
             schema_contract=schema_contract,
             table_format=table_format,
-            cdc_config=cdc_config,
         )
         return DltResource.from_data(
             _data,
@@ -650,7 +643,7 @@ def transformer(
         table_name (TTableHintTemplate[str], optional): An table name, if different from `name`.
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        write_disposition (Literal["skip", "append", "replace", "merge", "replicate"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
+        write_disposition (Literal["skip", "append", "replace", "merge"], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
         This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         columns (Sequence[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
