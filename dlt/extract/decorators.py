@@ -315,8 +315,8 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-    standalone: Literal[True] = True,
     parallelized: bool = False,
+    standalone: Literal[True] = True,
 ) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]:
     ...
 
@@ -353,9 +353,9 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
     standalone: bool = False,
     data_from: TUnboundDltResource = None,
-    parallelized: bool = False,
 ) -> Any:
     """When used as a decorator, transforms any generator (yielding) function into a `dlt resource`. When used as a function, it transforms data in `data` argument into a `dlt resource`.
 
@@ -411,6 +411,8 @@ def resource(
         standalone (bool, optional): Returns a wrapped decorated function that creates DltResource instance. Must be called before use. Cannot be part of a source.
 
         data_from (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
+
+        parallelized (bool, optional): If `True`, the resource generator will be extracted in parallel with other resources. Defaults to `False`.
 
     Raises:
         ResourceNameMissing: indicates that name of the resource cannot be inferred from the `data` being passed.
