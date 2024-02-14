@@ -261,10 +261,6 @@ def test_parallel_run():
     )
     assert pipeline_dag_decomposed_counts == pipeline_standalone_counts
 
-    s = []
-    for task in dag_def.tasks:
-        s.append((task.task_id, task.downstream_task_ids, task.upstream_task_ids))
-
     for task in dag_def.tasks[1:4]:
         assert task.downstream_task_ids == set([dag_def.tasks[-1].task_id])
         assert task.upstream_task_ids == set([dag_def.tasks[0].task_id])
