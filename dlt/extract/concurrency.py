@@ -101,8 +101,8 @@ class WorkerPool:
         if self.free_slots == 0:
             return None
 
-        if self.free_slots < 0:  # TODO: Sanity check during dev, should never happen
-            raise RuntimeError("Used more slots than max_parallel_items")
+        # Sanity check, negative free slots means there's a bug somewhere
+        assert self.free_slots >= 0, "Worker pool has negative free slots, this should never happen"
 
         # submit to thread pool or async pool
         item = pipe_item.item
