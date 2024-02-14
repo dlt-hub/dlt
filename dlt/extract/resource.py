@@ -36,7 +36,8 @@ from dlt.extract.typing import (
     YieldMapItem,
     ValidateItem,
 )
-from dlt.extract.pipe import Pipe, ManagedPipeIterator, TPipeStep
+from dlt.extract.pipe_iterator import ManagedPipeIterator
+from dlt.extract.pipe import Pipe, TPipeStep
 from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
