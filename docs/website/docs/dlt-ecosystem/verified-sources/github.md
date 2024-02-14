@@ -285,3 +285,13 @@ verified source.
    ```
 
    It is optional to use `access_token` or make anonymous API calls.
+
+## Additional Setup guides
+- [Load data from github to athena in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-athena)
+- [Load data from github to bigquery in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-bigquery)
+- [Load data from github to databricks in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-databricks)
+- [Load data from github to duckdb in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-duckdb)
+- [Load data from github to postgres in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-postgres)
+- [Load data from github to redshift in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-redshift)
+- [Load data from github to snowflake in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-snowflake)
+- [Load data from github to synapse in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-synapse)
