@@ -17,7 +17,7 @@ try:
     from airflow.configuration import conf
     from airflow.models import TaskInstance
     from airflow.utils.task_group import TaskGroup
-    from airflow.operators.dummy import DummyOperator
+    from airflow.operators.dummy import DummyOperator  # type: ignore
     from airflow.operators.python import PythonOperator, get_current_context
 except ModuleNotFoundError:
     raise MissingDependencyException("Airflow", ["airflow>=2.0.0"])
