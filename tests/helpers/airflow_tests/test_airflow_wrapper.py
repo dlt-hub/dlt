@@ -252,7 +252,7 @@ def test_parallel_run():
         )
 
     dag_def = dag_parallel()
-    assert len(tasks_list) == 5
+    assert len(tasks_list) == 4
     dag_def.test()
     pipeline_dag_parallel = dlt.attach(pipeline_name="pipeline_dag_parallel")
     pipeline_dag_decomposed_counts = load_table_counts(
@@ -261,7 +261,7 @@ def test_parallel_run():
     )
     assert pipeline_dag_decomposed_counts == pipeline_standalone_counts
 
-    for task in dag_def.tasks[1:4]:
+    for task in dag_def.tasks[1:3]:
         assert task.downstream_task_ids == set([dag_def.tasks[-1].task_id])
         assert task.upstream_task_ids == set([dag_def.tasks[0].task_id])
 

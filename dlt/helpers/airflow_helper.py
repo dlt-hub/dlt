@@ -158,13 +158,15 @@ class PipelineTasksGroup(TaskGroup):
                 A source decomposition strategy into Airflow tasks. Defaults to "none".
                 serialize - decompose the source into a sequence of Airflow tasks.
                 parallel - decompose the source into a parallel Airflow task group (NOTE:
-                requires LocalExecutor to be used in Airflow instead of SequentialExecutor).
+                    in case the SequentialExecutor is used by Airflow, the tasks will
+                    remain sequential - use another executor, e.g. CeleryExecutor).
             table_name: (str): The name of the table to which the data should be loaded within the `dataset`
             write_disposition (TWriteDisposition, optional): Same as in `run` command. Defaults to None.
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package.
                 Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
             schema_contract (TSchemaContract, optional): On override for the schema contract settings,
                 this will replace the schema contract settings for all tables in the schema. Defaults to None.
+
         Returns:
             Any: Airflow tasks created in order of creation.
         """
@@ -305,14 +307,13 @@ class PipelineTasksGroup(TaskGroup):
 
                 # parallel tasks
                 tasks = []
-                group_name = task_name(pipeline, data)
-                start = DummyOperator(task_id=f"{group_name}_start")
+                sources = data.decompose("scc")
+                start = make_task(pipeline, sources[0])
 
-                with TaskGroup(group_id=group_name):
-                    for source in data.decompose("scc"):
-                        tasks.append(make_task(pipeline, source))
+                for source in sources[1:]:
+                    tasks.append(make_task(pipeline, source))
 
-                end = DummyOperator(task_id=f"{group_name}_end")
+                end = DummyOperator(task_id=f"{task_name(pipeline, data)}_end")
 
                 start >> tasks >> end
                 return [start] + tasks + [end]
