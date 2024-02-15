@@ -4,7 +4,11 @@ import pytest
 import pathlib
 
 from dlt.common.storages import fsspec_from_config, FilesystemConfiguration
-from dlt.common.storages.fsspec_filesystem import FileItemDict, glob_files
+from dlt.common.storages.fsspec_filesystem import (
+    FileItemDict,
+    glob_files,
+    register_implementation_in_fsspec,
+)
 
 from tests.common.storages.utils import assert_sample_files
 
@@ -54,3 +58,43 @@ def test_filesystem_decompress() -> None:
         # read as uncompressed binary
         with file_dict.open(compression="enable") as f:
             assert f.read().startswith(b'"1200864931","2015-07-01 00:00:13"')
+
+
+def test_register_implementation_in_fsspec() -> None:
+    """Test registering a filesystem implementation with fsspec."""
+    # ToDo make test more focused and safe with mock.  Just want a unit test.
+    from fsspec.registry import known_implementations, available_protocols, register_implementation
+
+    protocol = "dummyfs"
+    previous_registration_existed = False
+
+    # setup
+    if protocol in known_implementations:
+        backup = known_implementations.pop(protocol)
+        previous_registration_existed = True
+
+    assert (
+        protocol not in known_implementations
+    ), f"As a test precondition, {protocol} should not be registered."
+
+    # do and test
+    register_implementation_in_fsspec(protocol)
+    assert protocol in available_protocols(), f"{protocol} should be registered."
+
+    # teardown
+    if previous_registration_existed:
+        register_implementation(protocol, backup, clobber=True)
+        assert (
+            protocol in available_protocols()
+        ), f"After teardown, {protocol} should not be registered, which was the original state."
+    else:
+        known_implementations.pop(protocol)
+        assert (
+            protocol not in known_implementations
+        ), f"After teardown, {protocol} should not be registered, which was the original state."
+
+
+def test_register_unsupported_raises() -> None:
+    """Test registering an unsupported filesystem implementation with fsspec raises an error."""
+    with pytest.raises(ValueError, match=r"Unknown protocol: 'unsupportedfs_t7Y8'"):
+        register_implementation_in_fsspec("unsupportedfs_t7Y8")

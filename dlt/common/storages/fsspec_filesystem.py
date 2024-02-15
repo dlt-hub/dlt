@@ -86,7 +86,7 @@ CUSTOM_IMPLEMENTATIONS = {
         "errtxt": "Please install gdrivefs to access GoogleDriveFileSystem",
     },
     "gitpythonfs": {
-        "fq_classname": "dlt.common.storages.implementations.gitpythonfs.GitPythonFileSystem",
+        "fq_classname": "dlt.common.storages.fsspecs.gitpythonfs.GitPythonFileSystem",
         "errtxt": "Please install gitpythonfs to access GitPythonFileSystem",
     },
 }
@@ -310,7 +310,7 @@ def extract_mtime(file_metadata: Dict[str, Any], protocol: str = None) -> pendul
         then default field name `mtime` is tried. If there's no `mtime` field,
         the current time is returned.
 
-    `mtime` is used for the "file" fsspec implementation and our custom fsspec implementations. 
+    `mtime` is used for the "file" fsspec implementation and our custom fsspec implementations.
         `mtime` is common terminology in unix-like systems.
 
     Args:
