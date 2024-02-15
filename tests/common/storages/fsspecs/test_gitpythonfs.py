@@ -16,7 +16,7 @@ from fsspec.registry import (
 
 from git import Repo, BadName
 
-from dlt.common.storages.implementations.gitpythonfs import (
+from dlt.common.storages.fsspecs.gitpythonfs import (
     GitPythonFileSystem,
     register_implementation_in_fsspec,
     get_revisions_all_raw,

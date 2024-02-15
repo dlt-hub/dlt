@@ -17,7 +17,7 @@ def register_implementation_in_fsspec() -> None:
     """
     register_implementation(
         "gitpythonfs",
-        "dlt.common.storages.implementations.gitpythonfs.GitPythonFileSystem",
+        "dlt.common.storages.fsspecs.gitpythonfs.GitPythonFileSystem",
         clobber=True,
         errtxt="Please install gitpythonfs to access GitPythonFileSystem",
     )
