@@ -150,7 +150,6 @@ class PipeIterator(Iterator[PipeItem]):
             # do we need new item?
             if pipe_item is None:
                 # process element from the futures pool if one is ready
-                # if len(self._worker_pool) > 0:
                 pipe_item = self._worker_pool.resolve_next_future_no_wait()
                 # if none then take element from the newest source
                 if pipe_item is None:
@@ -188,16 +187,10 @@ class PipeIterator(Iterator[PipeItem]):
                 continue
 
             if isinstance(item, Awaitable) or callable(item):
-                # TODO: Duplicated from logic in get_source_item
-                # The item is a callable that runs in the futures pool
-                future: Optional[TItemFuture] = None
-                while future is None:
-                    future = self._worker_pool.submit(pipe_item)  # type: ignore[arg-type]
-                    if future is None:
-                        # worker pool is full, wait until a slot becomes free
-                        self._worker_pool.wait_for_free_slot()
-                    else:
-                        pipe_item = None
+                # Callables that come from following pipe steps need to be added to the pool
+                self._worker_pool.submit(pipe_item, block=True)  # type: ignore[call-overload]
+                pipe_item = None
+                # Future will be resolved later, move on to the next item
                 continue
 
             # if we are at the end of the pipe then yield element
@@ -283,13 +276,8 @@ class PipeIterator(Iterator[PipeItem]):
                             pipe_item = ResolvablePipeItem(pipe_item, step, pipe, meta)
 
                     if isinstance(pipe_item.item, Awaitable) or callable(pipe_item.item):
-                        # The item is a callable that runs in the futures pool
-                        future: Optional[TItemFuture] = None
-                        while future is None:
-                            future = self._worker_pool.submit(pipe_item)
-                            if future is None:
-                                # worker pool is full, wait until a slot becomes free
-                                self._worker_pool.wait_for_free_slot()
+                        # Send callables to the worker pool right away, collect futures from multiple sources in one iteration
+                        self._worker_pool.submit(pipe_item, block=True)
                         pipe_item = None
                         if len(self._worker_pool) >= sources_count:
                             # Return here so we're not collecting done futures forever

@@ -1,6 +1,7 @@
 import asyncio
 from uuid import uuid4
 from asyncio import Future
+from contextlib import contextmanager
 from concurrent.futures import (
     ThreadPoolExecutor,
     as_completed,
@@ -8,7 +9,7 @@ from concurrent.futures import (
     FIRST_COMPLETED,
 )
 from threading import Thread
-from typing import List, Awaitable, Callable, Any, Dict, Set, Optional
+from typing import List, Awaitable, Callable, Any, Dict, Set, Optional, overload, Literal
 
 from dlt.common.exceptions import PipelineException
 from dlt.common.configuration.container import Container
@@ -89,20 +90,38 @@ class WorkerPool:
         # Used as callback to free up slot when future is done
         self.used_slots -= 1
 
-    def submit(self, pipe_item: ResolvablePipeItem) -> Optional[TItemFuture]:
+    @overload
+    def submit(self, pipe_item: ResolvablePipeItem, block: Literal[False]) -> Optional[TItemFuture]:
+        ...
+
+    @overload
+    def submit(self, pipe_item: ResolvablePipeItem, block: Literal[True]) -> TItemFuture:
+        ...
+
+    def submit(self, pipe_item: ResolvablePipeItem, block: bool = False) -> Optional[TItemFuture]:
         """Submit an item to the pool.
 
         Args:
             pipe_item: The item to submit.
+            block: If True, block until there's a free slot in the pool.
 
         Returns:
             The future if the item was successfully submitted, otherwise None.
         """
-        if self.free_slots == 0:
-            return None
 
         # Sanity check, negative free slots means there's a bug somewhere
         assert self.free_slots >= 0, "Worker pool has negative free slots, this should never happen"
+
+        if self.free_slots == 0:
+            if block:
+                # Wait until some future is completed to ensure there's a free slot
+                # Note: This is probably not thread safe. If ever multiple threads will be submitting
+                # jobs to the pool, we ned to change this whole method to be inside a `threading.Lock`
+                self.wait_for_free_slot()
+            else:
+                return None
+
+        future: Optional[TItemFuture] = None
 
         # submit to thread pool or async pool
         item = pipe_item.item
@@ -154,6 +173,7 @@ class WorkerPool:
             return None
 
         if (item := self.resolve_next_future_no_wait()) is not None:
+            # When there are multiple already done futures from the same pipe we return results in insertion order
             return item
         for future in as_completed(self.futures):
             if future.cancelled():
