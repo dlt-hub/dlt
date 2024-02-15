@@ -149,7 +149,8 @@ class SqlMergeJob(SqlBaseJob):
         First we store the root_keys of root table elements to be deleted in the temp table. Then we use the temp table to delete records from root and all child tables in the destination dataset.
         At the end we copy the data from the staging dataset into destination dataset.
 
-        If sort and/or hard_delete column hints are provided, records are deleted from the staging dataset before its data is copied to the destination dataset.
+        If a hard_delete column is specified, records flagged as deleted will be excluded from the copy into the destination dataset.
+        If a dedup_sort column is specified in conjunction with a primary key, records will be sorted before deduplication, so the "latest" record remains.
         """
         return cls.gen_merge_sql(table_chain, sql_client)
 
