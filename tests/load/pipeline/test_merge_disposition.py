@@ -1,6 +1,5 @@
 from copy import copy
 import pytest
-import itertools
 import random
 from typing import List
 import pytest
@@ -11,10 +10,11 @@ import dlt
 from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import StateInjectableContext
-from dlt.common.typing import AnyFun, StrAny
+from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.extract import DltResource
 from dlt.sources.helpers.transform import skip_first, take_first
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.pipeline.utils import assert_load_info
 from tests.load.pipeline.utils import load_table_counts, select_data
@@ -495,7 +495,7 @@ def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfig
 )
 @pytest.mark.parametrize("key_type", ["primary_key", "merge_key"])
 def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_type: str) -> None:
-    table_name = f"test_hard_delete_hint_{key_type}"
+    table_name = "test_hard_delete_hint"
 
     @dlt.resource(
         name=table_name,
@@ -510,7 +510,7 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     elif key_type == "merge_key":
         data_resource.apply_hints(primary_key="", merge_key="id")
 
-    p = destination_config.setup_pipeline(f"test_hard_delete_hint_{key_type}", full_refresh=True)
+    p = destination_config.setup_pipeline(f"abstract_{key_type}", full_refresh=True)
 
     # insert two records
     data = [
@@ -540,77 +540,150 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     # compare observed records with expected records
     qual_name = p.sql_client().make_qualified_table_name(table_name)
     observed = [
-        {"id": row[0], "val": row[1]} for row in select_data(p, f"SELECT id, val FROM {qual_name}")
+        {"id": row[0], "val": row[1], "deleted": row[2]}
+        for row in select_data(p, f"SELECT id, val, deleted FROM {qual_name}")
     ]
-    expected = [{"id": 2, "val": "baz"}]
+    expected = [{"id": 2, "val": "baz", "deleted": None}]
     assert sorted(observed, key=lambda d: d["id"]) == expected
 
-    # insert and delete the same record, record will be inserted if no sort column is provided
+    table_name = "test_hard_delete_hint_complex"
+    data_resource.apply_hints(table_name=table_name)
+
+    # insert two records with childs and grandchilds
     data = [
-        {"id": 3, "val": "foo", "deleted": None},
-        {"id": 3, "deleted": True},
-        # {"id": 4, "deleted": True},
-        # {"id": 4, "val": "foo", "deleted": None},
+        {
+            "id": 1,
+            "child_1": ["foo", "bar"],
+            "child_2": [
+                {"grandchild_1": ["foo", "bar"], "grandchild_2": True},
+                {"grandchild_1": ["bar", "baz"], "grandchild_2": False},
+            ],
+            "deleted": False,
+        },
+        {
+            "id": 2,
+            "child_1": ["baz"],
+            "child_2": [{"grandchild_1": ["baz"], "grandchild_2": True}],
+            "deleted": False,
+        },
     ]
     info = p.run(data_resource(data))
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 2
-
-    with p.destination_client(p.default_schema_name) as client:
-        _, table = client.get_storage_table(table_name)  # type: ignore[attr-defined]
-        column_names = table.keys()
-        # ensure hard_delete column is not propagated to final table
-        assert "deleted" not in column_names
-
-    p = destination_config.setup_pipeline(
-        f"test_hard_delete_hint_{key_type}_complex", full_refresh=True
+    assert load_table_counts(p, table_name + "__child_1")[table_name + "__child_1"] == 3
+    assert load_table_counts(p, table_name + "__child_2")[table_name + "__child_2"] == 3
+    assert (
+        load_table_counts(p, table_name + "__child_2__grandchild_1")[
+            table_name + "__child_2__grandchild_1"
+        ]
+        == 5
     )
 
-    # insert two records
-    data = [
-        {"id": 1, "val": ["foo", "bar"], "deleted": False},
-        {"id": 2, "val": ["baz"], "deleted": False},
-    ]
-    info = p.run(data_resource(data))
-    assert_load_info(info)
-    assert load_table_counts(p, table_name)[table_name] == 2
-    assert load_table_counts(p, table_name + "__val")[table_name + "__val"] == 3
-
-    # delete one record, providing only the key
+    # delete first record
     data = [
         {"id": 1, "deleted": True},
     ]
     info = p.run(data_resource(data))
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 1
-    assert load_table_counts(p, table_name + "__val")[table_name + "__val"] == 1
+    assert load_table_counts(p, table_name + "__child_1")[table_name + "__child_1"] == 1
+    assert (
+        load_table_counts(p, table_name + "__child_2__grandchild_1")[
+            table_name + "__child_2__grandchild_1"
+        ]
+        == 1
+    )
 
-    # delete one record, providing the full record
+    # delete second record
     data = [
-        {"id": 2, "val": ["foo", "bar"], "deleted": True},
+        {"id": 2, "deleted": True},
     ]
     info = p.run(data_resource(data))
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 0
-    assert load_table_counts(p, table_name + "__val")[table_name + "__val"] == 0
+    assert load_table_counts(p, table_name + "__child_1")[table_name + "__child_1"] == 0
+    assert (
+        load_table_counts(p, table_name + "__child_2__grandchild_1")[
+            table_name + "__child_2__grandchild_1"
+        ]
+        == 0
+    )
 
 
 @pytest.mark.parametrize(
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
-def test_sort_hint(destination_config: DestinationTestConfiguration) -> None:
-    table_name = "test_sort_hint"
+def test_hard_delete_hint_config(destination_config: DestinationTestConfiguration) -> None:
+    table_name = "test_hard_delete_hint_non_bool"
+
+    @dlt.resource(
+        name=table_name,
+        write_disposition="merge",
+        primary_key="id",
+        columns={
+            "deleted_timestamp": {"data_type": "timestamp", "nullable": True, "hard_delete": True}
+        },
+    )
+    def data_resource(data):
+        yield data
+
+    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+
+    # insert two records
+    data = [
+        {"id": 1, "val": "foo", "deleted_timestamp": None},
+        {"id": 2, "val": "bar", "deleted_timestamp": None},
+    ]
+    info = p.run(data_resource(data))
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 2
+
+    # delete one record
+    data = [
+        {"id": 1, "deleted_timestamp": "2024-02-15T17:16:53Z"},
+    ]
+    info = p.run(data_resource(data))
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 1
+
+    # compare observed records with expected records
+    qual_name = p.sql_client().make_qualified_table_name(table_name)
+    observed = [
+        {"id": row[0], "val": row[1], "deleted_timestamp": row[2]}
+        for row in select_data(p, f"SELECT id, val, deleted_timestamp FROM {qual_name}")
+    ]
+    expected = [{"id": 2, "val": "bar", "deleted_timestamp": None}]
+    assert sorted(observed, key=lambda d: d["id"]) == expected
+
+    # test if exception is raised when more than one "hard_delete" column hints are provided
+    @dlt.resource(
+        name="test_hard_delete_hint_too_many_hints",
+        write_disposition="merge",
+        columns={"deleted_1": {"hard_delete": True}, "deleted_2": {"hard_delete": True}},
+    )
+    def r():
+        yield {"id": 1, "val": "foo", "deleted_1": True, "deleted_2": False}
+
+    with pytest.raises(PipelineStepFailed):
+        info = p.run(r())
+
+
+@pytest.mark.parametrize(
+    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+)
+def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> None:
+    table_name = "test_dedup_sort_hint"
 
     @dlt.resource(
         name=table_name,
         write_disposition="merge",
         primary_key="id",  # sort hints only have effect when a primary key is provided
-        columns={"sequence": {"sort": True}},
+        columns={"sequence": {"dedup_sort": True}},
     )
     def data_resource(data):
         yield data
 
-    p = destination_config.setup_pipeline("test_sort_hint", full_refresh=True)
+    p = destination_config.setup_pipeline("abstract", full_refresh=True)
 
     # three records with same primary key
     # only record with highest value in sort column is inserted
@@ -632,7 +705,8 @@ def test_sort_hint(destination_config: DestinationTestConfiguration) -> None:
     expected = [{"id": 1, "val": "baz", "sequence": 3}]
     assert sorted(observed, key=lambda d: d["id"]) == expected
 
-    p = destination_config.setup_pipeline("test_sort_hint_complex", full_refresh=True)
+    table_name = "test_dedup_sort_hint_complex"
+    data_resource.apply_hints(table_name=table_name)
 
     # three records with same primary key
     # only record with highest value in sort column is inserted
@@ -651,11 +725,11 @@ def test_sort_hint(destination_config: DestinationTestConfiguration) -> None:
     observed = [row[0] for row in select_data(p, f"SELECT value FROM {qual_name}")]
     assert sorted(observed) == [7, 8, 9]  # type: ignore[type-var]
 
+    table_name = "test_dedup_sort_hint_with_hard_delete"
     data_resource.apply_hints(
-        columns={"sequence": {"sort": True}, "deleted": {"hard_delete": True}}
+        table_name=table_name,
+        columns={"sequence": {"dedup_sort": True}, "deleted": {"hard_delete": True}},
     )
-
-    p = destination_config.setup_pipeline("test_sort_hint_with_hard_delete", full_refresh=True)
 
     # three records with same primary key
     # record with highest value in sort column is a delete, so no record will be inserted
@@ -687,3 +761,15 @@ def test_sort_hint(destination_config: DestinationTestConfiguration) -> None:
     ]
     expected = [{"id": 1, "val": "baz", "sequence": 3}]
     assert sorted(observed, key=lambda d: d["id"]) == expected
+
+    # test if exception is raised when more than one "dedup_sort" column hints are provided
+    @dlt.resource(
+        name="test_dedup_sort_hint_too_many_hints",
+        write_disposition="merge",
+        columns={"dedup_sort_1": {"dedup_sort": True}, "dedup_sort_2": {"dedup_sort": True}},
+    )
+    def r():
+        yield {"id": 1, "val": "foo", "dedup_sort_1": 1, "dedup_sort_2": 5}
+
+    with pytest.raises(PipelineStepFailed):
+        info = p.run(r())

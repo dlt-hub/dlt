@@ -1,10 +1,11 @@
 from typing import Any, Callable, List, Sequence, Tuple, cast, TypedDict, Optional
+from copy import copy
 
 import yaml
 from dlt.common.runtime.logger import pretty_format_exception
 
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.schema.utils import get_columns_names_with_prop, has_column_with_prop
+from dlt.common.schema.utils import get_columns_names_with_prop, get_first_column_name_with_prop
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import MergeDispositionException
@@ -203,18 +204,57 @@ class SqlMergeJob(SqlBaseJob):
         return sql, temp_table_name
 
     @classmethod
+    def gen_select_from_dedup_sql(
+        cls,
+        table_name: str,
+        primary_keys: Sequence[str],
+        columns: Sequence[str],
+        sort_column: str = None,
+        condition: str = None,
+        condition_columns: Sequence[str] = None,
+    ) -> str:
+        """
+        Returns SELECT FROM statement where the FROM clause represents a deduplicated version of the `table_name` table.
+        Expects column names provided in arguments to be escaped identifiers.
+        """
+        if sort_column is None:
+            order_by = "(SELECT NULL)"
+        else:
+            order_by = f"{sort_column} DESC"
+        if condition is None:
+            condition = "1 = 1"
+        col_str = ", ".join(columns)
+        inner_col_str = copy(col_str)
+        if condition_columns is not None:
+            inner_col_str += ", " + ", ".join(condition_columns)
+        return f"""
+            SELECT {col_str}
+                FROM (
+                    SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY {order_by}) AS _dlt_dedup_rn, {inner_col_str}
+                    FROM {table_name}
+                ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1 AND {condition}
+        """
+
+    @classmethod
     def gen_insert_temp_table_sql(
-        cls, staging_root_table_name: str, primary_keys: Sequence[str], unique_column: str
+        cls,
+        staging_root_table_name: str,
+        primary_keys: Sequence[str],
+        unique_column: str,
+        sort_column: str = None,
+        condition: str = None,
+        condition_columns: Sequence[str] = None,
     ) -> Tuple[List[str], str]:
         temp_table_name = cls._new_temp_table_name("insert")
-        select_statement = f"""
-        SELECT {unique_column}
-        FROM (
-            SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY (SELECT NULL)) AS _dlt_dedup_rn, {unique_column}
-            FROM {staging_root_table_name}
-        ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1
-        """
-        return [cls._to_temp_table(select_statement, temp_table_name)], temp_table_name
+        select_sql = cls.gen_select_from_dedup_sql(
+            staging_root_table_name,
+            primary_keys,
+            [unique_column],
+            sort_column,
+            condition,
+            condition_columns,
+        )
+        return [cls._to_temp_table(select_sql, temp_table_name)], temp_table_name
 
     @classmethod
     def gen_delete_from_sql(
@@ -254,8 +294,9 @@ class SqlMergeJob(SqlBaseJob):
     ) -> List[str]:
         sql: List[str] = []
         root_table = table_chain[0]
-        escape_identifier = sql_client.capabilities.escape_identifier
-        escape_literal = sql_client.capabilities.escape_literal
+
+        escape_id = sql_client.capabilities.escape_identifier
+        escape_lit = sql_client.capabilities.escape_literal
 
         # get top level table full identifiers
         root_table_name = sql_client.make_qualified_table_name(root_table["name"])
@@ -264,13 +305,13 @@ class SqlMergeJob(SqlBaseJob):
         # get merge and primary keys from top level
         primary_keys = list(
             map(
-                escape_identifier,
+                escape_id,
                 get_columns_names_with_prop(root_table, "primary_key"),
             )
         )
         merge_keys = list(
             map(
-                escape_identifier,
+                escape_id,
                 get_columns_names_with_prop(root_table, "merge_key"),
             )
         )
@@ -278,7 +319,6 @@ class SqlMergeJob(SqlBaseJob):
 
         unique_column: str = None
         root_key_column: str = None
-        insert_temp_table_name: str = None
 
         if len(table_chain) == 1:
             key_table_clauses = cls.gen_key_table_clauses(
@@ -302,7 +342,7 @@ class SqlMergeJob(SqlBaseJob):
                     " it is not possible to link child tables to it.",
                 )
             # get first unique column
-            unique_column = escape_identifier(unique_columns[0])
+            unique_column = escape_id(unique_columns[0])
             # create temp table with unique identifier
             create_delete_temp_table_sql, delete_temp_table_name = cls.gen_delete_temp_table_sql(
                 unique_column, key_table_clauses
@@ -323,7 +363,7 @@ class SqlMergeJob(SqlBaseJob):
                         f" {table['name']} so it is not possible to refer to top level table"
                         f" {root_table['name']} unique column {unique_column}",
                     )
-                root_key_column = escape_identifier(root_key_columns[0])
+                root_key_column = escape_id(root_key_columns[0])
                 sql.append(
                     cls.gen_delete_from_sql(
                         table_name, root_key_column, delete_temp_table_name, unique_column
@@ -337,88 +377,68 @@ class SqlMergeJob(SqlBaseJob):
                 )
             )
 
-        # remove "non-latest" records from staging table (deduplicate) if a sort column is provided
-        if len(primary_keys) > 0:
-            if has_column_with_prop(root_table, "sort"):
-                sort_column = escape_identifier(get_columns_names_with_prop(root_table, "sort")[0])
-                sql.append(f"""
-                    DELETE FROM {staging_root_table_name}
-                    WHERE {sort_column} IN (
-                        SELECT {sort_column} FROM (
-                            SELECT {sort_column}, ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY {sort_column} DESC) AS _rn
-                            FROM {staging_root_table_name}
-                        ) AS a
-                        WHERE a._rn > 1
-                    );
-                """)
-
-        # remove deleted records from staging tables if a hard_delete column is provided
-        if has_column_with_prop(root_table, "hard_delete"):
-            hard_delete_column = escape_identifier(
-                get_columns_names_with_prop(root_table, "hard_delete")[0]
-            )
-            # first delete from root staging table
-            sql.append(f"""
-                DELETE FROM {staging_root_table_name}
-                WHERE {hard_delete_column} IS NOT DISTINCT FROM {escape_literal(True)};
-            """)
-            # then delete from child staging tables
-            for table in table_chain[1:]:
-                with sql_client.with_staging_dataset(staging=True):
-                    staging_table_name = sql_client.make_qualified_table_name(table["name"])
-                sql.append(f"""
-                    DELETE FROM {staging_table_name}
-                    WHERE NOT EXISTS (
-                        SELECT 1 FROM {staging_root_table_name} AS p
-                        WHERE {staging_table_name}.{root_key_column} = p.{unique_column}
-                    );
-                """)
-
-        if len(table_chain) > 1:
-            # create temp table used to deduplicate, only when we have primary keys
-            if primary_keys:
-                (
-                    create_insert_temp_table_sql,
-                    insert_temp_table_name,
-                ) = cls.gen_insert_temp_table_sql(
-                    staging_root_table_name, primary_keys, unique_column
+        # get name of column with hard_delete hint, if specified
+        not_deleted_cond: str = None
+        hard_delete_col = get_first_column_name_with_prop(root_table, "hard_delete")
+        if hard_delete_col is not None:
+            if root_table["columns"][hard_delete_col]["data_type"] == "bool":
+                # only True values indicate a delete for boolean column
+                not_deleted_cond = (
+                    f"{escape_id(hard_delete_col)} IS DISTINCT FROM {escape_lit(True)}"
                 )
-                sql.extend(create_insert_temp_table_sql)
+            else:
+                # any value indicates a delete for non-boolean columns
+                not_deleted_cond = f"{escape_id(hard_delete_col)} IS NULL"
+
+        # get name of column with dedup_sort hint, if specified
+        dedup_sort_col = get_first_column_name_with_prop(root_table, "dedup_sort")
+
+        # create temp table used to deduplicate, only when we have primary keys and child tables
+        insert_temp_table_name: str = None
+        if len(primary_keys) > 0 and len(table_chain) > 1:
+            condition_colummns = [hard_delete_col] if not_deleted_cond is not None else None
+            (
+                create_insert_temp_table_sql,
+                insert_temp_table_name,
+            ) = cls.gen_insert_temp_table_sql(
+                staging_root_table_name,
+                primary_keys,
+                unique_column,
+                dedup_sort_col,
+                not_deleted_cond,
+                condition_colummns,
+            )
+            sql.extend(create_insert_temp_table_sql)
 
         # insert from staging to dataset
         for table in table_chain:
             table_name = sql_client.make_qualified_table_name(table["name"])
             with sql_client.with_staging_dataset(staging=True):
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
-            columns = ", ".join(
-                map(
-                    escape_identifier,
-                    [
-                        c
-                        for c in get_columns_names_with_prop(table, "name")
-                        if c not in get_columns_names_with_prop(table, "hard_delete")
-                    ],
-                )
-            )
-            insert_sql = (
-                f"INSERT INTO {table_name}({columns}) SELECT {columns} FROM {staging_table_name}"
-            )
-            if len(primary_keys) > 0:
-                if len(table_chain) == 1:
-                    insert_sql = f"""INSERT INTO {table_name}({columns})
-                        SELECT {columns} FROM (
-                            SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY (SELECT NULL)) AS _dlt_dedup_rn, {columns}
-                            FROM {staging_table_name}
-                        ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1;
-                    """
-                else:
-                    uniq_column = unique_column if table.get("parent") is None else root_key_column
-                    insert_sql += (
-                        f" WHERE {uniq_column} IN (SELECT * FROM {insert_temp_table_name});"
+            columns = list(map(escape_id, get_columns_names_with_prop(table, "name")))
+            col_str = ", ".join(columns)
+            insert_cond = "1 = 1"
+            if hard_delete_col is not None:
+                # exlude deleted records from INSERT statement
+                insert_cond = copy(not_deleted_cond)
+                if table.get("parent") is not None:
+                    insert_cond = (
+                        f"{root_key_column} IN (SELECT {root_key_column}"
+                        f" FROM {staging_root_table_name} WHERE {not_deleted_cond});"
                     )
 
-            if insert_sql.strip()[-1] != ";":
-                insert_sql += ";"
-            sql.append(insert_sql)
+            if len(primary_keys) > 0 and len(table_chain) > 1:
+                # deduplicate using temp table
+                uniq_column = unique_column if table.get("parent") is None else root_key_column
+                insert_cond = f"{uniq_column} IN (SELECT * FROM {insert_temp_table_name})"
 
+            # select_sql = f"SELECT {columns} FROM {staging_table_name} WHERE {insert_cond}"
+            select_sql = f"SELECT {col_str} FROM {staging_table_name} WHERE {insert_cond}"
+            if len(primary_keys) > 0 and len(table_chain) == 1:
+                # without child tables we deduplicate inside the query instead of using a temp table
+                select_sql = cls.gen_select_from_dedup_sql(
+                    staging_table_name, primary_keys, columns, dedup_sort_col, insert_cond
+                )
+
+            sql.append(f"INSERT INTO {table_name}({col_str}) {select_sql};")
         return sql

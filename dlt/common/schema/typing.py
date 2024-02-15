@@ -113,6 +113,7 @@ class TColumnSchema(TColumnSchemaBase, total=False):
     merge_key: Optional[bool]
     variant: Optional[bool]
     hard_delete: Optional[bool]
+    dedup_sort: Optional[bool]
 
 
 TTableSchemaColumns = Dict[str, TColumnSchema]

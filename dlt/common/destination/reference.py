@@ -20,7 +20,6 @@ from typing import (
     Generic,
     Final,
 )
-from contextlib import contextmanager
 import datetime  # noqa: 251
 from copy import deepcopy
 import inspect
@@ -32,10 +31,15 @@ from dlt.common.exceptions import (
     UnknownDestinationModule,
 )
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.typing import TWriteDisposition
-from dlt.common.schema.exceptions import InvalidDatasetName
-from dlt.common.schema.utils import get_write_disposition, get_table_format
-from dlt.common.configuration import configspec, with_config, resolve_configuration, known_sections
+from dlt.common.schema.exceptions import SchemaException
+from dlt.common.schema.utils import (
+    get_write_disposition,
+    get_table_format,
+    get_columns_names_with_prop,
+    has_column_with_prop,
+    get_first_column_name_with_prop,
+)
+from dlt.common.configuration import configspec, resolve_configuration, known_sections
 from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
 from dlt.common.configuration.accessors import config
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -43,7 +47,6 @@ from dlt.common.schema.utils import is_complete_column
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-from dlt.common.utils import get_module_name
 from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
 
 
@@ -345,6 +348,49 @@ class JobClientBase(ABC):
                     table_name,
                     self.capabilities.max_identifier_length,
                 )
+            if has_column_with_prop(table, "hard_delete"):
+                if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
+                    raise SchemaException(
+                        f'Found multiple "hard_delete" column hints for table "{table_name}" in'
+                        f' schema "{self.schema.name}" while only one is allowed:'
+                        f' {", ".join(get_columns_names_with_prop(table, "hard_delete"))}.'
+                    )
+                if table.get("write_disposition") in ("replace", "append"):
+                    logger.warning(
+                        f"""The "hard_delete" column hint for column "{get_first_column_name_with_prop(table, 'hard_delete')}" """
+                        f'in table "{table_name}" with write disposition'
+                        f' "{table.get("write_disposition")}"'
+                        f' in schema "{self.schema.name}" will be ignored.'
+                        ' The "hard_delete" column hint is only applied when using'
+                        ' the "merge" write disposition.'
+                    )
+            if has_column_with_prop(table, "dedup_sort"):
+                if len(get_columns_names_with_prop(table, "dedup_sort")) > 1:
+                    raise SchemaException(
+                        f'Found multiple "dedup_sort" column hints for table "{table_name}" in'
+                        f' schema "{self.schema.name}" while only one is allowed:'
+                        f' {", ".join(get_columns_names_with_prop(table, "dedup_sort"))}.'
+                    )
+                if table.get("write_disposition") in ("replace", "append"):
+                    logger.warning(
+                        f"""The "dedup_sort" column hint for column "{get_first_column_name_with_prop(table, 'dedup_sort')}" """
+                        f'in table "{table_name}" with write disposition'
+                        f' "{table.get("write_disposition")}"'
+                        f' in schema "{self.schema.name}" will be ignored.'
+                        ' The "dedup_sort" column hint is only applied when using'
+                        ' the "merge" write disposition.'
+                    )
+                if table.get("write_disposition") == "merge" and not has_column_with_prop(
+                    table, "primary_key"
+                ):
+                    logger.warning(
+                        f"""The "dedup_sort" column hint for column "{get_first_column_name_with_prop(table, 'dedup_sort')}" """
+                        f'in table "{table_name}" with write disposition'
+                        f' "{table.get("write_disposition")}"'
+                        f' in schema "{self.schema.name}" will be ignored.'
+                        ' The "dedup_sort" column hint is only applied when a'
+                        " primary key has been specified."
+                    )
             for column_name, column in dict(table["columns"]).items():
                 if len(column_name) > self.capabilities.max_column_identifier_length:
                     raise IdentifierTooLongException(

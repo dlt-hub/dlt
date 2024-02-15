@@ -573,6 +573,16 @@ def get_columns_names_with_prop(
     ]
 
 
+def get_first_column_name_with_prop(
+    table: TTableSchema, column_prop: Union[TColumnProp, str], include_incomplete: bool = False
+) -> Optional[str]:
+    """Returns name of first column in `table` schema with property `column_prop` or None if no such column exists."""
+    column_names = get_columns_names_with_prop(table, column_prop, include_incomplete)
+    if len(column_names) > 0:
+        return column_names[0]
+    return None
+
+
 def has_column_with_prop(
     table: TTableSchema, column_prop: Union[TColumnProp, str], include_incomplete: bool = False
 ) -> bool:

@@ -35,7 +35,6 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
-from dlt.common.schema.utils import get_columns_names_with_prop, has_column_with_prop
 from dlt.common.destination.reference import (
     StateInfo,
     StorageSchemaInfo,
@@ -589,15 +588,3 @@ class SqlJobClientWithStaging(SqlJobClientBase, WithStagingDataset):
         ):
             return True
         return False
-
-    def _create_table_update(
-        self, table_name: str, storage_columns: TTableSchemaColumns
-    ) -> Sequence[TColumnSchema]:
-        updates = super()._create_table_update(table_name, storage_columns)
-        table = self.schema.get_table(table_name)
-        if has_column_with_prop(table, "hard_delete"):
-            # hard_delete column should only be present in staging table, not in final table
-            if not self.in_staging_mode:
-                hard_delete_column = get_columns_names_with_prop(table, "hard_delete")[0]
-                updates = [d for d in updates if d["name"] != hard_delete_column]
-        return updates
