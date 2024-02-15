@@ -66,6 +66,15 @@ def mock_data_source():
     return _r_init, _t_init_post, _r1, _t1("POST"), _t2(3), _t3(2), _r_isolee
 
 
+@dlt.source
+def mock_data_single_resource():
+    @dlt.resource(selected=True)
+    def resource():
+        yield ["-", "x", "!"]
+
+    return resource
+
+
 @dlt.source(section="mock_data_source_state")
 def mock_data_source_state():
     @dlt.resource(selected=True)
@@ -264,6 +273,59 @@ def test_parallel_run():
     for task in dag_def.tasks[1:3]:
         assert task.downstream_task_ids == set([dag_def.tasks[-1].task_id])
         assert task.upstream_task_ids == set([dag_def.tasks[0].task_id])
+
+
+def test_parallel_run_single_resource():
+    pipeline_standalone = dlt.pipeline(
+        pipeline_name="pipeline_parallel",
+        dataset_name="mock_data_" + uniq_id(),
+        destination="duckdb",
+        credentials=":pipeline:",
+    )
+    pipeline_standalone.run(mock_data_single_resource())
+    pipeline_standalone_counts = load_table_counts(
+        pipeline_standalone, *[t["name"] for t in pipeline_standalone.default_schema.data_tables()]
+    )
+
+    tasks_list: List[PythonOperator] = None
+
+    quackdb_path = os.path.join(TEST_STORAGE_ROOT, "pipeline_dag_parallel.duckdb")
+
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_parallel():
+        nonlocal tasks_list
+        tasks = PipelineTasksGroup(
+            "pipeline_dag_parallel", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+        )
+
+        # set duckdb to be outside of pipeline folder which is dropped on each task
+        pipeline_dag_parallel = dlt.pipeline(
+            pipeline_name="pipeline_dag_parallel",
+            dataset_name="mock_data_" + uniq_id(),
+            destination="duckdb",
+            credentials=quackdb_path,
+        )
+        tasks_list = tasks.add_run(
+            pipeline_dag_parallel,
+            mock_data_single_resource(),
+            decompose="parallel",
+            trigger_rule="all_done",
+            retries=0,
+            provide_context=True,
+        )
+
+    dag_def = dag_parallel()
+    assert len(tasks_list) == 2
+    dag_def.test()
+    pipeline_dag_parallel = dlt.attach(pipeline_name="pipeline_dag_parallel")
+    pipeline_dag_decomposed_counts = load_table_counts(
+        pipeline_dag_parallel,
+        *[t["name"] for t in pipeline_dag_parallel.default_schema.data_tables()],
+    )
+    assert pipeline_dag_decomposed_counts == pipeline_standalone_counts
+
+    assert dag_def.tasks[0].downstream_task_ids == set([dag_def.tasks[1].task_id])
+    assert dag_def.tasks[1].upstream_task_ids == set([dag_def.tasks[0].task_id])
 
 
 # def test_run_with_dag_config()

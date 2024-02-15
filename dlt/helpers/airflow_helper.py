@@ -155,11 +155,14 @@ class PipelineTasksGroup(TaskGroup):
             pipeline (Pipeline): An instance of pipeline used to run the source
             data (Any): Any data supported by `run` method of the pipeline
             decompose (Literal["none", "serialize", "parallel"], optional):
-                A source decomposition strategy into Airflow tasks. Defaults to "none".
-                serialize - decompose the source into a sequence of Airflow tasks.
-                parallel - decompose the source into a parallel Airflow task group (NOTE:
-                    in case the SequentialExecutor is used by Airflow, the tasks will
-                    remain sequential - use another executor, e.g. CeleryExecutor).
+                A source decomposition strategy into Airflow tasks:
+                    none - no decomposition, default value.
+                    serialize - decompose the source into a sequence of Airflow tasks.
+                    parallel - decompose the source into a parallel Airflow task group.
+                        NOTE: In case the SequentialExecutor is used by Airflow, the tasks
+                              will remain sequential. Use another executor, e.g. CeleryExecutor)!
+                        NOTE: The first component of the source is done first, after that
+                              the rest are executed in parallel to each other.
             table_name: (str): The name of the table to which the data should be loaded within the `dataset`
             write_disposition (TWriteDisposition, optional): Same as in `run` command. Defaults to None.
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package.
@@ -315,8 +318,12 @@ class PipelineTasksGroup(TaskGroup):
 
                 end = DummyOperator(task_id=f"{task_name(pipeline, data)}_end")
 
-                start >> tasks >> end
-                return [start] + tasks + [end]
+                if tasks:
+                    start >> tasks >> end
+                    return [start] + tasks + [end]
+
+                start >> end
+                return [start, end]
             else:
                 raise ValueError("decompose value must be one of ['none', 'serialize', 'parallel']")
 
