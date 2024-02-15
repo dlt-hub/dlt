@@ -306,27 +306,23 @@ def guess_mime_type(file_name: str) -> Sequence[str]:
 def extract_mtime(file_metadata: Dict[str, Any], protocol: str = None) -> pendulum.DateTime:
     """Extract the modification time from file listing metadata.
 
+    If a protocol is not provided, None or not a known protocol,
+        then default field name `mtime` is tried. If there's no `mtime` field,
+        the current time is returned.
+
+    `mtime` is used for the "file" fsspec implementation and our custom fsspec implementations. 
+        `mtime` is common terminology in unix-like systems.
+
     Args:
         file_metadata (Dict[str, Any]): The file metadata.
-        protocol (str) [Optional]: The protocol. If not provided, None or not a known protocol,
-            then default field name `mtime` is tried. `mtime` is used for the "file" fsspec
-            implementation and our custom fsspec implementations.
+        protocol (str) [Optional]: The protocol.
 
     Returns:
-        pendulum.DateTime: The modification time.
-
-    Raises:
-        KeyError: If the resolved field name is not found in the metadata. Current dlt use-cases
-            depend on a modified date. For example, transactional files, incremental destination
-            loading.
+        pendulum.DateTime: The latest modification time. Defaults to `now()` if no suitable
+            field is found in the metadata.
     """
     field_name = MTIME_FIELD_NAMES.get(protocol, DEFAULT_MTIME_FIELD_NAME)
-    try:
-        return ensure_pendulum_datetime(file_metadata[field_name])
-    except KeyError:
-        if protocol not in MTIME_FIELD_NAMES:
-            extra_message = " {DEFAULT_MTIME_FIELD_NAME} was used by default."
-        raise KeyError(f"`{field_name}` not found in metadata.{extra_message}")
+    return ensure_pendulum_datetime(file_metadata.get(field_name, pendulum.now()))
 
 
 def glob_files(
