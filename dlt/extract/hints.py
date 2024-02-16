@@ -340,48 +340,6 @@ class DltResourceHints:
         return partial
 
     @staticmethod
-    def new_table_template(
-        table_name: TTableHintTemplate[str],
-        parent_table_name: TTableHintTemplate[str] = None,
-        write_disposition: TTableHintTemplate[TWriteDisposition] = None,
-        columns: TTableHintTemplate[TAnySchemaColumns] = None,
-        primary_key: TTableHintTemplate[TColumnNames] = None,
-        merge_key: TTableHintTemplate[TColumnNames] = None,
-        schema_contract: TTableHintTemplate[TSchemaContract] = None,
-        table_format: TTableHintTemplate[TTableFormat] = None,
-    ) -> TResourceHints:
-        validator, schema_contract = create_item_validator(columns, schema_contract)
-        clean_columns = columns
-        if columns is not None:
-            clean_columns = ensure_table_schema_columns_hint(columns)
-            if not callable(clean_columns):
-                clean_columns = clean_columns.values()  # type: ignore
-        # create a table schema template where hints can be functions taking TDataItem.
-        new_template: TResourceHints = new_table(
-            table_name,  # type: ignore
-            parent_table_name,  # type: ignore
-            write_disposition=write_disposition,  # type: ignore
-            columns=clean_columns,  # type: ignore
-            schema_contract=schema_contract,  # type: ignore
-            table_format=table_format,  # type: ignore
-        )
-        if not table_name:
-            new_template.pop("name")
-        # remember original columns
-        if columns is not None:
-            new_template["original_columns"] = columns
-        # always remove resource
-        new_template.pop("resource", None)  # type: ignore
-        if primary_key:
-            new_template["primary_key"] = primary_key
-        if merge_key:
-            new_template["merge_key"] = merge_key
-        if validator:
-            new_template["validator"] = validator
-        DltResourceHints.validate_dynamic_hints(new_template)
-        return new_template
-
-    @staticmethod
     def validate_dynamic_hints(template: TResourceHints) -> None:
         table_name = template.get("name")
         # if any of the hints is a function, then name must be as well.
