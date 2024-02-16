@@ -199,29 +199,31 @@ class FileItemDict(DictStrAny):
     def __init__(
         self,
         mapping: FileItem,
-        credentials: Optional[Union[FileSystemCredentials, AbstractFileSystem]] = None,
+        fs_details: Optional[Union[AbstractFileSystem, FilesystemConfiguration, FileSystemCredentials]] = None,
     ):
         """Create a dictionary with the filesystem client.
 
         Args:
             mapping (FileItem): The file item TypedDict.
-            credentials (Optional[FileSystemCredentials], optional): The credentials to the
+            fs_details (Optional[AbstractFileSystem, FilesystemConfiguration, FileSystemCredentials], optional): Details to help get a
                 filesystem. Defaults to None.
         """
-        self.credentials = credentials
+        self.fs_details = fs_details
         super().__init__(**mapping)
 
     @property
     def fsspec(self) -> AbstractFileSystem:
-        """The filesystem client is based on the given credentials.
+        """The filesystem client is based on the given details.
 
         Returns:
-            AbstractFileSystem: The fsspec client.
+            AbstractFileSystem: An fsspec client.
         """
-        if isinstance(self.credentials, AbstractFileSystem):
-            return self.credentials
+        if isinstance(self.fs_details, AbstractFileSystem):
+            return self.fs_details
+        elif isinstance(self.fs_details, FilesystemConfiguration):
+            return fsspec_from_config(self.fs_details)[0]
         else:
-            return fsspec_filesystem(self["file_url"], self.credentials)[0]
+            return fsspec_filesystem(self["file_url"], self.fs_details)[0]
 
     def open(  # noqa: A003
         self,
