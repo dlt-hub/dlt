@@ -14,7 +14,9 @@ from dlt.extract import DltResource, resource as make_resource
 
 PARTITION_HINT: Literal["x-bigquery-partition"] = "x-bigquery-partition"
 CLUSTER_HINT: Literal["x-bigquery-cluster"] = "x-bigquery-cluster"
-ROUND_HALF_AWAY_FROM_ZERO_HINT: Literal["x-bigquery-round-half-away-from-zero"] = "x-bigquery-round-half-away-from-zero"
+ROUND_HALF_AWAY_FROM_ZERO_HINT: Literal["x-bigquery-round-half-away-from-zero"] = (
+    "x-bigquery-round-half-away-from-zero"
+)
 ROUND_HALF_EVEN_HINT: Literal["x-bigquery-round-half-even"] = "x-bigquery-round-half-even"
 TABLE_EXPIRATION_HINT: Literal["x-bigquery-table-expiration"] = "x-bigquery-table-expiration"
 TABLE_DESCRIPTION_HINT: Literal["x-bigquery-table-description"] = "x-bigquery-table-description"

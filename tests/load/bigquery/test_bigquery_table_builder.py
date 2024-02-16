@@ -661,7 +661,7 @@ def test_adapter_hints_multiple_clustering(
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
 
-        no_hints_partition_fields = (
+        no_hints_cluster_fields = (
             [] if no_hints_table.clustering_fields is None else no_hints_table.clustering_fields
         )
         hints_cluster_fields = (
