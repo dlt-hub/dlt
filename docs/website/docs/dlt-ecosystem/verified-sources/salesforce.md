@@ -1,13 +1,11 @@
 # Salesforce
 
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
+[Join our Slack community](https://dlthub.com/community) or
+[book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian. :::
 
-[Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
-:::
-
-[Salesforce](https://www.salesforce.com) is a cloud platform that streamlines business operations and customer relationship
-management, encompassing sales, marketing, and customer service.
+[Salesforce](https://www.salesforce.com) is a cloud platform that streamlines business operations
+and customer relationship management, encompassing sales, marketing, and customer service.
 
 This Salesforce `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/salesforce_pipeline.py)
@@ -15,30 +13,31 @@ loads data using “Salesforce API” to the destination of your choice.
 
 The resources that this verified source supports are:
 
-| Name           | Mode    | Description                                                                                       |
-|----------------|---------|---------------------------------------------------------------------------------------------------|
-| User           | replace | refers to an individual who has access to a Salesforce org or instance                            |
-| UserRole       | replace | a standard object that represents a role within the organization's hierarchy                      |
-| Lead           | replace | prospective customer/individual/org. that has shown interest in a company's products/services     |
-| Contact        | replace | an individual person associated with an account or organization                                   |
-| Campaign       | replace | marketing initiative or project designed to achieve specific goals, such as generating leads etc. |
-| Product2       | replace | for managing and organizing your product-related data within the Salesforce ecosystem             |
-| Pricebook2     | replace | used to manage product pricing and create price books                                             |
-| PricebookEntry | replace | an object that represents a specific price for a product in a price book                          |
-| Opportunity            | merge | represents a sales opportunity for a specific account or contact                                                            |
-| OpportunityLineItem    | merge | represents individual line items or products associated with an opportunity                                                 |
-| OpportunityContactRole | merge | represents the association between an Opportunity and a contact                                                             |
-| Account                | merge | individual or organization that interacts with your business                                                                |
-| CampaignMember         | merge | association between a contact or lead and a campaign                                                                        |
-| Task                   | merge | used to track and manage various activities and tasks within the salesforce platform                                        |
-| Event                  | merge | used to track and manage calendar-based events, such as meetings, appointments calls, or any other time-specific activities |
+| Name | Mode | Description |
+|------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------|
+| User | replace | refers to an individual who has access to a Salesforce org or instance | |
+UserRole | replace | a standard object that represents a role within the organization's hierarchy |
+| Lead | replace | prospective customer/individual/org. that has shown interest in a company's
+products/services | | Contact | replace | an individual person associated with an account or
+organization | | Campaign | replace | marketing initiative or project designed to achieve specific
+goals, such as generating leads etc. | | Product2 | replace | for managing and organizing your
+product-related data within the Salesforce ecosystem | | Pricebook2 | replace | used to manage
+product pricing and create price books | | PricebookEntry | replace | an object that represents a
+specific price for a product in a price book | | Opportunity | merge | represents a sales
+opportunity for a specific account or contact | | OpportunityLineItem | merge | represents
+individual line items or products associated with an opportunity | | OpportunityContactRole | merge
+| represents the association between an Opportunity and a contact | | Account | merge | individual
+or organization that interacts with your business | | CampaignMember | merge | association between a
+contact or lead and a campaign | | Task | merge | used to track and manage various activities and
+tasks within the salesforce platform | | Event | merge | used to track and manage calendar-based
+events, such as meetings, appointments calls, or any other time-specific activities |
 
 ## Setup Guide
 
 ### Grab credentials
 
-To set up your pipeline, you'll need your Salesforce `user_name`, `password`, and `security_token`. Use
-your login credentials for user_name and password.
+To set up your pipeline, you'll need your Salesforce `user_name`, `password`, and `security_token`.
+Use your login credentials for user_name and password.
 
 To obtain the `security_token`, follow these steps:
 
@@ -55,9 +54,8 @@ To obtain the `security_token`, follow these steps:
 
 1. Check your email for the token sent by Salesforce.
 
-> Note: The Salesforce UI, which is described here, might change.
-The full guide is available at [this link.](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/quickstart_oauth.htm)
-
+> Note: The Salesforce UI, which is described here, might change. The full guide is available at
+> [this link.](https://developer.salesforce.com/docs/atlas.en-us.api_rest.meta/api_rest/quickstart_oauth.htm)
 
 ### Initialize the verified source
 
@@ -80,7 +78,8 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the guide on [how to add a verified source.](../../walkthroughs/add-a-verified-source)
+For more information, read the guide on
+[how to add a verified source.](../../walkthroughs/add-a-verified-source)
 
 ### Add credentials
 
@@ -169,8 +168,8 @@ destination.
 | user_role() | contact() | lead() | campaign() | product_2() | pricebook_2() | pricebook_entry() |
 |-------------|-----------|--------|------------|-------------|---------------|-------------------|
 
-The described functions fetch records from endpoints based on their names, e.g. user_role()
-accesses the "user_role" endpoint.
+The described functions fetch records from endpoints based on their names, e.g. user_role() accesses
+the "user_role" endpoint.
 
 ### Resource `opportunity` (incremental loading):
 
@@ -182,7 +181,7 @@ mode.
 def opportunity(
     last_timestamp: Incremental[str] = dlt.sources.incremental(
         "SystemModstamp", initial_value=None
-		)
+    )
 ) -> Iterator[Dict[str, Any]]:
 
     yield from get_records(
@@ -190,14 +189,16 @@ def opportunity(
     )
 ```
 
-`last_timestamp`: Argument that will receive [incremental](../../general-usage/incremental-loading) state, initialized with "initial_value".
-It is configured to track "SystemModstamp" field in data item returned by "get_records" and then yielded.
-It will store the newest "SystemModstamp" value in dlt state and make it available in "last_timestamp.last_value" on next pipeline run.
+`last_timestamp`: Argument that will receive [incremental](../../general-usage/incremental-loading)
+state, initialized with "initial_value". It is configured to track "SystemModstamp" field in data
+item returned by "get_records" and then yielded. It will store the newest "SystemModstamp" value in
+dlt state and make it available in "last_timestamp.last_value" on next pipeline run.
 
 Besides "opportunity", there are several resources that use replace mode for data writing to the
 destination.
 
-| opportunity_line_item() | opportunity_contact_role() | account() | campaign_member() | task() | event() |
+| opportunity_line_item() | opportunity_contact_role() | account() | campaign_member() | task() |
+event() |
 |-------------------------|----------------------------|-----------|-------------------|--------|---------|
 
 The described functions fetch records from endpoints based on their names, e.g.,
@@ -211,8 +212,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 above.
 
 To create your data pipeline using single loading and
-[incremental data loading](../../general-usage/incremental-loading), follow these
-steps:
+[incremental data loading](../../general-usage/incremental-loading), follow these steps:
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 
@@ -220,7 +220,7 @@ steps:
    pipeline = dlt.pipeline(
        pipeline_name="salesforce_pipeline",  # Use a custom name if desired
        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-       dataset_name="salesforce_data"  # Use a custom name if desired
+       dataset_name="salesforce_data",  # Use a custom name if desired
    )
    ```
 
@@ -231,7 +231,7 @@ steps:
 
    ```python
    load_data = salesforce_source()
-   source.schema.merge_hints({"not_null": ["id"]}) #Hint for id field not null
+   source.schema.merge_hints({"not_null": ["id"]})  # Hint for id field not null
    load_info = pipeline.run(load_data)
    # print the information on data that was loaded
    print(load_info)
@@ -254,15 +254,12 @@ steps:
    endpoints in merge mode with the “dlt.sources.incremental” parameter.
 
    > For incremental loading of endpoints, maintain the pipeline name and destination dataset name.
-   > The pipeline name is important for accessing the
-   > [state](../../general-usage/state) from the last run, including the end date
-   > for incremental data loads. Altering these names could trigger a
-   > [“full_refresh”](../../general-usage/pipeline#do-experiments-with-full-refresh),
-   > disrupting the metadata tracking for
-   > [incremental data loading](../../general-usage/incremental-loading).
+   > The pipeline name is important for accessing the [state](../../general-usage/state) from the
+   > last run, including the end date for incremental data loads. Altering these names could trigger
+   > a [“full_refresh”](../../general-usage/pipeline#do-experiments-with-full-refresh), disrupting
+   > the metadata tracking for [incremental data loading](../../general-usage/incremental-loading).
 
-1. To load data from the “contact” in replace mode and “task” incrementally merge mode
-   endpoints:
+1. To load data from the “contact” in replace mode and “task” incrementally merge mode endpoints:
 
    ```python
    load_info = pipeline.run(load_data.with_resources("contact", "task"))
@@ -274,3 +271,11 @@ steps:
    > overwriting existing data. Conversely, the "task" endpoint supports "merge" mode for
    > incremental loads, updating or adding data based on the 'last_timestamp' value without erasing
    > previously loaded data.
+
+1. To limit the number of Salesforce API data requests, you can set `IS_PRODUCTION` variable
+   to `False` in "[salesforce/settings.py](https://github.com/dlt-hub/verified-sources/blob/master/sources/salesforce/settings.py)",
+   which limits API call requests to 100. To modify this limit, you can update the query limit in
+   "[salesforce/helpers.py](https://github.com/dlt-hub/verified-sources/blob/756edaa00f56234cd06699178098f44c16d6d597/sources/salesforce/helpers.py#L56)"
+   as required.
+   >To read more about Salesforce query limits, please refer to their official
+   >[documentation here](https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_select_limit.htm).
