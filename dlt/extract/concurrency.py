@@ -91,12 +91,12 @@ class WorkerPool:
         self.used_slots -= 1
 
     @overload
-    def submit(self, pipe_item: ResolvablePipeItem, block: Literal[False]) -> Optional[TItemFuture]:
-        ...
+    def submit(
+        self, pipe_item: ResolvablePipeItem, block: Literal[False]
+    ) -> Optional[TItemFuture]: ...
 
     @overload
-    def submit(self, pipe_item: ResolvablePipeItem, block: Literal[True]) -> TItemFuture:
-        ...
+    def submit(self, pipe_item: ResolvablePipeItem, block: Literal[True]) -> TItemFuture: ...
 
     def submit(self, pipe_item: ResolvablePipeItem, block: bool = False) -> Optional[TItemFuture]:
         """Submit an item to the pool.

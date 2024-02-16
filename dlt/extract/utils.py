@@ -16,7 +16,7 @@ from typing import (
     Iterator,
 )
 from collections.abc import Mapping as C_Mapping
-from functools import wraps
+from functools import wraps, partial
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import reset_resource_state
@@ -33,7 +33,6 @@ from dlt.extract.typing import (
     TDataItem,
     TFunHintTemplate,
     SupportsPipe,
-    TGenOrGenFunction,
 )
 
 try:
@@ -179,21 +178,32 @@ def wrap_async_iterator(
         exhausted = True
 
 
-def wrap_parallel_iterator(f: TGenOrGenFunction) -> TGenOrGenFunction:
+def wrap_parallel_iterator(
+    f: Union[Generator[TDataItems, Optional[Any], Optional[Any]], AnyFun]
+) -> Union[Generator[TDataItems, Optional[Any], Optional[Any]], AnyFun]:
     """Wraps a generator for parallel extraction"""
 
     def _wrapper(*args: Any, **kwargs: Any) -> Generator[TDataItems, None, None]:
-        gen = f(*args, **kwargs) if callable(f) else f
+        is_generator = True
+        gen: Union[Generator[TDataItems, Optional[Any], Optional[Any]], AnyFun]
+        if callable(f):
+            if inspect.isgeneratorfunction(f):
+                gen = f(*args, **kwargs)
+            else:
+                is_generator = False
+                gen = f
+        else:
+            gen = f
 
         exhausted = False
         busy = False
 
         def _parallel_gen() -> TDataItems:
             nonlocal busy
+            nonlocal exhausted
             try:
-                return next(gen)
+                return next(gen)  # type: ignore[arg-type]
             except StopIteration:
-                nonlocal exhausted
                 exhausted = True
                 return None
             finally:
@@ -204,9 +214,14 @@ def wrap_parallel_iterator(f: TGenOrGenFunction) -> TGenOrGenFunction:
                 while busy:
                     yield None
                 busy = True
-                yield _parallel_gen
+                if is_generator:
+                    yield _parallel_gen
+                else:
+                    exhausted = True
+                    yield partial(gen, *args, **kwargs)  # type: ignore[arg-type]
             except GeneratorExit:
-                # gen.close()
+                if is_generator:
+                    gen.close()  # type: ignore[union-attr]
                 raise
 
     if callable(f):

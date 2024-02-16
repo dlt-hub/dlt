@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, List
 import time
 import threading
 import random
@@ -326,34 +326,58 @@ def test_parallelized_resource_extract_order(n_resources: int) -> None:
 
 
 def test_test_parallelized_transformers() -> None:
-    exec_order = []
     item_count = 6
+
+    @dlt.resource(parallelized=True)
+    def pos_data():
+        for i in range(1, item_count + 1):
+            time.sleep(0.1)
+            yield i
+
+    @dlt.resource(parallelized=True)
+    def neg_data():
+        time.sleep(0.05)
+        for i in range(-1, -item_count - 1, -1):
+            time.sleep(0.1)
+            yield i
+
+    @dlt.transformer(parallelized=True)
+    def multiply(item):
+        time.sleep(0.05)
+        exec_order.append("+" if item > 0 else "-")
+        yield item * 10
 
     @dlt.source
     def some_source():
-        @dlt.resource(parallelized=True)
-        def pos_data():
-            for i in range(1, item_count + 1):
-                time.sleep(0.1)
-                yield i
-
-        @dlt.resource(parallelized=True)
-        def neg_data():
-            time.sleep(0.05)
-            for i in range(-1, -item_count - 1, -1):
-                time.sleep(0.1)
-                yield i
-
-        @dlt.transformer(parallelized=True)
-        def multiply(item):
-            time.sleep(0.05)
-            exec_order.append("+" if item > 0 else "-")
-            yield item * 10
-
         return [
             neg_data | multiply.with_name("t_a"),
             pos_data | multiply.with_name("t_b"),
         ]
+
+    exec_order: List[str] = []
+    result = list(some_source())
+
+    expected_result = [i * 10 for i in range(-item_count, item_count + 1)]
+    expected_result.remove(0)
+
+    assert sorted(result) == expected_result
+    assert exec_order == ["+", "-"] * item_count
+
+    @dlt.transformer(parallelized=True)  # type: ignore[no-redef]
+    def multiply(item):
+        # Transformer that is not a generator
+        time.sleep(0.05)
+        exec_order.append("+" if item > 0 else "-")
+        return item * 10
+
+    @dlt.source  # type: ignore[no-redef]
+    def some_source():
+        return [
+            neg_data | multiply.with_name("t_a"),
+            pos_data | multiply.with_name("t_b"),
+        ]
+
+    exec_order = []
 
     result = list(some_source())
 

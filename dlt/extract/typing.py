@@ -29,12 +29,6 @@ TFunHintTemplate = Callable[[TDataItem], TDynHintType]
 TTableHintTemplate = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
 
 
-TGenOrGenFunction = Union[
-    Generator[TDataItems, Optional[Any], Optional[Any]],
-    Callable[..., Generator[TDataItems, Optional[Any], Optional[Any]]],
-]  # ]
-
-
 class DataItemWithMeta:
     __slots__ = "meta", "data"
 

@@ -567,8 +567,8 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-    standalone: Literal[True] = True,
     parallelized: bool = False,
+    standalone: Literal[True] = True,
 ) -> Callable[
     [Callable[Concatenate[TDataItem, TResourceFunParams], Any]],
     Callable[TResourceFunParams, DltResource],
@@ -605,8 +605,8 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-    standalone: Literal[True] = True,
     parallelized: bool = False,
+    standalone: Literal[True] = True,
 ) -> Callable[TResourceFunParams, DltResource]: ...
 
 
@@ -622,8 +622,8 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
-    standalone: bool = False,
     parallelized: bool = False,
+    standalone: bool = False,
 ) -> Any:
     """A form of `dlt resource` that takes input from other resources via `data_from` argument in order to enrich or transform the data.
 
