@@ -1,4 +1,4 @@
-from typing import Any, Optional
+from typing import Any, Optional, Literal
 
 from dateutil import parser
 
@@ -12,12 +12,12 @@ from dlt.destinations.utils import ensure_resource
 from dlt.extract import DltResource, resource as make_resource
 
 
-PARTITION_HINT = "x-bigquery-partition"
-CLUSTER_HINT = "x-bigquery-cluster"
-ROUND_HALF_AWAY_FROM_ZERO_HINT = "x-bigquery-round-half-away-from-zero"
-ROUND_HALF_EVEN_HINT = "x-bigquery-round-half-even"
-TABLE_EXPIRATION_HINT = "x-bigquery-table-expiration"
-TABLE_DESCRIPTION_HINT = "x-bigquery-table-description"
+PARTITION_HINT: Literal["x-bigquery-partition"] = "x-bigquery-partition"
+CLUSTER_HINT: Literal["x-bigquery-cluster"] = "x-bigquery-cluster"
+ROUND_HALF_AWAY_FROM_ZERO_HINT: Literal["x-bigquery-round-half-away-from-zero"] = "x-bigquery-round-half-away-from-zero"
+ROUND_HALF_EVEN_HINT: Literal["x-bigquery-round-half-even"] = "x-bigquery-round-half-even"
+TABLE_EXPIRATION_HINT: Literal["x-bigquery-table-expiration"] = "x-bigquery-table-expiration"
+TABLE_DESCRIPTION_HINT: Literal["x-bigquery-table-description"] = "x-bigquery-table-description"
 
 
 def bigquery_adapter(

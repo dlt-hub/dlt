@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import ClassVar, Optional, Sequence, Tuple, List, cast, Dict, Any
+from typing import ClassVar, Optional, Sequence, Tuple, List, cast, Dict, Any, Iterable
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -15,7 +15,7 @@ from dlt.common.destination.reference import (
     LoadJob,
     SupportsStagingDestination,
 )
-from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
+from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.schema.utils import table_schema_has_type
