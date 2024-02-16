@@ -277,7 +277,6 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             sql[0] = sql[0] + "\nCLUSTER BY " + ", ".join(cluster_list)
         return sql
 
-    # noinspection PyTypedDict
     def _get_column_def_sql(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
         name = self.capabilities.escape_identifier(column["name"])
         column_def_sql = (
