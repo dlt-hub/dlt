@@ -8,6 +8,7 @@ from dlt.common.schema.typing import TTableSchema
 from dlt.common.schema.utils import get_columns_names_with_prop, get_first_column_name_with_prop
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import NewLoadJobImpl
 from dlt.destinations.sql_client import SqlClientBase
@@ -247,14 +248,19 @@ class SqlMergeJob(SqlBaseJob):
         condition_columns: Sequence[str] = None,
     ) -> Tuple[List[str], str]:
         temp_table_name = cls._new_temp_table_name("insert")
-        select_sql = cls.gen_select_from_dedup_sql(
-            staging_root_table_name,
-            primary_keys,
-            [unique_column],
-            sort_column,
-            condition,
-            condition_columns,
-        )
+        if len(primary_keys) > 0:
+            # deduplicate
+            select_sql = cls.gen_select_from_dedup_sql(
+                staging_root_table_name,
+                primary_keys,
+                [unique_column],
+                sort_column,
+                condition,
+                condition_columns,
+            )
+        else:
+            # don't deduplicate
+            select_sql = f"SELECT {unique_column} FROM {staging_root_table_name} WHERE {condition}"
         return [cls._to_temp_table(select_sql, temp_table_name)], temp_table_name
 
     @classmethod
@@ -298,6 +304,10 @@ class SqlMergeJob(SqlBaseJob):
 
         escape_id = sql_client.capabilities.escape_identifier
         escape_lit = sql_client.capabilities.escape_literal
+        if escape_id is None:
+            escape_id = DestinationCapabilitiesContext.generic_capabilities().escape_identifier
+        if escape_lit is None:
+            escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
 
         # get top level table full identifiers
         root_table_name = sql_client.make_qualified_table_name(root_table["name"])
@@ -391,46 +401,40 @@ class SqlMergeJob(SqlBaseJob):
         # get name of column with dedup_sort hint, if specified
         dedup_sort_col = get_first_column_name_with_prop(root_table, "dedup_sort")
 
-        # create temp table used to deduplicate, only when we have primary keys and child tables
         insert_temp_table_name: str = None
-        if len(primary_keys) > 0 and len(table_chain) > 1:
-            condition_colummns = [hard_delete_col] if not_deleted_cond is not None else None
-            (
-                create_insert_temp_table_sql,
-                insert_temp_table_name,
-            ) = cls.gen_insert_temp_table_sql(
-                staging_root_table_name,
-                primary_keys,
-                unique_column,
-                dedup_sort_col,
-                not_deleted_cond,
-                condition_colummns,
-            )
-            sql.extend(create_insert_temp_table_sql)
+        if len(table_chain) > 1:
+            if len(primary_keys) > 0 or (len(primary_keys) == 0 and hard_delete_col is not None):
+                condition_colummns = [hard_delete_col] if not_deleted_cond is not None else None
+                (
+                    create_insert_temp_table_sql,
+                    insert_temp_table_name,
+                ) = cls.gen_insert_temp_table_sql(
+                    staging_root_table_name,
+                    primary_keys,
+                    unique_column,
+                    dedup_sort_col,
+                    not_deleted_cond,
+                    condition_colummns,
+                )
+                sql.extend(create_insert_temp_table_sql)
 
         # insert from staging to dataset
         for table in table_chain:
             table_name = sql_client.make_qualified_table_name(table["name"])
             with sql_client.with_staging_dataset(staging=True):
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
-            columns = list(map(escape_id, get_columns_names_with_prop(table, "name")))
-            col_str = ", ".join(columns)
-            insert_cond = "1 = 1"
-            if hard_delete_col is not None:
-                # exlude deleted records from INSERT statement
-                insert_cond = copy(not_deleted_cond)
-                if table.get("parent") is not None:
-                    insert_cond = (
-                        f"{root_key_column} IN (SELECT {root_key_column}"
-                        f" FROM {staging_root_table_name} WHERE {not_deleted_cond});"
-                    )
 
-            if len(primary_keys) > 0 and len(table_chain) > 1:
-                # deduplicate using temp table
+            insert_cond = copy(not_deleted_cond) if hard_delete_col is not None else "1 = 1"
+            if (len(primary_keys) > 0 and len(table_chain) > 1) or (
+                len(primary_keys) == 0
+                and table.get("parent") is not None  # child table
+                and hard_delete_col is not None
+            ):
                 uniq_column = unique_column if table.get("parent") is None else root_key_column
                 insert_cond = f"{uniq_column} IN (SELECT * FROM {insert_temp_table_name})"
 
-            # select_sql = f"SELECT {columns} FROM {staging_table_name} WHERE {insert_cond}"
+            columns = list(map(escape_id, get_columns_names_with_prop(table, "name")))
+            col_str = ", ".join(columns)
             select_sql = f"SELECT {col_str} FROM {staging_table_name} WHERE {insert_cond}"
             if len(primary_keys) > 0 and len(table_chain) == 1:
                 # without child tables we deduplicate inside the query instead of using a temp table
