@@ -128,7 +128,7 @@ def test_create_table_with_partition_and_cluster(gcp_client: BigQueryClient) -> 
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
     # clustering must be the last
-    assert sql.endswith("CLUSTER BY `col2`,`col5`")
+    assert sql.endswith("CLUSTER BY `col2`, `col5`")
     assert "PARTITION BY `col10`" in sql
 
 

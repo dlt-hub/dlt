@@ -272,7 +272,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                     " GENERATE_ARRAY(-172800000, 691200000, 86400))"
                 )
         if cluster_list := [
-            c["name"] for c in new_columns if c.get("cluster") or c.get(CLUSTER_HINT, False)
+            self.capabilities.escape_identifier(c["name"])
+            for c in new_columns
+            if c.get("cluster") or c.get(CLUSTER_HINT, False)
         ]:
             sql[0] = sql[0] + "\nCLUSTER BY " + ", ".join(cluster_list)
         return sql
