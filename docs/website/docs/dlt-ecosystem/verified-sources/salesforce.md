@@ -2,7 +2,8 @@
 
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 [Join our Slack community](https://dlthub.com/community) or
-[book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian. :::
+[book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+:::
 
 [Salesforce](https://www.salesforce.com) is a cloud platform that streamlines business operations
 and customer relationship management, encompassing sales, marketing, and customer service.
@@ -13,24 +14,23 @@ loads data using “Salesforce API” to the destination of your choice.
 
 The resources that this verified source supports are:
 
-| Name | Mode | Description |
-|------------------------|---------|-----------------------------------------------------------------------------------------------------------------------------|
-| User | replace | refers to an individual who has access to a Salesforce org or instance | |
-UserRole | replace | a standard object that represents a role within the organization's hierarchy |
-| Lead | replace | prospective customer/individual/org. that has shown interest in a company's
-products/services | | Contact | replace | an individual person associated with an account or
-organization | | Campaign | replace | marketing initiative or project designed to achieve specific
-goals, such as generating leads etc. | | Product2 | replace | for managing and organizing your
-product-related data within the Salesforce ecosystem | | Pricebook2 | replace | used to manage
-product pricing and create price books | | PricebookEntry | replace | an object that represents a
-specific price for a product in a price book | | Opportunity | merge | represents a sales
-opportunity for a specific account or contact | | OpportunityLineItem | merge | represents
-individual line items or products associated with an opportunity | | OpportunityContactRole | merge
-| represents the association between an Opportunity and a contact | | Account | merge | individual
-or organization that interacts with your business | | CampaignMember | merge | association between a
-contact or lead and a campaign | | Task | merge | used to track and manage various activities and
-tasks within the salesforce platform | | Event | merge | used to track and manage calendar-based
-events, such as meetings, appointments calls, or any other time-specific activities |
+| Name           | Mode    | Description                                                                                       |
+|----------------|---------|---------------------------------------------------------------------------------------------------|
+| User           | replace | refers to an individual who has access to a Salesforce org or instance                            |
+| UserRole       | replace | a standard object that represents a role within the organization's hierarchy                      |
+| Lead           | replace | prospective customer/individual/org. that has shown interest in a company's products/services     |
+| Contact        | replace | an individual person associated with an account or organization                                   |
+| Campaign       | replace | marketing initiative or project designed to achieve specific goals, such as generating leads etc. |
+| Product2       | replace | for managing and organizing your product-related data within the Salesforce ecosystem             |
+| Pricebook2     | replace | used to manage product pricing and create price books                                             |
+| PricebookEntry | replace | an object that represents a specific price for a product in a price book                          |
+| Opportunity            | merge | represents a sales opportunity for a specific account or contact                                                            |
+| OpportunityLineItem    | merge | represents individual line items or products associated with an opportunity                                                 |
+| OpportunityContactRole | merge | represents the association between an Opportunity and a contact                                                             |
+| Account                | merge | individual or organization that interacts with your business                                                                |
+| CampaignMember         | merge | association between a contact or lead and a campaign                                                                        |
+| Task                   | merge | used to track and manage various activities and tasks within the salesforce platform                                        |
+| Event                  | merge | used to track and manage calendar-based events, such as meetings, appointments calls, or any other time-specific activities |
 
 ## Setup Guide
 
@@ -197,8 +197,7 @@ dlt state and make it available in "last_timestamp.last_value" on next pipeline 
 Besides "opportunity", there are several resources that use replace mode for data writing to the
 destination.
 
-| opportunity_line_item() | opportunity_contact_role() | account() | campaign_member() | task() |
-event() |
+| opportunity_line_item() | opportunity_contact_role() | account() | campaign_member() | task() | event() |
 |-------------------------|----------------------------|-----------|-------------------|--------|---------|
 
 The described functions fetch records from endpoints based on their names, e.g.,
