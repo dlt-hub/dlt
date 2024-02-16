@@ -382,14 +382,11 @@ class SqlMergeJob(SqlBaseJob):
         not_deleted_cond: str = None
         hard_delete_col = get_first_column_name_with_prop(root_table, "hard_delete")
         if hard_delete_col is not None:
+            # any value indicates a delete for non-boolean columns
+            not_deleted_cond = f"{escape_id(hard_delete_col)} IS NULL"
             if root_table["columns"][hard_delete_col]["data_type"] == "bool":
-                # only True values indicate a delete for boolean column
-                not_deleted_cond = (
-                    f"{escape_id(hard_delete_col)} IS DISTINCT FROM {escape_lit(True)}"
-                )
-            else:
-                # any value indicates a delete for non-boolean columns
-                not_deleted_cond = f"{escape_id(hard_delete_col)} IS NULL"
+                # only True values indicate a delete for boolean columns
+                not_deleted_cond += f" OR {escape_id(hard_delete_col)} = {escape_lit(False)}"
 
         # get name of column with dedup_sort hint, if specified
         dedup_sort_col = get_first_column_name_with_prop(root_table, "dedup_sort")
