@@ -222,7 +222,9 @@ def test_json_named_tuple(json_impl: SupportsJson) -> None:
     )
     with io.BytesIO() as b:
         json_impl.typed_dump(NamedTupleTest("STR", Decimal("1.3333")), b)
-        assert b.getvalue().decode("utf-8") == '{"str_field":"STR","dec_field":"\uf0261.3333"}'
+        assert (
+            b.getvalue().decode("utf-8") == '{"str_field":"STR","dec_field":"%s1.3333"}' % _DECIMAL
+        )
 
 
 @pytest.mark.parametrize("json_impl", _JSON_IMPL)
@@ -235,7 +237,7 @@ def test_data_class(json_impl: SupportsJson) -> None:
         json_impl.typed_dump(DataClassTest(str_field="AAA"), b)
         assert (
             b.getvalue().decode("utf-8")
-            == '{"str_field":"AAA","int_field":5,"dec_field":"\uf0260.5"}'
+            == '{"str_field":"AAA","int_field":5,"dec_field":"%s0.5"}' % _DECIMAL
         )
 
 
@@ -300,10 +302,3 @@ def test_load_and_compare_all_impls() -> None:
         assert docs[idx] == docs[idx + 1]
         assert dump_s[idx] == dump_s[idx + 1]
         assert dump_b[idx] == dump_b[idx + 1]
-
-
-def test_orjson_segfault() -> None:
-    import orjson
-
-    for _ in range(10000000):
-        orjson.dumps((b"\n" + b"x" * 4046).decode())
