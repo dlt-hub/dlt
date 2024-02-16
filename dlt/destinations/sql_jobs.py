@@ -233,7 +233,7 @@ class SqlMergeJob(SqlBaseJob):
                 FROM (
                     SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY {order_by}) AS _dlt_dedup_rn, {inner_col_str}
                     FROM {table_name}
-                ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1 AND {condition}
+                ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1 AND ({condition})
         """
 
     @classmethod
