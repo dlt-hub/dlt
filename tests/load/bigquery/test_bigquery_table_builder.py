@@ -5,9 +5,6 @@ from typing import Iterator, Dict, Any, List
 import google
 import pytest
 import sqlfluff
-import sqlglot
-from sqlglot.diff import Insert, exp
-from sqlglot.expressions import PartitionedByProperty
 
 import dlt
 from dlt.common.configuration import resolve_configuration
@@ -446,43 +443,25 @@ def test_adapter_hints_partitioning(destination_config: DestinationTestConfigura
         full_refresh=True,
     )
 
-    # noinspection PyArgumentList
     pipeline.run(sources())
 
     with pipeline.sql_client() as c:
-        with c.execute_query(
-            "SELECT ddl FROM `INFORMATION_SCHEMA.TABLES` WHERE table_name = 'hints'"
-        ) as cur:
-            hints_ddl: str = cur.fetchone()[0]
-            ast_hints = sqlglot.parse_one(hints_ddl, read="bigquery")
-            assert hints_ddl
+        nc: google.cloud.bigquery.client.Client = c.native_connection
 
-        with c.execute_query(
-            "SELECT ddl FROM `INFORMATION_SCHEMA.TABLES` WHERE table_name = 'no_hints'"
-        ) as cur:
-            no_hints_ddl: str = cur.fetchone()[0]
-            ast_no_hints = sqlglot.parse_one(no_hints_ddl, read="bigquery")
-            assert no_hints_ddl
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
+        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
 
-    diff = sqlglot.diff(ast_no_hints, ast_hints)
+        no_hints_table = nc.get_table(fqtn_no_hints)
+        hints_table = nc.get_table(fqtn_hints)
 
-    # Each table can only have one partition.
-    partition_inserts = list(
-        filter(
-            lambda a: isinstance(a, Insert)
-            and isinstance(getattr(a, "expression", None), PartitionedByProperty),
-            diff,
-        )
-    )
-    assert len(partition_inserts) == 1
+        assert not no_hints_table.range_partitioning, "`no_hints` table IS clustered on a column."
 
-    partition_insert = partition_inserts[0]
-
-    # Traverse the ast to make sure the correct column was partitioned on.
-    if ast := getattr(partition_insert, "expression", None):
-        assert ast.find(exp.Column).name == "col1"
-    else:
-        raise ValueError("Expected a partition definition in the AST diff, but none was found.")
+        if not hints_table.range_partitioning:
+            raise ValueError("`hints` table IS NOT clustered on a column.")
+        else:
+            assert (
+                hints_table.range_partitioning.field == "col1"
+            ), "`hints` table IS NOT clustered on column `col1`."
 
 
 def test_adapter_hints_parsing_round_half_away_from_zero() -> None:
@@ -524,7 +503,6 @@ def test_adapter_hints_round_half_away_from_zero(
         full_refresh=True,
     )
 
-    # noinspection PyArgumentList
     pipeline.run(sources())
 
     with pipeline.sql_client() as c:
@@ -585,7 +563,6 @@ def test_adapter_hints_round_half_even(destination_config: DestinationTestConfig
         full_refresh=True,
     )
 
-    # noinspection PyArgumentList
     pipeline.run(sources())
 
     with pipeline.sql_client() as c:
@@ -673,7 +650,6 @@ def test_adapter_hints_multiple_clustering(
         full_refresh=True,
     )
 
-    # noinspection PyArgumentList
     pipeline.run(sources())
 
     with pipeline.sql_client() as c:
@@ -685,7 +661,7 @@ def test_adapter_hints_multiple_clustering(
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
 
-        no_hints_cluster_fields = (
+        no_hints_partition_fields = (
             [] if no_hints_table.clustering_fields is None else no_hints_table.clustering_fields
         )
         hints_cluster_fields = (
@@ -722,7 +698,6 @@ def test_adapter_hints_clustering(destination_config: DestinationTestConfigurati
         full_refresh=True,
     )
 
-    # noinspection PyArgumentList
     pipeline.run(sources())
 
     with pipeline.sql_client() as c:
@@ -809,7 +784,6 @@ def test_adapter_hints_table_description(destination_config: DestinationTestConf
         full_refresh=True,
     )
 
-    # noinspection PyArgumentList
     pipeline.run(sources())
 
     with pipeline.sql_client() as c:
@@ -858,7 +832,6 @@ def test_adapter_hints_table_expiration(destination_config: DestinationTestConfi
         full_refresh=True,
     )
 
-    # noinspection PyArgumentList
     pipeline.run(sources())
 
     with pipeline.sql_client() as c:
