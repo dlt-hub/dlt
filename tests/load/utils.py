@@ -153,6 +153,7 @@ def destinations_configs(
     subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
     file_format: Optional[TLoaderFileFormat] = None,
+    supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
     # sanity check
@@ -371,6 +372,10 @@ def destinations_configs(
     if file_format:
         destination_configs = [
             conf for conf in destination_configs if conf.file_format == file_format
+        ]
+    if supports_merge is not None:
+        destination_configs = [
+            conf for conf in destination_configs if conf.supports_merge == supports_merge
         ]
     if supports_dbt is not None:
         destination_configs = [

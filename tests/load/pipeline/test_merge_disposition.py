@@ -491,7 +491,9 @@ def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfig
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("key_type", ["primary_key", "merge_key"])
 def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_type: str) -> None:
@@ -611,7 +613,9 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
 )
 def test_hard_delete_hint_config(destination_config: DestinationTestConfiguration) -> None:
     table_name = "test_hard_delete_hint_non_bool"
@@ -669,7 +673,9 @@ def test_hard_delete_hint_config(destination_config: DestinationTestConfiguratio
 
 
 @pytest.mark.parametrize(
-    "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
 )
 def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> None:
     table_name = "test_dedup_sort_hint"
