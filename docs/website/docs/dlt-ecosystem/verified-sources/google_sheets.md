@@ -321,6 +321,25 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 ## Data types
 
 The `dlt` normalizer uses the first row of data to infer types and attempts to coerce subsequent rows, creating variant columns if unsuccessful. This is standard behavior. It also recognizes date and time types using additional metadata from the first row.
+To handle mixed data types in a single column, you can provide a type hint for the affected column in the resource. Use the `apply_hints` method on the resource to achieve this. Here's how you can do it:
+
+```
+for resource in resources:
+    resource.apply_hints(columns={"total_amount": {"data_type": "double"}})
+```
+In this example, the total_amount column is enforced to be of type double. This will ensure that all values in the total_amount column are treated as double, regardless of whether they are integers or decimals in the original Google Sheets data.
+
+for a single resource (say Sheet1), you can simply use:
+```
+source.Sheet1.apply_hints(columns={"total_amount": {"data_type": "double"}})
+```
+
+To get name of resources you can use:
+```
+print(source.resources.keys())
+```
+
+To read more, please refer to the documentation: 
 
 ## Sources and resources
 
