@@ -1,4 +1,4 @@
-from typing import Any, Optional, Literal
+from typing import Any, Optional, Literal, Dict
 
 from dateutil import parser
 
@@ -7,9 +7,9 @@ from dlt.common.schema.typing import (
     TColumnNames,
     TTableSchemaColumns,
 )
-from dlt.common.typing import DictStrAny
 from dlt.destinations.utils import ensure_resource
-from dlt.extract import DltResource, resource as make_resource
+from dlt.extract import DltResource
+from dlt.extract.typing import TTableHintTemplate
 
 
 PARTITION_HINT: Literal["x-bigquery-partition"] = "x-bigquery-partition"
@@ -64,15 +64,14 @@ def bigquery_adapter(
         ValueError: If any hint is invalid or none are specified.
 
     Examples:
-        >>> data = [{"name": "Alice", "description": "Software developer", "date_hired": 1700784000}]
+        >>> data = [{"name": "Marcel", "description": "Raccoon Engineer", "date_hired": 1700784000}]
         >>> bigquery_adapter(data, partition="date_hired", table_expiration_datetime="2024-01-30", table_description="Employee Data")
         [DltResource with hints applied]
     """
-    # Wrap `data` in a resource if not an instance already.
     resource = ensure_resource(data)
 
+    additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
     column_hints: TTableSchemaColumns = {}
-    table_hints: DictStrAny = {}
 
     if partition:
         if not isinstance(partition, str):
@@ -131,7 +130,7 @@ def bigquery_adapter(
             raise ValueError(
                 "`table_description` must be string representing BigQuery table description."
             )
-        table_hints.update({TABLE_DESCRIPTION_HINT: table_description})
+        additional_table_hints |= {TABLE_DESCRIPTION_HINT: table_description}  # type: ignore
 
     if table_expiration_datetime:
         if not isinstance(table_expiration_datetime, str):
@@ -143,12 +142,12 @@ def bigquery_adapter(
             parsed_table_expiration_datetime = parser.parse(table_expiration_datetime).replace(
                 tzinfo=timezone.utc
             )
-            table_hints.update({TABLE_EXPIRATION_HINT: parsed_table_expiration_datetime})
+            additional_table_hints |= {TABLE_EXPIRATION_HINT: parsed_table_expiration_datetime}  # type: ignore
         except ValueError as e:
             raise ValueError(f"{table_expiration_datetime} could not be parsed!") from e
 
-    if column_hints or table_hints:
-        resource.apply_hints(columns=column_hints, additional_table_hints=table_hints)
+    if column_hints or additional_table_hints:
+        resource.apply_hints(columns=column_hints, additional_table_hints=additional_table_hints)
     else:
         raise ValueError(
             "AT LEAST one of `partition`, `cluster`, `round_half_away_from_zero`,"
