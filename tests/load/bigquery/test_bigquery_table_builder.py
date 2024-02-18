@@ -795,7 +795,7 @@ def test_adapter_hints_table_description(destination_config: DestinationTestConf
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
 
-        assert no_hints_table.description is None
+        assert not no_hints_table.description
         assert hints_table.description == "Once upon a time a small table got hinted."
 
 
@@ -843,5 +843,5 @@ def test_adapter_hints_table_expiration(destination_config: DestinationTestConfi
         no_hints_table = nc.get_table(fqtn_no_hints)
         hints_table = nc.get_table(fqtn_hints)
 
-        assert no_hints_table.expires is None
+        assert not no_hints_table.expires
         assert hints_table.expires == pendulum.datetime(2030, 1, 1, 0)
