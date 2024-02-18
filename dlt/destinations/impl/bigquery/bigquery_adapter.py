@@ -76,10 +76,7 @@ def bigquery_adapter(
     if partition:
         if not isinstance(partition, str):
             raise ValueError("`partition` must be a single column name as a string.")
-        column_hints[partition] = {
-            "name": partition,
-            PARTITION_HINT: True,  # type: ignore
-        }
+        column_hints[partition] = {"name": partition, PARTITION_HINT: True}  # type: ignore[typeddict-unknown-key]
 
     if cluster:
         if isinstance(cluster, str):
@@ -89,10 +86,7 @@ def bigquery_adapter(
                 "`cluster` must be a list of column names or a single column name as a string."
             )
         for column_name in cluster:
-            column_hints[column_name] = {
-                "name": column_name,
-                CLUSTER_HINT: True,  # type: ignore
-            }
+            column_hints[column_name] = {"name": column_name, CLUSTER_HINT: True}  # type: ignore[typeddict-unknown-key]
 
     # Implementing rounding logic flags
     if round_half_away_from_zero:
@@ -104,7 +98,7 @@ def bigquery_adapter(
                 " name."
             )
         for column_name in round_half_away_from_zero:
-            column_hints[column_name] = {"name": column_name, ROUND_HALF_AWAY_FROM_ZERO_HINT: True}  # type: ignore
+            column_hints[column_name] = {"name": column_name, ROUND_HALF_AWAY_FROM_ZERO_HINT: True}  # type: ignore[typeddict-unknown-key]
 
     if round_half_even:
         if isinstance(round_half_even, str):
@@ -114,7 +108,7 @@ def bigquery_adapter(
                 "`round_half_even` must be a list of column names or a single column name."
             )
         for column_name in round_half_even:
-            column_hints[column_name] = {"name": column_name, ROUND_HALF_EVEN_HINT: True}  # type: ignore
+            column_hints[column_name] = {"name": column_name, ROUND_HALF_EVEN_HINT: True}  # type: ignore[typeddict-unknown-key]
 
     if round_half_away_from_zero and round_half_even:
         if intersection_columns := set(round_half_away_from_zero).intersection(
@@ -130,7 +124,7 @@ def bigquery_adapter(
             raise ValueError(
                 "`table_description` must be string representing BigQuery table description."
             )
-        additional_table_hints |= {TABLE_DESCRIPTION_HINT: table_description}  # type: ignore
+        additional_table_hints |= {TABLE_DESCRIPTION_HINT: table_description}  # type: ignore[operator]
 
     if table_expiration_datetime:
         if not isinstance(table_expiration_datetime, str):
@@ -142,7 +136,7 @@ def bigquery_adapter(
             parsed_table_expiration_datetime = parser.parse(table_expiration_datetime).replace(
                 tzinfo=timezone.utc
             )
-            additional_table_hints |= {TABLE_EXPIRATION_HINT: parsed_table_expiration_datetime}  # type: ignore
+            additional_table_hints |= {TABLE_EXPIRATION_HINT: parsed_table_expiration_datetime}  # type: ignore[operator]
         except ValueError as e:
             raise ValueError(f"{table_expiration_datetime} could not be parsed!") from e
 

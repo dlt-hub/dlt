@@ -749,7 +749,7 @@ def test_adapter_hints_round_mutual_exclusivity_requirement() -> None:
         )
 
 
-def test_adapter_hints_parsing_table_description() -> None:
+def test_additional_table_hints_parsing_table_description() -> None:
     @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
     def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
@@ -765,7 +765,9 @@ def test_adapter_hints_parsing_table_description() -> None:
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_adapter_hints_table_description(destination_config: DestinationTestConfiguration) -> None:
+def test_additional_table_hints_table_description(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     @dlt.resource(columns=[{"name": "col1", "data_type": "text"}])
     def no_hints() -> Iterator[Dict[str, str]]:
         yield from [{"col1": str(i)} for i in range(10)]
@@ -799,7 +801,7 @@ def test_adapter_hints_table_description(destination_config: DestinationTestConf
         assert hints_table.description == "Once upon a time a small table got hinted."
 
 
-def test_adapter_hints_parsing_table_expiration() -> None:
+def test_additional_table_hints_parsing_table_expiration() -> None:
     @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
     def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
@@ -814,7 +816,9 @@ def test_adapter_hints_parsing_table_expiration() -> None:
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_adapter_hints_table_expiration(destination_config: DestinationTestConfiguration) -> None:
+def test_additional_table_hints_table_expiration(
+    destination_config: DestinationTestConfiguration,
+) -> None:
     @dlt.resource(columns=[{"name": "col1", "data_type": "text"}])
     def no_hints() -> Iterator[Dict[str, str]]:
         yield from [{"col1": str(i)} for i in range(10)]
