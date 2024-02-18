@@ -255,6 +255,53 @@ def sql_table(
 
 `write_disposition`: Can be "merge", "replace", or "append".
 
+## Incremental Configuration
+Efficient data management often requires loading only new or updated data from your SQL databases, rather than reprocessing the entire dataset. This is where incremental loading comes into play.
+
+### Understanding Incremental Loading
+Incremental loading allows you to specify a cursor column (such as a timestamp or an auto-incrementing ID) to track changes. By setting an initial value for this column, you ensure that only data rows newer than this value are loaded during the pipeline execution, reducing processing time and resource usage.
+
+:::tip Incremental Loading Example
+Consider a table with a `last_modified` timestamp column. By setting this column as your cursor and specifying an initial value, the loader generates a SQL query filtering rows with `last_modified` values greater than the specified initial value.
+:::
+
+### Configuring Incremental Loading
+**Choose a Cursor Column**: Identify a column in your SQL table that can serve as a reliable indicator of new or updated rows. Common choices include timestamp columns or auto-incrementing IDs.
+
+**Set an Initial Value**: Determine an appropriate initial value for the cursor column. This could be a specific timestamp or ID from which you wish to start loading data.
+
+**Apply Incremental Configuration**: Utilize the incremental argument in your source or resource configuration to enable incremental loading.
+
+```python
+from sql_database import sql_table
+from datetime import datetime
+
+# Example: Incrementally loading a table based on a timestamp column
+table = sql_table(
+    table='your_table_name',
+    incremental=dlt.sources.incremental(
+        'updated',  # Cursor column name
+        initial_value=datetime(2024, 1, 1)  # Initial cursor value
+    )
+)
+```
+
+**Deduplication**: When using incremental loading, the system automatically handles the deduplication of rows based on the primary key (if available) or row hash for tables without a primary key.
+
+### Best Practices
+**Cursor Column Selection**: Ensure the cursor column is regularly updated and accurately reflects changes in your data.
+
+**Initial Value Adjustment**: Regularly review and adjust the initial value as needed to balance load performance and data completeness.
+
+**Monitor Performance**: Keep an eye on pipeline performance, especially when dealing with large datasets or tables without a primary key, to ensure efficiency.
+
+:::note
+Incorporating incremental loading into your SQL data pipelines can significantly enhance performance by minimizing unnecessary data processing and transfer.
+:::
+
+### Troubleshooting
+If you encounter issues where the expected WHERE clause for incremental loading is not generated, ensure your configuration aligns with the `sql_table` resource rather than applying hints post-resource creation. This ensures the loader generates the correct query for incremental loading.
+
 ## Customization
 ### Create your own pipeline
 
