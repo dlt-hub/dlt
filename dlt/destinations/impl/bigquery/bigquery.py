@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import ClassVar, Optional, Sequence, Tuple, List, cast
+from typing import ClassVar, Optional, Sequence, Tuple, List, cast, Dict
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -21,6 +21,7 @@ from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
 from dlt.common.schema.utils import get_inherited_table_hint
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.storages.file_storage import FileStorage
+from dlt.common.typing import DictStrAny
 from dlt.destinations.exceptions import (
     DestinationSchemaWillNotUpdate,
     DestinationTransientException,
@@ -34,6 +35,7 @@ from dlt.destinations.impl.bigquery.bigquery_adapter import (
     TABLE_DESCRIPTION_HINT,
     ROUND_HALF_EVEN_HINT,
     ROUND_HALF_AWAY_FROM_ZERO_HINT,
+    TABLE_EXPIRATION_HINT,
 )
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
@@ -224,7 +226,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 if reason == "notFound":
                     # google.api_core.exceptions.NotFound: 404 – table not found
                     raise UnknownTableException(table["name"]) from gace
-                elif reason == "duplicate":  # google.api_core.exceptions.Conflict: 409 PUT – already exists
+                elif (
+                    reason == "duplicate"
+                ):  # google.api_core.exceptions.Conflict: 409 PUT – already exists
                     return self.restore_file_load(file_path)
                 elif reason in BQ_TERMINAL_REASONS:
                     # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
@@ -236,11 +240,9 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return job
 
     def _get_table_update_sql(
-        self,
-        table_name: str,
-        new_columns: Sequence[TColumnSchema],
-        generate_alter: bool
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
+        table: Optional[TTableSchema] = self.get_load_table(table_name)
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
 
@@ -253,42 +255,69 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                     canonical_name, col_names, "Partition requested for more than one column"
                 )
             elif (c := partition_list[0])["data_type"] == "date":
-                sql[0] = f"{sql[0]}\nPARTITION BY {self.capabilities.escape_identifier(c['name'])}"
+                sql[0] += f"\nPARTITION BY {self.capabilities.escape_identifier(c['name'])}"
             elif (c := partition_list[0])["data_type"] == "timestamp":
-                sql[0] = (
-                    f"{sql[0]}\nPARTITION BY DATE({self.capabilities.escape_identifier(c['name'])})"
-                )
+                sql[0] += f"\nPARTITION BY DATE({self.capabilities.escape_identifier(c['name'])})"
+
             # Automatic partitioning of an INT64 type requires us to be prescriptive - we treat the column as a UNIX timestamp.
             # This is due to the bounds requirement of GENERATE_ARRAY function for partitioning.
             # The 10,000 partitions limit makes it infeasible to cover the entire `bigint` range.
             # The array bounds, with daily partitions (86400 seconds in a day), are somewhat arbitrarily chosen.
             # See: https://dlthub.com/devel/dlt-ecosystem/destinations/bigquery#supported-column-hints
             elif (c := partition_list[0])["data_type"] == "bigint":
-                sql[0] = (
-                    f"{sql[0]}\nPARTITION BY"
-                    f" RANGE_BUCKET({self.capabilities.escape_identifier(c['name'])},"
-                    " GENERATE_ARRAY(-172800000, 691200000, 86400))"
-                )
+                sql[0] += f"\nPARTITION BY RANGE_BUCKET({self.capabilities.escape_identifier(c['name'])}, GENERATE_ARRAY(-172800000, 691200000, 86400))"
+
         if cluster_list := [
             self.capabilities.escape_identifier(c["name"])
             for c in new_columns
             if c.get("cluster") or c.get(CLUSTER_HINT, False)
         ]:
-            sql[0] = sql[0] + "\nCLUSTER BY " + ", ".join(cluster_list)
+            sql[0] += "\nCLUSTER BY " + ", ".join(cluster_list)
+
+        # Table options.
+        if table:
+            table_options: DictStrAny = {
+                "description": (
+                    f"'{table.get(TABLE_DESCRIPTION_HINT)}'"
+                    if table.get(TABLE_DESCRIPTION_HINT)
+                    else None
+                ),
+                "expiration_timestamp": (
+                    f"TIMESTAMP '{table.get(TABLE_EXPIRATION_HINT)}'"
+                    if table.get(TABLE_EXPIRATION_HINT)
+                    else None
+                ),
+            }
+            if not any(table_options.values()):
+                return sql
+
+            if generate_alter:  # sourcery skip: remove-unnecessary-else
+                raise NotImplementedError("Update table options not yet implemented.")
+            else:
+                sql[0] += (
+                    "\nOPTIONS ("
+                    + ", ".join(
+                        [f"{key}={value}" for key, value in table_options.items() if value is not None]
+                    )
+                    + ")"
+                )
+
         return sql
 
-
-    def get_load_table(self, table_name: str, prepare_for_staging: bool = False) -> Optional[TTableSchema]:
+    def get_load_table(
+        self, table_name: str, prepare_for_staging: bool = False
+    ) -> Optional[TTableSchema]:
         table = super().get_load_table(table_name, prepare_for_staging)
         if table is None:
             return None
         elif table_name in self.schema.data_table_names():
             if TABLE_DESCRIPTION_HINT not in table:
                 table[TABLE_DESCRIPTION_HINT] = (  # type: ignore[name-defined, typeddict-unknown-key, unused-ignore]
-                    get_inherited_table_hint(self.schema.tables, table_name, TABLE_DESCRIPTION_HINT, allow_none=True)
+                    get_inherited_table_hint(
+                        self.schema.tables, table_name, TABLE_DESCRIPTION_HINT, allow_none=True
+                    )
                 )
         return table
-
 
     def _get_column_def_sql(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
         name = self.capabilities.escape_identifier(column["name"])
