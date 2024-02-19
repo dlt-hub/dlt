@@ -294,7 +294,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             if not any(table_options.values()):
                 return sql
 
-            if generate_alter:  # sourcery skip: remove-unnecessary-else
+            if generate_alter:
                 raise NotImplementedError("Update table options not yet implemented.")
             else:
                 sql[0] += (

@@ -749,7 +749,7 @@ def test_adapter_hints_round_mutual_exclusivity_requirement() -> None:
         )
 
 
-def test_additional_table_hints_parsing_table_description() -> None:
+def test_adapter_additional_table_hints_parsing_table_description() -> None:
     @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
     def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
@@ -765,7 +765,7 @@ def test_additional_table_hints_parsing_table_description() -> None:
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_additional_table_hints_table_description(
+def test_adapter_additional_table_hints_create_table_description(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     @dlt.resource(columns=[{"name": "col1", "data_type": "text"}])
@@ -801,7 +801,48 @@ def test_additional_table_hints_table_description(
         assert hints_table.description == "Once upon a time a small table got hinted."
 
 
-def test_additional_table_hints_parsing_table_expiration() -> None:
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_additional_table_hints_alter_table_description(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "text"}])
+    def no_hints() -> Iterator[Dict[str, str]]:
+        yield from [{"col1": str(i)} for i in range(10)]
+
+    hints = bigquery_adapter(
+        no_hints._clone(new_name="hints"),
+        table_description="Once upon a time a small table got hinted.",
+    )
+
+    @dlt.source(max_table_nesting=0)
+    def sources() -> List[DltResource]:
+        return [no_hints, hints]
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        full_refresh=True,
+    )
+
+    pipeline.run(sources())
+
+    with pipeline.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection
+
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
+        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
+
+        no_hints_table = nc.get_table(fqtn_no_hints)
+        hints_table = nc.get_table(fqtn_hints)
+
+        assert not no_hints_table.description
+        assert hints_table.description == "Once upon a time a small table got hinted."
+
+
+def test_adapter_additional_table_hints_parsing_table_expiration() -> None:
     @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
     def some_data() -> Iterator[Dict[str, str]]:
         yield from next(sequence_generator())
@@ -816,7 +857,7 @@ def test_additional_table_hints_parsing_table_expiration() -> None:
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
     ids=lambda x: x.name,
 )
-def test_additional_table_hints_table_expiration(
+def test_adapter_additional_table_hints_create_table_expiration(
     destination_config: DestinationTestConfiguration,
 ) -> None:
     @dlt.resource(columns=[{"name": "col1", "data_type": "text"}])
