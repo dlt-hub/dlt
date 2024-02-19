@@ -187,13 +187,3 @@ uniquely identifies a specific page or database.
 
 The database name ("use_name") is optional; if skipped, the pipeline will fetch it from Notion
 automatically.
-
-## Additional Setup guides
-- [Load data from notion to athena in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-athena)
-- [Load data from notion to bigquery in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-bigquery)
-- [Load data from notion to databricks in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-databricks)
-- [Load data from notion to duckdb in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-duckdb)
-- [Load data from notion to postgres in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-postgres)
-- [Load data from notion to redshift in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-redshift)
-- [Load data from notion to snowflake in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-snowflake)
-- [Load data from notion to synapse in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-synapse)
