@@ -100,12 +100,13 @@ def pydantic_to_table_schema_columns(
             # This applies to pydantic.Json fields, the inner type is the type after json parsing
             # (In pydantic 2 the outer annotation is the final type)
             annotation = inner_annotation
+
         nullable = is_optional_type(annotation)
 
-        if is_union_type(annotation):
-            inner_type = get_args(annotation)[0]
-        else:
-            inner_type = extract_inner_type(annotation)
+        inner_type = extract_inner_type(annotation)
+        if is_union_type(inner_type):
+            first_argument_type = get_args(inner_type)[0]
+            inner_type = extract_inner_type(first_argument_type)
 
         if inner_type is Json:  # Same as `field: Json[Any]`
             inner_type = Any
@@ -229,7 +230,7 @@ def apply_schema_contract_to_model(
         """Recursively recreates models with applied schema contract"""
         if is_annotated(t_):
             a_t, *a_m = get_args(t_)
-            return Annotated[_process_annotation(a_t), a_m]  # type: ignore
+            return Annotated[_process_annotation(a_t), *a_m]  # type: ignore
         elif is_list_generic_type(t_):
             l_t: Type[Any] = get_args(t_)[0]
             try:
