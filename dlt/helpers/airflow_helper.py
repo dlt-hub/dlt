@@ -135,7 +135,7 @@ class PipelineTasksGroup(TaskGroup):
         pipeline: Pipeline,
         data: Any,
         *,
-        decompose: Literal["none", "serialize", "parallel"] = "none",
+        decompose: Literal["none", "serialize", "parallel", "parallel-isolated"] = "none",
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
         loader_file_format: TLoaderFileFormat = None,
@@ -163,6 +163,9 @@ class PipelineTasksGroup(TaskGroup):
                               will remain sequential. Use another executor, e.g. CeleryExecutor)!
                         NOTE: The first component of the source is done first, after that
                               the rest are executed in parallel to each other.
+                    parallel-isolated - decompose the source into a parallel Airflow task group.
+                        NOTE: In case the SequentialExecutor is used by Airflow, the tasks
+                              will remain sequential. Use another executor, e.g. CeleryExecutor)!
             table_name: (str): The name of the table to which the data should be loaded within the `dataset`
             write_disposition (TWriteDisposition, optional): Same as in `run` command. Defaults to None.
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package.
@@ -308,15 +311,39 @@ class PipelineTasksGroup(TaskGroup):
                 if pipeline.full_refresh:
                     raise ValueError("Cannot decompose pipelines with full_refresh set")
 
-                # parallel tasks
                 tasks = []
                 sources = data.decompose("scc")
                 start = make_task(pipeline, sources[0])
 
+                # parallel tasks
                 for source in sources[1:]:
                     tasks.append(make_task(pipeline, source))
 
                 end = DummyOperator(task_id=f"{task_name(pipeline, data)}_end")
+
+                if tasks:
+                    start >> tasks >> end
+                    return [start] + tasks + [end]
+
+                start >> end
+                return [start, end]
+            elif decompose == "parallel-isolated":
+                if not isinstance(data, DltSource):
+                    raise ValueError("Can only decompose dlt sources")
+
+                if pipeline.full_refresh:
+                    raise ValueError("Cannot decompose pipelines with full_refresh set")
+
+                # parallel tasks
+                tasks = []
+                t_name = task_name(pipeline, data)
+
+                start = DummyOperator(task_id=f"{t_name}_start")
+
+                for source in data.decompose("scc"):
+                    tasks.append(make_task(pipeline, source))
+
+                end = DummyOperator(task_id=f"{t_name}_end")
 
                 if tasks:
                     start >> tasks >> end

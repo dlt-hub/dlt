@@ -275,6 +275,60 @@ def test_parallel_run():
         assert task.upstream_task_ids == set([dag_def.tasks[0].task_id])
 
 
+def test_parallel_isolated_run():
+    pipeline_standalone = dlt.pipeline(
+        pipeline_name="pipeline_parallel",
+        dataset_name="mock_data_" + uniq_id(),
+        destination="duckdb",
+        credentials=":pipeline:",
+    )
+    pipeline_standalone.run(mock_data_source())
+    pipeline_standalone_counts = load_table_counts(
+        pipeline_standalone, *[t["name"] for t in pipeline_standalone.default_schema.data_tables()]
+    )
+
+    tasks_list: List[PythonOperator] = None
+
+    quackdb_path = os.path.join(TEST_STORAGE_ROOT, "pipeline_dag_parallel.duckdb")
+
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_parallel():
+        nonlocal tasks_list
+        tasks = PipelineTasksGroup(
+            "pipeline_dag_parallel", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+        )
+
+        # set duckdb to be outside of pipeline folder which is dropped on each task
+        pipeline_dag_parallel = dlt.pipeline(
+            pipeline_name="pipeline_dag_parallel",
+            dataset_name="mock_data_" + uniq_id(),
+            destination="duckdb",
+            credentials=quackdb_path,
+        )
+        tasks_list = tasks.add_run(
+            pipeline_dag_parallel,
+            mock_data_source(),
+            decompose="parallel-isolated",
+            trigger_rule="all_done",
+            retries=0,
+            provide_context=True,
+        )
+
+    dag_def = dag_parallel()
+    assert len(tasks_list) == 5
+    dag_def.test()
+    pipeline_dag_parallel = dlt.attach(pipeline_name="pipeline_dag_parallel")
+    pipeline_dag_decomposed_counts = load_table_counts(
+        pipeline_dag_parallel,
+        *[t["name"] for t in pipeline_dag_parallel.default_schema.data_tables()],
+    )
+    assert pipeline_dag_decomposed_counts == pipeline_standalone_counts
+
+    for task in dag_def.tasks[1:4]:
+        assert task.downstream_task_ids == set([dag_def.tasks[-1].task_id])
+        assert task.upstream_task_ids == set([dag_def.tasks[0].task_id])
+
+
 def test_parallel_run_single_resource():
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_parallel",
