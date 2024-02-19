@@ -1,14 +1,18 @@
 import sys
 from copy import copy
+from dataclasses import dataclass, field
+import uuid
 import pytest
 from typing import (
     ClassVar,
     Final,
+    Generic,
     Sequence,
     Mapping,
     Dict,
     MutableMapping,
     MutableSequence,
+    TypeVar,
     Union,
     Optional,
     List,
@@ -29,7 +33,7 @@ from dlt.common.libs.pydantic import (
     validate_items,
     create_list_model,
 )
-from pydantic import BaseModel, Json, AnyHttpUrl, ConfigDict, ValidationError
+from pydantic import UUID4, BaseModel, Json, AnyHttpUrl, ConfigDict, ValidationError
 
 from dlt.common.schema.exceptions import DataValidationError
 
@@ -118,6 +122,18 @@ TEST_MODEL_INSTANCE = Model(
 )
 
 
+class BookGenre(str, Enum):
+    scifi = "scifi"
+    action = "action"
+    thriller = "thriller"
+
+
+@dataclass
+class BookInfo:
+    isbn: Optional[str] = field(default="ISBN")
+    author: Optional[str] = field(default="Charles Bukowski")
+
+
 class UserLabel(BaseModel):
     label: str
 
@@ -132,14 +148,32 @@ class UserAddress(BaseModel):
     wr_list: MutableSequence[Dict[str, UserLabel]]
 
 
-class User(BaseModel):
+class BaseUser(BaseModel):
+    """
+    Base model for tracking event details
+    Models in the schema registry must inherit from this
+    """
+
+    model_config = ConfigDict(  # discard unspecified fields when writing to Snowflake
+        extra="ignore"
+    )
+
+
+BaseUserT = TypeVar("BaseUserT", bound=BaseUser)
+
+
+class User(BaseModel, Generic[BaseUserT]):
     user_id: int
+    account_id: UUID4
+    optional_uuid: Optional[UUID4]
     name: Annotated[str, "PII", "name"]
+    favorite_book: Annotated[Union[Annotated[BookInfo, "meta"], BookGenre, None], "union metadata"]
     created_at: Optional[datetime]
     labels: List[str]
     user_label: UserLabel
     user_labels: List[UserLabel]
     address: Annotated[UserAddress, "PII", "address"]
+    uuid_or_str: Union[str, UUID4, None]
     unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
     location: Annotated[Optional[Union[str, List[str]]], None]
     something_required: Annotated[Union[str, int], type(None)]
@@ -151,6 +185,9 @@ class User(BaseModel):
 
 USER_INSTANCE_DATA = dict(
     user_id=1,
+    account_id=uuid.uuid4(),
+    optional_uuid=None,
+    favorite_book=BookInfo(isbn="isbn-xyz", author="author"),
     name="random name",
     created_at=datetime.now(),
     labels=["str"],
@@ -180,6 +217,7 @@ USER_INSTANCE_DATA = dict(
         ],
     ),
     unity=dict(label="123"),
+    uuid_or_str=uuid.uuid4(),
     location="Florida keys",
     final_location="Ginnie Springs",
     something_required=123,

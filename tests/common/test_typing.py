@@ -140,7 +140,7 @@ def test_extract_inner_type() -> None:
     assert extract_inner_type(Final[Annotated[Optional[str], None]]) is str  # type: ignore[arg-type]
     assert extract_inner_type(Final[Annotated[Union[str, int], None]]) is Union[str, int]  # type: ignore[arg-type]
     assert extract_inner_type(Annotated[Union[str, int], type(None)]) is Union[str, int]  # type: ignore[arg-type]
-    assert extract_inner_type(Annotated[Optional[UUID4], "meta"]) is UUID
+    assert extract_inner_type(Annotated[Optional[UUID4], "meta"]) is UUID  # type: ignore[arg-type]
 
 
 def test_get_config_if_union() -> None:
