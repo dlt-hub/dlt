@@ -109,7 +109,7 @@ def pydantic_to_table_schema_columns(
             inner_type = extract_inner_type(first_argument_type)
 
         if inner_type is Json:  # Same as `field: Json[Any]`
-            inner_type = Any
+            inner_type = Any    # type: ignore[assignment]
 
         if inner_type is Any:  # Any fields will be inferred from data
             continue
@@ -230,7 +230,7 @@ def apply_schema_contract_to_model(
         """Recursively recreates models with applied schema contract"""
         if is_annotated(t_):
             a_t, *a_m = get_args(t_)
-            return Annotated[_process_annotation(a_t), *a_m]  # type: ignore[syntax]
+            return Annotated[_process_annotation(a_t), *a_m]    # type: ignore[return-value]
         elif is_list_generic_type(t_):
             l_t: Type[Any] = get_args(t_)[0]
             try:
