@@ -265,7 +265,10 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             # The array bounds, with daily partitions (86400 seconds in a day), are somewhat arbitrarily chosen.
             # See: https://dlthub.com/devel/dlt-ecosystem/destinations/bigquery#supported-column-hints
             elif (c := partition_list[0])["data_type"] == "bigint":
-                sql[0] += f"\nPARTITION BY RANGE_BUCKET({self.capabilities.escape_identifier(c['name'])}, GENERATE_ARRAY(-172800000, 691200000, 86400))"
+                sql[0] += (
+                    f"\nPARTITION BY RANGE_BUCKET({self.capabilities.escape_identifier(c['name'])},"
+                    " GENERATE_ARRAY(-172800000, 691200000, 86400))"
+                )
 
         if cluster_list := [
             self.capabilities.escape_identifier(c["name"])
@@ -297,7 +300,11 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 sql[0] += (
                     "\nOPTIONS ("
                     + ", ".join(
-                        [f"{key}={value}" for key, value in table_options.items() if value is not None]
+                        [
+                            f"{key}={value}"
+                            for key, value in table_options.items()
+                            if value is not None
+                        ]
                     )
                     + ")"
                 )
