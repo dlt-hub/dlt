@@ -1,6 +1,6 @@
 import os
 from pathlib import Path
-from typing import ClassVar, Optional, Sequence, Tuple, List, cast, Dict, Any, Iterable
+from typing import ClassVar, Optional, Sequence, Tuple, List, cast
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -15,9 +15,10 @@ from dlt.common.destination.reference import (
     LoadJob,
     SupportsStagingDestination,
 )
-from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
+from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
+from dlt.common.schema.utils import get_inherited_table_hint
 from dlt.common.schema.utils import table_schema_has_type
 from dlt.common.storages.file_storage import FileStorage
 from dlt.destinations.exceptions import (
@@ -27,20 +28,19 @@ from dlt.destinations.exceptions import (
     LoadJobTerminalException,
 )
 from dlt.destinations.impl.bigquery import capabilities
+from dlt.destinations.impl.bigquery.bigquery_adapter import (
+    PARTITION_HINT,
+    CLUSTER_HINT,
+    TABLE_DESCRIPTION_HINT,
+    ROUND_HALF_EVEN_HINT,
+    ROUND_HALF_AWAY_FROM_ZERO_HINT,
+)
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.job_impl import NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.type_mapping import TypeMapper
-from dlt.destinations.impl.bigquery.bigquery_adapter import (
-    PARTITION_HINT,
-    CLUSTER_HINT,
-    TABLE_DESCRIPTION_HINT,
-    TABLE_EXPIRATION_HINT,
-    ROUND_HALF_EVEN_HINT,
-    ROUND_HALF_AWAY_FROM_ZERO_HINT,
-)
 
 
 class BigQueryTypeMapper(TypeMapper):
@@ -224,8 +224,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 if reason == "notFound":
                     # google.api_core.exceptions.NotFound: 404 – table not found
                     raise UnknownTableException(table["name"]) from gace
-                elif reason == "duplicate":
-                    # google.api_core.exceptions.Conflict: 409 PUT – already exists
+                elif reason == "duplicate":  # google.api_core.exceptions.Conflict: 409 PUT – already exists
                     return self.restore_file_load(file_path)
                 elif reason in BQ_TERMINAL_REASONS:
                     # google.api_core.exceptions.BadRequest - will not be processed ie bad job name
@@ -240,8 +239,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self,
         table_name: str,
         new_columns: Sequence[TColumnSchema],
-        generate_alter: bool,
-        separate_alters: bool = False,
+        generate_alter: bool
     ) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
@@ -278,6 +276,19 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         ]:
             sql[0] = sql[0] + "\nCLUSTER BY " + ", ".join(cluster_list)
         return sql
+
+
+    def get_load_table(self, table_name: str, prepare_for_staging: bool = False) -> Optional[TTableSchema]:
+        table = super().get_load_table(table_name, prepare_for_staging)
+        if table is None:
+            return None
+        elif table_name in self.schema.data_table_names():
+            if TABLE_DESCRIPTION_HINT not in table:
+                table[TABLE_DESCRIPTION_HINT] = (  # type: ignore[name-defined, typeddict-unknown-key, unused-ignore]
+                    get_inherited_table_hint(self.schema.tables, table_name, TABLE_DESCRIPTION_HINT, allow_none=True)
+                )
+        return table
+
 
     def _get_column_def_sql(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
         name = self.capabilities.escape_identifier(column["name"])
