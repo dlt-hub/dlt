@@ -17,8 +17,8 @@ try:
     from airflow.configuration import conf
     from airflow.models import TaskInstance
     from airflow.utils.task_group import TaskGroup
-    from airflow.operators.python import PythonOperator
-    from airflow.operators.python import get_current_context
+    from airflow.operators.dummy import DummyOperator  # type: ignore
+    from airflow.operators.python import PythonOperator, get_current_context
 except ModuleNotFoundError:
     raise MissingDependencyException("Airflow", ["airflow>=2.0.0"])
 
@@ -135,7 +135,7 @@ class PipelineTasksGroup(TaskGroup):
         pipeline: Pipeline,
         data: Any,
         *,
-        decompose: Literal["none", "serialize"] = "none",
+        decompose: Literal["none", "serialize", "parallel"] = "none",
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
         loader_file_format: TLoaderFileFormat = None,
@@ -154,22 +154,31 @@ class PipelineTasksGroup(TaskGroup):
         Args:
             pipeline (Pipeline): An instance of pipeline used to run the source
             data (Any): Any data supported by `run` method of the pipeline
-            decompose (Literal["none", "serialize"], optional): A source decomposition strategy into Airflow tasks. Defaults to "none".
+            decompose (Literal["none", "serialize", "parallel"], optional):
+                A source decomposition strategy into Airflow tasks:
+                    none - no decomposition, default value.
+                    serialize - decompose the source into a sequence of Airflow tasks.
+                    parallel - decompose the source into a parallel Airflow task group.
+                        NOTE: In case the SequentialExecutor is used by Airflow, the tasks
+                              will remain sequential. Use another executor, e.g. CeleryExecutor)!
+                        NOTE: The first component of the source is done first, after that
+                              the rest are executed in parallel to each other.
             table_name: (str): The name of the table to which the data should be loaded within the `dataset`
             write_disposition (TWriteDisposition, optional): Same as in `run` command. Defaults to None.
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package.
                 Not all file_formats are compatible with all destinations. Defaults to the preferred file format of the selected destination.
             schema_contract (TSchemaContract, optional): On override for the schema contract settings,
                 this will replace the schema contract settings for all tables in the schema. Defaults to None.
+
         Returns:
-            Any: Airflow tasks created in order of creation
+            Any: Airflow tasks created in order of creation.
         """
 
         # make sure that pipeline was created after dag was initialized
         if not pipeline.pipelines_dir.startswith(os.environ["DLT_DATA_DIR"]):
             raise ValueError(
                 "Please create your Pipeline instance after AirflowTasks are created. The dlt"
-                " pipelines directory is not set correctly"
+                " pipelines directory is not set correctly."
             )
 
         def task_name(pipeline: Pipeline, data: Any) -> str:
@@ -182,8 +191,9 @@ class PipelineTasksGroup(TaskGroup):
             return task_name
 
         with self:
-            # use factory function to make test, in order to parametrize it. passing arguments to task function (_run) is serializing them and
-            # running template engine on them
+            # use factory function to make a task, in order to parametrize it
+            # passing arguments to task function (_run) is serializing
+            # them and running template engine on them
             def make_task(pipeline: Pipeline, data: Any) -> PythonOperator:
                 def _run() -> None:
                     # activate pipeline
@@ -291,8 +301,31 @@ class PipelineTasksGroup(TaskGroup):
                         pt >> nt
                     pt = nt
                 return tasks
+            elif decompose == "parallel":
+                if not isinstance(data, DltSource):
+                    raise ValueError("Can only decompose dlt sources")
+
+                if pipeline.full_refresh:
+                    raise ValueError("Cannot decompose pipelines with full_refresh set")
+
+                # parallel tasks
+                tasks = []
+                sources = data.decompose("scc")
+                start = make_task(pipeline, sources[0])
+
+                for source in sources[1:]:
+                    tasks.append(make_task(pipeline, source))
+
+                end = DummyOperator(task_id=f"{task_name(pipeline, data)}_end")
+
+                if tasks:
+                    start >> tasks >> end
+                    return [start] + tasks + [end]
+
+                start >> end
+                return [start, end]
             else:
-                raise ValueError(decompose)
+                raise ValueError("decompose value must be one of ['none', 'serialize', 'parallel']")
 
     def add_fun(self, f: Callable[..., Any], **kwargs: Any) -> Any:
         """Will execute a function `f` inside an Airflow task. It is up to the function to create pipeline and source(s)"""
