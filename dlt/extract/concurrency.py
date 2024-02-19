@@ -25,7 +25,7 @@ from dlt.extract.exceptions import (
 )
 
 
-class WorkerPool:
+class FuturesPool:
     """Worker pool for pipe items that can be resolved asynchronously.
 
     Items can be either asyncio coroutines or regular callables which will be executed in a thread pool.
@@ -117,7 +117,7 @@ class WorkerPool:
                 # Wait until some future is completed to ensure there's a free slot
                 # Note: This is probably not thread safe. If ever multiple threads will be submitting
                 # jobs to the pool, we ned to change this whole method to be inside a `threading.Lock`
-                self.wait_for_free_slot()
+                self._wait_for_free_slot()
             else:
                 return None
 
@@ -167,14 +167,18 @@ class WorkerPool:
         else:
             return ResolvablePipeItem(item, step, pipe, meta)
 
+    def _next_done_future(self) -> Optional[TItemFuture]:
+        """Get the done future in the pool (if any). This does not block."""
+        return next((fut for fut in self.futures if fut.done() and not fut.cancelled()), None)
+
     def resolve_next_future(self) -> Optional[ResolvablePipeItem]:
-        """Wait for the next future to be done. Returns None if no futures done."""
+        """Block until the next future is done and return the result. Returns None if no futures done."""
         if not self.futures:
             return None
 
-        if (item := self.resolve_next_future_no_wait()) is not None:
+        if (future := self._next_done_future()) is not None:
             # When there are multiple already done futures from the same pipe we return results in insertion order
-            return item
+            return self._resolve_future(future)
         for future in as_completed(self.futures):
             if future.cancelled():
                 # Get the next not-cancelled future
@@ -195,10 +199,9 @@ class WorkerPool:
 
         return self._resolve_future(future)
 
-    def wait_for_free_slot(self) -> None:
+    def _wait_for_free_slot(self) -> None:
         """Wait until any future in the pool is completed to ensure there's a free slot."""
         if self.free_slots >= 1:
-            self.poll()  # Just sleep a bit to give other threads a chance
             return
 
         for future in as_completed(self.futures):

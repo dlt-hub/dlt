@@ -452,9 +452,6 @@ def resource(
         if not standalone and callable(name):
             raise DynamicNameNotStandaloneResource(get_callable_name(f))
 
-        # if parallelized:
-        #     f = parallelize(f)
-
         # resource_section = name if name and not callable(name) else get_callable_name(f)
         resource_name = name if name and not callable(name) else get_callable_name(f)
 

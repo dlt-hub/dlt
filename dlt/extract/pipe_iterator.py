@@ -35,7 +35,7 @@ from dlt.extract.exceptions import (
 from dlt.extract.pipe import Pipe
 from dlt.extract.typing import DataItemWithMeta, TItemFuture
 from dlt.extract.utils import wrap_async_iterator
-from dlt.extract.concurrency import WorkerPool
+from dlt.extract.concurrency import FuturesPool
 from dlt.extract.items import PipeItem, ResolvablePipeItem, SourcePipeItem
 
 
@@ -65,7 +65,7 @@ class PipeIterator(Iterator[PipeItem]):
         self._next_item_mode: TPipeNextItemMode = next_item_mode
         self._initial_sources_count = len(sources)
         self._current_source_index: int = 0
-        self._worker_pool = WorkerPool(
+        self._futures_pool = FuturesPool(
             workers=workers,
             poll_interval=futures_poll_interval,
             max_parallel_items=max_parallel_items,
@@ -149,22 +149,19 @@ class PipeIterator(Iterator[PipeItem]):
         while True:
             # do we need new item?
             if pipe_item is None:
-                # process element from the futures pool if one is ready
-                pipe_item = self._worker_pool.resolve_next_future_no_wait()
                 # if none then take element from the newest source
-                if pipe_item is None:
-                    pipe_item = self._get_source_item()
+                pipe_item = self._get_source_item()
 
                 if pipe_item is None:
-                    if self._worker_pool.empty and len(self._sources) == 0:
+                    # Block until a future is resolved
+                    pipe_item = self._futures_pool.resolve_next_future()
+
+                if pipe_item is None:
+                    if self._futures_pool.empty and len(self._sources) == 0:
                         # no more elements in futures or sources
                         raise StopIteration()
                     else:
-                        # wait for some future to complete
-                        pipe_item = self._worker_pool.resolve_next_future()
-
-                if pipe_item is None:
-                    continue
+                        continue
 
             item = pipe_item.item
             # if item is iterator, then add it as a new source
@@ -188,7 +185,7 @@ class PipeIterator(Iterator[PipeItem]):
 
             if isinstance(item, Awaitable) or callable(item):
                 # Callables that come from following pipe steps need to be added to the pool
-                self._worker_pool.submit(pipe_item, block=True)  # type: ignore[call-overload]
+                self._futures_pool.submit(pipe_item, block=True)  # type: ignore[call-overload]
                 pipe_item = None
                 # Future will be resolved later, move on to the next item
                 continue
@@ -247,17 +244,13 @@ class PipeIterator(Iterator[PipeItem]):
             # always reset to end of list for fifo mode, also take into account that new sources can be added
             # if too many new sources is added we switch to fifo not to exhaust them
             if self._next_item_mode == "fifo" or (
-                sources_count - self._initial_sources_count >= self._worker_pool.max_parallel_items
+                sources_count - self._initial_sources_count >= self._futures_pool.max_parallel_items
             ):
                 self._current_source_index = sources_count - 1
             else:
                 self._current_source_index = (self._current_source_index - 1) % sources_count
             while True:
-                # if we have checked all sources once and all returned None, then lets sleep a bit or wait for a free worker slot
-                if self._current_source_index == first_evaluated_index:
-                    self._worker_pool.wait_for_free_slot()
                 # get next item from the current source
-                # gen, step, pipe, meta = self._sources[self._current_source_index]
                 gen, step, pipe, meta = self._sources[self._current_source_index]
                 set_current_pipe_name(pipe.name)
 
@@ -277,9 +270,9 @@ class PipeIterator(Iterator[PipeItem]):
 
                     if isinstance(pipe_item.item, Awaitable) or callable(pipe_item.item):
                         # Send callables to the worker pool right away, collect futures from multiple sources in one iteration
-                        self._worker_pool.submit(pipe_item, block=True)
+                        self._futures_pool.submit(pipe_item, block=True)
                         pipe_item = None
-                        if len(self._worker_pool) >= sources_count:
+                        if len(self._futures_pool) >= sources_count:
                             # Return here so we're not collecting done futures forever
                             return None
                         # Otherwhise we continue to the next source
@@ -318,7 +311,7 @@ class PipeIterator(Iterator[PipeItem]):
                 gen.close()
         self._sources.clear()
 
-        self._worker_pool.close()
+        self._futures_pool.close()
 
     def __enter__(self) -> "PipeIterator":
         return self
