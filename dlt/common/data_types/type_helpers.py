@@ -1,5 +1,6 @@
 import binascii
 import base64
+import dataclasses
 import datetime  # noqa: I251
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from typing import Any, Type, Literal, Union, cast
@@ -55,7 +56,7 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
         return "bigint"
     if issubclass(t, bytes):
         return "binary"
-    if issubclass(t, (C_Mapping, C_Sequence)):
+    if dataclasses.is_dataclass(t) or issubclass(t, (C_Mapping, C_Sequence)):
         return "complex"
     # Enum is coerced to str or int respectively
     if issubclass(t, Enum):
