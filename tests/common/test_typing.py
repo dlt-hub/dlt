@@ -14,6 +14,9 @@ from typing import (
     Union,
 )
 from typing_extensions import Annotated, get_args
+from uuid import UUID
+
+from pydantic import UUID4
 
 from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
@@ -129,6 +132,15 @@ def test_extract_inner_type() -> None:
     assert extract_inner_type(NTL2, preserve_new_types=True) is NTL2
     l_2 = Literal[NTL2(1.238), NTL2(2.343)]  # type: ignore[valid-type]
     assert extract_inner_type(l_2) is float  # type: ignore[arg-type]
+
+    assert extract_inner_type(Annotated[TOptionalLi, Optional]) is str  # type: ignore[arg-type]
+    assert extract_inner_type(Annotated[TOptionalLi, "random metadata string"]) is str  # type: ignore[arg-type]
+    assert extract_inner_type(Optional[Annotated[str, "random metadata string"]]) is str  # type: ignore[arg-type]
+    assert extract_inner_type(Final[Annotated[Optional[str], "annotated metadata"]]) is str  # type: ignore[arg-type]
+    assert extract_inner_type(Final[Annotated[Optional[str], None]]) is str  # type: ignore[arg-type]
+    assert extract_inner_type(Final[Annotated[Union[str, int], None]]) is Union[str, int]  # type: ignore[arg-type]
+    assert extract_inner_type(Annotated[Union[str, int], type(None)]) is Union[str, int]  # type: ignore[arg-type]
+    assert extract_inner_type(Annotated[Optional[UUID4], "meta"]) is UUID
 
 
 def test_get_config_if_union() -> None:
