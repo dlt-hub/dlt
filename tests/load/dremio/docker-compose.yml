@@ -1,0 +1,23 @@
+version: "3.7"
+services:
+  dremio:
+    image: dremio/dremio-oss
+#    build:
+#      context: dremio
+#      dockerfile: Dockerfile
+    ports:
+      - "9047:9047"
+      - "31010:31010"
+      - "32010:32010"
+      - "45678:45678"
+  minio:
+    image: quay.io/minio/minio
+    command: server /data --console-address ":9001"
+#    environment:
+#      - MINIO_ROOT_USER=minioadmin
+#      - MINIO_ROOT_PASSWORD=minioadmin
+#    volumes:
+#      - minio_data:/data
+    ports:
+      - "9000:9000"
+      - "9001:9001"
