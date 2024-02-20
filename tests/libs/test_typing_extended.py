@@ -1,12 +1,13 @@
 from dataclasses import dataclass
 from typing import (
+    assert_type,
     Final,
     Literal,
     TypedDict,
     Optional,
     Union,
 )
-from typing_extensions import assert_type, Annotated
+from typing_extensions import Annotated
 from uuid import UUID
 
 from pydantic import UUID4
@@ -33,14 +34,14 @@ TOptionalUnionLiTyDi = Optional[Union[TTestTyDi, TTestLi]]
 
 
 def test_extract_annotated_inner_type() -> None:
-    assert_type(extract_inner_type(Annotated[TOptionalLi, Optional]), str)  # type: ignore[arg-type]
-    assert_type(extract_inner_type(Annotated[TOptionalLi, "random metadata string"]), str)  # type: ignore[arg-type]
-    assert_type(extract_inner_type(Optional[Annotated[str, "random metadata string"]]), str)  # type: ignore[arg-type]
-    assert_type(extract_inner_type(Final[Annotated[Optional[str], "annotated metadata"]]), str)  # type: ignore[arg-type]
-    assert_type(extract_inner_type(Final[Annotated[Optional[str], None]]), str)  # type: ignore[arg-type]
-    assert_type(extract_inner_type(Final[Annotated[Union[str, int], None]]), Union[str, int])  # type: ignore[arg-type]
-    assert_type(extract_inner_type(Annotated[Union[str, int], type(None)]), Union[str, int])  # type: ignore[arg-type]
-    assert_type(extract_inner_type(Annotated[Optional[UUID4], "meta"]), UUID)  # type: ignore[arg-type]
-    assert_type(extract_inner_type(Annotated[Optional[MyDataclass], "meta"]), MyDataclass)  # type: ignore[arg-type]
-    assert_type(extract_inner_type(Annotated[MyDataclass, Optional]), MyDataclass)  # type: ignore[arg-type]
-    assert_type(extract_inner_type(Annotated[MyDataclass, "random metadata string"]), MyDataclass)  # type: ignore[arg-type]
+    assert extract_inner_type(Annotated[TOptionalLi, Optional]) is str  # type: ignore[arg-type]
+    assert extract_inner_type(Annotated[TOptionalLi, "random metadata string"]) is str  # type: ignore[arg-type]
+    assert extract_inner_type(Optional[Annotated[str, "random metadata string"]]) is str  # type: ignore[arg-type]
+    assert extract_inner_type(Final[Annotated[Optional[str], "annotated metadata"]]) is str  # type: ignore[arg-type]
+    assert extract_inner_type(Final[Annotated[Optional[str], None]]) is str  # type: ignore[arg-type]
+    assert extract_inner_type(Final[Annotated[Union[str, int], None]]) is Union[str, int]  # type: ignore[arg-type]
+    assert extract_inner_type(Annotated[Union[str, int], type(None)]) is Union[str, int]  # type: ignore[arg-type]
+    assert extract_inner_type(Annotated[Optional[UUID4], "meta"]) is UUID  # type: ignore[arg-type]
+    assert extract_inner_type(Annotated[Optional[MyDataclass], "meta"]) is MyDataclass  # type: ignore[arg-type]
+    assert extract_inner_type(Annotated[MyDataclass, Optional]) is MyDataclass  # type: ignore[arg-type]
+    assert extract_inner_type(Annotated[MyDataclass, "random metadata string"]) is MyDataclass  # type: ignore[arg-type]
