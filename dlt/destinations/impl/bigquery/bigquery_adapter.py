@@ -76,6 +76,10 @@ def bigquery_adapter(
     if partition:
         if not isinstance(partition, str):
             raise ValueError("`partition` must be a single column name as a string.")
+
+        # Can only have one partition column.
+        for column in resource.columns.values(): # type: ignore[union-attr]
+            column.pop(PARTITION_HINT, None) # type: ignore[typeddict-item]
         column_hints[partition] = {"name": partition, PARTITION_HINT: True}  # type: ignore[typeddict-unknown-key]
 
     if cluster:

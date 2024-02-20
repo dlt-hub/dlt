@@ -638,6 +638,25 @@ def test_adapter_hints_merge() -> None:
     }
 
 
+def test_adapter_hints_unset() -> None:
+    @dlt.resource(
+        columns=[
+            {"name": "col1", "data_type": "text"},
+            {"name": "col2", "data_type": "bigint"},
+        ]
+    )
+    def hints() -> Iterator[Dict[str, Any]]:
+        yield from [{"col1": str(i), "col2": i} for i in range(10)]
+
+    bigquery_adapter(hints, partition="col1")
+    bigquery_adapter(hints, partition="col2")
+
+    assert hints.columns == {
+        "col1": {"name": "col1", "data_type": "text"},
+        "col2": {"name": "col2", "data_type": "bigint", PARTITION_HINT: True},
+    }
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(all_staging_configs=True, subset=["bigquery"]),
@@ -898,7 +917,7 @@ def test_adapter_merge_behaviour(
         yield from [{"col1": str(i), "col2": i, "col3": float(i)} for i in range(10)]
 
     bigquery_adapter(hints, table_expiration_datetime="2030-01-01", cluster=["col1"])
-    bigquery_adapter(
+    hints_ = bigquery_adapter(
         hints, table_description="A small table somewhere in the cosmos...", partition="col2"
     )
 

@@ -164,7 +164,7 @@ If you use the same service account for gcs and your redshift deployment, you do
 
 Alternatively to parquet files, you can specify jsonl as the staging file format. For this set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 
-### BigQuery/GCS Staging Example Code
+### BigQuery/GCS Staging Example
 
 ```python
 # Create a dlt pipeline that will load
@@ -204,3 +204,64 @@ In case of implicit credentials (i.e. available in cloud function), `dlt` shares
 ### Syncing of `dlt` State
 
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
+
+## Bigquery Adapter
+
+You can use the `bigquery_adapter` to add BigQuery-specific hints to a resource.
+These hints influence how data is loaded into BigQuery tables, such as specifying partitioning, clustering, and numeric column rounding modes.
+Hints can be defined at both the column level and table level.
+
+The adapter updates the DltResource with metadata about the destination column and table DDL options.
+
+### Use an Adapter to Apply Hints to a Resource
+
+Here is an example of how to use the `bigquery_adapter` method to apply hints to a resource on both column level and table level:
+
+```python
+from datetime import date, timedelta
+
+import dlt
+from dlt.destinations.impl.bigquery.bigquery_adapter import bigquery_adapter
+
+
+@dlt.resource(
+    columns=[
+        {"name": "event_date", "data_type": "date"},
+        {"name": "user_id", "data_type": "bigint"},
+        # Other columns.
+    ]
+)
+def event_data():
+    yield from [
+        {"event_date": date.today() + timedelta(days=i)} for i in range(100)
+    ]
+
+
+# Apply column options.
+bigquery_adapter(
+    event_data, partition="event_date", cluster=["event_date", "user_id"]
+)
+
+# Apply table level options.
+bigquery_adapter(event_data, table_description="Dummy event data.")
+```
+
+Above, the adapter specifies that `event_date` should be used for partitioning and both `event_date` and `user_id` should be used for clustering (in the given order) when the table is created.
+
+Some things to note with the adapter's behaviour:
+
+- You can only partition on one column (refer to [supported hints](#supported-column-hints)).
+- You can cluster on as many columns as you would like.
+- Sequential adapter calls on the same resource accumulate parameters, akin to an OR operation, for a unified execution.
+
+> ❗ At the time of writing, table level options aren't supported for `ALTER` operations.
+
+Note that `bigquery_adapter` updates the resource *inplace*, but returns the resource for convenience, i.e. both the following are valid:
+
+```python
+bigquery_adapter(my_resource, partition="partition_column_name")
+my_resource = bigquery_adapter(my_resource, partition="partition_column_name")
+```
+
+Refer to the [full API specification](../../../docs/api_reference/destinations/impl/bigquery/bigquery_adapter.md) for more details.
+
