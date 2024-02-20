@@ -2,22 +2,52 @@ version: "3.7"
 services:
   dremio:
     image: dremio/dremio-oss
-#    build:
-#      context: dremio
-#      dockerfile: Dockerfile
     ports:
       - "9047:9047"
       - "31010:31010"
       - "32010:32010"
       - "45678:45678"
+    networks:
+      - dremio
   minio:
-    image: quay.io/minio/minio
+    image: minio/minio
     command: server /data --console-address ":9001"
-#    environment:
-#      - MINIO_ROOT_USER=minioadmin
-#      - MINIO_ROOT_PASSWORD=minioadmin
-#    volumes:
-#      - minio_data:/data
+    environment:
+      - MINIO_ROOT_USER=minioadmin
+      - MINIO_ROOT_PASSWORD=minioadmin
+    #    volumes:
+    #      - minio_data:/data
     ports:
-      - "9000:9000"
-      - "9001:9001"
+      - "9010:9000"
+      - "9011:9001"
+    networks:
+      - dremio
+  createbuckets:
+    image: minio/mc
+    networks:
+      - dremio
+    depends_on:
+      - minio
+    entrypoint: >
+      /bin/sh -c "
+      /usr/bin/mc alias set myminio http://minio:9000 minioadmin minioadmin;
+      /usr/bin/mc mb myminio/raw;
+      /usr/bin/mc anonymous set public myminio/raw;
+      exit 0;
+      "
+  bootstrapdremio:
+    depends_on:
+      - dremio
+      - createbuckets
+    build:
+      context: ./curl
+    volumes:
+      - ./bootstrap_dremio.sh:/bootstrap_dremio.sh
+      - ./minio.json:/minio.json
+      - ./nas.json:/nas.json
+    networks:
+      - dremio
+    command: ./bootstrap_dremio.sh
+networks:
+  dremio:
+    name: dremio

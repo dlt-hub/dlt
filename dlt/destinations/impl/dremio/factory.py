@@ -1,15 +1,17 @@
 import typing as t
 
-from dlt.common.destination import Destination, DestinationCapabilitiesContext
-from dlt.destinations.impl.dremio.configuration import DremioClientConfiguration
-from dlt.common.configuration.specs import AwsCredentials
+from dlt.destinations.impl.dremio.configuration import (
+    DremioCredentials,
+    DremioClientConfiguration,
+)
 from dlt.destinations.impl.dremio import capabilities
+from dlt.common.destination import Destination, DestinationCapabilitiesContext
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.dremio.dremio import DremioClient
 
 
-class athena(Destination[DremioClientConfiguration, "DremioClient"]):
+class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
     spec = DremioClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:
@@ -23,11 +25,9 @@ class athena(Destination[DremioClientConfiguration, "DremioClient"]):
 
     def __init__(
         self,
-        query_result_bucket: t.Optional[str] = None,
-        credentials: t.Union[AwsCredentials, t.Dict[str, t.Any], t.Any] = None,
-        athena_work_group: t.Optional[str] = None,
-        aws_data_catalog: t.Optional[str] = "awsdatacatalog",
-        force_iceberg: bool = False,
+        credentials: t.Union[DremioCredentials, t.Dict[str, t.Any], str] = None,
+        stage_name: t.Optional[str] = None,
+        keep_staged_files: bool = True,
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         **kwargs: t.Any,
@@ -37,19 +37,15 @@ class athena(Destination[DremioClientConfiguration, "DremioClient"]):
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            query_result_bucket: S3 bucket to store query results in
-            credentials: AWS credentials to connect to the Dremio database.
-            athena_work_group: Dremio work group to use
-            aws_data_catalog: Dremio data catalog to use
-            force_iceberg: Force iceberg tables
-            **kwargs: Additional arguments passed to the destination config
+            credentials: Credentials to connect to the dremio database. Can be an instance of `DremioCredentials` or
+                a connection string in the format `dremio://user:password@host:port/database`
+            stage_name: Name of an existing stage to use for loading data. Default uses implicit stage per table
+            keep_staged_files: Whether to delete or keep staged files after loading
         """
         super().__init__(
-            query_result_bucket=query_result_bucket,
             credentials=credentials,
-            athena_work_group=athena_work_group,
-            aws_data_catalog=aws_data_catalog,
-            force_iceberg=force_iceberg,
+            stage_name=stage_name,
+            keep_staged_files=keep_staged_files,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

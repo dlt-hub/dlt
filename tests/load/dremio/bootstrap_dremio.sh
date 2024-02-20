@@ -2,7 +2,9 @@
 
 set -euxo pipefail
 
-DREMIO_URL=http://localhost:9047
+DREMIO_URL=http://dremio:9047
+
+until (curl "${DREMIO_URL}/live") do echo '...waiting...' && sleep 1; done;
 
 # Bootstrap the first user
 curl "${DREMIO_URL}/apiv2/bootstrap/firstuser" \
@@ -43,3 +45,12 @@ curl "${DREMIO_URL}/apiv2/source/nas/?nocache=1708370225409" \
   -H 'Connection: keep-alive' \
   -H 'Content-Type: application/json' \
   -d @nas.json
+
+
+curl "${DREMIO_URL}/apiv2/source/minio/?nocache=1708370225409" \
+  -X 'PUT' \
+  -H 'Accept: */*' \
+  -H "Authorization: _dremio${dremio_token}" \
+  -H 'Connection: keep-alive' \
+  -H 'Content-Type: application/json' \
+  -d @minio.json
