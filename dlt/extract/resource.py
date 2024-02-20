@@ -344,8 +344,10 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         return self
 
     def parallelize(self) -> "DltResource":
-        """Wraps the resource to execute each item in a threadpool to allow multiple resources to extract in parallel."""
+        """Wraps the resource to execute each item in a threadpool to allow multiple resources to extract in parallel.
 
+        The resource must be a generator or generator function or a transformer function.
+        """
         if (
             not inspect.isgenerator(self._pipe.gen)
             and not inspect.isgeneratorfunction(self._pipe.gen)

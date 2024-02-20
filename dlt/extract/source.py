@@ -32,6 +32,7 @@ from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
     ResourcesNotFoundError,
     DeletingResourcesNotSupported,
+    InvalidParallelResourceDataType,
 )
 
 
@@ -335,8 +336,15 @@ class DltSource(Iterable[TDataItem]):
         return self
 
     def parallelize(self) -> "DltSource":
+        """Mark all resources in the source to run in parallel.
+
+        Only transformers and resources based on generators and generator functions are supported, unsupported resources will be skipped.
+        """
         for resource in self.resources.selected.values():
-            resource.parallelize()
+            try:
+                resource.parallelize()
+            except InvalidParallelResourceDataType:
+                pass
         return self
 
     @property
