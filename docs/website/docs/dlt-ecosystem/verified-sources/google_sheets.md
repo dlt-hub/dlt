@@ -571,3 +571,13 @@ def get_named_ranges():
 ```
 
 Enjoy the DLT Google Sheets pipeline experience!
+
+## Additional Setup guides
+- [Load data from Google Sheets to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-synapse)
+- [Load data from Google Sheets to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-duckdb)
+- [Load data from Google Sheets to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-postgres)
+- [Load data from Google Sheets to Databricks in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-databricks)
+- [Load data from Google Sheets to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-bigquery)
+- [Load data from Google Sheets to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-athena)
+- [Load data from Google Sheets to Redshift in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-redshift)
+- [Load data from Google Sheets to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-snowflake)
