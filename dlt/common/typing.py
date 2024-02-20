@@ -87,7 +87,7 @@ ConfigValue: None = None
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"
-TFileOrPath = Union[str, os.PathLike, IO[Any]]
+TFileOrPath = Union[str, os.PathLike[Any], IO[Any]]
 
 
 @runtime_checkable
