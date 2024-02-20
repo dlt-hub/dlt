@@ -230,7 +230,7 @@ def apply_schema_contract_to_model(
         """Recursively recreates models with applied schema contract"""
         if is_annotated(t_):
             a_t, *a_m = get_args(t_)
-            return Annotated[_process_annotation(a_t), *a_m]    # type: ignore[return-value,syntax]
+            return Annotated[_process_annotation(a_t), tuple(a_m)]    # type: ignore[return-value,syntax]
         elif is_list_generic_type(t_):
             l_t: Type[Any] = get_args(t_)[0]
             try:
