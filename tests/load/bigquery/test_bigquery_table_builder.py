@@ -917,7 +917,7 @@ def test_adapter_merge_behaviour(
         yield from [{"col1": str(i), "col2": i, "col3": float(i)} for i in range(10)]
 
     bigquery_adapter(hints, table_expiration_datetime="2030-01-01", cluster=["col1"])
-    hints_ = bigquery_adapter(
+    bigquery_adapter(
         hints, table_description="A small table somewhere in the cosmos...", partition="col2"
     )
 
