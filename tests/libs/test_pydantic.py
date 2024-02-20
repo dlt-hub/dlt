@@ -148,21 +148,7 @@ class UserAddress(BaseModel):
     wr_list: MutableSequence[Dict[str, UserLabel]]
 
 
-class BaseUser(BaseModel):
-    """
-    Base model for tracking event details
-    Models in the schema registry must inherit from this
-    """
-
-    model_config = ConfigDict(  # discard unspecified fields when writing to Snowflake
-        extra="ignore"
-    )
-
-
-BaseUserT = TypeVar("BaseUserT", bound=BaseUser)
-
-
-class User(BaseModel, Generic[BaseUserT]):
+class User(BaseModel):
     user_id: int
     account_id: UUID4
     optional_uuid: Optional[UUID4]
