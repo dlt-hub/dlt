@@ -548,6 +548,28 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     expected = [{"id": 2, "val": "baz", "deleted": None}]
     assert sorted(observed, key=lambda d: d["id"]) == expected
 
+    # insert two records with same key
+    data = [
+        {"id": 3, "val": "foo", "deleted": False},
+        {"id": 3, "val": "bar", "deleted": False},
+    ]
+    info = p.run(data_resource(data))
+    assert_load_info(info)
+    counts = load_table_counts(p, table_name)[table_name]
+    if key_type == "primary_key":
+        assert counts == 2
+    elif key_type == "merge_key":
+        assert counts == 3
+
+    # delete one key, resulting in one (primary key) or two (merge key) deleted records
+    data = [
+        {"id": 3, "val": "foo", "deleted": True},
+    ]
+    info = p.run(data_resource(data))
+    assert_load_info(info)
+    counts = load_table_counts(p, table_name)[table_name]
+    assert load_table_counts(p, table_name)[table_name] == 1
+
     table_name = "test_hard_delete_hint_complex"
     data_resource.apply_hints(table_name=table_name)
 
@@ -767,6 +789,29 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     ]
     expected = [{"id": 1, "val": "baz", "sequence": 3}]
     assert sorted(observed, key=lambda d: d["id"]) == expected
+
+    # additional tests with two records, run only on duckdb to limit test load
+    if destination_config.destination == "duckdb":
+        # two records with same primary key
+        # record with highest value in sort column is a delete
+        # existing record is deleted and no record will be inserted
+        data = [
+            {"id": 1, "val": "foo", "sequence": 1},
+            {"id": 1, "val": "bar", "sequence": 2, "deleted": True},
+        ]
+        info = p.run(data_resource(data))
+        assert_load_info(info)
+        assert load_table_counts(p, table_name)[table_name] == 0
+
+        # two records with same primary key
+        # record with highest value in sort column is not a delete, so it will be inserted
+        data = [
+            {"id": 1, "val": "foo", "sequence": 2},
+            {"id": 1, "val": "bar", "sequence": 1, "deleted": True},
+        ]
+        info = p.run(data_resource(data))
+        assert_load_info(info)
+        assert load_table_counts(p, table_name)[table_name] == 1
 
     # test if exception is raised when more than one "dedup_sort" column hints are provided
     @dlt.resource(
