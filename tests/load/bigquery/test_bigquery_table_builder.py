@@ -56,7 +56,24 @@ def gcp_client(schema: Schema) -> BigQueryClient:
 
 def test_create_table(gcp_client: BigQueryClient) -> None:
     # non existing table
-    sql = gcp_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)[0]
+    # Add BIGNUMERIC column
+    table_update = TABLE_UPDATE + [
+        {
+            "name": "col_high_p_decimal",
+            "data_type": "decimal",
+            "precision": 76,
+            "scale": 0,
+            "nullable": False,
+        },
+        {
+            "name": "col_high_s_decimal",
+            "data_type": "decimal",
+            "precision": 38,
+            "scale": 24,
+            "nullable": False,
+        },
+    ]
+    sql = gcp_client._get_table_update_sql("event_test_table", table_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
     assert sql.startswith("CREATE TABLE")
     assert "event_test_table" in sql
@@ -77,6 +94,8 @@ def test_create_table(gcp_client: BigQueryClient) -> None:
     assert "`col6_precision` NUMERIC(6,2) NOT NULL" in sql
     assert "`col7_precision` BYTES(19)" in sql
     assert "`col11_precision` TIME NOT NULL" in sql
+    assert "`col_high_p_decimal` BIGNUMERIC(76,0) NOT NULL" in sql
+    assert "`col_high_s_decimal` BIGNUMERIC(38,24) NOT NULL" in sql
     assert "CLUSTER BY" not in sql
     assert "PARTITION BY" not in sql
 

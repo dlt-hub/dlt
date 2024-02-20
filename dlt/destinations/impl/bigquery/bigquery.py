@@ -54,7 +54,6 @@ class BigQueryTypeMapper(TypeMapper):
     sct_to_dbt = {
         "text": "STRING(%i)",
         "binary": "BYTES(%i)",
-        "decimal": "NUMERIC(%i,%i)",
     }
 
     dbt_to_sct = {
@@ -70,6 +69,13 @@ class BigQueryTypeMapper(TypeMapper):
         "JSON": "complex",
         "TIME": "time",
     }
+
+    def to_db_decimal_type(self, precision: Optional[int], scale: Optional[int]) -> str:
+        # Use BigQuery's BIGNUMERIC for large precision decimals
+        precision, scale = self.decimal_precision(precision, scale)
+        if precision > 38 or scale > 9:
+            return "BIGNUMERIC(%i,%i)" % (precision, scale)
+        return "NUMERIC(%i,%i)" % (precision, scale)
 
     # noinspection PyTypeChecker,PydanticTypeChecker
     def from_db_type(
