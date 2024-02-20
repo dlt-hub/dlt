@@ -72,6 +72,7 @@ open .dlt/secrets.toml
 ```
 
 Replace the `project_id`, `private_key`, and `client_email` with the values from the downloaded `JSON` file:
+
 ```toml
 [destination.bigquery]
 location = "US"
@@ -84,7 +85,7 @@ client_email = "client_email" # please set me up!
 
 You can specify the location of the data i.e. `EU` instead of `US` which is a default.
 
-### OAuth 2.0 authentication
+### OAuth 2.0 Authentication
 
 You can use the OAuth 2.0 authentication. You'll need to generate a **refresh token** with right scopes (I suggest to ask our GPT-4 assistant for details).
 Then you can fill the following information in `secrets.toml`
@@ -100,7 +101,7 @@ client_secret = "client_secret"  # please set me up!
 refresh_token = "refresh_token"  # please set me up!
 ```
 
-### Using default credentials
+### Using Default Credentials
 
 Google provides several ways to get default credentials i.e. from `GOOGLE_APPLICATION_CREDENTIALS` environment variable or metadata services.
 VMs available on GCP (cloud functions, Composer runners, Colab notebooks) have associated service accounts or authenticated users.
@@ -111,20 +112,20 @@ Will try to use default credentials if nothing is explicitly specified in the se
 location = "US"
 ```
 
-## Write disposition
+## Write Disposition
 
 All write dispositions are supported
 
 If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized` the destination tables will be dropped and
 recreated with a [clone command](https://cloud.google.com/bigquery/docs/table-clones-create) from the staging tables.
 
-## Data loading
+## Data Loading
 
 `dlt` uses `BigQuery` load jobs that send files from local filesystem or gcs buckets.
 Loader follows [Google recommendations](https://cloud.google.com/bigquery/docs/error-messages) when retrying and terminating jobs.
 Google BigQuery client implements elaborate retry mechanism and timeouts for queries and file uploads, which may be configured in destination options.
 
-## Supported file formats
+## Supported File Formats
 
 You can configure the following file formats to load data to BigQuery:
 
@@ -138,7 +139,7 @@ When staging is enabled:
 
 > ❗ **Bigquery cannot load JSON columns from `parquet` files**. `dlt` will fail such jobs permanently. Switch to `jsonl` to load and parse JSON properly.
 
-## Supported column hints
+## Supported Column Hints
 
 BigQuery supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
 
@@ -163,7 +164,7 @@ If you use the same service account for gcs and your redshift deployment, you do
 
 Alternatively to parquet files, you can specify jsonl as the staging file format. For this set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 
-### BigQuery/GCS staging Example Code
+### BigQuery/GCS Staging Example Code
 
 ```python
 # Create a dlt pipeline that will load
@@ -177,9 +178,9 @@ pipeline = dlt.pipeline(
 )
 ```
 
-## Additional destination options
+## Additional Destination Options
 
-You can configure the data location and various timeouts as shown below. This information is not a secret so can be placed in `config.toml` as well.
+You can configure the data location and various timeouts as shown below. This information is not a secret so can be placed in `config.toml` as well:
 
 ```toml
 [destination.bigquery]
@@ -194,12 +195,12 @@ retry_deadline=60.0
 * `file_upload_timeout` a timeout for file upload when loading local files: the total time of the upload may not exceed this value (default: **30 minutes**, set in seconds)
 * `retry_deadline` a deadline for a [DEFAULT_RETRY used by Google](https://cloud.google.com/python/docs/reference/storage/1.39.0/retry_timeout)
 
-### dbt support
+### dbt Support
 
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-bigquery](https://github.com/dbt-labs/dbt-bigquery).
 Credentials, if explicitly defined, are shared with `dbt` along with other settings like **location** and retries and timeouts.
 In case of implicit credentials (i.e. available in cloud function), `dlt` shares the `project_id` and delegates obtaining credentials to `dbt` adapter.
 
-### Syncing of `dlt` state
+### Syncing of `dlt` State
 
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
