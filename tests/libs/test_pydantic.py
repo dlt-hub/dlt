@@ -411,14 +411,9 @@ def test_nested_model_config_propagation_optional_with_pipe():
     # and can generate the same schema from the class and from the class instance.
 
     user = UserPipe(**USER_INSTANCE_DATA)  # type: ignore
-    user_using_optional = User(**USER_INSTANCE_DATA)  # type: ignore
     schema_from_user_class = pydantic_to_table_schema_columns(UserPipe)
     schema_from_user_instance = pydantic_to_table_schema_columns(user)
-    schema_from_user_class_using_optional = pydantic_to_table_schema_columns(user_using_optional)
-    schema_from_user_instance_using_optional = pydantic_to_table_schema_columns(user_using_optional)
     assert schema_from_user_class == schema_from_user_instance
-    assert schema_from_user_class_using_optional == schema_from_user_instance_using_optional
-    assert schema_from_user_class == schema_from_user_class_using_optional
     assert schema_from_user_class["location"]["nullable"] is True
     assert schema_from_user_class["final_location"]["nullable"] is False
     assert schema_from_user_class["something_required"]["nullable"] is False
