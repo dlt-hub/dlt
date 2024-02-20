@@ -1,6 +1,5 @@
 from dataclasses import dataclass
 from typing import (
-    assert_type,
     Final,
     Literal,
     TypedDict,
