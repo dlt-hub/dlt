@@ -48,6 +48,18 @@ GitHub Actions workflow DAG:
 Using `dlt` [tracing](tracing.md), you can configure [Sentry](https://sentry.io) DSN to start
 receiving rich information on executed pipelines, including encountered errors and exceptions.
 
+## Data monitoring
+
+Data quality monitoring is considered with ensuring that quality data arrives to the data warehouse
+on time. The reason we do monitoring instead of alerting for this is because we cannot easily define
+alerts for what could go wrong.
+
+This is why we want to capture enough context to allow a person to decide if the data looks OK or
+requires further investigation when monitoring the data quality. A staple of monitoring are line
+charts and time-series charts that provide a baseline or a pattern that a person can interpret.
+
+For example, to monitor data loading, consider plotting "count of records by `loaded_at` date/hour",
+"created at", "modified at", or other recency markers.
 
 ### Rows count
 To find the number of rows loaded per table, use the following command:
@@ -97,15 +109,11 @@ Data loading time for each table can be obtained by using the following command:
 dlt pipeline <pipeline_name> load-package
 ```
 
-## Data monitoring
+The above information can also be obtained from the script as follows:
 
-Data quality monitoring is considered with ensuring that quality data arrives to the data warehouse
-on time. The reason we do monitoring instead of alerting for this is because we cannot easily define
-alerts for what could go wrong.
+```python
+info = pipeline.run(source, table_name="table_name", write_disposition='append')
 
-This is why we want to capture enough context to allow a person to decide if the data looks OK or
-requires further investigation when monitoring the data quality. A staple of monitoring are line
-charts and time-series charts that provide a baseline or a pattern that a person can interpret.
-
-For example, to monitor data loading, consider plotting "count of records by `loaded_at` date/hour",
-"created at", "modified at", or other recency markers.
+print(info.load_packages[0])
+```
+> `load_packages[0]` will print the information of the first load package in the list of load packages.
