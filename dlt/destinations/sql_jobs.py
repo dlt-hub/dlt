@@ -215,9 +215,41 @@ class SqlMergeJob(SqlBaseJob):
         condition: str = None,
         condition_columns: Sequence[str] = None,
     ) -> str:
-        """
-        Returns SELECT FROM statement where the FROM clause represents a deduplicated version of the `table_name` table.
+        """Returns SELECT FROM SQL statement.
+
+        The FROM clause in the SQL statement represents a deduplicated version
+        of the `table_name` table.
+
         Expects column names provided in arguments to be escaped identifiers.
+
+        Args:
+            table_name: Name of the table that is selected from.
+            primary_keys: A sequence of column names representing the primary
+              key of the table. Is used to deduplicate the table.
+            columns: Sequence of column names that will be selected from
+              the table.
+            sort_column: Name of a column to sort the records by within a
+              primary key. Values in the column are sorted in descending order,
+              so the record with the highest value in `sort_column` remains
+              after deduplication. No sorting is done if a None value is provided,
+              leading to arbitrary deduplication.
+            condition: String used as a WHERE clause in the SQL statement to
+              filter records. The names of all columns that are used in the
+              condition must be provided in the `condition_columns` argument.
+              No filtering is done (aside from the deduplication) if a None value
+              is provided.
+            condition_columns: Sequence of names of columns used in the `condition`
+              argument. These column names will be selected in the inner subquery
+              to make them accessible to the outer WHERE clause. This argument
+              should only be used in combination with the `condition` argument.
+
+        Returns:
+            A string representing a SELECT FROM SQL statement where the FROM
+            clause represents a deduplicated version of the `table_name` table.
+
+            The returned value is used in two ways:
+            1) To select the values for an INSERT INTO statement.
+            2) To select the values for a temporary table used for inserts.
         """
         if sort_column is None:
             order_by = "(SELECT NULL)"
