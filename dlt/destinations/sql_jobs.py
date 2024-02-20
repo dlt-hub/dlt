@@ -1,5 +1,4 @@
 from typing import Any, Callable, List, Sequence, Tuple, cast, TypedDict, Optional
-from copy import copy
 
 import yaml
 from dlt.common.runtime.logger import pretty_format_exception
@@ -234,10 +233,10 @@ class SqlMergeJob(SqlBaseJob):
               after deduplication. No sorting is done if a None value is provided,
               leading to arbitrary deduplication.
             condition: String used as a WHERE clause in the SQL statement to
-              filter records. The names of all columns that are used in the
-              condition must be provided in the `condition_columns` argument.
-              No filtering is done (aside from the deduplication) if a None value
-              is provided.
+              filter records. The name of any column that is used in the
+              condition but is not part of `columns` must be provided in the
+              `condition_columns` argument. No filtering is done (aside from the
+              deduplication) if a None value is provided.
             condition_columns: Sequence of names of columns used in the `condition`
               argument. These column names will be selected in the inner subquery
               to make them accessible to the outer WHERE clause. This argument
@@ -258,7 +257,7 @@ class SqlMergeJob(SqlBaseJob):
         if condition is None:
             condition = "1 = 1"
         col_str = ", ".join(columns)
-        inner_col_str = copy(col_str)
+        inner_col_str = col_str
         if condition_columns is not None:
             inner_col_str += ", " + ", ".join(condition_columns)
         return f"""
@@ -456,7 +455,7 @@ class SqlMergeJob(SqlBaseJob):
             with sql_client.with_staging_dataset(staging=True):
                 staging_table_name = sql_client.make_qualified_table_name(table["name"])
 
-            insert_cond = copy(not_deleted_cond) if hard_delete_col is not None else "1 = 1"
+            insert_cond = not_deleted_cond if hard_delete_col is not None else "1 = 1"
             if (len(primary_keys) > 0 and len(table_chain) > 1) or (
                 len(primary_keys) == 0
                 and table.get("parent") is not None  # child table
