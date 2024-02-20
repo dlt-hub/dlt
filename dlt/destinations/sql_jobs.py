@@ -434,7 +434,7 @@ class SqlMergeJob(SqlBaseJob):
 
         insert_temp_table_name: str = None
         if len(table_chain) > 1:
-            if len(primary_keys) > 0 or (len(primary_keys) == 0 and hard_delete_col is not None):
+            if len(primary_keys) > 0 or hard_delete_col is not None:
                 condition_columns = [hard_delete_col] if not_deleted_cond is not None else None
                 (
                     create_insert_temp_table_sql,
