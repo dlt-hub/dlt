@@ -40,11 +40,7 @@ services:
       - dremio
       - createbuckets
     build:
-      context: ./curl
-    volumes:
-      - ./bootstrap_dremio.sh:/bootstrap_dremio.sh
-      - ./minio.json:/minio.json
-      - ./nas.json:/nas.json
+      context: bootstrap
     networks:
       - dremio
     command: ./bootstrap_dremio.sh
