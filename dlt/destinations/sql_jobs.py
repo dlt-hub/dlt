@@ -404,7 +404,7 @@ class SqlMergeJob(SqlBaseJob):
         insert_temp_table_name: str = None
         if len(table_chain) > 1:
             if len(primary_keys) > 0 or (len(primary_keys) == 0 and hard_delete_col is not None):
-                condition_colummns = [hard_delete_col] if not_deleted_cond is not None else None
+                condition_columns = [hard_delete_col] if not_deleted_cond is not None else None
                 (
                     create_insert_temp_table_sql,
                     insert_temp_table_name,
@@ -414,7 +414,7 @@ class SqlMergeJob(SqlBaseJob):
                     unique_column,
                     dedup_sort_col,
                     not_deleted_cond,
-                    condition_colummns,
+                    condition_columns,
                 )
                 sql.extend(create_insert_temp_table_sql)
 
