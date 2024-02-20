@@ -868,7 +868,8 @@ def test_parallelized_resource_decorator() -> None:
     resource = dlt.resource(some_gen, parallelized=True)
 
     # Generator func is wrapped with parallelized gen that yields callables
-    result = next(resource._pipe.gen())  # type: ignore
+    gen = resource._pipe.gen()  # type: ignore
+    result = next(gen)  # type: ignore[arg-type]
     assert result() == 1
 
     # Same but wrapping generator directly

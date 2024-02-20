@@ -187,9 +187,10 @@ def wrap_parallel_iterator(
         is_generator = True
         gen: Union[Generator[TDataItems, Optional[Any], Optional[Any]], AnyFun]
         if callable(f):
-            if inspect.isgeneratorfunction(f):
+            if inspect.isgeneratorfunction(inspect.unwrap(f)):
                 gen = f(*args, **kwargs)
             else:
+                # Function is a transformer that returns values
                 is_generator = False
                 gen = f
         else:
@@ -202,7 +203,10 @@ def wrap_parallel_iterator(
             nonlocal busy
             nonlocal exhausted
             try:
-                return next(gen)  # type: ignore[arg-type]
+                if is_generator:
+                    return next(gen)  # type: ignore[arg-type]
+                else:
+                    return gen(*args, **kwargs)  # type: ignore[operator]
             except StopIteration:
                 exhausted = True
                 return None
@@ -214,11 +218,9 @@ def wrap_parallel_iterator(
                 while busy:
                     yield None
                 busy = True
-                if is_generator:
-                    yield _parallel_gen
-                else:
+                if not is_generator:  # Regular function is only resolved once
                     exhausted = True
-                    yield partial(gen, *args, **kwargs)  # type: ignore[arg-type]
+                yield _parallel_gen
             except GeneratorExit:
                 if is_generator:
                     gen.close()  # type: ignore[union-attr]

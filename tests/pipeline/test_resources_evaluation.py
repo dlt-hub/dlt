@@ -386,3 +386,29 @@ def test_test_parallelized_transformers() -> None:
 
     assert sorted(result) == expected_result
     assert exec_order == ["+", "-"] * item_count
+
+
+def test_parallelized_bare_generator() -> None:
+    def pos_data():
+        for i in range(1, 6):
+            time.sleep(0.1)
+            yield i
+
+    def neg_data():
+        time.sleep(0.05)
+        for i in range(-1, -6, -1):
+            time.sleep(0.1)
+            yield i
+
+    @dlt.source
+    def some_source():
+        return [
+            # Resources created from generators directly (not generator functions) can be parallelized
+            dlt.resource(pos_data(), parallelized=True, name="pos_data"),
+            dlt.resource(neg_data(), parallelized=True, name="neg_data"),
+        ]
+
+    result = list(some_source())
+
+    assert set(result) == {1, 2, 3, 4, 5, -1, -2, -3, -4, -5}
+    assert len(result) == 10
