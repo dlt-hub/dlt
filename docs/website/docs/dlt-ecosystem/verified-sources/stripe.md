@@ -71,8 +71,7 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the
-[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
+For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source).
 
 
 ### Add credentials
@@ -117,7 +116,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    For example, the `pipeline_name` for the above pipeline example is `stripe_analytics`, you
    may also use any custom name instead.
 
-For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/run-a-pipeline).
+For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
 
 ## Sources and resources
 
@@ -268,4 +267,16 @@ verified source.
    print(load_info)
    ```
 
+<!--@@@DLT_SNIPPET_START tuba::stripe_analytics-->
+## Additional Setup guides
 
+- [Load data from Stripe to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-mssql)
+- [Load data from Stripe to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-snowflake)
+- [Load data from Stripe to Databricks in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-databricks)
+- [Load data from Stripe to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-duckdb)
+- [Load data from Stripe to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-synapse)
+- [Load data from Stripe to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-postgres)
+- [Load data from Stripe to Redshift in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-redshift)
+- [Load data from Stripe to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-athena)
+- [Load data from Stripe to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-bigquery)
+<!--@@@DLT_SNIPPET_END tuba::stripe_analytics-->

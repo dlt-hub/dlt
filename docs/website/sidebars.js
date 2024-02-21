@@ -16,7 +16,18 @@ const sidebars = {
   tutorialSidebar: [
     'intro',
     'getting-started',
-    'build-a-pipeline-tutorial',
+    {
+      type: 'category',
+      label: 'Tutorial',
+      link: {
+        type: 'doc',
+        id: 'tutorial/intro',
+      },
+      items: [
+        'tutorial/load-data-from-an-api',
+        'tutorial/grouping-resources',
+      ]
+    },
     {
       type: 'category',
       label: 'Integrations',
@@ -49,6 +60,7 @@ const sidebars = {
             'dlt-ecosystem/verified-sources/hubspot',
             'dlt-ecosystem/verified-sources/inbox',
             'dlt-ecosystem/verified-sources/jira',
+            'dlt-ecosystem/verified-sources/kafka',
             'dlt-ecosystem/verified-sources/matomo',
             'dlt-ecosystem/verified-sources/mongodb',
             'dlt-ecosystem/verified-sources/mux',
@@ -74,8 +86,10 @@ const sidebars = {
           },
           items: [
             'dlt-ecosystem/destinations/bigquery',
+            'dlt-ecosystem/destinations/databricks',
             'dlt-ecosystem/destinations/duckdb',
             'dlt-ecosystem/destinations/mssql',
+            'dlt-ecosystem/destinations/synapse',
             'dlt-ecosystem/destinations/filesystem',
             'dlt-ecosystem/destinations/postgres',
             'dlt-ecosystem/destinations/redshift',
@@ -124,6 +138,7 @@ const sidebars = {
             'general-usage/credentials/config_specs',
           ]
         },
+        'build-a-pipeline-tutorial',
         'reference/performance',
         {
           type: 'category',
@@ -145,13 +160,13 @@ const sidebars = {
     },
     {
       type: 'category',
-      label: 'How-to Guides',
+      label: 'How-to guides',
       link: {
         type: 'generated-index',
-        title: 'How-to Guides',
-        description: 'Overview of our walkthroughs. Learn how to use and deploy dlt.',
+        title: 'How-to guides',
+        description: 'In this section you will find step-by-step instructions for the common tasks.',
         slug: 'walkthroughs',
-        keywords: ['walkthrough'],
+        keywords: ['how-to'],
       },
       items: [
         'walkthroughs/create-a-pipeline',
@@ -163,10 +178,10 @@ const sidebars = {
         'dlt-ecosystem/visualizations/exploring-the-data',
         {
           type: 'category',
-          label: 'Transformations',
+          label: 'Transform the data',
           link: {
             type: 'generated-index',
-            title: 'Transformations',
+            title: 'Transform the data',
             description: 'If you want to transform the data after loading, you can use one of the following methods: dbt, SQL, Pandas.',
             slug: 'dlt-ecosystem/transformations',
             keywords: ['transformations'],
@@ -203,19 +218,29 @@ const sidebars = {
         },
         {
           type: 'category',
-          label: 'Customising pipelines',
+          label: 'Customise pipelines',
           items: [
             'general-usage/customising-pipelines/renaming_columns',
             'general-usage/customising-pipelines/pseudonymizing_columns',
+            'general-usage/customising-pipelines/removing_columns',
           ]
         },
         {
           type: 'category',
-          label: 'Running in production',
+          label: 'Data enrichments',
+          items: [
+            'general-usage/data-enrichments/user_agent_device_data_enrichment',
+            'general-usage/data-enrichments/currency_conversion_data_enrichment',
+            'general-usage/data-enrichments/url-parser-data-enrichment'
+          ]
+        },
+        {
+          type: 'category',
+          label: 'Run in production',
           link: {
             type: 'generated-index',
-            title: 'Running in production',
-            description: 'Learn how to run dlt in production.',
+            title: 'Run in production',
+            description: 'How to run dlt in production.',
             slug: 'running-in-production',
             keywords: ['production'],
           },
@@ -226,16 +251,20 @@ const sidebars = {
             'running-in-production/tracing',
           ],
         },
+        'walkthroughs/dispatch-to-multiple-tables',
         'walkthroughs/create-new-destination',
         'walkthroughs/zendesk-weaviate',
       ],
     },
     {
       type: 'category',
-      label: 'Code Examples',
+      label: 'Code examples',
       link: {
-        type: 'doc',
-        id: 'examples/index',
+        type: 'generated-index',
+        title: 'Code examples',
+        description: 'A list of comprehensive code examples that teach you how to solve real world problem.',
+        slug: 'examples',
+        keywords: ['examples'],
       },
       items: [
         'examples/transformers/index',
@@ -243,7 +272,9 @@ const sidebars = {
         'examples/connector_x_arrow/index',
         'examples/chess_production/index',
         'examples/nested_data/index',
-        'examples/qdrant_zendesk/index'
+        'examples/qdrant_zendesk/index',
+        'examples/google_sheets/index',
+        'examples/pdf_to_weaviate/index'
       ],
     },
     {

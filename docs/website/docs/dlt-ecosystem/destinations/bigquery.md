@@ -118,15 +118,25 @@ When staging is enabled:
 > ❗ **Bigquery cannot load JSON columns from `parquet` files**. `dlt` will fail such jobs permanently. Switch to `jsonl` to load and parse JSON properly.
 
 ## Supported column hints
+
 BigQuery supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
-* `partition` - creates a partition with a day granularity on decorated column (`PARTITION BY DATE`). May be used with `datetime`, `date` data types and `bigint` and `double` if they contain valid UNIX timestamps. Only one column per table is supported and only when a new table is created.
-* `cluster` - creates a cluster column(s). Many column per table are supported and only when a new table is created.
+
+* `partition` - creates a partition with a day granularity on decorated column (`PARTITION BY DATE`).
+  May be used with `datetime`, `date` and `bigint` data types.
+  Only one column per table is supported and only when a new table is created.
+  For more information on BigQuery partitioning, read the [official docs](https://cloud.google.com/bigquery/docs/partitioned-tables).
+
+  > ❗ `bigint` maps to BigQuery's **INT64** data type.
+  > Automatic partitioning requires converting an INT64 column to a UNIX timestamp, which `GENERATE_ARRAY` doesn't natively support.
+  > With a 10,000 partition limit, we can’t cover the full INT64 range.
+  > Instead, we set 86,400 second boundaries to enable daily partitioning.
+  > This captures typical values, but extremely large/small outliers go to an `__UNPARTITIONED__` catch-all partition.
+
+* `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
 ## Staging Support
 
 BigQuery supports gcs as a file staging destination. dlt will upload files in the parquet format to gcs and ask BigQuery to copy their data directly into the db. Please refer to the [Google Storage filesystem documentation](./filesystem.md#google-storage) to learn how to set up your gcs bucket with the bucket_url and credentials. If you use the same service account for gcs and your redshift deployment, you do not need to provide additional authentication for BigQuery to be able to read from your bucket.
-```toml
-```
 
 Alternatively to parquet files, you can also specify jsonl as the staging file format. For this set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 
@@ -163,3 +173,15 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-b
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
+
+<!--@@@DLT_SNIPPET_START tuba::bigquery-->
+## Additional Setup guides
+
+- [Load data from Notion to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-bigquery)
+- [Load data from Google Analytics to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-bigquery)
+- [Load data from Chess.com to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-bigquery)
+- [Load data from HubSpot to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-bigquery)
+- [Load data from GitHub to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-bigquery)
+- [Load data from Google Sheets to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-bigquery)
+- [Load data from Stripe to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-bigquery)
+<!--@@@DLT_SNIPPET_END tuba::bigquery-->

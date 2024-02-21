@@ -16,16 +16,14 @@ pip install dlt[mssql]
 
 ### Prerequisites
 
-Microsoft ODBC driver for SQL Server must be installed to use this destination.
-This can't be included with `dlt`s python dependencies so you must installed it separately on your system.
+_Microsoft ODBC Driver for SQL Server_ must be installed to use this destination.
+This can't be included with `dlt`'s python dependencies, so you must install it separately on your system. You can find the official installation instructions [here](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16).
 
-See instructions here to [install Microsoft ODBC Driver 18 for SQL Server on Windows, Mac and Linux](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16)
+Supported driver versions:
+* `ODBC Driver 18 for SQL Server`
+* `ODBC Driver 17 for SQL Server`
 
-Following ODBC drivers are supported:
-* ODBC Driver 18 for SQL Server
-* ODBC Driver 17 for SQL Server
-
-[You can configure driver name explicitly](#additional-destination-options) as well.
+You can [configure driver name](#additional-destination-options) explicitly as well.
 
 ### Create a pipeline
 
@@ -42,7 +40,7 @@ or run:
 ```
 pip install dlt[mssql]
 ```
-This will install dlt with **mssql** extra which contains all the dependencies required by the sql server client.
+This will install dlt with **mssql** extra which contains all the dependencies required by the SQL server client.
 
 **3. Enter your credentials into `.dlt/secrets.toml`.**
 
@@ -112,3 +110,14 @@ destination.mssql.credentials="mssql://loader:<password>@loader.database.windows
 ### dbt support
 No dbt support yet
 
+<!--@@@DLT_SNIPPET_START tuba::mssql-->
+## Additional Setup guides
+
+- [Load data from Stripe to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-mssql)
+- [Load data from Google Analytics to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-mssql)
+- [Load data from Google Sheets to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-mssql)
+- [Load data from Chess.com to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-mssql)
+- [Load data from GitHub to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-mssql)
+- [Load data from Notion to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-mssql)
+- [Load data from HubSpot to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-mssql)
+<!--@@@DLT_SNIPPET_END tuba::mssql-->

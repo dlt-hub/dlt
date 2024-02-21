@@ -65,8 +65,7 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the
-[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
+For more information, read the guide on [how to add a verified source.](../../walkthroughs/add-a-verified-source)
 
 ### Add credentials
 
@@ -109,7 +108,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    For example, the `pipeline_name` for the above pipeline example is `notion`, you may also use any
    custom name instead.
 
-For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
+For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
 
 ## Sources and resources
 
@@ -188,3 +187,17 @@ uniquely identifies a specific page or database.
 
 The database name ("use_name") is optional; if skipped, the pipeline will fetch it from Notion
 automatically.
+
+<!--@@@DLT_SNIPPET_START tuba::notion-->
+## Additional Setup guides
+
+- [Load data from Notion to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-bigquery)
+- [Load data from Notion to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-athena)
+- [Load data from Notion to Redshift in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-redshift)
+- [Load data from Notion to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-synapse)
+- [Load data from Notion to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-postgres)
+- [Load data from Notion to Databricks in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-databricks)
+- [Load data from Notion to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-duckdb)
+- [Load data from Notion to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-snowflake)
+- [Load data from Notion to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-mssql)
+<!--@@@DLT_SNIPPET_END tuba::notion-->

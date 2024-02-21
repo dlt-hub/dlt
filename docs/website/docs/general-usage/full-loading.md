@@ -67,6 +67,4 @@ opportunities, you should use this strategy. The `staging-optimized` strategy be
   recreated with a [clone command](https://docs.snowflake.com/en/sql-reference/sql/create-clone) from the staging tables. This is a low cost and fast way to create a second independent table from the data of another. Learn
   more about [table cloning on snowflake](https://docs.snowflake.com/en/user-guide/object-clone).
 
-For all other destinations the `staging-optimized` will fall back to the behavior of the `insert-from-staging` strategy.
-
-
+For all other [destinations](../dlt-ecosystem/destinations/index.md), please look at their respective documentation pages to see if and how the `staging-optimized` strategy is implemented. If it is not implemented, `dlt` will fall back to the `insert-from-staging` strategy.

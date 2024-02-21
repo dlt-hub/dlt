@@ -1,6 +1,19 @@
 import inspect
 import makefun
-from typing import Optional, Tuple, Union, List, Any, Sequence, cast
+import asyncio
+from typing import (
+    Optional,
+    Tuple,
+    Union,
+    List,
+    Any,
+    Sequence,
+    cast,
+    AsyncIterator,
+    AsyncGenerator,
+    Awaitable,
+    Generator,
+)
 from collections.abc import Mapping as C_Mapping
 
 from dlt.common.exceptions import MissingDependencyException
@@ -119,6 +132,45 @@ def check_compat_transformer(name: str, f: AnyFun, sig: inspect.Signature) -> in
     return meta_arg
 
 
+def wrap_async_iterator(
+    gen: AsyncIterator[TDataItems],
+) -> Generator[Awaitable[TDataItems], None, None]:
+    """Wraps an async generator into a list of awaitables"""
+    exhausted = False
+    busy = False
+
+    # creates an awaitable that will return the next item from the async generator
+    async def run() -> TDataItems:
+        nonlocal exhausted
+        try:
+            # if marked exhausted by the main thread and we are wrapping a generator
+            # we can close it here
+            if exhausted:
+                raise StopAsyncIteration()
+            item = await gen.__anext__()
+            return item
+        # on stop iteration mark as exhausted
+        # also called when futures are cancelled
+        except StopAsyncIteration:
+            exhausted = True
+            raise
+        finally:
+            nonlocal busy
+            busy = False
+
+    # this generator yields None while the async generator is not exhausted
+    try:
+        while not exhausted:
+            while busy:
+                yield None
+            busy = True
+            yield run()
+    # this gets called from the main thread when the wrapping generater is closed
+    except GeneratorExit:
+        # mark as exhausted
+        exhausted = True
+
+
 def wrap_compat_transformer(
     name: str, f: AnyFun, sig: inspect.Signature, *args: Any, **kwargs: Any
 ) -> AnyFun:
@@ -142,8 +194,12 @@ def wrap_resource_gen(
     name: str, f: AnyFun, sig: inspect.Signature, *args: Any, **kwargs: Any
 ) -> AnyFun:
     """Wraps a generator or generator function so it is evaluated on extraction"""
-    if inspect.isgeneratorfunction(inspect.unwrap(f)) or inspect.isgenerator(f):
-        # always wrap generators and generator functions. evaluate only at runtime!
+
+    if (
+        inspect.isgeneratorfunction(inspect.unwrap(f))
+        or inspect.isgenerator(f)
+        or inspect.isasyncgenfunction(f)
+    ):
 
         def _partial() -> Any:
             # print(f"_PARTIAL: {args} {kwargs}")

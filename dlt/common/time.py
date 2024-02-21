@@ -138,6 +138,43 @@ def ensure_pendulum_time(value: Union[str, datetime.time]) -> pendulum.Time:
     raise TypeError(f"Cannot coerce {value} to a pendulum.Time object.")
 
 
+def to_py_datetime(value: datetime.datetime) -> datetime.datetime:
+    """Convert a pendulum.DateTime to a py datetime object.
+
+    Args:
+        value: The value to convert. Can be a pendulum.DateTime or datetime.
+
+    Returns:
+        A py datetime object
+    """
+    if isinstance(value, pendulum.DateTime):
+        return datetime.datetime(
+            value.year,
+            value.month,
+            value.day,
+            value.hour,
+            value.minute,
+            value.second,
+            value.microsecond,
+            value.tzinfo,
+        )
+    return value
+
+
+def to_py_date(value: datetime.date) -> datetime.date:
+    """Convert a pendulum.Date to a py date object.
+
+    Args:
+        value: The value to convert. Can be a pendulum.Date or date.
+
+    Returns:
+        A py date object
+    """
+    if isinstance(value, pendulum.Date):
+        return datetime.date(value.year, value.month, value.day)
+    return value
+
+
 def _datetime_from_ts_or_iso(
     value: Union[int, float, str]
 ) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:

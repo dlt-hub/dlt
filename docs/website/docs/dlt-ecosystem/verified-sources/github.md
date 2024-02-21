@@ -82,8 +82,7 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the
-[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
+For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source).
 
 ### Add credentials
 
@@ -126,7 +125,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    For example, the `pipeline_name` for the above pipeline example is `github_reactions`, you may
    also use any custom name instead.
 
-For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
+For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
 
 ## Sources and resources
 
@@ -286,3 +285,17 @@ verified source.
    ```
 
    It is optional to use `access_token` or make anonymous API calls.
+
+<!--@@@DLT_SNIPPET_START tuba::github-->
+## Additional Setup guides
+
+- [Load data from GitHub to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-postgres)
+- [Load data from GitHub to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-athena)
+- [Load data from GitHub to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-snowflake)
+- [Load data from GitHub to Databricks in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-databricks)
+- [Load data from GitHub to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-bigquery)
+- [Load data from GitHub to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-mssql)
+- [Load data from GitHub to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-synapse)
+- [Load data from GitHub to Redshift in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-redshift)
+- [Load data from GitHub to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-duckdb)
+<!--@@@DLT_SNIPPET_END tuba::github-->

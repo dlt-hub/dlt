@@ -9,29 +9,13 @@ on:
   workflow_dispatch:
 
 env:
-  DESTINATION__POSTGRES__CREDENTIALS: postgresql://loader@dlttests.cwz0jfxu0m7m.eu-central-1.rds.amazonaws.com:5432/dlt_data
-  DESTINATION__DUCKDB__CREDENTIALS: duckdb:///_storage/test_quack.duckdb
-  DESTINATION__REDSHIFT__CREDENTIALS: postgresql://loader@3.73.90.3:5439/dlt_ci
-  DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4LGORLZOK
-  DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME: dltdata
-  DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY: ${{ secrets.AZURE_STORAGE_ACCOUNT_KEY }}
+
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
 
   # For s3 compatible tests
   TESTS__R2_AWS_ACCESS_KEY_ID: a4950a5003b26f5a71ac97ef3848ff4c
   TESTS__R2_AWS_SECRET_ACCESS_KEY: ${{ secrets.CLOUDFLARE_R2_SECRET_ACCESS_KEY }}
   TESTS__R2_ENDPOINT_URL: https://9830548e4e4b582989be0811f2a0a97f.r2.cloudflarestorage.com
-
-  # DESTINATION__ATHENA__CREDENTIALS__AWS_ACCESS_KEY_ID: AKIAT4QMVMC4LGORLZOK
-  # DESTINATION__ATHENA__CREDENTIALS__AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-  # DESTINATION__ATHENA__CREDENTIALS__REGION_NAME: eu-central-1
-  # DESTINATION__ATHENA__QUERY_RESULT_BUCKET: s3://dlt-athena-output
-
-  # password is the same so it will be shared
-  CREDENTIALS__PROJECT_ID: chat-analytics-rasa-ci
-  CREDENTIALS__CLIENT_EMAIL: chat-analytics-loader@chat-analytics-rasa-ci.iam.gserviceaccount.com
-  CREDENTIALS__PRIVATE_KEY: ${{ secrets.BQ_CRED_PRIVATE_KEY }}
-  CREDENTIALS__PASSWORD: ${{ secrets.PG_PASSWORD }}
 
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
@@ -89,8 +73,8 @@ jobs:
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
         run: poetry install --no-interaction -E redshift -E gs -E s3 -E az -E parquet -E duckdb -E cli --with sentry-sdk --with pipeline
 
-      # - name: Install self
-      #   run: poetry install --no-interaction
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - run: |
           poetry run pytest tests/load

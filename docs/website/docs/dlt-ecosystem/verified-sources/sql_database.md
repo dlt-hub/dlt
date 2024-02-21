@@ -132,8 +132,7 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the
-[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
+For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source).
 
 ### Add credentials
 
@@ -377,3 +376,6 @@ To create your own pipeline, use source and resource methods from this verified 
    :::
 
 1. Remember to keep the pipeline name and destination dataset name consistent. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) from the last run, which is essential for incremental loading. Altering these names could initiate a "[full_refresh](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh)", interfering with the metadata tracking necessary for [incremental loads](https://dlthub.com/docs/general-usage/incremental-loading).
+
+<!--@@@DLT_SNIPPET_START tuba::sql_database-->
+<!--@@@DLT_SNIPPET_END tuba::sql_database-->

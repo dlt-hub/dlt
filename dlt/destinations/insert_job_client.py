@@ -36,9 +36,10 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
         # the procedure below will split the inserts into max_query_length // 2 packs
         with FileStorage.open_zipsafe_ro(file_path, "r", encoding="utf-8") as f:
             header = f.readline()
-            values_mark = f.readline()
-            # properly formatted file has a values marker at the beginning
-            assert values_mark == "VALUES\n"
+            if self._sql_client.capabilities.insert_values_writer_type == "default":
+                # properly formatted file has a values marker at the beginning
+                values_mark = f.readline()
+                assert values_mark == "VALUES\n"
 
             max_rows = self._sql_client.capabilities.max_rows_per_insert
 
@@ -67,7 +68,9 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                     # Chunk by max_rows - 1 for simplicity because one more row may be added
                     for chunk in chunks(values_rows, max_rows - 1):
                         processed += len(chunk)
-                        insert_sql.extend([header.format(qualified_table_name), values_mark])
+                        insert_sql.append(header.format(qualified_table_name))
+                        if self._sql_client.capabilities.insert_values_writer_type == "default":
+                            insert_sql.append(values_mark)
                         if processed == len_rows:
                             # On the last chunk we need to add the extra row read
                             insert_sql.append("".join(chunk) + until_nl)
@@ -76,7 +79,12 @@ class InsertValuesLoadJob(LoadJob, FollowupJob):
                             insert_sql.append("".join(chunk).strip()[:-1] + ";\n")
                 else:
                     # otherwise write all content in a single INSERT INTO
-                    insert_sql.extend([header.format(qualified_table_name), values_mark, content])
+                    if self._sql_client.capabilities.insert_values_writer_type == "default":
+                        insert_sql.extend(
+                            [header.format(qualified_table_name), values_mark, content]
+                        )
+                    elif self._sql_client.capabilities.insert_values_writer_type == "select_union":
+                        insert_sql.extend([header.format(qualified_table_name), content])
 
                     if until_nl:
                         insert_sql.append(until_nl)

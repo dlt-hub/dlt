@@ -7,9 +7,9 @@ keywords: [pipeline, source, full refresh]
 # Pipeline
 
 A [pipeline](glossary.md#pipeline) is a connection that moves the data from your Python code to a
-[destination](glossary.md#destination). Typically, you pass the `dlt` [sources](source.md) or
-[resources](resource.md) to the pipeline. You can also pass generators, lists and other iterables to
-it. When the pipeline runs, the resources get executed and the data is loaded at destination.
+[destination](glossary.md#destination). The pipeline accepts `dlt` [sources](source.md) or
+[resources](resource.md)  as well as generators, async generators, lists and any iterables.
+Once the pipeline runs, all resources get evaluated and the data is loaded at destination.
 
 Example:
 

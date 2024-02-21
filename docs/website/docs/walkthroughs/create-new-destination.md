@@ -77,7 +77,7 @@ The default `escape_identifier` function identifier escapes `"` and '\' and quot
 
 You should avoid providing a custom `escape_literal` function by not enabling `insert-values` for your destination.
 
-## 4. Adjust the sql client
+## 4. Adjust the SQL client
 **sql client** is a wrapper over `dbapi` and its main role is to provide consistent interface for executing SQL statements, managing transactions and (probably the most important) to help handling errors via classifying exceptions. Here's a few things you should pay attention to:
 
 - When opening the connection: add current dataset name to search path, set session timezone to UTC.

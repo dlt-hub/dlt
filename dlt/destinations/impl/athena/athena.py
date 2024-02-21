@@ -232,7 +232,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         statements = [
             f"DROP TABLE IF EXISTS {self.make_qualified_ddl_table_name(table)};" for table in tables
         ]
-        self.execute_fragments(statements)
+        self.execute_many(statements)
 
     @contextmanager
     @raise_database_error

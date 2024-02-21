@@ -38,7 +38,7 @@ def client(request) -> Iterator[SqlJobClientBase]:
 
 @pytest.mark.parametrize(
     "client",
-    destinations_configs(default_sql_configs=True, exclude=["mssql"]),
+    destinations_configs(default_sql_configs=True, exclude=["mssql", "synapse"]),
     indirect=True,
     ids=lambda x: x.name,
 )
@@ -263,9 +263,15 @@ def test_execute_df(client: SqlJobClientBase) -> None:
     client.update_stored_schema()
     table_name = prepare_temp_table(client)
     f_q_table_name = client.sql_client.make_qualified_table_name(table_name)
-    insert_query = ",".join([f"({idx})" for idx in range(0, total_records)])
 
-    client.sql_client.execute_sql(f"INSERT INTO {f_q_table_name} VALUES {insert_query};")
+    if client.capabilities.insert_values_writer_type == "default":
+        insert_query = ",".join([f"({idx})" for idx in range(0, total_records)])
+        sql_stmt = f"INSERT INTO {f_q_table_name} VALUES {insert_query};"
+    elif client.capabilities.insert_values_writer_type == "select_union":
+        insert_query = " UNION ALL ".join([f"SELECT {idx}" for idx in range(0, total_records)])
+        sql_stmt = f"INSERT INTO {f_q_table_name} {insert_query};"
+
+    client.sql_client.execute_sql(sql_stmt)
     with client.sql_client.execute_query(
         f"SELECT * FROM {f_q_table_name} ORDER BY col ASC"
     ) as curr:
@@ -311,16 +317,17 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
             pass
     assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
     with pytest.raises(DatabaseUndefinedRelation) as term_ex:
-        with client.sql_client.execute_query(
-            "DELETE FROM TABLE_XXX WHERE 1=1;DELETE FROM ticket_forms__ticket_field_ids WHERE 1=1;"
-        ):
-            pass
+        client.sql_client.execute_many(
+            [
+                "DELETE FROM TABLE_XXX WHERE 1=1;",
+                "DELETE FROM ticket_forms__ticket_field_ids WHERE 1=1;",
+            ]
+        )
     assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
     with pytest.raises(DatabaseUndefinedRelation) as term_ex:
-        with client.sql_client.execute_query(
-            "DROP TABLE TABLE_XXX;DROP TABLE ticket_forms__ticket_field_ids;"
-        ):
-            pass
+        client.sql_client.execute_many(
+            ["DROP TABLE TABLE_XXX;", "DROP TABLE ticket_forms__ticket_field_ids;"]
+        )
 
     # invalid syntax
     with pytest.raises(DatabaseTransientException) as term_ex:
@@ -360,7 +367,10 @@ def test_database_exceptions(client: SqlJobClientBase) -> None:
 
 
 @pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+    "client",
+    destinations_configs(default_sql_configs=True, exclude=["databricks"]),
+    indirect=True,
+    ids=lambda x: x.name,
 )
 def test_commit_transaction(client: SqlJobClientBase) -> None:
     table_name = prepare_temp_table(client)
@@ -391,7 +401,10 @@ def test_commit_transaction(client: SqlJobClientBase) -> None:
 
 
 @pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+    "client",
+    destinations_configs(default_sql_configs=True, exclude=["databricks"]),
+    indirect=True,
+    ids=lambda x: x.name,
 )
 def test_rollback_transaction(client: SqlJobClientBase) -> None:
     if client.capabilities.supports_transactions is False:
@@ -449,7 +462,10 @@ def test_rollback_transaction(client: SqlJobClientBase) -> None:
 
 
 @pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+    "client",
+    destinations_configs(default_sql_configs=True, exclude=["databricks"]),
+    indirect=True,
+    ids=lambda x: x.name,
 )
 def test_transaction_isolation(client: SqlJobClientBase) -> None:
     if client.capabilities.supports_transactions is False:
@@ -546,7 +562,10 @@ def test_max_column_identifier_length(client: SqlJobClientBase) -> None:
 
 
 @pytest.mark.parametrize(
-    "client", destinations_configs(default_sql_configs=True), indirect=True, ids=lambda x: x.name
+    "client",
+    destinations_configs(default_sql_configs=True, exclude=["databricks"]),
+    indirect=True,
+    ids=lambda x: x.name,
 )
 def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     if client.capabilities.supports_transactions is False:
@@ -567,7 +586,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     # syntax error within tx
     statements = ["BEGIN TRANSACTION;", f"INVERT INTO {version_table} VALUES(1);", "COMMIT;"]
     with pytest.raises(DatabaseTransientException):
-        client.sql_client.execute_fragments(statements)
+        client.sql_client.execute_many(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "ProgrammingError")
     assert client.get_stored_schema() is not None
     client.complete_load("EFG")
@@ -581,7 +600,7 @@ def test_recover_on_explicit_tx(client: SqlJobClientBase) -> None:
     ]
     # cannot insert NULL value
     with pytest.raises(DatabaseTerminalException):
-        client.sql_client.execute_fragments(statements)
+        client.sql_client.execute_many(statements)
     # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "IntegrityError")
     # assert isinstance(term_ex.value.dbapi_exception, (psycopg2.InternalError, psycopg2.))
     assert client.get_stored_schema() is not None

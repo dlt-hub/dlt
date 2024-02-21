@@ -8,8 +8,7 @@ on:
   workflow_dispatch:
 
 env:
-  DESTINATION__QDRANT__CREDENTIALS__LOCATION:  ${{ secrets.DESTINATION__QDRANT__CREDENTIALS__LOCATION }}
-  DESTINATION__QDRANT__CREDENTIALS__API_KEY: ${{ secrets.DESTINATION__QDRANT__CREDENTIALS__API_KEY }}
+  DLT_SECRETS_TOML: ${{ secrets.DLT_SECRETS_TOML }}
 
   RUNTIME__SENTRY_DSN: https://6f6f7b6f8e0f458a89be4187603b55fe@o1061158.ingest.sentry.io/4504819859914752
   RUNTIME__LOG_LEVEL: ERROR
@@ -57,6 +56,9 @@ jobs:
         with:
           path: .venv
           key: venv-${{ runner.os }}-${{ steps.setup-python.outputs.python-version }}-${{ hashFiles('**/poetry.lock') }}-gcp
+
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - name: Install dependencies
         run: poetry install --no-interaction -E qdrant -E parquet --with sentry-sdk --with pipeline

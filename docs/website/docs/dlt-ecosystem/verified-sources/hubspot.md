@@ -89,8 +89,7 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the
-[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
+For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source).
 
 ### Add credentials
 
@@ -131,7 +130,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    For example, the `pipeline_name` for the above pipeline example is `hubspot_pipeline`, you may
    also use any custom name instead.
 
-For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
+For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
 
 ## Sources and resources
 
@@ -284,3 +283,18 @@ verified source.
 
     1. This function loads data incrementally and tracks the `occurred_at.last_value` parameter from
     the previous pipeline run. Refer to our official documentation for more information on [incremental loading](../../general-usage/incremental-loading.md).
+
+
+<!--@@@DLT_SNIPPET_START tuba::hubspot-->
+## Additional Setup guides
+
+- [Load data from HubSpot to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-postgres)
+- [Load data from HubSpot to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-athena)
+- [Load data from HubSpot to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-bigquery)
+- [Load data from HubSpot to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-synapse)
+- [Load data from HubSpot to Databricks in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-databricks)
+- [Load data from HubSpot to Redshift in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-redshift)
+- [Load data from HubSpot to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-duckdb)
+- [Load data from HubSpot to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-snowflake)
+- [Load data from HubSpot to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-mssql)
+<!--@@@DLT_SNIPPET_END tuba::hubspot-->

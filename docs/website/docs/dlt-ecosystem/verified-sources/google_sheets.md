@@ -231,8 +231,7 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the
-[Walkthrough: Add a verified source.](../../walkthroughs/add-a-verified-source)
+For more information, read the guide on [how to add a verified source](../../walkthroughs/add-a-verified-source).
 
 ### Add credentials
 
@@ -319,7 +318,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    For example, the `pipeline_name` for the above pipeline example is `google_sheets_pipeline`, you
    may also use any custom name instead.
 
-For more information, read the [Walkthrough: Run a pipeline](../../walkthroughs/run-a-pipeline).
+For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
 
 ## Data types
 
@@ -572,3 +571,17 @@ def get_named_ranges():
 ```
 
 Enjoy the DLT Google Sheets pipeline experience!
+
+<!--@@@DLT_SNIPPET_START tuba::google_sheets-->
+## Additional Setup guides
+
+- [Load data from Google Sheets to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-mssql)
+- [Load data from Google Sheets to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-synapse)
+- [Load data from Google Sheets to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-duckdb)
+- [Load data from Google Sheets to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-postgres)
+- [Load data from Google Sheets to Databricks in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-databricks)
+- [Load data from Google Sheets to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-bigquery)
+- [Load data from Google Sheets to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-athena)
+- [Load data from Google Sheets to Redshift in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-redshift)
+- [Load data from Google Sheets to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-snowflake)
+<!--@@@DLT_SNIPPET_END tuba::google_sheets-->
