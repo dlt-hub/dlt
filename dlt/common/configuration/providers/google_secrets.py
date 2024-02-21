@@ -29,7 +29,7 @@ def normalize_key(in_string: str) -> str:
 
     # Strip punctuation from the string
     stripped_text = in_string.translate(translator)
-    whitespace = re.compile("\s+")
+    whitespace = re.compile(r"\s+")
     stripped_whitespace = whitespace.sub("", stripped_text)
     return stripped_whitespace
 
