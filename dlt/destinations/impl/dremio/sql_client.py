@@ -1,7 +1,8 @@
 from contextlib import contextmanager, suppress
 from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
 
-import dremio.connector as dremio_lib
+from dremio.flight.endpoint import DremioFlightEndpoint
+
 
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import (
