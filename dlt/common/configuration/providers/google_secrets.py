@@ -9,8 +9,9 @@ from dlt.common.exceptions import MissingDependencyException
 from .toml import VaultTomlProvider
 from .provider import get_key_name
 
-punctuation = "".join(set(string.punctuation) - {"-", "_"})
 # Create a translation table to replace punctuation with ""
+# since google secrets allow "-"" and "_" we need to exclude them
+punctuation = "".join(set(string.punctuation) - {"-", "_"})
 translator = str.maketrans("", "", punctuation)
 
 
