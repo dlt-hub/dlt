@@ -115,7 +115,23 @@ function getSnippet(fileName, snippetName) {
     // tuba snippet
     if (snippetName.startsWith("tuba::")) {
         const tag = snippetParts[1];
-        return ["TUBA"]
+        const links = []
+        for (const link of tubaConfig) {
+            if (link.tags.includes(tag)) {
+                links.push(link)
+            }
+        }
+        // no matching links
+        if (links.length == 0) {
+            return []
+        }
+
+        // render links
+        const snippet = ["## Additional Setup guides", ""]
+        for (const link of links) {
+            snippet.push(`- [${link.title}](${link.public_url})`)
+        }
+        return snippet
     }
 
     // regular snippet

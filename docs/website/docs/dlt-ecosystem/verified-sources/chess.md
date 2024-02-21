@@ -226,5 +226,15 @@ To create your data loading pipeline for players and load data, follow these ste
    ```
 
 <!--@@@DLT_SNIPPET_START tuba::chess-->
-TUBA
+## Additional Setup guides
+
+- [Load data from Chess.com to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-athena)
+- [Load data from Chess.com to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-postgres)
+- [Load data from Chess.com to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-mssql)
+- [Load data from Chess.com to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-bigquery)
+- [Load data from Chess.com to Redshift in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-redshift)
+- [Load data from Chess.com to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-duckdb)
+- [Load data from Chess.com to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-synapse)
+- [Load data from Chess.com to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-snowflake)
+- [Load data from Chess.com to Databricks in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-databricks)
 <!--@@@DLT_SNIPPET_END tuba::chess-->

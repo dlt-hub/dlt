@@ -184,3 +184,15 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-d
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
+
+<!--@@@DLT_SNIPPET_START tuba::databricks-->
+## Additional Setup guides
+
+- [Load data from GitHub to Databricks in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-databricks)
+- [Load data from Notion to Databricks in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-databricks)
+- [Load data from Stripe to Databricks in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-databricks)
+- [Load data from HubSpot to Databricks in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-databricks)
+- [Load data from Google Analytics to Databricks in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-databricks)
+- [Load data from Google Sheets to Databricks in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-databricks)
+- [Load data from Chess.com to Databricks in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-databricks)
+<!--@@@DLT_SNIPPET_END tuba::databricks-->

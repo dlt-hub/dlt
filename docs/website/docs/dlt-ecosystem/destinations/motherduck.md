@@ -99,3 +99,6 @@ My observation is that if you write a lot of data into the database then close t
 
 ### Invalid Input Error: Initialization function "motherduck_init" from file
 Use `duckdb 0.8.1` or above.
+
+<!--@@@DLT_SNIPPET_START tuba::motherduck-->
+<!--@@@DLT_SNIPPET_END tuba::motherduck-->
