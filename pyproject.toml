@@ -157,8 +157,8 @@ numpy = [
     { version = ">=1.26", python = ">=3.12" }
 ]
 pandas = [
-    {version = ">2.1", markers = "python_version >= '3.9'"},
-    {version = "<2.1", markers = "python_version < '3.9'"}
+    {version = ">2.1", markers = "python_version >= '3.12'"},
+    {version = "<2.1", markers = "python_version < '3.12'"}
 ]
 
 [tool.poetry.group.airflow]
