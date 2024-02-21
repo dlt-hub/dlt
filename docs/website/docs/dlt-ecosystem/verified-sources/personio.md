@@ -253,3 +253,6 @@ verified source.
    load_data = personio_source()
    print(pipeline.run(load_data))
    ```
+
+<!--@@@DLT_SNIPPET_START tuba::personio-->
+<!--@@@DLT_SNIPPET_END tuba::personio-->

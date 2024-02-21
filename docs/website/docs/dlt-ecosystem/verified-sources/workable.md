@@ -271,3 +271,5 @@ To create your data pipeline using single loading and
    disrupting metadata tracking for
    [incremental data loading](https://dlthub.com/docs/general-usage/incremental-loading).
 
+<!--@@@DLT_SNIPPET_START tuba::workable-->
+<!--@@@DLT_SNIPPET_END tuba::workable-->

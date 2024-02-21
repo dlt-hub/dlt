@@ -265,3 +265,14 @@ my_resource = bigquery_adapter(my_resource, partition="partition_column_name")
 
 Refer to the [full API specification](../../../docs/api_reference/destinations/impl/bigquery/bigquery_adapter.md) for more details.
 
+<!--@@@DLT_SNIPPET_START tuba::bigquery-->
+## Additional Setup guides
+
+- [Load data from Notion to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-bigquery)
+- [Load data from Google Analytics to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-bigquery)
+- [Load data from Chess.com to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-bigquery)
+- [Load data from HubSpot to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-bigquery)
+- [Load data from GitHub to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-bigquery)
+- [Load data from Google Sheets to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-bigquery)
+- [Load data from Stripe to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-bigquery)
+<!--@@@DLT_SNIPPET_END tuba::bigquery-->
