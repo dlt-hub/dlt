@@ -1,23 +1,38 @@
 import os
 from copy import deepcopy
-from typing import Iterator, Dict
+from typing import Iterator, Dict, Any, List
+from dlt.destinations.impl.bigquery.bigquery_adapter import (
+    PARTITION_HINT,
+    CLUSTER_HINT,
+    TABLE_DESCRIPTION_HINT,
+    ROUND_HALF_EVEN_HINT,
+    ROUND_HALF_AWAY_FROM_ZERO_HINT,
+    TABLE_EXPIRATION_HINT,
+)
 
+import google
 import pytest
 import sqlfluff
+from google.cloud.bigquery import Table
 
 import dlt
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.pendulum import pendulum
-from dlt.common.schema import Schema
+from dlt.common.schema import Schema, TColumnHint
 from dlt.common.utils import custom_environ
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DestinationSchemaWillNotUpdate
 from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
+from dlt.destinations.impl.bigquery.bigquery_adapter import bigquery_adapter
 from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfiguration
 from dlt.extract import DltResource
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
-from tests.load.utils import TABLE_UPDATE
+from tests.load.pipeline.utils import (
+    destinations_configs,
+    DestinationTestConfiguration,
+    drop_active_pipeline_data,
+)
+from tests.load.utils import TABLE_UPDATE, sequence_generator
 
 
 @pytest.fixture
@@ -122,7 +137,7 @@ def test_create_table_with_partition_and_cluster(gcp_client: BigQueryClient) -> 
     sql = gcp_client._get_table_update_sql("event_test_table", mod_update, False)[0]
     sqlfluff.parse(sql, dialect="bigquery")
     # clustering must be the last
-    assert sql.endswith("CLUSTER BY `col2`,`col5`")
+    assert sql.endswith("CLUSTER BY `col2`, `col5`")
     assert "PARTITION BY `col10`" in sql
 
 
@@ -371,3 +386,565 @@ def test_bigquery_no_partition_by_integer(destination_config: DestinationTestCon
             has_partitions = cur.fetchone()[0]
             assert isinstance(has_partitions, bool)
             assert not has_partitions
+
+
+@pytest.fixture(autouse=True)
+def drop_bigquery_schema() -> Iterator[None]:
+    yield
+    drop_active_pipeline_data()
+
+
+def test_adapter_no_hints_parsing() -> None:
+    @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    assert some_data.columns == {
+        "int_col": {"name": "int_col", "data_type": "bigint"},
+    }
+
+
+def test_adapter_hints_parsing_partitioning_more_than_one_column() -> None:
+    @dlt.resource(
+        columns=[{"name": "col1", "data_type": "bigint"}, {"name": "col2", "data_type": "bigint"}]
+    )
+    def some_data() -> Iterator[Dict[str, Any]]:
+        yield from [{"col1": str(i), "col2": i} for i in range(3)]
+
+    assert some_data.columns == {
+        "col1": {"data_type": "bigint", "name": "col1"},
+        "col2": {"data_type": "bigint", "name": "col2"},
+    }
+
+    with pytest.raises(ValueError, match="^`partition` must be a single column name as a string.$"):
+        bigquery_adapter(some_data, partition=["col1", "col2"])
+
+
+def test_adapter_hints_parsing_partitioning() -> None:
+    @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    bigquery_adapter(some_data, partition="int_col")
+    assert some_data.columns == {
+        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-partition": True},
+    }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_hints_partitioning(destination_config: DestinationTestConfiguration) -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "bigint"}])
+    def no_hints() -> Iterator[Dict[str, int]]:
+        yield from [{"col1": i} for i in range(10)]
+
+    hints = bigquery_adapter(no_hints._clone(new_name="hints"), partition="col1")
+
+    @dlt.source(max_table_nesting=0)
+    def sources() -> List[DltResource]:
+        return [no_hints, hints]
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        full_refresh=True,
+    )
+
+    pipeline.run(sources())
+
+    with pipeline.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection
+
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
+        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
+
+        no_hints_table = nc.get_table(fqtn_no_hints)
+        hints_table = nc.get_table(fqtn_hints)
+
+        assert not no_hints_table.range_partitioning, "`no_hints` table IS clustered on a column."
+
+        if not hints_table.range_partitioning:
+            raise ValueError("`hints` table IS NOT clustered on a column.")
+        else:
+            assert (
+                hints_table.range_partitioning.field == "col1"
+            ), "`hints` table IS NOT clustered on column `col1`."
+
+
+def test_adapter_hints_parsing_round_half_away_from_zero() -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "wei"}])
+    def hints() -> Iterator[Dict[str, float]]:
+        yield from [{"col1": float(i)} for i in range(10)]
+
+    bigquery_adapter(hints, round_half_away_from_zero="col1")
+
+    assert hints.columns == {
+        "col1": {
+            "name": "col1",
+            "data_type": "wei",
+            "x-bigquery-round-half-away-from-zero": True,
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_hints_round_half_away_from_zero(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "wei"}])
+    def no_hints() -> Iterator[Dict[str, float]]:
+        yield from [{"col1": float(i)} for i in range(10)]
+
+    hints = bigquery_adapter(no_hints._clone(new_name="hints"), round_half_away_from_zero="col1")
+
+    @dlt.source(max_table_nesting=0)
+    def sources() -> List[DltResource]:
+        return [no_hints, hints]
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        full_refresh=True,
+    )
+
+    pipeline.run(sources())
+
+    with pipeline.sql_client() as c:
+        with c.execute_query("""
+                SELECT table_name, rounding_mode
+                FROM `INFORMATION_SCHEMA.COLUMNS`
+                WHERE table_name IN ('no_hints', 'hints')
+                  AND column_name = 'col1';""") as cur:
+            results = cur.fetchall()
+
+            hints_rounding_mode = None
+            no_hints_rounding_mode = None
+
+            for row in results:
+                if row["table_name"] == "no_hints":  # type: ignore
+                    no_hints_rounding_mode = row["rounding_mode"]  # type: ignore
+                elif row["table_name"] == "hints":  # type: ignore
+                    hints_rounding_mode = row["rounding_mode"]  # type: ignore
+
+            assert (no_hints_rounding_mode is None) and (
+                hints_rounding_mode == "ROUND_HALF_AWAY_FROM_ZERO"
+            )
+
+
+def test_adapter_hints_parsing_round_half_even() -> None:
+    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
+    def some_data() -> Iterator[Dict[str, float]]:
+        yield from [{"double_col": float(i)} for i in range(3)]
+
+    bigquery_adapter(some_data, round_half_even="double_col")
+    assert some_data.columns == {
+        "double_col": {
+            "name": "double_col",
+            "data_type": "double",
+            "x-bigquery-round-half-even": True,
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_hints_round_half_even(destination_config: DestinationTestConfiguration) -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "wei"}])
+    def no_hints() -> Iterator[Dict[str, float]]:
+        yield from [{"col1": float(i)} for i in range(10)]
+
+    hints = bigquery_adapter(no_hints._clone(new_name="hints"), round_half_even="col1")
+
+    @dlt.source(max_table_nesting=0)
+    def sources() -> List[DltResource]:
+        return [no_hints, hints]
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        full_refresh=True,
+    )
+
+    pipeline.run(sources())
+
+    with pipeline.sql_client() as c:
+        with c.execute_query("""
+                SELECT table_name, rounding_mode
+                FROM `INFORMATION_SCHEMA.COLUMNS`
+                WHERE table_name IN ('no_hints', 'hints')
+                  AND column_name = 'col1';""") as cur:
+            results = cur.fetchall()
+
+            hints_rounding_mode = None
+            no_hints_rounding_mode = None
+
+            for row in results:
+                if row["table_name"] == "no_hints":  # type: ignore
+                    no_hints_rounding_mode = row["rounding_mode"]  # type: ignore
+                elif row["table_name"] == "hints":  # type: ignore
+                    hints_rounding_mode = row["rounding_mode"]  # type: ignore
+
+            assert (no_hints_rounding_mode is None) and (hints_rounding_mode == "ROUND_HALF_EVEN")
+
+
+def test_adapter_hints_parsing_clustering() -> None:
+    @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    bigquery_adapter(some_data, cluster="int_col")
+    assert some_data.columns == {
+        "int_col": {"name": "int_col", "data_type": "bigint", "x-bigquery-cluster": True},
+    }
+
+
+def test_adapter_hints_parsing_multiple_clustering() -> None:
+    @dlt.resource(
+        columns=[{"name": "col1", "data_type": "bigint"}, {"name": "col2", "data_type": "text"}]
+    )
+    def some_data() -> Iterator[Dict[str, Any]]:
+        yield from [{"col1": i, "col2": str(i)} for i in range(10)]
+
+    bigquery_adapter(some_data, cluster=["col1", "col2"])
+    assert some_data.columns == {
+        "col1": {"name": "col1", "data_type": "bigint", "x-bigquery-cluster": True},
+        "col2": {"name": "col2", "data_type": "text", "x-bigquery-cluster": True},
+    }
+
+
+def test_adapter_hints_merge() -> None:
+    @dlt.resource(
+        columns=[
+            {"name": "col1", "data_type": "text"},
+            {"name": "col2", "data_type": "bigint"},
+        ]
+    )
+    def hints() -> Iterator[Dict[str, Any]]:
+        yield from [{"col1": str(i), "col2": i} for i in range(10)]
+
+    bigquery_adapter(hints, cluster=["col1"])
+    bigquery_adapter(hints, partition="col2")
+
+    assert hints.columns == {
+        "col1": {"name": "col1", "data_type": "text", CLUSTER_HINT: True},
+        "col2": {"name": "col2", "data_type": "bigint", PARTITION_HINT: True},
+    }
+
+
+def test_adapter_hints_unset() -> None:
+    @dlt.resource(
+        columns=[
+            {"name": "col1", "data_type": "text"},
+            {"name": "col2", "data_type": "bigint"},
+        ]
+    )
+    def hints() -> Iterator[Dict[str, Any]]:
+        yield from [{"col1": str(i), "col2": i} for i in range(10)]
+
+    bigquery_adapter(hints, partition="col1")
+    bigquery_adapter(hints, partition="col2")
+
+    assert hints.columns == {
+        "col1": {"name": "col1", "data_type": "text"},
+        "col2": {"name": "col2", "data_type": "bigint", PARTITION_HINT: True},
+    }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_hints_multiple_clustering(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(
+        columns=[
+            {"name": "col1", "data_type": "bigint"},
+            {"name": "col2", "data_type": "text"},
+            {"name": "col3", "data_type": "text"},
+            {"name": "col4", "data_type": "text"},
+        ]
+    )
+    def no_hints() -> Iterator[Dict[str, Any]]:
+        yield from [
+            {
+                "col1": i,
+                "col2": str(i),
+                "col3": str(i),
+                "col4": str(i),
+            }
+            for i in range(10)
+        ]
+
+    hints = bigquery_adapter(
+        no_hints._clone(new_name="hints"), cluster=["col1", "col2", "col3", "col4"]
+    )
+
+    @dlt.source(max_table_nesting=0)
+    def sources() -> List[DltResource]:
+        return [no_hints, hints]
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        full_refresh=True,
+    )
+
+    pipeline.run(sources())
+
+    with pipeline.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection
+
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
+        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
+
+        no_hints_table = nc.get_table(fqtn_no_hints)
+        hints_table = nc.get_table(fqtn_hints)
+
+        no_hints_cluster_fields = (
+            [] if no_hints_table.clustering_fields is None else no_hints_table.clustering_fields
+        )
+        hints_cluster_fields = (
+            [] if hints_table.clustering_fields is None else hints_table.clustering_fields
+        )
+
+        assert not no_hints_cluster_fields, "`no_hints` table IS clustered some column."
+        assert [
+            "col1",
+            "col2",
+            "col3",
+            "col4",
+        ] == hints_cluster_fields
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_hints_clustering(destination_config: DestinationTestConfiguration) -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "text"}])
+    def no_hints() -> Iterator[Dict[str, str]]:
+        yield from [{"col1": str(i)} for i in range(10)]
+
+    hints = bigquery_adapter(no_hints._clone(new_name="hints"), cluster="col1")
+
+    @dlt.source(max_table_nesting=0)
+    def sources() -> List[DltResource]:
+        return [no_hints, hints]
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        full_refresh=True,
+    )
+
+    pipeline.run(sources())
+
+    with pipeline.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection
+
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
+        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
+
+        no_hints_table = nc.get_table(fqtn_no_hints)
+        hints_table = nc.get_table(fqtn_hints)
+
+        no_hints_cluster_fields = (
+            [] if no_hints_table.clustering_fields is None else no_hints_table.clustering_fields
+        )
+        hints_cluster_fields = (
+            [] if hints_table.clustering_fields is None else hints_table.clustering_fields
+        )
+
+        assert not no_hints_cluster_fields, "`no_hints` table IS clustered by `col1`."
+        assert ["col1"] == hints_cluster_fields, "`hints` table IS NOT clustered by `col1`."
+
+
+def test_adapter_hints_empty() -> None:
+    @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    with pytest.raises(
+        ValueError,
+        match="^AT LEAST one of `partition`, `cluster`, `round_half_away_from_zero`",
+    ):
+        bigquery_adapter(some_data)
+
+
+def test_adapter_hints_round_mutual_exclusivity_requirement() -> None:
+    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    with pytest.raises(
+        ValueError,
+        match=(
+            "are present in both `round_half_away_from_zero` and `round_half_even` "
+            "which is not allowed. They must be mutually exclusive.$"
+        ),
+    ):
+        bigquery_adapter(
+            some_data, round_half_away_from_zero="double_col", round_half_even="double_col"
+        )
+
+
+def test_adapter_additional_table_hints_parsing_table_description() -> None:
+    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    table_description = "Once upon a time a small table got hinted."
+    bigquery_adapter(some_data, table_description=table_description)
+
+    assert some_data._hints["x-bigquery-table-description"] == table_description  # type: ignore
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_additional_table_hints_table_description(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "text"}])
+    def no_hints() -> Iterator[Dict[str, str]]:
+        yield from [{"col1": str(i)} for i in range(10)]
+
+    hints = bigquery_adapter(
+        no_hints._clone(new_name="hints"),
+        table_description="Once upon a time a small table got hinted.",
+    )
+
+    @dlt.source(max_table_nesting=0)
+    def sources() -> List[DltResource]:
+        return [no_hints, hints]
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        full_refresh=True,
+    )
+
+    pipeline.run(sources())
+
+    with pipeline.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection
+
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
+        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
+
+        no_hints_table = nc.get_table(fqtn_no_hints)
+        hints_table = nc.get_table(fqtn_hints)
+
+        assert not no_hints_table.description
+        assert hints_table.description == "Once upon a time a small table got hinted."
+
+
+def test_adapter_additional_table_hints_parsing_table_expiration() -> None:
+    @dlt.resource(columns=[{"name": "double_col", "data_type": "double"}])
+    def some_data() -> Iterator[Dict[str, str]]:
+        yield from next(sequence_generator())
+
+    bigquery_adapter(some_data, table_expiration_datetime="2030-01-01")
+
+    assert some_data._hints["x-bigquery-table-expiration"] == pendulum.datetime(2030, 1, 1)  # type: ignore
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_additional_table_hints_table_expiration(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(columns=[{"name": "col1", "data_type": "text"}])
+    def no_hints() -> Iterator[Dict[str, str]]:
+        yield from [{"col1": str(i)} for i in range(10)]
+
+    hints = bigquery_adapter(
+        no_hints._clone(new_name="hints"), table_expiration_datetime="2030-01-01"
+    )
+
+    @dlt.source(max_table_nesting=0)
+    def sources() -> List[DltResource]:
+        return [no_hints, hints]
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        full_refresh=True,
+    )
+
+    pipeline.run(sources())
+
+    with pipeline.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection
+
+        fqtn_no_hints = c.make_qualified_table_name("no_hints", escape=False)
+        fqtn_hints = c.make_qualified_table_name("hints", escape=False)
+
+        no_hints_table = nc.get_table(fqtn_no_hints)
+        hints_table = nc.get_table(fqtn_hints)
+
+        assert not no_hints_table.expires
+        assert hints_table.expires == pendulum.datetime(2030, 1, 1, 0)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_staging_configs=True, subset=["bigquery"]),
+    ids=lambda x: x.name,
+)
+def test_adapter_merge_behaviour(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    @dlt.resource(
+        columns=[
+            {"name": "col1", "data_type": "text"},
+            {"name": "col2", "data_type": "bigint"},
+            {"name": "col3", "data_type": "double"},
+        ]
+    )
+    def hints() -> Iterator[Dict[str, Any]]:
+        yield from [{"col1": str(i), "col2": i, "col3": float(i)} for i in range(10)]
+
+    bigquery_adapter(hints, table_expiration_datetime="2030-01-01", cluster=["col1"])
+    bigquery_adapter(
+        hints, table_description="A small table somewhere in the cosmos...", partition="col2"
+    )
+
+    pipeline = destination_config.setup_pipeline(
+        f"bigquery_{uniq_id()}",
+        full_refresh=True,
+    )
+
+    pipeline.run(hints)
+
+    with pipeline.sql_client() as c:
+        nc: google.cloud.bigquery.client.Client = c.native_connection
+
+        table_fqtn = c.make_qualified_table_name("hints", escape=False)
+
+        table: Table = nc.get_table(table_fqtn)
+
+        table_cluster_fields = [] if table.clustering_fields is None else table.clustering_fields
+
+        # Test merging behaviour.
+        assert table.expires == pendulum.datetime(2030, 1, 1, 0)
+        assert ["col1"] == table_cluster_fields, "`hints` table IS NOT clustered by `col1`."
+        assert table.description == "A small table somewhere in the cosmos..."
+
+        if not table.range_partitioning:
+            raise ValueError("`hints` table IS NOT clustered on a column.")
+        else:
+            assert (
+                table.range_partitioning.field == "col2"
+            ), "`hints` table IS NOT clustered on column `col2`."

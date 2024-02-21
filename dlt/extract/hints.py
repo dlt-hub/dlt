@@ -1,7 +1,6 @@
 from copy import copy, deepcopy
-from typing import List, TypedDict, cast, Any, Optional, Dict
+from typing import TypedDict, cast, Any, Optional, Dict
 
-from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
 from dlt.common.schema.typing import (
     TColumnNames,
     TColumnProp,
@@ -13,16 +12,16 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TSchemaContract,
 )
-from dlt.common.typing import TDataItem
+from dlt.common.schema.utils import DEFAULT_WRITE_DISPOSITION, merge_columns, new_column, new_table
+from dlt.common.typing import TDataItem, DictStrAny, DictStrStr
 from dlt.common.utils import update_dict_nested
 from dlt.common.validation import validate_dict_ignoring_xkeys
-
-from dlt.extract.incremental import Incremental
-from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate, ValidateItem
 from dlt.extract.exceptions import (
     DataItemRequiredForDynamicTableHints,
     InconsistentTableTemplate,
 )
+from dlt.extract.incremental import Incremental
+from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate, ValidateItem
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
 
@@ -135,17 +134,15 @@ class DltResourceHints:
 
     @property
     def columns(self) -> TTableHintTemplate[TTableSchemaColumns]:
-        """Gets columns schema that can be modified in place"""
-        if self._hints is None:
-            return None
-        return self._hints.get("columns")
+        """Gets columns' schema that can be modified in place"""
+        return None if self._hints is None else self._hints.get("columns")
 
     @property
     def schema_contract(self) -> TTableHintTemplate[TSchemaContract]:
         return self._hints.get("schema_contract")
 
     def compute_table_schema(self, item: TDataItem = None) -> TTableSchema:
-        """Computes the table schema based on hints and column definitions passed during resource creation. `item` parameter is used to resolve table hints based on data"""
+        """Computes the table schema based on hints and column definitions passed during resource creation. `item` parameter is used to resolve table hints based on data."""
         if not self._hints:
             return new_table(self.name, resource=self.name)
 
@@ -155,7 +152,7 @@ class DltResourceHints:
             table_template["name"] = self.name
         table_template["columns"] = copy(self._hints["columns"])
 
-        # if table template present and has dynamic hints, the data item must be provided
+        # if table template present and has dynamic hints, the data item must be provided.
         if self._table_name_hint_fun and item is None:
             raise DataItemRequiredForDynamicTableHints(self.name)
         # resolve
@@ -190,17 +187,16 @@ class DltResourceHints:
 
         This method accepts the same table hints arguments as `dlt.resource` decorator with the following additions.
         Skip the argument or pass None to leave the existing hint.
-        Pass empty value (for particular type ie "" for a string) to remove hint
+        Pass empty value (for a particular type i.e. "" for a string) to remove a hint.
 
-        parent_table_name (str, optional): A name of parent table if foreign relation is defined. Please note that if you use merge you must define `root_key` columns explicitly
+        parent_table_name (str, optional): A name of parent table if foreign relation is defined. Please note that if you use merge, you must define `root_key` columns explicitly
         incremental (Incremental, optional): Enables the incremental loading for a resource.
 
-        Please note that for efficient incremental loading, the resource must be aware of the Incremental by accepting it as one if its arguments and then using is to skip already loaded data.
-        In non-aware resources, `dlt` will filter out the loaded values, however the resource will yield all the values again.
+        Please note that for efficient incremental loading, the resource must be aware of the Incremental by accepting it as one if its arguments and then using are to skip already loaded data.
+        In non-aware resources, `dlt` will filter out the loaded values, however, the resource will yield all the values again.
         """
-        t = None
         if not self._hints:
-            # if there's no template yet, create and set new one
+            # if there is no template yet, create and set a new one.
             t = make_hints(
                 table_name,
                 parent_table_name,
@@ -227,7 +223,7 @@ class DltResourceHints:
             if write_disposition:
                 t["write_disposition"] = write_disposition
             if columns is not None:
-                # keep original columns: ie in case it is a Pydantic model
+                # keep original columns: i.e. in case it is a Pydantic model.
                 t["original_columns"] = columns
                 # if callable then override existing
                 if callable(columns) or callable(t["columns"]):
@@ -255,44 +251,39 @@ class DltResourceHints:
                     t["schema_contract"] = schema_contract
                 else:
                     t.pop("schema_contract", None)
-            # recreate validator if columns definition or contract changed
+            if additional_table_hints is not None:
+                for k, v in additional_table_hints.items():
+                    if v:
+                        t[k] = v  # type: ignore[literal-required]
+                    else:
+                        t.pop(k, None)  # type: ignore[misc]
+                t.pop("additional_table_hints", None)  # type: ignore
+
+            # recreate validator if column definition or contract changed
             if schema_contract is not None or columns is not None:
                 t["validator"], schema_contract = create_item_validator(
                     t.get("original_columns"), t.get("schema_contract")
                 )
-                if schema_contract is not None:
-                    t["schema_contract"] = schema_contract
+            if schema_contract is not None:
+                t["schema_contract"] = schema_contract
             if table_format is not None:
                 if table_format:
                     t["table_format"] = table_format
                 else:
                     t.pop("table_format", None)
 
-        # set properties that cannot be passed to make_hints
+        # set properties that can't be passed to make_hints
         if incremental is not None:
-            if incremental is Incremental.EMPTY:
-                t["incremental"] = None
-            else:
-                t["incremental"] = incremental
-        if additional_table_hints is not None:
-            # loop through provided hints and add, overwrite, or remove them
-            for k, v in additional_table_hints.items():
-                if v is not None:
-                    t[k] = v  # type: ignore[literal-required]
-                else:
-                    t.pop(k, None)  # type: ignore[misc]
+            t["incremental"] = None if incremental is Incremental.EMPTY else incremental
 
         self.set_hints(t)
 
     def set_hints(self, hints_template: TResourceHints) -> None:
         DltResourceHints.validate_dynamic_hints(hints_template)
-        # if "name" is callable in the template then the table schema requires actual data item to be inferred
+        # if "name" is callable in the template, then the table schema requires data item to be inferred.
         name_hint = hints_template.get("name")
-        if callable(name_hint):
-            self._table_name_hint_fun = name_hint
-        else:
-            self._table_name_hint_fun = None
-        # check if any other hints in the table template should be inferred from data
+        self._table_name_hint_fun = name_hint if callable(name_hint) else None
+        # check if any other hints in the table template should be inferred from data.
         self._table_has_other_dynamic_hints = any(
             callable(v) for k, v in hints_template.items() if k != "name"
         )
@@ -322,10 +313,7 @@ class DltResourceHints:
     @staticmethod
     def _resolve_hint(item: TDataItem, hint: TTableHintTemplate[Any]) -> Any:
         """Calls each dynamic hint passing a data item"""
-        if callable(hint):
-            return hint(item)
-        else:
-            return hint
+        return hint(item) if callable(hint) else hint
 
     @staticmethod
     def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:
@@ -354,7 +342,7 @@ class DltResourceHints:
     @staticmethod
     def validate_dynamic_hints(template: TResourceHints) -> None:
         table_name = template.get("name")
-        # if any of the hints is a function then name must be as well
+        # if any of the hints is a function, then name must be as well.
         if any(
             callable(v)
             for k, v in template.items()
