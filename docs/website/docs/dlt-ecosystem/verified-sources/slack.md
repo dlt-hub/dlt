@@ -289,3 +289,6 @@ verified source.
    load_info = pipeline.run(source.with_resources("general"))
    print(load_info)
    ```
+
+<!--@@@DLT_SNIPPET_START tuba::slack-->
+<!--@@@DLT_SNIPPET_END tuba::slack-->
