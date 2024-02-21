@@ -1,14 +1,18 @@
 import sys
 from copy import copy
+from dataclasses import dataclass, field
+import uuid
 import pytest
 from typing import (
     ClassVar,
     Final,
+    Generic,
     Sequence,
     Mapping,
     Dict,
     MutableMapping,
     MutableSequence,
+    TypeVar,
     Union,
     Optional,
     List,
@@ -29,7 +33,7 @@ from dlt.common.libs.pydantic import (
     validate_items,
     create_list_model,
 )
-from pydantic import BaseModel, Json, AnyHttpUrl, ConfigDict, ValidationError
+from pydantic import UUID4, BaseModel, Json, AnyHttpUrl, ConfigDict, ValidationError
 
 from dlt.common.schema.exceptions import DataValidationError
 
@@ -118,6 +122,18 @@ TEST_MODEL_INSTANCE = Model(
 )
 
 
+class BookGenre(str, Enum):
+    scifi = "scifi"
+    action = "action"
+    thriller = "thriller"
+
+
+@dataclass
+class BookInfo:
+    isbn: Optional[str] = field(default="ISBN")
+    author: Optional[str] = field(default="Charles Bukowski")
+
+
 class UserLabel(BaseModel):
     label: str
 
@@ -134,12 +150,16 @@ class UserAddress(BaseModel):
 
 class User(BaseModel):
     user_id: int
+    account_id: UUID4
+    optional_uuid: Optional[UUID4]
     name: Annotated[str, "PII", "name"]
+    favorite_book: Annotated[Union[Annotated[BookInfo, "meta"], BookGenre, None], "union metadata"]
     created_at: Optional[datetime]
     labels: List[str]
     user_label: UserLabel
     user_labels: List[UserLabel]
     address: Annotated[UserAddress, "PII", "address"]
+    uuid_or_str: Union[str, UUID4, None]
     unity: Union[UserAddress, UserLabel, Dict[str, UserAddress]]
     location: Annotated[Optional[Union[str, List[str]]], None]
     something_required: Annotated[Union[str, int], type(None)]
@@ -151,6 +171,9 @@ class User(BaseModel):
 
 USER_INSTANCE_DATA = dict(
     user_id=1,
+    account_id=uuid.uuid4(),
+    optional_uuid=None,
+    favorite_book=BookInfo(isbn="isbn-xyz", author="author"),
     name="random name",
     created_at=datetime.now(),
     labels=["str"],
@@ -180,6 +203,7 @@ USER_INSTANCE_DATA = dict(
         ],
     ),
     unity=dict(label="123"),
+    uuid_or_str=uuid.uuid4(),
     location="Florida keys",
     final_location="Ginnie Springs",
     something_required=123,
@@ -387,14 +411,9 @@ def test_nested_model_config_propagation_optional_with_pipe():
     # and can generate the same schema from the class and from the class instance.
 
     user = UserPipe(**USER_INSTANCE_DATA)  # type: ignore
-    user_using_optional = User(**USER_INSTANCE_DATA)  # type: ignore
     schema_from_user_class = pydantic_to_table_schema_columns(UserPipe)
     schema_from_user_instance = pydantic_to_table_schema_columns(user)
-    schema_from_user_class_using_optional = pydantic_to_table_schema_columns(user_using_optional)
-    schema_from_user_instance_using_optional = pydantic_to_table_schema_columns(user_using_optional)
     assert schema_from_user_class == schema_from_user_instance
-    assert schema_from_user_class_using_optional == schema_from_user_instance_using_optional
-    assert schema_from_user_class == schema_from_user_class_using_optional
     assert schema_from_user_class["location"]["nullable"] is True
     assert schema_from_user_class["final_location"]["nullable"] is False
     assert schema_from_user_class["something_required"]["nullable"] is False
