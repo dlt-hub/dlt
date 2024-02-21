@@ -56,8 +56,8 @@ class GoogleSecretsProvider(VaultTomlProvider):
             4. Underscores.
         """
         key = normalize_key(key)
-        sections = [normalize_key(section) for section in sections if section]
-        key_name = get_key_name(normalize_key(key), "-", *sections)
+        normalized_sections = [normalize_key(section) for section in sections if section]
+        key_name = get_key_name(normalize_key(key), "-", *normalized_sections)
         return key_name
 
     @property
