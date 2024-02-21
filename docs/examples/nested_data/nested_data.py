@@ -13,7 +13,6 @@ from dlt.common.utils import map_nested_in_place
 
 CHUNK_SIZE = 10000
 
-
 # You can limit how deep dlt goes when generating child tables.
 # By default, the library will descend and generate child tables
 # for all nested lists, without a limit.
@@ -81,7 +80,6 @@ class CollectionLoader:
         cursor = self.collection.find(self._filter_op)
         while docs_slice := list(islice(cursor, CHUNK_SIZE)):
             yield map_nested_in_place(convert_mongo_objs, docs_slice)
-
 
 def convert_mongo_objs(value: Any) -> Any:
     if isinstance(value, (ObjectId, Decimal128)):
