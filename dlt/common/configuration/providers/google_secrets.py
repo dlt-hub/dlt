@@ -9,9 +9,13 @@ from dlt.common.exceptions import MissingDependencyException
 from .toml import VaultTomlProvider
 from .provider import get_key_name
 
+punctuation = "".join(set(string.punctuation) - {"-", "_"})
+# Create a translation table to replace punctuation with ""
+translator = str.maketrans("", "", punctuation)
 
-def strip_punctuation(in_string: str) -> str:
-    """Replace punctuation characters in a string
+
+def normalize_key(in_string: str) -> str:
+    """Replaces punctuation characters in a string
 
     Note: We exclude `_` and `-` from punctuation characters
 
@@ -21,14 +25,12 @@ def strip_punctuation(in_string: str) -> str:
     Returns:
         (str): a string without punctuatio characters and whitespaces
     """
-    whitespace = re.compile("\s+")
-    punctuation_chars = set(string.punctuation) - {"-", "_"}
-    for char in in_string:
-        if char in punctuation_chars:
-            in_string = in_string.replace(char, "")
 
-    in_string = in_string.strip()
-    return whitespace.sub("_", in_string)
+    # Strip punctuation from the string
+    stripped_text = in_string.translate(translator)
+    whitespace = re.compile("\s+")
+    stripped_whitespace = whitespace.sub("", stripped_text)
+    return stripped_whitespace
 
 
 class GoogleSecretsProvider(VaultTomlProvider):
@@ -52,9 +54,9 @@ class GoogleSecretsProvider(VaultTomlProvider):
             3. Hyphens,
             4. Underscores.
         """
-        key = strip_punctuation(key)
-        sections = [strip_punctuation(section) for section in sections if section]
-        key_name = get_key_name(key, "-", *sections)
+        key = normalize_key(key)
+        sections = [normalize_key(section) for section in sections if section]
+        key_name = get_key_name(normalize_key(key), "-", *sections)
         return key_name
 
     @property

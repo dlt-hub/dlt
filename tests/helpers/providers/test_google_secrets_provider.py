@@ -36,7 +36,7 @@ def test_regular_keys() -> None:
     assert provider._toml.as_string().strip() == DLT_SECRETS_TOML_CONTENT.strip()
     assert provider.get_value("secret_value", AnyType, "pipeline x !!") == (
         None,
-        "pipeline_x-secret_value",
+        "pipelinex-secret_value",
     )
     assert provider.get_value("secret_value", AnyType, None) == (2137, "secret_value")
     assert provider.get_value("secret_key", AnyType, None, "api") == ("ABCD", "api-secret_key")
