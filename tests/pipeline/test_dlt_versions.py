@@ -1,3 +1,4 @@
+import sys
 import pytest
 import tempfile
 import shutil
@@ -21,6 +22,9 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 
 from tests.utils import TEST_STORAGE_ROOT, test_storage
+
+if sys.version_info > (3, 11):
+    pytest.skip("Does not run on Python 3.12 and later", allow_module_level=True)
 
 
 GITHUB_PIPELINE_NAME = "dlt_github_pipeline"
