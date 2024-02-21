@@ -81,13 +81,13 @@ def coerce_from_date_types(
     if to_type == "text":
         return v.isoformat()
     if to_type == "bigint":
-        return v.int_timestamp  # type: ignore
+        return v.int_timestamp
     if to_type == "double":
-        return v.timestamp()  # type: ignore
+        return v.timestamp()
     if to_type == "date":
         return ensure_pendulum_date(v)
     if to_type == "time":
-        return v.time()  # type: ignore[no-any-return]
+        return v.time()
     raise TypeError(f"Cannot convert timestamp to {to_type}")
 
 
