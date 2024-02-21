@@ -37,8 +37,10 @@ class TypeMapper:
         return None
 
     def to_db_decimal_type(self, precision: Optional[int], scale: Optional[int]) -> str:
-        precision, scale = self.decimal_precision(precision, scale)
-        return self.sct_to_dbt["decimal"] % (precision, scale)
+        precision_tup = self.decimal_precision(precision, scale)
+        if not precision_tup or "decimal" not in self.sct_to_dbt:
+            return self.sct_to_unbound_dbt["decimal"]
+        return self.sct_to_dbt["decimal"] % (precision_tup[0], precision_tup[1])
 
     def to_db_type(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
         precision, scale = column.get("precision"), column.get("scale")
