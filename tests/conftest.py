@@ -77,7 +77,7 @@ def pytest_configure(config):
         test_storage_root, "schemas"
     )
     delattr(storage_configuration.SchemaStorageConfiguration, "__init__")
-    storage_configuration.SchemaStorageConfiguration = dataclasses.dataclass(   # type: ignore[misc]
+    storage_configuration.SchemaStorageConfiguration = dataclasses.dataclass(  # type: ignore[misc]
         storage_configuration.SchemaStorageConfiguration, init=True, repr=False
     )
 
