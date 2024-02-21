@@ -6,6 +6,7 @@ from concurrent.futures import Executor
 import os
 
 from dlt.common import sleep, logger
+from dlt.common.utils import order_deduped
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
@@ -233,12 +234,13 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         Optionally `being_completed_job_id` can be passed that is considered to be completed before job itself moves in storage
         """
-        # returns ordered list of tables from parent to child leaf tables
         table_chain: List[TTableSchema] = []
-        # make sure all the jobs for the table chain is completed
-        for table in get_child_tables(schema.tables, top_merged_table["name"]):
+        # returns ordered list of tables from parent to child leaf tables
+        for table_name in self._get_table_chain_tables_with_filter(
+            schema, [top_merged_table["name"]]
+        ):
             table_jobs = self.load_storage.normalized_packages.list_jobs_for_table(
-                load_id, table["name"]
+                load_id, table_name
             )
             # all jobs must be completed in order for merge to be created
             if any(
@@ -247,17 +249,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 for job in table_jobs
             ):
                 return None
-            # if there are no jobs for the table, skip it, unless child tables need to be replaced
-            needs_replacement = False
-            if top_merged_table["write_disposition"] == "replace" or (
-                top_merged_table["write_disposition"] == "merge"
-                and has_column_with_prop(top_merged_table, "hard_delete")
-            ):
-                needs_replacement = True
-            if not table_jobs and not needs_replacement:
-                continue
-            table_chain.append(table)
-        # there must be at least table
+            table_chain.append(schema.tables[table_name])
+        # there must be at least one table
         assert len(table_chain) > 0
         return table_chain
 
@@ -362,27 +355,35 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             f"All jobs completed, archiving package {load_id} with aborted set to {aborted}"
         )
 
-    @staticmethod
     def _get_table_chain_tables_with_filter(
-        schema: Schema, f: Callable[[TTableSchema], bool], tables_with_jobs: Iterable[str]
-    ) -> Set[str]:
-        """Get all jobs for tables with given write disposition and resolve the table chain"""
-        result: Set[str] = set()
+        self,
+        schema: Schema,
+        tables_with_jobs: Iterable[str],
+        f: Callable[[TTableSchema], bool] = lambda t: True,
+    ) -> List[str]:
+        """Get all jobs for tables with given write disposition and resolve the table chain.
+
+        Returns a list of table names ordered by ancestry so the child tables are always after their parents.
+        """
+        result: List[str] = []
         for table_name in tables_with_jobs:
             top_job_table = get_top_level_table(schema.tables, table_name)
             if not f(top_job_table):
                 continue
+            # for replace and merge write dispositions we should include tables
+            # without jobs in the table chain, because child tables may need
+            # processing due to changes in the root table
+            skip_jobless_table = top_job_table["write_disposition"] not in ("replace", "merge")
             for table in get_child_tables(schema.tables, top_job_table["name"]):
-                # only add tables for tables that have jobs unless the disposition is replace
-                # TODO: this is a (formerly used) hack to make test_merge_on_keys_in_schema,
-                # we should change that test
-                if (
-                    not table["name"] in tables_with_jobs
-                    and top_job_table["write_disposition"] != "replace"
-                ):
-                    continue
-                result.add(table["name"])
-        return result
+                with self.get_destination_client(schema) as job_client:
+                    table_has_job = table["name"] in tables_with_jobs
+                    table_exists = True
+                    if hasattr(job_client, "get_storage_table"):
+                        table_exists = job_client.get_storage_table(table["name"])[0]
+                    if (not table_has_job and skip_jobless_table) or not table_exists:
+                        continue
+                result.append(table["name"])
+        return order_deduped(result)
 
     @staticmethod
     def _init_dataset_and_update_schema(
@@ -425,7 +426,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         # update the default dataset
         truncate_tables = self._get_table_chain_tables_with_filter(
-            schema, truncate_filter, tables_with_jobs
+            schema, tables_with_jobs, truncate_filter
         )
         applied_update = self._init_dataset_and_update_schema(
             job_client, expected_update, tables_with_jobs | dlt_tables, truncate_tables
@@ -434,13 +435,13 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # update the staging dataset if client supports this
         if isinstance(job_client, WithStagingDataset):
             if staging_tables := self._get_table_chain_tables_with_filter(
-                schema, truncate_staging_filter, tables_with_jobs
+                schema, tables_with_jobs, truncate_staging_filter
             ):
                 with job_client.with_staging_dataset():
                     self._init_dataset_and_update_schema(
                         job_client,
                         expected_update,
-                        staging_tables | {schema.version_table_name},
+                        order_deduped(staging_tables + [schema.version_table_name]),
                         staging_tables,
                         staging_info=True,
                     )

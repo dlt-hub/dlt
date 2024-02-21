@@ -495,6 +495,34 @@ def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfig
     destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
+def test_complex_column_missing(destination_config: DestinationTestConfiguration) -> None:
+    table_name = "test_complex_column_missing"
+
+    @dlt.resource(name=table_name, write_disposition="merge", primary_key="id")
+    def r(data):
+        yield data
+
+    p = destination_config.setup_pipeline("abstract", full_refresh=True)
+
+    data = [{"id": 1, "simple": "foo", "complex": [1, 2, 3]}]
+    info = p.run(r(data))
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 1
+    assert load_table_counts(p, table_name + "__complex")[table_name + "__complex"] == 3
+
+    # complex column is missing, previously inserted records should be deleted from child table
+    data = [{"id": 1, "simple": "bar"}]
+    info = p.run(r(data))
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 1
+    assert load_table_counts(p, table_name + "__complex")[table_name + "__complex"] == 0
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize("key_type", ["primary_key", "merge_key"])
 def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_type: str) -> None:
     table_name = "test_hard_delete_hint"
