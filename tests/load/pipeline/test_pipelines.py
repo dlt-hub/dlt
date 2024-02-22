@@ -853,9 +853,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        local_filesystem_configs=True, default_staging_configs=True, default_sql_configs=True
-    ),
+    destinations_configs(default_staging_configs=True, default_sql_configs=True),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
