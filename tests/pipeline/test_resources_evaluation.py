@@ -2,6 +2,7 @@ from typing import Any, List
 import time
 import threading
 import random
+from itertools import product
 
 import dlt, asyncio, pytest, os
 
@@ -224,18 +225,15 @@ def test_parallelized_resource(parallelized: bool) -> None:
     @dlt.resource(parallelized=parallelized)
     def resource1():
         for l_ in ["a", "b", "c"]:
-            time.sleep(0.5)
-            nonlocal execution_order
+            time.sleep(0.01)
             execution_order.append("one")
             threads.add(threading.get_ident())
             yield {"letter": l_}
 
     @dlt.resource(parallelized=parallelized)
     def resource2():
-        time.sleep(0.25)
         for l_ in ["e", "f", "g"]:
-            time.sleep(0.5)
-            nonlocal execution_order
+            time.sleep(0.01)
             execution_order.append("two")
             threads.add(threading.get_ident())
             yield {"letter": l_}
@@ -260,11 +258,12 @@ def test_parallelized_resource(parallelized: bool) -> None:
             assert {r[0] for r in rows} == {"e", "f", "g"}
 
     if parallelized:
-        assert len(threads) > 1
-        assert execution_order == ["one", "two", "one", "two", "one", "two"]
+        assert (
+            len(threads) > 1 and threading.get_ident() not in threads
+        )  # Nothing runs in main thread
     else:
         assert execution_order == ["one", "one", "one", "two", "two", "two"]
-        assert len(threads) == 1
+        assert threads == {threading.get_ident()}  # Everything runs in main thread
 
 
 # Parametrize with different resource counts to excersize the worker pool:
@@ -273,9 +272,13 @@ def test_parallelized_resource(parallelized: bool) -> None:
 # 3. Exact number of workers
 # 4. More than future pool max size
 # 5. Exact future pool max size
-@pytest.mark.parametrize("n_resources", [8, 1, 5, 25, 20])
-def test_parallelized_resource_extract_order(n_resources: int) -> None:
-    os.environ["EXTRACT__NEXT_ITEM_MODE"] = "fifo"
+@pytest.mark.parametrize(
+    "n_resources,next_item_mode", product([8, 1, 5, 25, 20], ["fifo", "round_robin"])
+)
+def test_parallelized_resource_extract_order(n_resources: int, next_item_mode: str) -> None:
+    os.environ["EXTRACT__NEXT_ITEM_MODE"] = next_item_mode
+
+    threads = set()
 
     item_counts = [random.randrange(10, 30) for _ in range(n_resources)]
     item_ranges = []  # Create numeric ranges that each resource will yield
@@ -288,14 +291,11 @@ def test_parallelized_resource_extract_order(n_resources: int) -> None:
         end_range = start_range + n_items
         item_ranges.append(range(start_range, end_range))
 
-    def _sleep_duration() -> float:
-        # Sleep for random duration each yield
-        return random.uniform(0.005, 0.012)
-
     @dlt.source
     def some_source():
         def some_data(resource_num: int):
             for item in item_ranges[resource_num]:
+                threads.add(threading.get_ident())
                 print(f"RESOURCE {resource_num}")
                 # Sleep for a random duration each yield
                 time.sleep(random.uniform(0.005, 0.012))
@@ -324,27 +324,32 @@ def test_parallelized_resource_extract_order(n_resources: int) -> None:
         # Items are extracted in order per resource
         assert chunk == sorted(chunk)
 
+    assert len(threads) >= min(2, n_resources) and threading.get_ident() not in threads
 
-def test_test_parallelized_transformers() -> None:
+
+def test_test_parallelized_resource_transformers() -> None:
     item_count = 6
+    threads = set()
+    transformer_threads = set()
 
     @dlt.resource(parallelized=True)
     def pos_data():
         for i in range(1, item_count + 1):
+            threads.add(threading.get_ident())
             time.sleep(0.1)
             yield i
 
     @dlt.resource(parallelized=True)
     def neg_data():
-        time.sleep(0.05)
         for i in range(-1, -item_count - 1, -1):
+            threads.add(threading.get_ident())
             time.sleep(0.1)
             yield i
 
     @dlt.transformer(parallelized=True)
     def multiply(item):
+        transformer_threads.add(threading.get_ident())
         time.sleep(0.05)
-        exec_order.append("+" if item > 0 else "-")
         yield item * 10
 
     @dlt.source
@@ -354,20 +359,24 @@ def test_test_parallelized_transformers() -> None:
             pos_data | multiply.with_name("t_b"),
         ]
 
-    exec_order: List[str] = []
     result = list(some_source())
 
     expected_result = [i * 10 for i in range(-item_count, item_count + 1)]
     expected_result.remove(0)
 
     assert sorted(result) == expected_result
-    assert exec_order == ["+", "-"] * item_count
+    # Nothing runs in main thread
+    assert threads and threading.get_ident() not in threads
+    assert transformer_threads and threading.get_ident() not in transformer_threads
+
+    threads = set()
+    transformer_threads = set()
 
     @dlt.transformer(parallelized=True)  # type: ignore[no-redef]
     def multiply(item):
         # Transformer that is not a generator
+        transformer_threads.add(threading.get_ident())
         time.sleep(0.05)
-        exec_order.append("+" if item > 0 else "-")
         return item * 10
 
     @dlt.source  # type: ignore[no-redef]
@@ -377,18 +386,19 @@ def test_test_parallelized_transformers() -> None:
             pos_data | multiply.with_name("t_b"),
         ]
 
-    exec_order = []
-
     result = list(some_source())
 
     expected_result = [i * 10 for i in range(-item_count, item_count + 1)]
     expected_result.remove(0)
 
     assert sorted(result) == expected_result
-    assert exec_order == ["+", "-"] * item_count
+
+    # Nothing runs in main thread
+    assert len(threads) > 1 and threading.get_ident() not in threads
+    assert len(transformer_threads) > 1 and threading.get_ident() not in transformer_threads
 
 
-def test_parallelized_bare_generator() -> None:
+def test_parallelized_resource_bare_generator() -> None:
     main_thread = threading.get_ident()
     threads = set()
 
@@ -414,12 +424,12 @@ def test_parallelized_bare_generator() -> None:
 
     result = list(some_source())
 
-    assert threads and main_thread not in threads
+    assert len(threads) > 1 and main_thread not in threads
     assert set(result) == {1, 2, 3, 4, 5, -1, -2, -3, -4, -5}
     assert len(result) == 10
 
 
-def test_parallelized_wrapped_generator() -> None:
+def test_parallelized_resource_wrapped_generator() -> None:
     threads = set()
 
     def some_data():
@@ -446,5 +456,5 @@ def test_parallelized_wrapped_generator() -> None:
 
     result = list(source)
 
-    assert len(threads) > 1
+    assert len(threads) > 1 and threading.get_ident() not in threads
     assert set(result) == {1, 2, 3, 4, 5, -1, -2, -3, -4, -5}
