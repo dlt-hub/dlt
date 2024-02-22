@@ -13,6 +13,7 @@ from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import VERSION_TABLE_NAME
 from dlt.common.typing import TDataItem
 from dlt.common.utils import uniq_id
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.extract.exceptions import ResourceNameMissing
 from dlt.extract import DltSource
 from dlt.pipeline.exceptions import (
@@ -22,9 +23,10 @@ from dlt.pipeline.exceptions import (
 )
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.exceptions import DestinationHasFailedJobs
+from tests.load.pipeline.test_replace_disposition import REPLACE_STRATEGIES
 
-from tests.utils import TEST_STORAGE_ROOT, preserve_environ
-from tests.pipeline.utils import assert_load_info
+from tests.utils import TEST_STORAGE_ROOT, data_to_item_format, preserve_environ
+from tests.pipeline.utils import assert_data_table_counts, assert_load_info
 from tests.load.utils import (
     TABLE_ROW_ALL_DATA_TYPES,
     TABLE_UPDATE_COLUMNS_SCHEMA,
@@ -847,6 +849,123 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
             in ["snowflake", "bigquery", "redshift"],
             timestamp_precision=3 if destination_config.destination == "athena" else 6,
         )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        local_filesystem_configs=True, default_staging_configs=True, default_sql_configs=True
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
+def test_pipeline_upfront_tables_two_loads(
+    destination_config: DestinationTestConfiguration, replace_strategy: str
+) -> None:
+    if not destination_config.supports_merge and replace_strategy != "truncate-and-insert":
+        pytest.skip(
+            f"Destination {destination_config.name} does not support merge and thus"
+            f" {replace_strategy}"
+        )
+
+    # use staging tables for replace
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+
+    pipeline = destination_config.setup_pipeline(
+        "test_pipeline_upfront_tables_two_loads",
+        dataset_name="test_pipeline_upfront_tables_two_loads",
+        full_refresh=True,
+    )
+
+    @dlt.source
+    def two_tables():
+        @dlt.resource(
+            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
+            write_disposition="merge",
+        )
+        def table_1():
+            yield {"id": 1}
+
+        @dlt.resource(
+            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
+            write_disposition="merge",
+        )
+        def table_2():
+            yield data_to_item_format("arrow", [{"id": 2}])
+
+        @dlt.resource(
+            columns=[{"name": "id", "data_type": "bigint", "nullable": True}],
+            write_disposition="replace",
+        )
+        def table_3(make_data=False):
+            if not make_data:
+                return
+            yield {"id": 3}
+
+        return table_1, table_2, table_3
+
+    # discover schema
+    schema = two_tables().discover_schema()
+    # print(schema.to_pretty_yaml())
+
+    # now we use this schema but load just one resource
+    source = two_tables()
+    # push state, table 3 not created
+    load_info_1 = pipeline.run(source.table_3, schema=schema)
+    assert_load_info(load_info_1)
+    with pytest.raises(DatabaseUndefinedRelation):
+        load_table_counts(pipeline, "table_3")
+    assert "x-normalizer" not in pipeline.default_schema.tables["table_3"]
+    assert (
+        pipeline.default_schema.tables["_dlt_pipeline_state"]["x-normalizer"]["first-seen"]  # type: ignore[typeddict-item]
+        == load_info_1.loads_ids[0]
+    )
+
+    # load with one empty job, table 3 not created
+    load_info = pipeline.run(source.table_3)
+    assert_load_info(load_info)
+    with pytest.raises(DatabaseUndefinedRelation):
+        load_table_counts(pipeline, "table_3")
+    # print(pipeline.default_schema.to_pretty_yaml())
+
+    load_info_2 = pipeline.run([source.table_1, source.table_3])
+    assert_load_info(load_info_2)
+    # 1 record in table 1
+    assert pipeline.last_trace.last_normalize_info.row_counts["table_1"] == 1
+    assert "table_3" not in pipeline.last_trace.last_normalize_info.row_counts
+    assert "table_2" not in pipeline.last_trace.last_normalize_info.row_counts
+    # only table_1 got created
+    assert load_table_counts(pipeline, "table_1") == {"table_1": 1}
+    with pytest.raises(DatabaseUndefinedRelation):
+        load_table_counts(pipeline, "table_2")
+    with pytest.raises(DatabaseUndefinedRelation):
+        load_table_counts(pipeline, "table_3")
+
+    # v4 = pipeline.default_schema.to_pretty_yaml()
+    # print(v4)
+
+    # now load the second one. for arrow format the schema will not update because
+    # in that case normalizer does not add dlt specific fields, changes are not detected
+    # and schema is not updated because the hash didn't change
+    # also we make the replace resource to load its 1 record
+    load_info_3 = pipeline.run([source.table_3(make_data=True), source.table_2])
+    assert_data_table_counts(pipeline, {"table_1": 1, "table_2": 1, "table_3": 1})
+    # v5 = pipeline.default_schema.to_pretty_yaml()
+    # print(v5)
+
+    # check if seen data is market correctly
+    assert (
+        pipeline.default_schema.tables["table_3"]["x-normalizer"]["first-seen"]  # type: ignore[typeddict-item]
+        == load_info_3.loads_ids[0]
+    )
+    assert (
+        pipeline.default_schema.tables["table_2"]["x-normalizer"]["first-seen"]  # type: ignore[typeddict-item]
+        == load_info_3.loads_ids[0]
+    )
+    assert (
+        pipeline.default_schema.tables["table_1"]["x-normalizer"]["first-seen"]  # type: ignore[typeddict-item]
+        == load_info_2.loads_ids[0]
+    )
 
 
 def simple_nested_pipeline(

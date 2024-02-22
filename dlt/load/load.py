@@ -374,14 +374,14 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             # without jobs in the table chain, because child tables may need
             # processing due to changes in the root table
             skip_jobless_table = top_job_table["write_disposition"] not in ("replace", "merge")
-            for table in get_child_tables(schema.tables, top_job_table["name"]):
-                with self.get_destination_client(schema) as job_client:
-                    table_has_job = table["name"] in tables_with_jobs
-                    table_exists = True
-                    if hasattr(job_client, "get_storage_table"):
-                        table_exists = job_client.get_storage_table(table["name"])[0]
-                    if (not table_has_job and skip_jobless_table) or not table_exists:
-                        continue
+            # use only complete tables to infer table chains
+            data_tables = {
+                t["name"]: t for t in schema.data_tables(include_incomplete=False) + [top_job_table]
+            }
+            for table in get_child_tables(data_tables, top_job_table["name"]):
+                table_has_job = table["name"] in tables_with_jobs
+                if not table_has_job and skip_jobless_table:
+                    continue
                 result.append(table["name"])
         return order_deduped(result)
 
@@ -419,30 +419,72 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         expected_update: TSchemaTables,
         load_id: str,
         truncate_filter: Callable[[TTableSchema], bool],
-        truncate_staging_filter: Callable[[TTableSchema], bool],
+        load_staging_filter: Callable[[TTableSchema], bool],
     ) -> TSchemaTables:
-        tables_with_jobs = set(job.table_name for job in self.get_new_jobs_info(load_id))
-        dlt_tables = set(t["name"] for t in schema.dlt_tables())
+        """Initializes destination storage including staging dataset if supported
 
-        # update the default dataset
-        truncate_tables = self._get_table_chain_tables_with_filter(
-            schema, tables_with_jobs, truncate_filter
+        Will initialize and migrate schema in destination dataset and staging dataset.
+
+        Args:
+            job_client (JobClientBase): Instance of destination client
+            schema (Schema): The schema as in load package
+            expected_update (TSchemaTables): Schema update as in load package. Always present even if empty
+            load_id (str): Package load id
+            truncate_filter (Callable[[TTableSchema], bool]): A filter that tells which table in destination dataset should be truncated
+            load_staging_filter (Callable[[TTableSchema], bool]): A filter which tell which table in the staging dataset may be loaded into
+
+        Returns:
+            TSchemaTables: Actual migrations done at destination
+        """
+        # get dlt/internal tables
+        dlt_tables = set(schema.dlt_table_names())
+        # tables without data
+        tables_no_data = set(
+            table["name"]
+            for table in schema.data_tables()
+            if table.get("x-normalizer", {}).get("first-seen", None) is None  # type: ignore[attr-defined]
         )
+        # get all tables that actually have load jobs with data
+        tables_with_jobs = (
+            set(job.table_name for job in self.get_new_jobs_info(load_id)) - tables_no_data
+        )
+
+        # get tables to truncate by extending tables with jobs with all their child tables
+        truncate_tables = set(
+            self._get_table_chain_tables_with_filter(schema, tables_with_jobs, truncate_filter)
+        )
+        # must be a subset
+        assert (tables_with_jobs | dlt_tables).issuperset(truncate_tables)
+
         applied_update = self._init_dataset_and_update_schema(
             job_client, expected_update, tables_with_jobs | dlt_tables, truncate_tables
         )
 
         # update the staging dataset if client supports this
         if isinstance(job_client, WithStagingDataset):
-            if staging_tables := self._get_table_chain_tables_with_filter(
-                schema, tables_with_jobs, truncate_staging_filter
-            ):
+            # get staging tables (all data tables that are eligible)
+            staging_tables = set(
+                self._get_table_chain_tables_with_filter(
+                    schema, tables_with_jobs, load_staging_filter
+                )
+            )
+            # truncate all tables
+            staging_truncate_tables = set(
+                self._get_table_chain_tables_with_filter(
+                    schema, tables_with_jobs, load_staging_filter
+                )
+            )
+            # must be a subset
+            assert staging_tables.issuperset(staging_truncate_tables)
+            assert tables_with_jobs.issuperset(staging_tables)
+
+            if staging_tables:
                 with job_client.with_staging_dataset():
                     self._init_dataset_and_update_schema(
                         job_client,
                         expected_update,
-                        order_deduped(staging_tables + [schema.version_table_name]),
-                        staging_tables,
+                        staging_tables | {schema.version_table_name},  # keep only schema version
+                        staging_truncate_tables,
                         staging_info=True,
                     )
 

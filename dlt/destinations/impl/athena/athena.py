@@ -453,7 +453,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self, table: TTableSchema
     ) -> bool:
         """iceberg table data goes into staging on staging destination"""
-        return self._is_iceberg_table(self.get_load_table(table["name"]))
+        if self._is_iceberg_table(self.get_load_table(table["name"])):
+            return True
+        return super().should_load_data_to_staging_dataset_on_staging_destination(table)
 
     def get_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
         table = super().get_load_table(table_name, staging)

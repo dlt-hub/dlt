@@ -390,6 +390,7 @@ class Schema:
         return Schema.expand_schema_contract_settings(settings)
 
     def update_table(self, partial_table: TPartialTableSchema) -> TPartialTableSchema:
+        """Adds or merges `partial_table` into the schema. Identifiers are not normalized"""
         table_name = partial_table["name"]
         parent_table_name = partial_table.get("parent")
         # check if parent table present
@@ -414,7 +415,7 @@ class Schema:
         return partial_table
 
     def update_schema(self, schema: "Schema") -> None:
-        """Updates this schema from an incoming schema"""
+        """Updates this schema from an incoming schema. Normalizes identifiers after updating normalizers."""
         # update all tables
         for table in schema.tables.values():
             self.update_table(table)
