@@ -37,8 +37,10 @@ def test_postgres_credentials_defaults() -> None:
     assert pg_cred.connect_timeout == 15
     assert PostgresCredentials.__config_gen_annotations__ == ["port", "connect_timeout"]
     # port should be optional
-    resolve_configuration(pg_cred, explicit_value="postgres://loader:loader@localhost/dlt_data")
+    resolve_configuration(pg_cred, explicit_value="postgres://loader:loader@localhost/DLT_DATA")
     assert pg_cred.port == 5432
+    # preserve case
+    assert pg_cred.database == "DLT_DATA"
 
 
 def test_postgres_credentials_native_value(environment) -> None:
