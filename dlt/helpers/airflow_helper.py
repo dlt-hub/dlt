@@ -1,6 +1,8 @@
+import inspect
 import os
 from tempfile import gettempdir
 from typing import Any, Callable, List, Literal, Optional, Sequence, Tuple
+
 from tenacity import (
     retry_if_exception,
     wait_exponential,
@@ -8,10 +10,13 @@ from tenacity import (
     Retrying,
     RetryCallState,
 )
+from typing_extensions import get_origin
 
 from dlt.common import pendulum
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.runtime.telemetry import with_telemetry
+from dlt.common.typing import extract_inner_type
+from dlt.extract.incremental import Incremental
 
 try:
     from airflow.configuration import conf
@@ -313,13 +318,27 @@ class PipelineTasksGroup(TaskGroup):
 
                 tasks = []
                 sources = data.decompose("scc")
+                t_name = task_name(pipeline, data)
                 start = make_task(pipeline, sources[0])
 
                 # parallel tasks
                 for source in sources[1:]:
+                    for resource in source.resources.values():
+                        if resource.incremental:
+                            logger.warn(
+                                (
+                                    f"The resource {resource.name} in task {t_name} "
+                                    "is using incremental loading and may modify the "
+                                    "state. Resources that modify the state should not "
+                                    "run in parallel within the single pipeline as the "
+                                    "state will not be correctly merged. Please use "
+                                    "'serialize' or 'parallel-isolated' modes instead."
+                                )
+                            )
+                            break
                     tasks.append(make_task(pipeline, source))
 
-                end = DummyOperator(task_id=f"{task_name(pipeline, data)}_end")
+                end = DummyOperator(task_id=f"{t_name}_end")
 
                 if tasks:
                     start >> tasks >> end
