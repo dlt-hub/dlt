@@ -327,9 +327,9 @@ To handle mixed data types in a single column, you can provide a type hint for t
 for resource in resources:
     resource.apply_hints(columns={"total_amount": {"data_type": "double"}})
 ```
-In this example, the total_amount column is enforced to be of type double. This will ensure that all values in the total_amount column are treated as double, regardless of whether they are integers or decimals in the original Google Sheets data.
+In this example, the `total_amount` column is enforced to be of type double. This will ensure that all values in the `total_amount` column are treated as `double`, regardless of whether they are integers or decimals in the original Google Sheets data.
 
-for a single resource (say Sheet1), you can simply use:
+For a single resource (ex. Sheet1), you can simply use:
 ```
 source.Sheet1.apply_hints(columns={"total_amount": {"data_type": "double"}})
 ```
@@ -339,7 +339,7 @@ To get name of resources you can use:
 print(source.resources.keys())
 ```
 
-To read more, please refer to the documentation: 
+To read more, please refer to the documentation: [Customize sources](/docs/website/docs/general-usage/source#customize-sources).
 
 ## Sources and resources
 
