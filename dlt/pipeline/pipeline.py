@@ -324,13 +324,17 @@ class Pipeline(SupportsPipeline):
             self.credentials = credentials
             self._configure(import_schema_path, export_schema_path, must_attach_to_local_pipeline)
 
-    def drop(self) -> "Pipeline":
-        """Deletes local pipeline state, schemas and any working files"""
+    def drop(self, pipeline_name: str = None) -> "Pipeline":
+        """Deletes local pipeline state, schemas and any working files.
+
+        Args:
+            pipeline_name (str): Optional. New pipeline name.
+        """
         # reset the pipeline working dir
         self._create_pipeline()
         # clone the pipeline
         return Pipeline(
-            self.pipeline_name,
+            pipeline_name or self.pipeline_name,
             self.pipelines_dir,
             self.pipeline_salt,
             self.destination,

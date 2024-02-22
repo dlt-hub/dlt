@@ -202,12 +202,12 @@ class PipelineTasksGroup(TaskGroup):
             # use factory function to make a task, in order to parametrize it
             # passing arguments to task function (_run) is serializing
             # them and running template engine on them
-            def make_task(pipeline: Pipeline, data: Any) -> PythonOperator:
+            def make_task(pipeline: Pipeline, data: Any, name: str = None) -> PythonOperator:
                 def _run() -> None:
                     # activate pipeline
                     pipeline.activate()
                     # drop local data
-                    task_pipeline = pipeline.drop()
+                    task_pipeline = pipeline.drop(pipeline_name=name)
 
                     # use task logger
                     if self.use_task_logger:
@@ -359,8 +359,8 @@ class PipelineTasksGroup(TaskGroup):
 
                 start = DummyOperator(task_id=f"{t_name}_start")
 
-                for source in data.decompose("scc"):
-                    tasks.append(make_task(pipeline, source))
+                for task_num, source in enumerate(data.decompose("scc"), start=1):
+                    tasks.append(make_task(pipeline, source, t_name + "_" + str(task_num)))
 
                 end = DummyOperator(task_id=f"{t_name}_end")
 
