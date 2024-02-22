@@ -301,9 +301,6 @@ def test_parallel_incremental():
         credentials=":pipeline:",
     )
     pipeline_standalone.run(mock_data_incremental_source())
-    pipeline_standalone_counts = load_table_counts(
-        pipeline_standalone, *[t["name"] for t in pipeline_standalone.default_schema.data_tables()]
-    )
 
     tasks_list: List[PythonOperator] = None
 
