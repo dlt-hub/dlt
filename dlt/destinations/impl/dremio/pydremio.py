@@ -58,6 +58,14 @@ class DremioCursor:
     connection: "DremioConnection"
     table: pyarrow.Table = field(init=False, default_factory=lambda: pyarrow.table([]))
 
+    @property
+    def description(self) -> List[Tuple[str, pyarrow.DataType, Any, Any, Any, Any, Any]]:
+        return [(fld.name, fld.type, None, None, None, None, None) for fld in self.table.schema]
+
+    @property
+    def rowcount(self) -> int:
+        return len(self.table)
+
     def execute(self, query: AnyStr, parameters: Optional[Mapping[str, Any]] = None) -> None:
         parameterized_query = parameterize_query(query, parameters)
         self.table = execute_query(self.connection, parameterized_query)
