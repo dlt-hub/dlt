@@ -3,8 +3,12 @@ from typing import Any, Callable, List, Sequence, Tuple, cast, TypedDict, Option
 import yaml
 from dlt.common.runtime.logger import pretty_format_exception
 
-from dlt.common.schema.typing import TTableSchema
-from dlt.common.schema.utils import get_columns_names_with_prop, get_first_column_name_with_prop
+from dlt.common.schema.typing import TTableSchema, TSortOrder
+from dlt.common.schema.utils import (
+    get_columns_names_with_prop,
+    get_first_column_name_with_prop,
+    get_dedup_sort_tuple,
+)
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -210,7 +214,7 @@ class SqlMergeJob(SqlBaseJob):
         table_name: str,
         primary_keys: Sequence[str],
         columns: Sequence[str],
-        sort_column: str = None,
+        dedup_sort: Tuple[str, TSortOrder] = None,
         condition: str = None,
         condition_columns: Sequence[str] = None,
     ) -> str:
@@ -250,10 +254,9 @@ class SqlMergeJob(SqlBaseJob):
             1) To select the values for an INSERT INTO statement.
             2) To select the values for a temporary table used for inserts.
         """
-        if sort_column is None:
-            order_by = "(SELECT NULL)"
-        else:
-            order_by = f"{sort_column} DESC"
+        order_by = "(SELECT NULL)"
+        if dedup_sort is not None:
+            order_by = f"{dedup_sort[0]} {dedup_sort[1].upper()}"
         if condition is None:
             condition = "1 = 1"
         col_str = ", ".join(columns)
@@ -274,7 +277,7 @@ class SqlMergeJob(SqlBaseJob):
         staging_root_table_name: str,
         primary_keys: Sequence[str],
         unique_column: str,
-        sort_column: str = None,
+        dedup_sort: Tuple[str, TSortOrder] = None,
         condition: str = None,
         condition_columns: Sequence[str] = None,
     ) -> Tuple[List[str], str]:
@@ -285,7 +288,7 @@ class SqlMergeJob(SqlBaseJob):
                 staging_root_table_name,
                 primary_keys,
                 [unique_column],
-                sort_column,
+                dedup_sort,
                 condition,
                 condition_columns,
             )
@@ -429,8 +432,8 @@ class SqlMergeJob(SqlBaseJob):
                 # only True values indicate a delete for boolean columns
                 not_deleted_cond += f" OR {escape_id(hard_delete_col)} = {escape_lit(False)}"
 
-        # get name of column with dedup_sort hint, if specified
-        dedup_sort_col = get_first_column_name_with_prop(root_table, "dedup_sort")
+        # get dedup sort information
+        dedup_sort = get_dedup_sort_tuple(root_table)
 
         insert_temp_table_name: str = None
         if len(table_chain) > 1:
@@ -443,7 +446,7 @@ class SqlMergeJob(SqlBaseJob):
                     staging_root_table_name,
                     primary_keys,
                     unique_column,
-                    dedup_sort_col,
+                    dedup_sort,
                     not_deleted_cond,
                     condition_columns,
                 )
@@ -470,7 +473,7 @@ class SqlMergeJob(SqlBaseJob):
             if len(primary_keys) > 0 and len(table_chain) == 1:
                 # without child tables we deduplicate inside the query instead of using a temp table
                 select_sql = cls.gen_select_from_dedup_sql(
-                    staging_table_name, primary_keys, columns, dedup_sort_col, insert_cond
+                    staging_table_name, primary_keys, columns, dedup_sort, insert_cond
                 )
 
             sql.append(f"INSERT INTO {table_name}({col_str}) {select_sql};")

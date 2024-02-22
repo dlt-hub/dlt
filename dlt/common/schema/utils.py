@@ -37,6 +37,7 @@ from dlt.common.schema.typing import (
     TTypeDetections,
     TWriteDisposition,
     TSchemaContract,
+    TSortOrder,
 )
 from dlt.common.schema.exceptions import (
     CannotCoerceColumnException,
@@ -588,6 +589,22 @@ def has_column_with_prop(
 ) -> bool:
     """Checks if `table` schema contains column with property `column_prop`."""
     return len(get_columns_names_with_prop(table, column_prop, include_incomplete)) > 0
+
+
+def get_dedup_sort_tuple(
+    table: TTableSchema, include_incomplete: bool = False
+) -> Optional[Tuple[str, TSortOrder]]:
+    """Returns tuple with dedup sort information.
+
+    First element is the sort column name, second element is the sort order.
+
+    Returns None if "dedup_sort" hint was not provided.
+    """
+    dedup_sort_col = get_first_column_name_with_prop(table, "dedup_sort", include_incomplete)
+    if dedup_sort_col is None:
+        return None
+    dedup_sort_order = table["columns"][dedup_sort_col]["dedup_sort"]
+    return (dedup_sort_col, dedup_sort_order)
 
 
 def merge_schema_updates(schema_updates: Sequence[TSchemaUpdate]) -> TSchemaTables:
