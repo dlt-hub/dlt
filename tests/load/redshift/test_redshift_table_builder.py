@@ -42,7 +42,7 @@ def test_redshift_configuration() -> None:
         }
     ):
         C = resolve_configuration(RedshiftCredentials(), sections=("destination", "my_redshift"))
-        assert C.database == "upper_case_database"
+        assert C.database == "UPPER_CASE_DATABASE"
         assert C.password == "pass"
 
     # check fingerprint
