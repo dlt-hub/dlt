@@ -12,6 +12,7 @@ from dlt.destinations.impl.motherduck.factory import motherduck
 from dlt.destinations.impl.weaviate.factory import weaviate
 from dlt.destinations.impl.synapse.factory import synapse
 from dlt.destinations.impl.databricks.factory import databricks
+from dlt.destinations.impl.dremio.factory import dremio
 
 
 __all__ = [
@@ -29,4 +30,5 @@ __all__ = [
     "weaviate",
     "synapse",
     "databricks",
+    "dremio",
 ]

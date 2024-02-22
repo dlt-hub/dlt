@@ -39,12 +39,8 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
         self.credentials = credentials
 
     def open_connection(self) -> pydremio.DremioConnection:
-        conn_params = self.credentials.to_connector_params()
-        # set the timezone to UTC so when loading from file formats that do not have timezones
-        # we get dlt expected UTC
-        if "timezone" not in conn_params:
-            conn_params["timezone"] = "UTC"
-        self._conn = pydremio.connect(schema=self.fully_qualified_dataset_name(), **conn_params)
+        db_kwargs = self.credentials.db_kwargs()
+        self._conn = pydremio.connect(uri=str(self.credentials.to_url()), db_kwargs=db_kwargs)
         return self._conn
 
     @raise_open_connection_error

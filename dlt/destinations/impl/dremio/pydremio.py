@@ -14,7 +14,7 @@ from pyarrow import flight
 
 apilevel = "2.0"
 threadsafety = 2
-paramstyle = "pyformat"
+paramstyle = "format"
 
 
 def connect(
@@ -41,13 +41,9 @@ def quote_string(string: str) -> str:
     return "'" + string.strip("'") + "'"
 
 
-def quote_string_parameters(parameters: Mapping[str, Any]) -> Mapping[str, Any]:
-    return {k: quote_string(v) if isinstance(v, str) else v for k, v in parameters.items()}
-
-
-def parameterize_query(query: str, parameters: Optional[Mapping[str, Any]]) -> str:
-    parameters = parameters or {}
-    parameters = quote_string_parameters(parameters)
+def parameterize_query(query: str, parameters: Optional[Tuple[Any, ...]]) -> str:
+    parameters = parameters or ()
+    parameters = tuple(quote_string(p) if isinstance(p, str) else p for p in parameters)
     return query % parameters
 
 

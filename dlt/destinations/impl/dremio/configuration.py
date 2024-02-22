@@ -64,7 +64,7 @@ class DremioCredentials(ConnectionStringCredentials):
     def to_url(self) -> URL:
         return URL.create(drivername=self.drivername, host=self.host, port=self.port)
 
-    def to_connector_params(self) -> Dict[str, Any]:
+    def db_kwargs(self) -> Dict[str, Any]:
         return dict(username=self.username, password=self.password)
 
 
