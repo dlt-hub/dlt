@@ -187,13 +187,17 @@ bucket_url = "file:///absolute/path"  # three / for absolute path
 
 ## File Compression
 
-The filesystem destination in the dlt library uses gzip compression by default for efficiency, which may result in the files being stored in a compressed format. This format may not be easily readable as plain text or JSON Lines (jsonl) files. If you encounter files that seem unreadable, they may be compressed.
+The filesystem destination in the dlt library uses `gzip` compression by default for efficiency, which may result in the files being stored in a compressed format. This format may not be easily readable as plain text or JSON Lines (`jsonl`) files. If you encounter files that seem unreadable, they may be compressed.
 
 To handle compressed files:
 
-- To disable compression, you can modify the `data_writer.disable_compression` setting in your "config.toml" file. This can be useful if you want to access the files directly without needing to decompress them.
+- To disable compression, you can modify the `data_writer.disable_compression` setting in your "config.toml" file. This can be useful if you want to access the files directly without needing to decompress them. For example:
+  ```toml
+  [normalize.data_writer]
+  disable_compression=false
+  ```
 
-- To decompress a gzip file, you can use tools like gunzip. This will convert the compressed file back to its original format, making it readable.
+- To decompress a `gzip` file, you can use tools like `gunzip`. This will convert the compressed file back to its original format, making it readable.
 
 For more details on managing file compression, please visit our documentation on performance optimization: [Disabling and Enabling File Compression](https://dlthub.com/docs/reference/performance#disabling-and-enabling-file-compression).
 
