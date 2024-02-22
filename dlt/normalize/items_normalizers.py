@@ -196,15 +196,21 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 schema_updates.append(partial_update)
                 logger.debug(f"Processed {line_no} lines from file {extracted_items_file}")
             if line is None and root_table_name in self.schema.tables:
-                self.load_storage.write_empty_items_file(
-                    self.load_id,
-                    self.schema.name,
-                    root_table_name,
-                    self.schema.get_table_columns(root_table_name),
-                )
-                logger.debug(
-                    f"No lines in file {extracted_items_file}, written empty load job file"
-                )
+                # write only if table seen data before
+                root_table = self.schema.tables[root_table_name]
+                if (
+                    "x-normalizer" in root_table
+                    and root_table["x-normalizer"].get("first-seen", None) is not None  # type: ignore[typeddict-item]
+                ):
+                    self.load_storage.write_empty_items_file(
+                        self.load_id,
+                        self.schema.name,
+                        root_table_name,
+                        self.schema.get_table_columns(root_table_name),
+                    )
+                    logger.debug(
+                        f"No lines in file {extracted_items_file}, written empty load job file"
+                    )
 
         return schema_updates
 

@@ -289,9 +289,23 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
     ) -> None:
         # process files in parallel or in single thread, depending on map_f
         schema_updates, writer_metrics = map_f(schema, load_id, files)
-        # remove normalizer specific info
-        for table in schema.tables.values():
-            table.pop("x-normalizer", None)  # type: ignore[typeddict-item]
+        # compute metrics
+        job_metrics = {ParsedLoadJobFileName.parse(m.file_path): m for m in writer_metrics}
+        table_metrics: Dict[str, DataWriterMetrics] = {
+            table_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
+            for table_name, metrics in itertools.groupby(
+                job_metrics.items(), lambda pair: pair[0].table_name
+            )
+        }
+        # update normalizer specific info
+        for table_name in table_metrics:
+            table = schema.tables[table_name]
+            x_normalizer = table.setdefault("x-normalizer", {})  # type: ignore[typeddict-item]
+            # drop evolve once for all tables that seen data
+            x_normalizer.pop("evolve-columns-once", None)
+            # mark that table have seen data only if there was data
+            if table_metrics[table_name].items_count > 0:
+                x_normalizer["first-seen"] = load_id
         logger.info(
             f"Saving schema {schema.name} with version {schema.stored_version}:{schema.version}"
         )
@@ -312,19 +326,13 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         self.normalize_storage.extracted_packages.delete_package(load_id)
         # log and update metrics
         logger.info(f"Extracted package {load_id} processed")
-        job_metrics = {ParsedLoadJobFileName.parse(m.file_path): m for m in writer_metrics}
         self._step_info_complete_load_id(
             load_id,
             {
                 "started_at": None,
                 "finished_at": None,
                 "job_metrics": {job.job_id(): metrics for job, metrics in job_metrics.items()},
-                "table_metrics": {
-                    table_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
-                    for table_name, metrics in itertools.groupby(
-                        job_metrics.items(), lambda pair: pair[0].table_name
-                    )
-                },
+                "table_metrics": table_metrics,
             },
         )
 
