@@ -6,10 +6,12 @@ See: https://github.com/apache/arrow-adbc/issues/1559
 """
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from http.cookies import SimpleCookie
 from typing import Any, List, Tuple, Optional, AnyStr, Mapping
 
 import pyarrow
+import pytz
 from pyarrow import flight
 
 apilevel = "2.0"
@@ -41,9 +43,22 @@ def quote_string(string: str) -> str:
     return "'" + string.strip("'") + "'"
 
 
+def format_datetime(d: datetime) -> str:
+    return d.astimezone(pytz.UTC).replace(tzinfo=None).isoformat(sep=" ", timespec="milliseconds")
+
+
+def format_parameter(param: Any) -> str:
+    if isinstance(param, str):
+        return quote_string(param)
+    elif isinstance(param, datetime):
+        return quote_string(format_datetime(param))
+    else:
+        return str(param)
+
+
 def parameterize_query(query: str, parameters: Optional[Tuple[Any, ...]]) -> str:
     parameters = parameters or ()
-    parameters = tuple(quote_string(p) if isinstance(p, str) else p for p in parameters)
+    parameters = tuple(format_parameter(p) for p in parameters)
     return query % parameters
 
 

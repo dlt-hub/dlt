@@ -1,5 +1,5 @@
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.data_writers.escape import escape_snowflake_identifier
+from dlt.common.data_writers.escape import escape_dremio_identifier
 from dlt.common.destination import DestinationCapabilitiesContext
 
 
@@ -9,7 +9,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_loader_file_formats = ["jsonl", "parquet"]
     caps.preferred_staging_file_format = "parquet"
     caps.supported_staging_file_formats = ["jsonl", "parquet"]
-    caps.escape_identifier = escape_snowflake_identifier
+    caps.escape_identifier = escape_dremio_identifier
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
     caps.max_identifier_length = 255
@@ -20,5 +20,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.is_max_text_data_type_length_in_bytes = True
     caps.supports_ddl_transactions = True
     caps.alter_add_multi_column = True
-    caps.supports_clone_table = True
+    caps.supports_clone_table = False
+    caps.supports_multiple_statements = False
+    caps.timestamp_precision = 3
     return caps

@@ -28,6 +28,7 @@ def test_iceberg() -> None:
         pipeline_name="dremio-test",
         destination="dremio",
         staging="filesystem",
+        dataset_name="foo",
         full_refresh=True,
     )
 

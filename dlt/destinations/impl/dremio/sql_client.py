@@ -95,8 +95,12 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         if escape:
-            return self.capabilities.escape_identifier(self.dataset_name)
-        return self.dataset_name
+            database_name = self.capabilities.escape_identifier(self.credentials.database)
+            dataset_name = self.capabilities.escape_identifier(self.dataset_name)
+        else:
+            database_name = self.credentials.database
+            dataset_name = self.dataset_name
+        return f"{database_name}.{dataset_name}"
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
@@ -112,3 +116,15 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
     @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
         return isinstance(ex, pyarrow.lib.ArrowInvalid)
+
+    def create_dataset(self) -> None:
+        pass
+        # if not self.has_dataset():
+        #     raise RuntimeError(
+        #         f"Dataset {self.dataset_name} does not exist in database"
+        #         f" {self.credentials.database}. Dremio does not support CREATE SCHEMA. Dataset"
+        #         " needs to be created in advance of running any dlt pipeline."
+        #     )
+
+    def drop_dataset(self) -> None:
+        logger.warning("Dremio does not implement drop_dataset")
