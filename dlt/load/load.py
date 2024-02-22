@@ -10,7 +10,7 @@ from dlt.common.utils import order_deduped
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
-from dlt.common.schema.utils import get_child_tables, get_top_level_table
+from dlt.common.schema.utils import get_child_tables, get_top_level_table, has_table_seen_data
 from dlt.common.storages.load_storage import LoadPackageInfo, ParsedLoadJobFileName, TJobState
 from dlt.common.runners import TRunMetrics, Runnable, workermethod, NullExecutor
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -359,7 +359,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self,
         schema: Schema,
         tables_with_jobs: Iterable[str],
-        f: Callable[[TTableSchema], bool] = lambda t: True,
+        exclude_tables: Callable[[TTableSchema], bool] = lambda t: True,
     ) -> List[str]:
         """Get all jobs for tables with given write disposition and resolve the table chain.
 
@@ -368,7 +368,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         result: List[str] = []
         for table_name in tables_with_jobs:
             top_job_table = get_top_level_table(schema.tables, table_name)
-            if not f(top_job_table):
+            if not exclude_tables(top_job_table):
                 continue
             # for replace and merge write dispositions we should include tables
             # without jobs in the table chain, because child tables may need
@@ -379,6 +379,10 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 t["name"]: t for t in schema.data_tables(include_incomplete=False) + [top_job_table]
             }
             for table in get_child_tables(data_tables, top_job_table["name"]):
+                # table that never seen data are skipped as they will not be created
+                if not has_table_seen_data(table):
+                    continue
+                # if there's no job for the table and we are in append then skip
                 table_has_job = table["name"] in tables_with_jobs
                 if not table_has_job and skip_jobless_table:
                     continue
@@ -440,9 +444,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         dlt_tables = set(schema.dlt_table_names())
         # tables without data
         tables_no_data = set(
-            table["name"]
-            for table in schema.data_tables()
-            if table.get("x-normalizer", {}).get("first-seen", None) is None  # type: ignore[attr-defined]
+            table["name"] for table in schema.data_tables() if not has_table_seen_data(table)
         )
         # get all tables that actually have load jobs with data
         tables_with_jobs = (
@@ -453,8 +455,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         truncate_tables = set(
             self._get_table_chain_tables_with_filter(schema, tables_with_jobs, truncate_filter)
         )
-        # must be a subset
-        assert (tables_with_jobs | dlt_tables).issuperset(truncate_tables)
 
         applied_update = self._init_dataset_and_update_schema(
             job_client, expected_update, tables_with_jobs | dlt_tables, truncate_tables
@@ -468,15 +468,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     schema, tables_with_jobs, load_staging_filter
                 )
             )
-            # truncate all tables
-            staging_truncate_tables = set(
-                self._get_table_chain_tables_with_filter(
-                    schema, tables_with_jobs, load_staging_filter
-                )
-            )
-            # must be a subset
-            assert staging_tables.issuperset(staging_truncate_tables)
-            assert tables_with_jobs.issuperset(staging_tables)
 
             if staging_tables:
                 with job_client.with_staging_dataset():
@@ -484,7 +475,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         job_client,
                         expected_update,
                         staging_tables | {schema.version_table_name},  # keep only schema version
-                        staging_truncate_tables,
+                        staging_tables,  # all eligible tables must be also truncated
                         staging_info=True,
                     )
 
