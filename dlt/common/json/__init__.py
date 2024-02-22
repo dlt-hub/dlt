@@ -80,7 +80,7 @@ def custom_encode(obj: Any) -> str:
 
 
 # use PUA range to encode additional types
-PUA_START = int(os.environ.get("DLT_JSON_TYPED_PUA_START", "0x0FA179"), 16)
+PUA_START = int(os.environ.get("DLT_JSON_TYPED_PUA_START", "0xE7B8"), 16)
 
 _DECIMAL = chr(PUA_START)
 _DATETIME = chr(PUA_START + 1)
@@ -155,7 +155,14 @@ def custom_pua_decode(obj: Any) -> Any:
         c = ord(obj[0]) - PUA_START
         # decode only the PUA space defined in DECODERS
         if c >= 0 and c <= PUA_CHARACTER_MAX:
-            return DECODERS[c](obj[1:])
+            try:
+                return DECODERS[c](obj[1:])
+            except Exception:
+                # return strings that cannot be parsed
+                # this may be due
+                # (1) someone exposing strings with PUA characters to external systems (ie. via API)
+                # (2) using custom types ie. DateTime that does not create correct iso strings
+                return obj
     return obj
 
 
@@ -207,4 +214,5 @@ __all__ = [
     "custom_pua_decode_nested",
     "custom_pua_remove",
     "SupportsJson",
+    "may_have_pua",
 ]

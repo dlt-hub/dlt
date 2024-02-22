@@ -9,6 +9,8 @@ from dlt.common.arithmetics import numeric_default_context
 from dlt.common.json import (
     _DECIMAL,
     _WEI,
+    PUA_START,
+    PUA_CHARACTER_MAX,
     custom_pua_decode,
     may_have_pua,
     _orjson,
@@ -17,7 +19,7 @@ from dlt.common.json import (
     _DATETIME,
 )
 
-from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT
+from tests.utils import autouse_test_storage, TEST_STORAGE_ROOT, preserve_environ
 from tests.cases import (
     JSON_TYPED_DICT,
     JSON_TYPED_DICT_DECODED,
@@ -287,6 +289,33 @@ def test_pua_detection(json_impl: SupportsJson) -> None:
     with open(json_case_path("rasa_event_bot_metadata"), "rb") as f:
         content_b = f.read()
     assert not may_have_pua(content_b)
+
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+def test_garbage_pua_string(json_impl: SupportsJson) -> None:
+    for c in range(PUA_START, PUA_START + PUA_CHARACTER_MAX):
+        garbage = f"{chr(c)}GABAGE🤷"
+        with io.BytesIO() as b:
+            json_impl.typed_dump(garbage, b)
+            content_b = b.getvalue()
+        assert may_have_pua(content_b)
+        # if cannot parse, the initial object is returned
+        assert custom_pua_decode(json_impl.loadb(content_b)) == garbage
+
+
+def test_change_pua_start() -> None:
+    import inspect
+
+    os.environ["DLT_JSON_TYPED_PUA_START"] = "0x0FA179"
+    from importlib import reload
+
+    reload(inspect.getmodule(SupportsJson))
+    from dlt.common.json import PUA_START
+
+    assert PUA_START == int("0x0FA179", 16)
+    # restore old start
+    os.environ["DLT_JSON_TYPED_PUA_START"] = hex(PUA_START)
+    from importlib import reload
 
 
 def test_load_and_compare_all_impls() -> None:
