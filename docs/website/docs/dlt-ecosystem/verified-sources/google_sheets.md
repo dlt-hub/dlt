@@ -339,7 +339,7 @@ To get name of resources you can use:
 print(source.resources.keys())
 ```
 
-To read more, please refer to the documentation: [Customize sources](/docs/website/docs/general-usage/source#customize-sources).
+To read more, please refer to the documentation: [Customize sources](../../general-usage/source#customize-sources).
 
 ## Sources and resources
 
