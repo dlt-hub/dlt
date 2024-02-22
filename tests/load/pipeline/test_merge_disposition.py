@@ -740,7 +740,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
         name=table_name,
         write_disposition="merge",
         primary_key="id",  # sort hints only have effect when a primary key is provided
-        columns={"sequence": {"dedup_sort": True}},
+        columns={"sequence": {"dedup_sort": "desc"}},
     )
     def data_resource(data):
         yield data
@@ -748,7 +748,6 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     p = destination_config.setup_pipeline("abstract", full_refresh=True)
 
     # three records with same primary key
-    # only record with highest value in sort column is inserted
     data = [
         {"id": 1, "val": "foo", "sequence": 1},
         {"id": 1, "val": "baz", "sequence": 3},
@@ -759,6 +758,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     assert load_table_counts(p, table_name)[table_name] == 1
 
     # compare observed records with expected records
+    # record with highest value in sort column is inserted (because "desc")
     qual_name = p.sql_client().make_qualified_table_name(table_name)
     observed = [
         {"id": row[0], "val": row[1], "sequence": row[2]}
@@ -767,8 +767,28 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     expected = [{"id": 1, "val": "baz", "sequence": 3}]
     assert sorted(observed, key=lambda d: d["id"]) == expected
 
+    # now test "asc" sorting
+    data_resource.apply_hints(columns={"sequence": {"dedup_sort": "asc"}})
+
+    info = p.run(data_resource(data))
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 1
+
+    # compare observed records with expected records
+    # record with highest lowest in sort column is inserted (because "asc")
+    qual_name = p.sql_client().make_qualified_table_name(table_name)
+    observed = [
+        {"id": row[0], "val": row[1], "sequence": row[2]}
+        for row in select_data(p, f"SELECT id, val, sequence FROM {qual_name}")
+    ]
+    expected = [{"id": 1, "val": "foo", "sequence": 1}]
+    assert sorted(observed, key=lambda d: d["id"]) == expected
+
     table_name = "test_dedup_sort_hint_complex"
-    data_resource.apply_hints(table_name=table_name)
+    data_resource.apply_hints(
+        table_name=table_name,
+        columns={"sequence": {"dedup_sort": "desc"}},
+    )
 
     # three records with same primary key
     # only record with highest value in sort column is inserted
@@ -790,7 +810,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     table_name = "test_dedup_sort_hint_with_hard_delete"
     data_resource.apply_hints(
         table_name=table_name,
-        columns={"sequence": {"dedup_sort": True}, "deleted": {"hard_delete": True}},
+        columns={"sequence": {"dedup_sort": "desc"}, "deleted": {"hard_delete": True}},
     )
 
     # three records with same primary key
@@ -847,14 +867,22 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
         assert_load_info(info)
         assert load_table_counts(p, table_name)[table_name] == 1
 
-    # test if exception is raised when more than one "dedup_sort" column hints are provided
+    # test if exception is raised for invalid column schema's
     @dlt.resource(
         name="test_dedup_sort_hint_too_many_hints",
         write_disposition="merge",
-        columns={"dedup_sort_1": {"dedup_sort": True}, "dedup_sort_2": {"dedup_sort": True}},
+        columns={"dedup_sort_1": {"dedup_sort": "this_is_invalid"}},  # type: ignore[call-overload]
     )
     def r():
         yield {"id": 1, "val": "foo", "dedup_sort_1": 1, "dedup_sort_2": 5}
 
+    # invalid value for "dedup_sort" hint
+    with pytest.raises(PipelineStepFailed):
+        info = p.run(r())
+
+    # more than one "dedup_sort" column hints are provided
+    r.apply_hints(
+        columns={"dedup_sort_1": {"dedup_sort": "desc"}, "dedup_sort_2": {"dedup_sort": "desc"}}
+    )
     with pytest.raises(PipelineStepFailed):
         info = p.run(r())
