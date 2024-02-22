@@ -300,3 +300,10 @@ def test_load_and_compare_all_impls() -> None:
         assert docs[idx] == docs[idx + 1]
         assert dump_s[idx] == dump_s[idx + 1]
         assert dump_b[idx] == dump_b[idx + 1]
+
+
+def test_orjson_segfault() -> None:
+    import orjson
+
+    for _ in range(10000000):
+        orjson.dumps((b"\n" + b"x" * 4046).decode())

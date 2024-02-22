@@ -3,7 +3,6 @@ import connectorx as cx
 import dlt
 from dlt.sources.credentials import ConnectionStringCredentials
 
-
 def read_sql_x(
     conn_str: ConnectionStringCredentials = dlt.secrets.value,
     query: str = dlt.config.value,
@@ -15,17 +14,16 @@ def read_sql_x(
         protocol="binary",
     )
 
-
 def genome_resource():
     # create genome resource with merge on `upid` primary key
     genome = dlt.resource(
-        name="acanthochromis_polyacanthus",
+        name="genome",
         write_disposition="merge",
-        primary_key="analysis_id",
+        primary_key="upid",
         standalone=True,
     )(read_sql_x)(
-        "mysql://anonymous@ensembldb.ensembl.org:3306/acanthochromis_polyacanthus_core_100_1",  # type: ignore[arg-type]
-        "SELECT * FROM analysis LIMIT 20",
+        "mysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam",  # type: ignore[arg-type]
+        "SELECT * FROM genome ORDER BY created LIMIT 1000",
     )
     # add incremental on created at
     genome.apply_hints(incremental=dlt.sources.incremental("created"))

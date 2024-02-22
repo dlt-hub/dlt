@@ -1,7 +1,7 @@
 import contextlib
 import codecs
 import os
-from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union
+from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
 import shutil
 from pathlib import Path
 from dataclasses import dataclass
@@ -48,6 +48,7 @@ from tests.cases import (
 AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
 GCS_BUCKET = dlt.config.get("tests.bucket_url_gs", str)
 AZ_BUCKET = dlt.config.get("tests.bucket_url_az", str)
+GDRIVE_BUCKET = dlt.config.get("tests.bucket_url_gdrive", str)
 FILE_BUCKET = dlt.config.get("tests.bucket_url_file", str)
 R2_BUCKET = dlt.config.get("tests.bucket_url_r2", str)
 MEMORY_BUCKET = dlt.config.get("tests.memory", str)
@@ -56,6 +57,7 @@ ALL_FILESYSTEM_DRIVERS = dlt.config.get("ALL_FILESYSTEM_DRIVERS", list) or [
     "s3",
     "gs",
     "az",
+    "gdrive",
     "file",
     "memory",
     "r2",
@@ -66,6 +68,10 @@ DEFAULT_BUCKETS = [GCS_BUCKET, AWS_BUCKET, FILE_BUCKET, MEMORY_BUCKET, AZ_BUCKET
 DEFAULT_BUCKETS = [
     bucket for bucket in DEFAULT_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
 ]
+
+# temporary solution to include gdrive bucket in tests,
+# while gdrive is not working as a destination
+WITH_GDRIVE_BUCKETS = [GDRIVE_BUCKET] + DEFAULT_BUCKETS
 
 # Add r2 in extra buckets so it's not run for all tests
 R2_BUCKET_CONFIG = dict(
@@ -592,3 +598,10 @@ def prepare_load_package(
     load_storage.commit_new_load_package(load_id)
     schema = load_storage.normalized_packages.load_schema(load_id)
     return load_id, schema
+
+
+def sequence_generator() -> Generator[List[Dict[str, str]], None, None]:
+    count = 1
+    while True:
+        yield [{"content": str(count + i)} for i in range(3)]
+        count += 3

@@ -569,7 +569,7 @@ def get_columns_names_with_prop(
     return [
         c["name"]
         for c in table["columns"].values()
-        if bool(c.get(column_prop, False)) is True and (include_incomplete or is_complete_column(c))
+        if bool(c.get(column_prop, False)) and (include_incomplete or is_complete_column(c))
     ]
 
 

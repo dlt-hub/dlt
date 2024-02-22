@@ -336,3 +336,17 @@ verified source.
 
    > Loads data starting from the specified date during the first run, and then
    > [incrementally](https://dlthub.com/docs/general-usage/incremental-loading) in subsequent runs.
+
+<!--@@@DLT_SNIPPET_START tuba::google_analytics-->
+## Additional Setup guides
+
+- [Load data from Google Analytics to Redshift in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-redshift)
+- [Load data from Google Analytics to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-mssql)
+- [Load data from Google Analytics to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-bigquery)
+- [Load data from Google Analytics to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-duckdb)
+- [Load data from Google Analytics to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-snowflake)
+- [Load data from Google Analytics to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-synapse)
+- [Load data from Google Analytics to Databricks in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-databricks)
+- [Load data from Google Analytics to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-postgres)
+- [Load data from Google Analytics to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-athena)
+<!--@@@DLT_SNIPPET_END tuba::google_analytics-->
