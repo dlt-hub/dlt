@@ -1,11 +1,12 @@
 from contextlib import contextmanager, suppress
 from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
 
+import pyarrow
 
+from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import (
     DatabaseTerminalException,
-    DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
 from dlt.destinations.impl.dremio import capabilities, pydremio
@@ -20,32 +21,30 @@ from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 
 
 class DremioCursorImpl(DBApiCursorImpl):
-    native_cursor: dremio_lib.cursor.DremioCursor  # type: ignore[assignment]
+    native_cursor: pydremio.DremioCursor  # type: ignore[assignment]
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
         if chunk_size is None:
-            return self.native_cursor.fetch_pandas_all(**kwargs)
+            return self.native_cursor.fetch_arrow_table().to_pandas()
         return super().df(chunk_size=chunk_size, **kwargs)
 
 
-class DremioSqlClient(SqlClientBase[dremio_lib.DremioConnection]):
+class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
     dbapi: ClassVar[DBApi] = pydremio
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, dataset_name: str, credentials: DremioCredentials) -> None:
         super().__init__(credentials.database, dataset_name)
-        self._conn: dremio_lib.DremioConnection = None
+        self._conn: Optional[pydremio.DremioConnection] = None
         self.credentials = credentials
 
-    def open_connection(self) -> dremio_lib.DremioConnection:
+    def open_connection(self) -> pydremio.DremioConnection:
         conn_params = self.credentials.to_connector_params()
         # set the timezone to UTC so when loading from file formats that do not have timezones
         # we get dlt expected UTC
         if "timezone" not in conn_params:
             conn_params["timezone"] = "UTC"
-        self._conn = dremio_lib.connect(
-            schema=self.fully_qualified_dataset_name(), **conn_params
-        )
+        self._conn = pydremio.connect(schema=self.fully_qualified_dataset_name(), **conn_params)
         return self._conn
 
     @raise_open_connection_error
@@ -55,27 +54,23 @@ class DremioSqlClient(SqlClientBase[dremio_lib.DremioConnection]):
             self._conn = None
 
     @contextmanager
+    @raise_database_error
     def begin_transaction(self) -> Iterator[DBTransaction]:
-        try:
-            self._conn.autocommit(False)
-            yield self
-            self.commit_transaction()
-        except Exception:
-            self.rollback_transaction()
-            raise
+        logger.warning(
+            "Dremio does not support transactions! Each SQL statement is auto-committed separately."
+        )
+        yield self
 
     @raise_database_error
     def commit_transaction(self) -> None:
-        self._conn.commit()
-        self._conn.autocommit(True)
+        pass
 
     @raise_database_error
     def rollback_transaction(self) -> None:
-        self._conn.rollback()
-        self._conn.autocommit(True)
+        raise NotImplementedError("You cannot rollback Dremio SQL statements.")
 
     @property
-    def native_connection(self) -> "dremio_lib.DremioConnection":
+    def native_connection(self) -> "pydremio.DremioConnection":
         return self._conn
 
     def drop_tables(self, *tables: str) -> None:
@@ -97,75 +92,27 @@ class DremioSqlClient(SqlClientBase[dremio_lib.DremioConnection]):
     @contextmanager
     @raise_database_error
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
-        curr: DBApiCursor = None
         db_args = args if args else kwargs if kwargs else None
-        with self._conn.cursor() as curr:  # type: ignore[assignment]
-            try:
-                curr.execute(query, db_args, num_statements=0)
-                yield DremioCursorImpl(curr)  # type: ignore[abstract]
-            except dremio_lib.Error as outer:
-                try:
-                    self._reset_connection()
-                except dremio_lib.Error:
-                    self.close_connection()
-                    self.open_connection()
-                raise outer
+        with self._conn.cursor() as curr:
+            curr.execute(query, db_args)
+            yield DremioCursorImpl(curr)  # type: ignore[abstract]
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        # Always escape for uppercase
         if escape:
             return self.capabilities.escape_identifier(self.dataset_name)
-        return self.dataset_name.upper()
-
-    def _reset_connection(self) -> None:
-        self._conn.rollback()
-        self._conn.autocommit(True)
+        return self.dataset_name
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
-        if isinstance(ex, dremio_lib.errors.ProgrammingError):
-            if ex.sqlstate == "P0000" and ex.errno == 100132:
-                # Error in a multi statement execution. These don't show the original error codes
-                msg = str(ex)
-                if "NULL result in a non-nullable column" in msg:
-                    return DatabaseTerminalException(ex)
-                elif "does not exist or not authorized" in msg:  # E.g. schema not found
-                    return DatabaseUndefinedRelation(ex)
-                else:
-                    return DatabaseTransientException(ex)
-            if ex.sqlstate in {"42S02", "02000"}:
+        if isinstance(ex, pyarrow.lib.ArrowInvalid):
+            msg = str(ex)
+            if "not found" in msg:
                 return DatabaseUndefinedRelation(ex)
-            elif ex.sqlstate == "22023":  # Adding non-nullable no-default column
-                return DatabaseTerminalException(ex)
-            elif ex.sqlstate == "42000" and ex.errno == 904:  # Invalid identifier
-                return DatabaseTerminalException(ex)
-            elif ex.sqlstate == "22000":
-                return DatabaseTerminalException(ex)
             else:
-                return DatabaseTransientException(ex)
-
-        elif isinstance(ex, dremio_lib.errors.IntegrityError):
-            raise DatabaseTerminalException(ex)
-        elif isinstance(ex, dremio_lib.errors.DatabaseError):
-            term = cls._maybe_make_terminal_exception_from_data_error(ex)
-            if term:
-                return term
-            else:
-                return DatabaseTransientException(ex)
-        elif isinstance(ex, TypeError):
-            # dremio raises TypeError on malformed query parameters
-            return DatabaseTransientException(dremio_lib.errors.ProgrammingError(str(ex)))
-        elif cls.is_dbapi_exception(ex):
-            return DatabaseTransientException(ex)
+                return DatabaseTerminalException(ex)
         else:
             return ex
 
     @staticmethod
-    def _maybe_make_terminal_exception_from_data_error(
-        dremio_ex: dremio_lib.DatabaseError,
-    ) -> Optional[Exception]:
-        return None
-
-    @staticmethod
     def is_dbapi_exception(ex: Exception) -> bool:
-        return isinstance(ex, dremio_lib.DatabaseError)
+        return isinstance(ex, pyarrow.lib.ArrowInvalid)

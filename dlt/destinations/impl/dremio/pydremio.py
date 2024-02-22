@@ -1,4 +1,10 @@
-import abc
+"""
+Provides a PEP 249 compatible wrapper around the Arrow Flight client.
+This implementation will always eagerly gather the full result set after every query.
+This is not ideal, however ultimately this entire module should be replaced with ADBC Flight SQL client.
+See: https://github.com/apache/arrow-adbc/issues/1559
+"""
+
 from dataclasses import dataclass, field
 from http.cookies import SimpleCookie
 from typing import Any, List, Tuple, Optional, AnyStr, Mapping
@@ -11,22 +17,15 @@ threadsafety = 2
 paramstyle = "pyformat"
 
 
-class _Closeable(abc.ABC):
-    """Base class providing context manager interface."""
-
-    def __enter__(self) -> "Self":
-        return self
-
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
-        self.close()
-
-    @abc.abstractmethod
-    def close(self) -> None:
-        ...
-
-
-def connect(location: str, username: str, password: str, tls_root_certs: Optional[bytes] = None) -> "DremioConnection":
-    client = create_flight_client(location=location, tls_root_certs=tls_root_certs)
+def connect(
+    uri: str,
+    db_kwargs: Optional[Mapping[str, Any]] = None,
+    conn_kwargs: Optional[Mapping[str, Any]] = None,
+) -> "DremioConnection":
+    username = db_kwargs["username"]
+    password = db_kwargs["password"]
+    tls_root_certs = db_kwargs.get("tls_root_certs")
+    client = create_flight_client(location=uri, tls_root_certs=tls_root_certs)
     options = create_flight_call_options(
         username=username,
         password=password,
@@ -59,7 +58,7 @@ def execute_query(connection: "DremioConnection", query: str) -> pyarrow.Table:
 
 
 @dataclass
-class DremioCursor(_Closeable):
+class DremioCursor:
     connection: "DremioConnection"
     table: pyarrow.Table = field(init=False, default_factory=lambda: pyarrow.table([]))
 
@@ -81,12 +80,23 @@ class DremioCursor(_Closeable):
         result = self.fetchmany(1)
         return result if result else None
 
+    def fetch_arrow_table(self) -> pyarrow.Table:
+        table = self.table
+        self.table = pyarrow.table([], schema=table.schema)
+        return table
+
     def close(self) -> None:
         pass
 
+    def __enter__(self) -> "DremioCursor":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
+
 
 @dataclass(frozen=True)
-class DremioConnection(_Closeable):
+class DremioConnection:
     client: flight.FlightClient
     options: flight.FlightCallOptions
 
@@ -95,6 +105,12 @@ class DremioConnection(_Closeable):
 
     def cursor(self) -> DremioCursor:
         return DremioCursor(self)
+
+    def __enter__(self) -> "DremioConnection":
+        return self
+
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+        self.close()
 
 
 class DremioAuthError(Exception):
@@ -140,9 +156,7 @@ class DremioClientAuthMiddleware(flight.ClientMiddleware):
             if key.lower() == auth_header_key:
                 authorization_header = headers.get(auth_header_key)
         if not authorization_header:
-            raise DremioAuthError(
-                "Did not receive authorization header back from server."
-            )
+            raise DremioAuthError("Did not receive authorization header back from server.")
         self.factory.set_call_credential(
             (b"authorization", authorization_header[0].encode("utf-8"))
         )
@@ -186,8 +200,7 @@ class CookieMiddleware(flight.ClientMiddleware):
     def sending_headers(self):
         if self.factory.cookies:
             cookie_string = "; ".join(
-                "{!s}={!s}".format(key, val.value)
-                for (key, val) in self.factory.cookies.items()
+                "{!s}={!s}".format(key, val.value) for (key, val) in self.factory.cookies.items()
             )
             return {b"cookie": cookie_string.encode("utf-8")}
         return {}
@@ -198,7 +211,9 @@ class CookieMiddleware(flight.ClientMiddleware):
 #         return f.read()
 
 
-def create_flight_client(location: str, tls_root_certs: Optional[bytes] = None, **kwargs) -> flight.FlightClient:
+def create_flight_client(
+    location: str, tls_root_certs: Optional[bytes] = None, **kwargs
+) -> flight.FlightClient:
     return flight.FlightClient(
         location=location,
         tls_root_certs=tls_root_certs,
