@@ -271,10 +271,10 @@ def source(
         # get spec for wrapped function
         SPEC = get_fun_spec(conf_f)
         # get correct wrapper
-        wrapper = _wrap_coro if inspect.iscoroutinefunction(f) else _wrap
+        wrapper = _wrap_coro if inspect.iscoroutinefunction(inspect.unwrap(f)) else _wrap
         # store the source information
         _SOURCES[_wrap.__qualname__] = SourceInfo(SPEC, wrapper, func_module)
-        if inspect.iscoroutinefunction(f):
+        if inspect.iscoroutinefunction(inspect.unwrap(f)):
             return _wrap_coro
         else:
             return _wrap
