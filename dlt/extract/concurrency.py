@@ -7,9 +7,10 @@ from concurrent.futures import (
     as_completed,
     wait as wait_for_futures,
     FIRST_COMPLETED,
+    TimeoutError as FutureTimeoutError,
 )
 from threading import Thread
-from typing import List, Awaitable, Callable, Any, Dict, Set, Optional, overload, Literal
+from typing import List, Awaitable, Callable, Any, Dict, Set, Optional, overload, Literal, Union
 
 from dlt.common.exceptions import PipelineException
 from dlt.common.configuration.container import Container
@@ -171,15 +172,27 @@ class FuturesPool:
         """Get the done future in the pool (if any). This does not block."""
         return next((fut for fut in self.futures if fut.done() and not fut.cancelled()), None)
 
-    def resolve_next_future(self) -> Optional[ResolvablePipeItem]:
-        """Block until the next future is done and return the result. Returns None if no futures done."""
+    def resolve_next_future(
+        self, use_configured_timeout: bool = False
+    ) -> Optional[ResolvablePipeItem]:
+        """Block until the next future is done and return the result. Returns None if no futures done.
+
+        Args:
+            use_configured_timeout: If True, use the value of `self.poll_interval` as the max wait time,
+                raises `concurrent.futures.TimeoutError` if no future is done within that time.
+
+        Returns:
+            The resolved future item or None if no future is done.
+        """
         if not self.futures:
             return None
 
         if (future := self._next_done_future()) is not None:
             # When there are multiple already done futures from the same pipe we return results in insertion order
             return self._resolve_future(future)
-        for future in as_completed(self.futures):
+        for future in as_completed(
+            self.futures, timeout=self.poll_interval if use_configured_timeout else None
+        ):
             if future.cancelled():
                 # Get the next not-cancelled future
                 continue
@@ -193,7 +206,7 @@ class FuturesPool:
         This does not block and returns None if no future is done.
         """
         # Get next done future
-        future = next((fut for fut in self.futures if fut.done() and not fut.cancelled()), None)
+        future = self._next_done_future()
         if not future:
             return None
 

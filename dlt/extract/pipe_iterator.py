@@ -35,7 +35,7 @@ from dlt.extract.exceptions import (
 from dlt.extract.pipe import Pipe
 from dlt.extract.typing import DataItemWithMeta, TItemFuture
 from dlt.extract.utils import wrap_async_iterator
-from dlt.extract.concurrency import FuturesPool
+from dlt.extract.concurrency import FuturesPool, FutureTimeoutError
 from dlt.extract.items import PipeItem, ResolvablePipeItem, SourcePipeItem
 
 
@@ -153,8 +153,13 @@ class PipeIterator(Iterator[PipeItem]):
                 pipe_item = self._get_source_item()
 
                 if pipe_item is None:
-                    # Block until a future is resolved
-                    pipe_item = self._futures_pool.resolve_next_future()
+                    # Wait for some time for futures to resolve
+                    try:
+                        pipe_item = self._futures_pool.resolve_next_future(
+                            use_configured_timeout=True
+                        )
+                    except FutureTimeoutError:
+                        pass
 
                 if pipe_item is None:
                     if self._futures_pool.empty and len(self._sources) == 0:
@@ -250,6 +255,9 @@ class PipeIterator(Iterator[PipeItem]):
             else:
                 self._current_source_index = (self._current_source_index - 1) % sources_count
             while True:
+                # if we have checked all sources once and all returned None, then we can sleep a bit
+                if self._current_source_index == first_evaluated_index:
+                    return None
                 # get next item from the current source
                 gen, step, pipe, meta = self._sources[self._current_source_index]
                 set_current_pipe_name(pipe.name)
@@ -272,10 +280,6 @@ class PipeIterator(Iterator[PipeItem]):
                         # Send callables to the worker pool right away, collect futures from multiple sources in one iteration
                         self._futures_pool.submit(pipe_item, block=True)
                         pipe_item = None
-                        if len(self._futures_pool) >= sources_count:
-                            # Return here so we're not collecting done futures forever
-                            return None
-                        # Otherwhise we continue to the next source
 
                 if pipe_item is not None:
                     return pipe_item
@@ -305,13 +309,16 @@ class PipeIterator(Iterator[PipeItem]):
         def stop_background_loop(loop: asyncio.AbstractEventLoop) -> None:
             loop.stop()
 
+        # Close the futures pool and cancel all tasks
+        # It's important to do this before closing generators as we can't close a running generator
+        self._futures_pool.close()
+
         # close all generators
         for gen, _, _, _ in self._sources:
             if inspect.isgenerator(gen):
                 gen.close()
-        self._sources.clear()
 
-        self._futures_pool.close()
+        self._sources.clear()
 
     def __enter__(self) -> "PipeIterator":
         return self

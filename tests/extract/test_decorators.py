@@ -903,3 +903,15 @@ def test_parallelized_resource_decorator() -> None:
     # From list
     with pytest.raises(InvalidParallelResourceDataType):
         dlt.resource([1, 2, 3], name="T", parallelized=True)
+
+    # Test that inner generator is closed when wrapper is closed
+    gen_orig = some_gen()
+    resource = dlt.resource(gen_orig, parallelized=True)
+    gen = resource._pipe.gen
+
+    next(gen)  # type: ignore
+    gen.close()  # type: ignore
+
+    with pytest.raises(StopIteration):
+        # Inner generator is also closed
+        next(gen_orig)

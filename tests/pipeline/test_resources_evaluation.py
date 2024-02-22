@@ -5,6 +5,7 @@ import random
 from itertools import product
 
 import dlt, asyncio, pytest, os
+from dlt.extract.exceptions import ResourceExtractionError
 
 
 def test_async_iterator_resource() -> None:
@@ -458,3 +459,34 @@ def test_parallelized_resource_wrapped_generator() -> None:
 
     assert len(threads) > 1 and threading.get_ident() not in threads
     assert set(result) == {1, 2, 3, 4, 5, -1, -2, -3, -4, -5}
+
+
+def test_parallelized_resource_exception_pool_is_closed() -> None:
+    """Checking that futures pool is closed before generators are closed when a parallel resource raises.
+    For now just checking that we don't get any "generator is already closed" errors, as would happen
+    when futures aren't cancelled before closing generators.
+    """
+
+    def some_data():
+        for i in range(1, 6):
+            time.sleep(0.1)
+            yield i
+
+    def some_data2():
+        for i in range(1, 6):
+            time.sleep(0.005)
+            yield i
+            if i == 3:
+                raise RuntimeError("we have failed")
+
+    @dlt.source
+    def some_source():
+        yield dlt.resource(some_data, parallelized=True, name="some_data")
+        yield dlt.resource(some_data2, parallelized=True, name="some_data2")
+
+    source = some_source()
+
+    with pytest.raises(ResourceExtractionError) as einfo:
+        list(source)
+
+    assert "we have failed" in str(einfo.value)
