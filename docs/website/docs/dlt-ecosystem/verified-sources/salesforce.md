@@ -271,10 +271,16 @@ To create your data pipeline using single loading and
    > incremental loads, updating or adding data based on the 'last_timestamp' value without erasing
    > previously loaded data.
 
-1. To limit the number of Salesforce API data requests, you can set `IS_PRODUCTION` variable
+   
+1. Salesforce enforces specific limits on API data requests. These limits 
+   vary based on the Salesforce edition and license type, as outlined in the [Salesforce API Request Limits documentation](https://developer.salesforce.com/docs/atlas.en-us.salesforce_app_limits_cheatsheet.meta/salesforce_app_limits_cheatsheet/salesforce_app_limits_platform_api.htm).
+
+   To limit the number of Salesforce API data requests, developers can control the environment for production or 
+   development purposes. For development, you can set the `IS_PRODUCTION` variable
    to `False` in "[salesforce/settings.py](https://github.com/dlt-hub/verified-sources/blob/master/sources/salesforce/settings.py)",
    which limits API call requests to 100. To modify this limit, you can update the query limit in
    "[salesforce/helpers.py](https://github.com/dlt-hub/verified-sources/blob/756edaa00f56234cd06699178098f44c16d6d597/sources/salesforce/helpers.py#L56)"
    as required.
+
    >To read more about Salesforce query limits, please refer to their official
    >[documentation here](https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_select_limit.htm).
