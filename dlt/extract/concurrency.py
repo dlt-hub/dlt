@@ -10,7 +10,7 @@ from concurrent.futures import (
     TimeoutError as FutureTimeoutError,
 )
 from threading import Thread
-from typing import List, Awaitable, Callable, Any, Dict, Set, Optional, overload, Literal, Union
+from typing import List, Awaitable, Callable, Any, Dict, Set, Optional, Literal, Union
 
 from dlt.common.exceptions import PipelineException
 from dlt.common.configuration.container import Container
@@ -91,36 +91,24 @@ class FuturesPool:
         # Used as callback to free up slot when future is done
         self.used_slots -= 1
 
-    @overload
-    def submit(
-        self, pipe_item: ResolvablePipeItem, block: Literal[False]
-    ) -> Optional[TItemFuture]: ...
-
-    @overload
-    def submit(self, pipe_item: ResolvablePipeItem, block: Literal[True]) -> TItemFuture: ...
-
-    def submit(self, pipe_item: ResolvablePipeItem, block: bool = False) -> Optional[TItemFuture]:
+    def submit(self, pipe_item: ResolvablePipeItem) -> TItemFuture:
         """Submit an item to the pool.
 
         Args:
-            pipe_item: The item to submit.
-            block: If True, block until there's a free slot in the pool.
+            pipe_item: The pipe item to submit. `pipe_item.item` must be either an asyncio coroutine or a callable.
 
         Returns:
-            The future if the item was successfully submitted, otherwise None.
+            The resulting future object
         """
 
         # Sanity check, negative free slots means there's a bug somewhere
         assert self.free_slots >= 0, "Worker pool has negative free slots, this should never happen"
 
         if self.free_slots == 0:
-            if block:
-                # Wait until some future is completed to ensure there's a free slot
-                # Note: This is probably not thread safe. If ever multiple threads will be submitting
-                # jobs to the pool, we ned to change this whole method to be inside a `threading.Lock`
-                self._wait_for_free_slot()
-            else:
-                return None
+            # Wait until some future is completed to ensure there's a free slot
+            # Note: This is probably not thread safe. If ever multiple threads will be submitting
+            # jobs to the pool, we ned to change this whole method to be inside a `threading.Lock`
+            self._wait_for_free_slot()
 
         future: Optional[TItemFuture] = None
 

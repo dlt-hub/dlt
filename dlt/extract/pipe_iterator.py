@@ -189,8 +189,8 @@ class PipeIterator(Iterator[PipeItem]):
                 continue
 
             if isinstance(item, Awaitable) or callable(item):
-                # Callables that come from following pipe steps need to be added to the pool
-                self._futures_pool.submit(pipe_item, block=True)  # type: ignore[call-overload]
+                # Callables are submitted to the pool to be executed in the background
+                self._futures_pool.submit(pipe_item)  # type: ignore[arg-type]
                 pipe_item = None
                 # Future will be resolved later, move on to the next item
                 continue
@@ -255,7 +255,7 @@ class PipeIterator(Iterator[PipeItem]):
             else:
                 self._current_source_index = (self._current_source_index - 1) % sources_count
             while True:
-                # if we have checked all sources once and all returned None, then we can sleep a bit
+                # if we have checked all sources once and all returned None, return and poll/resolve some futures
                 if self._current_source_index == first_evaluated_index:
                     return None
                 # get next item from the current source
@@ -270,16 +270,9 @@ class PipeIterator(Iterator[PipeItem]):
                     if not isinstance(pipe_item, ResolvablePipeItem):
                         # keep the item assigned step and pipe when creating resolvable item
                         if isinstance(pipe_item, DataItemWithMeta):
-                            pipe_item = ResolvablePipeItem(
-                                pipe_item.data, step, pipe, pipe_item.meta
-                            )
+                            return ResolvablePipeItem(pipe_item.data, step, pipe, pipe_item.meta)
                         else:
-                            pipe_item = ResolvablePipeItem(pipe_item, step, pipe, meta)
-
-                    if isinstance(pipe_item.item, Awaitable) or callable(pipe_item.item):
-                        # Send callables to the worker pool right away, collect futures from multiple sources in one iteration
-                        self._futures_pool.submit(pipe_item, block=True)
-                        pipe_item = None
+                            return ResolvablePipeItem(pipe_item, step, pipe, meta)
 
                 if pipe_item is not None:
                     return pipe_item
