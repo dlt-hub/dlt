@@ -194,7 +194,7 @@ To handle compressed files:
 - To disable compression, you can modify the `data_writer.disable_compression` setting in your "config.toml" file. This can be useful if you want to access the files directly without needing to decompress them. For example:
   ```toml
   [normalize.data_writer]
-  disable_compression=false
+  disable_compression=true
   ```
 
 - To decompress a `gzip` file, you can use tools like `gunzip`. This will convert the compressed file back to its original format, making it readable.
