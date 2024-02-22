@@ -389,15 +389,19 @@ def test_test_parallelized_transformers() -> None:
 
 
 def test_parallelized_bare_generator() -> None:
+    main_thread = threading.get_ident()
+    threads = set()
+
     def pos_data():
         for i in range(1, 6):
-            time.sleep(0.1)
+            threads.add(threading.get_ident())
+            time.sleep(0.01)
             yield i
 
     def neg_data():
-        time.sleep(0.05)
         for i in range(-1, -6, -1):
-            time.sleep(0.1)
+            threads.add(threading.get_ident())
+            time.sleep(0.01)
             yield i
 
     @dlt.source
@@ -410,5 +414,37 @@ def test_parallelized_bare_generator() -> None:
 
     result = list(some_source())
 
+    assert threads and main_thread not in threads
     assert set(result) == {1, 2, 3, 4, 5, -1, -2, -3, -4, -5}
     assert len(result) == 10
+
+
+def test_parallelized_wrapped_generator() -> None:
+    threads = set()
+
+    def some_data():
+        for i in range(1, 6):
+            time.sleep(0.01)
+            threads.add(threading.get_ident())
+            yield i
+
+    def some_data2():
+        for i in range(-1, -6, -1):
+            time.sleep(0.01)
+            threads.add(threading.get_ident())
+            yield i
+
+    @dlt.source
+    def some_source():
+        # Bound resources result in a wrapped generator function,
+        return [
+            dlt.resource(some_data, parallelized=True, name="some_data")(),
+            dlt.resource(some_data2, parallelized=True, name="some_data2")(),
+        ]
+
+    source = some_source()
+
+    result = list(source)
+
+    assert len(threads) > 1
+    assert set(result) == {1, 2, 3, 4, 5, -1, -2, -3, -4, -5}

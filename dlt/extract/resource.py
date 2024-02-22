@@ -350,7 +350,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         """
         if (
             not inspect.isgenerator(self._pipe.gen)
-            and not inspect.isgeneratorfunction(self._pipe.gen)
+            and not inspect.isgeneratorfunction(inspect.unwrap(self._pipe.gen))
             and not (callable(self._pipe.gen) and self.is_transformer)
         ):
             raise InvalidParallelResourceDataType(self.name, self._pipe.gen, type(self._pipe.gen))
