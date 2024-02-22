@@ -339,7 +339,7 @@ To get name of resources you can use:
 print(source.resources.keys())
 ```
 
-To read more, please refer to the documentation: [Customize sources](../../general-usage/source#customize-sources).
+To read more about tables, columns and datatypes, please refer to [our documentation here.](../../general-usage/schema#tables-and-columns)
 
 ## Sources and resources
 
