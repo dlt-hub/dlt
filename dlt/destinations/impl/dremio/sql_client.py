@@ -1,8 +1,6 @@
 from contextlib import contextmanager, suppress
 from typing import Any, AnyStr, ClassVar, Iterator, Optional, Sequence
 
-from dremio.flight.endpoint import DremioFlightEndpoint
-
 
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import (
@@ -10,7 +8,7 @@ from dlt.destinations.exceptions import (
     DatabaseTransientException,
     DatabaseUndefinedRelation,
 )
-from dlt.destinations.impl.dremio import capabilities
+from dlt.destinations.impl.dremio import capabilities, pydremio
 from dlt.destinations.impl.dremio.configuration import DremioCredentials
 from dlt.destinations.sql_client import (
     DBApiCursorImpl,
@@ -30,8 +28,8 @@ class DremioCursorImpl(DBApiCursorImpl):
         return super().df(chunk_size=chunk_size, **kwargs)
 
 
-class DremioSqlClient(SqlClientBase[dremio_lib.DremioConnection], DBTransaction):
-    dbapi: ClassVar[DBApi] = dremio_lib
+class DremioSqlClient(SqlClientBase[dremio_lib.DremioConnection]):
+    dbapi: ClassVar[DBApi] = pydremio
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
 
     def __init__(self, dataset_name: str, credentials: DremioCredentials) -> None:

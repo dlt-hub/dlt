@@ -9,14 +9,6 @@ services:
       - "45678:45678"
     networks:
       - dremio
-  adbc:
-    build:
-      context: adbc
-    networks:
-      - dremio
-    depends_on:
-      - dremio
-    command: ./run.sh
   minio:
     image: minio/minio
     command: server /data --console-address ":9001"
