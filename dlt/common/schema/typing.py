@@ -26,7 +26,7 @@ except ImportError:
 
 
 # current version of schema engine
-SCHEMA_ENGINE_VERSION = 8
+SCHEMA_ENGINE_VERSION = 9
 
 # dlt tables
 VERSION_TABLE_NAME = "_dlt_version"

@@ -2,6 +2,7 @@ import yaml
 from copy import copy, deepcopy
 from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast, Literal
 from dlt.common import json
+from dlt.common.schema.migrations import migrate_schema
 
 from dlt.common.utils import extend_list_deduplicated
 from dlt.common.typing import (
@@ -103,7 +104,7 @@ class Schema:
     @classmethod
     def from_dict(cls, d: DictStrAny, bump_version: bool = True) -> "Schema":
         # upgrade engine if needed
-        stored_schema = utils.migrate_schema(d, d["engine_version"], cls.ENGINE_VERSION)
+        stored_schema = migrate_schema(d, d["engine_version"], cls.ENGINE_VERSION)
         # verify schema
         utils.validate_stored_schema(stored_schema)
         # add defaults

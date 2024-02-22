@@ -21,6 +21,8 @@ from tests.load.utils import DestinationTestConfiguration, destinations_configs
 if TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
+REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "staging-optimized"]
+
 
 @pytest.fixture(autouse=True)
 def drop_pipeline(request) -> Iterator[None]:

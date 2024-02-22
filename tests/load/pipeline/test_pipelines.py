@@ -23,7 +23,6 @@ from dlt.pipeline.exceptions import (
 )
 from dlt.common.schema.exceptions import CannotCoerceColumnException
 from dlt.common.exceptions import DestinationHasFailedJobs
-from tests.load.pipeline.test_replace_disposition import REPLACE_STRATEGIES
 
 from tests.utils import TEST_STORAGE_ROOT, data_to_item_format, preserve_environ
 from tests.pipeline.utils import assert_data_table_counts, assert_load_info
@@ -39,6 +38,7 @@ from tests.load.pipeline.utils import (
     assert_table,
     load_table_counts,
     select_data,
+    REPLACE_STRATEGIES,
 )
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
@@ -853,9 +853,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(
-        local_filesystem_configs=True, default_staging_configs=True, default_sql_configs=True
-    ),
+    destinations_configs(default_staging_configs=True, default_sql_configs=True),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
@@ -917,8 +915,8 @@ def test_pipeline_upfront_tables_two_loads(
         load_table_counts(pipeline, "table_3")
     assert "x-normalizer" not in pipeline.default_schema.tables["table_3"]
     assert (
-        pipeline.default_schema.tables["_dlt_pipeline_state"]["x-normalizer"]["first-seen"]  # type: ignore[typeddict-item]
-        == load_info_1.loads_ids[0]
+        pipeline.default_schema.tables["_dlt_pipeline_state"]["x-normalizer"]["seen-data"]  # type: ignore[typeddict-item]
+        is True
     )
 
     # load with one empty job, table 3 not created
@@ -949,22 +947,23 @@ def test_pipeline_upfront_tables_two_loads(
     # and schema is not updated because the hash didn't change
     # also we make the replace resource to load its 1 record
     load_info_3 = pipeline.run([source.table_3(make_data=True), source.table_2])
+    assert_load_info(load_info_3)
     assert_data_table_counts(pipeline, {"table_1": 1, "table_2": 1, "table_3": 1})
     # v5 = pipeline.default_schema.to_pretty_yaml()
     # print(v5)
 
     # check if seen data is market correctly
     assert (
-        pipeline.default_schema.tables["table_3"]["x-normalizer"]["first-seen"]  # type: ignore[typeddict-item]
-        == load_info_3.loads_ids[0]
+        pipeline.default_schema.tables["table_3"]["x-normalizer"]["seen-data"]  # type: ignore[typeddict-item]
+        is True
     )
     assert (
-        pipeline.default_schema.tables["table_2"]["x-normalizer"]["first-seen"]  # type: ignore[typeddict-item]
-        == load_info_3.loads_ids[0]
+        pipeline.default_schema.tables["table_2"]["x-normalizer"]["seen-data"]  # type: ignore[typeddict-item]
+        is True
     )
     assert (
-        pipeline.default_schema.tables["table_1"]["x-normalizer"]["first-seen"]  # type: ignore[typeddict-item]
-        == load_info_2.loads_ids[0]
+        pipeline.default_schema.tables["table_1"]["x-normalizer"]["seen-data"]  # type: ignore[typeddict-item]
+        is True
     )
 
 
