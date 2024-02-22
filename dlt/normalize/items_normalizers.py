@@ -6,6 +6,7 @@ from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
+from dlt.common.schema.utils import has_table_seen_data
 from dlt.common.storages import (
     NormalizeStorage,
     LoadStorage,
@@ -198,10 +199,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             if line is None and root_table_name in self.schema.tables:
                 # write only if table seen data before
                 root_table = self.schema.tables[root_table_name]
-                if (
-                    "x-normalizer" in root_table
-                    and root_table["x-normalizer"].get("first-seen", None) is not None  # type: ignore[typeddict-item]
-                ):
+                if has_table_seen_data(root_table):
                     self.load_storage.write_empty_items_file(
                         self.load_id,
                         self.schema.name,

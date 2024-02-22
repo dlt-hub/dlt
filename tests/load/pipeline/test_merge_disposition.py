@@ -10,6 +10,7 @@ import dlt
 from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import StateInjectableContext
+from dlt.common.schema.utils import has_table_seen_data
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.extract import DltResource
@@ -33,6 +34,11 @@ def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguratio
 
     with open("tests/common/cases/schemas/eth/ethereum_schema_v5.yml", "r", encoding="utf-8") as f:
         schema = dlt.Schema.from_dict(yaml.safe_load(f))
+
+    # make block uncles unseen to trigger filtering loader in loader for child tables
+    if has_table_seen_data(schema.tables["blocks__uncles"]):
+        del schema.tables["blocks__uncles"]["x-normalizer"]  # type: ignore[typeddict-item]
+        assert not has_table_seen_data(schema.tables["blocks__uncles"])
 
     with open(
         "tests/normalize/cases/ethereum.blocks.9c1d9b504ea240a482b007788d5cd61c_2.json",

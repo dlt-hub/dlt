@@ -304,8 +304,11 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             # drop evolve once for all tables that seen data
             x_normalizer.pop("evolve-columns-once", None)
             # mark that table have seen data only if there was data
-            if table_metrics[table_name].items_count > 0:
-                x_normalizer["first-seen"] = load_id
+            if table_metrics[table_name].items_count > 0 and "seen-data" not in x_normalizer:
+                logger.info(
+                    f"Table {table_name} has seen data for a first time with load id {load_id}"
+                )
+                x_normalizer["seen-data"] = True
         logger.info(
             f"Saving schema {schema.name} with version {schema.stored_version}:{schema.version}"
         )

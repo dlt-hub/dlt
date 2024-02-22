@@ -9,9 +9,11 @@ from tests.load.pipeline.utils import (
     load_table_counts,
     load_tables_to_dicts,
 )
-from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
-
-REPLACE_STRATEGIES = ["truncate-and-insert", "insert-from-staging", "staging-optimized"]
+from tests.load.pipeline.utils import (
+    destinations_configs,
+    DestinationTestConfiguration,
+    REPLACE_STRATEGIES,
+)
 
 
 @pytest.mark.parametrize(
