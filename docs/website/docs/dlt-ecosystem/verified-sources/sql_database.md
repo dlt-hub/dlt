@@ -267,6 +267,10 @@ Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing I
 1. **Apply Incremental Configuration**: Enable incremental loading with your configuration's `incremental` argument.
 1. **Deduplication**: When using incremental loading, the system automatically handles the deduplication of rows based on the primary key (if available) or row hash for tables without a primary key.
 
+:::note
+Incorporating incremental loading into your SQL data pipelines can significantly enhance performance by minimizing unnecessary data processing and transfer.
+:::
+
 #### Incremental Loading Example
 1. Consider a table with a `last_modified` timestamp column. By setting this column as your cursor and specifying an 
    initial value, the loader generates a SQL query filtering rows with `last_modified` values greater than the specified initial value.
@@ -320,10 +324,6 @@ Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing I
    * For merge write disposition, the source table needs a primary key, which `dlt` automatically sets up.
    * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appendend, or replaced resources.
    :::
-
-:::note
-Incorporating incremental loading into your SQL data pipelines can significantly enhance performance by minimizing unnecessary data processing and transfer.
-:::
 
 ### Troubleshooting
 If you encounter issues where the expected WHERE clause for incremental loading is not generated, ensure your configuration aligns with the `sql_table` resource rather than applying hints post-resource creation. This ensures the loader generates the correct query for incremental loading.
