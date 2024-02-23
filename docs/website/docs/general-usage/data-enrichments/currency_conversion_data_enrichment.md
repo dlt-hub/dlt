@@ -7,16 +7,16 @@ keywords: [data enrichment, currency conversion, latest market rates]
 # Data enrichment part two: Currency conversion data enrichment
 
 Currency conversion data enrichment means adding additional information to currency-related data.
-Often, you have a data set of monetary value in one currency. For various reasons such as reporting,
+Often, you have a dataset of monetary value in one currency. For various reasons such as reporting,
 analysis, or global operations, it may be necessary to convert these amounts into different currencies.
 
 ## Currency conversion process
 
-Here is step-by-step process for currency conversion data enrichment:
+Here is a step-by-step process for currency conversion data enrichment:
 
 1. Define base and target currencies. e.g., USD (base) to EUR (target).
 1. Obtain current exchange rates from a reliable source like a financial data API.
-1. Convert the monetary values at obtained exchange rates.
+1. Convert the monetary values at the obtained exchange rates.
 1. Include metadata like conversion rate, date, and time.
 1. Save the updated dataset in a data warehouse or lake using a data pipeline.
 
@@ -24,18 +24,18 @@ We use the [ExchangeRate-API](https://app.exchangerate-api.com/) to fetch the la
 conversion rates. However, you can use any service you prefer.
 
 :::note
-ExchangeRate-API free tier offers 1500 free calls monthly. For production, consider
+ExchangeRate-API's free tier offers 1500 free calls monthly. For production, consider
 upgrading to a higher plan.
 :::
 
-## Creating data enrichment pipeline
+## Creating a data enrichment pipeline
 
 You can either follow the example in the linked Colab notebook or follow this documentation to
 create the currency conversion data enrichment pipeline.
 
 ### A. Colab notebook
 
-The Colab notebook combines three data enrichment processes for a sample dataset, it's second part
+The Colab notebook combines three data enrichment processes for a sample dataset; its second part
 contains "Data enrichment part two: Currency conversion data enrichment".
 
 Here's the link to the notebook:
@@ -53,13 +53,13 @@ currency_conversion_enrichment/
 └── currency_enrichment_pipeline.py
 ```
 
-### 1. Creating resource
+### 1. Creating a resource
 
 `dlt` works on the principle of [sources](../../general-usage/source.md) and
 [resources.](../../general-usage/resource.md)
 
 1. The last part of our data enrichment ([part one](../../general-usage/data-enrichments/user_agent_device_data_enrichment.md))
-   involved enriching the data with user-agent device data. This included adding two new columns to the dataset as folows:
+   involved enriching the data with user-agent device data. This included adding two new columns to the dataset as follows:
 
    - `device_price_usd`: average price of the device in USD.
 
@@ -109,7 +109,7 @@ the `dlt` [state](../../general-usage/state.md).
 The first step is to register on [ExhangeRate-API](https://app.exchangerate-api.com/) and obtain the
 API token.
 
-1. In the `.dlt`folder, there's a file called `secrets.toml`. It's where you store sensitive
+1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
    information securely, like access tokens. Keep this file safe. Here's its format for service
    account authentication:
 
@@ -200,7 +200,7 @@ API token.
    processing.
 
    `Transformers` are a form of `dlt resource` that takes input from other resources
-   via `data_from` argument to enrich or transform the data.
+   via the `data_from` argument to enrich or transform the data.
    [Click here.](../../general-usage/resource.md#process-resources-with-dlttransformer)
 
    Conversely, `add_map` used to customize a resource applies transformations at an item level
@@ -264,3 +264,6 @@ API token.
 
    For example, the "pipeline_name" for the above pipeline example is `data_enrichment_two`; you can
    use any custom name instead.
+<!---
+grammarcheck: true
+-->

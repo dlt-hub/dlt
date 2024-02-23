@@ -6,24 +6,24 @@ keywords: [source, api, dlt.source]
 
 # Source
 
-A [source](glossary.md#source) is a logical grouping of resources i.e. endpoints of a
+A [source](glossary.md#source) is a logical grouping of resources, i.e., endpoints of a
 single API. The most common approach is to define it in a separate Python module.
 
 - A source is a function decorated with `@dlt.source` that returns one or more resources.
-- A source can optionally define a [schema](schema.md) with tables, columns, performance hints and
+- A source can optionally define a [schema](schema.md) with tables, columns, performance hints, and
   more.
 - The source Python module typically contains optional customizations and data transformations.
-- The source Python module typically contains the authentication and pagination code for particular
+- The source Python module typically contains the authentication and pagination code for a particular
   API.
 
 ## Declare sources
 
-You declare source by decorating a function returning one or more resource with `dlt.source`. Our
-[Create a pipeline](../walkthroughs/create-a-pipeline.md) how to guide teaches you how to do that.
+You declare a source by decorating a function that returns one or more resources with `dlt.source`. Our
+[Create a pipeline](../walkthroughs/create-a-pipeline.md) guide teaches you how to do that.
 
 ### Create resources dynamically
 
-You can create resources by using `dlt.resource` as a function. In an example below we reuse a
+You can create resources by using `dlt.resource` as a function. In the example below, we reuse a
 single generator function to create a list of resources for several Hubspot endpoints.
 
 ```python
@@ -36,22 +36,22 @@ def hubspot(api_key=dlt.secrets.value):
         yield requests.get(url + "/" + endpoint).json()
 
     for endpoint in endpoints:
-        # calling get_resource creates generator,
+        # calling get_resource creates a generator,
         # the actual code of the function will be executed in pipeline.run
         yield dlt.resource(get_resource(endpoint), name=endpoint)
 ```
 
 ### Attach and configure schemas
 
-You can [create, attach and configure schema](schema.md#attaching-schemas-to-sources) that will be
+You can [create, attach, and configure a schema](schema.md#attaching-schemas-to-sources) that will be
 used when loading the source.
 
 ## Customize sources
 
 ### Access and select resources to load
 
-You can access resources present in a source and select which of them you want to load. In case of
-`hubspot` resource above we could select and load "companies", "deals" and "products" resources:
+You can access resources present in a source and select which of them you want to load. In the case of
+the `hubspot` resource above, we could select and load "companies", "deals", and "products" resources:
 
 ```python
 from hubspot import hubspot
@@ -78,9 +78,9 @@ print(source.deals.selected)
 source.deals.selected = False
 ```
 
-### Filter, transform and pivot data
+### Filter, transform, and pivot data
 
-You can modify and filter data in resources, for example if we want to keep only deals after certain
+You can modify and filter data in resources, for example, if we want to keep only deals after a certain
 date:
 
 ```python
@@ -91,11 +91,11 @@ Find more on transforms [here](resource.md#filter-transform-and-pivot-data).
 
 ### Load data partially
 
-You can limit the number of items produced by each resource by calling a `add_limit` method on a
-source. This is useful for testing, debugging and generating sample datasets for experimentation.
+You can limit the number of items produced by each resource by calling an `add_limit` method on a
+source. This is useful for testing, debugging, and generating sample datasets for experimentation.
 You can easily get your test dataset in a few minutes, when otherwise you'd need to wait hours for
 the full loading to complete. Below we limit the `pipedrive` source to just get 10 pages of data
-from each endpoint. Mind that the transformers will be evaluated fully:
+from each endpoint. Keep in mind that the transformers will be evaluated fully:
 
 ```python
 from pipedrive import pipedrive_source
@@ -107,12 +107,11 @@ print(load_info)
 
 Find more on sampling data [here](resource.md#sample-from-large-data).
 
-### Add more resources to existing source
+### Add more resources to an existing source
 
-You can add a custom resource to source after it was created. Imagine that you want to score all the
-deals with a keras model that will tell you if the deal is a fraud or not. In order to do that you
-declare a new
-[transformer that takes the data from](resource.md#feeding-data-from-one-resource-into-another) `deals`
+You can add a custom resource to a source after it was created. Imagine that you want to score all the
+deals with a keras model that will tell you if the deal is a fraud or not. In order to do that, you declare a new
+[transformer that takes the data from](resource.md#feeding-data-from-one-resource-into-another) the `deals`
 resource and add it to the source.
 
 ```python
@@ -142,7 +141,7 @@ or
 source.resources["deal_scores"] = source.deals | deal_scores
 ```
 :::note
-When adding resource to the source, `dlt` clones the resource so your existing instance is not affected.
+When adding a resource to the source, `dlt` clones the resource so your existing instance is not affected.
 :::
 
 ### Reduce the nesting level of generated tables
@@ -156,12 +155,12 @@ def mongo_db():
     ...
 ```
 
-In the example above we want only 1 level of child tables to be generates (so there are no child
+In the example above, we want only 1 level of child tables to be generated (so there are no child
 tables of child tables). Typical settings:
 
 - `max_table_nesting=0` will not generate child tables at all and all nested data will be
   represented as json.
-- `max_table_nesting=1` will generate child tables of top level tables and nothing more. All nested
+- `max_table_nesting=1` will generate child tables of top-level tables and nothing more. All nested
   data in child tables will be represented as json.
 
 You can achieve the same effect after the source instance is created:
@@ -173,23 +172,23 @@ source = mongo_db()
 source.max_table_nesting = 0
 ```
 
-Several data sources are prone to contain semi-structured documents with very deep nesting i.e.
+Several data sources are prone to contain semi-structured documents with very deep nesting, i.e.,
 MongoDB databases. Our practical experience is that setting the `max_nesting_level` to 2 or 3
-produces the clearest and human-readable schemas.
+produces the clearest and most human-readable schemas.
 
 ### Modify schema
 
-The schema is available via `schema` property of the source.
-[You can manipulate this schema i.e. add tables, change column definitions etc. before the data is loaded.](schema.md#schema-is-modified-in-the-source-function-body)
+The schema is available via the `schema` property of the source.
+[You can manipulate this schema, i.e., add tables, change column definitions, etc., before the data is loaded.](schema.md#schema-is-modified-in-the-source-function-body)
 
-Source provides two other convenience properties:
+The source provides two other convenience properties:
 
 1. `max_table_nesting` to set the maximum nesting level of child tables
-1. `root_key` to propagate the `_dlt_id` of from a root table to all child tables.
+1. `root_key` to propagate the `_dlt_id` from a root table to all child tables.
 
 ## Load sources
 
-You can pass individual sources or list of sources to the `dlt.pipeline` object. By default, all the
+You can pass individual sources or a list of sources to the `dlt.pipeline` object. By default, all the
 sources will be loaded to a single dataset.
 
 You are also free to decompose a single source into several ones. For example, you may want to break
@@ -219,3 +218,6 @@ With selected resources:
 ```python
 p.run(tables.with_resources("users"), write_disposition="replace")
 ```
+<!---
+grammarcheck: true
+-->

@@ -43,7 +43,7 @@ We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/
 * Teradata Vantage
 
 :::note
-Note that there many unofficial dialects, such as [DuckDB](https://duckdb.org/).
+Note that there are many unofficial dialects, such as [DuckDB](https://duckdb.org/).
 :::
 
 ## Setup Guide
@@ -80,9 +80,6 @@ connection_url = "connection_string = f"{drivername}://{username}:{password}@{ho
 `port`: The port for the database connection.
 
 - E.g., "4497", in the above connection URL.
-`port`: The port for the database connection.
-
-- E.g., "4497", in the above connection URL.
 
 `database`: The specific database on the server.
 
@@ -92,7 +89,7 @@ connection_url = "connection_string = f"{drivername}://{username}:{password}@{ho
 
 Here, we use the `mysql` and `pymysql` dialects to set up an SSL connection to a server, with all information taken from the [SQLAlchemy docs](https://docs.sqlalchemy.org/en/14/dialects/mysql.html#ssl-connections).
 
-1. To enforce SSL on the client without a client certificate you may pass the following DSN:
+1. To enforce SSL on the client without a client certificate, you may pass the following DSN:
 
    ```toml
    sources.sql_database.credentials="mysql+pymysql://root:<pass>@<host>:3306/mysql?ssl_ca="
@@ -196,7 +193,6 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    The pipeline_name for the above example is `rfam`, you may also use any
    custom name instead.
    :::
-
 
 ## Sources and resources
 
@@ -372,10 +368,13 @@ To create your own pipeline, use source and resource methods from this verified 
 
    :::info
    * For merge write disposition, the source table needs a primary key, which `dlt` automatically sets up.
-   * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appendend, or replaced resources.
+   * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appended, or replaced resources.
    :::
 
 1. Remember to keep the pipeline name and destination dataset name consistent. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) from the last run, which is essential for incremental loading. Altering these names could initiate a "[full_refresh](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh)", interfering with the metadata tracking necessary for [incremental loads](https://dlthub.com/docs/general-usage/incremental-loading).
 
 <!--@@@DLT_SNIPPET_START tuba::sql_database-->
 <!--@@@DLT_SNIPPET_END tuba::sql_database-->
+<!---
+grammarcheck: true
+-->

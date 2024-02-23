@@ -6,9 +6,7 @@ keywords: [deleting, removing, columns, drop]
 
 # Removing columns
 
-Removing columns before loading data into a database is a reliable method to eliminate sensitive or
-unnecessary fields. For example, in the given scenario, a source is created with a "country_id" column,
-which is then excluded from the database before loading.
+Removing columns before loading data into a database is a reliable method to eliminate sensitive or unnecessary fields. For example, in the given scenario, a source is created with a "country_id" column, which is then excluded from the database before loading.
 
 Let's create a sample pipeline demonstrating the process of removing a column.
 
@@ -27,7 +25,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
 
        return dummy_data()
    ```
-   This function creates three columns `id`, `name` and `country_code`.
+   This function creates three columns: `id`, `name`, and `country_code`.
 
 1. Next, create a function to filter out columns from the data before loading it into a database as follows:
 
@@ -75,7 +73,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    #{'id': 2, 'name': 'Jane Washington 2'}
    ```
 
-1. At last, create a pipeline:
+1. Finally, create a pipeline:
 
    ```python
    # Integrating with a DLT pipeline
@@ -88,4 +86,6 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    load_info = pipeline.run(data_source)
    print(load_info)
    ```
-
+<!---
+grammarcheck: true
+-->

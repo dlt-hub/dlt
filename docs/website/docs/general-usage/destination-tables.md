@@ -118,7 +118,7 @@ load_info = pipeline.run(data, table_name="users")
 ```
 
 Running this pipeline will create two tables in the destination, `users` and `users__pets`. The
-`users` table will contain the top level data, and the `users__pets` table will contain the child
+`users` table will contain the top-level data, and the `users__pets` table will contain the child
 data. Here is what the tables may look like:
 
 **mydata.users**
@@ -141,21 +141,20 @@ creating and linking children and parent tables.
 
 This is how it works:
 
-1. Each row in all (top level and child) data tables created by `dlt` contains UNIQUE column named
+1. Each row in all (top-level and child) data tables created by `dlt` contains a UNIQUE column named
    `_dlt_id`.
-1. Each child table contains FOREIGN KEY column `_dlt_parent_id` linking to a particular row
+2. Each child table contains a FOREIGN KEY column `_dlt_parent_id` linking to a particular row
    (`_dlt_id`) of a parent table.
-1. Rows in child tables come from the lists: `dlt` stores the position of each item in the list in
+3. Rows in child tables come from the lists: `dlt` stores the position of each item in the list in
    `_dlt_list_idx`.
-1. For tables that are loaded with the `merge` write disposition, we add a ROOT KEY column
-   `_dlt_root_id`, which links child table to a row in top level table.
-
+4. For tables that are loaded with the `merge` write disposition, we add a ROOT KEY column
+   `_dlt_root_id`, which links the child table to a row in the top-level table.
 
 :::note
 
-If you define your own primary key in a child table, it will be used to link to parent table
+If you define your own primary key in a child table, it will be used to link to the parent table,
 and the `_dlt_parent_id` and `_dlt_list_idx` will not be added. `_dlt_id` is always added even in
-case the primary key or other unique columns are defined.
+cases where the primary key or other unique columns are defined.
 
 :::
 
@@ -164,8 +163,8 @@ case the primary key or other unique columns are defined.
 During a pipeline run, dlt [normalizes both table and column names](schema.md#naming-convention) to ensure compatibility with the destination database's accepted format. All names from your source data will be transformed into snake_case and will only include alphanumeric characters. Please be aware that the names in the destination database may differ somewhat from those in your original input.
 
 ### Variant columns
-If your data has inconsistent types, `dlt` will dispatch the data to several **variant columns**. For example, if you have a resource (ie json file) with a filed with name **answer** and your data contains boolean values, you will get get a column with name **answer** of type **BOOLEAN** in your destination. If for some reason, on next load you get integer value and string value in **answer**, the inconsistent data will go to **answer__v_bigint** and **answer__v_text** columns respectively.
-The general naming rule for variant columns is `<original name>__v_<type>` where `original_name` is the existing column name (with data type clash) and `type` is the name of data type stored in the variant.
+If your data has inconsistent types, `dlt` will dispatch the data to several **variant columns**. For example, if you have a resource (i.e., a JSON file) with a field named **answer** and your data contains boolean values, you will get a column with the name **answer** of type **BOOLEAN** in your destination. If for some reason, on the next load you get integer value and string value in **answer**, the inconsistent data will go to **answer__v_bigint** and **answer__v_text** columns respectively.
+The general naming rule for variant columns is `<original name>__v_<type>` where `original_name` is the existing column name (with data type clash) and `type` is the name of the data type stored in the variant.
 
 
 ## Load Packages and Load IDs
@@ -215,7 +214,7 @@ In that case, the user may see the partially loaded data. It is possible to filt
 row with a `load_id` that does not exist in `_dlt_loads` is not yet completed. The same procedure may be used to identify
 and delete data for packages that never got completed.
 
-For each load, you can test and [alert](../running-in-production/alerting.md) on anomalies (e.g.
+For each load, you can test and [alert](../running-in-production/alerting.md) on anomalies (e.g.,
 no data, too much loaded to a table). There are also some useful load stats in the `Load info` tab
 of the [Streamlit app](../dlt-ecosystem/visualizations/exploring-the-data.md#exploring-the-data)
 mentioned above.
@@ -227,7 +226,7 @@ of 1 and is then updated to 2. This can be repeated for every additional transfo
 
 ### Data lineage
 
-Data lineage can be super relevant for architectures like the
+Data lineage can be extremely relevant for architectures like the
 [data vault architecture](https://www.data-vault.co.uk/what-is-data-vault/) or when troubleshooting.
 The data vault architecture is a data warehouse that large organizations use when representing the
 same process across multiple systems, which adds data lineage requirements. Using the pipeline name
@@ -270,7 +269,7 @@ load_info = pipeline.run(users)
 ```
 
 Running this pipeline will create a schema in the destination database with the name `mydata_staging`.
-If you inspect the tables in this schema, you will find `mydata_staging.users` table identical to the
+If you inspect the tables in this schema, you will find the `mydata_staging.users` table identical to the
 `mydata.users` table in the previous example.
 
 Here is what the tables may look like after running the pipeline:
@@ -295,7 +294,7 @@ the current one.
 
 ## Versioned datasets
 
-When you set the `full_refresh` argument to `True` in `dlt.pipeline` call, dlt creates a versioned dataset.
+When you set the `full_refresh` argument to `True` in the `dlt.pipeline` call, dlt creates a versioned dataset.
 This means that each time you run the pipeline, the data is loaded into a new dataset (a new database schema).
 The dataset name is the same as the `dataset_name` you provided in the pipeline definition with a
 datetime-based suffix.
@@ -323,3 +322,6 @@ Every time you run this pipeline, a new schema will be created in the destinatio
 datetime-based suffix. The data will be loaded into tables in this schema.
 For example, the first time you run the pipeline, the schema will be named
 `mydata_20230912064403`, the second time it will be named `mydata_20230912064407`, and so on.
+<!---
+grammarcheck: true
+-->

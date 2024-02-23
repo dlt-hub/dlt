@@ -6,30 +6,30 @@ keywords: [transform, dbt, runner]
 
 # Transform the data with dbt
 
-[dbt](https://github.com/dbt-labs/dbt-core) is a framework that allows simple structuring of your transformations into DAGs. The benefits of
+[dbt](https://github.com/dbt-labs/dbt-core) is a framework that allows for the simple structuring of your transformations into DAGs. The benefits of
 using dbt include:
 
 - End-to-end cross-db compatibility for dlt→dbt pipelines.
-- Easy to use by SQL analysts, low learning curve.
-- Highly flexible and configurable in usage, supports templating, can run backfills etc.
-- Supports testing and accelerates troubleshooting.
+- Ease of use by SQL analysts, with a low learning curve.
+- High flexibility and configurability in usage, supports templating, can run backfills, etc.
+- Support for testing and accelerated troubleshooting.
 
 ## dbt runner in dlt
 
 You can run dbt with `dlt` by using the dbt runner.
 
-The dbt runner
+The dbt runner:
 
-- can create a virtual env for dbt on the fly;
-- can run a dbt package from online (e.g. GitHub) or from local files;
-- passes configuration and credentials to dbt, so you do not need to handle them separately from
+- Can create a virtual env for dbt on the fly;
+- Can run a dbt package from online sources (e.g., GitHub) or from local files;
+- Passes configuration and credentials to dbt, so you do not need to handle them separately from
   `dlt`, enabling dbt to configure on the fly.
 
 ## How to use the dbt runner
 
 For an example of how to use the dbt runner, see the
 [jaffle shop example](https://github.com/dlt-hub/dlt/blob/devel/docs/examples/archive/dbt_run_jaffle.py).
-Included below in another example where we run a `dlt` pipeline and then a dbt package via `dlt`:
+Included below is another example where we run a `dlt` pipeline and then a dbt package via `dlt`:
 
 > 💡 Docstrings are available to read in your IDE.
 
@@ -81,7 +81,7 @@ for m in models:
 ```
 
 ## How to run dbt runner without pipeline
-You can use dbt runner without dlt pipeline. Example below will clone and run **jaffle shop** using a dbt profile that you supply.
+You can use the dbt runner without a dlt pipeline. The example below will clone and run **jaffle shop** using a dbt profile that you supply.
 It assumes that dbt is installed in the current Python environment and the `profile.yml` is in the same folder as the Python script.
 <!--@@@DLT_SNIPPET_START ./dbt-snippets.py::run_dbt_standalone-->
 ```py
@@ -102,7 +102,7 @@ models = runner.run_all()
 ```
 <!--@@@DLT_SNIPPET_END ./dbt-snippets.py::run_dbt_standalone-->
 
-Here's example **duckdb** profile
+Here's an example **duckdb** profile
 ```yaml
 config:
   # do not track usage, do not create .user.yml
@@ -128,4 +128,7 @@ If you want to transform the data before loading, you can use Python. If you wan
 data after loading, you can use dbt or one of the following:
 
 1. [`dlt` SQL client.](../sql.md)
-1. [Pandas.](../pandas.md)
+2. [Pandas.](../pandas.md)
+<!---
+grammarcheck: true
+-->
