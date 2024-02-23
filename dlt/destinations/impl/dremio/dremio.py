@@ -97,7 +97,6 @@ class DremioLoadJob(LoadJob, FollowupJob):
             FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
         )
         from_clause = ""
-        credentials_clause = ""
         files_clause = ""
         stage_file_path = ""
 
@@ -106,23 +105,20 @@ class DremioLoadJob(LoadJob, FollowupJob):
             bucket_scheme = bucket_url.scheme
             # referencing an external s3/azure stage does not require explicit AWS credentials
             if bucket_scheme in ["s3", "az", "abfs"] and stage_name:
-                from_clause = f"FROM '@{stage_name}'"
-                files_clause = f"FILES = ('{bucket_url.path.lstrip('/')}')"
+                from_clause = f"FROM '@{stage_name}/{bucket_url.hostname}'"
+                files_clause = f"FILES ('{bucket_url.path.lstrip('/')}')"
             # referencing an staged files via a bucket URL requires explicit AWS credentials
             elif (
                 bucket_scheme == "s3"
                 and staging_credentials
                 and isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
             ):
-                credentials_clause = f"""CREDENTIALS=(AWS_KEY_ID='{staging_credentials.aws_access_key_id}' AWS_SECRET_KEY='{staging_credentials.aws_secret_access_key}')"""
                 from_clause = f"FROM '{bucket_path}'"
             elif (
                 bucket_scheme in ["az", "abfs"]
                 and staging_credentials
                 and isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
             ):
-                # Explicit azure credentials are needed to load from bucket without a named stage
-                credentials_clause = f"CREDENTIALS=(AZURE_SAS_TOKEN='?{staging_credentials.azure_storage_sas_token}')"
                 # Converts an az://<container_name>/<path> to azure://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
                 # as required by snowflake
                 _path = "/" + bucket_url.netloc + bucket_url.path
@@ -146,7 +142,7 @@ class DremioLoadJob(LoadJob, FollowupJob):
                         " instructions on setting up the `stage_name`",
                     )
                 from_clause = f"FROM @{stage_name}/"
-                files_clause = f"FILES = ('{urlparse(bucket_path).path.lstrip('/')}')"
+                files_clause = f"FILES ('{urlparse(bucket_path).path.lstrip('/')}')"
         else:
             # this means we have a local file
             if not stage_name:
@@ -155,10 +151,7 @@ class DremioLoadJob(LoadJob, FollowupJob):
             stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
             from_clause = f"FROM {stage_file_path}"
 
-        # decide on source format, stage_file_path will either be a local file or a bucket path
-        source_format = "( TYPE = 'JSON', BINARY_FORMAT = 'BASE64' )"
-        if file_name.endswith("parquet"):
-            source_format = "(TYPE = 'PARQUET', BINARY_AS_TEXT = FALSE)"
+        source_format = file_name.split(".")[-1]
 
         with client.begin_transaction():
             # PUT and COPY in one tx if local file, otherwise only copy
@@ -170,9 +163,7 @@ class DremioLoadJob(LoadJob, FollowupJob):
             client.execute_sql(f"""COPY INTO {qualified_table_name}
                 {from_clause}
                 {files_clause}
-                {credentials_clause}
-                FILE_FORMAT = {source_format}
-                MATCH_BY_COLUMN_NAME='CASE_INSENSITIVE'
+                FILE_FORMAT '{source_format}'
                 """)
             if stage_file_path and not keep_staged_files:
                 client.execute_sql(f"REMOVE {stage_file_path}")
@@ -203,7 +194,7 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
                 table["name"],
                 load_id,
                 self.sql_client,
-                stage_name=self.config.stage_name,
+                stage_name=self.config.staging_data_source,
                 keep_staged_files=self.config.keep_staged_files,
                 staging_credentials=(
                     self.config.staging_config.credentials if self.config.staging_config else None

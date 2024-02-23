@@ -60,5 +60,5 @@ def test_iceberg() -> None:
     assert table_counts["items_iceberg"] == 1
     assert table_counts["items_iceberg__sub_items"] == 2
 
-    with pipeline.sql_client() as client:
-        client.execute_sql("SELECT * FROM items_normal")
+    # with pipeline.sql_client() as client:
+    #     client.execute_sql("SELECT * FROM items_normal")

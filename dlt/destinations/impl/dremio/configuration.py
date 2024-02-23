@@ -17,7 +17,6 @@ class DremioCredentials(ConnectionStringCredentials):
     host: str = None
     port: Optional[int] = 32010
     database: str = None
-    warehouse: Optional[str] = None
 
     __config_gen_annotations__: ClassVar[List[str]] = ["password", "warehouse", "role"]
 
@@ -32,9 +31,8 @@ class DremioCredentials(ConnectionStringCredentials):
 class DremioClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = "dremio"  # type: ignore[misc]
     credentials: DremioCredentials
-
-    stage_name: Optional[str] = None
-    """Use an existing named stage instead of the default. Default uses the implicit table stage per table"""
+    staging_data_source: str
+    """The name of the staging data source"""
     keep_staged_files: bool = True
     """Whether to keep or delete the staged files after COPY INTO succeeds"""
 
