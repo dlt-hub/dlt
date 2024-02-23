@@ -21,7 +21,7 @@ from functools import wraps, partial
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import reset_resource_state
 from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
-from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems
+from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems, TAnyFunOrGenerator
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import (
@@ -178,14 +178,12 @@ def wrap_async_iterator(
         exhausted = True
 
 
-def wrap_parallel_iterator(
-    f: Union[Generator[TDataItems, Optional[Any], Optional[Any]], AnyFun]
-) -> Union[Generator[TDataItems, Optional[Any], Optional[Any]], AnyFun]:
+def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
     """Wraps a generator for parallel extraction"""
 
     def _wrapper(*args: Any, **kwargs: Any) -> Generator[TDataItems, None, None]:
         is_generator = True
-        gen: Union[Generator[TDataItems, Optional[Any], Optional[Any]], AnyFun]
+        gen: TAnyFunOrGenerator
         if callable(f):
             if inspect.isgeneratorfunction(inspect.unwrap(f)):
                 gen = f(*args, **kwargs)
@@ -204,7 +202,7 @@ def wrap_parallel_iterator(
             nonlocal exhausted
             try:
                 if is_generator:
-                    return next(gen)  # type: ignore[arg-type]
+                    return next(gen)  # type: ignore[call-overload]
                 else:
                     return gen(*args, **kwargs)  # type: ignore[operator]
             except StopIteration:
@@ -223,11 +221,11 @@ def wrap_parallel_iterator(
                 yield _parallel_gen
             except GeneratorExit:
                 if is_generator:
-                    gen.close()  # type: ignore[union-attr]
+                    gen.close()  # type: ignore[attr-defined]
                 raise
 
     if callable(f):
-        return wraps(f)(_wrapper)
+        return wraps(f)(_wrapper)  # type: ignore[arg-type]
     return _wrapper()
 
 

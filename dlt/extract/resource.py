@@ -360,7 +360,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         ):
             raise InvalidParallelResourceDataType(self.name, self._pipe.gen, type(self._pipe.gen))
 
-        self._pipe.replace_gen(wrap_parallel_iterator(self._pipe.gen))
+        self._pipe.replace_gen(wrap_parallel_iterator(self._pipe.gen))  # type: ignore  # TODO
         return self
 
     def add_step(

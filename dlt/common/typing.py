@@ -25,6 +25,7 @@ from typing import (
     runtime_checkable,
     IO,
     Iterator,
+    Generator,
 )
 
 from typing_extensions import (
@@ -70,7 +71,9 @@ StrStrStr: TypeAlias = Mapping[str, Mapping[str, str]]  # immutable, covariant e
 AnyFun: TypeAlias = Callable[..., Any]
 TFun = TypeVar("TFun", bound=AnyFun)  # any function
 TAny = TypeVar("TAny", bound=Any)
-TAnyFunOrIterator = TypeVar("TAnyFunOrIterator", AnyFun, Iterator[Any])
+TAnyFunOrGenerator = TypeVar(
+    "TAnyFunOrGenerator", AnyFun, Generator[Any, Optional[Any], Optional[Any]]
+)
 TAnyClass = TypeVar("TAnyClass", bound=object)
 TimedeltaSeconds = Union[int, float, timedelta]
 # represent secret value ie. coming from Kubernetes/Docker secrets or other providers
