@@ -149,8 +149,12 @@ class PipeIterator(Iterator[PipeItem]):
         while True:
             # do we need new item?
             if pipe_item is None:
-                # if none then take element from the newest source
-                pipe_item = self._get_source_item()
+                # Always check for done futures to avoid starving the pool
+                pipe_item = self._futures_pool.resolve_next_future_no_wait()
+
+                if pipe_item is None:
+                    # if none then take element from the newest source
+                    pipe_item = self._get_source_item()
 
                 if pipe_item is None:
                     # Wait for some time for futures to resolve
@@ -298,9 +302,6 @@ class PipeIterator(Iterator[PipeItem]):
     def close(self) -> None:
         # unregister the pipe name right after execution of gen stopped
         unset_current_pipe_name()
-
-        def stop_background_loop(loop: asyncio.AbstractEventLoop) -> None:
-            loop.stop()
 
         # Close the futures pool and cancel all tasks
         # It's important to do this before closing generators as we can't close a running generator
