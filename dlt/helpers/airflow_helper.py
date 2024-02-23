@@ -164,13 +164,16 @@ class PipelineTasksGroup(TaskGroup):
                     none - no decomposition, default value.
                     serialize - decompose the source into a sequence of Airflow tasks.
                     parallel - decompose the source into a parallel Airflow task group.
-                        NOTE: In case the SequentialExecutor is used by Airflow, the tasks
-                              will remain sequential. Use another executor, e.g. CeleryExecutor)!
-                        NOTE: The first component of the source is done first, after that
-                              the rest are executed in parallel to each other.
+                        NOTE: The first component of the source in this mode is done first,
+                              after that the rest are executed in parallel to each other.
                     parallel-isolated - decompose the source into a parallel Airflow task group.
-                        NOTE: In case the SequentialExecutor is used by Airflow, the tasks
-                              will remain sequential. Use another executor, e.g. CeleryExecutor)!
+
+                NOTE: In case the SequentialExecutor is used by Airflow, the tasks
+                      will remain sequential despite 'parallel' or 'parallel-isolated' mode.
+                      Use another executor (e.g. CeleryExecutor) to make tasks parallel!
+
+                Parallel tasks are executed in different pipelines, all derived from the original
+                one, but with the state isolated from each other.
             table_name: (str): The name of the table to which the data should be loaded within the `dataset`
             write_disposition (TWriteDisposition, optional): Same as in `run` command. Defaults to None.
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package.
@@ -319,10 +322,10 @@ class PipelineTasksGroup(TaskGroup):
                 tasks = []
                 sources = data.decompose("scc")
                 t_name = task_name(pipeline, data)
-                start = make_task(pipeline, sources[0])
+                start = make_task(pipeline, sources[0], t_name + "_1")
 
                 # parallel tasks
-                for source in sources[1:]:
+                for task_num, source in enumerate(sources[1:], start=2):
                     for resource in source.resources.values():
                         if resource.incremental:
                             logger.warn(
@@ -336,7 +339,8 @@ class PipelineTasksGroup(TaskGroup):
                                 )
                             )
                             break
-                    tasks.append(make_task(pipeline, source))
+
+                    tasks.append(make_task(pipeline, source, t_name + "_" + str(task_num)))
 
                 end = DummyOperator(task_id=f"{t_name}_end")
 
@@ -371,7 +375,9 @@ class PipelineTasksGroup(TaskGroup):
                 start >> end
                 return [start, end]
             else:
-                raise ValueError("decompose value must be one of ['none', 'serialize', 'parallel']")
+                raise ValueError(
+                    "decompose value must be one of ['none', 'serialize', 'parallel', 'parallel-isolated']"
+                )
 
     def add_fun(self, f: Callable[..., Any], **kwargs: Any) -> Any:
         """Will execute a function `f` inside an Airflow task. It is up to the function to create pipeline and source(s)"""
