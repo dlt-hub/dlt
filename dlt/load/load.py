@@ -231,26 +231,36 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         being_completed_job_id: str = None,
     ) -> List[TTableSchema]:
         """Gets a table chain starting from the `top_merged_table` containing only tables with completed/failed jobs. None is returned if there's any job that is not completed
-
+        For append and merge write disposition, tables without jobs will be included, providing they have seen data (and were created in the destination)
         Optionally `being_completed_job_id` can be passed that is considered to be completed before job itself moves in storage
         """
-        table_chain: List[TTableSchema] = []
         # returns ordered list of tables from parent to child leaf tables
-        for table_name in self._get_table_chain_tables_with_filter(
-            schema, [top_merged_table["name"]]
-        ):
+        table_chain: List[TTableSchema] = []
+        # allow for jobless tables for those write disposition
+        skip_jobless_table = top_merged_table["write_disposition"] not in ("replace", "merge")
+
+        # make sure all the jobs for the table chain is completed
+        for table in get_child_tables(schema.tables, top_merged_table["name"]):
             table_jobs = self.load_storage.normalized_packages.list_jobs_for_table(
-                load_id, table_name
+                load_id, table["name"]
             )
-            # all jobs must be completed in order for merge to be created
-            if any(
-                job.state not in ("failed_jobs", "completed_jobs")
-                and job.job_file_info.job_id() != being_completed_job_id
-                for job in table_jobs
-            ):
-                return None
-            table_chain.append(schema.tables[table_name])
-        # there must be at least one table
+            # skip tables that never seen data
+            if not has_table_seen_data(table):
+                assert len(table_jobs) == 0, f"Tables that never seen data cannot have jobs {table}"
+                continue
+            # skip jobless tables
+            if len(table_jobs) == 0 and skip_jobless_table:
+                continue
+            else:
+                # all jobs must be completed in order for merge to be created
+                if any(
+                    job.state not in ("failed_jobs", "completed_jobs")
+                    and job.job_file_info.job_id() != being_completed_job_id
+                    for job in table_jobs
+                ):
+                    return None
+            table_chain.append(table)
+        # there must be at least table
         assert len(table_chain) > 0
         return table_chain
 
@@ -355,39 +365,42 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             f"All jobs completed, archiving package {load_id} with aborted set to {aborted}"
         )
 
-    def _get_table_chain_tables_with_filter(
-        self,
+    @staticmethod
+    def _extend_tables_with_table_chain(
         schema: Schema,
+        tables: Iterable[str],
         tables_with_jobs: Iterable[str],
-        exclude_tables: Callable[[TTableSchema], bool] = lambda t: True,
-    ) -> List[str]:
-        """Get all jobs for tables with given write disposition and resolve the table chain.
+        include_table_filter: Callable[[TTableSchema], bool] = lambda t: True,
+    ) -> Iterable[str]:
+        """Extend 'tables` with all their children and filter out tables that do not have jobs (in `tables_with_jobs`),
+        haven't seen data or are not included by `include_table_filter`.
+        Note that for top tables with replace and merge, the filter for tables that do not have jobs
 
-        Returns a list of table names ordered by ancestry so the child tables are always after their parents.
+        Returns an unordered set of table names and their child tables
         """
-        result: List[str] = []
-        for table_name in tables_with_jobs:
+        result: Set[str] = set()
+        for table_name in tables:
             top_job_table = get_top_level_table(schema.tables, table_name)
-            if not exclude_tables(top_job_table):
+            # NOTE: this will ie. eliminate all non iceberg tables on ATHENA destination from staging (only iceberg needs that)
+            if not include_table_filter(top_job_table):
                 continue
             # for replace and merge write dispositions we should include tables
             # without jobs in the table chain, because child tables may need
             # processing due to changes in the root table
             skip_jobless_table = top_job_table["write_disposition"] not in ("replace", "merge")
-            # use only complete tables to infer table chains
-            data_tables = {
-                t["name"]: t for t in schema.data_tables(include_incomplete=False) + [top_job_table]
-            }
-            for table in get_child_tables(data_tables, top_job_table["name"]):
+            for table in get_child_tables(schema.tables, top_job_table["name"]):
+                table_has_job = table["name"] in tables_with_jobs
                 # table that never seen data are skipped as they will not be created
                 if not has_table_seen_data(table):
+                    assert (
+                        not table_has_job
+                    ), f"Tables that never seen data cannot have jobs {table}"
                     continue
                 # if there's no job for the table and we are in append then skip
-                table_has_job = table["name"] in tables_with_jobs
                 if not table_has_job and skip_jobless_table:
                     continue
-                result.append(table["name"])
-        return order_deduped(result)
+                result.add(table["name"])
+        return result
 
     @staticmethod
     def _init_dataset_and_update_schema(
@@ -442,7 +455,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         """
         # get dlt/internal tables
         dlt_tables = set(schema.dlt_table_names())
-        # tables without data
+        # tables without data (TODO: normalizer removes such jobs, write tests and remove the line below)
         tables_no_data = set(
             table["name"] for table in schema.data_tables() if not has_table_seen_data(table)
         )
@@ -453,7 +466,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         # get tables to truncate by extending tables with jobs with all their child tables
         truncate_tables = set(
-            self._get_table_chain_tables_with_filter(schema, tables_with_jobs, truncate_filter)
+            self._extend_tables_with_table_chain(
+                schema, tables_with_jobs, tables_with_jobs, truncate_filter
+            )
         )
 
         applied_update = self._init_dataset_and_update_schema(
@@ -464,8 +479,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         if isinstance(job_client, WithStagingDataset):
             # get staging tables (all data tables that are eligible)
             staging_tables = set(
-                self._get_table_chain_tables_with_filter(
-                    schema, tables_with_jobs, load_staging_filter
+                self._extend_tables_with_table_chain(
+                    schema, tables_with_jobs, tables_with_jobs, load_staging_filter
                 )
             )
 
