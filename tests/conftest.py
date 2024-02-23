@@ -1,7 +1,6 @@
 import os
 import dataclasses
 import logging
-from pathlib import Path
 from typing import List
 
 # patch which providers to enable
@@ -17,15 +16,12 @@ from dlt.common.configuration.specs.config_providers_context import (
 )
 
 
-TESTS_ROOT = Path(__file__).parent.absolute()
-
-
 def initial_providers() -> List[ConfigProvider]:
     # do not read the global config
     return [
         EnvironProvider(),
-        SecretsTomlProvider(project_dir=str(TESTS_ROOT / ".dlt"), add_global_config=False),
-        ConfigTomlProvider(project_dir=str(TESTS_ROOT / ".dlt"), add_global_config=False),
+        SecretsTomlProvider(project_dir="tests/.dlt", add_global_config=False),
+        ConfigTomlProvider(project_dir="tests/.dlt", add_global_config=False),
     ]
 
 
