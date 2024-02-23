@@ -13,7 +13,7 @@ or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support
 :::
 
 You can load data directly from an Arrow table or Pandas dataframe.
-This is supported by all destinations, but recommended especially when using destinations that support the `parquet` format natively (e.g. [Snowflake](../destinations/snowflake.md) and [Filesystem](../destinations/filesystem.md)).
+This is supported by all destinations, but recommended especially when using destinations that support the `parquet` file format natively (e.g. [Snowflake](../destinations/snowflake.md) and [Filesystem](../destinations/filesystem.md)).
 See the [destination support](#destination-support-and-fallback) section for more information.
 
 When used with a `parquet` supported destination this is a more performant way to load structured data since `dlt` bypasses many processing steps normally involved in passing JSON objects through the pipeline.
