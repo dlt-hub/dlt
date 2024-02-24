@@ -80,7 +80,7 @@ def custom_encode(obj: Any) -> str:
 
 
 # use PUA range to encode additional types
-PUA_START = int(os.environ.get("DLT_JSON_TYPED_PUA_START", "0xE7B8"), 16)
+PUA_START = int(os.environ.get("DLT_JSON_TYPED_PUA_START", "0xf026"), 16)
 
 _DECIMAL = chr(PUA_START)
 _DATETIME = chr(PUA_START + 1)

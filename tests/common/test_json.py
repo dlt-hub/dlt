@@ -309,13 +309,20 @@ def test_change_pua_start() -> None:
     os.environ["DLT_JSON_TYPED_PUA_START"] = "0x0FA179"
     from importlib import reload
 
-    reload(inspect.getmodule(SupportsJson))
-    from dlt.common.json import PUA_START
+    try:
+        reload(inspect.getmodule(SupportsJson))
+        from dlt.common.json import PUA_START as MOD_PUA_START
 
-    assert PUA_START == int("0x0FA179", 16)
-    # restore old start
-    os.environ["DLT_JSON_TYPED_PUA_START"] = hex(PUA_START)
-    from importlib import reload
+        assert MOD_PUA_START == int("0x0FA179", 16)
+    finally:
+        # restore old start
+        os.environ["DLT_JSON_TYPED_PUA_START"] = hex(PUA_START)
+        from importlib import reload
+
+        reload(inspect.getmodule(SupportsJson))
+        from dlt.common.json import PUA_START as MOD_PUA_START
+
+        assert MOD_PUA_START == PUA_START
 
 
 def test_load_and_compare_all_impls() -> None:

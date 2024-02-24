@@ -4,7 +4,8 @@ import shutil
 from importlib.metadata import version as pkg_version
 
 import dlt
-from dlt.common import json
+from dlt.common import json, pendulum
+from dlt.common.json import custom_pua_decode
 from dlt.common.runners import Venv
 from dlt.common.storages.exceptions import StorageMigrationError
 from dlt.common.utils import custom_environ, set_working_dir
@@ -82,12 +83,14 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                         test_storage.load(f".dlt/pipelines/{GITHUB_PIPELINE_NAME}/state.json")
                     )
                     assert "_version_hash" not in state_dict
-                    assert (
+                    # also we expect correctly decoded pendulum here
+                    created_at_value = custom_pua_decode(
                         state_dict["sources"]["github"]["resources"]["load_issues"]["incremental"][
                             "created_at"
                         ]["last_value"]
-                        == "2021-04-16T04:34:05Z"
                     )
+                    assert isinstance(created_at_value, pendulum.DateTime)
+                    assert created_at_value == pendulum.parse("2021-04-16T04:34:05Z")
 
                 # execute in current version
                 venv = Venv.restore_current()
@@ -135,12 +138,11 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
 
                 # attach to existing pipeline
                 pipeline = dlt.attach(GITHUB_PIPELINE_NAME, credentials=duckdb_cfg.credentials)
-                assert (
-                    pipeline.state["sources"]["github"]["resources"]["load_issues"]["incremental"][
-                        "created_at"
-                    ]["last_value"]
-                    == "2023-02-17T09:52:12Z"
-                )
+                created_at_value = pipeline.state["sources"]["github"]["resources"]["load_issues"][
+                    "incremental"
+                ]["created_at"]["last_value"]
+                assert isinstance(created_at_value, pendulum.DateTime)
+                assert created_at_value == pendulum.parse("2023-02-17T09:52:12Z")
                 pipeline = pipeline.drop()
                 # print(pipeline.working_dir)
                 assert pipeline.dataset_name == GITHUB_DATASET
