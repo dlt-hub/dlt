@@ -70,23 +70,18 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
-        table = self.get_load_table(table_name, staging=self.in_staging_mode)
-        if table is None:
-            table_index_type = self.config.default_table_index_type
+        table = self.prepare_load_table(table_name, staging=self.in_staging_mode)
+        table_index_type = cast(TTableIndexType, table.get(TABLE_INDEX_TYPE_HINT))
+        if self.in_staging_mode:
+            final_table = self.prepare_load_table(table_name, staging=False)
+            final_table_index_type = cast(TTableIndexType, final_table.get(TABLE_INDEX_TYPE_HINT))
         else:
-            table_index_type = cast(TTableIndexType, table.get(TABLE_INDEX_TYPE_HINT))
-            if self.in_staging_mode:
-                final_table = self.get_load_table(table_name, staging=False)
-                final_table_index_type = cast(
-                    TTableIndexType, final_table.get(TABLE_INDEX_TYPE_HINT)
-                )
-            else:
-                final_table_index_type = table_index_type
-            if final_table_index_type == "clustered_columnstore_index":
-                # Even if the staging table has index type "heap", we still adjust
-                # the column data types to prevent errors when writing into the
-                # final table that has index type "clustered_columnstore_index".
-                new_columns = self._get_columstore_valid_columns(new_columns)
+            final_table_index_type = table_index_type
+        if final_table_index_type == "clustered_columnstore_index":
+            # Even if the staging table has index type "heap", we still adjust
+            # the column data types to prevent errors when writing into the
+            # final table that has index type "clustered_columnstore_index".
+            new_columns = self._get_columstore_valid_columns(new_columns)
 
         _sql_result = SqlJobClientBase._get_table_update_sql(
             self, table_name, new_columns, generate_alter
@@ -135,10 +130,8 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
             return [SynapseStagingCopyJob.from_table_chain(table_chain, self.sql_client)]
         return super()._create_replace_followup_jobs(table_chain)
 
-    def get_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
-        table = super().get_load_table(table_name, staging)
-        if table is None:
-            return None
+    def prepare_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
+        table = super().prepare_load_table(table_name, staging)
         if staging and self.config.replace_strategy == "insert-from-staging":
             # Staging tables should always be heap tables, because "when you are
             # temporarily landing data in dedicated SQL pool, you may find that
@@ -153,7 +146,7 @@ class SynapseClient(MsSqlClient, SupportsStagingDestination):
             # index for faster query performance."
             table[TABLE_INDEX_TYPE_HINT] = "heap"  # type: ignore[typeddict-unknown-key]
         # https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index#heap-tables
-        elif table_name in self.schema.data_table_names():
+        else:
             if TABLE_INDEX_TYPE_HINT not in table:
                 # If present in parent table, fetch hint from there.
                 table[TABLE_INDEX_TYPE_HINT] = get_inherited_table_hint(  # type: ignore[typeddict-unknown-key]

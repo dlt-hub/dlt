@@ -1,3 +1,4 @@
+import pytest
 import contextlib
 import codecs
 import os
@@ -159,6 +160,7 @@ def destinations_configs(
     subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
     file_format: Optional[TLoaderFileFormat] = None,
+    supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
     # sanity check
@@ -378,6 +380,10 @@ def destinations_configs(
         destination_configs = [
             conf for conf in destination_configs if conf.file_format == file_format
         ]
+    if supports_merge is not None:
+        destination_configs = [
+            conf for conf in destination_configs if conf.supports_merge == supports_merge
+        ]
     if supports_dbt is not None:
         destination_configs = [
             conf for conf in destination_configs if conf.supports_dbt == supports_dbt
@@ -389,6 +395,14 @@ def destinations_configs(
     ]
 
     return destination_configs
+
+
+@pytest.fixture
+def empty_schema() -> Schema:
+    schema = Schema("event")
+    table = new_table("event_test_table")
+    schema.update_table(table)
+    return schema
 
 
 def get_normalized_dataset_name(client: JobClientBase) -> str:
@@ -420,7 +434,7 @@ def expect_load_file(
         client.capabilities.preferred_loader_file_format,
     ).file_name()
     file_storage.save(file_name, query.encode("utf-8"))
-    table = client.get_load_table(table_name)
+    table = client.prepare_load_table(table_name)
     job = client.start_file_load(table, file_storage.make_full_path(file_name), uniq_id())
     while job.state() == "running":
         sleep(0.5)

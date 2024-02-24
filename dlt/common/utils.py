@@ -575,3 +575,11 @@ def get_exception_trace_chain(
     elif exc.__context__:
         return get_exception_trace_chain(exc.__context__, traces, seen)
     return traces
+
+
+def order_deduped(lst: List[Any]) -> List[Any]:
+    """Returns deduplicated list preserving order of input elements.
+
+    Only works for lists with hashable elements.
+    """
+    return list(dict.fromkeys(lst))

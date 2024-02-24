@@ -13,7 +13,7 @@ from dlt.destinations.impl.synapse.configuration import (
     SynapseCredentials,
 )
 
-from tests.load.utils import TABLE_UPDATE
+from tests.load.utils import TABLE_UPDATE, empty_schema
 from dlt.destinations.impl.synapse.synapse import (
     HINT_TO_SYNAPSE_ATTR,
     TABLE_INDEX_TYPE_TO_SYNAPSE_ATTR,
@@ -21,15 +21,10 @@ from dlt.destinations.impl.synapse.synapse import (
 
 
 @pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
-
-
-@pytest.fixture
-def client(schema: Schema) -> SynapseClient:
+def client(empty_schema: Schema) -> SynapseClient:
     # return client without opening connection
     client = SynapseClient(
-        schema,
+        empty_schema,
         SynapseClientConfiguration(
             dataset_name="test_" + uniq_id(), credentials=SynapseCredentials()
         ),
@@ -39,10 +34,10 @@ def client(schema: Schema) -> SynapseClient:
 
 
 @pytest.fixture
-def client_with_indexes_enabled(schema: Schema) -> SynapseClient:
+def client_with_indexes_enabled(empty_schema: Schema) -> SynapseClient:
     # return client without opening connection
     client = SynapseClient(
-        schema,
+        empty_schema,
         SynapseClientConfiguration(
             dataset_name="test_" + uniq_id(), credentials=SynapseCredentials(), create_indexes=True
         ),

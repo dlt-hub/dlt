@@ -41,7 +41,7 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.typing import TableNameMeta
 
-from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V8
+from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9
 
 
 def test_none_returning_source() -> None:
@@ -86,7 +86,7 @@ def test_load_schema_for_callable() -> None:
     schema = s.schema
     assert schema.name == "ethereum" == s.name
     # the schema in the associated file has this hash
-    assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V8
+    assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V9
 
 
 def test_unbound_parametrized_transformer() -> None:
