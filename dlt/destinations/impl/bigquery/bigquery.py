@@ -248,7 +248,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
-        table: Optional[TTableSchema] = self.get_load_table(table_name)
+        table: Optional[TTableSchema] = self.prepare_load_table(table_name)
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
 
@@ -285,46 +285,39 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             sql[0] += "\nCLUSTER BY " + ", ".join(cluster_list)
 
         # Table options.
-        if table:
-            table_options: DictStrAny = {
-                "description": (
-                    f"'{table.get(TABLE_DESCRIPTION_HINT)}'"
-                    if table.get(TABLE_DESCRIPTION_HINT)
-                    else None
-                ),
-                "expiration_timestamp": (
-                    f"TIMESTAMP '{table.get(TABLE_EXPIRATION_HINT)}'"
-                    if table.get(TABLE_EXPIRATION_HINT)
-                    else None
-                ),
-            }
-            if not any(table_options.values()):
-                return sql
+        table_options: DictStrAny = {
+            "description": (
+                f"'{table.get(TABLE_DESCRIPTION_HINT)}'"
+                if table.get(TABLE_DESCRIPTION_HINT)
+                else None
+            ),
+            "expiration_timestamp": (
+                f"TIMESTAMP '{table.get(TABLE_EXPIRATION_HINT)}'"
+                if table.get(TABLE_EXPIRATION_HINT)
+                else None
+            ),
+        }
+        if not any(table_options.values()):
+            return sql
 
-            if generate_alter:
-                raise NotImplementedError("Update table options not yet implemented.")
-            else:
-                sql[0] += (
-                    "\nOPTIONS ("
-                    + ", ".join(
-                        [
-                            f"{key}={value}"
-                            for key, value in table_options.items()
-                            if value is not None
-                        ]
-                    )
-                    + ")"
+        if generate_alter:
+            raise NotImplementedError("Update table options not yet implemented.")
+        else:
+            sql[0] += (
+                "\nOPTIONS ("
+                + ", ".join(
+                    [f"{key}={value}" for key, value in table_options.items() if value is not None]
                 )
+                + ")"
+            )
 
         return sql
 
-    def get_load_table(
+    def prepare_load_table(
         self, table_name: str, prepare_for_staging: bool = False
     ) -> Optional[TTableSchema]:
-        table = super().get_load_table(table_name, prepare_for_staging)
-        if table is None:
-            return None
-        elif table_name in self.schema.data_table_names():
+        table = super().prepare_load_table(table_name, prepare_for_staging)
+        if table_name in self.schema.data_table_names():
             if TABLE_DESCRIPTION_HINT not in table:
                 table[TABLE_DESCRIPTION_HINT] = (  # type: ignore[name-defined, typeddict-unknown-key, unused-ignore]
                     get_inherited_table_hint(

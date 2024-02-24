@@ -255,7 +255,8 @@ class NewLoadJob(LoadJob):
 class FollowupJob:
     """Adds a trait that allows to create a followup job"""
 
-    def create_followup_jobs(self, next_state: str) -> List[NewLoadJob]:
+    def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
+        """Return list of new jobs. `final_state` is state to which this job transits"""
         return []
 
 
@@ -407,9 +408,9 @@ class JobClientBase(ABC):
                         " column manually in code ie. as a merge key?"
                     )
 
-    def get_load_table(self, table_name: str, prepare_for_staging: bool = False) -> TTableSchema:
-        if table_name not in self.schema.tables:
-            return None
+    def prepare_load_table(
+        self, table_name: str, prepare_for_staging: bool = False
+    ) -> TTableSchema:
         try:
             # make a copy of the schema so modifications do not affect the original document
             table = deepcopy(self.schema.tables[table_name])

@@ -546,6 +546,20 @@ def get_table_format(tables: TSchemaTables, table_name: str) -> TTableFormat:
     )
 
 
+def fill_hints_from_parent_and_clone_table(
+    tables: TSchemaTables, table: TTableSchema
+) -> TTableSchema:
+    """Takes write disposition and table format from parent tables if not present"""
+    # make a copy of the schema so modifications do not affect the original document
+    table = deepcopy(table)
+    # add write disposition if not specified - in child tables
+    if "write_disposition" not in table:
+        table["write_disposition"] = get_write_disposition(tables, table["name"])
+    if "table_format" not in table:
+        table["table_format"] = get_table_format(tables, table["name"])
+    return table
+
+
 def table_schema_has_type(table: TTableSchema, _typ: TDataType) -> bool:
     """Checks if `table` schema contains column with type _typ"""
     return any(c.get("data_type") == _typ for c in table["columns"].values())

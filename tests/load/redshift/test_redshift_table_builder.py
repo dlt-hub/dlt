@@ -12,19 +12,14 @@ from dlt.destinations.impl.redshift.configuration import (
     RedshiftCredentials,
 )
 
-from tests.load.utils import TABLE_UPDATE
+from tests.load.utils import TABLE_UPDATE, empty_schema
 
 
 @pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
-
-
-@pytest.fixture
-def client(schema: Schema) -> RedshiftClient:
+def client(empty_schema: Schema) -> RedshiftClient:
     # return client without opening connection
     return RedshiftClient(
-        schema,
+        empty_schema,
         RedshiftClientConfiguration(
             dataset_name="test_" + uniq_id(), credentials=RedshiftCredentials()
         ),

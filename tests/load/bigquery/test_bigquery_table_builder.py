@@ -32,12 +32,7 @@ from tests.load.pipeline.utils import (
     DestinationTestConfiguration,
     drop_active_pipeline_data,
 )
-from tests.load.utils import TABLE_UPDATE, sequence_generator
-
-
-@pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
+from tests.load.utils import TABLE_UPDATE, sequence_generator, empty_schema
 
 
 def test_configuration() -> None:
@@ -56,13 +51,13 @@ def test_configuration() -> None:
 
 
 @pytest.fixture
-def gcp_client(schema: Schema) -> BigQueryClient:
+def gcp_client(empty_schema: Schema) -> BigQueryClient:
     # return a client without opening connection
     creds = GcpServiceAccountCredentialsWithoutDefaults()
     creds.project_id = "test_project_id"
     # noinspection PydanticTypeChecker
     return BigQueryClient(
-        schema,
+        empty_schema,
         BigQueryClientConfiguration(
             dataset_name=f"test_{uniq_id()}", credentials=creds  # type: ignore[arg-type]
         ),

@@ -77,9 +77,9 @@ class LoadFilesystemJob(LoadJob):
 
 
 class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
-    def create_followup_jobs(self, next_state: str) -> List[NewLoadJob]:
-        jobs = super().create_followup_jobs(next_state)
-        if next_state == "completed":
+    def create_followup_jobs(self, final_state: TLoadJobState) -> List[NewLoadJob]:
+        jobs = super().create_followup_jobs(final_state)
+        if final_state == "completed":
             ref_job = NewReferenceJob(
                 file_name=self.file_name(), status="running", remote_path=self.make_remote_path()
             )
