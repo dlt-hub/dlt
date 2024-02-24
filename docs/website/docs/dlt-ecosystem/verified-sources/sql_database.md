@@ -377,13 +377,5 @@ To create your own pipeline, use source and resource methods from this verified 
 
 1. Remember to keep the pipeline name and destination dataset name consistent. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) from the last run, which is essential for incremental loading. Altering these names could initiate a "[full_refresh](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh)", interfering with the metadata tracking necessary for [incremental loads](https://dlthub.com/docs/general-usage/incremental-loading).
 
-## Additional Setup guides
-- [Load data from sql_database to athena in python with dlt](https://dlthub.com/docs/pipelines/sql_database/load-data-with-python-from-sql_database-to-athena)
-- [Load data from sql_database to bigquery in python with dlt](https://dlthub.com/docs/pipelines/sql_database/load-data-with-python-from-sql_database-to-bigquery)
-- [Load data from sql_database to databricks in python with dlt](https://dlthub.com/docs/pipelines/sql_database/load-data-with-python-from-sql_database-to-databricks)
-- [Load data from sql_database to duckdb in python with dlt](https://dlthub.com/docs/pipelines/sql_database/load-data-with-python-from-sql_database-to-duckdb)
-- [Load data from sql_database to postgres in python with dlt](https://dlthub.com/docs/pipelines/sql_database/load-data-with-python-from-sql_database-to-postgres)
-- [Load data from sql_database to redshift in python with dlt](https://dlthub.com/docs/pipelines/sql_database/load-data-with-python-from-sql_database-to-redshift)
-- [Load data from sql_database to snowflake in python with dlt](https://dlthub.com/docs/pipelines/sql_database/load-data-with-python-from-sql_database-to-snowflake)
-- [Load data from sql_database to synapse in python with dlt](https://dlthub.com/docs/pipelines/sql_database/load-data-with-python-from-sql_database-to-synapse)
-
+<!--@@@DLT_SNIPPET_START tuba::sql_database-->
+<!--@@@DLT_SNIPPET_END tuba::sql_database-->

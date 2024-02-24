@@ -26,6 +26,8 @@ class DummyClientConfiguration(DestinationClientConfiguration):
     """probability of exception when checking job status"""
     timeout: float = 10.0
     fail_in_init: bool = True
+    # new jobs workflows
+    create_followup_jobs: bool = False
 
     credentials: DummyClientCredentials = None
 
@@ -43,6 +45,7 @@ class DummyClientConfiguration(DestinationClientConfiguration):
             exception_prob: float = None,
             timeout: float = None,
             fail_in_init: bool = None,
+            create_followup_jobs: bool = None,
             destination_name: str = None,
             environment: str = None,
         ) -> None: ...

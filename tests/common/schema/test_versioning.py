@@ -84,10 +84,10 @@ def test_infer_column_bumps_version() -> None:
 
 
 def test_preserve_version_on_load() -> None:
-    eth_v8: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v8")
-    version = eth_v8["version"]
-    version_hash = eth_v8["version_hash"]
-    schema = Schema.from_dict(eth_v8)  # type: ignore[arg-type]
+    eth_v9: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v9")
+    version = eth_v9["version"]
+    version_hash = eth_v9["version_hash"]
+    schema = Schema.from_dict(eth_v9)  # type: ignore[arg-type]
     # version should not be bumped
     assert version_hash == schema._stored_version_hash
     assert version_hash == schema.version_hash
@@ -126,13 +126,18 @@ def test_version_preserve_on_reload(remove_defaults: bool) -> None:
 
 
 def test_create_ancestry() -> None:
-    eth_v8: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v8")
-    schema = Schema.from_dict(eth_v8)  # type: ignore[arg-type]
-    assert schema._stored_previous_hashes == ["yjMtV4Zv0IJlfR5DPMwuXxGg8BRhy7E79L26XAHWEGE="]
+    eth_v9: TStoredSchema = load_yml_case("schemas/eth/ethereum_schema_v9")
+    schema = Schema.from_dict(eth_v9)  # type: ignore[arg-type]
+
+    expected_previous_hashes = [
+        "C5An8WClbavalXDdNSqXbdI7Swqh/mTWMcwWKCF//EE=",
+        "yjMtV4Zv0IJlfR5DPMwuXxGg8BRhy7E79L26XAHWEGE=",
+    ]
+    hash_count = len(expected_previous_hashes)
+    assert schema._stored_previous_hashes == expected_previous_hashes
     version = schema._stored_version
 
     # modify save and load schema 15 times and check ancestry
-    expected_previous_hashes = ["yjMtV4Zv0IJlfR5DPMwuXxGg8BRhy7E79L26XAHWEGE="]
     for i in range(1, 15):
         # keep expected previous_hashes
         expected_previous_hashes.insert(0, schema._stored_version_hash)
@@ -148,6 +153,6 @@ def test_create_ancestry() -> None:
         assert schema._stored_version == version + i
 
         # we never have more than 10 previous_hashes
-        assert len(schema._stored_previous_hashes) == i + 1 if i + 1 <= 10 else 10
+        assert len(schema._stored_previous_hashes) == i + hash_count if i + hash_count <= 10 else 10
 
     assert len(schema._stored_previous_hashes) == 10

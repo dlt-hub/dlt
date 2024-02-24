@@ -27,7 +27,7 @@ def test_iceberg() -> None:
     os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "s3://dlt-ci-test-bucket"
 
     pipeline = dlt.pipeline(
-        pipeline_name="aaaaathena-iceberg",
+        pipeline_name="athena-iceberg",
         destination="athena",
         staging="filesystem",
         full_refresh=True,
