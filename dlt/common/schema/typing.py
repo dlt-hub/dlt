@@ -26,7 +26,7 @@ except ImportError:
 
 
 # current version of schema engine
-SCHEMA_ENGINE_VERSION = 8
+SCHEMA_ENGINE_VERSION = 9
 
 # dlt tables
 VERSION_TABLE_NAME = "_dlt_version"
@@ -46,6 +46,7 @@ TColumnProp = Literal[
     "unique",
     "merge_key",
     "root_key",
+    "dedup_sort",
 ]
 """Known properties and hints of the column"""
 # TODO: merge TColumnHint with TColumnProp
@@ -59,6 +60,7 @@ TColumnHint = Literal[
     "unique",
     "root_key",
     "merge_key",
+    "dedup_sort",
 ]
 """Known hints of a column used to declare hint regexes."""
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
@@ -69,6 +71,7 @@ TTypeDetections = Literal[
 TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
 TColumnNames = Union[str, Sequence[str]]
 """A string representing a column name or a list of"""
+TSortOrder = Literal["asc", "desc"]
 
 COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
 COLUMN_HINTS: Set[TColumnHint] = set(
@@ -112,6 +115,8 @@ class TColumnSchema(TColumnSchemaBase, total=False):
     root_key: Optional[bool]
     merge_key: Optional[bool]
     variant: Optional[bool]
+    hard_delete: Optional[bool]
+    dedup_sort: Optional[TSortOrder]
 
 
 TTableSchemaColumns = Dict[str, TColumnSchema]

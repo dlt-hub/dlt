@@ -365,7 +365,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         # for the system tables we need to create empty iceberg tables to be able to run, DELETE and UPDATE queries
         # or if we are in iceberg mode, we create iceberg tables for all tables
-        table = self.get_load_table(table_name, self.in_staging_mode)
+        table = self.prepare_load_table(table_name, self.in_staging_mode)
         is_iceberg = self._is_iceberg_table(table) or table.get("write_disposition", None) == "skip"
         columns = ", ".join(
             [self._get_column_def_sql(c, table.get("table_format")) for c in new_columns]
@@ -405,13 +405,13 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         if not job:
             job = (
                 DoNothingFollowupJob(file_path)
-                if self._is_iceberg_table(self.get_load_table(table["name"]))
+                if self._is_iceberg_table(self.prepare_load_table(table["name"]))
                 else DoNothingJob(file_path)
             )
         return job
 
     def _create_append_followup_jobs(self, table_chain: Sequence[TTableSchema]) -> List[NewLoadJob]:
-        if self._is_iceberg_table(self.get_load_table(table_chain[0]["name"])):
+        if self._is_iceberg_table(self.prepare_load_table(table_chain[0]["name"])):
             return [
                 SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": False})
             ]
@@ -420,7 +420,7 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[TTableSchema]
     ) -> List[NewLoadJob]:
-        if self._is_iceberg_table(self.get_load_table(table_chain[0]["name"])):
+        if self._is_iceberg_table(self.prepare_load_table(table_chain[0]["name"])):
             return [
                 SqlStagingCopyJob.from_table_chain(table_chain, self.sql_client, {"replace": True})
             ]
@@ -436,15 +436,15 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
         # all iceberg tables need staging
-        if self._is_iceberg_table(self.get_load_table(table["name"])):
+        if self._is_iceberg_table(self.prepare_load_table(table["name"])):
             return True
         return super().should_load_data_to_staging_dataset(table)
 
     def should_truncate_table_before_load_on_staging_destination(self, table: TTableSchema) -> bool:
         # on athena we only truncate replace tables that are not iceberg
-        table = self.get_load_table(table["name"])
+        table = self.prepare_load_table(table["name"])
         if table["write_disposition"] == "replace" and not self._is_iceberg_table(
-            self.get_load_table(table["name"])
+            self.prepare_load_table(table["name"])
         ):
             return True
         return False
@@ -453,13 +453,17 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         self, table: TTableSchema
     ) -> bool:
         """iceberg table data goes into staging on staging destination"""
-        return self._is_iceberg_table(self.get_load_table(table["name"]))
+        if self._is_iceberg_table(self.prepare_load_table(table["name"])):
+            return True
+        return super().should_load_data_to_staging_dataset_on_staging_destination(table)
 
-    def get_load_table(self, table_name: str, staging: bool = False) -> TTableSchema:
-        table = super().get_load_table(table_name, staging)
+    def prepare_load_table(
+        self, table_name: str, prepare_for_staging: bool = False
+    ) -> TTableSchema:
+        table = super().prepare_load_table(table_name, prepare_for_staging)
         if self.config.force_iceberg:
             table["table_format"] = "iceberg"
-        if staging and table.get("table_format", None) == "iceberg":
+        if prepare_for_staging and table.get("table_format", None) == "iceberg":
             table.pop("table_format")
         return table
 

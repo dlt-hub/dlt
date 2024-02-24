@@ -427,7 +427,7 @@ WHERE """
                         sql += ";"
                     sql_updates.append(sql)
                 # create a schema update for particular table
-                partial_table = copy(self.get_load_table(table_name))
+                partial_table = copy(self.prepare_load_table(table_name))
                 # keep only new columns
                 partial_table["columns"] = {c["name"]: c for c in new_columns}
                 schema_update[table_name] = partial_table
@@ -445,8 +445,8 @@ WHERE """
     ) -> List[str]:
         # build sql
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
-        table = self.get_load_table(table_name)
-        table_format = table.get("table_format") if table else None
+        table = self.prepare_load_table(table_name)
+        table_format = table.get("table_format")
         sql_result: List[str] = []
         if not generate_alter:
             # build CREATE

@@ -2,6 +2,7 @@ import yaml
 from copy import copy, deepcopy
 from typing import ClassVar, Dict, List, Mapping, Optional, Sequence, Tuple, Any, cast, Literal
 from dlt.common import json
+from dlt.common.schema.migrations import migrate_schema
 
 from dlt.common.utils import extend_list_deduplicated
 from dlt.common.typing import (
@@ -103,7 +104,7 @@ class Schema:
     @classmethod
     def from_dict(cls, d: DictStrAny, bump_version: bool = True) -> "Schema":
         # upgrade engine if needed
-        stored_schema = utils.migrate_schema(d, d["engine_version"], cls.ENGINE_VERSION)
+        stored_schema = migrate_schema(d, d["engine_version"], cls.ENGINE_VERSION)
         # verify schema
         utils.validate_stored_schema(stored_schema)
         # add defaults
@@ -390,6 +391,7 @@ class Schema:
         return Schema.expand_schema_contract_settings(settings)
 
     def update_table(self, partial_table: TPartialTableSchema) -> TPartialTableSchema:
+        """Adds or merges `partial_table` into the schema. Identifiers are not normalized"""
         table_name = partial_table["name"]
         parent_table_name = partial_table.get("parent")
         # check if parent table present
@@ -414,7 +416,7 @@ class Schema:
         return partial_table
 
     def update_schema(self, schema: "Schema") -> None:
-        """Updates this schema from an incoming schema"""
+        """Updates this schema from an incoming schema. Normalizes identifiers after updating normalizers."""
         # update all tables
         for table in schema.tables.values():
             self.update_table(table)
