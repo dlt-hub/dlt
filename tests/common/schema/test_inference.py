@@ -272,9 +272,15 @@ def test_coerce_complex_variant(schema: Schema) -> None:
 
 def test_supports_variant_pua_decode(schema: Schema) -> None:
     rows = load_json_case("pua_encoded_row")
+    # use actual encoding for wei
+    from dlt.common.json import _WEI, _HEXBYTES
+
+    rows[0]["_tx_transactionHash"] = rows[0]["_tx_transactionHash"].replace("", _HEXBYTES)
+    rows[0]["wad"] = rows[0]["wad"].replace("", _WEI)
+
     normalized_row = list(schema.normalize_data_item(rows[0], "0912uhj222", "event"))
     # pua encoding still present
-    assert normalized_row[0][1]["wad"].startswith("")
+    assert normalized_row[0][1]["wad"].startswith(_WEI)
     # decode pua
     decoded_row = {k: custom_pua_decode(v) for k, v in normalized_row[0][1].items()}
     assert isinstance(decoded_row["wad"], Wei)
