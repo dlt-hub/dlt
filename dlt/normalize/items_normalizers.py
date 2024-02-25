@@ -4,6 +4,7 @@ from abc import abstractmethod
 from dlt.common import json, logger
 from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.json import custom_pua_decode, may_have_pua
+from dlt.common.normalizers.json.relational import DataItemNormalizer as RelationalNormalizer
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
 from dlt.common.schema.utils import has_table_seen_data
@@ -223,8 +224,10 @@ class ParquetItemsNormalizer(ItemsNormalizer):
         schema = self.schema
         load_id = self.load_id
         schema_update: TSchemaUpdate = {}
+        data_normalizer = schema.data_item_normalizer
 
-        if add_load_id:
+        if add_load_id and isinstance(data_normalizer, RelationalNormalizer):
+            # NOTE: update table will normalize names
             table_update = schema.update_table(
                 {
                     "name": root_table_name,
@@ -243,12 +246,13 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             new_columns.append(
                 (
                     -1,
-                    pa.field("_dlt_load_id", load_id_type, nullable=False),
+                    pa.field(data_normalizer.c_dlt_load_id, load_id_type, nullable=False),
                     lambda batch: pa.array([load_id] * batch.num_rows, type=load_id_type),
                 )
             )
 
-        if add_dlt_id:
+        if add_dlt_id and isinstance(data_normalizer, RelationalNormalizer):
+            # NOTE: update table will normalize names
             table_update = schema.update_table(
                 {
                     "name": root_table_name,
@@ -262,7 +266,7 @@ class ParquetItemsNormalizer(ItemsNormalizer):
             new_columns.append(
                 (
                     -1,
-                    pa.field("_dlt_id", pyarrow.pyarrow.string(), nullable=False),
+                    pa.field(data_normalizer.c_dlt_id, pyarrow.pyarrow.string(), nullable=False),
                     lambda batch: pa.array(generate_dlt_ids(batch.num_rows)),
                 )
             )

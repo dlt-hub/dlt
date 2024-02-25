@@ -293,7 +293,7 @@ def test_save_load_incomplete_column(
     incomplete_col["primary_key"] = True
     incomplete_col["x-special"] = "spec"  # type: ignore[typeddict-unknown-key]
     table = utils.new_table("table", columns=[incomplete_col])
-    schema.update_table(table)
+    schema.update_table(table, normalize_identifiers=False)
     schema_storage_no_import.save_schema(schema)
     schema_copy = schema_storage_no_import.load_schema("event")
     assert schema_copy.get_table("table")["columns"]["I"] == {
@@ -736,20 +736,21 @@ def test_group_tables_by_resource(schema: Schema) -> None:
     schema.update_table(utils.new_table("a_events", columns=[]))
     schema.update_table(utils.new_table("b_events", columns=[]))
     schema.update_table(utils.new_table("c_products", columns=[], resource="products"))
-    schema.update_table(utils.new_table("a_events__1", columns=[], parent_table_name="a_events"))
+    schema.update_table(utils.new_table("a_events___1", columns=[], parent_table_name="a_events"))
     schema.update_table(
-        utils.new_table("a_events__1__2", columns=[], parent_table_name="a_events__1")
+        utils.new_table("a_events___1___2", columns=[], parent_table_name="a_events___1")
     )
-    schema.update_table(utils.new_table("b_events__1", columns=[], parent_table_name="b_events"))
+    schema.update_table(utils.new_table("b_events___1", columns=[], parent_table_name="b_events"))
+    # print(schema.to_pretty_yaml())
 
     # All resources without filter
     expected_tables = {
         "a_events": [
             schema.tables["a_events"],
-            schema.tables["a_events__1"],
-            schema.tables["a_events__1__2"],
+            schema.tables["a_events___1"],
+            schema.tables["a_events___1___2"],
         ],
-        "b_events": [schema.tables["b_events"], schema.tables["b_events__1"]],
+        "b_events": [schema.tables["b_events"], schema.tables["b_events___1"]],
         "products": [schema.tables["c_products"]],
         "_dlt_version": [schema.tables["_dlt_version"]],
         "_dlt_loads": [schema.tables["_dlt_loads"]],
@@ -764,10 +765,10 @@ def test_group_tables_by_resource(schema: Schema) -> None:
     assert result == {
         "a_events": [
             schema.tables["a_events"],
-            schema.tables["a_events__1"],
-            schema.tables["a_events__1__2"],
+            schema.tables["a_events___1"],
+            schema.tables["a_events___1___2"],
         ],
-        "b_events": [schema.tables["b_events"], schema.tables["b_events__1"]],
+        "b_events": [schema.tables["b_events"], schema.tables["b_events___1"]],
     }
 
     # With resources that has many top level tables

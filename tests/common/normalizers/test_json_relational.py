@@ -4,14 +4,13 @@ from dlt.common.typing import StrAny, DictStrAny
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.utils import digest128, uniq_id
-from dlt.common.schema import Schema, TTableSchema
+from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 
 from dlt.common.normalizers.json.relational import (
     RelationalNormalizerConfigPropagation,
     DataItemNormalizer as RelationalNormalizer,
     DLT_ID_LENGTH_BYTES,
-    TDataItemRow,
 )
 
 # _flatten, _get_child_row_hash, _normalize_row, normalize_data_item,
