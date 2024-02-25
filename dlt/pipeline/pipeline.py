@@ -1188,6 +1188,7 @@ class Pipeline(SupportsPipeline):
             self.destination
             and not self.destination.capabilities().supported_loader_file_formats
             and not staging
+            and not self.staging
         ):
             logger.warning(
                 f"The destination {self.destination.destination_name} requires the filesystem"
