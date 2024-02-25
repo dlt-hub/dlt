@@ -48,7 +48,13 @@ def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguratio
         data = json.load(f)
 
     # take only the first block. the first block does not have uncles so this table should not be created and merged
-    info = p.run(data[:1], table_name="blocks", write_disposition="merge", schema=schema)
+    info = p.run(
+        data[:1],
+        table_name="blocks",
+        write_disposition="merge",
+        schema=schema,
+        loader_file_format=destination_config.file_format,
+    )
     assert_load_info(info)
     eth_1_counts = load_table_counts(p, "blocks")
     # we load a single block
@@ -60,12 +66,24 @@ def test_merge_on_keys_in_schema(destination_config: DestinationTestConfiguratio
     )
     # now we load the whole dataset. blocks should be created which adds columns to blocks
     # if the table would be created before the whole load would fail because new columns have hints
-    info = p.run(data, table_name="blocks", write_disposition="merge", schema=schema)
+    info = p.run(
+        data,
+        table_name="blocks",
+        write_disposition="merge",
+        schema=schema,
+        loader_file_format=destination_config.file_format,
+    )
     eth_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # we have 2 blocks in dataset
     assert eth_2_counts["blocks"] == 2 if destination_config.supports_merge else 3
     # make sure we have same record after merging full dataset again
-    info = p.run(data, table_name="blocks", write_disposition="merge", schema=schema)
+    info = p.run(
+        data,
+        table_name="blocks",
+        write_disposition="merge",
+        schema=schema,
+        loader_file_format=destination_config.file_format,
+    )
     assert_load_info(info)
     # for non merge destinations we just check that the run passes
     if not destination_config.supports_merge:
@@ -85,7 +103,13 @@ def test_merge_on_ad_hoc_primary_key(destination_config: DestinationTestConfigur
     ) as f:
         data = json.load(f)
     # note: NodeId will be normalized to "node_id" which exists in the schema
-    info = p.run(data[:17], table_name="issues", write_disposition="merge", primary_key="NodeId")
+    info = p.run(
+        data[:17],
+        table_name="issues",
+        write_disposition="merge",
+        primary_key="NodeId",
+        loader_file_format=destination_config.file_format,
+    )
     assert_load_info(info)
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # 17 issues
@@ -95,7 +119,13 @@ def test_merge_on_ad_hoc_primary_key(destination_config: DestinationTestConfigur
     assert p.default_schema.tables["issues"]["columns"]["node_id"]["data_type"] == "text"
     assert p.default_schema.tables["issues"]["columns"]["node_id"]["nullable"] is False
 
-    info = p.run(data[5:], table_name="issues", write_disposition="merge", primary_key="node_id")
+    info = p.run(
+        data[5:],
+        table_name="issues",
+        write_disposition="merge",
+        primary_key="node_id",
+        loader_file_format=destination_config.file_format,
+    )
     assert_load_info(info)
     # for non merge destinations we just check that the run passes
     if not destination_config.supports_merge:
@@ -131,7 +161,7 @@ def test_merge_source_compound_keys_and_changes(
 ) -> None:
     p = destination_config.setup_pipeline("github_3", full_refresh=True)
 
-    info = p.run(github())
+    info = p.run(github(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # 100 issues total
@@ -151,7 +181,11 @@ def test_merge_source_compound_keys_and_changes(
     )
 
     # append load_issues resource
-    info = p.run(github().load_issues, write_disposition="append")
+    info = p.run(
+        github().load_issues,
+        write_disposition="append",
+        loader_file_format=destination_config.file_format,
+    )
     assert_load_info(info)
     assert p.default_schema.tables["issues"]["write_disposition"] == "append"
     # the counts of all tables must be double
@@ -159,7 +193,9 @@ def test_merge_source_compound_keys_and_changes(
     assert {k: v * 2 for k, v in github_1_counts.items()} == github_2_counts
 
     # now replace all resources
-    info = p.run(github(), write_disposition="replace")
+    info = p.run(
+        github(), write_disposition="replace", loader_file_format=destination_config.file_format
+    )
     assert_load_info(info)
     assert p.default_schema.tables["issues"]["write_disposition"] == "replace"
     # assert p.default_schema.tables["issues__labels"]["write_disposition"] == "replace"
@@ -184,7 +220,7 @@ def test_merge_no_child_tables(destination_config: DestinationTestConfiguration)
 
     # take only first 15 elements
     github_data.load_issues.add_filter(take_first(15))
-    info = p.run(github_data)
+    info = p.run(github_data, loader_file_format=destination_config.file_format)
     assert len(p.default_schema.data_tables()) == 1
     assert "issues" in p.default_schema.tables
     assert_load_info(info)
@@ -194,7 +230,7 @@ def test_merge_no_child_tables(destination_config: DestinationTestConfiguration)
     # load all
     github_data = github()
     github_data.max_table_nesting = 0
-    info = p.run(github_data)
+    info = p.run(github_data, loader_file_format=destination_config.file_format)
     assert_load_info(info)
     github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # 100 issues total, or 115 if merge is not supported
@@ -211,7 +247,7 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     github_data.load_issues.apply_hints(merge_key=(), primary_key=())
     # skip first 45 rows
     github_data.load_issues.add_filter(skip_first(45))
-    info = p.run(github_data)
+    info = p.run(github_data, loader_file_format=destination_config.file_format)
     assert_load_info(info)
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     assert github_1_counts["issues"] == 100 - 45
@@ -222,7 +258,7 @@ def test_merge_no_merge_keys(destination_config: DestinationTestConfiguration) -
     github_data.load_issues.apply_hints(merge_key=(), primary_key=())
     # skip first 45 rows
     github_data.load_issues.add_filter(take_first(10))
-    info = p.run(github_data)
+    info = p.run(github_data, loader_file_format=destination_config.file_format)
     assert_load_info(info)
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     # only ten rows remains. merge falls back to replace when no keys are specified
@@ -239,7 +275,7 @@ def test_merge_keys_non_existing_columns(destination_config: DestinationTestConf
     github_data.load_issues.apply_hints(merge_key=("mA1", "Ma2"), primary_key=("123-x",))
     # skip first 45 rows
     github_data.load_issues.add_filter(skip_first(45))
-    info = p.run(github_data)
+    info = p.run(github_data, loader_file_format=destination_config.file_format)
     assert_load_info(info)
     github_1_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     assert github_1_counts["issues"] == 100 - 45
@@ -256,7 +292,7 @@ def test_merge_keys_non_existing_columns(destination_config: DestinationTestConf
     github_data = github()
     github_data.load_issues.apply_hints(merge_key=("mA1", "Ma2"), primary_key=("123-x",))
     github_data.load_issues.add_filter(take_first(1))
-    info = p.run(github_data)
+    info = p.run(github_data, loader_file_format=destination_config.file_format)
     assert_load_info(info)
     github_2_counts = load_table_counts(p, *[t["name"] for t in p.default_schema.data_tables()])
     assert github_2_counts["issues"] == 1
@@ -268,7 +304,7 @@ def test_merge_keys_non_existing_columns(destination_config: DestinationTestConf
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb", "snowflake", "bigquery"]),
+    destinations_configs(default_sql_configs=True, file_format="parquet"),
     ids=lambda x: x.name,
 )
 def test_pipeline_load_parquet(destination_config: DestinationTestConfiguration) -> None:
@@ -392,7 +428,10 @@ def test_merge_with_dispatch_and_incremental(
 
     # load to destination
     p = destination_config.setup_pipeline("github_3", full_refresh=True)
-    info = p.run(_get_shuffled_events(True) | github_resource)
+    info = p.run(
+        _get_shuffled_events(True) | github_resource,
+        loader_file_format=destination_config.file_format,
+    )
     assert_load_info(info)
     # get top tables
     counts = load_table_counts(
@@ -401,12 +440,17 @@ def test_merge_with_dispatch_and_incremental(
     # total number of events in all top tables == 100
     assert sum(counts.values()) == 100
     # this should skip all events due to incremental load
-    info = p.run(_get_shuffled_events(True) | github_resource)
+    info = p.run(
+        _get_shuffled_events(True) | github_resource,
+        loader_file_format=destination_config.file_format,
+    )
     # no packages were loaded
     assert len(info.loads_ids) == 0
 
     # load one more event with a new id
-    info = p.run(_new_event("new_node") | github_resource)
+    info = p.run(
+        _new_event("new_node") | github_resource, loader_file_format=destination_config.file_format
+    )
     assert_load_info(info)
     counts = load_table_counts(
         p, *[t["name"] for t in p.default_schema.data_tables() if t.get("parent") is None]
@@ -419,7 +463,10 @@ def test_merge_with_dispatch_and_incremental(
             assert table["columns"]["id"]["primary_key"] is True
 
     # load updated event
-    info = p.run(_updated_event("new_node_X") | github_resource)
+    info = p.run(
+        _updated_event("new_node_X") | github_resource,
+        loader_file_format=destination_config.file_format,
+    )
     assert_load_info(info)
     # still 101
     counts = load_table_counts(
@@ -449,7 +496,7 @@ def test_deduplicate_single_load(destination_config: DestinationTestConfiguratio
             {"id": 1, "name": "row2", "child": [4, 5, 6]},
         ]
 
-    info = p.run(duplicates())
+    info = p.run(duplicates(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     counts = load_table_counts(p, "duplicates", "duplicates__child")
     assert counts["duplicates"] == 1 if destination_config.supports_merge else 2
@@ -461,7 +508,7 @@ def test_deduplicate_single_load(destination_config: DestinationTestConfiguratio
     def duplicates_no_child():
         yield [{"id": 1, "subkey": "AX", "name": "row1"}, {"id": 1, "subkey": "AX", "name": "row2"}]
 
-    info = p.run(duplicates_no_child())
+    info = p.run(duplicates_no_child(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     counts = load_table_counts(p, "duplicates_no_child")
     assert counts["duplicates_no_child"] == 1 if destination_config.supports_merge else 2
@@ -480,7 +527,7 @@ def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfig
             {"id": 1, "name": "row2", "child": [4, 5, 6]},
         ]
 
-    info = p.run(duplicates())
+    info = p.run(duplicates(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     counts = load_table_counts(p, "duplicates", "duplicates__child")
     assert counts["duplicates"] == 2
@@ -490,7 +537,7 @@ def test_no_deduplicate_only_merge_key(destination_config: DestinationTestConfig
     def duplicates_no_child():
         yield [{"id": 1, "subkey": "AX", "name": "row1"}, {"id": 1, "subkey": "AX", "name": "row2"}]
 
-    info = p.run(duplicates_no_child())
+    info = p.run(duplicates_no_child(), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     counts = load_table_counts(p, "duplicates_no_child")
     assert counts["duplicates_no_child"] == 2
@@ -511,14 +558,14 @@ def test_complex_column_missing(destination_config: DestinationTestConfiguration
     p = destination_config.setup_pipeline("abstract", full_refresh=True)
 
     data = [{"id": 1, "simple": "foo", "complex": [1, 2, 3]}]
-    info = p.run(r(data))
+    info = p.run(r(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 1
     assert load_table_counts(p, table_name + "__complex")[table_name + "__complex"] == 3
 
     # complex column is missing, previously inserted records should be deleted from child table
     data = [{"id": 1, "simple": "bar"}]
-    info = p.run(r(data))
+    info = p.run(r(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 1
     assert load_table_counts(p, table_name + "__complex")[table_name + "__complex"] == 0
@@ -553,7 +600,7 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
         {"id": 1, "val": "foo", "deleted": False},
         {"id": 2, "val": "bar", "deleted": False},
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 2
 
@@ -561,7 +608,7 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     data = [
         {"id": 1, "deleted": True},
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 1
 
@@ -569,7 +616,7 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     data = [
         {"id": 2, "val": "baz", "deleted": None},
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 1
 
@@ -587,7 +634,7 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
         {"id": 3, "val": "foo", "deleted": False},
         {"id": 3, "val": "bar", "deleted": False},
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     counts = load_table_counts(p, table_name)[table_name]
     if key_type == "primary_key":
@@ -599,7 +646,7 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     data = [
         {"id": 3, "val": "foo", "deleted": True},
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     counts = load_table_counts(p, table_name)[table_name]
     assert load_table_counts(p, table_name)[table_name] == 1
@@ -625,7 +672,7 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
             "deleted": False,
         },
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 2
     assert load_table_counts(p, table_name + "__child_1")[table_name + "__child_1"] == 3
@@ -641,7 +688,7 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     data = [
         {"id": 1, "deleted": True},
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 1
     assert load_table_counts(p, table_name + "__child_1")[table_name + "__child_1"] == 1
@@ -656,7 +703,7 @@ def test_hard_delete_hint(destination_config: DestinationTestConfiguration, key_
     data = [
         {"id": 2, "deleted": True},
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 0
     assert load_table_counts(p, table_name + "__child_1")[table_name + "__child_1"] == 0
@@ -694,7 +741,7 @@ def test_hard_delete_hint_config(destination_config: DestinationTestConfiguratio
         {"id": 1, "val": "foo", "deleted_timestamp": None},
         {"id": 2, "val": "bar", "deleted_timestamp": None},
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 2
 
@@ -702,7 +749,7 @@ def test_hard_delete_hint_config(destination_config: DestinationTestConfiguratio
     data = [
         {"id": 1, "deleted_timestamp": "2024-02-15T17:16:53Z"},
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 1
 
@@ -725,7 +772,7 @@ def test_hard_delete_hint_config(destination_config: DestinationTestConfiguratio
         yield {"id": 1, "val": "foo", "deleted_1": True, "deleted_2": False}
 
     with pytest.raises(PipelineStepFailed):
-        info = p.run(r())
+        info = p.run(r(), loader_file_format=destination_config.file_format)
 
 
 @pytest.mark.parametrize(
@@ -753,7 +800,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
         {"id": 1, "val": "baz", "sequence": 3},
         {"id": 1, "val": "bar", "sequence": 2},
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 1
 
@@ -770,7 +817,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
     # now test "asc" sorting
     data_resource.apply_hints(columns={"sequence": {"dedup_sort": "asc"}})
 
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 1
 
@@ -797,7 +844,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
         {"id": 1, "val": [7, 8, 9], "sequence": 3},
         {"id": 1, "val": [4, 5, 6], "sequence": 2},
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 1
     assert load_table_counts(p, table_name + "__val")[table_name + "__val"] == 3
@@ -820,7 +867,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
         {"id": 1, "val": "baz", "sequence": 3, "deleted": True},
         {"id": 1, "val": "bar", "sequence": 2, "deleted": False},
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 0
 
@@ -831,7 +878,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
         {"id": 1, "val": "bar", "sequence": 2, "deleted": True},
         {"id": 1, "val": "baz", "sequence": 3, "deleted": False},
     ]
-    info = p.run(data_resource(data))
+    info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
     assert_load_info(info)
     assert load_table_counts(p, table_name)[table_name] == 1
 
@@ -853,7 +900,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
             {"id": 1, "val": "foo", "sequence": 1},
             {"id": 1, "val": "bar", "sequence": 2, "deleted": True},
         ]
-        info = p.run(data_resource(data))
+        info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
         assert_load_info(info)
         assert load_table_counts(p, table_name)[table_name] == 0
 
@@ -863,7 +910,7 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
             {"id": 1, "val": "foo", "sequence": 2},
             {"id": 1, "val": "bar", "sequence": 1, "deleted": True},
         ]
-        info = p.run(data_resource(data))
+        info = p.run(data_resource(data), loader_file_format=destination_config.file_format)
         assert_load_info(info)
         assert load_table_counts(p, table_name)[table_name] == 1
 
@@ -878,11 +925,11 @@ def test_dedup_sort_hint(destination_config: DestinationTestConfiguration) -> No
 
     # invalid value for "dedup_sort" hint
     with pytest.raises(PipelineStepFailed):
-        info = p.run(r())
+        info = p.run(r(), loader_file_format=destination_config.file_format)
 
     # more than one "dedup_sort" column hints are provided
     r.apply_hints(
         columns={"dedup_sort_1": {"dedup_sort": "desc"}, "dedup_sort_2": {"dedup_sort": "desc"}}
     )
     with pytest.raises(PipelineStepFailed):
-        info = p.run(r())
+        info = p.run(r(), loader_file_format=destination_config.file_format)
