@@ -1,12 +1,14 @@
+
 from types import TracebackType
 from typing import ClassVar, Optional, Sequence, List, Dict, Type, Iterable, Any, IO
 
 from dlt.common import json, pendulum, logger
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
-from dlt.common.schema.utils import get_columns_names_with_prop
+from dlt.common.schema.utils import get_columns_names_with_prop, pipeline_state_table
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import TLoadJobState, LoadJob, JobClientBase, WithStateSync
 from dlt.common.storages import FileStorage
+from dlt.common.time import precise_time
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
@@ -124,7 +126,7 @@ class LoadQdrantJob(LoadJob):
             collection_name (str): Qdrant collection name.
 
         Returns:
-            str: A string representation of the genrated UUID
+            str: A string representation of the generated UUID
         """
         data_id = "_".join(str(data[key]) for key in unique_identifiers)
         return str(uuid.uuid5(uuid.NAMESPACE_DNS, collection_name + data_id))
@@ -140,17 +142,15 @@ class QdrantClient(JobClientBase, WithStateSync):
     """Qdrant Destination Handler"""
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-    state_properties: ClassVar[List[str]] = [
-        "version",
-        "engine_version",
-        "pipeline_name",
-        "state",
-        "created_at",
-        "_dlt_load_id",
-    ]
 
     def __init__(self, schema: Schema, config: QdrantClientConfiguration) -> None:
         super().__init__(schema, config)
+        self.version_collection_properties = list(schema.get_table_columns(schema.version_table_name).keys())
+        self.loads_collection_properties = list(schema.get_table_columns(schema.loads_table_name).keys())
+        # get definition of state table (may not be present in the schema)
+        state_table = schema.tables.get(schema.state_table_name, schema.normalize_table_identifiers(pipeline_state_table()))
+        # column names are pipeline properties
+        self.pipeline_state_properties = list(state_table["columns"].keys())
         self.config: QdrantClientConfiguration = config
         self.db_client: QC = QdrantClient._create_db_client(config)
         self.model = config.model
@@ -215,18 +215,21 @@ class QdrantClient(JobClientBase, WithStateSync):
             collection_name=full_collection_name, vectors_config=vectors_config
         )
 
-    def _create_point(self, obj: Dict[str, Any], collection_name: str) -> None:
+    def _create_point_no_vector(self, obj: Dict[str, Any], collection_name: str) -> None:
         """Inserts a point into a Qdrant collection without a vector.
 
         Args:
             obj (Dict[str, Any]): The arbitrary data to be inserted as payload.
             collection_name (str): The name of the collection to insert the point into.
         """
+        # we want decreased ids because the point scroll functions orders by id ASC
+        # so we want newest first
+        id_ = 2**64 - int(precise_time() * 10**6)
         self.db_client.upsert(
             collection_name,
             points=[
                 models.PointStruct(
-                    id=str(uuid.uuid4()),
+                    id=id_,
                     payload=obj,
                     vector={},
                 )
@@ -303,6 +306,15 @@ class QdrantClient(JobClientBase, WithStateSync):
         """Loads compressed state from destination storage
         By finding a load id that was completed
         """
+        # normalize property names
+        p_load_id = self.schema.naming.normalize_identifier("load_id")
+        p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
+
+        # this works only because we create points that have no vectors
+        # with decreasing ids. so newest (lowest ids) go first
+        # TODO: this does not work because we look for state first and state has UUID4
+        # TODO: look for 10 last load ids and find the state associated with them
+
         limit = 10
         offset = None
         while True:
@@ -312,11 +324,11 @@ class QdrantClient(JobClientBase, WithStateSync):
                 )
                 state_records, offset = self.db_client.scroll(
                     scroll_table_name,
-                    with_payload=self.state_properties,
+                    with_payload=self.pipeline_state_properties,
                     scroll_filter=models.Filter(
                         must=[
                             models.FieldCondition(
-                                key="pipeline_name", match=models.MatchValue(value=pipeline_name)
+                                key=p_pipeline_name, match=models.MatchValue(value=pipeline_name)
                             )
                         ]
                     ),
@@ -337,7 +349,7 @@ class QdrantClient(JobClientBase, WithStateSync):
                         count_filter=models.Filter(
                             must=[
                                 models.FieldCondition(
-                                    key="load_id", match=models.MatchValue(value=load_id)
+                                    key=p_load_id, match=models.MatchValue(value=load_id)
                                 )
                             ]
                         ),
@@ -352,13 +364,16 @@ class QdrantClient(JobClientBase, WithStateSync):
         """Retrieves newest schema from destination storage"""
         try:
             scroll_table_name = self._make_qualified_collection_name(self.schema.version_table_name)
+            p_schema_name = self.schema.naming.normalize_identifier("schema_name")
+            # this works only because we create points that have no vectors
+            # with decreasing ids. so newest (lowest ids) go first
             response = self.db_client.scroll(
                 scroll_table_name,
                 with_payload=True,
                 scroll_filter=models.Filter(
                     must=[
                         models.FieldCondition(
-                            key="schema_name",
+                            key=p_schema_name,
                             match=models.MatchValue(value=self.schema.name),
                         )
                     ]
@@ -373,13 +388,14 @@ class QdrantClient(JobClientBase, WithStateSync):
     def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
         try:
             scroll_table_name = self._make_qualified_collection_name(self.schema.version_table_name)
+            p_version_hash = self.schema.naming.normalize_identifier("version_hash")
             response = self.db_client.scroll(
                 scroll_table_name,
                 with_payload=True,
                 scroll_filter=models.Filter(
                     must=[
                         models.FieldCondition(
-                            key="version_hash", match=models.MatchValue(value=schema_hash)
+                            key=p_version_hash, match=models.MatchValue(value=schema_hash)
                         )
                     ]
                 ),
@@ -403,14 +419,11 @@ class QdrantClient(JobClientBase, WithStateSync):
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
     def complete_load(self, load_id: str) -> None:
-        properties = {
-            "load_id": load_id,
-            "schema_name": self.schema.name,
-            "status": 0,
-            "inserted_at": str(pendulum.now()),
-        }
+        values = [load_id, self.schema.name, 0, str(pendulum.now())]
+        assert len(values) == len(self.loads_collection_properties)
+        properties = {k:v for k,v in zip(self.loads_collection_properties, values)}
         loads_table_name = self._make_qualified_collection_name(self.schema.loads_table_name)
-        self._create_point(properties, loads_table_name)
+        self._create_point_no_vector(properties, loads_table_name)
 
     def __enter__(self) -> "QdrantClient":
         return self
@@ -425,16 +438,11 @@ class QdrantClient(JobClientBase, WithStateSync):
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         schema_str = json.dumps(schema.to_dict())
-        properties = {
-            "version_hash": schema.stored_version_hash,
-            "schema_name": schema.name,
-            "version": schema.version,
-            "engine_version": schema.ENGINE_VERSION,
-            "inserted_at": str(pendulum.now()),
-            "schema": schema_str,
-        }
+        values = [schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(pendulum.now()), schema_str]
+        assert len(values) == len(self.version_collection_properties)
+        properties = {k:v for k,v in zip(self.version_collection_properties, values)}
         version_table_name = self._make_qualified_collection_name(self.schema.version_table_name)
-        self._create_point(properties, version_table_name)
+        self._create_point_no_vector(properties, version_table_name)
 
     def _execute_schema_update(self, only_tables: Iterable[str]) -> None:
         for table_name in only_tables or self.schema.tables:
