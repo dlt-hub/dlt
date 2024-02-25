@@ -24,7 +24,7 @@ from dlt.common.schema.typing import (
     SCHEMA_ENGINE_VERSION,
     LOADS_TABLE_NAME,
     VERSION_TABLE_NAME,
-    STATE_TABLE_NAME,
+    PIPELINE_STATE_TABLE_NAME,
     TPartialTableSchema,
     TSchemaContractEntities,
     TSchemaEvolutionMode,
@@ -390,8 +390,11 @@ class Schema:
         # expand settings, empty settings will expand into default settings
         return Schema.expand_schema_contract_settings(settings)
 
-    def update_table(self, partial_table: TPartialTableSchema) -> TPartialTableSchema:
-        """Adds or merges `partial_table` into the schema. Identifiers are not normalized"""
+    def update_table(self, partial_table: TPartialTableSchema, normalize_identifiers: bool = True) -> TPartialTableSchema:
+        """Adds or merges `partial_table` into the schema. Identifiers are normalized by default"""
+        if normalize_identifiers:
+            partial_table = self.normalize_table_identifiers(partial_table)
+
         table_name = partial_table["name"]
         parent_table_name = partial_table.get("parent")
         # check if parent table present
@@ -417,14 +420,13 @@ class Schema:
 
     def update_schema(self, schema: "Schema") -> None:
         """Updates this schema from an incoming schema. Normalizes identifiers after updating normalizers."""
-        # update all tables
+        # pass normalizer config
+        self._settings = deepcopy(schema.settings)
+        self._configure_normalizers(schema._normalizers_config)
+        self._compile_settings()
+         # update all tables
         for table in schema.tables.values():
             self.update_table(table)
-        # pass normalizer config
-        self._configure_normalizers(schema._normalizers_config)
-        # update and compile settings
-        self._settings = deepcopy(schema.settings)
-        self._compile_settings()
 
     def bump_version(self) -> Tuple[int, str]:
         """Computes schema hash in order to check if schema content was modified. In such case the schema ``stored_version`` and ``stored_version_hash`` are updated.
@@ -457,7 +459,10 @@ class Schema:
         # dicts are ordered and we will return the rows with hints in the same order as they appear in the columns
         return rv_row
 
-    def merge_hints(self, new_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]]) -> None:
+    def merge_hints(self, new_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]], normalize_identifiers: bool = True) -> None:
+        """Merges existing default hints with `new_hint`. Normalizes names in column regexes if possible"""
+        if normalize_identifiers:
+            new_hints = self._normalize_default_hints(new_hints)
         # validate regexes
         validate_dict(
             TSchemaSettings,
@@ -484,7 +489,6 @@ class Schema:
         where the column that is defined later in the dictionary overrides earlier column.
 
         Note that resource name is not normalized.
-
         """
         # normalize all identifiers in table according to name normalizer of the schema
         table["name"] = self.naming.normalize_tables_path(table["name"])
@@ -652,6 +656,7 @@ class Schema:
         normalizers["names"] = normalizers["names"] or self._normalizers_config["names"]
         normalizers["json"] = normalizers["json"] or self._normalizers_config["json"]
         self._configure_normalizers(normalizers)
+        self._compile_settings()
 
     def set_schema_contract(self, settings: TSchemaContract) -> None:
         if not settings:
@@ -794,12 +799,20 @@ class Schema:
         )
 
     def _add_standard_hints(self) -> None:
-        default_hints = utils.standard_hints()
+        default_hints = utils.default_hints()
         if default_hints:
-            self._settings["default_hints"] = default_hints
+            self.merge_hints(default_hints)
         type_detections = utils.standard_type_detections()
         if type_detections:
             self._settings["detections"] = type_detections
+
+    def _normalize_default_hints(self, default_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]]) ->  Mapping[TColumnHint, Sequence[TSimpleRegex]]:
+        """Normalizes the column names in default hints. In case of column names that are regexes, normalization is skipped"""
+        return {hint: [utils.normalize_simple_regex_column(self.naming, regex) for regex in regexes] for hint, regexes in default_hints.items()}
+
+    def _normalize_preferred_types(self, preferred_types: Dict[TSimpleRegex, TDataType]) -> Dict[TSimpleRegex, TDataType]:
+        """Normalizes the column names in preferred types mapping. In case of column names that are regexes, normalization is skipped"""
+        return {utils.normalize_simple_regex_column(self.naming, regex): data_type for regex, data_type in preferred_types.items()}
 
     def _configure_normalizers(self, normalizers: TNormalizersConfig) -> None:
         # import desired modules
@@ -819,7 +832,13 @@ class Schema:
         self._dlt_tables_prefix = self.naming.normalize_table_identifier(DLT_NAME_PREFIX)
         self.version_table_name = self.naming.normalize_table_identifier(VERSION_TABLE_NAME)
         self.loads_table_name = self.naming.normalize_table_identifier(LOADS_TABLE_NAME)
-        self.state_table_name = self.naming.normalize_table_identifier(STATE_TABLE_NAME)
+        self.state_table_name = self.naming.normalize_table_identifier(PIPELINE_STATE_TABLE_NAME)
+        # normalize default hints
+        if default_hints := self._settings.get("default_hints"):
+            self._settings["default_hints"] = self._normalize_default_hints(default_hints)
+        # normalized preferred types
+        if preferred_types := self.settings.get("preferred_types"):
+            self._settings["preferred_types"] = self._normalize_preferred_types(preferred_types)
         # data item normalization function
         self.data_item_normalizer = item_normalizer_class(self)
         self.data_item_normalizer.extend_schema()
