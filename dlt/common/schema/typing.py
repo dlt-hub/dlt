@@ -64,7 +64,7 @@ TColumnHint = Literal[
 ]
 """Known hints of a column used to declare hint regexes."""
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
-TTableFormat = Literal["iceberg"]
+TTableFormat = Literal["iceberg", "parquet", "jsonl"]
 TTypeDetections = Literal[
     "timestamp", "iso_timestamp", "iso_date", "large_integer", "hexbytes_to_text", "wei_to_double"
 ]
