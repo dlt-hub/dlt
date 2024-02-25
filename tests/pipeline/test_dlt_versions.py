@@ -14,7 +14,7 @@ from dlt.common.configuration.paths import get_dlt_data_dir
 from dlt.common.storages import FileStorage
 from dlt.common.schema.typing import (
     LOADS_TABLE_NAME,
-    STATE_TABLE_NAME,
+    PIPELINE_STATE_TABLE_NAME,
     VERSION_TABLE_NAME,
     TStoredSchema,
 )
@@ -66,7 +66,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     )
                     # check the dlt state table
                     assert {
-                        "version_hash" not in github_schema["tables"][STATE_TABLE_NAME]["columns"]
+                        "version_hash" not in github_schema["tables"][PIPELINE_STATE_TABLE_NAME]["columns"]
                     }
                     # check loads table without attaching to pipeline
                     duckdb_cfg = resolve_configuration(
@@ -79,7 +79,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                         assert len(rows[0]) == 4
                         rows = client.execute_sql("SELECT * FROM issues")
                         assert len(rows) == 20
-                        rows = client.execute_sql(f"SELECT * FROM {STATE_TABLE_NAME}")
+                        rows = client.execute_sql(f"SELECT * FROM {PIPELINE_STATE_TABLE_NAME}")
                         # only 5 columns + 2 dlt columns
                         assert len(rows[0]) == 5 + 2
                     # inspect old state
@@ -131,7 +131,7 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     # two schema versions
                     rows = client.execute_sql(f"SELECT * FROM {VERSION_TABLE_NAME}")
                     assert len(rows) == 2
-                    rows = client.execute_sql(f"SELECT * FROM {STATE_TABLE_NAME} ORDER BY version")
+                    rows = client.execute_sql(f"SELECT * FROM {PIPELINE_STATE_TABLE_NAME} ORDER BY version")
                     # we have hash columns
                     assert len(rows[0]) == 6 + 2
                     assert len(rows) == 2
@@ -217,7 +217,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
                 assert pipeline.state["_version_hash"] is not None
                 # but in db there's no hash - we loaded an old package with backward compatible schema
                 with pipeline.sql_client() as client:
-                    rows = client.execute_sql(f"SELECT * FROM {STATE_TABLE_NAME}")
+                    rows = client.execute_sql(f"SELECT * FROM {PIPELINE_STATE_TABLE_NAME}")
                     # no hash
                     assert len(rows[0]) == 5 + 2
                     assert len(rows) == 1
@@ -227,7 +227,7 @@ def test_load_package_with_dlt_update(test_storage: FileStorage) -> None:
                     # this will sync schema to destination
                     pipeline.sync_schema()
                     # we have hash now
-                    rows = client.execute_sql(f"SELECT * FROM {STATE_TABLE_NAME}")
+                    rows = client.execute_sql(f"SELECT * FROM {PIPELINE_STATE_TABLE_NAME}")
                     assert len(rows[0]) == 6 + 2
 
 

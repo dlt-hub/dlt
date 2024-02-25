@@ -29,7 +29,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.common.destination.reference import WithStagingDataset
 
 from tests.cases import table_update_and_row, assert_all_data_types_row
-from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage
+from tests.utils import TEST_STORAGE_ROOT, autouse_test_storage, preserve_environ
 from tests.common.utils import load_json_case
 from tests.load.utils import (
     TABLE_UPDATE,
@@ -44,6 +44,10 @@ from tests.load.utils import (
 )
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
+
+@pytest.fixture(autouse=True)
+def set_environ():
+    os.environ["SCHEMA__NAMING"] = "sql_upper"
 
 @pytest.fixture
 def file_storage() -> FileStorage:
@@ -374,6 +378,7 @@ def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     # now get the actual schema from the db
     exists, storage_table = client.get_storage_table(table_name)
     assert exists is True
+    print(storage_table)
     # column order must match TABLE_UPDATE
     storage_columns = list(storage_table.values())
     for c, expected_c in zip(TABLE_UPDATE, storage_columns):

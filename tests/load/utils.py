@@ -488,6 +488,8 @@ def yield_client(
     )
     schema_storage = SchemaStorage(storage_config)
     schema = schema_storage.load_schema(schema_name)
+    schema.update_normalizers()
+    schema.bump_version()
     # create client and dataset
     client: SqlJobClientBase = None
 
