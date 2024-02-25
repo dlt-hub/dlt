@@ -24,15 +24,14 @@ import zlib
 import re
 
 from dlt.common import json, pendulum, logger
-from dlt.common.data_types import TDataType
 from dlt.common.schema.typing import (
     COLUMN_HINTS,
     TColumnType,
     TColumnSchemaBase,
     TTableSchema,
-    TWriteDisposition,
     TTableFormat,
 )
+from dlt.common.schema.utils import pipeline_state_table
 from dlt.common.storages import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns, TSchemaTables
 from dlt.common.destination.reference import (
@@ -41,7 +40,6 @@ from dlt.common.destination.reference import (
     WithStateSync,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
-    DestinationClientDwhWithStagingConfiguration,
     NewLoadJob,
     WithStagingDataset,
     TLoadJobState,
@@ -53,11 +51,9 @@ from dlt.common.destination.reference import (
 from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
     DestinationSchemaTampered,
-    DestinationSchemaWillNotUpdate,
 )
 from dlt.destinations.job_impl import EmptyLoadJobWithoutFollowup, NewReferenceJob
 from dlt.destinations.sql_jobs import SqlMergeJob, SqlStagingCopyJob
-from dlt.common.schema.typing import LOADS_TABLE_NAME, VERSION_TABLE_NAME
 
 from dlt.destinations.typing import TNativeConn
 from dlt.destinations.sql_client import SqlClientBase
@@ -135,22 +131,6 @@ class CopyRemoteFileLoadJob(LoadJob, FollowupJob):
 
 
 class SqlJobClientBase(JobClientBase, WithStateSync):
-    _VERSION_TABLE_SCHEMA_COLUMNS: ClassVar[Tuple[str, ...]] = (
-        "version_hash",
-        "schema_name",
-        "version",
-        "engine_version",
-        "inserted_at",
-        "schema",
-    )
-    _STATE_TABLE_COLUMNS: ClassVar[Tuple[str, ...]] = (
-        "version",
-        "engine_version",
-        "pipeline_name",
-        "state",
-        "created_at",
-        "_dlt_load_id",
-    )
 
     def __init__(
         self,
@@ -159,12 +139,16 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         sql_client: SqlClientBase[TNativeConn],
     ) -> None:
         self.version_table_schema_columns = ", ".join(
-            sql_client.escape_column_name(col) for col in self._VERSION_TABLE_SCHEMA_COLUMNS
+            sql_client.escape_column_name(col) for col in schema.get_table_columns(schema.version_table_name)
         )
+        self.loads_table_schema_columns = ", ".join(
+            sql_client.escape_column_name(col) for col in schema.get_table_columns(schema.loads_table_name)
+        )
+        # get definition of state table (may not be present in the schema)
+        state_table = schema.tables.get(schema.state_table_name, schema.normalize_table_identifiers(pipeline_state_table()))
         self.state_table_columns = ", ".join(
-            sql_client.escape_column_name(col) for col in self._STATE_TABLE_COLUMNS
+            sql_client.escape_column_name(col) for col in state_table["columns"]
         )
-
         super().__init__(schema, config)
         self.sql_client = sql_client
         assert isinstance(config, DestinationClientDwhConfiguration)
@@ -281,7 +265,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
         name = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
         now_ts = pendulum.now()
         self.sql_client.execute_sql(
-            f"INSERT INTO {name}(load_id, schema_name, status, inserted_at, schema_version_hash)"
+            f"INSERT INTO {name}({self.loads_table_schema_columns})"
             " VALUES(%s, %s, %s, %s, %s);",
             load_id,
             self.schema.name,
@@ -328,7 +312,7 @@ WHERE """
             query += "table_catalog = %s AND "
         query += "table_schema = %s AND table_name = %s ORDER BY ordinal_position;"
         rows = self.sql_client.execute_sql(query, *db_params)
-
+        print(rows)
         # if no rows we assume that table does not exist
         schema_table: TTableSchemaColumns = {}
         if len(rows) == 0:
@@ -336,16 +320,17 @@ WHERE """
             return False, schema_table
         # TODO: pull more data to infer indexes, PK and uniques attributes/constraints
         for c in rows:
+            col_name = self.schema.naming.normalize_identifier(c[0])
             numeric_precision = (
                 c[3] if self.capabilities.schema_supports_numeric_precision else None
             )
             numeric_scale = c[4] if self.capabilities.schema_supports_numeric_precision else None
             schema_c: TColumnSchemaBase = {
-                "name": c[0],
+                "name": col_name,
                 "nullable": _null_to_bool(c[2]),
                 **self._from_db_type(c[1], numeric_precision, numeric_scale),
             }
-            schema_table[c[0]] = schema_c  # type: ignore
+            schema_table[col_name] = schema_c  # type: ignore
         return True, schema_table
 
     @abstractmethod
@@ -356,25 +341,37 @@ WHERE """
 
     def get_stored_schema(self) -> StorageSchemaInfo:
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
+        c_schema_name, c_inserted_at = self._norm_and_escape_columns("schema_name", "inserted_at")
+        # c_schema_name = self.schema.naming.normalize_identifier("schema_name")
+        # c_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
         query = (
-            f"SELECT {self.version_table_schema_columns} FROM {name} WHERE schema_name = %s ORDER"
-            " BY inserted_at DESC;"
+            f"SELECT {self.version_table_schema_columns} FROM {name} WHERE {c_schema_name} = %s ORDER"
+            f" BY {c_inserted_at} DESC;"
         )
         return self._row_to_schema_info(query, self.schema.name)
 
     def get_stored_state(self, pipeline_name: str) -> StateInfo:
         state_table = self.sql_client.make_qualified_table_name(self.schema.state_table_name)
         loads_table = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
+        c_load_id, c_dlt_load_id, c_pipeline_name, c_status, c_created_at = self._norm_and_escape_columns("load_id", "_dlt_load_id", "pipeline_name", "status", "created_at")
+        # c_load_id = self.schema.naming.normalize_identifier("load_id")
+        # c_dlt_load_id = self.schema.naming.normalize_identifier("_dlt_load_id")
+        # c_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
+        # c_status = self.schema.naming.normalize_identifier("status")
+        # c_created_at = self.schema.naming.normalize_identifier("created_at")
         query = (
             f"SELECT {self.state_table_columns} FROM {state_table} AS s JOIN {loads_table} AS l ON"
-            " l.load_id = s._dlt_load_id WHERE pipeline_name = %s AND l.status = 0 ORDER BY"
-            " created_at DESC"
+            f" l.{c_load_id} = s.{c_dlt_load_id} WHERE {c_pipeline_name} = %s AND l.{c_status} = 0 ORDER BY"
+            f" {c_created_at} DESC"
         )
         with self.sql_client.execute_query(query, pipeline_name) as cur:
             row = cur.fetchone()
         if not row:
             return None
         return StateInfo(row[0], row[1], row[2], row[3], pendulum.instance(row[4]))
+
+    def _norm_and_escape_columns(self, *columns: str):
+        return map(self.sql_client.escape_column_name, map(self.schema.naming.normalize_identifier, columns))
 
     # def get_stored_states(self, state_table: str) -> List[StateInfo]:
     #     """Loads list of compressed states from destination storage, optionally filtered by pipeline name"""
@@ -386,8 +383,9 @@ WHERE """
     #     return result
 
     def get_stored_schema_by_hash(self, version_hash: str) -> StorageSchemaInfo:
-        name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        query = f"SELECT {self.version_table_schema_columns} FROM {name} WHERE version_hash = %s;"
+        table_name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
+        c_version_hash, = self._norm_and_escape_columns("version_hash")
+        query = f"SELECT {self.version_table_schema_columns} FROM {table_name} WHERE {c_version_hash} = %s;"
         return self._row_to_schema_info(query, version_hash)
 
     def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
@@ -526,16 +524,17 @@ WHERE """
             pass
 
         # make utc datetime
-        inserted_at = pendulum.instance(row[4])
+        inserted_at = pendulum.instance(row[2])
 
-        return StorageSchemaInfo(row[0], row[1], row[2], row[3], inserted_at, schema_str)
+        return StorageSchemaInfo(row[4], row[3], row[0], row[1], inserted_at, schema_str)
 
     def _replace_schema_in_storage(self, schema: Schema) -> None:
         """
         Save the given schema in storage and remove all previous versions with the same name
         """
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
-        self.sql_client.execute_sql(f"DELETE FROM {name} WHERE schema_name = %s;", schema.name)
+        c_schema_name, = self._norm_and_escape_columns("schema_name")
+        self.sql_client.execute_sql(f"DELETE FROM {name} WHERE {c_schema_name} = %s;", schema.name)
         self._update_schema_in_storage(schema)
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
@@ -559,11 +558,11 @@ WHERE """
         self.sql_client.execute_sql(
             f"INSERT INTO {name}({self.version_table_schema_columns}) VALUES (%s, %s, %s, %s, %s,"
             " %s);",
-            schema.stored_version_hash,
-            schema.name,
             schema.version,
             schema.ENGINE_VERSION,
             now_ts,
+            schema.name,
+            schema.stored_version_hash,
             schema_str,
         )
 

@@ -262,10 +262,4 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         table_name = table_name.upper()  # All snowflake tables are uppercased in information schema
-        exists, table = super().get_storage_table(table_name)
-        if not exists:
-            return exists, table
-        # Snowflake converts all unquoted columns to UPPER CASE
-        # Convert back to lower case to enable comparison with dlt schema
-        table = {col_name.lower(): dict(col, name=col_name.lower()) for col_name, col in table.items()}  # type: ignore
-        return exists, table
+        return super().get_storage_table(table_name)

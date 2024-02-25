@@ -415,7 +415,7 @@ class SqlMergeJob(SqlBaseJob):
                     )
                 )
 
-            # delete from top table now that child tables have been prcessed
+            # delete from top table now that child tables have been processed
             sql.append(
                 cls.gen_delete_from_sql(
                     root_table_name, unique_column, delete_temp_table_name, unique_column

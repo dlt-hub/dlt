@@ -14,7 +14,7 @@ else:
 
     # from psycopg2.sql import SQL, Composed
 
-from typing import ClassVar, Dict, List, Optional, Sequence, Any
+from typing import ClassVar, Dict, List, Optional, Sequence, Any, Tuple
 
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -24,7 +24,7 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
+from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat, TTableSchemaColumns
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
