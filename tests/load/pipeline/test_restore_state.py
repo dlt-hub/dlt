@@ -7,13 +7,13 @@ import pytest
 import dlt
 from dlt.common import pendulum
 from dlt.common.schema.schema import Schema, utils
-from dlt.common.utils import custom_environ, uniq_id
+from dlt.common.utils import uniq_id
 from dlt.common.exceptions import DestinationUndefinedEntity
+
 from dlt.load import Load
 from dlt.pipeline.exceptions import SqlClientNotAvailable
-
 from dlt.pipeline.pipeline import Pipeline
-from dlt.pipeline.state_sync import STATE_TABLE_COLUMNS, load_state_from_destination, state_resource
+from dlt.pipeline.state_sync import load_state_from_destination, state_resource
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import TEST_STORAGE_ROOT
@@ -72,7 +72,7 @@ def test_restore_state_utils(destination_config: DestinationTestConfiguration) -
             columns={
                 "_dlt_id": {"name": "_dlt_id", "data_type": "text", "nullable": False},
                 "_dlt_load_id": {"name": "_dlt_load_id", "data_type": "text", "nullable": False},
-                **STATE_TABLE_COLUMNS,
+                **utils.pipeline_state_table()["columns"],
             }
         )
         schema.update_table(schema.normalize_table_identifiers(resource.compute_table_schema()))
@@ -179,9 +179,13 @@ def test_silently_skip_on_invalid_credentials(
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("use_single_dataset", [True, False])
+@pytest.mark.parametrize("naming_convention", ["sql_upper", "snake_case"])
 def test_get_schemas_from_destination(
-    destination_config: DestinationTestConfiguration, use_single_dataset: bool
+    destination_config: DestinationTestConfiguration, use_single_dataset: bool, naming_convention: str
 ) -> None:
+    # use specific naming convention
+    os.environ["SCHEMA__NAMING"] = naming_convention
+
     pipeline_name = "pipe_" + uniq_id()
     dataset_name = "state_test_" + uniq_id()
 
@@ -260,7 +264,11 @@ def test_get_schemas_from_destination(
     destinations_configs(default_sql_configs=True, default_vector_configs=True),
     ids=lambda x: x.name,
 )
-def test_restore_state_pipeline(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize("naming_convention", ["sql_upper"])
+def test_restore_state_pipeline(destination_config: DestinationTestConfiguration, naming_convention: str) -> None:
+    # use specific naming convention
+    os.environ["SCHEMA__NAMING"] = naming_convention
+    # enable restoring from destination
     os.environ["RESTORE_FROM_DESTINATION"] = "True"
     pipeline_name = "pipe_" + uniq_id()
     dataset_name = "state_test_" + uniq_id()
@@ -580,10 +588,12 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     # get all the states, notice version 4 twice (one from production, the other from local)
     try:
         with p.sql_client() as client:
+            # use sql_client to escape identifiers properly
             state_table = client.make_qualified_table_name(p.default_schema.state_table_name)
-
+            c_version = client.escape_column_name(p.default_schema.naming.normalize_identifier("version"))
+            c_created_at = client.escape_column_name(p.default_schema.naming.normalize_identifier("created_at"))
         assert_query_data(
-            p, f"SELECT version FROM {state_table} ORDER BY created_at DESC", [5, 4, 4, 3, 2]
+            p, f"SELECT {c_version} FROM {state_table} ORDER BY {c_created_at} DESC", [5, 4, 4, 3, 2]
         )
     except SqlClientNotAvailable:
         pytest.skip(f"destination {destination_config.destination} does not support sql client")
