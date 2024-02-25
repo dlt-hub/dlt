@@ -9,7 +9,8 @@ import dlt
 from dlt.common import json
 from dlt.common.pipeline import TPipelineState
 from dlt.common.typing import DictStrAny
-from dlt.common.schema.typing import STATE_TABLE_NAME, TTableSchemaColumns
+from dlt.common.schema.typing import PIPELINE_STATE_TABLE_NAME
+from dlt.common.schema.utils import pipeline_state_table
 from dlt.common.destination.reference import WithStateSync, Destination
 from dlt.common.utils import compressed_b64decode, compressed_b64encode
 
@@ -20,21 +21,6 @@ from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException
 
 # allows to upgrade state when restored with a new version of state logic/schema
 STATE_ENGINE_VERSION = 4
-
-# state table columns
-STATE_TABLE_COLUMNS: TTableSchemaColumns = {
-    "version": {"name": "version", "data_type": "bigint", "nullable": False},
-    "engine_version": {"name": "engine_version", "data_type": "bigint", "nullable": False},
-    "pipeline_name": {"name": "pipeline_name", "data_type": "text", "nullable": False},
-    "state": {"name": "state", "data_type": "text", "nullable": False},
-    "created_at": {"name": "created_at", "data_type": "timestamp", "nullable": False},
-    "version_hash": {
-        "name": "version_hash",
-        "data_type": "text",
-        "nullable": True,
-    },  # set to nullable so we can migrate existing tables
-}
-
 
 def json_encode_state(state: TPipelineState) -> str:
     return json.typed_dumps(state)
@@ -96,7 +82,7 @@ def state_resource(state: TPipelineState) -> DltResource:
         "version_hash": state["_version_hash"],
     }
     return dlt.resource(
-        [state_doc], name=STATE_TABLE_NAME, write_disposition="append", columns=STATE_TABLE_COLUMNS
+        [state_doc], name=PIPELINE_STATE_TABLE_NAME, write_disposition="append", columns=pipeline_state_table()["columns"]
     )
 
 

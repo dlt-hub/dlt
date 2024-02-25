@@ -31,7 +31,7 @@ SCHEMA_ENGINE_VERSION = 9
 # dlt tables
 VERSION_TABLE_NAME = "_dlt_version"
 LOADS_TABLE_NAME = "_dlt_loads"
-STATE_TABLE_NAME = "_dlt_pipeline_state"
+PIPELINE_STATE_TABLE_NAME = "_dlt_pipeline_state"
 DLT_NAME_PREFIX = "_dlt"
 
 TColumnProp = Literal[
@@ -46,6 +46,7 @@ TColumnProp = Literal[
     "unique",
     "merge_key",
     "root_key",
+    "hard_delete",
     "dedup_sort",
 ]
 """Known properties and hints of the column"""
@@ -58,11 +59,13 @@ TColumnHint = Literal[
     "foreign_key",
     "sort",
     "unique",
-    "root_key",
     "merge_key",
+    "root_key",
+    "hard_delete",
     "dedup_sort",
 ]
 """Known hints of a column used to declare hint regexes."""
+
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
 TTableFormat = Literal["iceberg"]
 TTypeDetections = Literal[
@@ -73,7 +76,7 @@ TColumnNames = Union[str, Sequence[str]]
 """A string representing a column name or a list of"""
 TSortOrder = Literal["asc", "desc"]
 
-COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
+# COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
 COLUMN_HINTS: Set[TColumnHint] = set(
     [
         "partition",

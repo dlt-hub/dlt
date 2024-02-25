@@ -19,6 +19,7 @@ from dlt.common.schema.typing import (
     LOADS_TABLE_NAME,
     SIMPLE_REGEX_PREFIX,
     VERSION_TABLE_NAME,
+    PIPELINE_STATE_TABLE_NAME,
     TColumnName,
     TPartialTableSchema,
     TSchemaTables,
@@ -214,6 +215,26 @@ def verify_schema_hash(
     return hash_ == stored_schema["version_hash"]
 
 
+def normalize_simple_regex_column(naming: NamingConvention, regex: TSimpleRegex) -> TSimpleRegex:
+    """Assumes that regex applies to column name and normalizes it."""
+
+    def _normalize(r_: str) -> str:
+        is_exact = len(r_) >= 2 and r_[0] == "^" and r_[-1] == "$"
+        if is_exact:
+            r_ = r_[1:-1]
+        # if this a simple string then normalize it
+        if r_ == re.escape(r_):
+            r_ = naming.normalize_identifier(r_)
+        if is_exact:
+            r_ = "^" + r_ + "$"
+        return r_
+
+    if regex.startswith(SIMPLE_REGEX_PREFIX):
+        return SIMPLE_REGEX_PREFIX + _normalize(regex[3:])
+    else:
+        return _normalize(regex)
+
+
 def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
     # custom validator on type TSimpleRegex
     if t is TSimpleRegex:
@@ -247,7 +268,7 @@ def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
         # we know how to validate that type
         return True
     else:
-        # don't know how to validate t
+        # don't know how to validate this
         return False
 
 
@@ -615,6 +636,7 @@ def group_tables_by_resource(
 def version_table() -> TTableSchema:
     # NOTE: always add new columns at the end of the table so we have identical layout
     # after an update of existing tables (always at the end)
+    # set to nullable so we can migrate existing tables
     table = new_table(
         VERSION_TABLE_NAME,
         columns=[
@@ -638,6 +660,7 @@ def version_table() -> TTableSchema:
 def load_table() -> TTableSchema:
     # NOTE: always add new columns at the end of the table so we have identical layout
     # after an update of existing tables (always at the end)
+    # set to nullable so we can migrate existing tables
     table = new_table(
         LOADS_TABLE_NAME,
         columns=[
@@ -654,6 +677,27 @@ def load_table() -> TTableSchema:
     )
     table["write_disposition"] = "skip"
     table["description"] = "Created by DLT. Tracks completed loads"
+    return table
+
+
+def pipeline_state_table() -> TTableSchema:
+    # NOTE: always add new columns at the end of the table so we have identical layout
+    # after an update of existing tables (always at the end)
+    # set to nullable so we can migrate existing tables
+    table = new_table(
+        PIPELINE_STATE_TABLE_NAME,
+        columns = [
+            {"name": "version", "data_type": "bigint", "nullable": False},
+            {"name": "engine_version", "data_type": "bigint", "nullable": False},
+            {"name": "pipeline_name", "data_type": "text", "nullable": False},
+            {"name": "state", "data_type": "text", "nullable": False},
+            {"name": "created_at", "data_type": "timestamp", "nullable": False},
+            {"name": "version_hash", "data_type": "text", "nullable": True},
+            {"name": "_dlt_load_id", "data_type": "text", "nullable": False},
+        ],
+    )
+    table["write_disposition"] = "append"
+    table["description"] = "Created by DLT. Tracks pipeline state"
     return table
 
 
@@ -713,7 +757,7 @@ def new_column(
     return column
 
 
-def standard_hints() -> Dict[TColumnHint, List[TSimpleRegex]]:
+def default_hints() -> Dict[TColumnHint, List[TSimpleRegex]]:
     return None
 
 
