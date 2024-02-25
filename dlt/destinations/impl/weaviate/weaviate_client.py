@@ -29,7 +29,7 @@ from dlt.common.typing import StrAny, TFun
 from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables, TTableSchemaColumns
 from dlt.common.schema.typing import TColumnSchema, TColumnType
-from dlt.common.schema.utils import get_columns_names_with_prop
+from dlt.common.schema.utils import get_columns_names_with_prop, pipeline_state_table
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import TLoadJobState, LoadJob, JobClientBase, WithStateSync
 from dlt.common.data_types import TDataType
@@ -232,17 +232,15 @@ class WeaviateClient(JobClientBase, WithStateSync):
     """Weaviate client implementation."""
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
-    state_properties: ClassVar[List[str]] = [
-        "version",
-        "engine_version",
-        "pipeline_name",
-        "state",
-        "created_at",
-        "_dlt_load_id",
-    ]
 
     def __init__(self, schema: Schema, config: WeaviateClientConfiguration) -> None:
         super().__init__(schema, config)
+        self.version_collection_properties = list(schema.get_table_columns(schema.version_table_name).keys())
+        self.loads_collection_properties = list(schema.get_table_columns(schema.loads_table_name).keys())
+        # get definition of state table (may not be present in the schema)
+        state_table = schema.tables.get(schema.state_table_name, schema.normalize_table_identifiers(pipeline_state_table()))
+        # column names are pipeline properties
+        self.pipeline_state_properties = list(state_table["columns"].keys())
         self.config: WeaviateClientConfiguration = config
         self.db_client = self.create_db_client(config)
 
@@ -482,6 +480,11 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     def get_stored_state(self, pipeline_name: str) -> Optional[StateInfo]:
         """Loads compressed state from destination storage"""
+        # normalize properties
+        p_load_id = self.schema.naming.normalize_identifier("load_id")
+        p_pipeline_name = self.schema.naming.normalize_identifier("pipeline_name")
+        p_created_at = self.schema.naming.normalize_identifier("created_at")
+        p_status = self.schema.naming.normalize_identifier("status")
 
         # we need to find a stored state that matches a load id that was completed
         # we retrieve the state in blocks of 10 for this
@@ -490,15 +493,15 @@ class WeaviateClient(JobClientBase, WithStateSync):
         while True:
             state_records = self.get_records(
                 self.schema.state_table_name,
-                sort={"path": ["created_at"], "order": "desc"},
+                sort={"path": [p_created_at], "order": "desc"},
                 where={
-                    "path": ["pipeline_name"],
+                    "path": [p_pipeline_name],
                     "operator": "Equal",
                     "valueString": pipeline_name,
                 },
                 limit=stepsize,
                 offset=offset,
-                properties=self.state_properties,
+                properties=self.pipeline_state_properties,
             )
             offset += stepsize
             if len(state_records) == 0:
@@ -508,12 +511,12 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 load_records = self.get_records(
                     self.schema.loads_table_name,
                     where={
-                        "path": ["load_id"],
+                        "path": [p_load_id],
                         "operator": "Equal",
                         "valueString": load_id,
                     },
                     limit=1,
-                    properties=["load_id", "status"],
+                    properties=[p_load_id, p_status],
                 )
                 # if there is a load for this state which was successful, return the state
                 if len(load_records):
@@ -533,12 +536,14 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     def get_stored_schema(self) -> Optional[StorageSchemaInfo]:
         """Retrieves newest schema from destination storage"""
+        p_schema_name = self.schema.naming.normalize_identifier("schema_name")
+        p_inserted_at = self.schema.naming.normalize_identifier("inserted_at")
         try:
             record = self.get_records(
                 self.schema.version_table_name,
-                sort={"path": ["inserted_at"], "order": "desc"},
+                sort={"path": [p_inserted_at], "order": "desc"},
                 where={
-                    "path": ["schema_name"],
+                    "path": [p_schema_name],
                     "operator": "Equal",
                     "valueString": self.schema.name,
                 },
@@ -549,11 +554,12 @@ class WeaviateClient(JobClientBase, WithStateSync):
             return None
 
     def get_stored_schema_by_hash(self, schema_hash: str) -> Optional[StorageSchemaInfo]:
+        p_version_hash = self.schema.naming.normalize_identifier("version_hash")
         try:
             record = self.get_records(
                 self.schema.version_table_name,
                 where={
-                    "path": ["version_hash"],
+                    "path": [p_version_hash],
                     "operator": "Equal",
                     "valueString": schema_hash,
                 },
@@ -660,12 +666,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     @wrap_weaviate_error
     def complete_load(self, load_id: str) -> None:
-        properties = {
-            "load_id": load_id,
-            "schema_name": self.schema.name,
-            "status": 0,
-            "inserted_at": pendulum.now().isoformat(),
-        }
+        values = [load_id, self.schema.name, 0, pendulum.now().isoformat()]
+        assert len(values) == len(self.loads_collection_properties)
+        properties = {k:v for k,v in zip(self.loads_collection_properties, values)}
         self.create_object(properties, self.schema.loads_table_name)
 
     def __enter__(self) -> "WeaviateClient":
@@ -681,14 +684,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         schema_str = json.dumps(schema.to_dict())
-        properties = {
-            "version_hash": schema.stored_version_hash,
-            "schema_name": schema.name,
-            "version": schema.version,
-            "engine_version": schema.ENGINE_VERSION,
-            "inserted_at": pendulum.now().isoformat(),
-            "schema": schema_str,
-        }
+        values = [schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(pendulum.now()), schema_str]
+        assert len(values) == len(self.version_collection_properties)
+        properties = {k:v for k,v in zip(self.version_collection_properties, values)}
         self.create_object(properties, self.schema.version_table_name)
 
     def _from_db_type(
