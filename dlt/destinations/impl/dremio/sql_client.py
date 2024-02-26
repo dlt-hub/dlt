@@ -101,7 +101,17 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
             datasource_name = self.capabilities.escape_identifier(datasource_name)
             database_name = self.capabilities.escape_identifier(database_name)
             dataset_name = self.capabilities.escape_identifier(dataset_name)
-        return f"{datasource_name}.{database_name}.{dataset_name}"
+        if self.credentials.flatten:
+            return f"{datasource_name}.{database_name}"
+        else:
+            return f"{datasource_name}.{database_name}.{dataset_name}"
+
+    def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
+        if self.credentials.flatten:
+            table_name = f"{self.dataset_name}__{table_name}"
+        if escape:
+            table_name = self.capabilities.escape_identifier(table_name)
+        return f"{self.fully_qualified_dataset_name(escape=escape)}.{table_name}"
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:
@@ -119,22 +129,25 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
         return isinstance(ex, pyarrow.lib.ArrowInvalid)
 
     def create_dataset(self) -> None:
-        pass
-        # if not self.has_dataset():
-        #     raise RuntimeError(
-        #         f"Dataset {self.dataset_name} does not exist in database"
-        #         f" {self.credentials.database}. Dremio does not support CREATE SCHEMA. Dataset"
-        #         " needs to be created in advance of running any dlt pipeline."
-        #     )
+        logger.warning("Dremio does not implement create_dataset")
 
     def drop_dataset(self) -> None:
         logger.warning("Dremio does not implement drop_dataset")
 
     def has_dataset(self) -> bool:
-        query = """
-    SELECT 1
-    FROM INFORMATION_SCHEMA.SCHEMATA
-    WHERE catalog_name = 'DREMIO' AND schema_name = %s"""
-        db_params = (self.fully_qualified_dataset_name(escape=False),)
+        if self.credentials.flatten:
+            query = """
+            SELECT 1
+            FROM INFORMATION_SCHEMA."TABLES"
+            WHERE TABLE_CATALOG = 'DREMIO' AND TABLE_SCHEMA = %s and STARTS_WITH(TABLE_NAME, %s)
+            """
+            db_params = (self.fully_qualified_dataset_name(escape=False), self.dataset_name + "__")
+        else:
+            query = """
+            SELECT 1
+            FROM INFORMATION_SCHEMA.SCHEMATA
+            WHERE catalog_name = 'DREMIO' AND schema_name = %s
+            """
+            db_params = (self.fully_qualified_dataset_name(escape=False),)
         rows = self.execute_sql(query, *db_params)
         return len(rows) > 0
