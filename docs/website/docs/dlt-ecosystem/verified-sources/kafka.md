@@ -191,3 +191,6 @@ this offset.
     data = kafka_consumer("topic", start_from=pendulum.datetime(2023, 12, 15))
     pipeline.run(data)
    ```
+
+<!--@@@DLT_SNIPPET_START tuba::kafka-->
+<!--@@@DLT_SNIPPET_END tuba::kafka-->
