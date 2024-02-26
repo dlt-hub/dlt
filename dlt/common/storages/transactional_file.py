@@ -16,7 +16,7 @@ from threading import Timer
 import fsspec
 
 from dlt.common.pendulum import pendulum, timedelta
-from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH
+from dlt.common.storages.fsspec_filesystem import extract_mtime
 
 
 def lock_id(k: int = 4) -> str:
@@ -56,8 +56,7 @@ class TransactionalFile:
             path: The path to lock.
             fs: The fsspec file system.
         """
-        proto = fs.protocol[0] if isinstance(fs.protocol, (list, tuple)) else fs.protocol
-        self.extract_mtime = MTIME_DISPATCH.get(proto, MTIME_DISPATCH["file"])
+        self._proto = fs.protocol[0] if isinstance(fs.protocol, (list, tuple)) else fs.protocol
 
         parsed_path = Path(path)
         if not parsed_path.is_absolute():
@@ -65,7 +64,7 @@ class TransactionalFile:
                 f"{path} is not absolute. Please pass only absolute paths to TransactionalFile"
             )
         self.path = path
-        if proto == "file":
+        if self._proto == "file":
             # standardize path separator to POSIX. fsspec always uses POSIX. Windows may use either.
             self.path = parsed_path.as_posix()
 
@@ -103,7 +102,7 @@ class TransactionalFile:
             if not name.startswith(self.lock_prefix):
                 continue
             # Purge stale locks
-            mtime = self.extract_mtime(lock)
+            mtime = extract_mtime(lock, self._proto)
             if now - mtime > timedelta(seconds=TransactionalFile.LOCK_TTL_SECONDS):
                 try:  # Janitors can race, so we ignore errors
                     self._fs.rm(name)

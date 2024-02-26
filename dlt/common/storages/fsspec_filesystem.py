@@ -20,7 +20,8 @@ from typing import (
 )
 from urllib.parse import urlparse
 
-from fsspec import AbstractFileSystem, register_implementation
+from fsspec.registry import known_implementations, register_implementation
+from fsspec import AbstractFileSystem
 from fsspec.core import url_to_fs
 
 from dlt import version
@@ -48,21 +49,20 @@ class FileItem(TypedDict, total=False):
     file_content: Optional[bytes]
 
 
-# Map of protocol to mtime resolver
-# we only need to support a small finite set of protocols
-MTIME_DISPATCH = {
-    "s3": lambda f: ensure_pendulum_datetime(f["LastModified"]),
-    "adl": lambda f: ensure_pendulum_datetime(f["LastModified"]),
-    "az": lambda f: ensure_pendulum_datetime(f["last_modified"]),
-    "gcs": lambda f: ensure_pendulum_datetime(f["updated"]),
-    "file": lambda f: ensure_pendulum_datetime(f["mtime"]),
-    "memory": lambda f: ensure_pendulum_datetime(f["created"]),
-    "gdrive": lambda f: ensure_pendulum_datetime(f["modifiedTime"]),
+DEFAULT_MTIME_FIELD_NAME = "mtime"
+MTIME_FIELD_NAMES = {
+    "file": "mtime",
+    "s3": "LastModified",
+    "adl": "LastModified",
+    "az": "last_modified",
+    "gcs": "updated",
+    "memory": "created",
+    "gdrive": "modifiedTime",
 }
 # Support aliases
-MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]
-MTIME_DISPATCH["s3a"] = MTIME_DISPATCH["s3"]
-MTIME_DISPATCH["abfs"] = MTIME_DISPATCH["az"]
+MTIME_FIELD_NAMES["gs"] = MTIME_FIELD_NAMES["gcs"]
+MTIME_FIELD_NAMES["s3a"] = MTIME_FIELD_NAMES["s3"]
+MTIME_FIELD_NAMES["abfs"] = MTIME_FIELD_NAMES["az"]
 
 # Map of protocol to a filesystem type
 CREDENTIALS_DISPATCH: Dict[str, Callable[[FilesystemConfiguration], DictStrAny]] = {
@@ -75,6 +75,52 @@ CREDENTIALS_DISPATCH: Dict[str, Callable[[FilesystemConfiguration], DictStrAny]]
     "abfs": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
     "azure": lambda config: cast(AzureCredentials, config.credentials).to_adlfs_credentials(),
 }
+
+CUSTOM_IMPLEMENTATIONS = {
+    "dummyfs": {
+        "fq_classname": "dummyfs.DummyFileSystem",
+        "errtxt": "Dummy only",
+    },
+    "gdrive": {
+        "fq_classname": "dlt.common.storages.fsspecs.google_drive.GoogleDriveFileSystem",
+        "errtxt": "Please install gdrivefs to access GoogleDriveFileSystem",
+    },
+    "gitpythonfs": {
+        "fq_classname": "dlt.common.storages.fsspecs.gitpythonfs.GitPythonFileSystem",
+        "errtxt": "Please install gitpythonfs to access GitPythonFileSystem",
+    },
+}
+
+
+def register_implementation_in_fsspec(protocol: str) -> None:
+    """Dynamically register a filesystem implementation with fsspec.
+
+    This is useful if the implementation is not officially known in the fsspec codebase.
+
+    The registration's scope is the current process.
+
+    Is a no-op if an implementation is already registerd for the given protocol.
+
+    Args:
+        protocol (str): The protocol to register.
+
+    Returns: None
+    """
+    if protocol in known_implementations:
+        return
+
+    if protocol not in CUSTOM_IMPLEMENTATIONS:
+        raise ValueError(
+            f"Unknown protocol: '{protocol}' is not an fsspec known "
+            "implementations nor a dlt custom implementations."
+        )
+
+    registration_details = CUSTOM_IMPLEMENTATIONS[protocol]
+    register_implementation(
+        protocol,
+        registration_details["fq_classname"],
+        errtxt=registration_details["errtxt"],
+    )
 
 
 def fsspec_filesystem(
@@ -112,11 +158,6 @@ def prepare_fsspec_args(config: FilesystemConfiguration) -> DictStrAny:
     fs_kwargs: DictStrAny = {"use_listings_cache": False, "listings_expiry_time": 60.0}
     credentials = CREDENTIALS_DISPATCH.get(protocol, lambda _: {})(config)
 
-    if protocol == "gdrive":
-        from dlt.common.storages.fsspecs.google_drive import GoogleDriveFileSystem
-
-        register_implementation("gdrive", GoogleDriveFileSystem, "GoogleDriveFileSystem")
-
     if config.kwargs is not None:
         fs_kwargs.update(config.kwargs)
     if config.client_kwargs is not None:
@@ -142,6 +183,7 @@ def fsspec_from_config(config: FilesystemConfiguration) -> Tuple[AbstractFileSys
     Returns: (fsspec filesystem, normalized url)
     """
     fs_kwargs = prepare_fsspec_args(config)
+    register_implementation_in_fsspec(config.protocol)
 
     try:
         return url_to_fs(config.bucket_url, **fs_kwargs)  # type: ignore
@@ -157,29 +199,31 @@ class FileItemDict(DictStrAny):
     def __init__(
         self,
         mapping: FileItem,
-        credentials: Optional[Union[FileSystemCredentials, AbstractFileSystem]] = None,
+        fs_details: Optional[Union[AbstractFileSystem, FilesystemConfiguration, FileSystemCredentials]] = None,
     ):
         """Create a dictionary with the filesystem client.
 
         Args:
             mapping (FileItem): The file item TypedDict.
-            credentials (Optional[FileSystemCredentials], optional): The credentials to the
+            fs_details (Optional[AbstractFileSystem, FilesystemConfiguration, FileSystemCredentials], optional): Details to help get a
                 filesystem. Defaults to None.
         """
-        self.credentials = credentials
+        self.fs_details = fs_details
         super().__init__(**mapping)
 
     @property
     def fsspec(self) -> AbstractFileSystem:
-        """The filesystem client is based on the given credentials.
+        """The filesystem client is based on the given details.
 
         Returns:
-            AbstractFileSystem: The fsspec client.
+            AbstractFileSystem: An fsspec client.
         """
-        if isinstance(self.credentials, AbstractFileSystem):
-            return self.credentials
+        if isinstance(self.fs_details, AbstractFileSystem):
+            return self.fs_details
+        elif isinstance(self.fs_details, FilesystemConfiguration):
+            return fsspec_from_config(self.fs_details)[0]
         else:
-            return fsspec_filesystem(self["file_url"], self.credentials)[0]
+            return fsspec_filesystem(self["file_url"], self.fs_details)[0]
 
     def open(  # noqa: A003
         self,
@@ -261,6 +305,28 @@ def guess_mime_type(file_name: str) -> Sequence[str]:
     return type_
 
 
+def extract_mtime(file_metadata: Dict[str, Any], protocol: str = None) -> pendulum.DateTime:
+    """Extract the modification time from file listing metadata.
+
+    If a protocol is not provided, None or not a known protocol,
+        then default field name `mtime` is tried. If there's no `mtime` field,
+        the current time is returned.
+
+    `mtime` is used for the "file" fsspec implementation and our custom fsspec implementations.
+        `mtime` is common terminology in unix-like systems.
+
+    Args:
+        file_metadata (Dict[str, Any]): The file metadata.
+        protocol (str) [Optional]: The protocol.
+
+    Returns:
+        pendulum.DateTime: The latest modification time. Defaults to `now()` if no suitable
+            field is found in the metadata.
+    """
+    field_name = MTIME_FIELD_NAMES.get(protocol, DEFAULT_MTIME_FIELD_NAME)
+    return ensure_pendulum_datetime(file_metadata.get(field_name, pendulum.now()))
+
+
 def glob_files(
     fs_client: AbstractFileSystem, bucket_url: str, file_glob: str = "**"
 ) -> Iterator[FileItem]:
@@ -307,12 +373,14 @@ def glob_files(
             path=posixpath.join(bucket_url_parsed.path, file_name)
         ).geturl()
 
+        modification_date = extract_mtime(md, bucket_url_parsed.scheme)
+
         mime_type, encoding = guess_mime_type(file_name)
         yield FileItem(
             file_name=file_name,
             file_url=file_url,
             mime_type=mime_type,
             encoding=encoding,
-            modification_date=MTIME_DISPATCH[bucket_url_parsed.scheme](md),
+            modification_date=modification_date,
             size_in_bytes=int(md["size"]),
         )
