@@ -7,7 +7,7 @@
         "accessSecret": "minioadmin",
         "secure": false,
         "externalBucketList": [
-            "raw"
+            "dlt-ci-test-bucket"
         ],
         "enableAsync": true,
         "compatibilityMode": true,
@@ -27,7 +27,7 @@
             }
         ],
         "whitelistedBuckets": [
-            "raw"
+            "dlt-ci-test-bucket"
         ],
         "isCachingEnabled": true,
         "maxCacheSpacePct": 100
