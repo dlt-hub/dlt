@@ -1,4 +1,5 @@
 ---
+last-grammar-check: 2024-02-26T13:07:49.297913+01:00
 title: Configuration Specs
 description: How to specify complex custom configurations
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment
@@ -29,7 +30,7 @@ def query(sql: str, dsn: ConnectionStringCredentials = dlt.secrets.value):
   ...
 ```
 
-The source above executes the `sql` against database defined in `dsn`. `ConnectionStringCredentials`
+The source above executes the `sql` against the database defined in `dsn`. `ConnectionStringCredentials`
 makes sure you get the correct values with correct types and understands the relevant native form of
 the credentials.
 
@@ -51,7 +52,7 @@ Example 2. Use the **native** form.
 dsn="postgres://loader:loader@localhost:5432/dlt_data"
 ```
 
-Example 3. Use the **mixed** form: the password is missing in explicit dsn and will be taken from the
+Example 3. Use the **mixed** form: the password is missing in the explicit dsn and will be taken from the
 `secrets.toml`.
 
 ```toml
@@ -66,7 +67,7 @@ query("SELECT * FROM customers", "postgres://loader@localhost:5432/dlt_data")
 query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"...})
 ```
 
-## Built in credentials
+## Built-in credentials
 
 We have some ready-made credentials you can reuse:
 
@@ -98,7 +99,7 @@ credentials.password = "my_password"
 credentials.host = "localhost"
 credentials.port = 5432
 
-# Convert credentials to connection string
+# Convert credentials to a connection string
 connection_string = credentials.to_native_representation()
 
 # Parse a connection string and update credentials
@@ -132,7 +133,7 @@ credentials.auth()
 credentials.add_scopes(["scope3", "scope4"])
 ```
 
-`OAuth2Credentials` is a base class to implement actual OAuth, for example,
+`OAuth2Credentials` is a base class to implement actual OAuth; for example,
 it is a base class for [GcpOAuthCredentials](#gcpoauthcredentials).
 
 ### GCP Credentials
@@ -141,7 +142,7 @@ it is a base class for [GcpOAuthCredentials](#gcpoauthcredentials).
 - [GcpOAuthCredentials](#gcpoauthcredentials).
 
 [Google Analytics verified source](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/__init__.py):
-the example how to use GCP Credentials.
+the example of how to use GCP Credentials.
 
 #### GcpServiceAccountCredentials
 
@@ -150,7 +151,7 @@ This class provides methods to retrieve native credentials for Google clients.
 
 ##### Usage
 
-- You may just pass the `service.json` as string or dictionary (in code and via config providers).
+- You may just pass the `service.json` as a string or dictionary (in code and via config providers).
 - Or default credentials will be used.
 
 ```python
@@ -181,7 +182,7 @@ def google_analytics(
     credentials_str = str(credentials)
     ...
 ```
-while `secrets.toml` looks as following:
+while `secrets.toml` looks as follows:
 ```toml
 [sources.google_analytics.credentials]
 client_id = "client_id" # please set me up!
@@ -223,7 +224,7 @@ def google_analytics(
     property_id: str = dlt.config.value,
     credentials: GcpOAuthCredentials = dlt.secrets.value,
 ):
-    # Authenticate and get access token
+    # Authenticate and get an access token
     credentials.auth(scopes=["scope1", "scope2"])
 
     # Retrieve native credentials for Google clients
@@ -235,7 +236,7 @@ def google_analytics(
     credentials_str = str(credentials)
     ...
 ```
-while `secrets.toml` looks as following:
+while `secrets.toml` looks as follows:
 ```toml
 [sources.google_analytics.credentials]
 client_id = "client_id" # please set me up!
@@ -249,13 +250,13 @@ and `config.toml`:
 property_id = "213025502"
 ```
 
-In order for `auth()` method to succeed:
+In order for the `auth()` method to succeed:
 
 - You must provide valid `client_id` and `client_secret`,
-  `refresh_token` and `project_id` in order to get a current
+  `refresh_token`, and `project_id to get a current
   **access token** and authenticate with OAuth.
-  Mind that the `refresh_token` must contain all the scopes that you require for your access.
-- If `refresh_token` is not provided, and you run the pipeline from a console or a notebook,
+  Note that the `refresh_token` must contain all the scopes that you require for your access.
+- If the `refresh_token` is not provided, and you run the pipeline from a console or a notebook,
   `dlt` will use InstalledAppFlow to run the desktop authentication flow.
 
 [Google Analytics example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/setup_script_gcp_oauth.py): how you can get the refresh token using `dlt.secrets.value`.
@@ -311,7 +312,7 @@ def aws_readers(
     print(aws_credentials.access_key)
     ...
 ```
-while `secrets.toml` looks as following:
+while `secrets.toml` looks as follows:
 ```toml
 [sources.aws_readers.credentials]
 aws_access_key_id = "key_id"
@@ -365,7 +366,7 @@ def azure_readers(
     # to_native_credentials() is not yet implemented
     ...
 ```
-while `secrets.toml` looks as following:
+while `secrets.toml` looks as follows:
 ```toml
 [sources.azure_readers.credentials]
 azure_storage_account_name = "account_name"
@@ -408,7 +409,7 @@ assert list(zen_source(credentials={"email": "emx", "password": "pass"}))[0].ema
 
 ```
 
-> This applies not only to credentials but to all specs (see next chapter).
+> This applies not only to credentials but to all specs (see the next chapter).
 
 Read the [whole test](https://github.com/dlt-hub/dlt/blob/devel/tests/common/configuration/test_spec_union.py), it shows how to create unions
 of credentials that derive from the common class, so you can handle it seamlessly in your code.
@@ -429,7 +430,7 @@ of credentials that derive from the common class, so you can handle it seamlessl
 
 This is used a lot in the `dlt` core and may become useful for complicated sources.
 
-In fact, for each decorated function a spec is synthesized. In case of `google_sheets` following
+In fact, for each decorated function a spec is synthesized. In the case of `google_sheets`, the following
 class is created:
 
 ```python
@@ -437,7 +438,7 @@ from dlt.sources.config import configspec, with_config
 
 @configspec
 class GoogleSheetsConfiguration(BaseConfiguration):
-  tab_names: List[str] = None  # manadatory
+  tab_names: List[str] = None  # mandatory
   credentials: GcpServiceAccountCredentials = None # mandatory secret
   only_strings: Optional[bool] = False
 ```
