@@ -1,14 +1,13 @@
 ---
+last-grammar-check: 2024-02-26T13:05:39.595712+01:00
 title: Removing columns
-description: Removing columns by passing list of column names
+description: Removing columns by passing a list of column names
 keywords: [deleting, removing, columns, drop]
 ---
 
 # Removing columns
 
-Removing columns before loading data into a database is a reliable method to eliminate sensitive or
-unnecessary fields. For example, in the given scenario, a source is created with a "country_id" column,
-which is then excluded from the database before loading.
+Removing columns before loading data into a database is a reliable method to eliminate sensitive or unnecessary fields. For example, in the given scenario, a source is created with a "country_id" column, which is then excluded from the database before loading.
 
 Let's create a sample pipeline demonstrating the process of removing a column.
 
@@ -27,7 +26,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
 
        return dummy_data()
    ```
-   This function creates three columns `id`, `name` and `country_code`.
+   This function creates three columns `id`, `name`, and `country_code`.
 
 1. Next, create a function to filter out columns from the data before loading it into a database as follows:
 
@@ -88,4 +87,3 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    load_info = pipeline.run(data_source)
    print(load_info)
    ```
-

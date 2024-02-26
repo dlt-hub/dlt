@@ -1,4 +1,5 @@
 ---
+last-grammar-check: 2024-02-26T13:09:50.580299+01:00
 title: Glossary
 description: Glossary of common dlt terms
 keywords: [glossary, resource, source, pipeline]
@@ -8,26 +9,26 @@ keywords: [glossary, resource, source, pipeline]
 
 ## [Source](source)
 
-Location that holds data with certain structure. Organized into one or more resources.
+Location that holds data with a certain structure. Organized into one or more resources.
 
 - If endpoints in an API are the resources, then the API is the source.
 - If tabs in a spreadsheet are the resources, then the source is the spreadsheet.
 - If tables in a database are the resources, then the source is the database.
 
-Within this documentation, **source** refers also to the software component (i.e. Python function)
+Within this documentation, **source** also refers to the software component (i.e. Python function)
 that **extracts** data from the source location using one or more resource components.
 
 ## [Resource](resource)
 
-A logical grouping of data within a data source, typically holding data of similar structure and
+A logical grouping of data within a data source, typically holding data of a similar structure and
 origin.
 
 - If the source is an API, then a resource is an endpoint in that API.
 - If the source is a spreadsheet, then a resource is a tab in that spreadsheet.
 - If the source is a database, then a resource is a table in that database.
 
-Within this documentation, **resource** refers also to the software component (i.e. Python function)
-that **extracts** the data from source location.
+Within this documentation, **resource** also refers to the software component (i.e. Python function)
+that **extracts** the data from the source location.
 
 ## [Destination](../dlt-ecosystem/destinations)
 
@@ -40,12 +41,12 @@ Moves the data from the source to the destination, according to instructions pro
 
 ## [Verified Source](../walkthroughs/add-a-verified-source)
 
-A Python module distributed with `dlt init` that allows creating pipelines that extract data from a
-particular **Source**. Such module is intended to be published in order for others to use it to
+A Python module distributed with `dlt init` that allows creating pipelines to extract data from a
+particular **Source**. Such a module is intended to be published for others to use it to
 build pipelines.
 
-A source must be published to become "verified": which means that it has tests, test data,
-demonstration scripts, documentation and the dataset produces was reviewed by a data engineer.
+A source must be published to become "verified," which means that it has tests, test data,
+demonstration scripts, documentation, and the dataset produced was reviewed by a data engineer.
 
 ## [Schema](schema)
 
@@ -55,7 +56,7 @@ of the data and how to load it into the destination).
 
 ## [Config](credentials/configuration)
 
-A set of values that are passed to the pipeline at run time (e.g. to change its behavior locally vs.
+A set of values that are passed to the pipeline at runtime (e.g. to change its behavior locally vs.
 in production).
 
 ## [Credentials](credentials/config_specs)

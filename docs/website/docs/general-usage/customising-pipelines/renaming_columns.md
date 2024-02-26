@@ -1,4 +1,5 @@
 ---
+last-grammar-check: 2024-02-26T13:06:03.429172+01:00
 title: Renaming columns
 description: Renaming columns by replacing the special characters
 keywords: [renaming, columns, special characters]
@@ -8,9 +9,7 @@ keywords: [renaming, columns, special characters]
 
 ## Renaming columns by replacing the special characters
 
-In the example below, we create a dummy source with special characters in the name. We then write a
-function that we intend to apply to the resource to modify its output (i.e. replacing the German
-umlaut): `replace_umlauts_in_dict_keys`.
+In the example below, we create a dummy source with special characters in the name. We then write a function that we intend to apply to the resource to modify its output (i.e., replacing the German umlaut): `replace_umlauts_in_dict_keys`.
 
 ```python
 import dlt
