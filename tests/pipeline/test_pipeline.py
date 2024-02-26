@@ -1258,6 +1258,16 @@ def test_resource_rename_same_table():
     assert pipeline.default_schema.get_table("single_table")["resource"] == "state1"
 
 
+def test_drop_with_new_name() -> None:
+    old_test_name = "old_pipeline_name"
+    new_test_name = "new_pipeline_name"
+
+    pipeline = dlt.pipeline(pipeline_name=old_test_name, destination="duckdb")
+    new_pipeline = pipeline.drop(pipeline_name=new_test_name)
+
+    assert new_pipeline.pipeline_name == new_test_name
+
+
 def test_remove_autodetect() -> None:
     now = pendulum.now()
 
