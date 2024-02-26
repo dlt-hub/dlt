@@ -12,6 +12,8 @@ from airflow.utils.types import DagRunType
 import dlt
 from dlt.common import pendulum
 from dlt.common.utils import uniq_id
+from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
+
 from dlt.helpers.airflow_helper import PipelineTasksGroup, DEFAULT_RETRY_BACKOFF
 from dlt.pipeline.exceptions import CannotRestorePipelineException, PipelineStepFailed
 
@@ -282,19 +284,15 @@ def test_parallel_run():
     assert len(tasks_list) == 4
     dag_def.test()
 
-    results = {}
-    for i in range(1, 4):
-        pipeline_dag_parallel = dlt.attach(
-            pipeline_name=f"mock_data_source__r_init-_t_init_post-_t1-_t2-2-more_{i}"
-        )
-        pipeline_dag_decomposed_counts = load_table_counts(
-            pipeline_dag_parallel,
-            *[t["name"] for t in pipeline_dag_parallel.default_schema.data_tables()],
-        )
-        results.update(pipeline_dag_decomposed_counts)
+    pipeline_dag_parallel = dlt.attach(pipeline_name="pipeline_dag_parallel")
+    results = load_table_counts(
+        pipeline_dag_parallel,
+        *[t["name"] for t in pipeline_dag_parallel.default_schema.data_tables()],
+    )
 
     assert results == pipeline_standalone_counts
 
+    # verify tasks 1-2 in between tasks 0 and 3
     for task in dag_def.tasks[1:3]:
         assert task.downstream_task_ids == set([dag_def.tasks[-1].task_id])
         assert task.upstream_task_ids == set([dag_def.tasks[0].task_id])
@@ -382,13 +380,16 @@ def test_parallel_isolated_run():
         )
 
     dag_def = dag_parallel()
-    assert len(tasks_list) == 5
+    assert len(tasks_list) == 4
     dag_def.test()
 
     results = {}
-    for i in range(1, 4):
+    snake_case = SnakeCaseNamingConvention()
+    for i in range(0, 3):
         pipeline_dag_parallel = dlt.attach(
-            pipeline_name=f"mock_data_source__r_init-_t_init_post-_t1-_t2-2-more_{i}"
+            pipeline_name=snake_case.normalize_identifier(
+                dag_def.tasks[i].task_id.replace("pipeline_dag_parallel.", "")
+            )
         )
         pipeline_dag_decomposed_counts = load_table_counts(
             pipeline_dag_parallel,
@@ -398,7 +399,8 @@ def test_parallel_isolated_run():
 
     assert results == pipeline_standalone_counts
 
-    for task in dag_def.tasks[1:4]:
+    # verify tasks 1-2 in between tasks 0 and 3
+    for task in dag_def.tasks[1:3]:
         assert task.downstream_task_ids == set([dag_def.tasks[-1].task_id])
         assert task.upstream_task_ids == set([dag_def.tasks[0].task_id])
 
@@ -445,7 +447,7 @@ def test_parallel_run_single_resource():
     dag_def = dag_parallel()
     assert len(tasks_list) == 2
     dag_def.test()
-    pipeline_dag_parallel = dlt.attach(pipeline_name="mock_data_single_resource_resource_1")
+    pipeline_dag_parallel = dlt.attach(pipeline_name="pipeline_dag_parallel")
     pipeline_dag_decomposed_counts = load_table_counts(
         pipeline_dag_parallel,
         *[t["name"] for t in pipeline_dag_parallel.default_schema.data_tables()],
