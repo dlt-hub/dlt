@@ -1,19 +1,21 @@
+"""
+Fixes the grammar of all the markdown files in the docs/website/docs directory.
+Required openai package to be installed, and an .env file with the open ai api key to be present in the root directory:
+OPENAI_API_KEY="..."
+"""
 import os
 import pendulum
 from openai import OpenAI
 from dotenv import load_dotenv
 
 CHECK_TOKEN = "last-grammar-check"
-BASE_DIR = "./docs/website/docs"
+BASE_DIR = "../website/docs"
 
 if __name__ == "__main__":
     load_dotenv()
     for root, dirs, files in os.walk(BASE_DIR, topdown=False):
         for name in files:
             if not name.endswith(".md"):
-                continue
-
-            if not name == "running.md":
                 continue
 
             filename = os.path.join(root, name)
@@ -56,6 +58,5 @@ Do not change the spelling or casing of these words: dlt, sdf, dbt
 
             fixed_doc = response.choices[0].message.content
             
-
             with open(filename, "w") as f:
                 f.writelines(fixed_doc)
