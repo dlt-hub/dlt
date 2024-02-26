@@ -290,3 +290,6 @@ verified source.
                json.typed_dump(managed_state.state, f)
            print(managed_state.state)
    ```
+
+<!--@@@DLT_SNIPPET_START tuba::kinesis-->
+<!--@@@DLT_SNIPPET_END tuba::kinesis-->
