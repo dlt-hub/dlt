@@ -2332,26 +2332,6 @@ all = ["pytz (>=2019.1)"]
 dates = ["pytz (>=2019.1)"]
 
 [[package]]
-name = "dremio-flight"
-version = "1.1.0"
-description = "Package that helps connect and query Dremio's Flight endpoint"
-optional = true
-python-versions = "*"
-files = [
-    {file = "dremio_flight-1.1.0-py3-none-any.whl", hash = "sha256:1dd6e24efc41c11f9ebc8266483694bc16422a55776cac70c1fee51d22d0af74"},
-]
-
-[package.dependencies]
-certifi = "*"
-pandas = "*"
-pyarrow = "*"
-pyyaml = "*"
-
-[package.source]
-type = "url"
-url = "https://github.com/dremio-hub/arrow-flight-client-examples/releases/download/dremio-flight-python-v1.1.0/dremio_flight-1.1.0-py3-none-any.whl"
-
-[[package]]
 name = "duckdb"
 version = "0.9.1"
 description = "DuckDB embedded database"
@@ -8802,7 +8782,7 @@ bigquery = ["gcsfs", "google-cloud-bigquery", "grpcio", "pyarrow"]
 cli = ["cron-descriptor", "pipdeptree"]
 databricks = ["databricks-sql-connector"]
 dbt = ["dbt-athena-community", "dbt-bigquery", "dbt-core", "dbt-databricks", "dbt-duckdb", "dbt-redshift", "dbt-snowflake"]
-dremio = ["dremio-flight"]
+dremio = ["pyarrow"]
 duckdb = ["duckdb"]
 filesystem = ["botocore", "s3fs"]
 gcp = ["gcsfs", "google-cloud-bigquery", "grpcio"]
@@ -8821,4 +8801,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "3aacdddcf321240e4db83a2a6024110b8cdc36025f03029ea35bdbcee5472ba4"
+content-hash = "07754512fbac35bae97324633ac35adaf667f267f4a8fe0017bbf8f9d32b2250"
