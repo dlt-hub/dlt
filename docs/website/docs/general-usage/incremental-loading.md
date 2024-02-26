@@ -77,6 +77,17 @@ You can use compound primary keys:
 ...
 ```
 
+By default, `primary_key` deduplication is arbitrary. You can pass the `dedup_sort` column hint with a value of `desc` or `asc` to influence which record remains after deduplication. Using `desc`, the records sharing the same `primary_key` are sorted in descending order before deduplication, making sure the record with the highest value for the column with the `dedup_sort` hint remains. `asc` has the opposite behavior.
+
+```python
+@dlt.resource(
+    primary_key="id",
+    write_disposition="merge",
+    columns={"created_at": {"dedup_sort": "desc"}}  # select "latest" record
+)
+...
+```
+
 Example below merges on a column `batch_day` that holds the day for which given record is valid.
 Merge keys also can be compound:
 
@@ -111,6 +122,78 @@ this we can just declare in our resource.
 def github_repo_events(last_created_at = dlt.sources.incremental("created_at", "1970-01-01T00:00:00Z")):
     """A resource taking a stream of github events and dispatching them to tables named by event type. Deduplicates be 'id'. Loads incrementally by 'created_at' """
     yield from _get_rest_pages("events")
+```
+
+### Delete records
+The `hard_delete` column hint can be used to delete records from the destination dataset. The behavior of the delete mechanism depends on the data type of the column marked with the hint:
+1) `bool` type: only `True` leads to a delete—`None` and `False` values are disregarded
+2) other types: each `not None` value leads to a delete
+
+Each record in the destination table with the same `primary_key` or `merge_key` as a record in the source dataset that's marked as a delete will be deleted.
+
+Deletes are propagated to any child table that might exist. For each record that gets deleted in the root table, all corresponding records in the child table(s) will also be deleted. Records in parent and child tables are linked through the `root key` that is explained in the next section.
+
+#### Example: with primary key and boolean delete column
+```python
+@dlt.resource(
+    primary_key="id",
+    write_disposition="merge",
+    columns={"deleted_flag": {"hard_delete": True}}
+)
+def resource():
+    # this will insert a record (assuming a record with id = 1 does not yet exist)
+    yield {"id": 1, "val": "foo", "deleted_flag": False}
+
+    # this will update the record
+    yield {"id": 1, "val": "bar", "deleted_flag": None}
+
+    # this will delete the record
+    yield {"id": 1, "val": "foo", "deleted_flag": True}
+
+    # similarly, this would have also deleted the record
+    # only the key and the column marked with the "hard_delete" hint suffice to delete records
+    yield {"id": 1, "deleted_flag": True}
+...
+```
+
+#### Example: with merge key and non-boolean delete column
+```python
+@dlt.resource(
+    merge_key="id",
+    write_disposition="merge",
+    columns={"deleted_at_ts": {"hard_delete": True}}}
+def resource():
+    # this will insert two records
+    yield [
+        {"id": 1, "val": "foo", "deleted_at_ts": None},
+        {"id": 1, "val": "bar", "deleted_at_ts": None}
+    ]
+
+    # this will delete two records
+    yield {"id": 1, "val": "foo", "deleted_at_ts": "2024-02-22T12:34:56Z"}
+...
+```
+
+#### Example: with primary key and "dedup_sort" hint
+```python
+@dlt.resource(
+    primary_key="id",
+    write_disposition="merge",
+    columns={"deleted_flag": {"hard_delete": True}, "lsn": {"dedup_sort": "desc"}}
+def resource():
+    # this will insert one record (the one with lsn = 3)
+    yield [
+        {"id": 1, "val": "foo", "lsn": 1, "deleted_flag": None},
+        {"id": 1, "val": "baz", "lsn": 3, "deleted_flag": None},
+        {"id": 1, "val": "bar", "lsn": 2, "deleted_flag": True}
+    ]
+
+    # this will insert nothing, because the "latest" record is a delete
+    yield [
+        {"id": 2, "val": "foo", "lsn": 1, "deleted_flag": False},
+        {"id": 2, "lsn": 2, "deleted_flag": True}
+    ]    
+...
 ```
 
 ### Forcing root key propagation

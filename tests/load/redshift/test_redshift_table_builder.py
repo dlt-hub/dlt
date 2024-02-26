@@ -12,19 +12,14 @@ from dlt.destinations.impl.redshift.configuration import (
     RedshiftCredentials,
 )
 
-from tests.load.utils import TABLE_UPDATE
+from tests.load.utils import TABLE_UPDATE, empty_schema
 
 
 @pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
-
-
-@pytest.fixture
-def client(schema: Schema) -> RedshiftClient:
+def client(empty_schema: Schema) -> RedshiftClient:
     # return client without opening connection
     return RedshiftClient(
-        schema,
+        empty_schema,
         RedshiftClientConfiguration(
             dataset_name="test_" + uniq_id(), credentials=RedshiftCredentials()
         ),
@@ -42,7 +37,7 @@ def test_redshift_configuration() -> None:
         }
     ):
         C = resolve_configuration(RedshiftCredentials(), sections=("destination", "my_redshift"))
-        assert C.database == "upper_case_database"
+        assert C.database == "UPPER_CASE_DATABASE"
         assert C.password == "pass"
 
     # check fingerprint

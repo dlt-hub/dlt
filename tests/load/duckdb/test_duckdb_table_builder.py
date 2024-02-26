@@ -8,18 +8,13 @@ from dlt.common.schema import Schema
 from dlt.destinations.impl.duckdb.duck import DuckDbClient
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 
-from tests.load.utils import TABLE_UPDATE
+from tests.load.utils import TABLE_UPDATE, empty_schema
 
 
 @pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
-
-
-@pytest.fixture
-def client(schema: Schema) -> DuckDbClient:
+def client(empty_schema: Schema) -> DuckDbClient:
     # return client without opening connection
-    return DuckDbClient(schema, DuckDbClientConfiguration(dataset_name="test_" + uniq_id()))
+    return DuckDbClient(empty_schema, DuckDbClientConfiguration(dataset_name="test_" + uniq_id()))
 
 
 def test_create_table(client: DuckDbClient) -> None:

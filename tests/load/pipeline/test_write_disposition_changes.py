@@ -27,13 +27,23 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         pipeline_name="test_switch_from_merge", full_refresh=True
     )
 
-    info = pipeline.run(data_with_subtables(10), table_name="items", write_disposition="merge")
+    info = pipeline.run(
+        data_with_subtables(10),
+        table_name="items",
+        write_disposition="merge",
+        loader_file_format=destination_config.file_format,
+    )
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
     assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
         "items"
     ] == {"_dlt_id": "_dlt_root_id"}
 
-    info = pipeline.run(data_with_subtables(10), table_name="items", write_disposition="merge")
+    info = pipeline.run(
+        data_with_subtables(10),
+        table_name="items",
+        write_disposition="merge",
+        loader_file_format=destination_config.file_format,
+    )
     assert_load_info(info)
     assert_data_table_counts(
         pipeline,
@@ -46,7 +56,12 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         "items"
     ] == {"_dlt_id": "_dlt_root_id"}
 
-    info = pipeline.run(data_with_subtables(10), table_name="items", write_disposition="append")
+    info = pipeline.run(
+        data_with_subtables(10),
+        table_name="items",
+        write_disposition="append",
+        loader_file_format=destination_config.file_format,
+    )
     assert_load_info(info)
     assert_data_table_counts(
         pipeline,
@@ -59,7 +74,12 @@ def test_switch_from_merge(destination_config: DestinationTestConfiguration):
         "items"
     ] == {"_dlt_id": "_dlt_root_id"}
 
-    info = pipeline.run(data_with_subtables(10), table_name="items", write_disposition="replace")
+    info = pipeline.run(
+        data_with_subtables(10),
+        table_name="items",
+        write_disposition="replace",
+        loader_file_format=destination_config.file_format,
+    )
     assert_load_info(info)
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
     assert pipeline.default_schema._normalizers_config["json"]["config"]["propagation"]["tables"][
@@ -87,7 +107,12 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
     s = source()
     s.root_key = with_root_key
 
-    info = pipeline.run(s, table_name="items", write_disposition="append")
+    info = pipeline.run(
+        s,
+        table_name="items",
+        write_disposition="append",
+        loader_file_format=destination_config.file_format,
+    )
     assert_data_table_counts(pipeline, {"items": 100, "items__sub_items": 100})
 
     if with_root_key:
@@ -102,10 +127,20 @@ def test_switch_to_merge(destination_config: DestinationTestConfiguration, with_
     # without a root key this will fail, it is expected
     if not with_root_key and destination_config.supports_merge:
         with pytest.raises(PipelineStepFailed):
-            pipeline.run(s, table_name="items", write_disposition="merge")
+            pipeline.run(
+                s,
+                table_name="items",
+                write_disposition="merge",
+                loader_file_format=destination_config.file_format,
+            )
         return
 
-    info = pipeline.run(s, table_name="items", write_disposition="merge")
+    info = pipeline.run(
+        s,
+        table_name="items",
+        write_disposition="merge",
+        loader_file_format=destination_config.file_format,
+    )
     assert_load_info(info)
     assert_data_table_counts(
         pipeline,

@@ -9,6 +9,10 @@ keywords: [how to, deploy a pipeline, airflow, gcp]
 Before you can deploy a pipeline, you will need to [install dlt](../../reference/installation.md)
 and [create a pipeline](../create-a-pipeline.md).
 
+:::tip
+While this walkthrough deals specifically with Google Composer, it will generate DAGs and configuration files that you can use on any Airflow deployment. DAGs are generated using **dlt Airflow helper** that maps `dlt` resources into Airflow tasks, provides clean working environment, retry mechanism, metrics and logging via Airflow loggers.
+:::
+
 ## 1. Add your `dlt` project directory to GitHub
 
 You will need a GitHub repository for your project. If you don't have one yet, you need to
@@ -178,6 +182,9 @@ load_data()
       retry_policy=Retrying(stop=stop_after_attempt(3), reraise=True),
   )
   ```
+:::tip
+When you run `load_data` DAG above, Airflow  will call `source` function every 30 seconds (by default) to be able to monitor the tasks. Make sure that your source function does not do any long lasting operations ie. reflecting source database. In case of [sql_database](../../dlt-ecosystem/verified-sources/sql_database.md) we added an option to delay database reflection until data is accessed by a resource.
+:::
 
 ### 3. Import sources and move the relevant code from the pipeline script
 

@@ -2,6 +2,7 @@ import pytest
 from copy import deepcopy
 import sqlfluff
 
+from dlt.common.schema.utils import new_table
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 
@@ -11,19 +12,14 @@ from dlt.destinations.impl.postgres.configuration import (
     PostgresCredentials,
 )
 
-from tests.load.utils import TABLE_UPDATE
+from tests.load.utils import TABLE_UPDATE, empty_schema
 
 
 @pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
-
-
-@pytest.fixture
-def client(schema: Schema) -> PostgresClient:
+def client(empty_schema: Schema) -> PostgresClient:
     # return client without opening connection
     return PostgresClient(
-        schema,
+        empty_schema,
         PostgresClientConfiguration(
             dataset_name="test_" + uniq_id(), credentials=PostgresCredentials()
         ),

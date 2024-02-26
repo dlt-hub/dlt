@@ -7,23 +7,28 @@ keywords: [bigquery, destination, data warehouse]
 # Google BigQuery
 
 ## Install dlt with BigQuery
+
 **To install the DLT library with BigQuery dependencies:**
+
 ```
 pip install dlt[bigquery]
 ```
 
 ## Setup Guide
 
-**1. Initalize a project with a pipeline that loads to BigQuery by running**
+**1. Initialize a project with a pipeline that loads to BigQuery by running:**
+
 ```
 dlt init chess bigquery
 ```
 
-**2. Install the necessary dependencies for BigQuery by running**
+**2. Install the necessary dependencies for BigQuery by running:**
+
 ```
 pip install -r requirements.txt
 ```
-This will install dlt with **bigquery** extra which contains all the dependencies required by bigquery client.
+
+This will install dlt with **bigquery** extra, which contains all the dependencies required by the bigquery client.
 
 **3. Log in to or create a Google Cloud account**
 
@@ -37,21 +42,21 @@ after naming the project whatever you would like.
 
 **5. Create a service account and grant BigQuery permissions**
 
-You will then need to [create a service account](https://cloud.google.com/iam/docs/creating-managing-service-accounts#creating). After clicking the `Go to Create service account` button
-on the linked docs page, select the project you just created and name the service account whatever you would like.
+You will then need to [create a service account](https://cloud.google.com/iam/docs/creating-managing-service-accounts#creating).
+After clicking the `Go to Create service account` button on the linked docs page, select the project you created and name the service account whatever you would like.
 
 Click the `Continue` button and grant the following roles, so that `dlt` can create schemas and load data:
+
 - *BigQuery Data Editor*
 - *BigQuery Job User*
 - *BigQuery Read Session User*
 
-You don't need to grant users access to this service account at this time, so click the `Done` button.
+You don't need to grant users access to this service account now, so click the `Done` button.
 
 **6. Download the service account JSON**
 
-In the service accounts table page that you are redirected to after clicking `Done` as instructed above,
-select the three dots under the `Actions` column for the service account you just created and
-select `Manage keys`.
+In the service accounts table page that you're redirected to after clicking `Done` as instructed above,
+select the three dots under the `Actions` column for the service account you created and select `Manage keys`.
 
 This will take you to page where you can click the `Add key` button, then the `Create new key` button,
 and finally the `Create` button, keeping the preselected `JSON` option.
@@ -61,11 +66,13 @@ A `JSON` file that includes your service account private key will then be downlo
 **7. Update your `dlt` credentials file with your service account info**
 
 Open your `dlt` credentials file:
+
 ```
 open .dlt/secrets.toml
 ```
 
 Replace the `project_id`, `private_key`, and `client_email` with the values from the downloaded `JSON` file:
+
 ```toml
 [destination.bigquery]
 location = "US"
@@ -76,10 +83,13 @@ private_key = "private_key" # please set me up!
 client_email = "client_email" # please set me up!
 ```
 
-You can also specify location of the data ie. `EU` instead of `US` which is a default.
+You can specify the location of the data i.e. `EU` instead of `US` which is a default.
 
-### OAuth 2.0 authentication
-You can also use the OAuth 2.0 authentication. You'll need to generate an **refresh token** with right scopes (I suggest to ask our GPT-4 assistant for details). Then you can fill the following information in `secrets.toml`
+### OAuth 2.0 Authentication
+
+You can use the OAuth 2.0 authentication. You'll need to generate a **refresh token** with right scopes (I suggest to ask our GPT-4 assistant for details).
+Then you can fill the following information in `secrets.toml`
+
 ```toml
 [destination.bigquery]
 location = "US"
@@ -91,33 +101,45 @@ client_secret = "client_secret"  # please set me up!
 refresh_token = "refresh_token"  # please set me up!
 ```
 
-### Using default credentials
-Google provides several ways to get default credentials ie. from `GOOGLE_APPLICATION_CREDENTIALS` environment variable or metadata services. VMs available on GCP (cloud functions, Composer runners, Colab notebooks) have associated service accounts or authenticated users. `dlt` will try to use default credentials if nothing is explicitly specified in the secrets
+### Using Default Credentials
+
+Google provides several ways to get default credentials i.e. from `GOOGLE_APPLICATION_CREDENTIALS` environment variable or metadata services.
+VMs available on GCP (cloud functions, Composer runners, Colab notebooks) have associated service accounts or authenticated users.
+Will try to use default credentials if nothing is explicitly specified in the secrets.
+
 ```toml
 [destination.bigquery]
 location = "US"
 ```
-## Write disposition
+
+## Write Disposition
+
 All write dispositions are supported
 
 If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized` the destination tables will be dropped and
-  recreated with a [clone command](https://cloud.google.com/bigquery/docs/table-clones-create) from the staging tables.
+recreated with a [clone command](https://cloud.google.com/bigquery/docs/table-clones-create) from the staging tables.
 
-## Data loading
-`dlt` uses `BigQuery` load jobs that send files from local filesystem or gcs buckets. Loader follows [Google recommendations](https://cloud.google.com/bigquery/docs/error-messages) when retrying and terminating jobs. Google BigQuery client implements elaborate retry mechanism and timeouts for queries and file uploads, which may be configured in destination options.
+## Data Loading
 
-## Supported file formats
-You can configure the following file formats to load data to BigQuery
-* [jsonl](../file-formats/jsonl.md) is used by default
-* [parquet](../file-formats/parquet.md) is supported
+`dlt` uses `BigQuery` load jobs that send files from local filesystem or gcs buckets.
+Loader follows [Google recommendations](https://cloud.google.com/bigquery/docs/error-messages) when retrying and terminating jobs.
+Google BigQuery client implements elaborate retry mechanism and timeouts for queries and file uploads, which may be configured in destination options.
+
+## Supported File Formats
+
+You can configure the following file formats to load data to BigQuery:
+
+* [jsonl](../file-formats/jsonl.md) is used by default.
+* [parquet](../file-formats/parquet.md) is supported.
 
 When staging is enabled:
-* [jsonl](../file-formats/jsonl.md) is used by default
-* [parquet](../file-formats/parquet.md) is supported
+
+* [jsonl](../file-formats/jsonl.md) is used by default.
+* [parquet](../file-formats/parquet.md) is supported.
 
 > ❗ **Bigquery cannot load JSON columns from `parquet` files**. `dlt` will fail such jobs permanently. Switch to `jsonl` to load and parse JSON properly.
 
-## Supported column hints
+## Supported Column Hints
 
 BigQuery supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
 
@@ -136,11 +158,13 @@ BigQuery supports the following [column hints](https://dlthub.com/docs/general-u
 
 ## Staging Support
 
-BigQuery supports gcs as a file staging destination. dlt will upload files in the parquet format to gcs and ask BigQuery to copy their data directly into the db. Please refer to the [Google Storage filesystem documentation](./filesystem.md#google-storage) to learn how to set up your gcs bucket with the bucket_url and credentials. If you use the same service account for gcs and your redshift deployment, you do not need to provide additional authentication for BigQuery to be able to read from your bucket.
+BigQuery supports gcs as a file staging destination. dlt will upload files in the parquet format to gcs and ask BigQuery to copy their data directly into the db.
+Please refer to the [Google Storage filesystem documentation](./filesystem.md#google-storage) to learn how to set up your gcs bucket with the bucket_url and credentials.
+If you use the same service account for gcs and your redshift deployment, you do not need to provide additional authentication for BigQuery to be able to read from your bucket.
 
-Alternatively to parquet files, you can also specify jsonl as the staging file format. For this set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
+Alternatively to parquet files, you can specify jsonl as the staging file format. For this set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 
-### BigQuery/GCS staging Example Code
+### BigQuery/GCS Staging Example
 
 ```python
 # Create a dlt pipeline that will load
@@ -149,13 +173,15 @@ Alternatively to parquet files, you can also specify jsonl as the staging file f
 pipeline = dlt.pipeline(
     pipeline_name='chess_pipeline',
     destination='biquery',
-    staging='filesystem', # add this to activate the staging location
+    staging='filesystem', # Add this to activate the staging location.
     dataset_name='player_data'
 )
 ```
 
-## Additional destination options
-You can configure the data location and various timeouts as shown below. This information is not a secret so can be placed in `config.toml` as well.
+## Additional Destination Options
+
+You can configure the data location and various timeouts as shown below. This information is not a secret so can be placed in `config.toml` as well:
+
 ```toml
 [destination.bigquery]
 location="US"
@@ -163,16 +189,81 @@ http_timeout=15.0
 file_upload_timeout=1800.0
 retry_deadline=60.0
 ```
+
 * `location` sets the [BigQuery data location](https://cloud.google.com/bigquery/docs/locations) (default: **US**)
 * `http_timeout` sets the timeout when connecting and getting a response from BigQuery API (default: **15 seconds**)
 * `file_upload_timeout` a timeout for file upload when loading local files: the total time of the upload may not exceed this value (default: **30 minutes**, set in seconds)
 * `retry_deadline` a deadline for a [DEFAULT_RETRY used by Google](https://cloud.google.com/python/docs/reference/storage/1.39.0/retry_timeout)
 
-### dbt support
-This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-bigquery](https://github.com/dbt-labs/dbt-bigquery). Credentials, if explicitly defined, are shared with `dbt` along with other settings like **location** and retries and timeouts. In case of implicit credentials (ie. available in cloud function), `dlt` shares the `project_id` and delegates obtaining credentials to `dbt` adapter.
+### dbt Support
 
-### Syncing of `dlt` state
+This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-bigquery](https://github.com/dbt-labs/dbt-bigquery).
+Credentials, if explicitly defined, are shared with `dbt` along with other settings like **location** and retries and timeouts.
+In case of implicit credentials (i.e. available in cloud function), `dlt` shares the `project_id` and delegates obtaining credentials to `dbt` adapter.
+
+### Syncing of `dlt` State
+
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
+
+## Bigquery Adapter
+
+You can use the `bigquery_adapter` to add BigQuery-specific hints to a resource.
+These hints influence how data is loaded into BigQuery tables, such as specifying partitioning, clustering, and numeric column rounding modes.
+Hints can be defined at both the column level and table level.
+
+The adapter updates the DltResource with metadata about the destination column and table DDL options.
+
+### Use an Adapter to Apply Hints to a Resource
+
+Here is an example of how to use the `bigquery_adapter` method to apply hints to a resource on both column level and table level:
+
+```python
+from datetime import date, timedelta
+
+import dlt
+from dlt.destinations.impl.bigquery.bigquery_adapter import bigquery_adapter
+
+
+@dlt.resource(
+    columns=[
+        {"name": "event_date", "data_type": "date"},
+        {"name": "user_id", "data_type": "bigint"},
+        # Other columns.
+    ]
+)
+def event_data():
+    yield from [
+        {"event_date": date.today() + timedelta(days=i)} for i in range(100)
+    ]
+
+
+# Apply column options.
+bigquery_adapter(
+    event_data, partition="event_date", cluster=["event_date", "user_id"]
+)
+
+# Apply table level options.
+bigquery_adapter(event_data, table_description="Dummy event data.")
+```
+
+Above, the adapter specifies that `event_date` should be used for partitioning and both `event_date` and `user_id` should be used for clustering (in the given order) when the table is created.
+
+Some things to note with the adapter's behaviour:
+
+- You can only partition on one column (refer to [supported hints](#supported-column-hints)).
+- You can cluster on as many columns as you would like.
+- Sequential adapter calls on the same resource accumulate parameters, akin to an OR operation, for a unified execution.
+
+> ❗ At the time of writing, table level options aren't supported for `ALTER` operations.
+
+Note that `bigquery_adapter` updates the resource *inplace*, but returns the resource for convenience, i.e. both the following are valid:
+
+```python
+bigquery_adapter(my_resource, partition="partition_column_name")
+my_resource = bigquery_adapter(my_resource, partition="partition_column_name")
+```
+
+Refer to the [full API specification](../../../docs/api_reference/destinations/impl/bigquery/bigquery_adapter.md) for more details.
 
 <!--@@@DLT_SNIPPET_START tuba::bigquery-->
 ## Additional Setup guides
