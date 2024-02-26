@@ -65,7 +65,7 @@ def drop_active_pipeline_data() -> None:
                 for schema_name in p.schema_names:
                     _drop_dataset(schema_name)
 
-        p._wipe_working_folder()
+        # p._wipe_working_folder()
         # deactivate context
         Container()[PipelineContext].deactivate()
 

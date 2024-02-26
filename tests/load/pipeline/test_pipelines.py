@@ -828,7 +828,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
     # all three jobs succeeded
     assert len(package_info.jobs["failed_jobs"]) == 0
     # 3 tables + 1 state + 4 reference jobs if staging
-    expected_completed_jobs = 4 + 4 if destination_config.staging else 4
+    expected_completed_jobs = 4 + 4 if pipeline.staging else 4
     # add sql merge job
     if destination_config.supports_merge:
         expected_completed_jobs += 1
