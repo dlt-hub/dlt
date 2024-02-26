@@ -58,7 +58,9 @@ def parse_iso_like_datetime(value: Any) -> Union[pendulum.DateTime, pendulum.Dat
         return pendulum.time(dtv.hour, dtv.minute, dtv.second, dtv.microsecond)
     if isinstance(dtv, datetime.datetime):
         return pendulum.instance(dtv)
-    return pendulum.date(dtv.year, dtv.month, dtv.day)
+    if isinstance(dtv, pendulum.Duration):
+        raise ValueError("Interval ISO 8601 not supported: " + value)
+    return pendulum.date(dtv.year, dtv.month, dtv.day)  # type: ignore[union-attr]
 
 
 def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
@@ -75,7 +77,7 @@ def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
     if isinstance(value, datetime.datetime):
         # both py datetime and pendulum datetime are handled here
         value = pendulum.instance(value)
-        return value.in_tz(UTC).date()  # type: ignore
+        return value.in_tz(UTC).date()
     elif isinstance(value, datetime.date):
         return pendulum.date(value.year, value.month, value.day)
     elif isinstance(value, (int, float, str)):
@@ -83,7 +85,7 @@ def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
         if isinstance(result, datetime.time):
             raise ValueError(f"Cannot coerce {value} to a pendulum.DateTime object.")
         if isinstance(result, pendulum.DateTime):
-            return result.in_tz(UTC).date()  # type: ignore
+            return result.in_tz(UTC).date()
         return pendulum.date(result.year, result.month, result.day)
     raise TypeError(f"Cannot coerce {value} to a pendulum.DateTime object.")
 

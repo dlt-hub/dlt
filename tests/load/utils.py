@@ -175,7 +175,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "mssql", "synapse")
+            if destination not in ("athena", "mssql", "synapse", "databricks")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -184,7 +184,6 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination="athena",
-                staging="filesystem",
                 file_format="parquet",
                 supports_merge=False,
                 bucket_url=AWS_BUCKET,
@@ -193,13 +192,20 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination="athena",
-                staging="filesystem",
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 force_iceberg=True,
                 supports_merge=False,
                 supports_dbt=False,
                 extra_info="iceberg",
+            )
+        ]
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="databricks",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
             )
         ]
         destination_configs += [
@@ -279,7 +285,7 @@ def destinations_configs(
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,
-                extra_info="s3-authorization",
+                extra_info="az-authorization",
                 disable_compression=True,
             ),
             DestinationTestConfiguration(

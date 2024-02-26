@@ -1192,6 +1192,7 @@ class Pipeline(SupportsPipeline):
             self.destination
             and not self.destination.capabilities().supported_loader_file_formats
             and not staging
+            and not self.staging
         ):
             logger.warning(
                 f"The destination {self.destination.destination_name} requires the filesystem"
@@ -1318,7 +1319,7 @@ class Pipeline(SupportsPipeline):
         self.default_schema_name = schema.name
 
     def _create_pipeline_instance_id(self) -> str:
-        return pendulum.now().format("_YYYYMMDDhhmmss")  # type: ignore
+        return pendulum.now().format("_YYYYMMDDhhmmss")
 
     @with_schemas_sync
     @with_state_sync()

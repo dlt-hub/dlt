@@ -198,7 +198,7 @@ def wrap_resource_gen(
     if (
         inspect.isgeneratorfunction(inspect.unwrap(f))
         or inspect.isgenerator(f)
-        or inspect.isasyncgenfunction(f)
+        or inspect.isasyncgenfunction(inspect.unwrap(f))
     ):
 
         def _partial() -> Any:

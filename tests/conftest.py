@@ -106,3 +106,7 @@ def pytest_configure(config):
     # disable azure logging
     for log in ["azure.core.pipeline.policies.http_logging_policy"]:
         logging.getLogger(log).setLevel("ERROR")
+
+    # disable databricks logging
+    for log in ["databricks.sql.client"]:
+        logging.getLogger(log).setLevel("WARNING")
