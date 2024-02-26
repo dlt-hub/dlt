@@ -303,7 +303,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. You're now ready to run the pipeline! To get started, run the following command:
 
    ```bash
-   python3 google_sheets_pipeline.py
+   python google_sheets_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
@@ -320,26 +320,46 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 ## Data types
 
-The `dlt` normalizer uses the first row of data to infer types and attempts to coerce subsequent rows, creating variant columns if unsuccessful. This is standard behavior. It also recognizes date and time types using additional metadata from the first row.
-To handle mixed data types in a single column, you can provide a type hint for the affected column in the resource. Use the `apply_hints` method on the resource to achieve this. Here's how you can do it:
+The `dlt` normalizer uses the first row of data to infer types and attempts to coerce subsequent rows, creating variant columns if unsuccessful. This is standard behavior.
+If `dlt` did not correctly determine the data type in the column, or you want to change the data type for other reasons,
+then you can provide a type hint for the affected column in the resource.
+Also, since recently `dlt`'s no longer recognizing date and time types, so you have to designate it yourself as `timestamp`.
 
-```
+Use the `apply_hints` method on the resource to achieve this.
+Here's how you can do it:
+
+```python
 for resource in resources:
-    resource.apply_hints(columns={"total_amount": {"data_type": "double"}})
+    resource.apply_hints(columns={
+        "total_amount": {"data_type": "double"},
+        "date": {"data_type": "timestamp"},
+    })
 ```
-In this example, the `total_amount` column is enforced to be of type double. This will ensure that all values in the `total_amount` column are treated as `double`, regardless of whether they are integers or decimals in the original Google Sheets data.
+In this example, the `total_amount` column is enforced to be of type double and `date` is enforced to be of type timestamp.
+This will ensure that all values in the `total_amount` column are treated as `double`, regardless of whether they are integers or decimals in the original Google Sheets data.
+And `date` column will be represented as dates, not integers.
 
-For a single resource (ex. Sheet1), you can simply use:
-```
-source.Sheet1.apply_hints(columns={"total_amount": {"data_type": "double"}})
+For a single resource (e.g. `Sheet1`), you can simply use:
+```python
+source.Sheet1.apply_hints(columns={
+    "total_amount": {"data_type": "double"},
+    "date": {"data_type": "timestamp"},
+})
 ```
 
-To get name of resources you can use:
-```
+To get the name of resources, you can use:
+```python
 print(source.resources.keys())
 ```
 
-To read more about tables, columns and datatypes, please refer to [our documentation here.](../../general-usage/schema#tables-and-columns)
+To read more about tables, columns, and datatypes, please refer to [our documentation here.](../../general-usage/schema#tables-and-columns)
+
+:::caution
+`dlt` will **not modify** tables after they are created.
+So if you changed data types with hints,
+then you need to **delete the dataset**
+or set `full_refresh=True`.
+:::
 
 ## Sources and resources
 
