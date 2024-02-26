@@ -97,7 +97,7 @@ class DremioCursor:
 
     def fetchone(self) -> Optional[Tuple[Any, ...]]:
         result = self.fetchmany(1)
-        return result if result else None
+        return result[0] if result else None
 
     def fetch_arrow_table(self) -> pyarrow.Table:
         table = self.table

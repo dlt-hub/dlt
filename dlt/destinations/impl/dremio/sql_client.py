@@ -128,3 +128,12 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
 
     def drop_dataset(self) -> None:
         logger.warning("Dremio does not implement drop_dataset")
+
+    def has_dataset(self) -> bool:
+        query = """
+    SELECT 1
+    FROM INFORMATION_SCHEMA.SCHEMATA
+    WHERE catalog_name = 'DREMIO' AND schema_name = %s"""
+        db_params = (self.fully_qualified_dataset_name(escape=False),)
+        rows = self.execute_sql(query, *db_params)
+        return len(rows) > 0

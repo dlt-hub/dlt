@@ -14,7 +14,7 @@ from dlt.common.destination.reference import (
     SupportsStagingDestination,
 )
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
-from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
+from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat, TColumnSchemaBase
 from dlt.common.storages.file_storage import FileStorage
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.dremio import capabilities
@@ -244,11 +244,37 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
         )
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        table_name = table_name.upper()  # All snowflake tables are uppercased in information schema
-        exists, table = super().get_storage_table(table_name)
-        if not exists:
-            return exists, table
-        # Dremio converts all unquoted columns to UPPER CASE
-        # Convert back to lower case to enable comparison with dlt schema
-        table = {col_name.lower(): dict(col, name=col_name.lower()) for col_name, col in table.items()}  # type: ignore
-        return exists, table
+        def _null_to_bool(v: str) -> bool:
+            if v == "NO":
+                return False
+            elif v == "YES":
+                return True
+            raise ValueError(v)
+
+        fields = self._get_storage_table_query_columns()
+        table_schema = self.sql_client.fully_qualified_dataset_name(escape=False)
+        db_params = (table_schema, table_name)
+        query = f"""
+SELECT {",".join(fields)}
+    FROM INFORMATION_SCHEMA.COLUMNS
+WHERE
+    table_catalog = 'DREMIO' AND table_schema = %s AND table_name = %s ORDER BY ordinal_position;
+"""
+        rows = self.sql_client.execute_sql(query, *db_params)
+
+        # if no rows we assume that table does not exist
+        schema_table: TTableSchemaColumns = {}
+        if len(rows) == 0:
+            return False, schema_table
+        for c in rows:
+            numeric_precision = (
+                c[3] if self.capabilities.schema_supports_numeric_precision else None
+            )
+            numeric_scale = c[4] if self.capabilities.schema_supports_numeric_precision else None
+            schema_c: TColumnSchemaBase = {
+                "name": c[0],
+                "nullable": _null_to_bool(c[2]),
+                **self._from_db_type(c[1], numeric_precision, numeric_scale),
+            }
+            schema_table[c[0]] = schema_c  # type: ignore
+        return True, schema_table

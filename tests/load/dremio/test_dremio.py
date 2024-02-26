@@ -9,11 +9,12 @@ def test_dremio() -> None:
         pipeline_name="dremio-test",
         destination="dremio",
         staging="filesystem",
-        dataset_name="foo",
-        full_refresh=True,
+        dataset_name="bar",
+        # dataset_name="foo",
+        # full_refresh=True,
     )
 
-    @dlt.resource(name="items", write_disposition="append")
+    @dlt.resource(name="items", write_disposition="replace")
     def items() -> Iterator[Any]:
         yield {
             "id": 1,
