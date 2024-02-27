@@ -17,6 +17,8 @@ env:
 
   # Slack hook for chess in production example
   RUNTIME__SLACK_INCOMING_HOOK: ${{ secrets.RUNTIME__SLACK_INCOMING_HOOK }}
+  # detect if the workflow is executed in a repo fork
+  IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
 
 jobs:
 
@@ -53,10 +55,7 @@ jobs:
 
       - name: Install dependencies
         # if: steps.cached-poetry-dependencies.outputs.cache-hit != 'true'
-        run: poetry install --no-interaction -E duckdb -E weaviate -E parquet -E qdrant --with docs,sentry-sdk --without airflow
-
-      - name: create secrets.toml
-        run: pwd && echo "$DLT_SECRETS_TOML" > docs/website/docs/.dlt/secrets.toml
+        run: poetry install --no-interaction -E duckdb -E weaviate -E parquet --with docs --without airflow
 
       - name: Run linter and tests
         run: make test-and-lint-snippets
