@@ -97,7 +97,7 @@ def test_complete_package_failed_jobs(load_storage: LoadStorage) -> None:
     assert failed_info[0].job_file_info.table_name == "mock_table"
     # a few stats
     assert failed_info[0].file_size == 32
-    assert (pendulum.now() - failed_info[0].created_at).seconds < 2
+    assert (pendulum.now().diff(failed_info[0].created_at)).seconds < 2
     assert failed_info[0].elapsed < 2
 
     package_info = load_storage.get_load_package_info(load_id)

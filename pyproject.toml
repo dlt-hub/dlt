@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.4.5a0"
+version = "0.4.5"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -58,7 +58,10 @@ psycopg2cffi = {version = ">=2.9.0", optional = true, markers="platform_python_i
 grpcio = {version = ">=1.50.0", optional = true}
 google-cloud-bigquery = {version = ">=2.26.0", optional = true}
 pyarrow = {version = ">=12.0.0", optional = true}
-duckdb = {version = ">=0.6.1,<0.10.0", optional = true}
+duckdb = [
+    {version = ">=0.6.1,<0.10.0", python = ">=3.8,<3.12", optional = true},
+    {version = ">=0.10.0,<0.11.0", python = ">=3.12", optional = true}
+]
 dbt-core = {version = ">=1.2.0", optional = true}
 dbt-redshift = {version = ">=1.2.0", optional = true}
 dbt-bigquery = {version = ">=1.2.0", optional = true}
@@ -106,22 +109,25 @@ databricks = ["databricks-sql-connector"]
 dlt = "dlt.cli._dlt:_main"
 
 [tool.poetry.group.dev.dependencies]
+cffi = "^1.16"
+greenlet = "^3.0.3"
+regex = "^2023.10"
+pendulum = ">=3"
 requests-mock = "^1.10.0"
 types-click = "^7.1.8"
 sqlfluff = "^2.3.2"
 types-deprecated = "^1.2.9.2"
 pytest-console-scripts = "^1.4.1"
-pytest = "^6.2.4"
+pytest = "^7.0.0"
 mypy = "^1.6.1"
 flake8 = "^5.0.0"
 bandit = "^1.7.0"
 black = "^23.7.0"
 isort = "^5.12.0"
 flake8-bugbear = "^22.0.0"
-pytest-pythonpath = "^0.7.3"
-pytest-order = "^1.0.0"
-pytest-cases = "^3.6.9"
-pytest-forked = "^1.3.0"
+pytest-order = ">=1.0.0"
+pytest-cases = ">=3.6.9"
+pytest-forked = ">=1.3.0"
 types-PyYAML = ">=6.0.7"
 types-cachetools = ">=4.2.9"
 types-protobuf = ">=3.19.8"
@@ -138,6 +144,7 @@ types-psutil = "^5.9.5.16"
 types-psycopg2 = "^2.9.21.14"
 cryptography = "^41.0.7"
 google-api-python-client = ">=1.7.11"
+pytest-asyncio = "^0.23.5"
 
 [tool.poetry.group.pipeline]
 optional=true
@@ -148,13 +155,20 @@ tqdm = "^4.65.0"
 enlighten = "^1.11.2"
 alive-progress = "^3.1.1"
 pydantic = ">2"
-pandas = ">2"
+numpy = [
+    { version = ">=1.21", python = ">=3.8,<3.12" },
+    { version = ">=1.26", python = ">=3.12" }
+]
+pandas = [
+    {version = ">2.1", markers = "python_version >= '3.12'"},
+    {version = "<2.1", markers = "python_version < '3.12'"}
+]
 
 [tool.poetry.group.airflow]
 optional = true
 
 [tool.poetry.group.airflow.dependencies]
-apache-airflow = "^2.5.3"
+apache-airflow = {version = "^2.8.0", markers = "python_version < '3.12'"}
 
 [tool.poetry.group.providers]
 optional = true

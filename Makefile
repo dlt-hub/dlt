@@ -89,9 +89,10 @@ publish-library: build-library
 	poetry publish
 
 test-build-images: build-library
-	poetry export -f requirements.txt --output _gen_requirements.txt --without-hashes --extras gcp --extras redshift
-	grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
+	# TODO: enable when we can remove special duckdb setting for python 3.12
+	# poetry export -f requirements.txt --output _gen_requirements.txt --without-hashes --extras gcp --extras redshift
+	# grep `cat compiled_packages.txt` _gen_requirements.txt > compiled_requirements.txt
 	docker build -f deploy/dlt/Dockerfile.airflow --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
-	docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
+	# docker build -f deploy/dlt/Dockerfile --build-arg=COMMIT_SHA="$(shell git log -1 --pretty=%h)" --build-arg=IMAGE_VERSION="$(shell poetry version -s)" .
 
 

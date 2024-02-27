@@ -28,7 +28,7 @@ def test_athena_destinations(destination_config: DestinationTestConfiguration) -
             "sub_items": [{"id": 101, "name": "sub item 101"}, {"id": 101, "name": "sub item 102"}],
         }
 
-    pipeline.run(items)
+    pipeline.run(items, loader_file_format=destination_config.file_format)
 
     # see if we have athena tables with items
     table_counts = load_table_counts(

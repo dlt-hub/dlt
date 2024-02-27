@@ -964,32 +964,65 @@ def test_last_value_func_on_dict() -> None:
         assert [e for e in all_events if e["type"] == "WatchEvent"] == watch_events
 
 
-def test_timezone_naive_datetime() -> None:
-    # TODO: arrow doesn't work with this
+@pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)
+def test_timezone_naive_datetime(item_type: TDataItemFormat) -> None:
     """Resource has timezone naive datetime objects, but incremental stored state is
     converted to tz aware pendulum dates. Can happen when loading e.g. from sql database"""
     start_dt = datetime.now()
     pendulum_start_dt = pendulum.instance(start_dt)  # With timezone
 
-    @dlt.resource
+    @dlt.resource(standalone=True, primary_key="hour")
     def some_data(
         updated_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
-            "updated_at", pendulum_start_dt
-        )
+            "updated_at", initial_value=pendulum_start_dt
+        ),
+        max_hours: int = 2,
     ):
         data = [
-            {"updated_at": start_dt + timedelta(hours=1)},
-            {"updated_at": start_dt + timedelta(hours=2)},
+            {"updated_at": start_dt + timedelta(hours=hour), "hour": hour}
+            for hour in range(1, max_hours + 1)
         ]
-        yield data
+        yield data_to_item_format(item_type, data)
 
     pipeline = dlt.pipeline(pipeline_name=uniq_id())
     resource = some_data()
-    pipeline.extract(resource)
+    # print(list(resource))
+    extract_info = pipeline.extract(resource)
+    # print(extract_info.asdict())
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
+            "some_data"
+        ].items_count
+        == 2
+    )
     # last value has timezone added
     last_value = resource.state["incremental"]["updated_at"]["last_value"]
     assert isinstance(last_value, pendulum.DateTime)
     assert last_value.tzname() == "UTC"
+    # try again with more records
+    extract_info = pipeline.extract(some_data(max_hours=3))
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
+            "some_data"
+        ].items_count
+        == 1
+    )
+
+    # add end_value to incremental
+    resource = some_data(max_hours=10)
+    # it should be merged
+    resource.apply_hints(
+        incremental=dlt.sources.incremental(
+            "updated_at", initial_value=pendulum_start_dt, end_value=pendulum_start_dt.add(hours=3)
+        )
+    )
+    extract_info = pipeline.extract(resource)
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
+            "some_data"
+        ].items_count
+        == 2
+    )
 
 
 @dlt.resource

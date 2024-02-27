@@ -366,10 +366,9 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
         # for the system tables we need to create empty iceberg tables to be able to run, DELETE and UPDATE queries
         # or if we are in iceberg mode, we create iceberg tables for all tables
         table = self.prepare_load_table(table_name, self.in_staging_mode)
+        table_format = table.get("table_format")
         is_iceberg = self._is_iceberg_table(table) or table.get("write_disposition", None) == "skip"
-        columns = ", ".join(
-            [self._get_column_def_sql(c, table.get("table_format")) for c in new_columns]
-        )
+        columns = ", ".join([self._get_column_def_sql(c, table_format) for c in new_columns])
 
         # this will fail if the table prefix is not properly defined
         table_prefix = self.table_prefix_layout.format(table_name=table_name)
@@ -377,20 +376,25 @@ class AthenaClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         # use qualified table names
         qualified_table_name = self.sql_client.make_qualified_ddl_table_name(table_name)
-        if is_iceberg and not generate_alter:
-            sql.append(f"""CREATE TABLE {qualified_table_name}
-                    ({columns})
-                    LOCATION '{location}'
-                    TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');""")
-        elif not generate_alter:
-            sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
-                    ({columns})
-                    STORED AS PARQUET
-                    LOCATION '{location}';""")
-        # alter table to add new columns at the end
-        else:
+        if generate_alter:
+            # alter table to add new columns at the end
             sql.append(f"""ALTER TABLE {qualified_table_name} ADD COLUMNS ({columns});""")
-
+        else:
+            if is_iceberg:
+                sql.append(f"""CREATE TABLE {qualified_table_name}
+                        ({columns})
+                        LOCATION '{location}'
+                        TBLPROPERTIES ('table_type'='ICEBERG', 'format'='parquet');""")
+            elif table_format == "jsonl":
+                sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
+                        ({columns})
+                        ROW FORMAT SERDE 'org.openx.data.jsonserde.JsonSerDe'
+                        LOCATION '{location}';""")
+            else:
+                sql.append(f"""CREATE EXTERNAL TABLE {qualified_table_name}
+                        ({columns})
+                        STORED AS PARQUET
+                        LOCATION '{location}';""")
         return sql
 
     def start_file_load(self, table: TTableSchema, file_path: str, load_id: str) -> LoadJob:
