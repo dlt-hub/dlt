@@ -1,10 +1,8 @@
 import inspect
 import types
-import asyncio
 from typing import (
     AsyncIterator,
     Dict,
-    Optional,
     Sequence,
     Union,
     Iterator,
@@ -14,6 +12,7 @@ from typing import (
     Type,
     Literal,
 )
+from concurrent.futures import TimeoutError as FutureTimeoutError
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.inject import with_config
@@ -33,9 +32,9 @@ from dlt.extract.exceptions import (
     ResourceExtractionError,
 )
 from dlt.extract.pipe import Pipe
-from dlt.extract.typing import DataItemWithMeta, TItemFuture
+from dlt.extract.typing import DataItemWithMeta
 from dlt.extract.utils import wrap_async_iterator
-from dlt.extract.concurrency import FuturesPool, FutureTimeoutError
+from dlt.extract.concurrency import FuturesPool
 from dlt.extract.items import PipeItem, ResolvablePipeItem, SourcePipeItem
 
 
@@ -164,6 +163,10 @@ class PipeIterator(Iterator[PipeItem]):
                         )
                     except FutureTimeoutError:
                         pass
+                    else:
+                        if pipe_item is None:
+                            # pool was empty - then do a regular poll sleep
+                            self._futures_pool.sleep()
 
                 if pipe_item is None:
                     if self._futures_pool.empty and len(self._sources) == 0:

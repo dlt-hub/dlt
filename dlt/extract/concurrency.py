@@ -1,16 +1,11 @@
 import asyncio
-from uuid import uuid4
-from asyncio import Future
-from contextlib import contextmanager
 from concurrent.futures import (
     ThreadPoolExecutor,
     as_completed,
     wait as wait_for_futures,
-    FIRST_COMPLETED,
-    TimeoutError as FutureTimeoutError,
 )
 from threading import Thread
-from typing import List, Awaitable, Callable, Any, Dict, Set, Optional, Literal, Union
+from typing import Awaitable, Dict, Optional
 
 from dlt.common.exceptions import PipelineException
 from dlt.common.configuration.container import Container
@@ -131,7 +126,7 @@ class FuturesPool:
         )
         return future
 
-    def poll(self) -> None:
+    def sleep(self) -> None:
         sleep(self.poll_interval)
 
     def _resolve_future(self, future: TItemFuture) -> Optional[ResolvablePipeItem]:
