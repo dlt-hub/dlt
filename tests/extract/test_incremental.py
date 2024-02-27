@@ -985,9 +985,9 @@ def test_timezone_naive_datetime(item_type: TDataItemFormat) -> None:
             for hour in range(1, max_hours + 1)
         ]
         # make sure this is naive datetime
-        assert data[0]["updated_at"].tzinfo is None
+        assert data[0]["updated_at"].tzinfo is None  # type: ignore[attr-defined]
         if tz:
-            data = [{**d, "updated_at": pendulum.instance(d["updated_at"])} for d in data]
+            data = [{**d, "updated_at": pendulum.instance(d["updated_at"])} for d in data]  # type: ignore[call-overload]
 
         yield data_to_item_format(item_type, data)
 

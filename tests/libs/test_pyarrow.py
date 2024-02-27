@@ -1,5 +1,5 @@
 from copy import deepcopy
-from datetime import timezone, datetime, timedelta
+from datetime import timezone, datetime, timedelta  # noqa: I251
 import pyarrow as pa
 
 from dlt.common import pendulum

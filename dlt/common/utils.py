@@ -272,8 +272,10 @@ def update_dict_with_prune(dest: DictStrAny, update: StrAny) -> None:
             del dest[k]
 
 
-def update_dict_nested(dst: TDict, src: StrAny) -> TDict:
-    """Merges `src` into `dst` key wise. Does not recur into lists. Values in `src` overwrite `dst` if both keys exit."""
+def update_dict_nested(dst: TDict, src: StrAny, keep_dst_values: bool = False) -> TDict:
+    """Merges `src` into `dst` key wise. Does not recur into lists. Values in `src` overwrite `dst` if both keys exit.
+    Optionally (`keep_dst_values`) you can keep the `dst` value on conflict
+    """
     # based on https://github.com/clarketm/mergedeep/blob/master/mergedeep/mergedeep.py
 
     def _is_recursive_merge(a: StrAny, b: StrAny) -> bool:
@@ -290,7 +292,8 @@ def update_dict_nested(dst: TDict, src: StrAny) -> TDict:
                 # If a key exists in both objects and the values are `same`, the value from the `dst` object will be used.
                 pass
             else:
-                dst[key] = src[key]
+                if keep_dst_values:
+                    dst[key] = src[key]
         else:
             # If the key exists only in `src`, the value from the `src` object will be used.
             dst[key] = src[key]
