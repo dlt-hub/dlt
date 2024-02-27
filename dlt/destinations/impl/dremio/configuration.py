@@ -35,8 +35,6 @@ class DremioClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     credentials: DremioCredentials
     staging_data_source: str
     """The name of the staging data source"""
-    keep_staged_files: bool = True
-    """Whether to keep or delete the staged files after COPY INTO succeeds"""
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string"""

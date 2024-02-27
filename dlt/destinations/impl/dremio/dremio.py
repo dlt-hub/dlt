@@ -73,10 +73,8 @@ class DremioLoadJob(LoadJob, FollowupJob):
         self,
         file_path: str,
         table_name: str,
-        load_id: str,
         client: DremioSqlClient,
         stage_name: Optional[str] = None,
-        keep_staged_files: bool = True,
         staging_credentials: Optional[CredentialsConfiguration] = None,
     ) -> None:
         file_name = FileStorage.get_file_name_from_file_path(file_path)
@@ -175,12 +173,10 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         if not job:
             job = DremioLoadJob(
-                file_path,
-                table["name"],
-                load_id,
-                self.sql_client,
+                file_path=file_path,
+                table_name=table["name"],
+                client=self.sql_client,
                 stage_name=self.config.staging_data_source,
-                keep_staged_files=self.config.keep_staged_files,
                 staging_credentials=(
                     self.config.staging_config.credentials if self.config.staging_config else None
                 ),
