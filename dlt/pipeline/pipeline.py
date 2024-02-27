@@ -1018,15 +1018,19 @@ class Pipeline(SupportsPipeline):
     def _extract_source(
         self, extract: Extract, source: DltSource, max_parallel_items: int, workers: int
     ) -> str:
-        # discover the existing pipeline schema
+        # discover existing schemas
+        existing_schema = None
         if source.schema.name in self.schemas:
             # use clone until extraction complete
-            pipeline_schema = self.schemas[source.schema.name].clone()
-            # apply all changes in the source schema to pipeline schema
-            # NOTE: we do not apply contracts to changes done programmatically
-            pipeline_schema.update_schema(source.schema)
-            # replace schema in the source
-            source.schema = pipeline_schema
+            existing_schema = self.schemas[source.schema.name].clone()
+        # check if we can import a schema if non was synced from destination
+        else:
+            existing_schema = self._schema_storage.maybe_load_import_schema(source.schema.name)
+
+        # if we have an existing schema, replace it
+        if existing_schema:
+            existing_schema.update_schema(source.schema)
+            source.schema = existing_schema
 
         # extract into pipeline schema
         load_id = extract.extract(source, max_parallel_items, workers)
