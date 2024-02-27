@@ -144,6 +144,8 @@ class SchemaStorage(Mapping[str, Schema]):
         return rv_schema
 
     def maybe_load_import_schema(self, name: str) -> Schema:
+        if not self.config.import_schema_path:
+            return None
         try:
             imported_schema = self._load_import_schema(name)
             return Schema.from_dict(imported_schema)
