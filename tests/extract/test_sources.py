@@ -21,6 +21,7 @@ from dlt.extract.exceptions import (
     InvalidTransformerDataTypeGeneratorFunctionRequired,
     InvalidTransformerGeneratorFunction,
     ParametrizedResourceUnbound,
+    ResourceNotATransformer,
     ResourcesNotFoundError,
 )
 from dlt.extract.pipe import Pipe
@@ -765,6 +766,22 @@ def test_add_transform_steps() -> None:
 def test_add_transform_steps_pipe() -> None:
     r = dlt.resource([1, 2, 3], name="all") | (lambda i: str(i) * i) | (lambda i: (yield from i))
     assert list(r) == ["1", "2", "2", "3", "3", "3"]
+
+
+def test_add_transformer_right_pipe() -> None:
+    # def tests right hand pipe
+    r = [1, 2, 3] | dlt.transformer(lambda i: i * 2, name="lambda")
+    # resource was created for a list
+    assert r._pipe.parent.name.startswith("iter")
+    assert list(r) == [2, 4, 6]
+
+    # works for iterators
+    r = iter([1, 2, 3]) | dlt.transformer(lambda i: i * 3, name="lambda")
+    assert list(r) == [3, 6, 9]
+
+    # must be a transformer
+    with pytest.raises(ResourceNotATransformer):
+        iter([1, 2, 3]) | dlt.resource(lambda i: i * 3, name="lambda")
 
 
 def test_limit_infinite_counter() -> None:

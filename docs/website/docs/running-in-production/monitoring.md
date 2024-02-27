@@ -60,3 +60,60 @@ charts and time-series charts that provide a baseline or a pattern that a person
 
 For example, to monitor data loading, consider plotting "count of records by `loaded_at` date/hour",
 "created at", "modified at", or other recency markers.
+
+### Rows count
+To find the number of rows loaded per table, use the following command:
+
+```shell
+dlt pipeline <pipeline_name> trace
+```
+
+This command will display the names of the tables that were loaded and the number of rows in each table.
+The above command provides the row count for the Chess source. As shown below:
+
+```shell
+Step normalize COMPLETED in 2.37 seconds.
+Normalized data for the following tables:
+- _dlt_pipeline_state: 1 row(s)
+- payments: 1329 row(s)
+- tickets: 1492 row(s)
+- orders: 2940 row(s)
+- shipment: 2382 row(s)
+- retailers: 1342 row(s)
+```
+
+To load these info back to the destination you can use the following:
+```python
+# Create a pipeline with the specified name, destination, and dataset
+# Run the pipeline
+
+# Get the trace of the last run of the pipeline
+# The trace contains timing information on extract, normalize, and load steps
+trace = pipeline.last_trace
+
+# Load the trace information into a table named "_trace" in the destination
+pipeline.run([trace], table_name="_trace")
+```
+This process loads several additional tables to the destination, which provide insights into
+the extract, normalize, and load steps. Information on the number of rows loaded for each table,
+along with the `load_id`, can be found in the `_trace__steps__extract_info__table_metrics` table.
+The `load_id` is an epoch timestamp that indicates when the loading was completed. Here's graphical
+representation of the rows loaded with `load_id` for different tables:
+
+![image](https://storage.googleapis.com/dlt-blog-images/docs_monitoring_count_of_rows_vs_load_id.jpg)
+
+### Data load time
+Data loading time for each table can be obtained by using the following command:
+
+```shell
+dlt pipeline <pipeline_name> load-package
+```
+
+The above information can also be obtained from the script as follows:
+
+```python
+info = pipeline.run(source, table_name="table_name", write_disposition='append')
+
+print(info.load_packages[0])
+```
+> `load_packages[0]` will print the information of the first load package in the list of load packages.

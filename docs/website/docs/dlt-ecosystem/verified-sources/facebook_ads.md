@@ -443,3 +443,6 @@ verified source.
 > runs, only new reports are loaded, with the past `attribution_window_days_lag` days (default is 7)
 > being refreshed to accommodate any changes. You can adjust `time_increment_days` to change report
 > frequency (default set to one).
+
+<!--@@@DLT_SNIPPET_START tuba::facebook_ads-->
+<!--@@@DLT_SNIPPET_END tuba::facebook_ads-->

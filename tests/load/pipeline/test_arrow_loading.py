@@ -47,7 +47,7 @@ def test_load_item(
     def some_data():
         yield item
 
-    load_info = pipeline.run(some_data())
+    load_info = pipeline.run(some_data(), loader_file_format=destination_config.file_format)
     # assert the table types
     some_table_columns = pipeline.default_schema.get_table("some_data")["columns"]
     assert some_table_columns["string"]["data_type"] == "text"

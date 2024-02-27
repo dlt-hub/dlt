@@ -121,3 +121,8 @@ def test_signalling() -> None:
         assert exc.value.signal_code == 15
         p.join()
         assert thread_signal == 15
+
+
+def test_cleanup() -> None:
+    # this must happen after all forked tests (problems with tests teardowns in other tests)
+    pass

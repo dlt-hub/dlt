@@ -1,6 +1,8 @@
+from typing import List
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.capabilities import TLoaderFileFormat
 
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 
@@ -18,11 +20,14 @@ def _configure(config: DummyClientConfiguration = config.value) -> DummyClientCo
 
 def capabilities() -> DestinationCapabilitiesContext:
     config = _configure()
+    additional_formats: List[TLoaderFileFormat] = (
+        ["reference"] if config.create_followup_jobs else []
+    )
     caps = DestinationCapabilitiesContext()
     caps.preferred_loader_file_format = config.loader_file_format
-    caps.supported_loader_file_formats = [config.loader_file_format]
+    caps.supported_loader_file_formats = additional_formats + [config.loader_file_format]
     caps.preferred_staging_file_format = None
-    caps.supported_staging_file_formats = [config.loader_file_format]
+    caps.supported_staging_file_formats = additional_formats + [config.loader_file_format]
     caps.max_identifier_length = 127
     caps.max_column_identifier_length = 127
     caps.max_query_length = 8 * 1024 * 1024

@@ -1,3 +1,4 @@
+from urllib.parse import urlparse
 import pytest
 import gzip
 from typing import List, Sequence, Tuple
@@ -44,15 +45,16 @@ def assert_sample_files(
         "gzip/taxi.csv.gz",
         "sample.txt",
     }
-
-    assert len(all_file_items) >= 10
+    assert len(all_file_items) == len(minimally_expected_file_items)
 
     for item in all_file_items:
         # only accept file items we know
         assert item["file_name"] in minimally_expected_file_items
 
+        # is valid url
+        file_url_parsed = urlparse(item["file_url"])
         assert isinstance(item["file_name"], str)
-        assert item["file_url"].endswith(item["file_name"])
+        assert file_url_parsed.path.endswith(item["file_name"])
         assert item["file_url"].startswith(config.protocol)
         assert isinstance(item["mime_type"], str)
         assert isinstance(item["size_in_bytes"], int)
@@ -134,7 +136,7 @@ def assert_package_info(
     if package_state == "normalized":
         assert package_info.completed_at is None
     else:
-        assert (pendulum.now() - package_info.completed_at).seconds < 2
+        assert (pendulum.now().diff(package_info.completed_at).seconds) < 2
     # get dict
     package_info.asdict()
     return package_info

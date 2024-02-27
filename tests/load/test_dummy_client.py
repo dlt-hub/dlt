@@ -6,18 +6,26 @@ from unittest.mock import patch
 from typing import List
 
 from dlt.common.exceptions import TerminalException, TerminalValueError
+from dlt.common.schema.typing import TWriteDisposition
 from dlt.common.storages import FileStorage, LoadStorage, PackageStorage, ParsedLoadJobFileName
+from dlt.common.storages.load_package import LoadJobInfo
 from dlt.common.storages.load_storage import JobWithUnsupportedWriterException
 from dlt.common.destination.reference import LoadJob, TDestination
+from dlt.common.schema.utils import (
+    fill_hints_from_parent_and_clone_table,
+    get_child_tables,
+    get_top_level_table,
+)
 
-from dlt.load import Load
+from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
 from dlt.destinations.job_impl import EmptyLoadJob
-
-from dlt.destinations import dummy
+from dlt.destinations import dummy, filesystem
 from dlt.destinations.impl.dummy import dummy as dummy_impl
 from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
+
+from dlt.load import Load
 from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetry
-from dlt.common.schema.utils import get_top_level_table
+from dlt.load.utils import get_completed_table_chain, init_client, _extend_tables_with_table_chain
 
 from tests.utils import (
     clean_test_storage,
@@ -26,7 +34,7 @@ from tests.utils import (
     preserve_environ,
 )
 from tests.load.utils import prepare_load_package
-from tests.utils import skip_if_not_active
+from tests.utils import skip_if_not_active, TEST_STORAGE_ROOT
 
 skip_if_not_active("dummy")
 
@@ -34,6 +42,8 @@ NORMALIZED_FILES = [
     "event_user.839c6e6b514e427687586ccc65bf133f.0.jsonl",
     "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl",
 ]
+
+REMOTE_FILESYSTEM = os.path.abspath(os.path.join(TEST_STORAGE_ROOT, "_remote_filesystem"))
 
 
 @pytest.fixture(autouse=True)
@@ -110,14 +120,19 @@ def test_get_completed_table_chain_single_job_per_table() -> None:
     load = setup_loader()
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
 
+    # update tables so we have all possible hints
+    for table_name, table in schema.tables.items():
+        schema.tables[table_name] = fill_hints_from_parent_and_clone_table(schema.tables, table)
+
     top_job_table = get_top_level_table(schema.tables, "event_user")
-    assert load.get_completed_table_chain(load_id, schema, top_job_table) is None
+    all_jobs = load.load_storage.normalized_packages.list_all_jobs(load_id)
+    assert get_completed_table_chain(schema, all_jobs, top_job_table) is None
     # fake being completed
     assert (
         len(
-            load.get_completed_table_chain(
-                load_id,
+            get_completed_table_chain(
                 schema,
+                all_jobs,
                 top_job_table,
                 "event_user.839c6e6b514e427687586ccc65bf133f.jsonl",
             )
@@ -129,15 +144,17 @@ def test_get_completed_table_chain_single_job_per_table() -> None:
     load.load_storage.normalized_packages.start_job(
         load_id, "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl"
     )
-    assert load.get_completed_table_chain(load_id, schema, loop_top_job_table) is None
+    all_jobs = load.load_storage.normalized_packages.list_all_jobs(load_id)
+    assert get_completed_table_chain(schema, all_jobs, loop_top_job_table) is None
     load.load_storage.normalized_packages.complete_job(
         load_id, "event_loop_interrupted.839c6e6b514e427687586ccc65bf133f.0.jsonl"
     )
-    assert load.get_completed_table_chain(load_id, schema, loop_top_job_table) == [
+    all_jobs = load.load_storage.normalized_packages.list_all_jobs(load_id)
+    assert get_completed_table_chain(schema, all_jobs, loop_top_job_table) == [
         schema.get_table("event_loop_interrupted")
     ]
-    assert load.get_completed_table_chain(
-        load_id, schema, loop_top_job_table, "event_user.839c6e6b514e427687586ccc65bf133f.0.jsonl"
+    assert get_completed_table_chain(
+        schema, all_jobs, loop_top_job_table, "event_user.839c6e6b514e427687586ccc65bf133f.0.jsonl"
     ) == [schema.get_table("event_loop_interrupted")]
 
 
@@ -188,7 +205,7 @@ def test_spool_job_failed_exception_init() -> None:
     # this config fails job on start
     os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
     os.environ["FAIL_IN_INIT"] = "true"
-    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
+    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0, fail_in_init=True))
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
         with pytest.raises(LoadClientJobFailed) as py_ex:
@@ -207,7 +224,7 @@ def test_spool_job_failed_exception_complete() -> None:
     # this config fails job on start
     os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
     os.environ["FAIL_IN_INIT"] = "false"
-    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
+    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0, fail_in_init=False))
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with pytest.raises(LoadClientJobFailed) as py_ex:
         run_all(load)
@@ -310,6 +327,20 @@ def test_try_retrieve_job() -> None:
 def test_completed_loop() -> None:
     load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
     assert_complete_job(load)
+    assert len(dummy_impl.JOBS) == 2
+    assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
+
+
+def test_completed_loop_followup_jobs() -> None:
+    # TODO: until we fix how we create capabilities we must set env
+    os.environ["CREATE_FOLLOWUP_JOBS"] = "true"
+    load = setup_loader(
+        client_config=DummyClientConfiguration(completed_prob=1.0, create_followup_jobs=True)
+    )
+    assert_complete_job(load)
+    # for each JOB there's REFERENCE JOB
+    assert len(dummy_impl.JOBS) == 2 * 2
+    assert len(dummy_impl.JOBS) == len(dummy_impl.CREATED_FOLLOWUP_JOBS) * 2
 
 
 def test_failed_loop() -> None:
@@ -319,6 +350,27 @@ def test_failed_loop() -> None:
     )
     # actually not deleted because one of the jobs failed
     assert_complete_job(load, should_delete_completed=False)
+    # no jobs because fail on init
+    assert len(dummy_impl.JOBS) == 0
+    assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
+
+
+def test_failed_loop_followup_jobs() -> None:
+    # TODO: until we fix how we create capabilities we must set env
+    os.environ["CREATE_FOLLOWUP_JOBS"] = "true"
+    os.environ["FAIL_IN_INIT"] = "false"
+    # ask to delete completed
+    load = setup_loader(
+        delete_completed_jobs=True,
+        client_config=DummyClientConfiguration(
+            fail_prob=1.0, fail_in_init=False, create_followup_jobs=True
+        ),
+    )
+    # actually not deleted because one of the jobs failed
+    assert_complete_job(load, should_delete_completed=False)
+    # followup jobs were not started
+    assert len(dummy_impl.JOBS) == 2
+    assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
 
 
 def test_completed_loop_with_delete_completed() -> None:
@@ -409,6 +461,286 @@ def test_wrong_writer_type() -> None:
     assert exv.value.load_id == load_id
 
 
+def test_extend_table_chain() -> None:
+    load = setup_loader()
+    _, schema = prepare_load_package(
+        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
+    )
+    # only event user table (no other jobs)
+    tables = _extend_tables_with_table_chain(schema, ["event_user"], ["event_user"])
+    assert tables == {"event_user"}
+    # add child jobs
+    tables = _extend_tables_with_table_chain(
+        schema, ["event_user"], ["event_user", "event_user__parse_data__entities"]
+    )
+    assert tables == {"event_user", "event_user__parse_data__entities"}
+    user_chain = {name for name in schema.data_table_names() if name.startswith("event_user__")} | {
+        "event_user"
+    }
+    # change event user to merge/replace to get full table chain
+    for w_d in ["merge", "replace"]:
+        schema.tables["event_user"]["write_disposition"] = w_d  # type:ignore[typeddict-item]
+        tables = _extend_tables_with_table_chain(schema, ["event_user"], ["event_user"])
+        assert tables == user_chain
+    # no jobs for bot
+    assert _extend_tables_with_table_chain(schema, ["event_bot"], ["event_user"]) == set()
+    # skip unseen tables
+    del schema.tables["event_user__parse_data__entities"][  # type:ignore[typeddict-item]
+        "x-normalizer"
+    ]
+    entities_chain = {
+        name
+        for name in schema.data_table_names()
+        if name.startswith("event_user__parse_data__entities")
+    }
+    tables = _extend_tables_with_table_chain(schema, ["event_user"], ["event_user"])
+    assert tables == user_chain - {"event_user__parse_data__entities"}
+    # exclude the whole chain
+    tables = _extend_tables_with_table_chain(
+        schema, ["event_user"], ["event_user"], lambda table: table["name"] not in entities_chain
+    )
+    assert tables == user_chain - entities_chain
+    # ask for tables that are not top
+    tables = _extend_tables_with_table_chain(schema, ["event_user__parse_data__entities"], [])
+    # user chain but without entities (not seen data)
+    assert tables == user_chain - {"event_user__parse_data__entities"}
+    # go to append and ask only for entities chain
+    schema.tables["event_user"]["write_disposition"] = "append"
+    tables = _extend_tables_with_table_chain(
+        schema, ["event_user__parse_data__entities"], entities_chain
+    )
+    # without entities (not seen data)
+    assert tables == entities_chain - {"event_user__parse_data__entities"}
+
+    # add multiple chains
+    bot_jobs = {"event_bot", "event_bot__data__buttons"}
+    tables = _extend_tables_with_table_chain(
+        schema, ["event_user__parse_data__entities", "event_bot"], entities_chain | bot_jobs
+    )
+    assert tables == (entities_chain | bot_jobs) - {"event_user__parse_data__entities"}
+
+
+def test_get_completed_table_chain_cases() -> None:
+    load = setup_loader()
+    _, schema = prepare_load_package(
+        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
+    )
+
+    # update tables so we have all possible hints
+    for table_name, table in schema.tables.items():
+        schema.tables[table_name] = fill_hints_from_parent_and_clone_table(schema.tables, table)
+
+    # child completed, parent not
+    event_user = schema.get_table("event_user")
+    event_user_entities = schema.get_table("event_user__parse_data__entities")
+    event_user_job = LoadJobInfo(
+        "started_jobs",
+        "path",
+        0,
+        None,
+        0,
+        ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl"),
+        None,
+    )
+    event_user_entities_job = LoadJobInfo(
+        "completed_jobs",
+        "path",
+        0,
+        None,
+        0,
+        ParsedLoadJobFileName(
+            "event_user__parse_data__entities", "event_user__parse_data__entities_id", 0, "jsonl"
+        ),
+        None,
+    )
+    chain = get_completed_table_chain(schema, [event_user_job, event_user_entities_job], event_user)
+    assert chain is None
+
+    # parent just got completed
+    chain = get_completed_table_chain(
+        schema,
+        [event_user_job, event_user_entities_job],
+        event_user,
+        event_user_job.job_file_info.job_id(),
+    )
+    # full chain
+    assert chain == [event_user, event_user_entities]
+
+    # parent failed, child completed
+    chain = get_completed_table_chain(
+        schema, [event_user_job._replace(state="failed_jobs"), event_user_entities_job], event_user
+    )
+    assert chain == [event_user, event_user_entities]
+
+    # both failed
+    chain = get_completed_table_chain(
+        schema,
+        [
+            event_user_job._replace(state="failed_jobs"),
+            event_user_entities_job._replace(state="failed_jobs"),
+        ],
+        event_user,
+    )
+    assert chain == [event_user, event_user_entities]
+
+    # merge and replace do not require whole chain to be in jobs
+    user_chain = get_child_tables(schema.tables, "event_user")
+    for w_d in ["merge", "replace"]:
+        event_user["write_disposition"] = w_d  # type:ignore[typeddict-item]
+
+        chain = get_completed_table_chain(
+            schema, [event_user_job], event_user, event_user_job.job_file_info.job_id()
+        )
+        assert chain == user_chain
+
+        # but if child is present and incomplete...
+        chain = get_completed_table_chain(
+            schema,
+            [event_user_job, event_user_entities_job._replace(state="new_jobs")],
+            event_user,
+            event_user_job.job_file_info.job_id(),
+        )
+        # noting is returned
+        assert chain is None
+
+    # skip unseen
+    deep_child = schema.tables[
+        "event_user__parse_data__response_selector__default__response__response_templates"
+    ]
+    del deep_child["x-normalizer"]  # type:ignore[typeddict-item]
+    chain = get_completed_table_chain(
+        schema, [event_user_job], event_user, event_user_job.job_file_info.job_id()
+    )
+    user_chain.remove(deep_child)
+    assert chain == user_chain
+
+
+def test_init_client_truncate_tables() -> None:
+    load = setup_loader()
+    _, schema = prepare_load_package(
+        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
+    )
+
+    nothing_ = lambda _: False
+    all_ = lambda _: True
+
+    event_user = ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl")
+    event_bot = ParsedLoadJobFileName("event_bot", "event_bot_id", 0, "jsonl")
+
+    with patch.object(dummy_impl.DummyClient, "initialize_storage") as initialize_storage:
+        with patch.object(dummy_impl.DummyClient, "update_stored_schema") as update_stored_schema:
+            with load.get_destination_client(schema) as client:
+                init_client(client, schema, [], {}, nothing_, nothing_)
+            # we do not allow for any staging dataset tables
+            assert update_stored_schema.call_count == 1
+            assert update_stored_schema.call_args[1]["only_tables"] == {
+                "_dlt_loads",
+                "_dlt_version",
+            }
+            assert initialize_storage.call_count == 2
+            # initialize storage is called twice, we deselected all tables to truncate
+            assert initialize_storage.call_args_list[0].args == ()
+            assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
+
+            initialize_storage.reset_mock()
+            update_stored_schema.reset_mock()
+
+            # now we want all tables to be truncated but not on staging
+            with load.get_destination_client(schema) as client:
+                init_client(client, schema, [event_user], {}, all_, nothing_)
+            assert update_stored_schema.call_count == 1
+            assert "event_user" in update_stored_schema.call_args[1]["only_tables"]
+            assert initialize_storage.call_count == 2
+            assert initialize_storage.call_args_list[0].args == ()
+            assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == {"event_user"}
+
+            # now we push all to stage
+            initialize_storage.reset_mock()
+            update_stored_schema.reset_mock()
+
+            with load.get_destination_client(schema) as client:
+                init_client(client, schema, [event_user, event_bot], {}, nothing_, all_)
+            assert update_stored_schema.call_count == 2
+            # first call main dataset
+            assert {"event_user", "event_bot"} <= set(
+                update_stored_schema.call_args_list[0].kwargs["only_tables"]
+            )
+            # second one staging dataset
+            assert {"event_user", "event_bot"} <= set(
+                update_stored_schema.call_args_list[1].kwargs["only_tables"]
+            )
+            assert initialize_storage.call_count == 4
+            assert initialize_storage.call_args_list[0].args == ()
+            assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
+            assert initialize_storage.call_args_list[2].args == ()
+            # all tables that will be used on staging must be truncated
+            assert initialize_storage.call_args_list[3].kwargs["truncate_tables"] == {
+                "event_user",
+                "event_bot",
+            }
+
+            replace_ = lambda table: table["write_disposition"] == "replace"
+            merge_ = lambda table: table["write_disposition"] == "merge"
+
+            # set event_bot chain to merge
+            bot_chain = get_child_tables(schema.tables, "event_bot")
+            for w_d in ["merge", "replace"]:
+                initialize_storage.reset_mock()
+                update_stored_schema.reset_mock()
+                for bot in bot_chain:
+                    bot["write_disposition"] = w_d  # type:ignore[typeddict-item]
+                # merge goes to staging, replace goes to truncate
+                with load.get_destination_client(schema) as client:
+                    init_client(client, schema, [event_user, event_bot], {}, replace_, merge_)
+
+                if w_d == "merge":
+                    # we use staging dataset
+                    assert update_stored_schema.call_count == 2
+                    # 4 tables to update in main dataset
+                    assert len(update_stored_schema.call_args_list[0].kwargs["only_tables"]) == 4
+                    assert (
+                        "event_user" in update_stored_schema.call_args_list[0].kwargs["only_tables"]
+                    )
+                    # full bot table chain + dlt version but no user
+                    assert len(
+                        update_stored_schema.call_args_list[1].kwargs["only_tables"]
+                    ) == 1 + len(bot_chain)
+                    assert (
+                        "event_user"
+                        not in update_stored_schema.call_args_list[1].kwargs["only_tables"]
+                    )
+
+                    assert initialize_storage.call_count == 4
+                    assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == set()
+                    assert initialize_storage.call_args_list[3].kwargs[
+                        "truncate_tables"
+                    ] == update_stored_schema.call_args_list[1].kwargs["only_tables"] - {
+                        "_dlt_version"
+                    }
+
+                if w_d == "replace":
+                    assert update_stored_schema.call_count == 1
+                    assert initialize_storage.call_count == 2
+                    # we truncate the whole bot chain but not user (which is append)
+                    assert len(
+                        initialize_storage.call_args_list[1].kwargs["truncate_tables"]
+                    ) == len(bot_chain)
+                    # migrate only tables for which we have jobs
+                    assert len(update_stored_schema.call_args_list[0].kwargs["only_tables"]) == 4
+                    # print(initialize_storage.call_args_list)
+                    # print(update_stored_schema.call_args_list)
+
+
+def test_dummy_staging_filesystem() -> None:
+    load = setup_loader(
+        client_config=DummyClientConfiguration(completed_prob=1.0), filesystem_staging=True
+    )
+    assert_complete_job(load)
+    # two reference jobs
+    assert len(dummy_impl.JOBS) == 2
+    assert len(dummy_impl.CREATED_FOLLOWUP_JOBS) == 0
+
+
 def test_terminal_exceptions() -> None:
     try:
         raise TerminalValueError("a")
@@ -433,6 +765,13 @@ def assert_complete_job(load: Load, should_delete_completed: bool = False) -> No
             )
             # will finalize the whole package
             load.run(pool)
+            # may have followup jobs or staging destination
+            if (
+                load.initial_client_config.create_followup_jobs  # type:ignore[attr-defined]
+                or load.staging_destination
+            ):
+                # run the followup jobs
+                load.run(pool)
             # moved to loaded
             assert not load.load_storage.storage.has_folder(
                 load.load_storage.get_normalized_package_path(load_id)
@@ -460,15 +799,32 @@ def run_all(load: Load) -> None:
 
 
 def setup_loader(
-    delete_completed_jobs: bool = False, client_config: DummyClientConfiguration = None
+    delete_completed_jobs: bool = False,
+    client_config: DummyClientConfiguration = None,
+    filesystem_staging: bool = False,
 ) -> Load:
     # reset jobs for a test
     dummy_impl.JOBS = {}
-    destination: TDestination = dummy()  # type: ignore[assignment]
+    dummy_impl.CREATED_FOLLOWUP_JOBS = {}
     client_config = client_config or DummyClientConfiguration(loader_file_format="jsonl")
+    destination: TDestination = dummy(**client_config)  # type: ignore[assignment]
+    # setup
+    staging_system_config = None
+    staging = None
+    if filesystem_staging:
+        # do not accept jsonl to not conflict with filesystem destination
+        client_config = client_config or DummyClientConfiguration(loader_file_format="reference")
+        staging_system_config = FilesystemDestinationClientConfiguration(dataset_name="dummy")
+        staging_system_config.as_staging = True
+        os.makedirs(REMOTE_FILESYSTEM)
+        staging = filesystem(bucket_url=REMOTE_FILESYSTEM)
     # patch destination to provide client_config
     # destination.client = lambda schema: dummy_impl.DummyClient(schema, client_config)
-
     # setup loader
     with TEST_DICT_CONFIG_PROVIDER().values({"delete_completed_jobs": delete_completed_jobs}):
-        return Load(destination, initial_client_config=client_config)
+        return Load(
+            destination,
+            initial_client_config=client_config,
+            staging_destination=staging,  # type: ignore[arg-type]
+            initial_staging_client_config=staging_system_config,
+        )

@@ -200,7 +200,7 @@ class LoadWeaviateJob(LoadJob):
                         data[key] = json.dumps(data[key])
                 for key in self.date_indices:
                     if key in data:
-                        data[key] = str(ensure_pendulum_datetime(data[key]))
+                        data[key] = ensure_pendulum_datetime(data[key]).isoformat()
                 if self.unique_identifiers:
                     uuid = self.generate_uuid(data, self.unique_identifiers, self.class_name)
                 else:
@@ -664,7 +664,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             "load_id": load_id,
             "schema_name": self.schema.name,
             "status": 0,
-            "inserted_at": str(pendulum.now()),
+            "inserted_at": pendulum.now().isoformat(),
         }
         self.create_object(properties, self.schema.loads_table_name)
 
@@ -686,7 +686,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             "schema_name": schema.name,
             "version": schema.version,
             "engine_version": schema.ENGINE_VERSION,
-            "inserted_at": str(pendulum.now()),
+            "inserted_at": pendulum.now().isoformat(),
             "schema": schema_str,
         }
         self.create_object(properties, self.schema.version_table_name)
