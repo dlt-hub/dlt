@@ -299,13 +299,6 @@ class ResourceNotATransformer(DltResourceException):
         super().__init__(resource_name, f"This resource is not a transformer: {msg}")
 
 
-class TableNameMissing(DltSourceException):
-    def __init__(self) -> None:
-        super().__init__(
-            """Table name is missing in table template. Please provide a string or a function that takes a data item as an argument"""
-        )
-
-
 class InconsistentTableTemplate(DltSourceException):
     def __init__(self, reason: str) -> None:
         msg = f"A set of table hints provided to the resource is inconsistent: {reason}"

@@ -89,7 +89,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
             location=self.location,
         )
 
-        # patch the client query so our defaults are used
+        # patch the client query, so our defaults are used
         query_orig = self._client.query
 
         def query_patch(
@@ -216,7 +216,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
             yield BigQueryDBApiCursorImpl(curr)  # type: ignore
         finally:
             if conn:
-                # will also close all cursors
+                # will close all cursors
                 conn.close()
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:

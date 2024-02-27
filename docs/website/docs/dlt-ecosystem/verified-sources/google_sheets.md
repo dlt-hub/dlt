@@ -68,8 +68,6 @@ You need to create a GCP service account to get API credentials if you don't hav
 You need to create a GCP account to get OAuth credentials if you don't have one. To create one,
 follow these steps:
 
-1. Ensure your email used for the GCP account has access to the GA4 property.
-
 1. Open a GCP project in your GCP account.
 
 1. Enable the Sheets API in the project.
@@ -305,7 +303,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 1. You're now ready to run the pipeline! To get started, run the following command:
 
    ```bash
-   python3 google_sheets_pipeline.py
+   python google_sheets_pipeline.py
    ```
 
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
@@ -322,7 +320,46 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 ## Data types
 
-The `dlt` normalizer uses the first row of data to infer types and attempts to coerce subsequent rows, creating variant columns if unsuccessful. This is standard behavior. It also recognizes date and time types using additional metadata from the first row.
+The `dlt` normalizer uses the first row of data to infer types and attempts to coerce subsequent rows, creating variant columns if unsuccessful. This is standard behavior.
+If `dlt` did not correctly determine the data type in the column, or you want to change the data type for other reasons,
+then you can provide a type hint for the affected column in the resource.
+Also, since recently `dlt`'s no longer recognizing date and time types, so you have to designate it yourself as `timestamp`.
+
+Use the `apply_hints` method on the resource to achieve this.
+Here's how you can do it:
+
+```python
+for resource in resources:
+    resource.apply_hints(columns={
+        "total_amount": {"data_type": "double"},
+        "date": {"data_type": "timestamp"},
+    })
+```
+In this example, the `total_amount` column is enforced to be of type double and `date` is enforced to be of type timestamp.
+This will ensure that all values in the `total_amount` column are treated as `double`, regardless of whether they are integers or decimals in the original Google Sheets data.
+And `date` column will be represented as dates, not integers.
+
+For a single resource (e.g. `Sheet1`), you can simply use:
+```python
+source.Sheet1.apply_hints(columns={
+    "total_amount": {"data_type": "double"},
+    "date": {"data_type": "timestamp"},
+})
+```
+
+To get the name of resources, you can use:
+```python
+print(source.resources.keys())
+```
+
+To read more about tables, columns, and datatypes, please refer to [our documentation here.](../../general-usage/schema#tables-and-columns)
+
+:::caution
+`dlt` will **not modify** tables after they are created.
+So if you changed data types with hints,
+then you need to **delete the dataset**
+or set `full_refresh=True`.
+:::
 
 ## Sources and resources
 
@@ -572,7 +609,10 @@ def get_named_ranges():
 
 Enjoy the DLT Google Sheets pipeline experience!
 
+<!--@@@DLT_SNIPPET_START tuba::google_sheets-->
 ## Additional Setup guides
+
+- [Load data from Google Sheets to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-mssql)
 - [Load data from Google Sheets to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-synapse)
 - [Load data from Google Sheets to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-duckdb)
 - [Load data from Google Sheets to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-postgres)
@@ -581,3 +621,4 @@ Enjoy the DLT Google Sheets pipeline experience!
 - [Load data from Google Sheets to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-athena)
 - [Load data from Google Sheets to Redshift in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-redshift)
 - [Load data from Google Sheets to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-snowflake)
+<!--@@@DLT_SNIPPET_END tuba::google_sheets-->

@@ -25,9 +25,6 @@ class PostgresCredentials(ConnectionStringCredentials):
         if not self.is_partial():
             self.resolve()
 
-    def on_resolved(self) -> None:
-        self.database = self.database.lower()
-
     def to_url(self) -> URL:
         url = super().to_url()
         url.update_query_pairs([("connect_timeout", str(self.connect_timeout))])

@@ -274,3 +274,6 @@ steps:
    > overwriting existing data. Conversely, the "task" endpoint supports "merge" mode for
    > incremental loads, updating or adding data based on the 'last_timestamp' value without erasing
    > previously loaded data.
+
+<!--@@@DLT_SNIPPET_START tuba::salesforce-->
+<!--@@@DLT_SNIPPET_END tuba::salesforce-->

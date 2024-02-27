@@ -268,3 +268,5 @@ these steps:
    # print the information on data that was loaded
    print(load_info)
    ```
+<!--@@@DLT_SNIPPET_START tuba::asana_dlt-->
+<!--@@@DLT_SNIPPET_END tuba::asana_dlt-->

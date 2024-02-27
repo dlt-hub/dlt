@@ -439,7 +439,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         return r.bind(*args, **kwargs)
 
     def __or__(self, transform: Union["DltResource", AnyFun]) -> "DltResource":
-        """Allows to pipe data from across resources and transform functions with | operator"""
+        """Allows to pipe data from across resources and transform functions with | operator
+        This is the LEFT side OR so the self may be resource or transformer
+        """
         # print(f"{resource.name} | {self.name} -> {resource.name}[{resource.is_transformer}]")
         if isinstance(transform, DltResource):
             transform.pipe_data_from(self)
@@ -451,6 +453,14 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 return self.add_yield_map(transform)
             else:
                 return self.add_map(transform)
+
+    def __ror__(self, data: Union[Iterable[Any], Iterator[Any]]) -> "DltResource":
+        """Allows to pipe data from across resources and transform functions with | operator
+        This is the RIGHT side OR so the self may not be a resource and the LEFT must be an object
+        that does not implement | ie. a list
+        """
+        self.pipe_data_from(self.from_data(data, name="iter_" + uniq_id(4)))
+        return self
 
     def __iter__(self) -> Iterator[TDataItem]:
         """Opens iterator that yields the data items from the resources in the same order as in Pipeline class.
