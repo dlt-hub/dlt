@@ -22,7 +22,7 @@ def check_layout(layout: str) -> List[str]:
 
 
 def get_placeholders(layout: str) -> List[str]:
-    return re.findall(r"\{(.*?)}", layout)
+    return re.findall(r"\{(?P<partition>.*?)}", layout)
 
 
 def create_path(
