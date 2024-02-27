@@ -1,3 +1,4 @@
+import contextlib
 import functools
 from typing import Callable, Any, Type
 from typing_extensions import get_type_hints, get_args
@@ -51,7 +52,7 @@ def validate_dict(
     """
     # pass through filter
     filter_f = filter_f or (lambda _: True)
-    # cannot validate anything
+    # can't validate anything
     validator_f = validator_f or (lambda p, pk, pv, t: False)
 
     allowed_props = get_type_hints(spec)
@@ -74,9 +75,9 @@ def validate_dict(
     def verify_prop(pk: str, pv: Any, t: Any) -> None:
         # covers none in optional and union types
         if is_optional_type(t) and pv is None:
-            pass
-        elif is_union_type(t):
-            # pass if value actually is none
+            return
+        if is_union_type(t):
+            # pass if value is none
             union_types = extract_union_types(t, no_none=True)
             # this is the case for optional fields
             if len(union_types) == 1:
@@ -84,11 +85,9 @@ def validate_dict(
             else:
                 has_passed = False
                 for ut in union_types:
-                    try:
+                    with contextlib.suppress(DictValidationException):
                         verify_prop(pk, pv, ut)
                         has_passed = True
-                    except DictValidationException:
-                        pass
                 if not has_passed:
                     type_names = [
                         str(get_args(ut)) if is_literal_type(ut) else ut.__name__
@@ -125,7 +124,7 @@ def validate_dict(
                     pk,
                     pv,
                 )
-            validate_dict(t, pv, path + "/" + pk, filter_f, validator_f)
+            validate_dict(t, pv, f"{path}/{pk}", filter_f, validator_f)
         elif is_list_generic_type(t):
             if not isinstance(pv, list):
                 raise DictValidationException(
@@ -135,10 +134,10 @@ def validate_dict(
                     pk,
                     pv,
                 )
-            # get list element type from generic and process each list element
+            # get a list element type from generic and process each list element.
             l_t = get_args(t)[0]
             for i, l_v in enumerate(pv):
-                verify_prop(pk + f"[{i}]", l_v, l_t)
+                verify_prop(f"{pk}[{i}]", l_v, l_t)
         elif is_dict_generic_type(t):
             if not isinstance(pv, dict):
                 raise DictValidationException(
@@ -148,14 +147,14 @@ def validate_dict(
                     pk,
                     pv,
                 )
-            # get dict key and value type from generic and process each k: v of the dict
+            # get a dict key and value type from generic and process each k: v of the dict.
             _, d_v_t = get_args(t)
             for d_k, d_v in pv.items():
                 if not isinstance(d_k, str):
                     raise DictValidationException(
                         f"In {path}: field {pk} key {d_k} must be a string", path, pk, d_k
                     )
-                verify_prop(pk + f"[{d_k}]", d_v, d_v_t)
+                verify_prop(f"{pk}[{d_k}]", d_v, d_v_t)
         elif t is Any:
             # pass everything with any type
             pass

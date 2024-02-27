@@ -9,19 +9,14 @@ pytest.importorskip("dlt.destinations.impl.mssql.mssql", reason="MSSQL ODBC driv
 from dlt.destinations.impl.mssql.mssql import MsSqlClient
 from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, MsSqlCredentials
 
-from tests.load.utils import TABLE_UPDATE
+from tests.load.utils import TABLE_UPDATE, empty_schema
 
 
 @pytest.fixture
-def schema() -> Schema:
-    return Schema("event")
-
-
-@pytest.fixture
-def client(schema: Schema) -> MsSqlClient:
+def client(empty_schema: Schema) -> MsSqlClient:
     # return client without opening connection
     return MsSqlClient(
-        schema,
+        empty_schema,
         MsSqlClientConfiguration(dataset_name="test_" + uniq_id(), credentials=MsSqlCredentials()),
     )
 

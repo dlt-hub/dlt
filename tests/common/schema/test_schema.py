@@ -6,6 +6,7 @@ import pytest
 from dlt.common import pendulum
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
+from dlt.common.schema.migrations import migrate_schema
 from dlt.common.storages import SchemaStorageConfiguration
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import DictValidationException
@@ -308,7 +309,7 @@ def test_upgrade_engine_v1_schema() -> None:
     # ensure engine v1
     assert schema_dict["engine_version"] == 1
     # schema_dict will be updated to new engine version
-    utils.migrate_schema(schema_dict, from_engine=1, to_engine=2)
+    migrate_schema(schema_dict, from_engine=1, to_engine=2)
     assert schema_dict["engine_version"] == 2
     # we have 27 tables
     assert len(schema_dict["tables"]) == 27
@@ -316,32 +317,38 @@ def test_upgrade_engine_v1_schema() -> None:
     # upgrade schema eng 2 -> 4
     schema_dict = load_json_case("schemas/ev2/event.schema")
     assert schema_dict["engine_version"] == 2
-    upgraded = utils.migrate_schema(schema_dict, from_engine=2, to_engine=4)
+    upgraded = migrate_schema(schema_dict, from_engine=2, to_engine=4)
     assert upgraded["engine_version"] == 4
 
     # upgrade 1 -> 4
     schema_dict = load_json_case("schemas/ev1/event.schema")
     assert schema_dict["engine_version"] == 1
-    upgraded = utils.migrate_schema(schema_dict, from_engine=1, to_engine=4)
+    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=4)
     assert upgraded["engine_version"] == 4
 
     # upgrade 1 -> 6
     schema_dict = load_json_case("schemas/ev1/event.schema")
     assert schema_dict["engine_version"] == 1
-    upgraded = utils.migrate_schema(schema_dict, from_engine=1, to_engine=6)
+    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=6)
     assert upgraded["engine_version"] == 6
 
     # upgrade 1 -> 7
     schema_dict = load_json_case("schemas/ev1/event.schema")
     assert schema_dict["engine_version"] == 1
-    upgraded = utils.migrate_schema(schema_dict, from_engine=1, to_engine=7)
+    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=7)
     assert upgraded["engine_version"] == 7
 
     # upgrade 1 -> 8
     schema_dict = load_json_case("schemas/ev1/event.schema")
     assert schema_dict["engine_version"] == 1
-    upgraded = utils.migrate_schema(schema_dict, from_engine=1, to_engine=8)
+    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=8)
     assert upgraded["engine_version"] == 8
+
+    # upgrade 1 -> 9
+    schema_dict = load_json_case("schemas/ev1/event.schema")
+    assert schema_dict["engine_version"] == 1
+    upgraded = migrate_schema(schema_dict, from_engine=1, to_engine=9)
+    assert upgraded["engine_version"] == 9
 
 
 def test_unknown_engine_upgrade() -> None:
@@ -349,7 +356,7 @@ def test_unknown_engine_upgrade() -> None:
     # there's no path to migrate 3 -> 2
     schema_dict["engine_version"] = 3
     with pytest.raises(SchemaEngineNoUpgradePathException):
-        utils.migrate_schema(schema_dict, 3, 2)  # type: ignore[arg-type]
+        migrate_schema(schema_dict, 3, 2)  # type: ignore[arg-type]
 
 
 def test_preserve_column_order(schema: Schema, schema_storage: SchemaStorage) -> None:
@@ -693,7 +700,7 @@ def assert_new_schema_values(schema: Schema) -> None:
     assert schema.stored_version == 1
     assert schema.stored_version_hash is not None
     assert schema.version_hash is not None
-    assert schema.ENGINE_VERSION == 8
+    assert schema.ENGINE_VERSION == 9
     assert schema._stored_previous_hashes == []
     assert len(schema.settings["default_hints"]) > 0
     # check settings

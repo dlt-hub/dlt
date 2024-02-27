@@ -1,9 +1,9 @@
 [tool.poetry]
 name = "dlt"
-version = "0.4.5a0"
+version = "0.4.5"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
-maintainers = ["Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
+maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
 readme = "README.md"
 license = "Apache-2.0"
 homepage = "https://github.com/dlt-hub"
@@ -15,9 +15,9 @@ classifiers = [
     "Topic :: Software Development :: Libraries",
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",
-    "Operating System :: Microsoft :: Windows", ]
-keywords = ["etl"]
-include = ["LICENSE.txt", "README.md"]
+    "Operating System :: Microsoft :: Windows",]
+keywords = [ "etl" ]
+include = [ "LICENSE.txt", "README.md"]
 packages = [
     { include = "dlt" },
 ]
@@ -44,40 +44,43 @@ astunparse = ">=1.6.3"
 gitpython = ">=3.1.29"
 pytz = ">=2022.6"
 giturlparse = ">=0.10.0"
-orjson = { version = ">=3.6.7,<=3.9.10", markers = "platform_python_implementation != 'PyPy'" }
+orjson = {version = ">=3.6.7,<=3.9.10", markers="platform_python_implementation != 'PyPy'"}
 tenacity = ">=8.0.2"
 jsonpath-ng = ">=1.5.3"
 fsspec = ">=2022.4.0"
 packaging = ">=21.1"
-win-precise-time = { version = ">=1.4.2", markers = "os_name == 'nt'" }
+win-precise-time = {version = ">=1.4.2", markers="os_name == 'nt'"}
 
-psycopg2-binary = { version = ">=2.9.1", optional = true }
+psycopg2-binary = {version = ">=2.9.1", optional = true}
 # use this dependency as the current version of psycopg2cffi does not have sql module
 # psycopg2cffi = {git = "https://github.com/chtd/psycopg2cffi.git", optional = true, markers="platform_python_implementation == 'PyPy'"}
-psycopg2cffi = { version = ">=2.9.0", optional = true, markers = "platform_python_implementation == 'PyPy'" }
-grpcio = { version = ">=1.50.0", optional = true }
-google-cloud-bigquery = { version = ">=2.26.0", optional = true }
-pyarrow = { version = ">=12.0.0", optional = true }
-duckdb = { version = ">=0.6.1,<0.10.0", optional = true }
-dbt-core = { version = ">=1.2.0", optional = true }
-dbt-redshift = { version = ">=1.2.0", optional = true }
-dbt-bigquery = { version = ">=1.2.0", optional = true }
-dbt-duckdb = { version = ">=1.2.0", optional = true }
-dbt-snowflake = { version = ">=1.2.0", optional = true }
-dbt-athena-community = { version = ">=1.2.0", optional = true }
-s3fs = { version = ">=2022.4.0", optional = true }
-gcsfs = { version = ">=2022.4.0", optional = true }
-botocore = { version = ">=1.28", optional = true }
-snowflake-connector-python = { version = ">=3.5.0", optional = true }
-cron-descriptor = { version = ">=1.2.32", optional = true }
-pipdeptree = { version = ">=2.9.0,<2.10", optional = true }
-pyathena = { version = ">=2.9.6", optional = true }
-weaviate-client = { version = ">=3.22", optional = true }
-adlfs = { version = ">=2022.4.0", optional = true }
-pyodbc = { version = "^4.0.39", optional = true }
-qdrant-client = { version = "^1.6.4", optional = true, extras = ["fastembed"] }
-databricks-sql-connector = { version = ">=2.9.3,<3.0.0", optional = true }
-dbt-databricks = { version = "^1.7.3", optional = true }
+psycopg2cffi = {version = ">=2.9.0", optional = true, markers="platform_python_implementation == 'PyPy'"}
+grpcio = {version = ">=1.50.0", optional = true}
+google-cloud-bigquery = {version = ">=2.26.0", optional = true}
+pyarrow = {version = ">=12.0.0", optional = true}
+duckdb = [
+    {version = ">=0.6.1,<0.10.0", python = ">=3.8,<3.12", optional = true},
+    {version = ">=0.10.0,<0.11.0", python = ">=3.12", optional = true}
+]
+dbt-core = {version = ">=1.2.0", optional = true}
+dbt-redshift = {version = ">=1.2.0", optional = true}
+dbt-bigquery = {version = ">=1.2.0", optional = true}
+dbt-duckdb = {version = ">=1.2.0", optional = true}
+dbt-snowflake = {version = ">=1.2.0", optional = true}
+dbt-athena-community = {version = ">=1.2.0", optional = true}
+s3fs = {version = ">=2022.4.0", optional = true}
+gcsfs = {version = ">=2022.4.0", optional = true}
+botocore = {version = ">=1.28", optional = true}
+snowflake-connector-python = {version = ">=3.5.0", optional = true}
+cron-descriptor = {version = ">=1.2.32", optional = true}
+pipdeptree = {version = ">=2.9.0,<2.10", optional = true}
+pyathena = {version = ">=2.9.6", optional = true}
+weaviate-client = {version = ">=3.22", optional = true}
+adlfs = {version = ">=2022.4.0", optional = true}
+pyodbc = {version = "^4.0.39", optional = true}
+qdrant-client = {version = "^1.6.4", optional = true, extras = ["fastembed"]}
+databricks-sql-connector = {version = ">=2.9.3,<3.0.0", optional = true}
+dbt-databricks = {version = "^1.7.3", optional = true}
 
 [tool.poetry.extras]
 dbt = ["dbt-core", "dbt-redshift", "dbt-bigquery", "dbt-duckdb", "dbt-snowflake", "dbt-athena-community", "dbt-databricks"]
@@ -107,22 +110,25 @@ dremio = ["pyarrow"]
 dlt = "dlt.cli._dlt:_main"
 
 [tool.poetry.group.dev.dependencies]
+cffi = "^1.16"
+greenlet = "^3.0.3"
+regex = "^2023.10"
+pendulum = ">=3"
 requests-mock = "^1.10.0"
 types-click = "^7.1.8"
 sqlfluff = "^2.3.2"
 types-deprecated = "^1.2.9.2"
 pytest-console-scripts = "^1.4.1"
-pytest = "^6.2.4"
+pytest = "^7.0.0"
 mypy = "^1.6.1"
 flake8 = "^5.0.0"
 bandit = "^1.7.0"
 black = "^23.7.0"
 isort = "^5.12.0"
 flake8-bugbear = "^22.0.0"
-pytest-pythonpath = "^0.7.3"
-pytest-order = "^1.0.0"
-pytest-cases = "^3.6.9"
-pytest-forked = "^1.3.0"
+pytest-order = ">=1.0.0"
+pytest-cases = ">=3.6.9"
+pytest-forked = ">=1.3.0"
 types-PyYAML = ">=6.0.7"
 types-cachetools = ">=4.2.9"
 types-protobuf = ">=3.19.8"
@@ -139,9 +145,10 @@ types-psutil = "^5.9.5.16"
 types-psycopg2 = "^2.9.21.14"
 cryptography = "^41.0.7"
 google-api-python-client = ">=1.7.11"
+pytest-asyncio = "^0.23.5"
 
 [tool.poetry.group.pipeline]
-optional = true
+optional=true
 
 [tool.poetry.group.pipeline.dependencies]
 google-auth-oauthlib = "^1.0.0"
@@ -149,13 +156,20 @@ tqdm = "^4.65.0"
 enlighten = "^1.11.2"
 alive-progress = "^3.1.1"
 pydantic = ">2"
-pandas = ">2"
+numpy = [
+    { version = ">=1.21", python = ">=3.8,<3.12" },
+    { version = ">=1.26", python = ">=3.12" }
+]
+pandas = [
+    {version = ">2.1", markers = "python_version >= '3.12'"},
+    {version = "<2.1", markers = "python_version < '3.12'"}
+]
 
 [tool.poetry.group.airflow]
 optional = true
 
 [tool.poetry.group.airflow.dependencies]
-apache-airflow = "^2.5.3"
+apache-airflow = {version = "^2.8.0", markers = "python_version < '3.12'"}
 
 [tool.poetry.group.providers]
 optional = true
@@ -176,9 +190,9 @@ optional = true
 pymysql = "^1.1.0"
 pypdf2 = "^3.0.1"
 pydoc-markdown = "^4.8.2"
-connectorx = "0.3.2"
-dbt-core = ">=1.2.0"
-dbt-duckdb = ">=1.2.0"
+connectorx="0.3.2"
+dbt-core=">=1.2.0"
+dbt-duckdb=">=1.2.0"
 pymongo = ">=4.3.3"
 pandas = ">2"
 

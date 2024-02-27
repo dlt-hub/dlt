@@ -1,6 +1,7 @@
 import os
 from tempfile import gettempdir
 from typing import Any, Callable, List, Literal, Optional, Sequence, Tuple
+
 from tenacity import (
     retry_if_exception,
     wait_exponential,
@@ -9,9 +10,7 @@ from tenacity import (
     RetryCallState,
 )
 
-from dlt.common import pendulum
 from dlt.common.exceptions import MissingDependencyException
-from dlt.common.runtime.telemetry import with_telemetry
 
 try:
     from airflow.configuration import conf
@@ -20,14 +19,17 @@ try:
     from airflow.operators.dummy import DummyOperator  # type: ignore
     from airflow.operators.python import PythonOperator, get_current_context
 except ModuleNotFoundError:
-    raise MissingDependencyException("Airflow", ["airflow>=2.0.0"])
+    raise MissingDependencyException("Airflow", ["apache-airflow>=2.5"])
 
 
 import dlt
+from dlt.common import pendulum
 from dlt.common import logger
+from dlt.common.runtime.telemetry import with_telemetry
 from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.schema.typing import TWriteDisposition, TSchemaContract
 from dlt.common.utils import uniq_id
+from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContext
 from dlt.common.runtime.collector import NULL_COLLECTOR
@@ -135,7 +137,7 @@ class PipelineTasksGroup(TaskGroup):
         pipeline: Pipeline,
         data: Any,
         *,
-        decompose: Literal["none", "serialize", "parallel"] = "none",
+        decompose: Literal["none", "serialize", "parallel", "parallel-isolated"] = "none",
         table_name: str = None,
         write_disposition: TWriteDisposition = None,
         loader_file_format: TLoaderFileFormat = None,
@@ -158,11 +160,22 @@ class PipelineTasksGroup(TaskGroup):
                 A source decomposition strategy into Airflow tasks:
                     none - no decomposition, default value.
                     serialize - decompose the source into a sequence of Airflow tasks.
-                    parallel - decompose the source into a parallel Airflow task group.
-                        NOTE: In case the SequentialExecutor is used by Airflow, the tasks
-                              will remain sequential. Use another executor, e.g. CeleryExecutor)!
-                        NOTE: The first component of the source is done first, after that
-                              the rest are executed in parallel to each other.
+                    parallel - decompose the source into a parallel Airflow task group,
+                               except the first resource must be completed first.
+                               All tasks that are run in parallel share the same pipeline state.
+                               If two of them modify the state, part of state may be lost
+                    parallel-isolated - decompose the source into a parallel Airflow task group.
+                               with the same exception as above. All task have separate pipeline
+                               state (via separate pipeline name) but share the same dataset,
+                               schemas and tables.
+                NOTE: The first component of the source in both parallel models is done first,
+                      after that the rest are executed in parallel to each other.
+                NOTE: In case the SequentialExecutor is used by Airflow, the tasks
+                      will remain sequential despite 'parallel' or 'parallel-isolated' mode.
+                      Use another executor (e.g. CeleryExecutor) to make tasks parallel!
+
+                Parallel tasks are executed in different pipelines, all derived from the original
+                one, but with the state isolated from each other.
             table_name: (str): The name of the table to which the data should be loaded within the `dataset`
             write_disposition (TWriteDisposition, optional): Same as in `run` command. Defaults to None.
             loader_file_format (Literal["jsonl", "insert_values", "parquet"], optional): The file format the loader will use to create the load package.
@@ -194,12 +207,12 @@ class PipelineTasksGroup(TaskGroup):
             # use factory function to make a task, in order to parametrize it
             # passing arguments to task function (_run) is serializing
             # them and running template engine on them
-            def make_task(pipeline: Pipeline, data: Any) -> PythonOperator:
+            def make_task(pipeline: Pipeline, data: Any, name: str = None) -> PythonOperator:
                 def _run() -> None:
                     # activate pipeline
                     pipeline.activate()
                     # drop local data
-                    task_pipeline = pipeline.drop()
+                    task_pipeline = pipeline.drop(pipeline_name=name)
 
                     # use task logger
                     if self.use_task_logger:
@@ -308,15 +321,60 @@ class PipelineTasksGroup(TaskGroup):
                 if pipeline.full_refresh:
                     raise ValueError("Cannot decompose pipelines with full_refresh set")
 
-                # parallel tasks
                 tasks = []
                 sources = data.decompose("scc")
+                t_name = task_name(pipeline, data)
                 start = make_task(pipeline, sources[0])
 
+                # parallel tasks
                 for source in sources[1:]:
+                    for resource in source.resources.values():
+                        if resource.incremental:
+                            logger.warn(
+                                f"The resource {resource.name} in task {t_name} "
+                                "is using incremental loading and may modify the "
+                                "state. Resources that modify the state should not "
+                                "run in parallel within the single pipeline as the "
+                                "state will not be correctly merged. Please use "
+                                "'serialize' or 'parallel-isolated' modes instead."
+                            )
+                            break
+
                     tasks.append(make_task(pipeline, source))
 
-                end = DummyOperator(task_id=f"{task_name(pipeline, data)}_end")
+                end = DummyOperator(task_id=f"{t_name}_end")
+
+                if tasks:
+                    start >> tasks >> end
+                    return [start] + tasks + [end]
+
+                start >> end
+                return [start, end]
+            elif decompose == "parallel-isolated":
+                if not isinstance(data, DltSource):
+                    raise ValueError("Can only decompose dlt sources")
+
+                if pipeline.full_refresh:
+                    raise ValueError("Cannot decompose pipelines with full_refresh set")
+
+                # parallel tasks
+                tasks = []
+                naming = SnakeCaseNamingConvention()
+                sources = data.decompose("scc")
+                start = make_task(
+                    pipeline,
+                    sources[0],
+                    naming.normalize_identifier(task_name(pipeline, sources[0])),
+                )
+
+                # parallel tasks
+                for source in sources[1:]:
+                    # name pipeline the same as task
+                    new_pipeline_name = naming.normalize_identifier(task_name(pipeline, source))
+                    tasks.append(make_task(pipeline, source, new_pipeline_name))
+
+                t_name = task_name(pipeline, data)
+                end = DummyOperator(task_id=f"{t_name}_end")
 
                 if tasks:
                     start >> tasks >> end
@@ -325,7 +383,10 @@ class PipelineTasksGroup(TaskGroup):
                 start >> end
                 return [start, end]
             else:
-                raise ValueError("decompose value must be one of ['none', 'serialize', 'parallel']")
+                raise ValueError(
+                    "decompose value must be one of ['none', 'serialize', 'parallel',"
+                    " 'parallel-isolated']"
+                )
 
     def add_fun(self, f: Callable[..., Any], **kwargs: Any) -> Any:
         """Will execute a function `f` inside an Airflow task. It is up to the function to create pipeline and source(s)"""

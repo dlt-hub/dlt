@@ -239,3 +239,6 @@ verified source.
    load_info = pipeline.run(airtables, write_disposition="replace")
    print(load_info)
    ```
+
+<!--@@@DLT_SNIPPET_START tuba::airtable-->
+<!--@@@DLT_SNIPPET_END tuba::airtable-->

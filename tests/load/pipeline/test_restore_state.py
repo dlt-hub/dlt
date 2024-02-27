@@ -18,7 +18,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import TEST_STORAGE_ROOT
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED
-from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V8, yml_case_path as common_yml_case_path
+from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
 from tests.load.pipeline.utils import assert_query_data, drop_active_pipeline_data
 from tests.load.utils import (
@@ -314,14 +314,14 @@ def test_restore_state_pipeline(destination_config: DestinationTestConfiguration
     p._wipe_working_folder()
     os.environ["RESTORE_FROM_DESTINATION"] = "False"
     p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
-    p.run()
+    p.run(loader_file_format=destination_config.file_format)
     # restore was not requested so schema is empty
     assert p.default_schema_name is None
     p._wipe_working_folder()
     # request restore
     os.environ["RESTORE_FROM_DESTINATION"] = "True"
     p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
-    p.run()
+    p.run(loader_file_format=destination_config.file_format)
     assert p.default_schema_name == "default"
     assert set(p.schema_names) == set(["default", "two", "three", "four"])
     assert p.state["sources"] == {
@@ -342,7 +342,7 @@ def test_restore_state_pipeline(destination_config: DestinationTestConfiguration
     p = destination_config.setup_pipeline(
         pipeline_name=pipeline_name, dataset_name=dataset_name, full_refresh=True
     )
-    p.run()
+    p.run(loader_file_format=destination_config.file_format)
     assert p.default_schema_name is None
     drop_active_pipeline_data()
 
@@ -355,7 +355,7 @@ def test_restore_state_pipeline(destination_config: DestinationTestConfiguration
     assert p.dataset_name == dataset_name
     assert p.default_schema_name is None
     # restore
-    p.run()
+    p.run(loader_file_format=destination_config.file_format)
     assert p.default_schema_name is not None
     restored_state = p.state
     assert restored_state["_state_version"] == orig_state["_state_version"]
@@ -366,7 +366,7 @@ def test_restore_state_pipeline(destination_config: DestinationTestConfiguration
     )  # this will modify state, run does not sync if states are identical
     assert p.state["_state_version"] > orig_state["_state_version"]
     # print(p.state)
-    p.run()
+    p.run(loader_file_format=destination_config.file_format)
     assert set(p.schema_names) == set(
         ["default", "two", "three", "second", "four"]
     )  # we keep our local copy
@@ -375,7 +375,7 @@ def test_restore_state_pipeline(destination_config: DestinationTestConfiguration
     state["_state_version"] -= 1
     p._save_state(state)
     p._state_restored = False
-    p.run()
+    p.run(loader_file_format=destination_config.file_format)
     assert set(p.schema_names) == set(["default", "two", "three", "four"])
 
 
@@ -399,7 +399,7 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
         self.load_storage.complete_load_package(load_id, aborted)
 
     with patch.object(Load, "complete_package", complete_package_mock):
-        p.run(some_data("fix_1"))
+        p.run(some_data("fix_1"), loader_file_format=destination_config.file_format)
         # assert complete_package.called
 
     job_client: SqlJobClientBase
@@ -434,7 +434,12 @@ def test_restore_schemas_while_import_schemas_exist(
     assert "blocks" in schema.tables
 
     # extract some additional data to upgrade schema in the pipeline
-    p.run(["A", "B", "C"], table_name="labels", schema=schema)
+    p.run(
+        ["A", "B", "C"],
+        table_name="labels",
+        schema=schema,
+        loader_file_format=destination_config.file_format,
+    )
     # schema should be up to date
     normalized_labels = schema.naming.normalize_table_identifier("labels")
     normalized_annotations = schema.naming.normalize_table_identifier("annotations")
@@ -444,7 +449,9 @@ def test_restore_schemas_while_import_schemas_exist(
 
     # re-attach the pipeline
     p = dlt.attach(pipeline_name=pipeline_name)
-    p.run(["C", "D", "E"], table_name="annotations")
+    p.run(
+        ["C", "D", "E"], table_name="annotations", loader_file_format=destination_config.file_format
+    )
     schema = p.schemas["ethereum"]
     assert normalized_labels in schema.tables
     assert normalized_annotations in schema.tables
@@ -463,15 +470,18 @@ def test_restore_schemas_while_import_schemas_exist(
         destination=destination_config.destination,
         staging=destination_config.staging,
         dataset_name=dataset_name,
+        loader_file_format=destination_config.file_format,
     )
     schema = p.schemas["ethereum"]
     assert normalized_labels in schema.tables
     assert normalized_annotations in schema.tables
 
     # check if attached to import schema
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V8
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V9
     # extract some data with restored pipeline
-    p.run(["C", "D", "E"], table_name="blacklist")
+    p.run(
+        ["C", "D", "E"], table_name="blacklist", loader_file_format=destination_config.file_format
+    )
     assert normalized_labels in schema.tables
     assert normalized_annotations in schema.tables
     assert normalized_blacklist in schema.tables
@@ -511,6 +521,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
         destination=destination_config.destination,
         staging=destination_config.staging,
         dataset_name=dataset_name,
+        loader_file_format=destination_config.file_format,
     )
     orig_state = p.state
 
@@ -520,6 +531,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
         destination=destination_config.destination,
         staging=destination_config.staging,
         dataset_name=dataset_name,
+        loader_file_format=destination_config.file_format,
     )
     assert production_p.default_schema_name == "default"
 
@@ -531,7 +543,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     # rename extract table/
     data2.apply_hints(table_name="state1_data2")
     print("---> run production")
-    production_p.run(data2)
+    production_p.run(data2, loader_file_format=destination_config.file_format)
     assert production_p.state["_state_version"] == prod_state["_state_version"]
 
     normalize = production_p.default_schema.naming.normalize_table_identifier
@@ -546,7 +558,7 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     data3 = some_data("state3")
     data3.apply_hints(table_name="state1_data2")
     print("---> run production")
-    production_p.run(data3)
+    production_p.run(data3, loader_file_format=destination_config.file_format)
     assert production_p.state["_state_version"] > prod_state["_state_version"]
     # and will be detected locally
     # print(p.default_schema)
@@ -559,14 +571,14 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
     # change state locally
     data4 = some_data("state4")
     data4.apply_hints(table_name="state1_data4")
-    p.run(data4)
+    p.run(data4, loader_file_format=destination_config.file_format)
     # and on production in parallel
     data5 = some_data("state5")
     data5.apply_hints(table_name="state1_data5")
-    production_p.run(data5)
+    production_p.run(data5, loader_file_format=destination_config.file_format)
     data6 = some_data("state6")
     data6.apply_hints(table_name="state1_data6")
-    production_p.run(data6)
+    production_p.run(data6, loader_file_format=destination_config.file_format)
     # production state version ahead of local state version
     prod_state = production_p.state
     assert p.state["_state_version"] == prod_state["_state_version"] - 1
@@ -615,10 +627,11 @@ def test_reset_pipeline_on_deleted_dataset(
         destination=destination_config.destination,
         staging=destination_config.staging,
         dataset_name=dataset_name,
+        loader_file_format=destination_config.file_format,
     )
     data5 = some_data("state4")
     data5.apply_hints(table_name="state1_data5")
-    p.run(data5, schema=Schema("sch2"))
+    p.run(data5, schema=Schema("sch2"), loader_file_format=destination_config.file_format)
     assert p.state["_state_version"] == 3
     assert p.first_run is False
     with p.destination_client() as job_client:
@@ -644,6 +657,7 @@ def test_reset_pipeline_on_deleted_dataset(
         destination=destination_config.destination,
         staging=destination_config.staging,
         dataset_name=dataset_name,
+        loader_file_format=destination_config.file_format,
     )
     assert p.first_run is False
     assert p.state["_local"]["first_run"] is False
@@ -653,7 +667,7 @@ def test_reset_pipeline_on_deleted_dataset(
     p.config.restore_from_destination = True
     data5 = some_data("state4")
     data5.apply_hints(table_name="state1_data5")
-    p.run(data5, schema=Schema("sch2"))
+    p.run(data5, schema=Schema("sch2"), loader_file_format=destination_config.file_format)
     # the pipeline was not wiped out, the actual presence if the dataset was checked
     assert set(p.schema_names) == set(["sch2", "sch1"])
 

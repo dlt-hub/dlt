@@ -176,10 +176,8 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         if not self.is_storage_initialized():
             self.sql_client.create_dataset()
-        else:
-            # truncate requested tables
-            if truncate_tables:
-                self.sql_client.truncate_tables(*truncate_tables)
+        elif truncate_tables:
+            self.sql_client.truncate_tables(*truncate_tables)
 
     def is_storage_initialized(self) -> bool:
         return self.sql_client.has_dataset()
@@ -213,7 +211,7 @@ class SqlJobClientBase(JobClientBase, WithStateSync):
 
     @contextlib.contextmanager
     def maybe_ddl_transaction(self) -> Iterator[None]:
-        """Begins a transaction if sql client supports it, otherwise works in auto commit"""
+        """Begins a transaction if sql client supports it, otherwise works in auto commit."""
         if self.capabilities.supports_ddl_transactions:
             with self.sql_client.begin_transaction():
                 yield
@@ -394,8 +392,9 @@ WHERE """
 
     def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
         sql_scripts, schema_update = self._build_schema_update_sql(only_tables)
-        # stay within max query size when doing DDL. some db backends use bytes not characters so decrease limit by half
-        # assuming that most of the characters in DDL encode into single bytes
+        # Stay within max query size when doing DDL.
+        # Some DB backends use bytes not characters, so decrease the limit by half,
+        # assuming most of the characters in DDL encoded into single bytes.
         self.sql_client.execute_many(sql_scripts)
         self._update_schema_in_storage(self.schema)
         return schema_update
@@ -403,16 +402,17 @@ WHERE """
     def _build_schema_update_sql(
         self, only_tables: Iterable[str]
     ) -> Tuple[List[str], TSchemaTables]:
-        """Generates CREATE/ALTER sql for tables that differ between the destination and in client's Schema.
+        """Generates CREATE/ALTER sql for tables that differ between the destination and in the client's Schema.
 
-        This method compares all or `only_tables` defined in self.schema to the respective tables in the destination. It detects only new tables and new columns.
-        Any other changes like data types, hints etc. are ignored.
+        This method compares all or `only_tables` defined in `self.schema` to the respective tables in the destination.
+        It detects only new tables and new columns.
+        Any other changes like data types, hints, etc. are ignored.
 
         Args:
             only_tables (Iterable[str]): Only `only_tables` are included, or all if None.
 
         Returns:
-            Tuple[List[str], TSchemaTables]: Tuple with a list of CREATE/ALTER scripts and a list of all tables with columns that will be added.
+            Tuple[List[str], TSchemaTables]: Tuple with a list of CREATE/ALTER scripts, and a list of all tables with columns that will be added.
         """
         sql_updates = []
         schema_update: TSchemaTables = {}
@@ -427,7 +427,7 @@ WHERE """
                         sql += ";"
                     sql_updates.append(sql)
                 # create a schema update for particular table
-                partial_table = copy(self.get_load_table(table_name))
+                partial_table = copy(self.prepare_load_table(table_name))
                 # keep only new columns
                 partial_table["columns"] = {c["name"]: c for c in new_columns}
                 schema_update[table_name] = partial_table
@@ -437,7 +437,7 @@ WHERE """
     def _make_add_column_sql(
         self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
     ) -> List[str]:
-        """Make one or more  ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
+        """Make one or more ADD COLUMN sql clauses to be joined in ALTER TABLE statement(s)"""
         return [f"ADD COLUMN {self._get_column_def_sql(c, table_format)}" for c in new_columns]
 
     def _get_table_update_sql(
@@ -445,8 +445,8 @@ WHERE """
     ) -> List[str]:
         # build sql
         canonical_name = self.sql_client.make_qualified_table_name(table_name)
-        table = self.get_load_table(table_name)
-        table_format = table.get("table_format") if table else None
+        table = self.prepare_load_table(table_name)
+        table_format = table.get("table_format")
         sql_result: List[str] = []
         if not generate_alter:
             # build CREATE
@@ -461,7 +461,7 @@ WHERE """
                 column_sql = ",\n"
                 sql_result.append(sql_base + column_sql.join(add_column_statements))
             else:
-                # build ALTER as separate statement for each column (redshift limitation)
+                # build ALTER as a separate statement for each column (redshift limitation)
                 sql_result.extend(
                     [sql_base + col_statement for col_statement in add_column_statements]
                 )
