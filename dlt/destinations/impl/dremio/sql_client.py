@@ -129,10 +129,10 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
         return isinstance(ex, pyarrow.lib.ArrowInvalid)
 
     def create_dataset(self) -> None:
-        logger.warning("Dremio does not implement create_dataset")
+        logger.info("Dremio does not implement create_dataset")
 
     def drop_dataset(self) -> None:
-        logger.warning("Dremio does not implement drop_dataset")
+        logger.info("Dremio does not implement drop_dataset")
 
     def has_dataset(self) -> bool:
         if self.credentials.flatten:

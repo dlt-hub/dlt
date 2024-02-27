@@ -11,7 +11,7 @@ from dlt.common.utils import digest128
 
 @configspec
 class DremioCredentials(ConnectionStringCredentials):
-    drivername: Final[str] = "grpc"  # type: ignore[misc]
+    drivername: str = "grpc"
     username: str = None
     password: Optional[TSecretStrValue] = None
     host: str = None

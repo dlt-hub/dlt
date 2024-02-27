@@ -10,8 +10,7 @@ def test_dremio() -> None:
         destination="dremio",
         staging="filesystem",
         dataset_name="bar",
-        # dataset_name="foo",
-        # full_refresh=True,
+        full_refresh=True,
     )
 
     @dlt.resource(name="items", write_disposition="replace")

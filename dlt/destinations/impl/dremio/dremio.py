@@ -29,7 +29,7 @@ from dlt.destinations.type_mapping import TypeMapper
 class DremioTypeMapper(TypeMapper):
     BIGINT_PRECISION = 19
     sct_to_unbound_dbt = {
-        "complex": "VARIANT",
+        "complex": "VARCHAR",
         "text": "VARCHAR",
         "double": "FLOAT",
         "bool": "BOOLEAN",
@@ -41,11 +41,8 @@ class DremioTypeMapper(TypeMapper):
     }
 
     sct_to_dbt = {
-        "text": "VARCHAR(%i)",
-        "timestamp": "TIMESTAMP_TZ(%i)",
         "decimal": "DECIMAL(%i,%i)",
-        "time": "TIME(%i)",
-        "wei": "NUMBER(%i,%i)",
+        "wei": "DECIMAL(%i,%i)",
     }
 
     dbt_to_sct = {
@@ -93,80 +90,68 @@ class DremioLoadJob(LoadJob, FollowupJob):
             if NewReferenceJob.is_reference_job(file_path)
             else ""
         )
+
+        if not bucket_path:
+            raise RuntimeError("Could not resolve bucket path.")
+
         file_name = (
             FileStorage.get_file_name_from_file_path(bucket_path) if bucket_path else file_name
         )
-        from_clause = ""
-        files_clause = ""
-        stage_file_path = ""
 
-        if bucket_path:
-            bucket_url = urlparse(bucket_path)
-            bucket_scheme = bucket_url.scheme
-            # referencing an external s3/azure stage does not require explicit AWS credentials
-            if bucket_scheme in ["s3", "az", "abfs"] and stage_name:
-                from_clause = f"FROM '@{stage_name}/{bucket_url.hostname}'"
-                files_clause = f"FILES ('{bucket_url.path.lstrip('/')}')"
-            # referencing an staged files via a bucket URL requires explicit AWS credentials
-            elif (
-                bucket_scheme == "s3"
-                and staging_credentials
-                and isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
-            ):
-                from_clause = f"FROM '{bucket_path}'"
-            elif (
-                bucket_scheme in ["az", "abfs"]
-                and staging_credentials
-                and isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
-            ):
-                # Converts an az://<container_name>/<path> to azure://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
-                # as required by snowflake
-                _path = "/" + bucket_url.netloc + bucket_url.path
-                bucket_path = urlunparse(
-                    bucket_url._replace(
-                        scheme="azure",
-                        netloc=f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net",
-                        path=_path,
-                    )
+        bucket_url = urlparse(bucket_path)
+        bucket_scheme = bucket_url.scheme
+        # referencing an external s3/azure stage does not require explicit AWS credentials
+        if bucket_scheme in ["s3", "az", "abfs"] and stage_name:
+            from_clause = f"FROM '@{stage_name}/{bucket_url.hostname}'"
+            files_clause = f"FILES ('{bucket_url.path.lstrip('/')}')"
+        # referencing an staged files via a bucket URL requires explicit AWS credentials
+        elif (
+            bucket_scheme == "s3"
+            and staging_credentials
+            and isinstance(staging_credentials, AwsCredentialsWithoutDefaults)
+        ):
+            from_clause = f"FROM '{bucket_path}'"
+            files_clause = ""
+        elif (
+            bucket_scheme in ["az", "abfs"]
+            and staging_credentials
+            and isinstance(staging_credentials, AzureCredentialsWithoutDefaults)
+        ):
+            # Converts an az://<container_name>/<path> to azure://<storage_account_name>.blob.core.windows.net/<container_name>/<path>
+            # as required by snowflake
+            _path = "/" + bucket_url.netloc + bucket_url.path
+            bucket_path = urlunparse(
+                bucket_url._replace(
+                    scheme="azure",
+                    netloc=(
+                        f"{staging_credentials.azure_storage_account_name}.blob.core.windows.net"
+                    ),
+                    path=_path,
                 )
-                from_clause = f"FROM '{bucket_path}'"
-            else:
-                # ensure that gcs bucket path starts with gcs://, this is a requirement of snowflake
-                bucket_path = bucket_path.replace("gs://", "gcs://")
-                if not stage_name:
-                    # when loading from bucket stage must be given
-                    raise LoadJobTerminalException(
-                        file_path,
-                        f"Cannot load from bucket path {bucket_path} without a stage name. See"
-                        " https://dlthub.com/docs/dlt-ecosystem/destinations/snowflake for"
-                        " instructions on setting up the `stage_name`",
-                    )
-                from_clause = f"FROM @{stage_name}/"
-                files_clause = f"FILES ('{urlparse(bucket_path).path.lstrip('/')}')"
+            )
+            from_clause = f"FROM '{bucket_path}'"
+            files_clause = ""
         else:
-            # this means we have a local file
+            # ensure that gcs bucket path starts with gcs://, this is a requirement of snowflake
+            bucket_path = bucket_path.replace("gs://", "gcs://")
             if not stage_name:
-                # Use implicit table stage by default: "SCHEMA_NAME"."%TABLE_NAME"
-                stage_name = client.make_qualified_table_name("%" + table_name)
-            stage_file_path = f'@{stage_name}/"{load_id}"/{file_name}'
-            from_clause = f"FROM {stage_file_path}"
+                # when loading from bucket stage must be given
+                raise LoadJobTerminalException(
+                    file_path,
+                    f"Cannot load from bucket path {bucket_path} without a stage name. See"
+                    " https://dlthub.com/docs/dlt-ecosystem/destinations/snowflake for"
+                    " instructions on setting up the `stage_name`",
+                )
+            from_clause = f"FROM @{stage_name}/"
+            files_clause = f"FILES ('{urlparse(bucket_path).path.lstrip('/')}')"
 
         source_format = file_name.split(".")[-1]
 
-        with client.begin_transaction():
-            # PUT and COPY in one tx if local file, otherwise only copy
-            if not bucket_path:
-                client.execute_sql(
-                    f'PUT file://{file_path} @{stage_name}/"{load_id}" OVERWRITE = TRUE,'
-                    " AUTO_COMPRESS = FALSE"
-                )
-            client.execute_sql(f"""COPY INTO {qualified_table_name}
-                {from_clause}
-                {files_clause}
-                FILE_FORMAT '{source_format}'
-                """)
-            if stage_file_path and not keep_staged_files:
-                client.execute_sql(f"REMOVE {stage_file_path}")
+        client.execute_sql(f"""COPY INTO {qualified_table_name}
+            {from_clause}
+            {files_clause}
+            FILE_FORMAT '{source_format}'
+            """)
 
     def state(self) -> TLoadJobState:
         return "completed"

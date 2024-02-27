@@ -174,11 +174,10 @@ class DremioClientAuthMiddleware(flight.ClientMiddleware):
         for key in headers:
             if key.lower() == auth_header_key:
                 authorization_header = headers.get(auth_header_key)
-        if not authorization_header:
-            raise DremioAuthError("Did not receive authorization header back from server.")
-        self.factory.set_call_credential(
-            (b"authorization", authorization_header[0].encode("utf-8"))
-        )
+        if authorization_header:
+            self.factory.set_call_credential(
+                (b"authorization", authorization_header[0].encode("utf-8"))
+            )
 
 
 class CookieMiddlewareFactory(flight.ClientMiddlewareFactory):
