@@ -26,6 +26,7 @@ from dlt.common.typing import TSecretValue as _TSecretValue
 from dlt.common.configuration.specs import CredentialsConfiguration as _CredentialsConfiguration
 from dlt.common.pipeline import source_state as state
 from dlt.common.schema import Schema
+from dlt.common.schema import annotations
 
 from dlt import sources
 from dlt.extract.decorators import source, resource, transformer, defer
@@ -54,6 +55,7 @@ TCredentials = _CredentialsConfiguration
 
 __all__ = [
     "__version__",
+    "annotations",
     "config",
     "secrets",
     "state",
