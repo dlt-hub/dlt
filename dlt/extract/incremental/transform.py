@@ -1,5 +1,6 @@
 from datetime import datetime, date  # noqa: I251
 from typing import Any, Optional, Tuple, List
+import pyarrow.compute as pc
 
 try:
     import pandas as pd
