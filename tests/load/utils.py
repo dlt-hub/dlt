@@ -159,7 +159,7 @@ def destinations_configs(
     all_buckets_filesystem_configs: bool = False,
     subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
-    file_format: Optional[TLoaderFileFormat] = None,
+    file_format: Union[TLoaderFileFormat, Sequence[TLoaderFileFormat]] = None,
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
@@ -383,8 +383,10 @@ def destinations_configs(
             conf for conf in destination_configs if conf.destination not in exclude
         ]
     if file_format:
+        if not isinstance(file_format, Sequence):
+            file_format = [file_format]
         destination_configs = [
-            conf for conf in destination_configs if conf.file_format == file_format
+            conf for conf in destination_configs if conf.file_format in file_format
         ]
     if supports_merge is not None:
         destination_configs = [
