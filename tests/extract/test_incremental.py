@@ -18,6 +18,7 @@ from dlt.common.utils import uniq_id, digest128, chunks
 from dlt.common.json import json
 
 from dlt.extract import DltSource
+from dlt.extract.exceptions import InvalidStepFunctionArguments
 from dlt.sources.helpers.transform import take_first
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
@@ -977,11 +978,17 @@ def test_timezone_naive_datetime(item_type: TDataItemFormat) -> None:
             "updated_at", initial_value=pendulum_start_dt
         ),
         max_hours: int = 2,
+        tz: str = None,
     ):
         data = [
             {"updated_at": start_dt + timedelta(hours=hour), "hour": hour}
             for hour in range(1, max_hours + 1)
         ]
+        # make sure this is naive datetime
+        assert data[0]["updated_at"].tzinfo is None
+        if tz:
+            data = [{**d, "updated_at": pendulum.instance(d["updated_at"])} for d in data]
+
         yield data_to_item_format(item_type, data)
 
     pipeline = dlt.pipeline(pipeline_name=uniq_id())
@@ -1023,6 +1030,44 @@ def test_timezone_naive_datetime(item_type: TDataItemFormat) -> None:
         ].items_count
         == 2
     )
+
+    # initial value is naive
+    resource = some_data(max_hours=4).with_name("copy_1")  # also make new resource state
+    resource.apply_hints(incremental=dlt.sources.incremental("updated_at", initial_value=start_dt))
+    # and the data is naive. so it will work as expected with naive datetimes in the result set
+    data = list(resource)
+    if item_type == "json":
+        # we do not convert data in arrow tables
+        assert data[0]["updated_at"].tzinfo is None
+
+    # end value is naive
+    resource = some_data(max_hours=4).with_name("copy_2")  # also make new resource state
+    resource.apply_hints(
+        incremental=dlt.sources.incremental(
+            "updated_at", initial_value=start_dt, end_value=start_dt + timedelta(hours=3)
+        )
+    )
+    data = list(resource)
+    if item_type == "json":
+        assert data[0]["updated_at"].tzinfo is None
+
+    # now use naive initial value but data is UTC
+    resource = some_data(max_hours=4, tz="UTC").with_name("copy_3")  # also make new resource state
+    resource.apply_hints(
+        incremental=dlt.sources.incremental(
+            "updated_at", initial_value=start_dt + timedelta(hours=3)
+        )
+    )
+    # will cause invalid comparison
+    if item_type == "json":
+        with pytest.raises(InvalidStepFunctionArguments):
+            list(resource)
+    else:
+        data = data_item_to_list(item_type, list(resource))
+        # we select two rows by adding 3 hours to start_dt. rows have hours:
+        # 1, 2, 3, 4
+        # and we select >=3
+        assert len(data) == 2
 
 
 @dlt.resource
