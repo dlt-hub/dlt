@@ -36,8 +36,8 @@ def test_schemas_files_get_created() -> None:
 
     # basic check we have the table def in the export schema
     export_schema = _get_export_schema(name)
-    export_schema.tables["person"]["columns"]["id"]["data_type"] == "bigint"
-    export_schema.tables["person"]["columns"]["name"]["data_type"] == "text"
+    assert export_schema.tables["person"]["columns"]["id"]["data_type"] == "bigint"
+    assert export_schema.tables["person"]["columns"]["name"]["data_type"] == "text"
 
     # discovered columns are not present in the import schema
     import_schema = _get_import_schema(name)
@@ -57,16 +57,16 @@ def test_provided_columns_exported_to_import() -> None:
 
     p.run(EXAMPLE_DATA, table_name="person", columns={"id": {"data_type": "text"}})
 
-    # discovered columns are in export
+    # updated columns are in export
     export_schema = _get_export_schema(name)
-    export_schema.tables["person"]["columns"]["id"]["data_type"] == "bigint"
-    export_schema.tables["person"]["columns"]["name"]["data_type"] == "text"
+    assert export_schema.tables["person"]["columns"]["id"]["data_type"] == "text"
+    assert export_schema.tables["person"]["columns"]["name"]["data_type"] == "text"
 
     # discovered columns are not present in the import schema
     # but provided column is
     import_schema = _get_import_schema(name)
     assert "name" not in import_schema.tables["person"]["columns"]
-    import_schema.tables["person"]["columns"]["id"]["data_type"] == "text"
+    assert import_schema.tables["person"]["columns"]["id"]["data_type"] == "text"
 
 
 def test_import_schema_is_respected() -> None:
@@ -84,7 +84,7 @@ def test_import_schema_is_respected() -> None:
     # take default schema, modify column type and save it to import folder
     modified_schema = p.default_schema.clone()
     modified_schema.tables["person"]["columns"]["id"]["data_type"] = "text"
-    with open(os.path.join(IMPORT_SCHEMA_PATH, name + ".schema.yaml"), "w") as f:
+    with open(os.path.join(IMPORT_SCHEMA_PATH, name + ".schema.yaml"), "w", encoding="utf-8") as f:
         f.write(modified_schema.to_pretty_yaml())
 
     # run load again import schema is not used as a schema exists
@@ -110,5 +110,5 @@ def test_import_schema_is_respected() -> None:
 
     # export now includes the modified column type
     export_schema = _get_export_schema(name)
-    export_schema.tables["person"]["columns"]["id"]["data_type"] == "text"
-    export_schema.tables["person"]["columns"]["name"]["data_type"] == "text"
+    assert export_schema.tables["person"]["columns"]["id"]["data_type"] == "text"
+    assert export_schema.tables["person"]["columns"]["name"]["data_type"] == "text"
