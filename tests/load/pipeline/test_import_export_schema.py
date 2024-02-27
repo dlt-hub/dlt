@@ -27,7 +27,7 @@ def test_schemas_files_get_created() -> None:
 
     p = dlt.pipeline(
         pipeline_name=name,
-        destination="duckdb",
+        destination="dummy",
         import_schema_path=IMPORT_SCHEMA_PATH,
         export_schema_path=EXPORT_SCHEMA_PATH,
     )
@@ -50,7 +50,7 @@ def test_provided_columns_exported_to_import() -> None:
 
     p = dlt.pipeline(
         pipeline_name=name,
-        destination="duckdb",
+        destination="dummy",
         import_schema_path=IMPORT_SCHEMA_PATH,
         export_schema_path=EXPORT_SCHEMA_PATH,
     )
@@ -74,7 +74,7 @@ def test_import_schema_is_respected() -> None:
 
     p = dlt.pipeline(
         pipeline_name=name,
-        destination="duckdb",
+        destination="dummy",
         import_schema_path=IMPORT_SCHEMA_PATH,
         export_schema_path=EXPORT_SCHEMA_PATH,
     )
@@ -97,7 +97,7 @@ def test_import_schema_is_respected() -> None:
     # when creating a new schema (e.g. with full refresh), this will work
     p = dlt.pipeline(
         pipeline_name=name,
-        destination="duckdb",
+        destination="dummy",
         import_schema_path=IMPORT_SCHEMA_PATH,
         export_schema_path=EXPORT_SCHEMA_PATH,
         full_refresh=True,
