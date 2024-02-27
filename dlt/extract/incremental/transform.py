@@ -11,6 +11,11 @@ try:
 except ModuleNotFoundError:
     np = None
 
+try:
+    import pyarrow.compute as pc
+except ModuleNotFoundError:
+    pc = None
+
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.utils import digest128
 from dlt.common.json import json
