@@ -78,6 +78,27 @@ Data loading happens by copying a staged parquet files from an object storage bu
 
 Using a staging destination is mandatory when using the dremio destination. If you do not set staging to `filesystem`, dlt will automatically do this for you.
 
+## Table Partitioning and Local Sort
+Apache Iceberg table partitions and local sort properties can be configured as shown below:
+```python
+import dlt
+from dlt.common.schema import TColumnSchema
+
+@dlt.resource(
+    table_name="my_table",
+    columns=dict(
+        foo=TColumnSchema(partition=True),
+        bar=TColumnSchema(partition=True),
+        baz=TColumnSchema(sort=True),
+    ),
+)
+def my_table_resource():
+  ...
+```
+This will result in `PARTITION BY ("foo","bar")` and `LOCALSORT BY ("baz")` clauses being added to the `CREATE TABLE` DML statement.
+
+> ***Note:*** Table partition migration is not implemented. The table will need to be dropped and recreated to alter partitions or localsort.
+
 ## Additional destination options
 
 ### flatten
