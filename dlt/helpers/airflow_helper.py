@@ -163,7 +163,7 @@ class PipelineTasksGroup(TaskGroup):
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
-        **kwargs,
+        **kwargs: Any,
     ) -> None:
         """
         Create a task to run the given pipeline with the
@@ -197,7 +197,7 @@ class PipelineTasksGroup(TaskGroup):
             schema_contract=schema_contract,
             pipeline_name=pipeline_name,
         )
-        return PythonOperator(task_id=task_name(pipeline, data), python_callable=f, **kwargs)
+        return PythonOperator(task_id=task_name(pipeline, data), python_callable=f, **kwargs)  # type: ignore
 
     def _run(
         self,
@@ -274,7 +274,7 @@ class PipelineTasksGroup(TaskGroup):
                     logger.info(
                         "Running the pipeline, attempt=%s" % attempt.retry_state.attempt_number
                     )
-                    load_info = task_pipeline.run(
+                    load_info = task_pipeline.run(  # type: ignore
                         data,
                         table_name=table_name,
                         write_disposition=write_disposition,
