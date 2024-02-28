@@ -5,8 +5,8 @@ from dlt.common.destination import DestinationCapabilitiesContext
 
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
-    caps.preferred_loader_file_format = "parquet"
-    caps.supported_loader_file_formats = ["jsonl", "parquet"]
+    caps.preferred_loader_file_format = None
+    caps.supported_loader_file_formats = []
     caps.preferred_staging_file_format = "parquet"
     caps.supported_staging_file_formats = ["jsonl", "parquet"]
     caps.escape_identifier = escape_dremio_identifier
