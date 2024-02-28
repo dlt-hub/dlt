@@ -164,7 +164,7 @@ class PipelineTasksGroup(TaskGroup):
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
         **kwargs: Any,
-    ) -> None:
+    ) -> PythonOperator:
         """
         Create a task to run the given pipeline with the
         given data in Airflow.
@@ -271,7 +271,7 @@ class PipelineTasksGroup(TaskGroup):
                 after=log_after_attempt,
             ):
                 with attempt:
-                    logger.info(  # type: ignore
+                    logger.info(
                         "Running the pipeline, attempt=%s" % attempt.retry_state.attempt_number
                     )
                     load_info = task_pipeline.run(
