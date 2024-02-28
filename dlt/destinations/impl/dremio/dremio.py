@@ -204,12 +204,18 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
     ) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
 
-        cluster_list = [
-            self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("cluster")
-        ]
+        if not generate_alter:
+            partition_list = [
+                self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("partition")
+            ]
+            if partition_list:
+                sql[0] += "\nPARTITION BY (" + ",".join(partition_list) + ")"
 
-        if cluster_list:
-            sql[0] = sql[0] + "\nCLUSTER BY (" + ",".join(cluster_list) + ")"
+            sort_list = [
+                self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("sort")
+            ]
+            if sort_list:
+                sql[0] += "\nLOCALSORT BY (" + ",".join(sort_list) + ")"
 
         return sql
 
