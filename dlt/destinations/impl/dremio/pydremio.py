@@ -6,9 +6,9 @@ See: https://github.com/apache/arrow-adbc/issues/1559
 """
 
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime  # noqa: I251
 from http.cookies import SimpleCookie
-from typing import Any, List, Tuple, Optional, AnyStr, Mapping
+from typing import Any, List, Tuple, Optional, Mapping, Dict, AnyStr
 
 import pyarrow
 import pytz
@@ -68,6 +68,13 @@ def execute_query(connection: "DremioConnection", query: str) -> pyarrow.Table:
     return connection.client.do_get(flight_info.endpoints[0].ticket, connection.options).read_all()
 
 
+def _any_str_to_str(string: AnyStr) -> str:
+    if isinstance(string, bytes):
+        return string.decode()
+    else:
+        return string
+
+
 @dataclass
 class DremioCursor:
     connection: "DremioConnection"
@@ -81,8 +88,11 @@ class DremioCursor:
     def rowcount(self) -> int:
         return len(self.table)
 
-    def execute(self, query: AnyStr, parameters: Optional[Mapping[str, Any]] = None) -> None:
-        parameterized_query = parameterize_query(query, parameters)
+    def execute(
+        self, query: AnyStr, parameters: Optional[Tuple[Any, ...]] = None, *args: Any, **kwargs: Any
+    ) -> None:
+        query_str = _any_str_to_str(query)
+        parameterized_query = parameterize_query(query_str, parameters)
         self.table = execute_query(self.connection, parameterized_query)
 
     def fetchall(self) -> List[Tuple[Any, ...]]:
@@ -110,7 +120,7 @@ class DremioCursor:
     def __enter__(self) -> "DremioCursor":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
         self.close()
 
 
@@ -128,7 +138,7 @@ class DremioConnection:
     def __enter__(self) -> "DremioConnection":
         return self
 
-    def __exit__(self, exc_type, exc_val, exc_tb) -> None:
+    def __exit__(self, exc_type, exc_val, exc_tb) -> None:  # type: ignore
         self.close()
 
 
@@ -139,9 +149,9 @@ class DremioAuthError(Exception):
 class DremioClientAuthMiddlewareFactory(flight.ClientMiddlewareFactory):
     """A factory that creates DremioClientAuthMiddleware(s)."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self.call_credential = None
+        self.call_credential: Optional[Tuple[bytes, bytes]] = None
 
     def start_call(self, info: flight.CallInfo) -> flight.ClientMiddleware:
         return DremioClientAuthMiddleware(self)
@@ -164,13 +174,13 @@ class DremioClientAuthMiddleware(flight.ClientMiddleware):
         returned by the Dremio server.
     """
 
-    def __init__(self, factory, *args, **kwargs):
+    def __init__(self, factory: flight.ClientMiddlewareFactory, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.factory = factory
 
-    def received_headers(self, headers):
+    def received_headers(self, headers: Mapping[str, str]) -> None:
         auth_header_key = "authorization"
-        authorization_header = []
+        authorization_header = None
         for key in headers:
             if key.lower() == auth_header_key:
                 authorization_header = headers.get(auth_header_key)
@@ -183,9 +193,9 @@ class DremioClientAuthMiddleware(flight.ClientMiddleware):
 class CookieMiddlewareFactory(flight.ClientMiddlewareFactory):
     """A factory that creates CookieMiddleware(s)."""
 
-    def __init__(self, *args, **kwargs):
+    def __init__(self, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
-        self.cookies = {}
+        self.cookies: Dict[str, Any] = {}
 
     def start_call(self, info: flight.CallInfo) -> flight.ClientMiddleware:
         return CookieMiddleware(self)
@@ -202,20 +212,20 @@ class CookieMiddleware(flight.ClientMiddleware):
         The factory containing the currently cached cookies.
     """
 
-    def __init__(self, factory, *args, **kwargs):
+    def __init__(self, factory: CookieMiddlewareFactory, *args: Any, **kwargs: Any):
         super().__init__(*args, **kwargs)
         self.factory = factory
 
-    def received_headers(self, headers):
+    def received_headers(self, headers: Mapping[str, str]) -> None:
         for key in headers:
             if key.lower() == "set-cookie":
-                cookie = SimpleCookie()
+                cookie = SimpleCookie()  # type: ignore
                 for item in headers.get(key):
                     cookie.load(item)
 
                 self.factory.cookies.update(cookie.items())
 
-    def sending_headers(self):
+    def sending_headers(self) -> Dict[bytes, bytes]:
         if self.factory.cookies:
             cookie_string = "; ".join(
                 "{!s}={!s}".format(key, val.value) for (key, val) in self.factory.cookies.items()
@@ -230,7 +240,7 @@ class CookieMiddleware(flight.ClientMiddleware):
 
 
 def create_flight_client(
-    location: str, tls_root_certs: Optional[bytes] = None, **kwargs
+    location: str, tls_root_certs: Optional[bytes] = None, **kwargs: Any
 ) -> flight.FlightClient:
     return flight.FlightClient(
         location=location,

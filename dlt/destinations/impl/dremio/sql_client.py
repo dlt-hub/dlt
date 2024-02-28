@@ -90,8 +90,8 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         db_args = args if args else kwargs if kwargs else None
         with self._conn.cursor() as curr:
-            curr.execute(query, db_args)
-            yield DremioCursorImpl(curr)  # type: ignore[abstract]
+            curr.execute(query, db_args)  # type: ignore
+            yield DremioCursorImpl(curr)  # type: ignore
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
         datasource_name = self.credentials.data_source
@@ -141,13 +141,13 @@ class DremioSqlClient(SqlClientBase[pydremio.DremioConnection]):
             FROM INFORMATION_SCHEMA."TABLES"
             WHERE TABLE_CATALOG = 'DREMIO' AND TABLE_SCHEMA = %s and STARTS_WITH(TABLE_NAME, %s)
             """
-            db_params = (self.fully_qualified_dataset_name(escape=False), self.dataset_name + "__")
+            db_params = [self.fully_qualified_dataset_name(escape=False), self.dataset_name + "__"]
         else:
             query = """
             SELECT 1
             FROM INFORMATION_SCHEMA.SCHEMATA
             WHERE catalog_name = 'DREMIO' AND schema_name = %s
             """
-            db_params = (self.fully_qualified_dataset_name(escape=False),)
+            db_params = [self.fully_qualified_dataset_name(escape=False)]
         rows = self.execute_sql(query, *db_params)
         return len(rows) > 0

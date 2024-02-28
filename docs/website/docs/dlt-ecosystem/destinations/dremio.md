@@ -46,6 +46,8 @@ aws_secret_access_key = "please set me up!" # copy the secret access key here
 staging_data_source = "<staging-data-source>" # the name of the "Object Storage" data source in Dremio containing the s3 bucket
 
 [destination.dremio.credentials]
+username = "<username>"  # the dremio username
+password = "<password or pat token>"  # dremio password or PAT token
 database = "<database>" # the highest level of hierarchy under "data_source". e.g for AWS Glue catalog this is the Glue Database name
 host = "localhost" # the Dremio hostname
 port = 32010 # the Dremio Arrow Flight grpc port

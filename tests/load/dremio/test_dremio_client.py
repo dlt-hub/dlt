@@ -9,12 +9,11 @@ from tests.load.utils import empty_schema
 @pytest.fixture
 def dremio_client(empty_schema) -> DremioClient:
     creds = DremioCredentials()
-    creds.project_id = "test_project_id"
     creds.data_source = "test_data_source"
     creds.database = "test_database"
     return DremioClient(
         empty_schema,
-        DremioClientConfiguration(dataset_name=f"test_dataset", credentials=creds),
+        DremioClientConfiguration(dataset_name="test_dataset", credentials=creds),
     )
 
 

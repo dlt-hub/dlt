@@ -146,6 +146,7 @@ types-psycopg2 = "^2.9.21.14"
 cryptography = "^41.0.7"
 google-api-python-client = ">=1.7.11"
 pytest-asyncio = "^0.23.5"
+types-pytz = ">=2024.1.0.20240203"
 
 [tool.poetry.group.pipeline]
 optional=true
