@@ -49,6 +49,15 @@ DEFAULT_RETRY_BACKOFF = Retrying(
 
 
 def task_name(pipeline: Pipeline, data: Any) -> str:
+    """Generate a task name.
+
+    Args:
+        pipeline (Pipeline): The pipeline to run.
+        data (Any): The data to run the pipeline with.
+
+    Returns:
+        str: The name of the task.
+    """
     task_name = pipeline.pipeline_name
 
     if isinstance(data, DltSource):
@@ -155,7 +164,29 @@ class PipelineTasksGroup(TaskGroup):
         schema_contract: TSchemaContract = None,
         pipeline_name: str = None,
         **kwargs,
-    ):
+    ) -> None:
+        """
+        Create a task to run the given pipeline with the
+        given data in Airflow.
+
+        Args:
+            pipeline (Pipeline): The pipeline to run
+            data (Any): The data to run the pipeline with
+            table_name (str, optional): The name of the table to
+                which the data should be loaded within the `dataset`.
+            write_disposition (TWriteDisposition, optional): Same as
+                in `run` command.
+            loader_file_format (TLoaderFileFormat, optional):
+                The file format the loader will use to create the
+                load package.
+            schema_contract (TSchemaContract, optional): On override
+                for the schema contract settings, this will replace
+                the schema contract settings for all tables in the schema.
+            pipeline_name (str, optional): The name of the derived pipeline.
+
+        Returns:
+            PythonOperator: Airflow task instance.
+        """
         f = functools.partial(
             self._run,
             pipeline,
@@ -183,12 +214,20 @@ class PipelineTasksGroup(TaskGroup):
         Args:
             pipeline (Pipeline): The pipeline to run
             data (Any): The data to run the pipeline with
-            table_name (str, optional): The name of the table to which the data should be loaded within the `dataset`.
-            write_disposition (TWriteDisposition, optional): Same as in `run` command.
-            loader_file_format (TLoaderFileFormat, optional): The file format the loader will use to create the load package.
-            schema_contract (TSchemaContract, optional): On override for the schema contract settings,
-                this will replace the schema contract settings for all tables in the schema.
-            pipeline_name (str, optional): The name of the derived pipeline.
+            table_name (str, optional): The name of the
+                table to which the data should be loaded
+                within the `dataset`.
+            write_disposition (TWriteDisposition, optional):
+                Same as in `run` command.
+            loader_file_format (TLoaderFileFormat, optional):
+                The file format the loader will use to create
+                the load package.
+            schema_contract (TSchemaContract, optional): On
+                override for the schema contract settings,
+                this will replace the schema contract settings
+                for all tables in the schema.
+            pipeline_name (str, optional): The name of the
+                derived pipeline.
         """
         # activate pipeline
         pipeline.activate()
