@@ -274,7 +274,7 @@ class PipelineTasksGroup(TaskGroup):
                     logger.info(
                         "Running the pipeline, attempt=%s" % attempt.retry_state.attempt_number
                     )
-                    load_info = task_pipeline.run(  # type: ignore
+                    load_info = task_pipeline.run(
                         data,
                         table_name=table_name,
                         write_disposition=write_disposition,
