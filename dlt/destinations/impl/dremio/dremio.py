@@ -186,15 +186,6 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
     def restore_file_load(self, file_path: str) -> LoadJob:
         return EmptyLoadJob.from_file_path(file_path, "completed")
 
-    def _make_add_column_sql(
-        self, new_columns: Sequence[TColumnSchema], table_format: TTableFormat = None
-    ) -> List[str]:
-        # Override because snowflake requires multiple columns in a single ADD COLUMN clause
-        return [
-            "ADD COLUMN\n"
-            + ",\n".join(self._get_column_def_sql(c, table_format) for c in new_columns)
-        ]
-
     def _get_table_update_sql(
         self,
         table_name: str,
@@ -206,7 +197,9 @@ class DremioClient(SqlJobClientWithStaging, SupportsStagingDestination):
 
         if not generate_alter:
             partition_list = [
-                self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("partition")
+                self.capabilities.escape_identifier(c["name"])
+                for c in new_columns
+                if c.get("partition")
             ]
             if partition_list:
                 sql[0] += "\nPARTITION BY (" + ",".join(partition_list) + ")"
