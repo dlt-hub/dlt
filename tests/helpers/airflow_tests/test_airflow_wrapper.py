@@ -271,7 +271,7 @@ def test_run() -> None:
             destination="duckdb",
             credentials=quackdb_path,
         )
-        task = tasks.run(pipeline_dag_regular, mock_data_source())  # type: ignore
+        task = tasks.run(pipeline_dag_regular, mock_data_source())
 
     dag_def: DAG = dag_regular()
     assert task.task_id == "mock_data_source__r_init-_t_init_post-_t1-_t2-2-more"
