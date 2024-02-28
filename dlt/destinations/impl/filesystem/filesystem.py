@@ -38,15 +38,13 @@ class LoadFilesystemJob(LoadJob):
         file_name = FileStorage.get_file_name_from_file_path(local_path)
         self.config = config
         self.dataset_path = dataset_path
-        self.destination_file_name = LoadFilesystemJob.make_destination_filename(
-            config.layout, file_name, schema_name, load_id
-        )
 
         super().__init__(file_name)
-        fs_client, _ = fsspec_from_config(config)
+
         self.destination_file_name = LoadFilesystemJob.make_destination_filename(
             config.layout, file_name, schema_name, load_id
         )
+        fs_client, _ = fsspec_from_config(config)
         item = self.make_remote_path()
         fs_client.put_file(local_path, item)
 
@@ -88,7 +86,7 @@ class FollowupFilesystemJob(FollowupJob, LoadFilesystemJob):
 
 
 class FilesystemClient(JobClientBase, WithStagingDataset):
-    """filesystem client storing jobs in memory"""
+    """Filesystem client storing jobs in-memory."""
 
     capabilities: ClassVar[DestinationCapabilitiesContext] = capabilities()
     fs_client: AbstractFileSystem
@@ -99,8 +97,8 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
         self.fs_client, self.fs_path = fsspec_from_config(config)
         self.config: FilesystemDestinationClientConfiguration = config
         # Verify file layout.
-        # we need {table_name} and only allow {schema_name} before it, otherwise tables
-        # can't be replaced, and we can't initialize folders consistently.
+        # We need {table_name} and only allow {schema_name} before it,
+        # otherwise tables can't be replaced, and we can't initialize folders consistently.
         self.table_prefix_layout = path_utils.get_table_prefix_layout(config.layout)
         self._dataset_path = self.config.normalize_dataset_name(self.schema)
 
@@ -121,7 +119,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
             )
             yield self
         finally:
-            # restore previous dataset name
+            # Restore previous dataset name.
             self._dataset_path = current_dataset_path
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
@@ -132,19 +130,17 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
         # the table data are guaranteed to be files in those folders
         # TODO: when we do partitioning it is no longer the case and we may remove folders below instead
         truncated_dirs = self._get_table_dirs(truncate_tables)
-        # print(f"TRUNCATE {truncated_dirs}")
         truncate_prefixes: Set[str] = set()
         for table in truncate_tables:
             table_prefix = self.table_prefix_layout.format(
                 schema_name=self.schema.name, table_name=table
             )
             truncate_prefixes.add(posixpath.join(self.dataset_path, table_prefix))
-        # print(f"TRUNCATE PREFIXES {truncate_prefixes} on {truncate_tables}")
 
         for truncate_dir in truncated_dirs:
-            # get files in truncate dirs
-            # NOTE: glob implementation in fsspec doesn't look thread safe, way better is to use ls and then filter
-            # NOTE: without refresh you get random results here.
+            # Get files in truncated directories.
+            # NOTE: Glob implementation in fsspec doesn't look thread safe, way better is to use ls and then filter.
+            # NOTE: Without refresh you get random results here.
             logger.info(f"Will truncate tables in {truncate_dir}")
             try:
                 all_files = self.fs_client.ls(truncate_dir, detail=False, refresh=True)
@@ -154,8 +150,7 @@ class FilesystemClient(JobClientBase, WithStagingDataset):
                     # check every file against all the prefixes
                     for search_prefix in truncate_prefixes:
                         if item.startswith(search_prefix):
-                            # NOTE: deleting in chunks on s3 doesn't raise on access denied, file non-existing and probably other errors
-                            # print(f"DEL {item}")
+                            # NOTE: Deleting in chunks on s3 doesn't raise on access denied, file non-existing and probably other errors.
                             try:
                                 # NOTE: must use rm_file to get errors on deleting.
                                 self.fs_client.rm_file(item)

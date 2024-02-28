@@ -1,4 +1,7 @@
+import datetime  # noqa: 251
+import inspect
 from abc import ABC, abstractmethod
+from copy import deepcopy
 from importlib import import_module
 from types import TracebackType
 from typing import (
@@ -20,11 +23,13 @@ from typing import (
     Generic,
     Final,
 )
-import datetime  # noqa: 251
-from copy import deepcopy
-import inspect
 
 from dlt.common import logger
+from dlt.common.configuration import configspec, resolve_configuration, known_sections
+from dlt.common.configuration.accessors import config
+from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
+from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.exceptions import (
     IdentifierTooLongException,
     InvalidDestinationReference,
@@ -32,6 +37,7 @@ from dlt.common.exceptions import (
 )
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.exceptions import SchemaException
+from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.schema.utils import (
     get_write_disposition,
     get_table_format,
@@ -39,15 +45,9 @@ from dlt.common.schema.utils import (
     has_column_with_prop,
     get_first_column_name_with_prop,
 )
-from dlt.common.configuration import configspec, resolve_configuration, known_sections
-from dlt.common.configuration.specs import BaseConfiguration, CredentialsConfiguration
-from dlt.common.configuration.accessors import config
-from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.utils import is_complete_column
-from dlt.common.schema.exceptions import UnknownTableException
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-from dlt.common.configuration.specs import GcpCredentials, AwsCredentialsWithoutDefaults
 
 
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
@@ -153,12 +153,12 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
 class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     """Configuration of a staging destination, able to store files with desired `layout` at `bucket_url`.
 
-    Also supports datasets and can act as standalone destination.
+    Also supports datasets and can act as a standalone destination.
     """
 
     as_staging: bool = False
     bucket_url: str = None
-    # layout of the destination files
+    # Layout of the destination files.
     layout: str = "{table_name}/{load_id}.{file_id}.{ext}"
 
     if TYPE_CHECKING:
@@ -174,7 +174,15 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
             layout: str = None,
             destination_name: str = None,
             environment: str = None,
-        ) -> None: ...
+        ) -> None:
+            super().__init__(
+                credentials=credentials,
+                dataset_name=dataset_name,
+                default_schema_name=default_schema_name,
+                destination_name=destination_name,
+                environment=environment,
+            )
+            ...
 
 
 @configspec
@@ -201,22 +209,26 @@ TLoadJobState = Literal["running", "failed", "retry", "completed"]
 
 
 class LoadJob:
-    """Represents a job that loads a single file
+    """Represents a job that loads a single file.
 
-    Each job starts in "running" state and ends in one of terminal states: "retry", "failed" or "completed".
-    Each job is uniquely identified by a file name. The file is guaranteed to exist in "running" state. In terminal state, the file may not be present.
-    In "running" state, the loader component periodically gets the state via `status()` method. When terminal state is reached, load job is discarded and not called again.
+    Each job starts in "running" state and ends in one of the terminal states: "retry", "failed" or "completed".
+    A filename uniquely identifies each job.
+    The file is guaranteed to exist in "running" state.
+    In terminal state, the file may not be present.
+    In "running" state, the loader component periodically gets the state via `status()` method.
+    When terminal state is reached, a load job is discarded and not called again.
     `exception` method is called to get error information in "failed" and "retry" states.
 
-    The `__init__` method is responsible to put the Job in "running" state. It may raise `LoadClientTerminalException` and `LoadClientTransientException` to
-    immediately transition job into "failed" or "retry" state respectively.
+    The `__init__` method is responsible to put the Job in "running" state.
+    It may raise `LoadClientTerminalException` and `LoadClientTransientException` to
+    immediately transition a job into "failed" or "retry" state respectively.
     """
 
     def __init__(self, file_name: str) -> None:
         """
-        File name is also a job id (or job id is deterministically derived) so it must be globally unique
+        Filename is a job ID (or job ID is deterministically derived), so it must be globally unique.
         """
-        # ensure file name
+        # Ensure filename.
         assert file_name == FileStorage.get_file_name_from_file_path(file_name)
         self._file_name = file_name
         self._parsed_file_name = ParsedLoadJobFileName.parse(file_name)
@@ -231,7 +243,7 @@ class LoadJob:
         return self._file_name
 
     def job_id(self) -> str:
-        """The job id that is derived from the file name and does not changes during job lifecycle"""
+        """The job ID that is derived from the filename and doesn't change during job lifecycle."""
         return self._parsed_file_name.job_id()
 
     def job_file_info(self) -> ParsedLoadJobFileName:
@@ -239,7 +251,7 @@ class LoadJob:
 
     @abstractmethod
     def exception(self) -> str:
-        """The exception associated with failed or retry states"""
+        """The exception associated with failed or retry states."""
         pass
 
 

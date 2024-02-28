@@ -198,45 +198,45 @@ def configspec(
 @configspec
 class BaseConfiguration(MutableMapping[str, Any]):
     __is_resolved__: bool = dataclasses.field(default=False, init=False, repr=False)
-    """True when all config fields were resolved and have a specified value type"""
+    """True when all config fields were resolved and have a specified value type."""
     __section__: str = dataclasses.field(default=None, init=False, repr=False)
-    """Obligatory section used by config providers when searching for keys, always present in the search path"""
+    """Obligatory section used by config providers when searching for keys, always present in the search path."""
     __exception__: Exception = dataclasses.field(default=None, init=False, repr=False)
-    """Holds the exception that prevented the full resolution"""
+    """Holds the exception that prevented the full resolution."""
     __config_gen_annotations__: ClassVar[List[str]] = []
-    """Additional annotations for config generator, currently holds a list of fields of interest that have defaults"""
+    """Additional annotations for config generator, currently holds a list of fields of interest that have defaults."""
     __dataclass_fields__: ClassVar[Dict[str, TDtcField]]
-    """Typing for dataclass fields"""
+    """Typing for dataclass fields."""
     __hint_resolvers__: ClassVar[Dict[str, Callable[["BaseConfiguration"], Type[Any]]]] = {}
 
     def parse_native_representation(self, native_value: Any) -> None:
         """Initialize the configuration fields by parsing the `native_value` which should be a native representation of the configuration
-        or credentials, for example database connection string or JSON serialized GCP service credentials file.
+        or credentials, for example, database connection string or JSON serialized GCP service credentials file.
 
         #### Args:
-            native_value (Any): A native representation of the configuration
+            native_value (Any): A native representation of the configuration.
 
         Raises:
-            NotImplementedError: This configuration does not have a native representation
-            ValueError: The value provided cannot be parsed as native representation
+            NotImplementedError: This configuration doesn't have a native representation
+            ValueError: The value provided can't be parsed as native representation.
         """
         raise NotImplementedError()
 
     def to_native_representation(self) -> Any:
-        """Represents the configuration instance in its native form ie. database connection string or JSON serialized GCP service credentials file.
+        """Represents the configuration instance in its native form i.e. database connection string or JSON serialized GCP service credentials file.
 
         Raises:
-            NotImplementedError: This configuration does not have a native representation
+            NotImplementedError: This configuration doesn't have a native representation.
 
         Returns:
-            Any: A native representation of the configuration
+            Any: A native representation of the configuration.
         """
         raise NotImplementedError()
 
     @classmethod
     def _get_resolvable_dataclass_fields(cls) -> Iterator[TDtcField]:
-        """Yields all resolvable dataclass fields in the order they should be resolved"""
-        # Sort dynamic type hint fields last because they depend on other values
+        """Yields all resolvable dataclass fields in the order they should be resolved."""
+        # Sort dynamic type hint fields last because they depend on other values.
         yield from sorted(
             (f for f in cls.__dataclass_fields__.values() if cls.__is_valid_field(f)),
             key=lambda f: f.name in cls.__hint_resolvers__,
@@ -244,7 +244,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
 
     @classmethod
     def get_resolvable_fields(cls) -> Dict[str, type]:
-        """Returns a mapping of fields to their type hints. Dunders should not be resolved and are not returned"""
+        """Returns a mapping of fields to their type hints. Dunders shouldn't be resolved and aren't returned."""
         return {f.name: f.type for f in cls._get_resolvable_dataclass_fields()}
 
     def is_resolved(self) -> bool:
@@ -254,7 +254,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         """Returns True when any required resolvable field has its value missing."""
         if self.__is_resolved__:
             return False
-        # check if all resolvable fields have value
+        # Check if all resolvable fields have value.
         return any(
             field
             for field, hint in self.get_resolvable_fields().items()
@@ -266,10 +266,10 @@ class BaseConfiguration(MutableMapping[str, Any]):
         self.__is_resolved__ = True
 
     def copy(self: _T) -> _T:
-        """Returns a deep copy of the configuration instance"""
+        """Returns a deep copy of the configuration instance."""
         return copy.deepcopy(self)
 
-    # implement dictionary-compatible interface on top of dataclass
+    # Implement dictionary-compatible interface on top of dataclass.
 
     def __getitem__(self, __key: str) -> Any:
         if self.__has_attr(__key):
@@ -283,17 +283,16 @@ class BaseConfiguration(MutableMapping[str, Any]):
         else:
             try:
                 if not self.__ignore_set_unknown_keys:
-                    # assert getattr(self, "__ignore_set_unknown_keys") is not None
                     raise KeyError(__key)
-            except AttributeError:
-                # __ignore_set_unknown_keys attribute may not be present at the moment of checking, __init__ of BaseConfiguration is not typically called
-                raise KeyError(__key)
+            except AttributeError as e:
+                # __ignore_set_unknown_keys attribute may not be present at the moment of checking, __init__ of BaseConfiguration is not typically called.
+                raise KeyError(__key) from e
 
     def __delitem__(self, __key: str) -> None:
-        raise KeyError("Configuration fields cannot be deleted")
+        raise KeyError("Configuration fields cannot be deleted.")
 
     def __iter__(self) -> Iterator[str]:
-        """Iterator or valid key names"""
+        """Iterator or valid key names."""
         return map(
             lambda field: field.name,
             filter(lambda val: self.__is_valid_field(val), self.__dataclass_fields__.values()),
@@ -309,7 +308,7 @@ class BaseConfiguration(MutableMapping[str, Any]):
         finally:
             self.__ignore_set_unknown_keys = False
 
-    # helper functions
+    # Helper functions.
 
     def __has_attr(self, __key: str) -> bool:
         return __key in self.__dataclass_fields__ and self.__is_valid_field(
@@ -320,18 +319,18 @@ class BaseConfiguration(MutableMapping[str, Any]):
     def __is_valid_field(field: TDtcField) -> bool:
         return not field.name.startswith("__") and field._field_type is dataclasses._FIELD  # type: ignore
 
-    def call_method_in_mro(config, method_name: str) -> None:
-        # python multi-inheritance is cooperative and this would require that all configurations cooperatively
-        # call each other class_method_name. this is not at all possible as we do not know which configs in the end will
-        # be mixed together.
+    def call_method_in_mro(self, method_name: str) -> None:
+        # Python multi-inheritance is cooperative, and this would require that all configurations cooperatively
+        # call each other class_method_name.
+        # This is not at all possible as we don't know which configs in the end will be mixed.
 
-        # get base classes in order of derivation
-        mro = type.mro(type(config))
+        # Get base classes in order of derivation.
+        mro = type.mro(type(self))
         for c in mro:
-            # check if this class implements on_resolved (skip pure inheritance to not do double work)
+            # Check if this class implements on_resolved (skip pure inheritance to not do double work).
             if method_name in c.__dict__ and callable(getattr(c, method_name)):
-                # pass right class instance
-                c.__dict__[method_name](config)
+                # Pass right class instance.
+                c.__dict__[method_name](self)
 
 
 _F_BaseConfiguration = BaseConfiguration

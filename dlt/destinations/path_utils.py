@@ -7,16 +7,14 @@ from dlt.destinations.exceptions import InvalidFilesystemLayout, CantExtractTabl
 
 
 # TODO: Ensure layout only has supported placeholders.
-SUPPORTED_PLACEHOLDERS = {"schema_name", "table_name", "load_id", "file_id", "ext", "curr_date"}
+SUPPORTED_PLACEHOLDERS = {"schema_name", "table_name", "load_id", "file_id", "ext", "current_date"}
 
 SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS = ("schema_name",)
 
 
 def check_layout(layout: str) -> List[str]:
     placeholders = get_placeholders(layout)
-    if invalid_placeholders := [
-        p for p in placeholders if p not in SUPPORTED_PLACEHOLDERS
-    ]:
+    if invalid_placeholders := [p for p in placeholders if p not in SUPPORTED_PLACEHOLDERS]:
         raise InvalidFilesystemLayout(invalid_placeholders)
     return placeholders
 
@@ -28,7 +26,7 @@ def get_placeholders(layout: str) -> List[str]:
 def create_path(
     layout: str, schema_name: str, table_name: str, load_id: str, file_id: str, ext: str
 ) -> str:
-    """create a filepath from the layout and our default params"""
+    """Create a filepath from the layout and default parameters."""
     placeholders = check_layout(layout)
     path = layout.format(
         schema_name=schema_name,
@@ -36,7 +34,7 @@ def create_path(
         load_id=load_id,
         file_id=file_id,
         ext=ext,
-        curr_date=str(pendulum.today()),
+        current_date=str(pendulum.today()),
     )
     # If an extension is not defined, we append it at the end.
     if "ext" not in placeholders:
