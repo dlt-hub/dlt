@@ -197,7 +197,7 @@ class PipelineTasksGroup(TaskGroup):
             schema_contract=schema_contract,
             pipeline_name=pipeline_name,
         )
-        return PythonOperator(task_id=task_name(pipeline, data), python_callable=f, **kwargs)  # type: ignore
+        return PythonOperator(task_id=task_name(pipeline, data), python_callable=f, **kwargs)
 
     def _run(
         self,
