@@ -386,7 +386,9 @@ def destinations_configs(
         if not isinstance(file_format, Sequence):
             file_format = [file_format]
         destination_configs = [
-            conf for conf in destination_configs if conf.file_format in file_format
+            conf
+            for conf in destination_configs
+            if conf.file_format and conf.file_format in file_format
         ]
     if supports_merge is not None:
         destination_configs = [

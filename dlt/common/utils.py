@@ -292,7 +292,8 @@ def update_dict_nested(dst: TDict, src: StrAny, keep_dst_values: bool = False) -
                 # If a key exists in both objects and the values are `same`, the value from the `dst` object will be used.
                 pass
             else:
-                if keep_dst_values:
+                if not keep_dst_values:
+                    # if not keep then overwrite
                     dst[key] = src[key]
         else:
             # If the key exists only in `src`, the value from the `src` object will be used.
