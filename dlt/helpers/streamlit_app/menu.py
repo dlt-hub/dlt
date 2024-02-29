@@ -8,7 +8,7 @@ from dlt.helpers.streamlit_app.utils import HERE
 from dlt.pipeline.state_sync import load_state_from_destination
 from streamlit_extras.metric_cards import style_metric_cards
 
-LOGO = HERE.parent / "logo.png"
+LOGO = HERE / "logo.png"
 
 
 @st.cache_data()
@@ -32,13 +32,6 @@ def logo():
     """
 
     st.markdown(page_bg_img + styles, unsafe_allow_html=True)
-
-
-def add_logo(logo_path, width, height):
-    """Read and return a resized logo"""
-    logo = Image.open(logo_path)
-    modified_logo = logo.resize((width, height))
-    return modified_logo
 
 
 def menu() -> None:
