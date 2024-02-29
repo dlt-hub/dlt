@@ -269,7 +269,8 @@ of callables to be evaluated in a thread pool with a size of 5. This limit will 
 :::
 
 :::caution
-Generators and iterators are always evaluated in the main thread. If you have a loop that yields items, instead yield functions or async functions that will create the items when evaluated in the pool.
+Generators and iterators are always evaluated in a single thread: item by item. If you have a loop that yields items that you want to evaluate
+in parallel, instead yield functions or async functions that will be evaluates in separate threads or in async pool.
 :::
 
 ### Normalize
