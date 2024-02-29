@@ -67,8 +67,8 @@ def pipeline_state_info(pipeline: dlt.Pipeline):
         border_radius_px=4,
     )
 
-    # if remote_state_version != local_state["_state_version"]:
-    st.warning(
-        "Looks like that local state is not yet synchronized or synchronization is disabled",
-        icon="⚠️"
-    )
+    if remote_state_version != local_state["_state_version"]:
+        st.warning(
+            "Looks like that local state is not yet synchronized or synchronization is disabled",
+            icon="⚠️"
+        )
