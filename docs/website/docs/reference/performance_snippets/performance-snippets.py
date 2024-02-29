@@ -187,9 +187,9 @@ def parallel_pipelines_asyncio_snippet() -> None:
     asyncio.run(_run_async())
     # activate pipelines before they are used
     pipeline_1.activate()
-    # assert load_data_table_counts(pipeline_1) == {"async_table": 10}
+    assert pipeline_1.last_trace.last_normalize_info.row_counts["async_table"] == 10
     pipeline_2.activate()
-    # assert load_data_table_counts(pipeline_2) == {"defer_table": 5}
+    assert pipeline_2.last_trace.last_normalize_info.row_counts["defer_table"] == 5
     # @@@DLT_SNIPPET_END parallel_pipelines
 
 
