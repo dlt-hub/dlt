@@ -1,4 +1,5 @@
 from datetime import datetime, date  # noqa: I251
+from pendulum.tz import UTC
 from typing import Any, Tuple, Optional, Union, Callable, Iterable, Iterator, Sequence, Tuple
 
 from dlt import version
@@ -314,13 +315,13 @@ def is_arrow_item(item: Any) -> bool:
     return isinstance(item, (pyarrow.Table, pyarrow.RecordBatch))
 
 
-def to_arrow_compute_input(value: Any, arrow_type: pyarrow.DataType) -> Any:
+def to_arrow_scalar(value: Any, arrow_type: pyarrow.DataType) -> Any:
     """Converts python value to an arrow compute friendly version"""
     return pyarrow.scalar(value, type=arrow_type)
 
 
-def from_arrow_compute_output(arrow_value: pyarrow.Scalar) -> Any:
-    """Converts arrow scalar into Python type. Currently adds "UTC" to naive date times."""
+def from_arrow_scalar(arrow_value: pyarrow.Scalar) -> Any:
+    """Converts arrow scalar into Python type. Currently adds "UTC" to naive date times and converts all others to UTC"""
     row_value = arrow_value.as_py()
     # dates are not represented as datetimes but I see connector-x represents
     # datetimes as dates and keeping the exact time inside. probably a bug
@@ -328,7 +329,7 @@ def from_arrow_compute_output(arrow_value: pyarrow.Scalar) -> Any:
     if isinstance(row_value, date) and not isinstance(row_value, datetime):
         row_value = pendulum.from_timestamp(arrow_value.cast(pyarrow.int64()).as_py() / 1000)
     elif isinstance(row_value, datetime):
-        row_value = pendulum.instance(row_value)
+        row_value = pendulum.instance(row_value).in_tz("UTC")
     return row_value
 
 
