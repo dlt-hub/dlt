@@ -6,6 +6,7 @@ from dlt.common.data_writers import DataWriterMetrics
 from dlt.common.json import custom_pua_decode, may_have_pua
 from dlt.common.runtime import signals
 from dlt.common.schema.typing import TSchemaEvolutionMode, TTableSchemaColumns, TSchemaContractDict
+from dlt.common.schema.utils import has_table_seen_data
 from dlt.common.storages import (
     NormalizeStorage,
     LoadStorage,
@@ -196,15 +197,18 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 schema_updates.append(partial_update)
                 logger.debug(f"Processed {line_no} lines from file {extracted_items_file}")
             if line is None and root_table_name in self.schema.tables:
-                self.load_storage.write_empty_items_file(
-                    self.load_id,
-                    self.schema.name,
-                    root_table_name,
-                    self.schema.get_table_columns(root_table_name),
-                )
-                logger.debug(
-                    f"No lines in file {extracted_items_file}, written empty load job file"
-                )
+                # write only if table seen data before
+                root_table = self.schema.tables[root_table_name]
+                if has_table_seen_data(root_table):
+                    self.load_storage.write_empty_items_file(
+                        self.load_id,
+                        self.schema.name,
+                        root_table_name,
+                        self.schema.get_table_columns(root_table_name),
+                    )
+                    logger.debug(
+                        f"No lines in file {extracted_items_file}, written empty load job file"
+                    )
 
         return schema_updates
 

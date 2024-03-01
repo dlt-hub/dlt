@@ -1,6 +1,7 @@
 from copy import copy
 from typing import Set, Dict, Any, Optional, Set
 
+from dlt.common import logger
 from dlt.common.configuration.inject import with_config
 from dlt.common.configuration.specs import BaseConfiguration, configspec
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
@@ -289,9 +290,22 @@ class ArrowExtractor(Extractor):
         arrow_table["columns"] = pyarrow.py_arrow_to_table_schema_columns(items.schema)
         # normalize arrow table before merging
         arrow_table = self.schema.normalize_table_identifiers(arrow_table)
+        # issue warnings when overriding computed with arrow
+        for col_name, column in arrow_table["columns"].items():
+            if src_column := computed_table["columns"].get(col_name):
+                print(src_column)
+                for hint_name, hint in column.items():
+                    if (src_hint := src_column.get(hint_name)) is not None:
+                        if src_hint != hint:
+                            logger.warning(
+                                f"In resource: {resource.name}, when merging arrow schema on column"
+                                f" {col_name}. The hint {hint_name} value {src_hint} defined in"
+                                f" resource is overwritten from arrow with value {hint}."
+                            )
+
         # we must override the columns to preserve the order in arrow table
         arrow_table["columns"] = update_dict_nested(
-            arrow_table["columns"], computed_table["columns"]
+            arrow_table["columns"], computed_table["columns"], keep_dst_values=True
         )
 
         return arrow_table

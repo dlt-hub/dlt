@@ -1,0 +1,16 @@
+name: deploy docs
+
+on:
+  schedule:
+    - cron:  '0 2 * * *'
+  workflow_dispatch:
+
+env:
+  NETLIFY_DOCS_PRODUCTION_DEPLOY_HOOK: ${{ secrets.NETLIFY_DOCS_PRODUCTION_DEPLOY_HOOK }}
+    
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger deploy hook
+        run: curl ${{ env.NETLIFY_DOCS_PRODUCTION_DEPLOY_HOOK }} -X POST

@@ -328,3 +328,7 @@ verified source.
     info = pipeline.run(source, write_disposition="replace")
     print(info)
    ```
+
+
+<!--@@@DLT_SNIPPET_START tuba::mongodb-->
+<!--@@@DLT_SNIPPET_END tuba::mongodb-->

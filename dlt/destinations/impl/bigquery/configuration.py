@@ -17,7 +17,7 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     http_timeout: float = 15.0  # connection timeout for http request to BigQuery api
     file_upload_timeout: float = 30 * 60.0  # a timeout for file upload when loading local files
     retry_deadline: float = (
-        60.0  # how long to retry the operation in case of error, the backoff 60s
+        60.0  # how long to retry the operation in case of error, the backoff 60 s.
     )
 
     __config_gen_annotations__: ClassVar[List[str]] = ["location"]

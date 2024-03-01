@@ -136,7 +136,7 @@ def assert_package_info(
     if package_state == "normalized":
         assert package_info.completed_at is None
     else:
-        assert (pendulum.now() - package_info.completed_at).seconds < 2
+        assert (pendulum.now().diff(package_info.completed_at).seconds) < 2
     # get dict
     package_info.asdict()
     return package_info

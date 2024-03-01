@@ -17,7 +17,8 @@ env:
 
   # Slack hook for chess in production example
   RUNTIME__SLACK_INCOMING_HOOK: ${{ secrets.RUNTIME__SLACK_INCOMING_HOOK }}
-
+  # detect if the workflow is executed in a repo fork
+  IS_FORK: ${{ github.event.pull_request.head.repo.fork }}
 jobs:
 
   run_lint:

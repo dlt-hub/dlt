@@ -64,5 +64,9 @@ def delayed_signals() -> Iterator[None]:
             signal.signal(signal.SIGINT, original_sigint_handler)
             signal.signal(signal.SIGTERM, original_sigterm_handler)
     else:
-        print("Running in daemon thread, signals not enabled")
+        if not TYPE_CHECKING:
+            from dlt.common.runtime import logger
+        else:
+            logger: Any = None
+        logger.info("Running in daemon thread, signals not enabled")
         yield

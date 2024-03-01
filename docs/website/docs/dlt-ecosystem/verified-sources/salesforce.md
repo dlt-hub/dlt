@@ -270,7 +270,6 @@ To create your data pipeline using single loading and
    > overwriting existing data. Conversely, the "task" endpoint supports "merge" mode for
    > incremental loads, updating or adding data based on the 'last_timestamp' value without erasing
    > previously loaded data.
-
    
 1. Salesforce enforces specific limits on API data requests. These limits 
    vary based on the Salesforce edition and license type, as outlined in the [Salesforce API Request Limits documentation](https://developer.salesforce.com/docs/atlas.en-us.salesforce_app_limits_cheatsheet.meta/salesforce_app_limits_cheatsheet/salesforce_app_limits_platform_api.htm).
@@ -284,3 +283,6 @@ To create your data pipeline using single loading and
 
    >To read more about Salesforce query limits, please refer to their official
    >[documentation here](https://developer.salesforce.com/docs/atlas.en-us.soql_sosl.meta/soql_sosl/sforce_api_calls_soql_select_limit.htm).
+
+<!--@@@DLT_SNIPPET_START tuba::salesforce-->
+<!--@@@DLT_SNIPPET_END tuba::salesforce-->

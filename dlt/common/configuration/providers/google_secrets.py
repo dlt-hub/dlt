@@ -1,11 +1,37 @@
 import base64
+import string
+import re
+from typing import Tuple
 
 from dlt.common import json
 from dlt.common.configuration.specs import GcpServiceAccountCredentials
 from dlt.common.exceptions import MissingDependencyException
-
 from .toml import VaultTomlProvider
 from .provider import get_key_name
+
+# Create a translation table to replace punctuation with ""
+# since google secrets allow "-"" and "_" we need to exclude them
+punctuation = "".join(set(string.punctuation) - {"-", "_"})
+translator = str.maketrans("", "", punctuation)
+
+
+def normalize_key(in_string: str) -> str:
+    """Replaces punctuation characters in a string
+
+    Note: We exclude `_` and `-` from punctuation characters
+
+    Args:
+        in_string(str): input string
+
+    Returns:
+        (str): a string without punctuatio characters and whitespaces
+    """
+
+    # Strip punctuation from the string
+    stripped_text = in_string.translate(translator)
+    whitespace = re.compile(r"\s+")
+    stripped_whitespace = whitespace.sub("", stripped_text)
+    return stripped_whitespace
 
 
 class GoogleSecretsProvider(VaultTomlProvider):
@@ -20,7 +46,19 @@ class GoogleSecretsProvider(VaultTomlProvider):
 
     @staticmethod
     def get_key_name(key: str, *sections: str) -> str:
-        return get_key_name(key, "-", *sections)
+        """Make key name for the secret
+
+        Per Google the secret name can contain, so we will use snake_case normalizer
+
+            1. Uppercase and lowercase letters,
+            2. Numerals,
+            3. Hyphens,
+            4. Underscores.
+        """
+        key = normalize_key(key)
+        normalized_sections = [normalize_key(section) for section in sections if section]
+        key_name = get_key_name(normalize_key(key), "-", *normalized_sections)
+        return key_name
 
     @property
     def name(self) -> str:

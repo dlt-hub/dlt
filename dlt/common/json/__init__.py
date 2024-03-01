@@ -80,14 +80,18 @@ def custom_encode(obj: Any) -> str:
 
 
 # use PUA range to encode additional types
-_DECIMAL = "\uf026"
-_DATETIME = "\uf027"
-_DATE = "\uf028"
-_UUIDT = "\uf029"
-_HEXBYTES = "\uf02a"
-_B64BYTES = "\uf02b"
-_WEI = "\uf02c"
-_TIME = "\uf02d"
+PUA_START = int(os.environ.get("DLT_JSON_TYPED_PUA_START", "0xf026"), 16)
+
+_DECIMAL = chr(PUA_START)
+_DATETIME = chr(PUA_START + 1)
+_DATE = chr(PUA_START + 2)
+_UUIDT = chr(PUA_START + 3)
+_HEXBYTES = chr(PUA_START + 4)
+_B64BYTES = chr(PUA_START + 5)
+_WEI = chr(PUA_START + 6)
+_TIME = chr(PUA_START + 7)
+
+PUA_START_UTF8_MAGIC = _DECIMAL.encode("utf-8")[:2]
 
 
 def _datetime_decoder(obj: str) -> datetime:
@@ -148,10 +152,17 @@ def custom_pua_encode(obj: Any) -> str:
 
 def custom_pua_decode(obj: Any) -> Any:
     if isinstance(obj, str) and len(obj) > 1:
-        c = ord(obj[0]) - 0xF026
+        c = ord(obj[0]) - PUA_START
         # decode only the PUA space defined in DECODERS
         if c >= 0 and c <= PUA_CHARACTER_MAX:
-            return DECODERS[c](obj[1:])
+            try:
+                return DECODERS[c](obj[1:])
+            except Exception:
+                # return strings that cannot be parsed
+                # this may be due
+                # (1) someone exposing strings with PUA characters to external systems (ie. via API)
+                # (2) using custom types ie. DateTime that does not create correct iso strings
+                return obj
     return obj
 
 
@@ -166,7 +177,7 @@ def custom_pua_decode_nested(obj: Any) -> Any:
 def custom_pua_remove(obj: Any) -> Any:
     """Removes the PUA data type marker and leaves the correctly serialized type representation. Unmarked values are returned as-is."""
     if isinstance(obj, str) and len(obj) > 1:
-        c = ord(obj[0]) - 0xF026
+        c = ord(obj[0]) - PUA_START
         # decode only the PUA space defined in DECODERS
         if c >= 0 and c <= PUA_CHARACTER_MAX:
             return obj[1:]
@@ -175,7 +186,7 @@ def custom_pua_remove(obj: Any) -> Any:
 
 def may_have_pua(line: bytes) -> bool:
     """Checks if bytes string contains pua marker"""
-    return b"\xef\x80" in line
+    return PUA_START_UTF8_MAGIC in line
 
 
 # pick the right impl
@@ -203,4 +214,5 @@ __all__ = [
     "custom_pua_decode_nested",
     "custom_pua_remove",
     "SupportsJson",
+    "may_have_pua",
 ]

@@ -8,7 +8,7 @@ keywords: [resource, api endpoint, dlt.resource]
 
 ## Declare a resource
 
-A [resource](glossary.md#resource) is a ([optionally async](https://dlthub.com/docs/reference/performance#parallelism)) function that yields data. To create a
+A [resource](glossary.md#resource) is an ([optionally async](../reference/performance.md#parallelism)) function that yields data. To create a
 resource, we add the `@dlt.resource` decorator to that function.
 
 Commonly used arguments:
@@ -223,6 +223,24 @@ In the example above, `user_details` will receive data from default instance of 
 pipeline.run(users(limit=100) | user_details)
 ```
 
+:::tip
+Transformers are allowed not only to **yield** but also to **return** values and can decorate **async** functions and [**async generators**](../reference/performance.md#extract). Below we decorate an async function and request details on two pokemons. Http calls are made in parallel via httpx library.
+```python
+import dlt
+import httpx
+
+
+@dlt.transformer
+async def pokemon(id):
+    async with httpx.AsyncClient() as client:
+        r = await client.get(f"https://pokeapi.co/api/v2/pokemon/{id}")
+        return r.json()
+
+# get bulbasaur and ivysaur (you need dlt 0.4.6 for pipe operator working with lists)
+print(list([1,2] | pokemon()))
+```
+:::
+
 ### Declare a standalone resource
 A standalone resource is defined on a function that is top level in a module (not inner function) that accepts config and secrets values. Additionally
 if `standalone` flag is specified, the decorated function signature and docstring will be preserved. `dlt.resource` will just wrap the
@@ -246,6 +264,38 @@ def kinesis(stream_name: str):
 kinesis_stream = kinesis("telemetry_stream")
 ```
 `kinesis_stream` resource has a name **telemetry_stream**
+
+
+### Declare parallel and async resources
+You can extract multiple resources in parallel threads or with async IO.
+To enable this for a sync resource you can set the `parallelized` flag to `True` in the resource decorator:
+
+
+```python
+@dlt.resource(parallelized=True)
+def get_users():
+    for u in _get_users():
+        yield u
+
+@dlt.resource(parallelized=True)
+def get_orders():
+    for o in _get_orders():
+        yield o
+
+# users and orders will be iterated in parallel in two separate threads
+pipeline.run(get_users(), get_orders())
+```
+
+Async generators are automatically extracted concurrently with other resources:
+
+```python
+@dlt.resource
+async def get_users():
+    async for u in _get_users():  # Assuming _get_users is an async generator
+        yield u
+```
+
+Please find more details in [extract performance](../reference/performance.md#extract)
 
 ## Customize resources
 

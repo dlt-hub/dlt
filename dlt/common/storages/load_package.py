@@ -8,6 +8,7 @@ from pendulum.datetime import DateTime
 from typing import (
     ClassVar,
     Dict,
+    Iterable,
     List,
     NamedTuple,
     Literal,
@@ -245,9 +246,7 @@ class PackageStorage:
         )
 
     def list_jobs_for_table(self, load_id: str, table_name: str) -> Sequence[LoadJobInfo]:
-        return [
-            job for job in self.list_all_jobs(load_id) if job.job_file_info.table_name == table_name
-        ]
+        return self.filter_jobs_for_table(self.list_all_jobs(load_id), table_name)
 
     def list_all_jobs(self, load_id: str) -> Sequence[LoadJobInfo]:
         info = self.get_load_package_info(load_id)
@@ -448,6 +447,10 @@ class PackageStorage:
             failed_message,
         )
 
+    #
+    # Utils
+    #
+
     def _move_job(
         self,
         load_id: str,
@@ -503,3 +506,9 @@ class PackageStorage:
     @staticmethod
     def _job_elapsed_time_seconds(file_path: str, now_ts: float = None) -> float:
         return (now_ts or pendulum.now().timestamp()) - os.path.getmtime(file_path)
+
+    @staticmethod
+    def filter_jobs_for_table(
+        all_jobs: Iterable[LoadJobInfo], table_name: str
+    ) -> Sequence[LoadJobInfo]:
+        return [job for job in all_jobs if job.job_file_info.table_name == table_name]

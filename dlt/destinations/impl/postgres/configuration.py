@@ -1,5 +1,5 @@
 from typing import Final, ClassVar, Any, List, TYPE_CHECKING
-from sqlalchemy.engine import URL
+from dlt.common.libs.sql_alchemy import URL
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
@@ -24,9 +24,6 @@ class PostgresCredentials(ConnectionStringCredentials):
         self.connect_timeout = int(self.query.get("connect_timeout", self.connect_timeout))
         if not self.is_partial():
             self.resolve()
-
-    def on_resolved(self) -> None:
-        self.database = self.database.lower()
 
     def to_url(self) -> URL:
         url = super().to_url()

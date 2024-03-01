@@ -24,7 +24,7 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
-from dlt.extract.utils import wrap_async_iterator
+from dlt.extract.utils import wrap_async_iterator, wrap_parallel_iterator
 
 from dlt.extract.typing import (
     DataItemWithMeta,
@@ -36,7 +36,8 @@ from dlt.extract.typing import (
     YieldMapItem,
     ValidateItem,
 )
-from dlt.extract.pipe import Pipe, ManagedPipeIterator, TPipeStep
+from dlt.extract.pipe_iterator import ManagedPipeIterator
+from dlt.extract.pipe import Pipe, TPipeStep
 from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
@@ -48,6 +49,7 @@ from dlt.extract.exceptions import (
     InvalidTransformerGeneratorFunction,
     InvalidResourceDataTypeBasic,
     InvalidResourceDataTypeMultiplePipes,
+    InvalidParallelResourceDataType,
     ParametrizedResourceUnbound,
     ResourceNameMissing,
     ResourceNotATransformer,
@@ -343,6 +345,24 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             self._pipe.replace_gen(_gen_wrap(self._pipe.gen))
         return self
 
+    def parallelize(self) -> "DltResource":
+        """Wraps the resource to execute each item in a threadpool to allow multiple resources to extract in parallel.
+
+        The resource must be a generator or generator function or a transformer function.
+        """
+        if (
+            not inspect.isgenerator(self._pipe.gen)
+            and not (
+                callable(self._pipe.gen)
+                and inspect.isgeneratorfunction(inspect.unwrap(self._pipe.gen))
+            )
+            and not (callable(self._pipe.gen) and self.is_transformer)
+        ):
+            raise InvalidParallelResourceDataType(self.name, self._pipe.gen, type(self._pipe.gen))
+
+        self._pipe.replace_gen(wrap_parallel_iterator(self._pipe.gen))  # type: ignore  # TODO
+        return self
+
     def add_step(
         self, item_transform: ItemTransformFunctionWithMeta[TDataItems], insert_at: int = None
     ) -> "DltResource":  # noqa: A003
@@ -419,7 +439,9 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         return r.bind(*args, **kwargs)
 
     def __or__(self, transform: Union["DltResource", AnyFun]) -> "DltResource":
-        """Allows to pipe data from across resources and transform functions with | operator"""
+        """Allows to pipe data from across resources and transform functions with | operator
+        This is the LEFT side OR so the self may be resource or transformer
+        """
         # print(f"{resource.name} | {self.name} -> {resource.name}[{resource.is_transformer}]")
         if isinstance(transform, DltResource):
             transform.pipe_data_from(self)
@@ -431,6 +453,14 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
                 return self.add_yield_map(transform)
             else:
                 return self.add_map(transform)
+
+    def __ror__(self, data: Union[Iterable[Any], Iterator[Any]]) -> "DltResource":
+        """Allows to pipe data from across resources and transform functions with | operator
+        This is the RIGHT side OR so the self may not be a resource and the LEFT must be an object
+        that does not implement | ie. a list
+        """
+        self.pipe_data_from(self.from_data(data, name="iter_" + uniq_id(4)))
+        return self
 
     def __iter__(self) -> Iterator[TDataItem]:
         """Opens iterator that yields the data items from the resources in the same order as in Pipeline class.

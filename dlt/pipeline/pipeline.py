@@ -324,13 +324,17 @@ class Pipeline(SupportsPipeline):
             self.credentials = credentials
             self._configure(import_schema_path, export_schema_path, must_attach_to_local_pipeline)
 
-    def drop(self) -> "Pipeline":
-        """Deletes local pipeline state, schemas and any working files"""
+    def drop(self, pipeline_name: str = None) -> "Pipeline":
+        """Deletes local pipeline state, schemas and any working files.
+
+        Args:
+            pipeline_name (str): Optional. New pipeline name.
+        """
         # reset the pipeline working dir
         self._create_pipeline()
         # clone the pipeline
         return Pipeline(
-            self.pipeline_name,
+            pipeline_name or self.pipeline_name,
             self.pipelines_dir,
             self.pipeline_salt,
             self.destination,
@@ -1188,6 +1192,7 @@ class Pipeline(SupportsPipeline):
             self.destination
             and not self.destination.capabilities().supported_loader_file_formats
             and not staging
+            and not self.staging
         ):
             logger.warning(
                 f"The destination {self.destination.destination_name} requires the filesystem"
@@ -1314,7 +1319,7 @@ class Pipeline(SupportsPipeline):
         self.default_schema_name = schema.name
 
     def _create_pipeline_instance_id(self) -> str:
-        return pendulum.now().format("_YYYYMMDDhhmmss")  # type: ignore
+        return pendulum.now().format("_YYYYMMDDhhmmss")
 
     @with_schemas_sync
     @with_state_sync()
