@@ -241,6 +241,53 @@ def test_regular_run() -> None:
     assert pipeline_dag_decomposed_counts == pipeline_standalone_counts
 
 
+def test_run() -> None:
+    task: PythonOperator = None
+
+    pipeline_standalone = dlt.pipeline(
+        pipeline_name="pipeline_standalone",
+        dataset_name="mock_data_" + uniq_id(),
+        destination="duckdb",
+        credentials=":pipeline:",
+    )
+    pipeline_standalone.run(mock_data_source())
+    pipeline_standalone_counts = load_table_counts(
+        pipeline_standalone, *[t["name"] for t in pipeline_standalone.default_schema.data_tables()]
+    )
+
+    quackdb_path = os.path.join(TEST_STORAGE_ROOT, "pipeline_dag_regular.duckdb")
+
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_regular():
+        nonlocal task
+        tasks = PipelineTasksGroup(
+            "pipeline_dag_regular", local_data_folder=TEST_STORAGE_ROOT, wipe_local_data=False
+        )
+
+        # set duckdb to be outside of pipeline folder which is dropped on each task
+        pipeline_dag_regular = dlt.pipeline(
+            pipeline_name="pipeline_dag_regular",
+            dataset_name="mock_data_" + uniq_id(),
+            destination="duckdb",
+            credentials=quackdb_path,
+        )
+        task = tasks.run(pipeline_dag_regular, mock_data_source())
+
+    dag_def: DAG = dag_regular()
+    assert task.task_id == "mock_data_source__r_init-_t_init_post-_t1-_t2-2-more"
+
+    dag_def.test()
+
+    pipeline_dag_regular = dlt.attach(pipeline_name="pipeline_dag_regular")
+    pipeline_dag_regular_counts = load_table_counts(
+        pipeline_dag_regular,
+        *[t["name"] for t in pipeline_dag_regular.default_schema.data_tables()],
+    )
+    assert pipeline_dag_regular_counts == pipeline_standalone_counts
+
+    assert isinstance(task, PythonOperator)
+
+
 def test_parallel_run():
     pipeline_standalone = dlt.pipeline(
         pipeline_name="pipeline_parallel",

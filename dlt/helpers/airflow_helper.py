@@ -1,3 +1,4 @@
+import functools
 import os
 from tempfile import gettempdir
 from typing import Any, Callable, List, Literal, Optional, Sequence, Tuple
@@ -45,6 +46,28 @@ DEFAULT_RETRY_NO_RETRY = Retrying(stop=stop_after_attempt(1), reraise=True)
 DEFAULT_RETRY_BACKOFF = Retrying(
     stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1.5, min=4, max=10), reraise=True
 )
+
+
+def task_name(pipeline: Pipeline, data: Any) -> str:
+    """Generate a task name.
+
+    Args:
+        pipeline (Pipeline): The pipeline to run.
+        data (Any): The data to run the pipeline with.
+
+    Returns:
+        str: The name of the task.
+    """
+    task_name = pipeline.pipeline_name
+
+    if isinstance(data, DltSource):
+        resource_names = list(data.selected_resources.keys())
+        task_name = data.name + "_" + "-".join(resource_names[:4])
+
+        if len(resource_names) > 4:
+            task_name += f"-{len(resource_names)-4}-more"
+
+    return task_name
 
 
 class PipelineTasksGroup(TaskGroup):
@@ -131,6 +154,158 @@ class PipelineTasksGroup(TaskGroup):
         if ConfigProvidersContext in Container():
             del Container()[ConfigProvidersContext]
 
+    def run(
+        self,
+        pipeline: Pipeline,
+        data: Any,
+        table_name: str = None,
+        write_disposition: TWriteDisposition = None,
+        loader_file_format: TLoaderFileFormat = None,
+        schema_contract: TSchemaContract = None,
+        pipeline_name: str = None,
+        **kwargs: Any,
+    ) -> PythonOperator:
+        """
+        Create a task to run the given pipeline with the
+        given data in Airflow.
+
+        Args:
+            pipeline (Pipeline): The pipeline to run
+            data (Any): The data to run the pipeline with
+            table_name (str, optional): The name of the table to
+                which the data should be loaded within the `dataset`.
+            write_disposition (TWriteDisposition, optional): Same as
+                in `run` command.
+            loader_file_format (TLoaderFileFormat, optional):
+                The file format the loader will use to create the
+                load package.
+            schema_contract (TSchemaContract, optional): On override
+                for the schema contract settings, this will replace
+                the schema contract settings for all tables in the schema.
+            pipeline_name (str, optional): The name of the derived pipeline.
+
+        Returns:
+            PythonOperator: Airflow task instance.
+        """
+        f = functools.partial(
+            self._run,
+            pipeline,
+            data,
+            table_name=table_name,
+            write_disposition=write_disposition,
+            loader_file_format=loader_file_format,
+            schema_contract=schema_contract,
+            pipeline_name=pipeline_name,
+        )
+        return PythonOperator(task_id=task_name(pipeline, data), python_callable=f, **kwargs)
+
+    def _run(
+        self,
+        pipeline: Pipeline,
+        data: Any,
+        table_name: str = None,
+        write_disposition: TWriteDisposition = None,
+        loader_file_format: TLoaderFileFormat = None,
+        schema_contract: TSchemaContract = None,
+        pipeline_name: str = None,
+    ) -> None:
+        """Run the given pipeline with the given data.
+
+        Args:
+            pipeline (Pipeline): The pipeline to run
+            data (Any): The data to run the pipeline with
+            table_name (str, optional): The name of the
+                table to which the data should be loaded
+                within the `dataset`.
+            write_disposition (TWriteDisposition, optional):
+                Same as in `run` command.
+            loader_file_format (TLoaderFileFormat, optional):
+                The file format the loader will use to create
+                the load package.
+            schema_contract (TSchemaContract, optional): On
+                override for the schema contract settings,
+                this will replace the schema contract settings
+                for all tables in the schema.
+            pipeline_name (str, optional): The name of the
+                derived pipeline.
+        """
+        # activate pipeline
+        pipeline.activate()
+        # drop local data
+        task_pipeline = pipeline.drop(pipeline_name=pipeline_name)
+
+        # use task logger
+        if self.use_task_logger:
+            ti: TaskInstance = get_current_context()["ti"]  # type: ignore
+            logger.LOGGER = ti.log
+
+        # set global number of buffered items
+        if dlt.config.get("data_writer.buffer_max_items") is None and self.buffer_max_items > 0:
+            dlt.config["data_writer.buffer_max_items"] = self.buffer_max_items
+            logger.info(f"Set data_writer.buffer_max_items to {self.buffer_max_items}")
+
+        # enable abort package if job failed
+        if self.abort_task_if_any_job_failed:
+            dlt.config["load.raise_on_failed_jobs"] = True
+            logger.info("Set load.abort_task_if_any_job_failed to True")
+
+        if self.log_progress_period > 0 and task_pipeline.collector == NULL_COLLECTOR:
+            task_pipeline.collector = log(log_period=self.log_progress_period, logger=logger.LOGGER)
+            logger.info(f"Enabled log progress with period {self.log_progress_period}")
+
+        logger.info(f"Pipeline data in {task_pipeline.working_dir}")
+
+        def log_after_attempt(retry_state: RetryCallState) -> None:
+            if not retry_state.retry_object.stop(retry_state):
+                logger.error(
+                    "Retrying pipeline run due to exception: %s",
+                    retry_state.outcome.exception(),
+                )
+
+        try:
+            # retry with given policy on selected pipeline steps
+            for attempt in self.retry_policy.copy(
+                retry=retry_if_exception(
+                    retry_load(retry_on_pipeline_steps=self.retry_pipeline_steps)
+                ),
+                after=log_after_attempt,
+            ):
+                with attempt:
+                    logger.info(
+                        "Running the pipeline, attempt=%s" % attempt.retry_state.attempt_number
+                    )
+                    load_info = task_pipeline.run(
+                        data,
+                        table_name=table_name,
+                        write_disposition=write_disposition,
+                        loader_file_format=loader_file_format,
+                        schema_contract=schema_contract,
+                    )
+                    logger.info(str(load_info))
+                    # save load and trace
+                    if self.save_load_info:
+                        logger.info("Saving the load info in the destination")
+                        task_pipeline.run(
+                            [load_info],
+                            table_name="_load_info",
+                            loader_file_format=loader_file_format,
+                        )
+                    if self.save_trace_info:
+                        logger.info("Saving the trace in the destination")
+                        task_pipeline.run(
+                            [task_pipeline.last_trace],
+                            table_name="_trace",
+                            loader_file_format=loader_file_format,
+                        )
+                    # raise on failed jobs if requested
+                    if self.fail_task_if_any_job_failed:
+                        load_info.raise_on_failed_jobs()
+        finally:
+            # always completely wipe out pipeline folder, in case of success and failure
+            if self.wipe_local_data:
+                logger.info(f"Removing folder {pipeline.working_dir}")
+                task_pipeline._wipe_working_folder()
+
     @with_telemetry("helper", "airflow_add_run", False, "decompose")
     def add_run(
         self,
@@ -194,106 +369,23 @@ class PipelineTasksGroup(TaskGroup):
                 " pipelines directory is not set correctly."
             )
 
-        def task_name(pipeline: Pipeline, data: Any) -> str:
-            task_name = pipeline.pipeline_name
-            if isinstance(data, DltSource):
-                resource_names = list(data.selected_resources.keys())
-                task_name = data.name + "_" + "-".join(resource_names[:4])
-                if len(resource_names) > 4:
-                    task_name += f"-{len(resource_names)-4}-more"
-            return task_name
-
         with self:
             # use factory function to make a task, in order to parametrize it
             # passing arguments to task function (_run) is serializing
             # them and running template engine on them
             def make_task(pipeline: Pipeline, data: Any, name: str = None) -> PythonOperator:
-                def _run() -> None:
-                    # activate pipeline
-                    pipeline.activate()
-                    # drop local data
-                    task_pipeline = pipeline.drop(pipeline_name=name)
-
-                    # use task logger
-                    if self.use_task_logger:
-                        ti: TaskInstance = get_current_context()["ti"]  # type: ignore
-                        logger.LOGGER = ti.log
-
-                    # set global number of buffered items
-                    if (
-                        dlt.config.get("data_writer.buffer_max_items") is None
-                        and self.buffer_max_items > 0
-                    ):
-                        dlt.config["data_writer.buffer_max_items"] = self.buffer_max_items
-                        logger.info(f"Set data_writer.buffer_max_items to {self.buffer_max_items}")
-
-                    # enable abort package if job failed
-                    if self.abort_task_if_any_job_failed:
-                        dlt.config["load.raise_on_failed_jobs"] = True
-                        logger.info("Set load.abort_task_if_any_job_failed to True")
-
-                    if self.log_progress_period > 0 and task_pipeline.collector == NULL_COLLECTOR:
-                        task_pipeline.collector = log(
-                            log_period=self.log_progress_period, logger=logger.LOGGER
-                        )
-                        logger.info(f"Enabled log progress with period {self.log_progress_period}")
-
-                    logger.info(f"Pipeline data in {task_pipeline.working_dir}")
-
-                    def log_after_attempt(retry_state: RetryCallState) -> None:
-                        if not retry_state.retry_object.stop(retry_state):
-                            logger.error(
-                                "Retrying pipeline run due to exception: %s",
-                                retry_state.outcome.exception(),
-                            )
-
-                    try:
-                        # retry with given policy on selected pipeline steps
-                        for attempt in self.retry_policy.copy(
-                            retry=retry_if_exception(
-                                retry_load(retry_on_pipeline_steps=self.retry_pipeline_steps)
-                            ),
-                            after=log_after_attempt,
-                        ):
-                            with attempt:
-                                logger.info(
-                                    "Running the pipeline, attempt=%s"
-                                    % attempt.retry_state.attempt_number
-                                )
-                                load_info = task_pipeline.run(
-                                    data,
-                                    table_name=table_name,
-                                    write_disposition=write_disposition,
-                                    loader_file_format=loader_file_format,
-                                    schema_contract=schema_contract,
-                                )
-                                logger.info(str(load_info))
-                                # save load and trace
-                                if self.save_load_info:
-                                    logger.info("Saving the load info in the destination")
-                                    task_pipeline.run(
-                                        [load_info],
-                                        table_name="_load_info",
-                                        loader_file_format=loader_file_format,
-                                    )
-                                if self.save_trace_info:
-                                    logger.info("Saving the trace in the destination")
-                                    task_pipeline.run(
-                                        [task_pipeline.last_trace],
-                                        table_name="_trace",
-                                        loader_file_format=loader_file_format,
-                                    )
-                                # raise on failed jobs if requested
-                                if self.fail_task_if_any_job_failed:
-                                    load_info.raise_on_failed_jobs()
-                    finally:
-                        # always completely wipe out pipeline folder, in case of success and failure
-                        if self.wipe_local_data:
-                            logger.info(f"Removing folder {pipeline.working_dir}")
-                            task_pipeline._wipe_working_folder()
-
+                f = functools.partial(
+                    self._run,
+                    pipeline,
+                    data,
+                    table_name=table_name,
+                    write_disposition=write_disposition,
+                    loader_file_format=loader_file_format,
+                    schema_contract=schema_contract,
+                    pipeline_name=name,
+                )
                 return PythonOperator(
-                    task_id=task_name(pipeline, data), python_callable=_run, **kwargs
+                    task_id=task_name(pipeline, data), python_callable=f, **kwargs
                 )
 
             if decompose == "none":
