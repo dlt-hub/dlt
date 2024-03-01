@@ -778,10 +778,11 @@ def test_values_serialization() -> None:
     assert deserialize_value("K", v, Wei) == Wei("0.01")
 
     # test credentials
-    credentials_str = "databricks+connector://token:<databricks_token>@<databricks_host>:443/<database_or_schema_name>?conn_timeout=15&search_path=a%2Cb%2Cc"
+    credentials_str = "databricks+connector://token:-databricks_token-@<databricks_host>:443/<database_or_schema_name>?conn_timeout=15&search_path=a%2Cb%2Cc"
     credentials = deserialize_value("credentials", credentials_str, ConnectionStringCredentials)
     assert credentials.drivername == "databricks+connector"
     assert credentials.query == {"conn_timeout": "15", "search_path": "a,b,c"}
+    assert credentials.password == "-databricks_token-"
     assert serialize_value(credentials) == credentials_str
     # using dict also works
     credentials_dict = dict(credentials)

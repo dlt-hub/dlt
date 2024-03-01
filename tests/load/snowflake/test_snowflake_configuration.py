@@ -1,7 +1,7 @@
 import os
 import pytest
 from pathlib import Path
-from sqlalchemy.engine import make_url
+from dlt.common.libs.sql_alchemy import make_url
 
 pytest.importorskip("snowflake")
 
