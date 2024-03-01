@@ -14,7 +14,7 @@ from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
-from dlt.pipeline.warnings import credentials_argument_deprecated
+from dlt.pipeline.warnings import credentials_argument_deprecated, full_refresh_argument_deprecated
 
 TPipeline = TypeVar("TPipeline", bound=Pipeline, default=Pipeline)
 
@@ -30,6 +30,7 @@ def pipeline(
     import_schema_path: str = None,
     export_schema_path: str = None,
     full_refresh: bool = False,
+    dev_mode: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
     _impl_cls: Type[TPipeline] = Pipeline,  # type: ignore[assignment]
@@ -99,6 +100,7 @@ def pipeline(
     import_schema_path: str = None,
     export_schema_path: str = None,
     full_refresh: bool = False,
+    dev_mode: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
     _impl_cls: Type[TPipeline] = Pipeline,  # type: ignore[assignment]
@@ -111,6 +113,7 @@ def pipeline(
     has_arguments = bool(orig_args[0]) or any(orig_args[1].values())
 
     credentials_argument_deprecated("pipeline", credentials, destination)
+    full_refresh_argument_deprecated("pipeline", full_refresh)
 
     if not has_arguments:
         context = Container()[PipelineContext]
@@ -144,7 +147,7 @@ def pipeline(
         credentials,
         import_schema_path,
         export_schema_path,
-        full_refresh,
+        dev_mode or full_refresh,
         progress,
         False,
         last_config(**kwargs),
@@ -161,12 +164,14 @@ def attach(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     full_refresh: bool = False,
+    dev_mode: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
     **kwargs: Any,
 ) -> Pipeline:
     """Attaches to the working folder of `pipeline_name` in `pipelines_dir` or in default directory. Requires that valid pipeline state exists in working folder."""
     ensure_correct_pipeline_kwargs(attach, **kwargs)
+    full_refresh_argument_deprecated("attach", full_refresh)
     # if working_dir not provided use temp folder
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
@@ -182,7 +187,7 @@ def attach(
         credentials,
         None,
         None,
-        full_refresh,
+        dev_mode or full_refresh,
         progress,
         True,
         last_config(**kwargs),

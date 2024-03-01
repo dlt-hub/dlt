@@ -25,6 +25,8 @@ class PipelineConfiguration(BaseConfiguration):
     use_single_dataset: bool = True
     """Stores all schemas in single dataset. When False, each schema will get a separate dataset with `{dataset_name}_{schema_name}"""
     full_refresh: bool = False
+    """Deprecated. Use `dev_mode` instead. When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset."""
+    dev_mode: bool = False
     """When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset."""
     progress: Optional[str] = None
     runtime: RunConfiguration = None

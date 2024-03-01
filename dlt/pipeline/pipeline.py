@@ -293,7 +293,7 @@ class Pipeline(SupportsPipeline):
     schema_names: List[str] = []
     first_run: bool = False
     """Indicates a first run of the pipeline, where run ends with successful loading of the data"""
-    full_refresh: bool
+    dev_mode: bool
     must_attach_to_local_pipeline: bool
     pipelines_dir: str
     """A directory where the pipelines' working directories are created"""
@@ -322,7 +322,7 @@ class Pipeline(SupportsPipeline):
         credentials: Any,
         import_schema_path: str,
         export_schema_path: str,
-        full_refresh: bool,
+        dev_mode: bool,
         progress: _Collector,
         must_attach_to_local_pipeline: bool,
         config: PipelineConfiguration,
@@ -332,7 +332,7 @@ class Pipeline(SupportsPipeline):
         self.pipeline_salt = pipeline_salt
         self.config = config
         self.runtime_config = runtime
-        self.full_refresh = full_refresh
+        self.dev_mode = dev_mode
         self.collector = progress or _NULL_COLLECTOR
         self.destination = None
         self.staging = None
@@ -379,7 +379,7 @@ class Pipeline(SupportsPipeline):
             self.credentials,
             self._schema_storage.config.import_schema_path,
             self._schema_storage.config.export_schema_path,
-            self.full_refresh,
+            self.dev_mode,
             self.collector,
             False,
             self.config,
@@ -648,7 +648,7 @@ class Pipeline(SupportsPipeline):
         # sync state with destination
         if (
             self.config.restore_from_destination
-            and not self.full_refresh
+            and not self.dev_mode
             and not self._state_restored
             and (self.destination or destination)
         ):
@@ -1031,7 +1031,7 @@ class Pipeline(SupportsPipeline):
         # create pipeline storage, do not create working dir yet
         self._pipeline_storage = FileStorage(self.working_dir, makedirs=False)
         # if full refresh was requested, wipe out all data from working folder, if exists
-        if self.full_refresh:
+        if self.dev_mode:
             self._wipe_working_folder()
 
     def _configure(
@@ -1145,7 +1145,7 @@ class Pipeline(SupportsPipeline):
 
         # this client support many schemas and datasets
         if issubclass(client_spec, DestinationClientDwhConfiguration):
-            if not self.dataset_name and self.full_refresh:
+            if not self.dataset_name and self.dev_mode:
                 logger.warning(
                     "Full refresh may not work if dataset name is not set. Please set the"
                     " dataset_name argument in dlt.pipeline or run method"
@@ -1335,8 +1335,8 @@ class Pipeline(SupportsPipeline):
         if not new_dataset_name:
             return
 
-        # in case of full refresh add unique suffix
-        if self.full_refresh:
+        # in case of dev_mode add unique suffix
+        if self.dev_mode:
             # dataset must be specified
             # double _ is not allowed
             if new_dataset_name.endswith("_"):
