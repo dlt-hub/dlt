@@ -144,15 +144,14 @@ class InvalidResourceDataType(DltResourceException):
         )
 
 
-class InvalidResourceDataTypeAsync(InvalidResourceDataType):
+class InvalidParallelResourceDataType(InvalidResourceDataType):
     def __init__(self, resource_name: str, item: Any, _typ: Type[Any]) -> None:
         super().__init__(
             resource_name,
             item,
             _typ,
-            "Async iterators and generators are not valid resources. Please use standard iterators"
-            " and generators that yield Awaitables instead (for example by yielding from async"
-            " function without await",
+            "Parallel resource data must be a generator or a generator function. The provided"
+            f" data type for resource '{resource_name}' was {_typ.__name__}.",
         )
 
 
