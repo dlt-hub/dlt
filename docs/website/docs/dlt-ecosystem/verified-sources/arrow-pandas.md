@@ -103,7 +103,7 @@ import pandas as pd
 
 # Create a resource using that yields a dataframe, using the `ordered_at` field as an incremental cursor
 @dlt.resource(primary_key="order_id")
-def orders(ordered_at = dlt.sources.incremental('ordered_at'))
+def orders(ordered_at = dlt.sources.incremental('ordered_at')):
     # Get dataframe/arrow table from somewhere
     # If your database supports it, you can use the last_value to filter data at the source.
     # Otherwise it will be filtered automatically after loading the data.

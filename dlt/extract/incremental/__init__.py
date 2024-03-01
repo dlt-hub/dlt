@@ -1,4 +1,5 @@
 import os
+from datetime import datetime  # noqa: I251
 from typing import Generic, ClassVar, Any, Optional, Type, Dict
 from typing_extensions import get_origin, get_args
 import inspect
@@ -213,6 +214,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 "Incremental 'end_value' was specified without 'initial_value'. 'initial_value' is"
                 " required when using 'end_value'."
             )
+        self._cursor_datetime_check(self.initial_value, "initial_value")
+        self._cursor_datetime_check(self.initial_value, "end_value")
         # Ensure end value is "higher" than initial value
         if (
             self.end_value is not None
@@ -280,6 +283,16 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         )
         # if state params is empty
         return state
+
+    @staticmethod
+    def _cursor_datetime_check(value: Any, arg_name: str) -> None:
+        if value and isinstance(value, datetime) and value.tzinfo is None:
+            logger.warning(
+                f"The {arg_name} argument {value} is a datetime without timezone. This may result"
+                " in an error when such values  are compared by Incremental class. Note that `dlt`"
+                " stores datetimes in timezone-aware types so the UTC timezone will be added by"
+                " the destination"
+            )
 
     @property
     def last_value(self) -> Optional[TCursorValue]:

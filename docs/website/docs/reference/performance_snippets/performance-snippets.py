@@ -44,25 +44,47 @@ def parallel_config_snippet() -> None:
 def parallel_extract_callables_snippet() -> None:
     # @@@DLT_SNIPPET_START parallel_extract_callables
     import dlt
-    from time import sleep
+    import time
     from threading import currentThread
 
-    @dlt.resource
-    def list_items(start, limit):
-        yield from range(start, start + limit)
+    @dlt.resource(parallelized=True)
+    def list_users(n_users):
+        for i in range(1, 1 + n_users):
+            # Simulate network delay of a rest API call fetching a page of items
+            if i % 10 == 0:
+                time.sleep(0.1)
+            yield i
 
-    @dlt.transformer
-    @dlt.defer
-    def get_details(item_id):
-        # simulate a slow REST API where you wait 0.3 sec for each item
-        sleep(0.3)
-        print(f"item_id {item_id} in thread {currentThread().name}")
-        # just return the results, if you yield, generator will be evaluated in main thread
-        return {"row": item_id}
+    @dlt.transformer(parallelized=True)
+    def get_user_details(user_id):
+        # Transformer that fetches details for users in a page
+        time.sleep(0.1)  # Simulate latency of a rest API call
+        print(f"user_id {user_id} in thread {currentThread().name}")
+        return {"entity": "user", "id": user_id}
+
+    @dlt.resource(parallelized=True)
+    def list_products(n_products):
+        for i in range(1, 1 + n_products):
+            if i % 10 == 0:
+                time.sleep(0.1)
+            yield i
+
+    @dlt.transformer(parallelized=True)
+    def get_product_details(product_id):
+        time.sleep(0.1)
+        print(f"product_id {product_id} in thread {currentThread().name}")
+        return {"entity": "product", "id": product_id}
+
+    @dlt.source
+    def api_data():
+        return [
+            list_users(24) | get_user_details,
+            list_products(32) | get_product_details,
+        ]
 
     # evaluate the pipeline and print all the items
-    # resources are iterators and they are evaluated in the same way in the pipeline.run
-    print(list(list_items(0, 10) | get_details))
+    # sources are iterators and they are evaluated in the same way in the pipeline.run
+    print(list(api_data()))
     # @@@DLT_SNIPPET_END parallel_extract_callables
 
     # @@@DLT_SNIPPET_START parallel_extract_awaitables
@@ -127,26 +149,18 @@ def parallel_pipelines_asyncio_snippet() -> None:
     from time import sleep
     from concurrent.futures import ThreadPoolExecutor
 
-    # create both futures and thread parallel resources
-
-    def async_table():
-        async def _gen(idx):
-            await asyncio.sleep(0.1)
-            return {"async_gen": idx}
-
-        # just yield futures in a loop
+    # create both asyncio and thread parallel resources
+    @dlt.resource
+    async def async_table():
         for idx_ in range(10):
-            yield _gen(idx_)
+            await asyncio.sleep(0.1)
+            yield {"async_gen": idx_}
 
+    @dlt.resource(parallelized=True)
     def defer_table():
-        @dlt.defer
-        def _gen(idx):
-            sleep(0.1)
-            return {"thread_gen": idx}
-
-        # just yield futures in a loop
         for idx_ in range(5):
-            yield _gen(idx_)
+            sleep(0.1)
+            yield idx_
 
     def _run_pipeline(pipeline, gen_):
         # run the pipeline in a thread, also instantiate generators here!
@@ -173,9 +187,9 @@ def parallel_pipelines_asyncio_snippet() -> None:
     asyncio.run(_run_async())
     # activate pipelines before they are used
     pipeline_1.activate()
-    # assert load_data_table_counts(pipeline_1) == {"async_table": 10}
+    assert pipeline_1.last_trace.last_normalize_info.row_counts["async_table"] == 10
     pipeline_2.activate()
-    # assert load_data_table_counts(pipeline_2) == {"defer_table": 5}
+    assert pipeline_2.last_trace.last_normalize_info.row_counts["defer_table"] == 5
     # @@@DLT_SNIPPET_END parallel_pipelines
 
 

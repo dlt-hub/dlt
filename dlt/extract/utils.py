@@ -13,20 +13,27 @@ from typing import (
     AsyncGenerator,
     Awaitable,
     Generator,
+    Iterator,
 )
 from collections.abc import Mapping as C_Mapping
+from functools import wraps, partial
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.pipeline import reset_resource_state
 from dlt.common.schema.typing import TColumnNames, TAnySchemaColumns, TTableSchemaColumns
-from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems
+from dlt.common.typing import AnyFun, DictStrAny, TDataItem, TDataItems, TAnyFunOrGenerator
 from dlt.common.utils import get_callable_name
 
 from dlt.extract.exceptions import (
     InvalidResourceDataTypeFunctionNotAGenerator,
     InvalidStepFunctionArguments,
 )
-from dlt.extract.typing import TTableHintTemplate, TDataItem, TFunHintTemplate, SupportsPipe
+from dlt.extract.typing import (
+    TTableHintTemplate,
+    TDataItem,
+    TFunHintTemplate,
+    SupportsPipe,
+)
 
 try:
     from dlt.common.libs import pydantic
@@ -169,6 +176,57 @@ def wrap_async_iterator(
     except GeneratorExit:
         # mark as exhausted
         exhausted = True
+
+
+def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
+    """Wraps a generator for parallel extraction"""
+
+    def _wrapper(*args: Any, **kwargs: Any) -> Generator[TDataItems, None, None]:
+        is_generator = True
+        gen: TAnyFunOrGenerator
+        if callable(f):
+            if inspect.isgeneratorfunction(inspect.unwrap(f)):
+                gen = f(*args, **kwargs)
+            else:
+                # Function is a transformer that returns values
+                is_generator = False
+                gen = f
+        else:
+            gen = f
+
+        exhausted = False
+        busy = False
+
+        def _parallel_gen() -> TDataItems:
+            nonlocal busy
+            nonlocal exhausted
+            try:
+                if is_generator:
+                    return next(gen)  # type: ignore[call-overload]
+                else:
+                    return gen(*args, **kwargs)  # type: ignore[operator]
+            except StopIteration:
+                exhausted = True
+                return None
+            finally:
+                busy = False
+
+        while not exhausted:
+            try:
+                while busy:
+                    yield None
+                busy = True
+                if not is_generator:  # Regular function is only resolved once
+                    exhausted = True
+                yield _parallel_gen
+            except GeneratorExit:
+                if is_generator:
+                    gen.close()  # type: ignore[attr-defined]
+                raise
+
+    if callable(f):
+        return wraps(f)(_wrapper)  # type: ignore[arg-type]
+    return _wrapper()
 
 
 def wrap_compat_transformer(

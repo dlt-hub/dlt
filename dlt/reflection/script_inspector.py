@@ -13,7 +13,7 @@ from dlt.common.typing import DictStrAny
 
 from dlt.pipeline import Pipeline
 from dlt.extract import DltSource
-from dlt.extract.pipe import ManagedPipeIterator
+from dlt.extract.pipe_iterator import ManagedPipeIterator
 
 
 def patch__init__(self: Any, *args: Any, **kwargs: Any) -> None:
