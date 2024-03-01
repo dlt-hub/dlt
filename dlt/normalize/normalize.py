@@ -340,8 +340,10 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         )
 
     def spool_schema_files(self, load_id: str, schema: Schema, files: Sequence[str]) -> str:
+        # delete existing folder for the case that his is a retry
+        self.load_storage.new_packages.delete_package(load_id, not_exists_ok=True)
         # normalized files will go here before being atomically renamed
-        self.load_storage.new_packages.create_package(load_id, True)
+        self.load_storage.new_packages.create_package(load_id)
         logger.info(f"Created new load package {load_id} on loading volume")
         try:
             # process parallel
@@ -355,7 +357,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             )
             # start from scratch
             self.load_storage.new_packages.delete_package(load_id)
-            self.load_storage.new_packages.create_package(load_id, True)
+            self.load_storage.new_packages.create_package(load_id)
             self.spool_files(load_id, schema.clone(update_normalizers=True), self.map_single, files)
 
         return load_id

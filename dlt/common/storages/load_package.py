@@ -327,21 +327,13 @@ class PackageStorage:
     # Create and drop entities
     #
 
-    def create_package(self, load_id: str, is_owner: bool = False) -> None:
-        self.storage.create_folder(load_id, exists_ok=True)
+    def create_package(self, load_id: str) -> None:
+        self.storage.create_folder(load_id)
         # create processing directories
-        self.storage.create_folder(
-            os.path.join(load_id, PackageStorage.NEW_JOBS_FOLDER), exists_ok=is_owner
-        )
-        self.storage.create_folder(
-            os.path.join(load_id, PackageStorage.COMPLETED_JOBS_FOLDER), exists_ok=is_owner
-        )
-        self.storage.create_folder(
-            os.path.join(load_id, PackageStorage.FAILED_JOBS_FOLDER), exists_ok=is_owner
-        )
-        self.storage.create_folder(
-            os.path.join(load_id, PackageStorage.STARTED_JOBS_FOLDER), exists_ok=is_owner
-        )
+        self.storage.create_folder(os.path.join(load_id, PackageStorage.NEW_JOBS_FOLDER))
+        self.storage.create_folder(os.path.join(load_id, PackageStorage.COMPLETED_JOBS_FOLDER))
+        self.storage.create_folder(os.path.join(load_id, PackageStorage.FAILED_JOBS_FOLDER))
+        self.storage.create_folder(os.path.join(load_id, PackageStorage.STARTED_JOBS_FOLDER))
 
     def complete_loading_package(self, load_id: str, load_state: TLoadPackageState) -> str:
         """Completes loading the package by writing marker file with`package_state. Returns path to the completed package"""
@@ -362,9 +354,11 @@ class PackageStorage:
                 recursively=True,
             )
 
-    def delete_package(self, load_id: str) -> None:
+    def delete_package(self, load_id: str, not_exists_ok: bool = False) -> None:
         package_path = self.get_package_path(load_id)
         if not self.storage.has_folder(package_path):
+            if not_exists_ok:
+                return
             raise LoadPackageNotFound(load_id)
         self.storage.delete_folder(package_path, recursively=True)
 
