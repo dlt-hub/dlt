@@ -9,6 +9,7 @@ from dlt.common.schema.typing import TStoredSchema, TColumnSchema
 from dlt.common.schema.utils import simple_regex_validator
 from dlt.common.typing import DictStrStr, StrStr
 from dlt.common.validation import validate_dict, validate_dict_ignoring_xkeys
+from dlt.extract.typing import TTableHintTemplate
 
 
 TLiteral = Literal["uno", "dos", "tres"]
@@ -241,3 +242,14 @@ def test_nested_union(test_doc: TTestRecord) -> None:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_optional_union"
     assert e.value.value == "blah"
+
+
+def test_no_name() -> None:
+    class TTestRecordNoNoame(TypedDict):
+        name: TTableHintTemplate[str]
+
+    test_item = {"name": "test"}
+    try:
+        validate_dict(TTestRecordNoNoame, test_item, path=".")
+    except AttributeError:
+        pytest.fail("validate_dict raised AttributeError unexpectedly")
