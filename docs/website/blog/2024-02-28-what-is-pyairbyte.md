@@ -18,7 +18,9 @@ Here at dltHub, we work on the python library for data ingestion. So when I hear
 
 PyAirbyte is an interesting Airbyte’s initiative - similar to the one that Meltano had undertook 3 years ago. It provides a convenient way to download and install Airbyte sources and run them locally storing the data in a cache dataset. Users are allowed to then read the data from this cache.
 
-A Python wrapper on the Airbyte source is quite nice and has a feeling close to [Alto]. The whole process of cloning/pip installing the repository, spawning a separate process to run Airbyte connector and read the data via UNIX pipe is hidden behind Pythonic interface.
+
+A Python wrapper on the Airbyte source is quite nice and has a feeling close to [Alto](https://github.com/z3z1ma/alto). The whole process of cloning/pip installing the repository, spawning a separate process to run Airbyte connector and read the data via UNIX pipe is hidden behind Pythonic interface.
+
 
 Note that this library is not an Airbyte replacement - the loaders of Airbyte and the library are very different. The library loader uses pandas.to_sql and sql alchemy and is not a replacement for Airbyte destinations that are available in Open Source Airbyte
 
