@@ -14,9 +14,11 @@ from dlt.extract.exceptions import (
     ParametrizedResourceUnbound,
     PipeNotBoundToData,
 )
-from dlt.extract.typing import (
+from dlt.extract.items import (
     ItemTransform,
+    ResolvablePipeItem,
     SupportsPipe,
+    TPipeStep,
     TPipedDataItems,
 )
 from dlt.extract.utils import (
@@ -26,21 +28,6 @@ from dlt.extract.utils import (
     wrap_resource_gen,
     wrap_async_iterator,
 )
-from dlt.extract.items import ResolvablePipeItem
-
-# pipeline step may be iterator of data items or mapping function that returns data item or another iterator
-TPipeStep = Union[
-    Iterable[TPipedDataItems],
-    Iterator[TPipedDataItems],
-    # Callable with meta
-    Callable[[TDataItems, Optional[Any]], TPipedDataItems],
-    Callable[[TDataItems, Optional[Any]], Iterator[TPipedDataItems]],
-    Callable[[TDataItems, Optional[Any]], Iterator[ResolvablePipeItem]],
-    # Callable without meta
-    Callable[[TDataItems], TPipedDataItems],
-    Callable[[TDataItems], Iterator[TPipedDataItems]],
-    Callable[[TDataItems], Iterator[ResolvablePipeItem]],
-]
 
 
 class ForkPipe:
@@ -187,6 +174,11 @@ class Pipe(SupportsPipe):
         """Replaces data generating step. Assumes that you know what are you doing"""
         assert not self.is_empty
         self._steps[self._gen_idx] = gen
+
+    def close(self) -> None:
+        """Closes pipe generator"""
+        if inspect.isgenerator(self.gen):
+            self.gen.close()
 
     def full_pipe(self) -> "Pipe":
         """Creates a pipe that from the current and all the parent pipes."""
