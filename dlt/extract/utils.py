@@ -28,7 +28,7 @@ from dlt.extract.exceptions import (
     InvalidResourceDataTypeFunctionNotAGenerator,
     InvalidStepFunctionArguments,
 )
-from dlt.extract.typing import (
+from dlt.extract.items import (
     TTableHintTemplate,
     TDataItem,
     TFunHintTemplate,

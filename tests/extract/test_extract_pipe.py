@@ -10,7 +10,7 @@ import dlt
 from dlt.common import sleep
 from dlt.common.typing import TDataItems
 from dlt.extract.exceptions import CreatePipeException, ResourceExtractionError
-from dlt.extract.typing import DataItemWithMeta, FilterItem, MapItem, YieldMapItem
+from dlt.extract.items import DataItemWithMeta, FilterItem, MapItem, YieldMapItem
 from dlt.extract.pipe import Pipe
 from dlt.extract.pipe_iterator import PipeIterator, ManagedPipeIterator, PipeItem
 

@@ -1,7 +1,7 @@
 from typing import Any, Literal, Set, get_args, Final, Dict
 
 from dlt.extract import DltResource, resource as make_resource
-from dlt.extract.typing import TTableHintTemplate
+from dlt.extract.items import TTableHintTemplate
 from dlt.extract.hints import TResourceHints
 from dlt.destinations.utils import ensure_resource
 

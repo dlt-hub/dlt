@@ -3,7 +3,7 @@ from typing import Any, Set, Type
 
 from dlt.common.exceptions import DltException
 from dlt.common.utils import get_callable_name
-from dlt.extract.typing import ValidateItem, TDataItems
+from dlt.extract.items import ValidateItem, TDataItems
 
 
 class ExtractorException(DltException):

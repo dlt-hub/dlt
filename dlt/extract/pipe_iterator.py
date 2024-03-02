@@ -32,11 +32,9 @@ from dlt.extract.exceptions import (
     ResourceExtractionError,
 )
 from dlt.extract.pipe import Pipe
-from dlt.extract.typing import DataItemWithMeta
+from dlt.extract.items import DataItemWithMeta, PipeItem, ResolvablePipeItem, SourcePipeItem
 from dlt.extract.utils import wrap_async_iterator
 from dlt.extract.concurrency import FuturesPool
-from dlt.extract.items import PipeItem, ResolvablePipeItem, SourcePipeItem
-
 
 TPipeNextItemMode = Literal["fifo", "round_robin"]
 

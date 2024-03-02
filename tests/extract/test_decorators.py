@@ -40,7 +40,7 @@ from dlt.extract.exceptions import (
     CurrentSourceSchemaNotAvailable,
     InvalidParallelResourceDataType,
 )
-from dlt.extract.typing import TableNameMeta
+from dlt.extract.items import TableNameMeta
 
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9
 
