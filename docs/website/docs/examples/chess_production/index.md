@@ -27,7 +27,7 @@ We'll learn how to:
 ### Init chess source
 
 <!--@@@DLT_SNIPPET_START ./code/chess-snippets.py::markdown_source-->
-```python
+```py
 import threading
 from typing import Any, Iterator
 
