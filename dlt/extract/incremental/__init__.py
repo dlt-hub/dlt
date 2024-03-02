@@ -2,13 +2,11 @@ import os
 from datetime import datetime  # noqa: I251
 from typing import Generic, ClassVar, Any, Optional, Type, Dict
 from typing_extensions import get_origin, get_args
+
 import inspect
 from functools import wraps
 
-try:
-    import pandas as pd
-except ModuleNotFoundError:
-    pd = None
+
 
 import dlt
 from dlt.common.exceptions import MissingDependencyException
@@ -50,6 +48,11 @@ try:
     from dlt.common.libs.pyarrow import is_arrow_item
 except MissingDependencyException:
     is_arrow_item = lambda item: False
+
+try:
+    from dlt.common.libs.pandas import pandas
+except MissingDependencyException:
+    pandas = None
 
 
 @configspec
@@ -410,7 +413,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         for item in items if isinstance(items, list) else [items]:
             if is_arrow_item(item):
                 return self._transformers["arrow"]
-            elif pd is not None and isinstance(item, pd.DataFrame):
+            elif pandas is not None and isinstance(item, pandas.DataFrame):
                 return self._transformers["arrow"]
             return self._transformers["json"]
         return self._transformers["json"]

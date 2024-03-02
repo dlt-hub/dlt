@@ -1,16 +1,6 @@
 from datetime import datetime, date  # noqa: I251
 from typing import Any, Optional, Tuple, List
 
-try:
-    import pandas as pd
-except ModuleNotFoundError:
-    pd = None
-
-try:
-    import numpy as np
-except ModuleNotFoundError:
-    np = None
-
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.utils import digest128
 from dlt.common.json import json
@@ -28,11 +18,15 @@ from dlt.common.schema.typing import TColumnNames
 
 try:
     from dlt.common.libs import pyarrow
+    from dlt.common.libs.pandas import pandas
+    from dlt.common.libs.numpy import numpy
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
     from dlt.common.libs.pyarrow import from_arrow_scalar, to_arrow_scalar
 except MissingDependencyException:
     pa = None
     pyarrow = None
+    numpy = None
+    pandas = None
 
 
 class IncrementalTransform:
@@ -197,14 +191,14 @@ class ArrowIncremental(IncrementalTransform):
         """Creates unique index if necessary."""
         # create unique index if necessary
         if self._dlt_index not in tbl.schema.names:
-            tbl = pyarrow.append_column(tbl, self._dlt_index, pa.array(np.arange(tbl.num_rows)))
+            tbl = pyarrow.append_column(tbl, self._dlt_index, pa.array(numpy.arange(tbl.num_rows)))
         return tbl
 
     def __call__(
         self,
         tbl: "TAnyArrowItem",
     ) -> Tuple[TDataItem, bool, bool]:
-        is_pandas = pd is not None and isinstance(tbl, pd.DataFrame)
+        is_pandas = pandas is not None and isinstance(tbl, pandas.DataFrame)
         if is_pandas:
             tbl = pa.Table.from_pandas(tbl)
 
