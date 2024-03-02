@@ -13,7 +13,7 @@ from dlt.extract.incremental.exceptions import (
 )
 from dlt.extract.incremental.typing import IncrementalColumnState, TCursorValue, LastValueFunc
 from dlt.extract.utils import resolve_column_value
-from dlt.extract.typing import TTableHintTemplate
+from dlt.extract.items import TTableHintTemplate
 from dlt.common.schema.typing import TColumnNames
 
 try:

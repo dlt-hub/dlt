@@ -16,6 +16,7 @@ from dlt.common.typing import (
     TDataItem,
     TDataItems,
     TFun,
+    TSortOrder,
     extract_inner_type,
     get_generic_type_argument_from_instance,
     is_optional_type,
@@ -37,7 +38,7 @@ from dlt.extract.incremental.exceptions import (
 )
 from dlt.extract.incremental.typing import IncrementalColumnState, TCursorValue, LastValueFunc
 from dlt.extract.pipe import Pipe
-from dlt.extract.typing import SupportsPipe, TTableHintTemplate, ItemTransform
+from dlt.extract.items import SupportsPipe, TTableHintTemplate, ItemTransform
 from dlt.extract.incremental.transform import (
     JsonIncremental,
     ArrowIncremental,
@@ -88,6 +89,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         end_value: Optional value used to load a limited range of records between `initial_value` and `end_value`.
             Use in conjunction with `initial_value`, e.g. load records from given month `incremental(initial_value="2022-01-01T00:00:00Z", end_value="2022-02-01T00:00:00Z")`
             Note, when this is set the incremental filtering is stateless and `initial_value` always supersedes any previous incremental value in state.
+        row_order: Declares that data source returns rows in descending (desc) or ascending (asc) order as defined by `last_value_func`. If row order is know, Incremental class
+                    is able to stop requesting new rows by closing pipe generator. This prevents getting more data from the source. Defaults to None, which means that
+                    row order is not known.
         allow_external_schedulers: If set to True, allows dlt to look for external schedulers from which it will take "initial_value" and "end_value" resulting in loading only
             specified range of data. Currently Airflow scheduler is detected: "data_interval_start" and "data_interval_end" are taken from the context and passed Incremental class.
             The values passed explicitly to Incremental will be ignored.
@@ -99,6 +103,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     # TODO: Support typevar here
     initial_value: Optional[Any] = None
     end_value: Optional[Any] = None
+    row_order: Optional[TSortOrder] = None
+    allow_external_schedulers: bool = False
 
     # incremental acting as empty
     EMPTY: ClassVar["Incremental[Any]"] = None
@@ -110,6 +116,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         last_value_func: Optional[LastValueFunc[TCursorValue]] = max,
         primary_key: Optional[TTableHintTemplate[TColumnNames]] = None,
         end_value: Optional[TCursorValue] = None,
+        row_order: Optional[TSortOrder] = None,
         allow_external_schedulers: bool = False,
     ) -> None:
         # make sure that path is valid
@@ -124,6 +131,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         """Value of last_value at the beginning of current pipeline run"""
         self.resource_name: Optional[str] = None
         self._primary_key: Optional[TTableHintTemplate[TColumnNames]] = primary_key
+        self.row_order = row_order
         self.allow_external_schedulers = allow_external_schedulers
 
         self._cached_state: IncrementalColumnState = None
@@ -136,6 +144,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         """Becomes true on the first item that is out of range of `start_value`. I.e. when using `max` this is a value that is lower than `start_value`"""
 
         self._transformers: Dict[str, IncrementalTransform] = {}
+        self._pipe: SupportsPipe = None
+        """Bound pipe"""
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
@@ -172,18 +182,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         i.resource_name = resource_name
         return i
 
-    def copy(self) -> "Incremental[TCursorValue]":
-        # preserve Generic param information
-        constructor = self.__orig_class__ if hasattr(self, "__orig_class__") else self.__class__
-        return constructor(  # type: ignore
-            self.cursor_path,
-            initial_value=self.initial_value,
-            last_value_func=self.last_value_func,
-            primary_key=self._primary_key,
-            end_value=self.end_value,
-            allow_external_schedulers=self.allow_external_schedulers,
-        )
-
     def merge(self, other: "Incremental[TCursorValue]") -> "Incremental[TCursorValue]":
         """Create a new incremental instance which merges the two instances.
         Only properties which are not `None` from `other` override the current instance properties.
@@ -194,6 +192,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         >>>
         >>> my_resource(updated=incremental(initial_value='2023-01-01', end_value='2023-02-01'))
         """
+        # func, resource name and primary key are not part of the dict
         kwargs = dict(self, last_value_func=self.last_value_func, primary_key=self._primary_key)
         for key, value in dict(
             other, last_value_func=other.last_value_func, primary_key=other.primary_key
@@ -208,7 +207,15 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 other.__orig_class__ if hasattr(other, "__orig_class__") else other.__class__
             )
         constructor = extract_inner_type(constructor)
-        return constructor(**kwargs)  # type: ignore
+        merged = constructor(**kwargs)
+        merged.resource_name = self.resource_name
+        if other.resource_name:
+            merged.resource_name = other.resource_name
+        return merged  # type: ignore
+
+    def copy(self) -> "Incremental[TCursorValue]":
+        # merge creates a copy
+        return self.merge(self)
 
     def on_resolved(self) -> None:
         compile_path(self.cursor_path)
@@ -247,7 +254,10 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             self.initial_value = native_value.initial_value
             self.last_value_func = native_value.last_value_func
             self.end_value = native_value.end_value
-            self.resource_name = self.resource_name
+            self.resource_name = native_value.resource_name
+            self._primary_key = native_value._primary_key
+            self.allow_external_schedulers = native_value.allow_external_schedulers
+            self.row_order = native_value.row_order
         else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
             # Passing bare value `incremental=44` gets parsed as initial_value
             self.initial_value = native_value
@@ -308,6 +318,16 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         row, start_out_of_range, end_out_of_range = transformer(row)
         self.start_out_of_range = start_out_of_range
         self.end_out_of_range = end_out_of_range
+        # if we know that rows are ordered we can close the generator automatically
+        # mind that closing pipe will not immediately close processing. it only closes the
+        # generator so this page will be fully processed
+        if self.row_order:
+            # ordered ascending, check if we cross upper bound
+            if self.row_order == "asc" and end_out_of_range:
+                self._pipe.close()
+            # ordered descending, check if we cross lower bound
+            if self.row_order == "desc" and start_out_of_range:
+                self._pipe.close()
         return row
 
     def get_incremental_value_type(self) -> Type[Any]:
@@ -388,6 +408,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         if self.is_partial():
             raise IncrementalCursorPathMissing(pipe.name, None, None)
         self.resource_name = pipe.name
+        self._pipe = pipe
         # try to join external scheduler
         if self.allow_external_schedulers:
             self._join_external_scheduler()
