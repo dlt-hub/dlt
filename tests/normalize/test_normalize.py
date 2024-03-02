@@ -18,6 +18,7 @@ from dlt.common.configuration.container import Container
 
 from dlt.extract.extract import ExtractStorage
 from dlt.normalize import Normalize
+from dlt.normalize.exceptions import NormalizeJobFailed
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
 from tests.utils import (
@@ -436,6 +437,26 @@ def test_normalize_twice_with_flatten(
     assert_schema(schema)
 
 
+def test_normalize_retry(raw_normalize: Normalize) -> None:
+    load_id = extract_cases(raw_normalize, ["github.issues.load_page_5_duck"])
+    schema = raw_normalize.normalize_storage.extracted_packages.load_schema(load_id)
+    schema.set_schema_contract("freeze")
+    raw_normalize.normalize_storage.extracted_packages.save_schema(load_id, schema)
+    # will fail on contract violatiom
+    with pytest.raises(NormalizeJobFailed):
+        raw_normalize.run(None)
+
+    # drop the contract requirements
+    schema.set_schema_contract("evolve")
+    raw_normalize.normalize_storage.extracted_packages.save_schema(load_id, schema)
+    # subsequent run must succeed
+    raw_normalize.run(None)
+    _, table_files = expect_load_package(
+        raw_normalize.load_storage, load_id, ["issues", "issues__labels", "issues__assignees"]
+    )
+    assert len(table_files["issues"]) == 1
+
+
 def test_group_worker_files() -> None:
     files = ["f%03d" % idx for idx in range(0, 100)]
 
@@ -543,7 +564,7 @@ def normalize_pending(normalize: Normalize) -> str:
     return load_id
 
 
-def extract_cases(normalize: Normalize, cases: Sequence[str]) -> None:
+def extract_cases(normalize: Normalize, cases: Sequence[str]) -> str:
     items: List[StrAny] = []
     for case in cases:
         # our cases have schema and table name encoded in file name
@@ -555,7 +576,7 @@ def extract_cases(normalize: Normalize, cases: Sequence[str]) -> None:
             else:
                 items.append(item)
     # we assume that all items belonged to a single schema
-    extract_items(
+    return extract_items(
         normalize.normalize_storage,
         items,
         load_or_create_schema(normalize, schema_name),
