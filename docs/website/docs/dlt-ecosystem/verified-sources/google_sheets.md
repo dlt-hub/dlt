@@ -68,6 +68,8 @@ You need to create a GCP service account to get API credentials if you don't hav
 You need to create a GCP account to get OAuth credentials if you don't have one. To create one,
 follow these steps:
 
+1. Initialize the verified source as explained in ["initialize-the-verified-source"](#initialize-the-verified-source) to set up OAuth credentials.
+
 1. Open a GCP project in your GCP account.
 
 1. Enable the Sheets API in the project.
@@ -78,7 +80,8 @@ follow these steps:
    appropriate name.
 
 1. Download the credentials and fill "client_id", "client_secret" and "project_id" in
-   "secrets.toml".
+   "secrets.toml". You can comment out the "refresh_token" field since we will grab it 
+   in the next steps.
 
 1. Go back to credentials and select the OAuth consent screen on the left.
 
