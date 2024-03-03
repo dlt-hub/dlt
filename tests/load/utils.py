@@ -131,7 +131,7 @@ class DestinationTestConfiguration:
         if self.destination == "filesystem" or self.disable_compression:
             os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "True"
 
-    def setup_pipeline(
+    def setup_pipeline(  # type: ignore[no-untyped-def, unused-ignore]
         self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = False, **kwargs
     ) -> dlt.Pipeline:
         """Convenience method to set up a pipeline with this configuration."""
@@ -160,14 +160,14 @@ def destinations_configs(
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
-    # sanity check
+    # Sanity check.
     for item in subset:
         assert item in IMPLEMENTED_DESTINATIONS, f"Destination {item} is not implemented"
 
-    # build destination configs
+    # Build destination configs.
     destination_configs: List[DestinationTestConfiguration] = []
 
-    # default non staging sql based configs, one per destination
+    # Default non staging sql based configs, one per destination.
     if default_sql_configs:
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
@@ -177,7 +177,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
         ]
-        # athena needs filesystem staging, which will be automatically set, we have to supply a bucket url though
+        # Athena needs filesystem staging, which will be automatically set; we have to supply a bucket url though.
         destination_configs += [
             DestinationTestConfiguration(
                 destination="athena",
@@ -211,7 +211,7 @@ def destinations_configs(
         ]
 
     if default_vector_configs:
-        # for now only weaviate
+        # For now only weaviate.
         destination_configs += [DestinationTestConfiguration(destination="weaviate")]
 
     if default_staging_configs or all_staging_configs:
@@ -341,7 +341,7 @@ def destinations_configs(
             ),
         ]
 
-    # add local filesystem destinations if requested
+    # Add local filesystem destinations if requested.
     if local_filesystem_configs:
         destination_configs += [
             DestinationTestConfiguration(
@@ -367,12 +367,12 @@ def destinations_configs(
                 )
             ]
 
-    # filter out non active destinations
+    # Filter out non active destinations.
     destination_configs = [
         conf for conf in destination_configs if conf.destination in ACTIVE_DESTINATIONS
     ]
 
-    # filter out destinations not in subset
+    # Filter out destinations not in subset.
     if subset:
         destination_configs = [conf for conf in destination_configs if conf.destination in subset]
     if exclude:
@@ -396,7 +396,7 @@ def destinations_configs(
             conf for conf in destination_configs if conf.supports_dbt == supports_dbt
         ]
 
-    # filter out excluded configs
+    # Filter out excluded configs.
     destination_configs = [
         conf for conf in destination_configs if conf.name not in EXCLUDED_DESTINATION_CONFIGURATIONS
     ]
