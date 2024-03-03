@@ -1,9 +1,11 @@
 import typing as t
 
-from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
-from dlt.destinations.impl.filesystem import capabilities
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.storages.configuration import FileSystemCredentials
+from dlt.common.typing import DictStrAny
+from dlt.destinations.impl.filesystem import capabilities
+from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
+
 
 if t.TYPE_CHECKING:
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
@@ -21,14 +23,8 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
 
         return FilesystemClient
 
-    def __init__(
-        self,
-        bucket_url: str = None,
-        credentials: t.Union[FileSystemCredentials, t.Dict[str, t.Any], t.Any] = None,
-        destination_name: t.Optional[str] = None,
-        environment: t.Optional[str] = None,
-        **kwargs: t.Any,
-    ) -> None:
+    def __init__(self, bucket_url: str = None, credentials: t.Union[FileSystemCredentials, t.Dict[str, t.Any], t.Any] = None,
+                 destination_name: t.Optional[str] = None, environment: t.Optional[str] = None, layout_placeholders: t.Optional[DictStrAny] = None, **kwargs: t.Any) -> None:
         """Configure the filesystem destination to use in a pipeline and load data to local or remote filesystem.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
@@ -46,12 +42,18 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
             credentials: Credentials to connect to the filesystem. The type of credentials should correspond to
                 the bucket protocol. For example, for AWS S3, the credentials should be an instance of `AwsCredentials`.
                 A dictionary with the credentials parameters can be provided.
+            layout_placeholders: A dictionary to define custom placeholders for partition layouts.
+                Keys are placeholder strings and values can be literals or functions returning strings.
+                Useful for customizing destination partitioning paths based on source properties, metadata, or user-defined functions.
             **kwargs: Additional arguments passed to the destination config.
         """
+        if layout_placeholders is None:
+            layout_placeholders = {}
         super().__init__(
             bucket_url=bucket_url,
             credentials=credentials,
             destination_name=destination_name,
             environment=environment,
+            layout_placeholders=layout_placeholders,
             **kwargs,
         )

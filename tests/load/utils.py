@@ -1,49 +1,43 @@
-import pytest
-import contextlib
 import codecs
+import contextlib
 import os
-from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
 import shutil
-from pathlib import Path
 from dataclasses import dataclass
+from pathlib import Path
+from typing import Any, Iterator, List, Sequence, IO, Tuple, Optional, Dict, Union, Generator
+
+import pytest
 
 import dlt
 from dlt.common import json, sleep
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+from dlt.common.data_writers import DataWriter
+from dlt.common.destination import TLoaderFileFormat, Destination
 from dlt.common.destination.reference import (
     DestinationClientDwhConfiguration,
     JobClientBase,
     LoadJob,
     DestinationClientStagingConfiguration,
     WithStagingDataset,
+    TDestination,
 )
-from dlt.common.destination import TLoaderFileFormat, Destination
-from dlt.common.data_writers import DataWriter
 from dlt.common.schema import TTableSchemaColumns, Schema
-from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.schema.utils import new_table
-from dlt.common.storages import ParsedLoadJobFileName, LoadStorage, PackageStorage
+from dlt.common.storages import ParsedLoadJobFileName, LoadStorage
+from dlt.common.storages import SchemaStorage, FileStorage, SchemaStorageConfiguration
 from dlt.common.typing import StrAny
 from dlt.common.utils import uniq_id
-
-from dlt.load import Load
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
-
+from dlt.destinations.sql_client import SqlClientBase
 from tests.utils import (
     ACTIVE_DESTINATIONS,
     IMPLEMENTED_DESTINATIONS,
     SQL_DESTINATIONS,
     EXCLUDED_DESTINATION_CONFIGURATIONS,
 )
-from tests.cases import (
-    TABLE_UPDATE_COLUMNS_SCHEMA,
-    TABLE_UPDATE,
-    TABLE_ROW_ALL_DATA_TYPES,
-    assert_all_data_types_row,
-)
+
 
 # bucket urls
 AWS_BUCKET = dlt.config.get("tests.bucket_url_s3", str)
@@ -70,11 +64,10 @@ DEFAULT_BUCKETS = [
     bucket for bucket in DEFAULT_BUCKETS if bucket.split(":")[0] in ALL_FILESYSTEM_DRIVERS
 ]
 
-# temporary solution to include gdrive bucket in tests,
-# while gdrive is not working as a destination
+# Temporary solution to include gdrive bucket in tests, while gdrive is not working as a destination.
 WITH_GDRIVE_BUCKETS = [GDRIVE_BUCKET] + DEFAULT_BUCKETS
 
-# Add r2 in extra buckets so it's not run for all tests
+# Add r2 in extra buckets, so it is not run for all tests.
 R2_BUCKET_CONFIG = dict(
     bucket_url=R2_BUCKET,
     # Credentials included, so we can override aws credentials in env later.
@@ -96,7 +89,7 @@ ALL_BUCKETS = DEFAULT_BUCKETS + EXTRA_BUCKETS
 class DestinationTestConfiguration:
     """Class for defining test setup for one destination."""
 
-    destination: str
+    destination: Union[str, TDestination]
     staging: Optional[str] = None
     file_format: Optional[TLoaderFileFormat] = None
     bucket_url: Optional[str] = None
@@ -111,7 +104,11 @@ class DestinationTestConfiguration:
 
     @property
     def name(self) -> str:
-        name: str = self.destination
+        name: str = (
+            self.destination
+            if isinstance(self.destination, str)
+            else self.destination.destination_name
+        )
         if self.file_format:
             name += f"-{self.file_format}"
         name += "-staging" if self.staging else "-no-staging"
@@ -459,10 +456,7 @@ def prepare_table(
     client.schema.bump_version()
     client.update_stored_schema()
     user_table = load_table(case_name)[table_name]
-    if make_uniq_table:
-        user_table_name = table_name + uniq_id()
-    else:
-        user_table_name = table_name
+    user_table_name = table_name + uniq_id() if make_uniq_table else table_name
     client.schema.update_table(new_table(user_table_name, columns=list(user_table.values())))
     client.schema.bump_version()
     client.update_stored_schema()
@@ -476,17 +470,15 @@ def yield_client(
     schema_name: str = "event",
 ) -> Iterator[SqlJobClientBase]:
     os.environ.pop("DATASET_NAME", None)
-    # import destination reference by name
+    # Import destination reference by name.
     destination = Destination.from_reference(destination_type)
-    # create initial config
+    # Create initial config.
     dest_config: DestinationClientDwhConfiguration = None
     dest_config = destination.spec()  # type: ignore[assignment]
     dest_config.dataset_name = dataset_name  # type: ignore[misc]
 
     if default_config_values is not None:
-        # apply the values to credentials, if dict is provided it will be used as default
-        # dest_config.credentials = default_config_values  # type: ignore[assignment]
-        # also apply to config
+        # Apply to config.
         dest_config.update(default_config_values)
     # get event default schema
     storage_config = resolve_configuration(
@@ -498,7 +490,7 @@ def yield_client(
     # create client and dataset
     client: SqlJobClientBase = None
 
-    # athena requires staging config to be present, so stick this in there here
+    # Athena requires staging config to be present, so stick this in there here.
     if destination_type == "athena":
         staging_config = DestinationClientStagingConfiguration(
             destination_type="fake-stage",  # type: ignore
@@ -535,7 +527,7 @@ def yield_client_with_storage(
     destination_type: str, default_config_values: StrAny = None, schema_name: str = "event"
 ) -> Iterator[SqlJobClientBase]:
     # create dataset with random name
-    dataset_name = "test_" + uniq_id()
+    dataset_name = f"test_{uniq_id()}"
 
     with cm_yield_client(
         destination_type, dataset_name, default_config_values, schema_name
@@ -573,7 +565,7 @@ def write_dataset(
     data_format = DataWriter.data_format_from_file_format(
         client.capabilities.preferred_loader_file_format
     )
-    # adapt bytes stream to text file format
+    # Adapt byte stream to text file format.
     if not data_format.is_binary_format and isinstance(f.read(0), bytes):
         f = codecs.getwriter("utf-8")(f)  # type: ignore[assignment]
     writer = DataWriter.from_destination_capabilities(client.capabilities, f)
