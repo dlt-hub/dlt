@@ -2,6 +2,7 @@ from typing import Dict, List
 
 from dlt.common.schema.schema import Schema
 from dlt.common.configuration.accessors import config
+from dlt.common.storages.exceptions import SchemaNotFoundError
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.storages.configuration import SchemaStorageConfiguration
 
@@ -23,10 +24,10 @@ class LiveSchemaStorage(SchemaStorage):
 
         return schema
 
-    def load_schema(self, name: str) -> Schema:
-        self.commit_live_schema(name)
-        # now live schema is saved so we can load it with the changes
-        return super().load_schema(name)
+    # def load_schema(self, name: str) -> Schema:
+    #     self.commit_live_schema(name)
+    #     # now live schema is saved so we can load it with the changes
+    #     return super().load_schema(name)
 
     def save_schema(self, schema: Schema) -> str:
         rv = super().save_schema(schema)
@@ -54,6 +55,14 @@ class LiveSchemaStorage(SchemaStorage):
             live_schema.bump_version()
             self._save_schema(live_schema)
         return live_schema
+
+    def is_live_schema_committed(self, name: str) -> bool:
+        """Checks if live schema is present in storage and have same hash"""
+        live_schema = self.live_schemas.get(name)
+        if live_schema is None:
+            raise SchemaNotFoundError(name, f"live-schema://{name}")
+        # TODO: we should probably check if physically stored schema has same hash
+        return live_schema.stored_version_hash != live_schema.version_hash
 
     def update_live_schema(self, schema: Schema, can_create_new: bool = True) -> None:
         """Will update live schema content without writing to storage. Optionally allows to create a new live schema"""
