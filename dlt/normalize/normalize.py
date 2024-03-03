@@ -374,6 +374,9 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         for load_id in load_ids:
             # read schema from package
             schema = self.normalize_storage.extracted_packages.load_schema(load_id)
+            # prefer schema from schema storage if it exists
+            if self.schema_storage.has_schema(schema.name):
+                schema = self.schema_storage.load_schema(schema.name)
             # read all files to normalize placed as new jobs
             schema_files = self.normalize_storage.extracted_packages.list_new_jobs(load_id)
             logger.info(

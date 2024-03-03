@@ -448,7 +448,9 @@ def test_normalize_retry(raw_normalize: Normalize) -> None:
 
     # drop the contract requirements
     schema.set_schema_contract("evolve")
-    raw_normalize.normalize_storage.extracted_packages.save_schema(load_id, schema)
+    # save this schema into schema storage from which normalizer must pick it up
+    raw_normalize.schema_storage.save_schema(schema)
+    # raw_normalize.normalize_storage.extracted_packages.save_schema(load_id, schema)
     # subsequent run must succeed
     raw_normalize.run(None)
     _, table_files = expect_load_package(
