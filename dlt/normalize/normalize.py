@@ -375,7 +375,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             # read schema from package
             schema = self.normalize_storage.extracted_packages.load_schema(load_id)
             # prefer schema from schema storage if it exists
-            if self.schema_storage.has_schema(schema.name):
+            try:
+                # also import the schema
                 storage_schema = self.schema_storage.load_schema(schema.name)
                 if schema.stored_version_hash != storage_schema.stored_version_hash:
                     logger.warning(
@@ -385,6 +386,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                         " was used."
                     )
                 schema = storage_schema
+            except FileNotFoundError:
+                pass
             # read all files to normalize placed as new jobs
             schema_files = self.normalize_storage.extracted_packages.list_new_jobs(load_id)
             logger.info(
