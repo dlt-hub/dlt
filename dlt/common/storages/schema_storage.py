@@ -143,15 +143,6 @@ class SchemaStorage(Mapping[str, Schema]):
         assert rv_schema is not None
         return rv_schema
 
-    def maybe_load_import_schema(self, name: str) -> Schema:
-        if not self.config.import_schema_path:
-            return None
-        try:
-            imported_schema = self._load_import_schema(name)
-            return Schema.from_dict(imported_schema)
-        except FileNotFoundError:
-            return None
-
     def _load_import_schema(self, name: str) -> DictStrAny:
         import_storage = FileStorage(self.config.import_schema_path, makedirs=False)
         schema_file = self._file_name_in_store(name, self.config.external_schema_format)

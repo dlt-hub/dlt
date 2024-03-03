@@ -161,13 +161,28 @@ def with_schemas_sync(f: TFun) -> TFun:
         for name in self._schema_storage.live_schemas:
             # refresh live schemas in storage or import schema path
             self._schema_storage.commit_live_schema(name)
-        rv = f(self, *args, **kwargs)
-        # save modified live schemas
-        for name in self._schema_storage.live_schemas:
-            self._schema_storage.commit_live_schema(name)
-        # refresh list of schemas if any new schemas are added
-        self.schema_names = self._list_schemas_sorted()
-        return rv
+        try:
+            rv = f(self, *args, **kwargs)
+        except Exception:
+            # because we committed live schema before calling f, we may safely
+            # drop all changes in live schemas
+            for name in list(self._schema_storage.live_schemas.keys()):
+                try:
+                    schema = self._schema_storage.load_schema(name)
+                    self._schema_storage.update_live_schema(schema, can_create_new=False)
+                except FileNotFoundError:
+                    # no storage schema yet so pop live schema (created in call to f)
+                    self._schema_storage.live_schemas.pop(name, None)
+                raise
+        else:
+            # save modified live schemas
+            for name, schema in self._schema_storage.live_schemas.items():
+                self._schema_storage.commit_live_schema(name)
+                # also save import schemas only here
+                self._schema_storage.save_import_schema_if_not_exists(schema)
+            # refresh list of schemas if any new schemas are added
+            self.schema_names = self._list_schemas_sorted()
+            return rv
 
     return _wrap  # type: ignore
 
@@ -1018,25 +1033,33 @@ class Pipeline(SupportsPipeline):
     def _extract_source(
         self, extract: Extract, source: DltSource, max_parallel_items: int, workers: int
     ) -> str:
-        # discover existing schemas
-        existing_schema = None
-        if source.schema.name in self.schemas:
-            # use clone until extraction complete
-            existing_schema = self.schemas[source.schema.name].clone()
-        # check if we can import a schema if non was synced from destination
-        else:
-            existing_schema = self._schema_storage.maybe_load_import_schema(source.schema.name)
-
-        # if we have an existing schema, replace it
-        if existing_schema:
-            existing_schema.update_schema(source.schema)
-            source.schema = existing_schema
+        # discover the existing pipeline schema
+        try:
+            # all live schemas are initially committed and during the extract will accumulate changes in memory
+            # if schema is committed try to take schema from storage
+            if self._schema_storage.is_live_schema_committed(source.schema.name):
+                # this will (1) save live schema if modified (2) look for import schema if present
+                # (3) load import schema an overwrite pipeline schema if import schema modified
+                # (4) load pipeline schema if no import schema is present
+                pipeline_schema = self.schemas.load_schema(source.schema.name)
+            else:
+                # if schema is not committed we know we are in process of extraction
+                pipeline_schema = self.schemas[source.schema.name]
+            pipeline_schema = pipeline_schema.clone()  # use clone until extraction complete
+            # apply all changes in the source schema to pipeline schema
+            # NOTE: we do not apply contracts to changes done programmatically
+            pipeline_schema.update_schema(source.schema)
+            # replace schema in the source
+            source.schema = pipeline_schema
+        except FileNotFoundError:
+            pass
 
         # extract into pipeline schema
         load_id = extract.extract(source, max_parallel_items, workers)
 
         # save import with fully discovered schema
-        self._schema_storage.save_import_schema_if_not_exists(source.schema)
+        # NOTE: moved to with_schema_sync, remove this if all test pass
+        # self._schema_storage.save_import_schema_if_not_exists(source.schema)
 
         # update live schema but not update the store yet
         self._schema_storage.update_live_schema(source.schema)
