@@ -1,13 +1,13 @@
 """Tests extended layout placeholders for filesystem destinations."""
-import datetime
 import inspect
 import os
-from typing import Iterator, Dict
+from typing import Iterator
 
 import pytest
 
 import dlt
 from dlt.common.configuration.inject import with_config
+from dlt.common.pendulum import timedelta, pendulum
 from dlt.common.storages import FileStorage, FilesystemConfiguration
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import uniq_id
@@ -52,7 +52,6 @@ ALL_LAYOUTS = (
     "{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",  # New default layout with schema.
     "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}",  # Classic layout.
     "{table_name}88{load_id}-u-{file_id}.{ext}",  # Default layout with strange separators.
-    "{table_name}88{load_id}-u-{file_id}.{ext}",  # Default layout with strange separators.
 )
 
 
@@ -82,18 +81,18 @@ def test_integration_partition_on_resource_metadata(
         ],
     )
     def resource() -> Iterator[DictStrAny]:
-        start_date = datetime.date(2024, 1, 1)
+        start_date = pendulum.date(2024, 1, 1)
         yield from [
             {
                 "count": i,
                 "category": chr(i % 3 + ord("A")),  # Cycles through A, B and C.
-                "event_date": start_date + datetime.timedelta(days=i),
+                "event_date": start_date + timedelta(days=i),
             }
             for i in range(100)
         ]
 
     destination_config.destination = filesystem(layout_placeholders={"category": 3})  # type: ignore[assignment]
-    print(destination_config.destination.config_params)
+    # print(destination_config.destination.config_params)
 
     pipeline = destination_config.setup_pipeline(
         f"{inspect.currentframe().f_code.co_name}_{uniq_id()}", full_refresh=True
@@ -131,12 +130,12 @@ def test_integration_partition_on_resource_parameters(
         ],
     )
     def resource() -> Iterator[DictStrAny]:
-        start_date = datetime.date(2024, 1, 1)
+        start_date = pendulum.date(2024, 1, 1)
         yield from [
             {
                 "count": i,
                 "category": chr(i % 3 + ord("A")),  # Cycles through A, B and C.
-                "event_date": start_date + datetime.timedelta(days=i),
+                "event_date": start_date + timedelta(days=i),
             }
             for i in range(100)
         ]

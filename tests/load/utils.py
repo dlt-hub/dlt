@@ -37,6 +37,12 @@ from tests.utils import (
     SQL_DESTINATIONS,
     EXCLUDED_DESTINATION_CONFIGURATIONS,
 )
+from tests.cases import (
+    TABLE_UPDATE_COLUMNS_SCHEMA,
+    TABLE_UPDATE,
+    TABLE_ROW_ALL_DATA_TYPES,
+    assert_all_data_types_row,
+)
 
 
 # bucket urls

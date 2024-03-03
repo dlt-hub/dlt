@@ -1,5 +1,5 @@
 import os
-from typing import Any, ClassVar, Dict, Iterator, List, Optional
+from typing import Any, ClassVar, Dict, Iterator, List, Optional, cast
 import pytest
 from pydantic import BaseModel
 
@@ -28,21 +28,22 @@ from tests.pipeline.utils import assert_load_info, load_data_table_counts, many_
     "destination_config", destinations_configs(default_sql_configs=True), ids=lambda x: x.name
 )
 def test_create_pipeline_all_destinations(destination_config: DestinationTestConfiguration) -> None:
-    # create pipelines, extract and normalize. that should be possible without installing any dependencies
+    # Create pipelines, extract and normalize.
+    # That should be possible without installing any dependencies.
     p = dlt.pipeline(
-        pipeline_name=destination_config.destination + "_pipeline",
+        pipeline_name=f"{str(destination_config.destination)}_pipeline",
         destination=destination_config.destination,
         staging=destination_config.staging,
     )
-    # are capabilities injected
+    # Are capabilities injected?
     caps = p._container[DestinationCapabilitiesContext]
     print(caps.naming_convention)
-    # are right naming conventions created
+    # Are right naming conventions created.
     assert p._default_naming.max_length == min(
         caps.max_column_identifier_length, caps.max_identifier_length
     )
     p.extract([1, "2", 3], table_name="data")
-    # is default schema with right naming convention
+    # Is the default schema with right naming convention.
     assert p.default_schema.naming.max_length == min(
         caps.max_column_identifier_length, caps.max_identifier_length
     )

@@ -23,8 +23,15 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
 
         return FilesystemClient
 
-    def __init__(self, bucket_url: str = None, credentials: t.Union[FileSystemCredentials, t.Dict[str, t.Any], t.Any] = None,
-                 destination_name: t.Optional[str] = None, environment: t.Optional[str] = None, layout_placeholders: t.Optional[DictStrAny] = None, **kwargs: t.Any) -> None:
+    def __init__(
+        self,
+        bucket_url: str = None,
+        credentials: t.Union[FileSystemCredentials, t.Dict[str, t.Any], t.Any] = None,
+        destination_name: t.Optional[str] = None,
+        environment: t.Optional[str] = None,
+        layout_placeholders: t.Optional[DictStrAny] = None,
+        **kwargs: t.Any
+    ) -> None:
         """Configure the filesystem destination to use in a pipeline and load data to local or remote filesystem.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.

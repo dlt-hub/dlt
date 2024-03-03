@@ -12,7 +12,12 @@ from dlt.destinations.impl.filesystem.filesystem import (
 )
 
 from tests.load.filesystem.utils import perform_load
-from tests.utils import clean_test_storage, init_test_logging, preserve_environ, autouse_test_storage
+from tests.utils import (
+    clean_test_storage,
+    init_test_logging,
+    preserve_environ,
+    autouse_test_storage,
+)
 
 
 @pytest.fixture(autouse=True)
