@@ -36,17 +36,17 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, "Filesyst
         The `bucket_url` determines the protocol to be used:
 
         - Local folder: `file:///path/to/directory`
-        - AWS S3 (and S3 compatible storages): `s3://bucket-name
-        - Azure Blob Storage: `az://container-name
-        - Google Cloud Storage: `gs://bucket-name
+        - AWS S3 (and S3 compatible storages): `s3://bucket-name`
+        - Azure Blob Storage: `az://container-name`
+        - Google Cloud Storage: `gs://bucket-name`
         - Memory fs: `memory://m`
 
         Args:
             bucket_url: The fsspec compatible bucket url to use for the destination.
             credentials: Credentials to connect to the filesystem. The type of credentials should correspond to
                 the bucket protocol. For example, for AWS S3, the credentials should be an instance of `AwsCredentials`.
-                A dictionary with the credentials parameters can also be provided.
-            **kwargs: Additional arguments passed to the destination config
+                A dictionary with the credentials parameters can be provided.
+            **kwargs: Additional arguments passed to the destination config.
         """
         super().__init__(
             bucket_url=bucket_url,

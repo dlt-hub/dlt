@@ -282,7 +282,7 @@ def test_destination_staging_config(environment: Any) -> None:
     initial_config = p._get_destination_client_initial_config(p.staging, as_staging=True)
     staging_config = fs_dest.configuration(initial_config)  # type: ignore[arg-type]
 
-    # Ensure that as_staging flag is set in the final resolved conifg
+    # Ensure that as_staging a flag is set in the final resolved configuration.
     assert staging_config.as_staging is True
 
 

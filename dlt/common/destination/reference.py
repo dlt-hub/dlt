@@ -75,15 +75,15 @@ class StateInfo(NamedTuple):
 
 @configspec
 class DestinationClientConfiguration(BaseConfiguration):
-    destination_type: Final[str] = None  # which destination to load data to
+    destination_type: Final[str] = None  # Which destination to load data to.
     credentials: Optional[CredentialsConfiguration]
     destination_name: Optional[str] = (
-        None  # name of the destination, if not set, destination_type is used
+        None  # Name of the destination, if not set, destination_type is used.
     )
     environment: Optional[str] = None
 
     def fingerprint(self) -> str:
-        """Returns a destination fingerprint which is a hash of selected configuration fields. ie. host in case of connection string"""
+        """Returns a destination fingerprint, which is a hash of selected configuration fields. i.e. host in case of connection string."""
         return ""
 
     def __str__(self) -> str:
@@ -125,15 +125,13 @@ class DestinationClientDwhConfiguration(DestinationClientConfiguration):
 
         # if default schema is None then suffix is not added
         if self.default_schema_name is not None and schema.name != self.default_schema_name:
-            # also normalize schema name. schema name is Python identifier and here convention may be different
+            # Normalize schema name. schema name is Python identifier, and here convention may be different.
             return schema.naming.normalize_table_identifier(
                 (self.dataset_name or "") + "_" + schema.name
             )
 
         return (
-            self.dataset_name
-            if not self.dataset_name
-            else schema.naming.normalize_table_identifier(self.dataset_name)
+            schema.naming.normalize_table_identifier(self.dataset_name) if self.dataset_name else self.dataset_name
         )
 
     if TYPE_CHECKING:
@@ -432,8 +430,8 @@ class JobClientBase(ABC):
             if "table_format" not in table:
                 table["table_format"] = get_table_format(self.schema.tables, table_name)
             return table
-        except KeyError:
-            raise UnknownTableException(table_name)
+        except KeyError as e:
+            raise UnknownTableException(table_name) from e
 
 
 class WithStateSync(ABC):
@@ -453,7 +451,7 @@ class WithStateSync(ABC):
 
 
 class WithStagingDataset(ABC):
-    """Adds capability to use staging dataset and request it from the loader"""
+    """Adds capability to use staging dataset and request it from the loader."""
 
     @abstractmethod
     def should_load_data_to_staging_dataset(self, table: TTableSchema) -> bool:
@@ -466,7 +464,7 @@ class WithStagingDataset(ABC):
 
 
 class SupportsStagingDestination:
-    """Adds capability to support a staging destination for the load"""
+    """Adds capability to support a staging destination for the load."""
 
     def should_load_data_to_staging_dataset_on_staging_destination(
         self, table: TTableSchema
@@ -489,9 +487,9 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     config_params: Optional[Dict[str, Any]] = None
 
     def __init__(self, **kwargs: Any) -> None:
-        # Create initial unresolved destination config
-        # Argument defaults are filtered out here because we only want arguments passed explicitly
-        # to supersede config from the environment or pipeline args
+        # Create initial unresolved destination configuration.
+        # Argument defaults are filtered out here because we only want arguments passed
+        # explicitly to supersede config from the environment or pipeline arguments.
         sig = inspect.signature(self.__class__.__init__)
         params = sig.parameters
         self.config_params = {
@@ -501,7 +499,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     @property
     @abstractmethod
     def spec(self) -> Type[TDestinationConfig]:
-        """A spec of destination configuration that also contains destination credentials"""
+        """A spec of destination configuration that contains destination credentials."""
         ...
 
     @abstractmethod
@@ -511,12 +509,12 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
 
     @property
     def destination_name(self) -> str:
-        """The destination name will either be explicitly set while creating the destination or will be taken from the type"""
+        """The destination name will either be explicitly set while creating the destination or will be taken from the type."""
         return self.config_params.get("destination_name") or self.to_name(self.destination_type)
 
     @property
     def destination_type(self) -> str:
-        full_path = self.__class__.__module__ + "." + self.__class__.__qualname__
+        full_path = f"{self.__class__.__module__}.{self.__class__.__qualname__}"
         return Destination.normalize_type(full_path)
 
     @property
@@ -526,18 +524,17 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     @property
     @abstractmethod
     def client_class(self) -> Type[TDestinationClient]:
-        """A job client class responsible for starting and resuming load jobs"""
+        """A job client class responsible for starting and resuming load jobs."""
         ...
 
     def configuration(self, initial_config: TDestinationConfig) -> TDestinationConfig:
-        """Get a fully resolved destination config from the initial config"""
-        config = resolve_configuration(
+        """Get a fully resolved destination config from the initial config."""
+        return resolve_configuration(
             initial_config,
             sections=(known_sections.DESTINATION, self.destination_name),
-            # Already populated values will supersede resolved env config
+            # Already populated values will supersede resolved env config.
             explicit_value=self.config_params,
         )
-        return config
 
     @staticmethod
     def to_name(ref: TDestinationReferenceArg) -> str:
@@ -553,8 +550,8 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     def normalize_type(destination_type: str) -> str:
         """Normalizes destination type string into a canonical form. Assumes that type names without dots correspond to build in destinations."""
         if "." not in destination_type:
-            destination_type = "dlt.destinations." + destination_type
-        # the next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>
+            destination_type = f"dlt.destinations.{destination_type}"
+        # The next two lines shorten the dlt internal destination paths to dlt.destinations.<destination_type>.
         name = Destination.to_name(destination_type)
         destination_type = destination_type.replace(
             f"dlt.destinations.impl.{name}.factory.", "dlt.destinations."
@@ -570,9 +567,9 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
         **kwargs: Any,
     ) -> Optional["Destination[DestinationClientConfiguration, JobClientBase]"]:
         """Instantiate destination from str reference.
-        The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`)
+        The ref can be a destination name or import path pointing to a destination class (e.g. `dlt.destinations.postgres`).
         """
-        # if we only get a name but no ref, we assume that the name is the destination_type
+        # If we only get a name but no ref, we assume that the name is the destination_type.
         if ref is None and destination_name is not None:
             ref = destination_name
         if ref is None:
@@ -609,7 +606,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
             kwargs["environment"] = environment
         try:
             dest = factory(**kwargs)
-            dest.spec
+            dest.spec()
         except Exception as e:
             raise InvalidDestinationReference(ref) from e
         return dest
@@ -617,7 +614,7 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
     def client(
         self, schema: Schema, initial_config: TDestinationConfig = config.value
     ) -> TDestinationClient:
-        """Returns a configured instance of the destination's job client"""
+        """Returns a configured instance of the destination's job client."""
         return self.client_class(schema, self.configuration(initial_config))
 
 

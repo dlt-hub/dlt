@@ -77,7 +77,7 @@ WITH_GDRIVE_BUCKETS = [GDRIVE_BUCKET] + DEFAULT_BUCKETS
 # Add r2 in extra buckets so it's not run for all tests
 R2_BUCKET_CONFIG = dict(
     bucket_url=R2_BUCKET,
-    # Credentials included so we can override aws credentials in env later
+    # Credentials included, so we can override aws credentials in env later.
     credentials=dict(
         aws_access_key_id=dlt.config.get("tests.r2_aws_access_key_id", str),
         aws_secret_access_key=dlt.config.get("tests.r2_aws_secret_access_key", str),
@@ -104,7 +104,7 @@ class DestinationTestConfiguration:
     staging_iam_role: Optional[str] = None
     staging_use_msi: bool = False
     extra_info: Optional[str] = None
-    supports_merge: bool = True  # TODO: take it from client base class
+    supports_merge: bool = True  # TODO: Take it from client base class.
     force_iceberg: bool = False
     supports_dbt: bool = True
     disable_compression: bool = False
@@ -114,16 +114,13 @@ class DestinationTestConfiguration:
         name: str = self.destination
         if self.file_format:
             name += f"-{self.file_format}"
-        if not self.staging:
-            name += "-no-staging"
-        else:
-            name += "-staging"
+        name += "-staging" if self.staging else "-no-staging"
         if self.extra_info:
             name += f"-{self.extra_info}"
         return name
 
     def setup(self) -> None:
-        """Sets up environment variables for this destination configuration"""
+        """Sets up environment variables for this destination configuration."""
         os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = self.bucket_url or ""
         os.environ["DESTINATION__STAGE_NAME"] = self.stage_name or ""
         os.environ["DESTINATION__STAGING_IAM_ROLE"] = self.staging_iam_role or ""
@@ -137,7 +134,7 @@ class DestinationTestConfiguration:
     def setup_pipeline(
         self, pipeline_name: str, dataset_name: str = None, full_refresh: bool = False, **kwargs
     ) -> dlt.Pipeline:
-        """Convenience method to setup pipeline with this configuration"""
+        """Convenience method to set up a pipeline with this configuration."""
         self.setup()
         pipeline = dlt.pipeline(
             pipeline_name=pipeline_name,

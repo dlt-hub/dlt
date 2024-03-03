@@ -15,6 +15,7 @@ from dlt.common.normalizers.naming import NamingConvention
 try:
     import pyarrow
     import pyarrow.parquet
+    import pyarrow.compute
 except ModuleNotFoundError:
     raise MissingDependencyException(
         "dlt parquet Helpers", [f"{version.DLT_PKG_NAME}[parquet]"], "dlt Helpers for for parquet."

@@ -31,9 +31,9 @@ except MissingDependencyException:
     pyarrow = None
 
 try:
-    import pandas as pd
-except ModuleNotFoundError:
-    pd = None
+    from dlt.common.libs.pandas import pandas
+except MissingDependencyException:
+    pandas = None
 
 
 class Extractor:
@@ -79,7 +79,9 @@ class Extractor:
         """
         for item in items if isinstance(items, list) else [items]:
             # Assume all items in list are the same type
-            if (pyarrow and pyarrow.is_arrow_item(item)) or (pd and isinstance(item, pd.DataFrame)):
+            if (pyarrow and pyarrow.is_arrow_item(item)) or (
+                pandas and isinstance(item, pandas.DataFrame)
+            ):
                 return "arrow"
             return "puae-jsonl"
         return None  # Empty list is unknown format
@@ -223,7 +225,7 @@ class ArrowExtractor(Extractor):
                 (
                     # 1. Convert pandas frame(s) to arrow Table
                     pa.Table.from_pandas(item)
-                    if (pd and isinstance(item, pd.DataFrame))
+                    if (pandas and isinstance(item, pandas.DataFrame))
                     else item
                 )
                 for item in (items if isinstance(items, list) else [items])

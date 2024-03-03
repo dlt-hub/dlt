@@ -16,19 +16,13 @@ from dlt.common.utils import uniq_id
 from tests.common.storages.utils import assert_sample_files
 from tests.load.utils import ALL_FILESYSTEM_DRIVERS, AWS_BUCKET
 from tests.utils import preserve_environ, autouse_test_storage
-from .utils import self_signed_cert
+from .utils import self_signed_cert, get_config
 from tests.common.configuration.utils import environment
-
-
-@with_config(spec=FilesystemConfiguration, sections=("destination", "filesystem"))
-def get_config(config: FilesystemConfiguration = None) -> FilesystemConfiguration:
-    return config
 
 
 def test_filesystem_configuration() -> None:
     config = FilesystemConfiguration(bucket_url="az://root")
     assert config.protocol == "az"
-    # print(config.resolve_credentials_type())
     assert (
         config.resolve_credentials_type()
         == Union[AzureCredentialsWithoutDefaults, AzureCredentials]
@@ -60,7 +54,7 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
     filesystem, url = fsspec_from_config(config)
     if config.protocol != "file":
         assert bucket_url.endswith(url)
-    # do a few file ops
+    # Conduct a few file operations.
     now = pendulum.now()
     filename = f"filesystem_common_{uniq_id()}"
     file_url = posixpath.join(url, filename)
@@ -80,18 +74,18 @@ def test_filesystem_instance(with_gdrive_buckets_env: str) -> None:
 def test_filesystem_dict(with_gdrive_buckets_env: str, load_content: bool) -> None:
     bucket_url = os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"]
     config = get_config()
-    # enable caches
+    # Enable caches.
     config.read_only = True
     if config.protocol in ["memory", "file"]:
         pytest.skip(f"{config.protocol} not supported in this test")
     glob_folder = "standard_source/samples"
-    # may contain query string
+    # May contain query string.
     bucket_url_parsed = urlparse(bucket_url)
     bucket_url = bucket_url_parsed._replace(
         path=posixpath.join(bucket_url_parsed.path, glob_folder)
     ).geturl()
     filesystem, _ = fsspec_from_config(config)
-    # use glob to get data
+    # Use glob to get data.
     try:
         all_file_items = list(glob_files(filesystem, bucket_url))
         assert_sample_files(all_file_items, filesystem, config, load_content)
@@ -101,8 +95,8 @@ def test_filesystem_dict(with_gdrive_buckets_env: str, load_content: bool) -> No
 
 @pytest.mark.skipif("s3" not in ALL_FILESYSTEM_DRIVERS, reason="s3 destination not configured")
 def test_filesystem_instance_from_s3_endpoint(environment: Dict[str, str]) -> None:
-    """Test that fsspec instance is correctly configured when using endpoint URL.
-    E.g. when using an S3 compatible service such as Cloudflare R2
+    """Test fsspec instance is correctly configured when using endpoint URL.
+    E.g. when using an S3 compatible service such as Cloudflare R2.
     """
     from s3fs import S3FileSystem
 
