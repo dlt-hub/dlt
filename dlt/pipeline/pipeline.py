@@ -173,6 +173,8 @@ def with_schemas_sync(f: TFun) -> TFun:
                 except FileNotFoundError:
                     # no storage schema yet so pop live schema (created in call to f)
                     self._schema_storage.live_schemas.pop(name, None)
+            # NOTE: with_state_sync will restore schema_names and default_schema_name
+            # so we do not need to do that here
             raise
         else:
             # save modified live schemas
