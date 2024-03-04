@@ -61,8 +61,11 @@ class LiveSchemaStorage(SchemaStorage):
         live_schema = self.live_schemas.get(name)
         if live_schema is None:
             raise SchemaNotFoundError(name, f"live-schema://{name}")
-        # TODO: we should probably check if physically stored schema has same hash
-        return live_schema.stored_version_hash != live_schema.version_hash
+        try:
+            stored_schema_json = self._load_schema_json(name)
+            return live_schema.stored_version_hash != stored_schema_json.get("version_hash")
+        except FileNotFoundError:
+            return False
 
     def update_live_schema(self, schema: Schema, can_create_new: bool = True) -> None:
         """Will update live schema content without writing to storage. Optionally allows to create a new live schema"""
