@@ -1,8 +1,7 @@
-from collections.abc import Callable
 from copy import deepcopy
 import pytest
 import yaml
-from typing import List, Literal, Mapping, Sequence, TypedDict, TypeVar, Optional, Union
+from typing import Callable, List, Literal, Mapping, Sequence, TypedDict, TypeVar, Optional, Union
 
 from dlt.common.exceptions import DictValidationException
 from dlt.common.schema.typing import TStoredSchema, TColumnSchema
