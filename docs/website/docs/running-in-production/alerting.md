@@ -40,7 +40,7 @@ receiving rich information on executed pipelines, including encountered errors a
 
 ## Slack
 
-Alerts can be sent to a Slack channel via Slack's incoming webhook URL. For instance, the below code snippet demonstrates automated Slack notifications for database table updates using the send_slack_message function.
+Alerts can be sent to a Slack channel via Slack's incoming webhook URL. The code snippet below demonstrates automated Slack notifications for database table updates using the `send_slack_message` function.
 
 ```python
 # Import the send_slack_message function from the dlt library
