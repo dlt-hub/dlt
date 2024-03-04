@@ -1,12 +1,4 @@
-from typing import Dict, List
-
 import dlt
-
-
-def get_metrics_table(tables: List[Dict]) -> List[str]:
-    return [
-        table_name for table_name in tables if table_name["name"].startswith("_load_info__metrics")
-    ]
 
 
 data = [
