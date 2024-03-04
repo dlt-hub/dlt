@@ -421,12 +421,15 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
         )
         metrics["started_at"] = ensure_pendulum_datetime(self._current_load_started)
         metrics["finished_at"] = ensure_pendulum_datetime(precise_time())
-        self._load_id_metrics[load_id].append(metrics)
+        metrics["load_id"] = load_id
+        self._load_id_metrics.append(metrics)
         self._current_load_id = None
         self._current_load_started = None
 
     def _step_info_metrics(self, load_id: str) -> List[TStepMetrics]:
-        return self._load_id_metrics[load_id]
+        metrics = [metric for metric in self._load_id_metrics if metric["load_id"] == load_id]
+
+        return metrics
 
     @property
     def current_load_id(self) -> str:

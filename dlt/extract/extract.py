@@ -349,9 +349,10 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     def commit_packages(self) -> None:
         """Commits all extracted packages to normalize storage"""
         # commit load packages
-        for load_id, metrics in self._load_id_metrics.items():
+        load_ids = [metric["load_id"] for metric in self._load_id_metrics]
+        for idx, load_id in enumerate(load_ids):
             self.extract_storage.commit_new_load_package(
-                load_id, self.schema_storage[metrics[0]["schema_name"]]
+                load_id, self.schema_storage[self._load_id_metrics[idx]["schema_name"]]
             )
         # all load ids got processed, cleanup empty folder
         self.extract_storage.delete_empty_extract_folder()
@@ -359,11 +360,12 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     def get_step_info(self, pipeline: SupportsPipeline) -> ExtractInfo:
         load_ids = list({m["load_id"] for m in self._load_id_metrics})
         load_packages: List[LoadPackageInfo] = []
-        metrics: Dict[str, List[ExtractMetrics]] = {}
+        metrics: List[ExtractMetrics] = []
         for load_id in load_ids:
             load_package = self.extract_storage.get_load_package_info(load_id)
             load_packages.append(load_package)
-            metrics[load_id] = self._step_info_metrics(load_id)
+            metrics.append(self._step_info_metrics(load_id))
+
         return ExtractInfo(
             pipeline,
             metrics,
