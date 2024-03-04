@@ -22,6 +22,7 @@ from typing import (
     Any,
     Tuple,
     TYPE_CHECKING,
+    TypedDict,
 )
 
 from dlt.common import pendulum, json
@@ -56,6 +57,13 @@ class TLoadPackageState(TVersionedState, total=False):
     """A section of state that does not participate in change merging and version control"""
     destination_state: NotRequired[Dict[str, Any]]
     """private space for destinations to store state relevant only to the load package"""
+
+
+class TLoadPackage(TypedDict, total=False):
+    load_id: str
+    """Load id"""
+    state: TLoadPackageState
+    """State of the load package"""
 
 
 # allows to upgrade state when restored with a new version of state logic/schema
@@ -632,7 +640,7 @@ class LoadPackageStateInjectableContext(ContainerInjectableContext):
         def __init__(self, load_id: str, storage: PackageStorage) -> None: ...
 
 
-def load_package_state() -> TLoadPackageState:
+def load_package() -> TLoadPackage:
     """Get full load package state present in current context. Across all threads this will be the same in memory dict."""
     container = Container()
     # get injected state if present. injected load package state is typically "managed" so changes will be persisted
@@ -641,7 +649,7 @@ def load_package_state() -> TLoadPackageState:
         state_ctx = container[LoadPackageStateInjectableContext]
     except ContextDefaultCannotBeCreated:
         raise Exception("Load package state not available")
-    return state_ctx.state
+    return TLoadPackage(state=state_ctx.state, load_id=state_ctx.load_id)
 
 
 def commit_load_package_state() -> None:
@@ -656,13 +664,13 @@ def commit_load_package_state() -> None:
 
 def destination_state() -> DictStrAny:
     """Get segment of load package state that is specific to the current destination."""
-    lp_state = load_package_state()
-    return lp_state.setdefault("destination_state", {})
+    lp = load_package()
+    return lp["state"].setdefault("destination_state", {})
 
 
 def clear_destination_state(commit: bool = True) -> None:
     """Clear segment of load package state that is specific to the current destination. Optionally commit to load package."""
-    lp_state = load_package_state()
-    lp_state.pop("destination_state", None)
+    lp = load_package()
+    lp["state"].pop("destination_state", None)
     if commit:
         commit_load_package_state()
