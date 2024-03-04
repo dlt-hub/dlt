@@ -9,7 +9,7 @@ import pytest
 import dlt
 from dlt.common import sleep
 from dlt.common.typing import TDataItems
-from dlt.extract.exceptions import CreatePipeException, ResourceExtractionError
+from dlt.extract.exceptions import CreatePipeException, ResourceExtractionError, UnclosablePipe
 from dlt.extract.items import DataItemWithMeta, FilterItem, MapItem, YieldMapItem
 from dlt.extract.pipe import Pipe
 from dlt.extract.pipe_iterator import PipeIterator, ManagedPipeIterator, PipeItem
@@ -612,6 +612,21 @@ def test_circular_deps() -> None:
         _f_items(list(PipeIterator.from_pipe(cloned_pipes[-1])))
     with pytest.raises(RecursionError):
         _f_items(list(PipeIterator.from_pipes(pipes)))
+
+
+def test_explicit_close_pipe() -> None:
+    list_pipe = Pipe.from_data("list_pipe", iter([1, 2, 3]))
+    with pytest.raises(UnclosablePipe):
+        list_pipe.close()
+
+    # generator function cannot be closed
+    genfun_pipe = Pipe.from_data("genfun_pipe", lambda _: (yield from [1, 2, 3]))
+    with pytest.raises(UnclosablePipe):
+        genfun_pipe.close()
+
+    gen_pipe = Pipe.from_data("gen_pipe", (lambda: (yield from [1, 2, 3]))())
+    gen_pipe.close()
+    assert inspect.getgeneratorstate(gen_pipe.gen) == "GEN_CLOSED"  # type: ignore[arg-type]
 
 
 close_pipe_got_exit = False

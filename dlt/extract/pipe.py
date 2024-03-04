@@ -13,6 +13,7 @@ from dlt.extract.exceptions import (
     InvalidTransformerGeneratorFunction,
     ParametrizedResourceUnbound,
     PipeNotBoundToData,
+    UnclosablePipe,
 )
 from dlt.extract.items import (
     ItemTransform,
@@ -177,8 +178,12 @@ class Pipe(SupportsPipe):
 
     def close(self) -> None:
         """Closes pipe generator"""
-        if inspect.isgenerator(self.gen):
-            self.gen.close()
+        gen = self.gen
+        # NOTE: async generator are wrapped in generators
+        if inspect.isgenerator(gen):
+            gen.close()
+        else:
+            raise UnclosablePipe(self.name, gen)
 
     def full_pipe(self) -> "Pipe":
         """Creates a pipe that from the current and all the parent pipes."""

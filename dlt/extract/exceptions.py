@@ -1,4 +1,4 @@
-from inspect import Signature, isgenerator
+from inspect import Signature, isgenerator, isgeneratorfunction, unwrap
 from typing import Any, Set, Type
 
 from dlt.common.exceptions import DltException
@@ -98,6 +98,17 @@ class PipeGenInvalid(PipeException):
         if "DltResource" in type_name:
             msg += " Did you pass a function that returns dlt.resource without calling it?"
 
+        super().__init__(pipe_name, msg)
+
+
+class UnclosablePipe(PipeException):
+    def __init__(self, pipe_name: str, gen: Any) -> None:
+        type_name = str(type(gen))
+        if gen_name := getattr(gen, "__name__", None):
+            type_name = f"{type_name} ({gen_name})"
+        msg = f"Pipe with gen of type {type_name} cannot be closed."
+        if callable(gen) and isgeneratorfunction(unwrap(gen)):
+            msg += " Closing of partially evaluated transformers is not yet supported."
         super().__init__(pipe_name, msg)
 
 
