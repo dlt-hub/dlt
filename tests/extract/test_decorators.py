@@ -1,3 +1,4 @@
+import inspect
 import os
 from typing import List, Optional, Dict, Iterator, Any, cast
 
@@ -21,6 +22,7 @@ from dlt.common.schema.exceptions import InvalidSchemaName
 from dlt.common.typing import TDataItem
 
 from dlt.cli.source_detection import detect_source_configs
+from dlt.common.utils import custom_environ
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import (
     DynamicNameNotStandaloneResource,
@@ -36,10 +38,11 @@ from dlt.extract.exceptions import (
     SourceIsAClassTypeError,
     SourceNotAFunction,
     CurrentSourceSchemaNotAvailable,
+    InvalidParallelResourceDataType,
 )
 from dlt.extract.typing import TableNameMeta
 
-from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V8
+from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9
 
 
 def test_none_returning_source() -> None:
@@ -84,7 +87,7 @@ def test_load_schema_for_callable() -> None:
     schema = s.schema
     assert schema.name == "ethereum" == s.name
     # the schema in the associated file has this hash
-    assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V8
+    assert schema.stored_version_hash == IMPORTED_VERSION_HASH_ETH_V9
 
 
 def test_unbound_parametrized_transformer() -> None:
@@ -850,6 +853,122 @@ def test_class_source() -> None:
                 return dlt.resource(["A", "V"] * self.elems * more, name="_list")
 
 
+@pytest.mark.asyncio
+async def test_async_source() -> None:
+    @dlt.source
+    async def source_rv_no_parens(reverse: bool = False):
+        # test is expected context is present
+        dlt.current.state()
+        dlt.current.source_schema()
+        data = [1, 2, 3]
+        if reverse:
+            data = list(reversed(data))
+        return dlt.resource(data, name="data")
+
+    @dlt.source(name="with_parens")
+    async def source_rv_with_parens(reverse: bool = False):
+        # test is expected context is present
+        dlt.current.state()
+        dlt.current.source_schema()
+        data = [4, 5, 6]
+        if reverse:
+            data = list(reversed(data))
+        return dlt.resource(data, name="data")
+
+    @dlt.source(name="with_parens")
+    async def source_yield_with_parens(reverse: bool = False):
+        # test is expected context is present
+        dlt.current.state()
+        dlt.current.source_schema()
+        data = [7, 8, 9]
+        if reverse:
+            data = list(reversed(data))
+        return dlt.resource(data, name="data")
+
+    # create a pipeline so current.state() works
+    dlt.pipeline("async_state_pipeline")
+
+    async def _assert_source(source_coro_f, expected_data) -> None:
+        # test various forms of source decorator, parens, no parens, yield, return
+        source_coro = source_coro_f()
+        assert inspect.iscoroutinefunction(source_coro_f)
+        assert inspect.iscoroutine(source_coro)
+        source = await source_coro
+        assert "data" in source.resources
+        assert list(source) == expected_data
+
+        # make sure the config injection works
+        with custom_environ(
+            {f"SOURCES__{source.section.upper()}__{source.name.upper()}__REVERSE": "True"}
+        ):
+            assert list(await source_coro_f()) == list(reversed(expected_data))
+
+    await _assert_source(source_rv_no_parens, [1, 2, 3])
+    await _assert_source(source_rv_with_parens, [4, 5, 6])
+    await _assert_source(source_yield_with_parens, [7, 8, 9])
+
+
 @pytest.mark.skip("Not implemented")
 def test_class_resource() -> None:
     pass
+
+
+def test_parallelized_resource_decorator() -> None:
+    """Test paralellized resources are wrapped correctly.
+    Note: tests for parallel execution are in test_resource_evaluation
+    """
+
+    def some_gen():
+        yield from [1, 2, 3]
+
+    # Create resource with decorated function
+    resource = dlt.resource(some_gen, parallelized=True)
+
+    # Generator func is wrapped with parallelized gen that yields callables
+    gen = resource._pipe.gen()  # type: ignore
+    result = next(gen)  # type: ignore[arg-type]
+    assert result() == 1
+
+    # Same but wrapping generator directly
+    resource = dlt.resource(some_gen(), parallelized=True)
+
+    result = next(resource._pipe.gen)  # type: ignore
+    assert result() == 1
+
+    # Wrap a transformer
+    def some_tx(item):
+        yield item + 1
+
+    resource = dlt.resource(some_gen, parallelized=True)
+
+    transformer = dlt.transformer(some_tx, parallelized=True, data_from=resource)
+    pipe_gen = transformer._pipe.gen
+    # Calling transformer returns the parallel wrapper generator
+    inner = pipe_gen(1)  # type: ignore
+    assert next(inner)() == 2  # type: ignore
+
+    # Invalid parallel resources
+
+    # From async generator
+    with pytest.raises(InvalidParallelResourceDataType):
+
+        @dlt.resource(parallelized=True)
+        async def some_data():
+            yield 1
+            yield 2
+
+    # From list
+    with pytest.raises(InvalidParallelResourceDataType):
+        dlt.resource([1, 2, 3], name="T", parallelized=True)
+
+    # Test that inner generator is closed when wrapper is closed
+    gen_orig = some_gen()
+    resource = dlt.resource(gen_orig, parallelized=True)
+    gen = resource._pipe.gen
+
+    next(gen)  # type: ignore
+    gen.close()  # type: ignore
+
+    with pytest.raises(StopIteration):
+        # Inner generator is also closed
+        next(gen_orig)

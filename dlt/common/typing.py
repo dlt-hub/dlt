@@ -24,8 +24,29 @@ from typing import (
     Union,
     runtime_checkable,
     IO,
+    Iterator,
+    Generator,
 )
-from typing_extensions import TypeAlias, ParamSpec, Concatenate, Annotated, get_args, get_origin
+
+from typing_extensions import (
+    Annotated,
+    Never,
+    ParamSpec,
+    TypeAlias,
+    Concatenate,
+    get_args,
+    get_origin,
+)
+
+try:
+    from types import UnionType  # type: ignore[attr-defined]
+except ImportError:
+    # Since new Union syntax was introduced in Python 3.10
+    # we need to substitute it here for older versions.
+    # it is defined as type(int | str) but for us having it
+    # as shown here should suffice because it is valid only
+    # in versions of Python>=3.10.
+    UnionType = Never
 
 from dlt.common.pendulum import timedelta, pendulum
 
@@ -50,6 +71,9 @@ StrStrStr: TypeAlias = Mapping[str, Mapping[str, str]]  # immutable, covariant e
 AnyFun: TypeAlias = Callable[..., Any]
 TFun = TypeVar("TFun", bound=AnyFun)  # any function
 TAny = TypeVar("TAny", bound=Any)
+TAnyFunOrGenerator = TypeVar(
+    "TAnyFunOrGenerator", AnyFun, Generator[Any, Optional[Any], Optional[Any]]
+)
 TAnyClass = TypeVar("TAnyClass", bound=object)
 TimedeltaSeconds = Union[int, float, timedelta]
 # represent secret value ie. coming from Kubernetes/Docker secrets or other providers
@@ -103,18 +127,35 @@ def extract_type_if_modifier(t: Type[Any]) -> Type[Any]:
 
 
 def is_union_type(hint: Type[Any]) -> bool:
-    if get_origin(hint) is Union:
+    # We need to handle UnionType because with Python>=3.10
+    # new Optional syntax was introduced which treats Optionals
+    # as unions and probably internally there is no additional
+    # type hints to handle this edge case, see the examples below
+    # >>> type(str | int)
+    # <class 'types.UnionType'>
+    # >>> type(str | None)
+    # <class 'types.UnionType'>
+    # type(Union[int, str])
+    # <class 'typing._GenericAlias'>
+    origin = get_origin(hint)
+    if origin is Union or origin is UnionType:
         return True
+
     if hint := extract_type_if_modifier(hint):
         return is_union_type(hint)
+
     return False
 
 
 def is_optional_type(t: Type[Any]) -> bool:
-    if get_origin(t) is Union:
-        return type(None) in get_args(t)
+    origin = get_origin(t)
+    is_union = origin is Union or origin is UnionType
+    if is_union and type(None) in get_args(t):
+        return True
+
     if t := extract_type_if_modifier(t):
         return is_optional_type(t)
+
     return False
 
 
@@ -232,7 +273,7 @@ TReturnVal = TypeVar("TReturnVal")
 
 
 def copy_sig(
-    wrapper: Callable[TInputArgs, Any]
+    wrapper: Callable[TInputArgs, Any],
 ) -> Callable[[Callable[..., TReturnVal]], Callable[TInputArgs, TReturnVal]]:
     """Copies docstring and signature from wrapper to func but keeps the func return value type"""
 

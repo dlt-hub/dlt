@@ -283,3 +283,18 @@ verified source.
 
     1. This function loads data incrementally and tracks the `occurred_at.last_value` parameter from
     the previous pipeline run. Refer to our official documentation for more information on [incremental loading](../../general-usage/incremental-loading.md).
+
+
+<!--@@@DLT_SNIPPET_START tuba::hubspot-->
+## Additional Setup guides
+
+- [Load data from HubSpot to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-postgres)
+- [Load data from HubSpot to AWS Athena in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-athena)
+- [Load data from HubSpot to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-bigquery)
+- [Load data from HubSpot to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-synapse)
+- [Load data from HubSpot to Databricks in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-databricks)
+- [Load data from HubSpot to Redshift in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-redshift)
+- [Load data from HubSpot to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-duckdb)
+- [Load data from HubSpot to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-snowflake)
+- [Load data from HubSpot to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-mssql)
+<!--@@@DLT_SNIPPET_END tuba::hubspot-->

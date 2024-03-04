@@ -36,7 +36,7 @@ def slack_notify_load_success(incoming_hook: str, load_info: LoadInfo, trace: Pi
         if author:
             author = f":hard-hat:{author}'s "
 
-        total_elapsed = pendulum.now() - trace.started_at
+        total_elapsed = pendulum.now().diff(trace.started_at)
 
         def _get_step_elapsed(step: PipelineStepTrace) -> str:
             if not step:

@@ -86,7 +86,7 @@ class FilesystemConfiguration(BaseConfiguration):
     PROTOCOL_CREDENTIALS: ClassVar[Dict[str, Any]] = {
         "gs": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
         "gcs": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
-        "gdrive": GcpOAuthCredentials,
+        "gdrive": Union[GcpServiceAccountCredentials, GcpOAuthCredentials],
         "s3": AwsCredentials,
         "az": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
         "abfs": Union[AzureCredentialsWithoutDefaults, AzureCredentials],
@@ -98,6 +98,8 @@ class FilesystemConfiguration(BaseConfiguration):
     # should be a union of all possible credentials as found in PROTOCOL_CREDENTIALS
     credentials: FileSystemCredentials
 
+    read_only: bool = False
+    """Indicates read only filesystem access. Will enable caching"""
     kwargs: Optional[DictStrAny] = None
     client_kwargs: Optional[DictStrAny] = None
 
@@ -149,11 +151,7 @@ class FilesystemConfiguration(BaseConfiguration):
             self,
             bucket_url: str,
             credentials: FileSystemCredentials = None,
+            read_only: bool = False,
             kwargs: Optional[DictStrAny] = None,
             client_kwargs: Optional[DictStrAny] = None,
-        ) -> None:
-            self.bucket_url = bucket_url
-            self.credentials = credentials
-            self.kwargs = kwargs
-            self.client_kwargs = client_kwargs
-            ...
+        ) -> None: ...

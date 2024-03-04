@@ -255,3 +255,15 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-s
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
+
+<!--@@@DLT_SNIPPET_START tuba::snowflake-->
+## Additional Setup guides
+
+- [Load data from Stripe to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-snowflake)
+- [Load data from GitHub to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-snowflake)
+- [Load data from Google Analytics to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-snowflake)
+- [Load data from Notion to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-snowflake)
+- [Load data from HubSpot to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-snowflake)
+- [Load data from Chess.com to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-snowflake)
+- [Load data from Google Sheets to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-snowflake)
+<!--@@@DLT_SNIPPET_END tuba::snowflake-->

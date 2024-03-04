@@ -9,7 +9,7 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.destination.reference import WithStateSync
 from dlt.common.utils import flatten_list_or_items
 
-from dlt.common.libs.pandas import pandas as pd
+from dlt.common.libs.pandas import pandas
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
 from dlt.pipeline.state_sync import load_pipeline_state_from_destination
@@ -102,7 +102,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
     """Display pipeline loading information. Will be moved to dlt package once tested"""
 
     @cache_data(ttl=600)
-    def _query_data(query: str, schema_name: str = None) -> pd.DataFrame:
+    def _query_data(query: str, schema_name: str = None) -> pandas.DataFrame:
         try:
             with pipeline.sql_client(schema_name) as client:
                 with client.execute_query(query) as curr:
@@ -111,7 +111,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
             st.error("Cannot load data - SqlClient not available")
 
     @cache_data(ttl=5)
-    def _query_data_live(query: str, schema_name: str = None) -> pd.DataFrame:
+    def _query_data_live(query: str, schema_name: str = None) -> pandas.DataFrame:
         try:
             with pipeline.sql_client(schema_name) as client:
                 with client.execute_query(query) as curr:
@@ -244,7 +244,7 @@ def write_data_explorer_page(
     """
 
     @cache_data(ttl=60)
-    def _query_data(query: str, chunk_size: int = None) -> pd.DataFrame:
+    def _query_data(query: str, chunk_size: int = None) -> pandas.DataFrame:
         try:
             with pipeline.sql_client(schema_name) as client:
                 with client.execute_query(query) as curr:

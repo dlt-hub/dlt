@@ -100,15 +100,16 @@ def pydantic_to_table_schema_columns(
             # This applies to pydantic.Json fields, the inner type is the type after json parsing
             # (In pydantic 2 the outer annotation is the final type)
             annotation = inner_annotation
+
         nullable = is_optional_type(annotation)
 
-        if is_union_type(annotation):
-            inner_type = get_args(annotation)[0]
-        else:
-            inner_type = extract_inner_type(annotation)
+        inner_type = extract_inner_type(annotation)
+        if is_union_type(inner_type):
+            first_argument_type = get_args(inner_type)[0]
+            inner_type = extract_inner_type(first_argument_type)
 
         if inner_type is Json:  # Same as `field: Json[Any]`
-            inner_type = Any
+            inner_type = Any  # type: ignore[assignment]
 
         if inner_type is Any:  # Any fields will be inferred from data
             continue
@@ -140,7 +141,7 @@ def pydantic_to_table_schema_columns(
             # This case is for a single field schema/model
             # we need to generate snake_case field names
             # and return flattened field schemas
-            schema_hints = pydantic_to_table_schema_columns(field.annotation)
+            schema_hints = pydantic_to_table_schema_columns(inner_type)
 
             for field_name, hints in schema_hints.items():
                 schema_key = snake_case_naming_convention.make_path(name, field_name)
@@ -229,7 +230,7 @@ def apply_schema_contract_to_model(
         """Recursively recreates models with applied schema contract"""
         if is_annotated(t_):
             a_t, *a_m = get_args(t_)
-            return Annotated[_process_annotation(a_t), a_m]  # type: ignore
+            return Annotated[_process_annotation(a_t), tuple(a_m)]  # type: ignore[return-value]
         elif is_list_generic_type(t_):
             l_t: Type[Any] = get_args(t_)[0]
             try:

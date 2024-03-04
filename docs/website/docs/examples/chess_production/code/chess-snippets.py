@@ -32,11 +32,8 @@ def incremental_snippet() -> None:
             yield from _get_data_with_retry(f"titled/{title}")["players"][:max_players]
 
         # this resource takes data from players and returns profiles
-        # it uses `defer` decorator to enable parallel run in thread pool.
-        # defer requires return at the end so we convert yield into return (we return one item anyway)
-        # you can still have yielding transformers, look for the test named `test_evolve_schema`
-        @dlt.transformer(data_from=players, write_disposition="replace")
-        @dlt.defer
+        # it uses `paralellized` flag to enable parallel run in thread pool.
+        @dlt.transformer(data_from=players, write_disposition="replace", parallelized=True)
         def players_profiles(username: Any) -> TDataItems:
             print(f"getting {username} profile via thread {threading.current_thread().name}")
             sleep(1)  # add some latency to show parallel runs

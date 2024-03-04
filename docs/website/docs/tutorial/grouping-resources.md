@@ -43,7 +43,7 @@ def github_source():
     return [get_issues, get_comments]
 ```
 
-`github_source()` groups resources into a [source](../general-usage/source). A dlt source is a logical gropping of resources. You use it to group resources that belong together, for example, to load data from the same API. Loading data from a source can be run in a single pipeline. Here's how our updated script looks like:
+`github_source()` groups resources into a [source](../general-usage/source). A dlt source is a logical grouping of resources. You use it to group resources that belong together, for example, to load data from the same API. Loading data from a source can be run in a single pipeline. Here's what our updated script looks like:
 
 ```py
 import dlt
@@ -115,7 +115,7 @@ print(load_info)
 
 ### Dynamic resources
 
-You've noticed that there's a lot of code duplication in the `get_issues` and `get_comments` functions. We can reduce that by extracting the common fetching code into a separate function and use it in both resources. Even better, we can use `dlt.resource` as a function and pass it the `fetch_github_data()` generator function directly. Here's refactored code:
+You've noticed that there's a lot of code duplication in the `get_issues` and `get_comments` functions. We can reduce that by extracting the common fetching code into a separate function and use it in both resources. Even better, we can use `dlt.resource` as a function and pass it the `fetch_github_data()` generator function directly. Here's the refactored code:
 
 ```python
 import dlt
@@ -194,7 +194,7 @@ def github_source(access_token):
 ...
 ```
 
-Here, we added `access_token` parameter and now we can used it to pass the access token token to the request:
+Here, we added `access_token` parameter and now we can use it to pass the access token to the request:
 
 ```python
 load_info = pipeline.run(github_source(access_token="ghp_XXXXX"))
@@ -212,7 +212,7 @@ def github_source(
     ...
 ```
 
-When you add `dlt.secrets.value` as a default value for an argument, `dlt` will try to load and inject this value from a different configuration sources in the following order:
+When you add `dlt.secrets.value` as a default value for an argument, `dlt` will try to load and inject this value from different configuration sources in the following order:
 
 1. Special environment variables.
 2. `secrets.toml` file.
@@ -276,7 +276,7 @@ load_info = pipeline.run(github_source())
 
 ## Configurable sources
 
-The next step is to make our dlt GitHub source reusable so it is able to load data from any GitHub repo. We'll do that by changing both `github_source()` and `fetch_github_data()` functions to accept the repo name as a parameter:
+The next step is to make our dlt GitHub source reusable so it can load data from any GitHub repo. We'll do that by changing both `github_source()` and `fetch_github_data()` functions to accept the repo name as a parameter:
 
 ```python
 import dlt
@@ -336,11 +336,11 @@ That's it! Now you have a reusable source that can load data from any GitHub rep
 
 ## What’s next
 
-Congratulations on completing the tutorial! You've come a long way since the [getting started](../getting-started) guide. By now, you've mastered loading data from various GitHub API endpoints, organizing resources into sources, managing secrets securely, and creatig reusable sources. You can use these skills to build your own pipelines and load data from any source.
+Congratulations on completing the tutorial! You've come a long way since the [getting started](../getting-started) guide. By now, you've mastered loading data from various GitHub API endpoints, organizing resources into sources, managing secrets securely, and creating reusable sources. You can use these skills to build your own pipelines and load data from any source.
 
 Interested in learning more? Here are some suggestions:
 1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy-a-pipeline/).
-2. Dive deeper into how dlts works by reading the [Using dlt](../general-usage) section. Some highlights:
+2. Dive deeper into how dlt works by reading the [Using dlt](../general-usage) section. Some highlights:
     - [Connect the transformers to the resources](../general-usage/resource#feeding-data-from-one-resource-into-another) to load additional data or enrich it.
     - [Create your resources dynamically from data](../general-usage/source#create-resources-dynamically).
     - [Transform your data before loading](../general-usage/resource#customize-resources) and see some [examples of customizations like column renames and anonymization](../general-usage/customising-pipelines/renaming_columns).
@@ -348,4 +348,4 @@ Interested in learning more? Here are some suggestions:
     - [Run in production: inspecting, tracing, retry policies and cleaning up](../running-in-production/running).
     - [Run resources in parallel, optimize buffers and local storage](../reference/performance.md)
 3. Check out our [how-to guides](../walkthroughs) to get answers to some common questions.
-4. Explore [Examples](../examples) section to see how dlt can be used in real-world scenarios
+4. Explore the [Examples](../examples) section to see how dlt can be used in real-world scenarios

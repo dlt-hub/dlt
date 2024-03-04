@@ -291,3 +291,6 @@ verified source.
    load_info = pipeline.run(activities_source)
    print(load_info)
    ```
+
+<!--@@@DLT_SNIPPET_START tuba::pipedrive-->
+<!--@@@DLT_SNIPPET_END tuba::pipedrive-->

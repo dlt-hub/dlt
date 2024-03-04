@@ -86,6 +86,7 @@ const sidebars = {
           },
           items: [
             'dlt-ecosystem/destinations/bigquery',
+            'dlt-ecosystem/destinations/databricks',
             'dlt-ecosystem/destinations/duckdb',
             'dlt-ecosystem/destinations/mssql',
             'dlt-ecosystem/destinations/synapse',

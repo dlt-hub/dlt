@@ -1,5 +1,6 @@
 import binascii
 import base64
+import dataclasses
 import datetime  # noqa: I251
 from collections.abc import Mapping as C_Mapping, Sequence as C_Sequence
 from typing import Any, Type, Literal, Union, cast
@@ -12,7 +13,6 @@ from dlt.common.arithmetics import InvalidOperation
 from dlt.common.data_types.typing import TDataType
 from dlt.common.time import (
     ensure_pendulum_datetime,
-    parse_iso_like_datetime,
     ensure_pendulum_date,
     ensure_pendulum_time,
 )
@@ -55,7 +55,7 @@ def py_type_to_sc_type(t: Type[Any]) -> TDataType:
         return "bigint"
     if issubclass(t, bytes):
         return "binary"
-    if issubclass(t, (C_Mapping, C_Sequence)):
+    if dataclasses.is_dataclass(t) or issubclass(t, (C_Mapping, C_Sequence)):
         return "complex"
     # Enum is coerced to str or int respectively
     if issubclass(t, Enum):
@@ -81,13 +81,13 @@ def coerce_from_date_types(
     if to_type == "text":
         return v.isoformat()
     if to_type == "bigint":
-        return v.int_timestamp  # type: ignore
+        return v.int_timestamp
     if to_type == "double":
-        return v.timestamp()  # type: ignore
+        return v.timestamp()
     if to_type == "date":
         return ensure_pendulum_date(v)
     if to_type == "time":
-        return v.time()  # type: ignore[no-any-return]
+        return v.time()
     raise TypeError(f"Cannot convert timestamp to {to_type}")
 
 

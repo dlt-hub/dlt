@@ -15,7 +15,80 @@ keywords: [Databricks, destination, data warehouse]
 pip install dlt[databricks]
 ```
 
-## Setup Guide
+## Set up your Databricks workspace
+
+To use the Databricks destination, you need:
+
+* A Databricks workspace with a Unity Catalog metastore connected
+* A Gen 2 Azure storage account and container
+
+If you already have your Databricks workspace set up, you can skip to the [Loader setup Guide](#loader-setup-guide).
+
+### 1. Create a Databricks workspace in Azure
+
+1. Create a Databricks workspace in Azure
+
+    In your Azure Portal search for Databricks and create a new workspace. In the "Pricing Tier" section, select "Premium" to be able to use the Unity Catalog.
+
+2. Create an ADLS Gen 2 storage account
+
+    Search for "Storage accounts" in the Azure Portal and create a new storage account.
+    Make sure it's a Data Lake Storage Gen 2 account, you do this by enabling "hierarchical namespace" when creating the account. Refer to the [Azure documentation](https://learn.microsoft.com/en-us/azure/storage/blobs/create-data-lake-storage-account) for further info.
+
+3. Create a container in the storage account
+
+    In the storage account, create a new container. This will be used as a datastore for your Databricks catalog.
+
+4. Create an Access Connector for Azure Databricks
+
+    This will allow Databricks to access your storage account.
+    In the Azure Portal search for "Access Connector for Azure Databricks" and create a new connector.
+
+5. Grant access to your storage container
+
+    Navigate to the storage container you created before and select "Access control (IAM)" in the left-hand menu.
+
+    Add a new role assignment and select "Storage Blob Data Contributor" as the role. Under "Members" select "Managed Identity" and add the Databricks Access Connector you created in the previous step.
+
+### 2. Set up a metastore and Unity Catalog and get your access token
+
+1. Now go to your Databricks workspace
+
+    To get there from the Azure Portal, search for "Databricks" and select your Databricks and click "Launch Workspace".
+
+2. In the top right corner, click on your email address and go to "Manage Account"
+
+3. Go to "Data" and click on "Create Metastore"
+
+    Name your metastore and select a region.
+    If you'd like to set up a storage container for the whole metastore you can add your ADLS URL and Access Connector Id here. You can also do this on a granular level when creating the catalog.
+
+    In the next step assign your metastore to your workspace.
+
+4. Go back to your workspace and click on "Catalog" in the left-hand menu
+
+5. Click "+ Add" and select "Add Storage Credential"
+
+    Create a name and paste in the resource ID of the Databricks Access Connector from the Azure portal.
+    It will look something like this: `/subscriptions/<subscription_id>/resourceGroups/<resource_group>/providers/Microsoft.Databricks/accessConnectors/<connector_name>`
+
+
+6. Click "+ Add" again and select "Add external location"
+
+    Set the URL of our storage container. This should be in the form: `abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>`
+
+    Once created you can test the connection to make sure the container is accessible from databricks.
+
+7. Now you can create a catalog
+
+    Go to "Catalog" and click "Create Catalog". Name your catalog and select the storage location you created in the previous step.
+
+8. Create your access token
+
+    Click your email in the top right corner and go to "User Settings". Go to "Developer" -> "Access Tokens".
+    Generate a new token and save it. You will use it in your `dlt` configuration.
+
+## Loader setup Guide
 
 **1. Initialize a project with a pipeline that loads to Databricks by running**
 ```
@@ -32,7 +105,9 @@ This will install dlt with **databricks** extra which contains Databricks Python
 
 This should have your connection parameters and your personal access token.
 
-It should now look like:
+You will find your server hostname and HTTP path in the Databricks workspace dashboard. Go to "SQL Warehouses", select your warehouse (default is called "Starter Warehouse") and go to "Connection details".
+
+Example:
 
 ```toml
 [destination.databricks.credentials]
@@ -109,3 +184,15 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-d
 
 ### Syncing of `dlt` state
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
+
+<!--@@@DLT_SNIPPET_START tuba::databricks-->
+## Additional Setup guides
+
+- [Load data from GitHub to Databricks in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-databricks)
+- [Load data from Notion to Databricks in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-databricks)
+- [Load data from Stripe to Databricks in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-databricks)
+- [Load data from HubSpot to Databricks in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-databricks)
+- [Load data from Google Analytics to Databricks in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-databricks)
+- [Load data from Google Sheets to Databricks in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-databricks)
+- [Load data from Chess.com to Databricks in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-databricks)
+<!--@@@DLT_SNIPPET_END tuba::databricks-->

@@ -1,16 +1,6 @@
 from datetime import datetime, date  # noqa: I251
 from typing import Any, Optional, Tuple, List
 
-try:
-    import pandas as pd
-except ModuleNotFoundError:
-    pd = None
-
-try:
-    import numpy as np
-except ModuleNotFoundError:
-    np = None
-
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.utils import digest128
 from dlt.common.json import json
@@ -28,10 +18,15 @@ from dlt.common.schema.typing import TColumnNames
 
 try:
     from dlt.common.libs import pyarrow
+    from dlt.common.libs.pandas import pandas
+    from dlt.common.libs.numpy import numpy
     from dlt.common.libs.pyarrow import pyarrow as pa, TAnyArrowItem
+    from dlt.common.libs.pyarrow import from_arrow_scalar, to_arrow_scalar
 except MissingDependencyException:
     pa = None
     pyarrow = None
+    numpy = None
+    pandas = None
 
 
 class IncrementalTransform:
@@ -119,13 +114,17 @@ class JsonIncremental(IncrementalTransform):
             return row, start_out_of_range, end_out_of_range
 
         row_value = self.find_cursor_value(row)
+        last_value = self.incremental_state["last_value"]
 
         # For datetime cursor, ensure the value is a timezone aware datetime.
         # The object saved in state will always be a tz aware pendulum datetime so this ensures values are comparable
-        if isinstance(row_value, datetime):
-            row_value = pendulum.instance(row_value)
-
-        last_value = self.incremental_state["last_value"]
+        if (
+            isinstance(row_value, datetime)
+            and row_value.tzinfo is None
+            and isinstance(last_value, datetime)
+            and last_value.tzinfo is not None
+        ):
+            row_value = pendulum.instance(row_value).in_tz("UTC")
 
         # Check whether end_value has been reached
         # Filter end value ranges exclusively, so in case of "max" function we remove values >= end_value
@@ -192,14 +191,14 @@ class ArrowIncremental(IncrementalTransform):
         """Creates unique index if necessary."""
         # create unique index if necessary
         if self._dlt_index not in tbl.schema.names:
-            tbl = pyarrow.append_column(tbl, self._dlt_index, pa.array(np.arange(tbl.num_rows)))
+            tbl = pyarrow.append_column(tbl, self._dlt_index, pa.array(numpy.arange(tbl.num_rows)))
         return tbl
 
     def __call__(
         self,
         tbl: "TAnyArrowItem",
     ) -> Tuple[TDataItem, bool, bool]:
-        is_pandas = pd is not None and isinstance(tbl, pd.DataFrame)
+        is_pandas = pandas is not None and isinstance(tbl, pandas.DataFrame)
         if is_pandas:
             tbl = pa.Table.from_pandas(tbl)
 
@@ -249,13 +248,10 @@ class ArrowIncremental(IncrementalTransform):
         cursor_path = self.cursor_path
         # The new max/min value
         try:
-            orig_row_value = compute(tbl[cursor_path])
-            row_value = orig_row_value.as_py()
-            # dates are not represented as datetimes but I see connector-x represents
-            # datetimes as dates and keeping the exact time inside. probably a bug
-            # but can be corrected this way
-            if isinstance(row_value, date) and not isinstance(row_value, datetime):
-                row_value = pendulum.from_timestamp(orig_row_value.cast(pa.int64()).as_py() / 1000)
+            # NOTE: datetimes are always pendulum in UTC
+            row_value = from_arrow_scalar(compute(tbl[cursor_path]))
+            cursor_data_type = tbl.schema.field(cursor_path).type
+            row_value_scalar = to_arrow_scalar(row_value, cursor_data_type)
         except KeyError as e:
             raise IncrementalCursorPathMissing(
                 self.resource_name,
@@ -268,22 +264,26 @@ class ArrowIncremental(IncrementalTransform):
 
         # If end_value is provided, filter to include table rows that are "less" than end_value
         if self.end_value is not None:
-            tbl = tbl.filter(end_compare(tbl[cursor_path], self.end_value))
+            end_value_scalar = to_arrow_scalar(self.end_value, cursor_data_type)
+            tbl = tbl.filter(end_compare(tbl[cursor_path], end_value_scalar))
             # Is max row value higher than end value?
             # NOTE: pyarrow bool *always* evaluates to python True. `as_py()` is necessary
-            end_out_of_range = not end_compare(row_value, self.end_value).as_py()
+            end_out_of_range = not end_compare(row_value_scalar, end_value_scalar).as_py()
 
         if last_value is not None:
             if self.start_value is not None:
                 # Remove rows lower than the last start value
-                keep_filter = last_value_compare(tbl[cursor_path], self.start_value)
+                keep_filter = last_value_compare(
+                    tbl[cursor_path], to_arrow_scalar(self.start_value, cursor_data_type)
+                )
                 start_out_of_range = bool(pa.compute.any(pa.compute.invert(keep_filter)).as_py())
                 tbl = tbl.filter(keep_filter)
 
             # Deduplicate after filtering old values
+            last_value_scalar = to_arrow_scalar(last_value, cursor_data_type)
             tbl = self._deduplicate(tbl, unique_columns, aggregate, cursor_path)
             # Remove already processed rows where the cursor is equal to the last value
-            eq_rows = tbl.filter(pa.compute.equal(tbl[cursor_path], last_value))
+            eq_rows = tbl.filter(pa.compute.equal(tbl[cursor_path], last_value_scalar))
             # compute index, unique hash mapping
             unique_values = self.unique_values(eq_rows, unique_columns, self.resource_name)
             unique_values = [
@@ -296,14 +296,15 @@ class ArrowIncremental(IncrementalTransform):
             tbl = tbl.filter(pa.compute.invert(pa.compute.is_in(tbl[self._dlt_index], remove_idx)))
 
             if (
-                new_value_compare(row_value, last_value).as_py() and row_value != last_value
+                new_value_compare(row_value_scalar, last_value_scalar).as_py()
+                and row_value != last_value
             ):  # Last value has changed
                 self.incremental_state["last_value"] = row_value
                 # Compute unique hashes for all rows equal to row value
                 self.incremental_state["unique_hashes"] = [
                     uq_val
                     for _, uq_val in self.unique_values(
-                        tbl.filter(pa.compute.equal(tbl[cursor_path], row_value)),
+                        tbl.filter(pa.compute.equal(tbl[cursor_path], row_value_scalar)),
                         unique_columns,
                         self.resource_name,
                     )
@@ -322,7 +323,7 @@ class ArrowIncremental(IncrementalTransform):
             self.incremental_state["unique_hashes"] = [
                 uq_val
                 for _, uq_val in self.unique_values(
-                    tbl.filter(pa.compute.equal(tbl[cursor_path], row_value)),
+                    tbl.filter(pa.compute.equal(tbl[cursor_path], row_value_scalar)),
                     unique_columns,
                     self.resource_name,
                 )

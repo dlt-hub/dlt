@@ -30,15 +30,13 @@ def transformers_snippet() -> None:
 
         # a special case where just one item is retrieved in transformer
         # a whole transformer may be marked for parallel execution
-        @dlt.transformer
-        @dlt.defer
+        @dlt.transformer(parallelized=True)
         def species(pokemon_details):
             """Yields species details for a pokemon"""
             species_data = requests.get(pokemon_details["species"]["url"]).json()
             # link back to pokemon so we have a relation in loaded data
             species_data["pokemon_id"] = pokemon_details["id"]
-            # just return the results, if you yield,
-            # generator will be evaluated in main thread
+            # You can return the result instead of yield since the transformer only generates one result
             return species_data
 
         # create two simple pipelines with | operator
@@ -48,7 +46,6 @@ def transformers_snippet() -> None:
 
         return (pokemon_list | pokemon, pokemon_list | pokemon | species)
 
-    __name__ = "__main__"  # @@@DLT_REMOVE
     if __name__ == "__main__":
         # build duck db pipeline
         pipeline = dlt.pipeline(
@@ -59,6 +56,14 @@ def transformers_snippet() -> None:
         load_info = pipeline.run(source("https://pokeapi.co/api/v2/pokemon"))
         print(load_info)
     # @@@DLT_SNIPPET_END example
+
+    # Run without __main__
+    pipeline = dlt.pipeline(
+        pipeline_name="pokemon", destination="duckdb", dataset_name="pokemon_data"
+    )
+
+    # the pokemon_list resource does not need to be loaded
+    load_info = pipeline.run(source("https://pokeapi.co/api/v2/pokemon"))
 
     # test assertions
     row_counts = pipeline.last_trace.last_normalize_info.row_counts

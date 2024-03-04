@@ -18,6 +18,7 @@ from dlt.common.utils import uniq_id, digest128, chunks
 from dlt.common.json import json
 
 from dlt.extract import DltSource
+from dlt.extract.exceptions import InvalidStepFunctionArguments
 from dlt.sources.helpers.transform import take_first
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
@@ -854,28 +855,49 @@ def test_apply_hints_incremental(item_type: TDataItemFormat) -> None:
 
     @dlt.resource
     def some_data(created_at: Optional[dlt.sources.incremental[int]] = None):
+        # make sure that incremental from apply_hints is here
+        assert created_at is not None
+        assert created_at.last_value_func is max
         yield source_items
 
     # the incremental wrapper is created for a resource and the incremental value is provided via apply hints
     r = some_data()
-    assert list(r) == source_items
-    r.apply_hints(incremental=dlt.sources.incremental("created_at"))
+    assert r is not some_data
+    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
+    if item_type == "pandas":
+        assert list(r)[0].equals(source_items[0])
+    else:
+        assert list(r) == source_items
+    p.extract(r)
+    assert "incremental" in r.state
+    assert list(r) == []
+
+    # same thing with explicit None
+    r = some_data(created_at=None).with_name("copy")
+    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
+    if item_type == "pandas":
+        assert list(r)[0].equals(source_items[0])
+    else:
+        assert list(r) == source_items
     p.extract(r)
     assert "incremental" in r.state
     assert list(r) == []
 
     # as above but we provide explicit incremental when creating resource
     p = p.drop()
-    r = some_data(created_at=dlt.sources.incremental("created_at", last_value_func=min))
-    # explicit has precedence here
-    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
+    r = some_data(created_at=dlt.sources.incremental("created_at", last_value_func=max))
+    # explicit has precedence here and hints will be ignored
+    r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=min))
     p.extract(r)
     assert "incremental" in r.state
-    # min value
-    assert r.state["incremental"]["created_at"]["last_value"] == 1
+    # max value
+    assert r.state["incremental"]["created_at"]["last_value"] == 3
 
     @dlt.resource
     def some_data_w_default(created_at=dlt.sources.incremental("created_at", last_value_func=min)):
+        # make sure that incremental from apply_hints is here
+        assert created_at is not None
+        assert created_at.last_value_func is max
         yield source_items
 
     # default is overridden by apply hints
@@ -943,32 +965,109 @@ def test_last_value_func_on_dict() -> None:
         assert [e for e in all_events if e["type"] == "WatchEvent"] == watch_events
 
 
-def test_timezone_naive_datetime() -> None:
-    # TODO: arrow doesn't work with this
+@pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)
+def test_timezone_naive_datetime(item_type: TDataItemFormat) -> None:
     """Resource has timezone naive datetime objects, but incremental stored state is
     converted to tz aware pendulum dates. Can happen when loading e.g. from sql database"""
     start_dt = datetime.now()
     pendulum_start_dt = pendulum.instance(start_dt)  # With timezone
 
-    @dlt.resource
+    @dlt.resource(standalone=True, primary_key="hour")
     def some_data(
         updated_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
-            "updated_at", pendulum_start_dt
-        )
+            "updated_at", initial_value=pendulum_start_dt
+        ),
+        max_hours: int = 2,
+        tz: str = None,
     ):
         data = [
-            {"updated_at": start_dt + timedelta(hours=1)},
-            {"updated_at": start_dt + timedelta(hours=2)},
+            {"updated_at": start_dt + timedelta(hours=hour), "hour": hour}
+            for hour in range(1, max_hours + 1)
         ]
-        yield data
+        # make sure this is naive datetime
+        assert data[0]["updated_at"].tzinfo is None  # type: ignore[attr-defined]
+        if tz:
+            data = [{**d, "updated_at": pendulum.instance(d["updated_at"])} for d in data]  # type: ignore[call-overload]
+
+        yield data_to_item_format(item_type, data)
 
     pipeline = dlt.pipeline(pipeline_name=uniq_id())
     resource = some_data()
-    pipeline.extract(resource)
+    # print(list(resource))
+    extract_info = pipeline.extract(resource)
+    # print(extract_info.asdict())
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
+            "some_data"
+        ].items_count
+        == 2
+    )
     # last value has timezone added
     last_value = resource.state["incremental"]["updated_at"]["last_value"]
     assert isinstance(last_value, pendulum.DateTime)
     assert last_value.tzname() == "UTC"
+    # try again with more records
+    extract_info = pipeline.extract(some_data(max_hours=3))
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
+            "some_data"
+        ].items_count
+        == 1
+    )
+
+    # add end_value to incremental
+    resource = some_data(max_hours=10)
+    # it should be merged
+    resource.apply_hints(
+        incremental=dlt.sources.incremental(
+            "updated_at", initial_value=pendulum_start_dt, end_value=pendulum_start_dt.add(hours=3)
+        )
+    )
+    extract_info = pipeline.extract(resource)
+    assert (
+        extract_info.metrics[extract_info.loads_ids[0]][0]["resource_metrics"][
+            "some_data"
+        ].items_count
+        == 2
+    )
+
+    # initial value is naive
+    resource = some_data(max_hours=4).with_name("copy_1")  # also make new resource state
+    resource.apply_hints(incremental=dlt.sources.incremental("updated_at", initial_value=start_dt))
+    # and the data is naive. so it will work as expected with naive datetimes in the result set
+    data = list(resource)
+    if item_type == "json":
+        # we do not convert data in arrow tables
+        assert data[0]["updated_at"].tzinfo is None
+
+    # end value is naive
+    resource = some_data(max_hours=4).with_name("copy_2")  # also make new resource state
+    resource.apply_hints(
+        incremental=dlt.sources.incremental(
+            "updated_at", initial_value=start_dt, end_value=start_dt + timedelta(hours=3)
+        )
+    )
+    data = list(resource)
+    if item_type == "json":
+        assert data[0]["updated_at"].tzinfo is None
+
+    # now use naive initial value but data is UTC
+    resource = some_data(max_hours=4, tz="UTC").with_name("copy_3")  # also make new resource state
+    resource.apply_hints(
+        incremental=dlt.sources.incremental(
+            "updated_at", initial_value=start_dt + timedelta(hours=3)
+        )
+    )
+    # will cause invalid comparison
+    if item_type == "json":
+        with pytest.raises(InvalidStepFunctionArguments):
+            list(resource)
+    else:
+        data = data_item_to_list(item_type, list(resource))
+        # we select two rows by adding 3 hours to start_dt. rows have hours:
+        # 1, 2, 3, 4
+        # and we select >=3
+        assert len(data) == 2
 
 
 @dlt.resource
