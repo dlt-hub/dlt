@@ -177,7 +177,7 @@ class Client:
             Union[TimedeltaSeconds, Tuple[TimedeltaSeconds, TimedeltaSeconds]]
         ] = DEFAULT_TIMEOUT,
         max_connections: int = 50,
-        raise_for_status: bool = True,
+        raise_for_status: bool = False,
         status_codes: Sequence[int] = DEFAULT_RETRY_STATUS,
         exceptions: Sequence[Type[Exception]] = DEFAULT_RETRY_EXCEPTIONS,
         request_max_attempts: int = RunConfiguration.request_max_attempts,

@@ -36,7 +36,7 @@ class Session(BaseSession):
         timeout: Optional[
             Union[TimedeltaSeconds, Tuple[TimedeltaSeconds, TimedeltaSeconds]]
         ] = DEFAULT_TIMEOUT,
-        raise_for_status: bool = True,
+        raise_for_status: bool = False,
     ) -> None:
         super().__init__()
         self.timeout = _timeout_to_seconds(timeout)
