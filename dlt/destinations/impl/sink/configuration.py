@@ -12,7 +12,7 @@ from dlt.common.schema import TTableSchema
 from dlt.common.configuration.exceptions import ConfigurationValueError
 
 
-TSinkCallable = Callable[[TDataItems, TTableSchema], None]
+TSinkCallable = Callable[[Union[TDataItems, str], TTableSchema], None]
 
 
 @configspec

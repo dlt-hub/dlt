@@ -42,11 +42,15 @@ class SinkLoadJob(LoadJob, ABC):
         self._state: TLoadJobState = "running"
         self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
         try:
-            current_index = destination_state.get(self._storage_id, 0)
-            for batch in self.run(current_index):
-                self.call_callable_with_items(batch)
-                current_index += len(batch)
-                destination_state[self._storage_id] = current_index
+            if self._config.batch_size == 0:
+                # on batch size zero we only call the callable with the filename
+                self.call_callable_with_items(self._file_path)
+            else:
+                current_index = destination_state.get(self._storage_id, 0)
+                for batch in self.run(current_index):
+                    self.call_callable_with_items(batch)
+                    current_index += len(batch)
+                    destination_state[self._storage_id] = current_index
 
             self._state = "completed"
         except Exception as e:

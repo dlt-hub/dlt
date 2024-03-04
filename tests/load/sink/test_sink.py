@@ -318,3 +318,30 @@ def test_naming_convention() -> None:
         assert table["columns"]["camelCase"]["name"] == "camelCase"
 
     dlt.pipeline("sink_test", destination=direct_sink, full_refresh=True).run(resource())
+
+
+def test_file_batch() -> None:
+    @dlt.resource(table_name="person")
+    def resource1():
+        for i in range(100):
+            yield [{"id": i, "name": f"Name {i}"}]
+
+    @dlt.resource(table_name="address")
+    def resource2():
+        for i in range(50):
+            yield [{"id": i, "city": f"City {i}"}]
+
+    @dlt.destination(batch_size=0, loader_file_format="parquet")
+    def direct_sink(file_path, table):
+        if table["name"].startswith("_dlt"):
+            return
+        from dlt.common.libs.pyarrow import pyarrow
+
+        assert table["name"] in ["person", "address"]
+
+        with pyarrow.parquet.ParquetFile(file_path) as reader:
+            assert reader.metadata.num_rows == (100 if table["name"] == "person" else 50)
+
+    dlt.pipeline("sink_test", destination=direct_sink, full_refresh=True).run(
+        [resource1(), resource2()]
+    )
