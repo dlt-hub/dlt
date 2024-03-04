@@ -466,7 +466,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         pipeline: SupportsPipeline,
     ) -> LoadInfo:
         # TODO: LoadInfo should hold many datasets
-        load_ids = list(self._load_id_metrics.keys())
+        load_ids = list({m["load_id"] for m in self._load_id_metrics})
         metrics: Dict[str, List[LoadMetrics]] = {}
         # get load packages and dataset_name from the last package
         _dataset_name: str = None
@@ -498,7 +498,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             str(self.initial_staging_client_config) if self.initial_staging_client_config else None,
             self.initial_client_config.fingerprint(),
             _dataset_name,
-            list(load_ids),
+            load_ids,
             self._loaded_packages,
             pipeline.first_run,
         )

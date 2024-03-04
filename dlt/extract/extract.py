@@ -357,10 +357,10 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         self.extract_storage.delete_empty_extract_folder()
 
     def get_step_info(self, pipeline: SupportsPipeline) -> ExtractInfo:
-        load_ids = list(self._load_id_metrics.keys())
+        load_ids = list({m["load_id"] for m in self._load_id_metrics})
         load_packages: List[LoadPackageInfo] = []
         metrics: Dict[str, List[ExtractMetrics]] = {}
-        for load_id in self._load_id_metrics.keys():
+        for load_id in load_ids:
             load_package = self.extract_storage.get_load_package_info(load_id)
             load_packages.append(load_package)
             metrics[load_id] = self._step_info_metrics(load_id)

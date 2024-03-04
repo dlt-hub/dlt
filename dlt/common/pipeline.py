@@ -90,7 +90,7 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
         if not self.metrics:
             return None
         try:
-            return min(m["started_at"] for l_m in self.metrics.values() for m in l_m)
+            return min(m["started_at"] for l_m in self.metrics for m in l_m)
         except ValueError:
             return None
 
@@ -100,13 +100,9 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
         if not self.metrics:
             return None
         try:
-            return max(m["finished_at"] for l_m in self.metrics.values() for m in l_m)
+            return max(m["finished_at"] for l_m in self.metrics for m in l_m)
         except ValueError:
             return None
-
-    @property
-    def metrics_as_dict(self) -> Dict[str, List[TStepMetricsCo]]:
-        return {load_metric["load_id"]: load_metric for load_metric in self.metrics}
 
     def asdict(self) -> DictStrAny:
         # to be mixed with NamedTuple
@@ -264,7 +260,7 @@ class NormalizeMetrics(StepMetrics):
 
 class _NormalizeInfo(NamedTuple):
     pipeline: "SupportsPipeline"
-    metrics: Dict[str, List[NormalizeMetrics]]
+    metrics: List[NormalizeMetrics]
     loads_ids: List[str]
     """ids of the loaded packages"""
     load_packages: List[LoadPackageInfo]
@@ -280,7 +276,7 @@ class NormalizeInfo(StepInfo[NormalizeMetrics], _NormalizeInfo):  # type: ignore
         if not self.metrics:
             return {}
         counts: RowCounts = {}
-        for metrics in self.metrics.values():
+        for metrics in self.metrics:
             assert len(metrics) == 1, "Cannot deal with more than 1 normalize metric per load_id"
             merge_row_counts(
                 counts, {t: m.items_count for t, m in metrics[0]["table_metrics"].items()}
@@ -296,9 +292,9 @@ class NormalizeInfo(StepInfo[NormalizeMetrics], _NormalizeInfo):  # type: ignore
             "job_metrics": [],
             "table_metrics": [],
         }
-        for load_id, metrics_list in self.metrics.items():
+        for metrics_list in self.metrics:
             for idx, metrics in enumerate(metrics_list):
-                extend = {"load_id": load_id, "extract_idx": idx}
+                extend = {"load_id": metrics["load_id"], "extract_idx": idx}
                 load_metrics["job_metrics"].extend(
                     self.job_metrics_asdict(metrics["job_metrics"], extend=extend)
                 )
@@ -327,7 +323,7 @@ class LoadMetrics(StepMetrics):
 
 class _LoadInfo(NamedTuple):
     pipeline: "SupportsPipeline"
-    metrics: Dict[str, List[LoadMetrics]]
+    metrics: List[LoadMetrics]
     destination_type: str
     destination_displayable_credentials: str
     destination_name: str
@@ -405,19 +401,18 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
     """Implemented by classes that generate StepInfo with metrics and package infos"""
 
     _current_load_id: str
-    _load_id_metrics: Dict[str, List[TStepMetrics]]
+    _load_id_metrics: List[TStepMetrics]
     _current_load_started: float
     """Completed load ids metrics"""
 
     def __init__(self) -> None:
-        self._load_id_metrics = {}
+        self._load_id_metrics = []
         self._current_load_id = None
         self._current_load_started = None
 
     def _step_info_start_load_id(self, load_id: str) -> None:
         self._current_load_id = load_id
         self._current_load_started = precise_time()
-        self._load_id_metrics.setdefault(load_id, [])
 
     def _step_info_complete_load_id(self, load_id: str, metrics: TStepMetrics) -> None:
         assert self._current_load_id == load_id, (
@@ -532,7 +527,8 @@ class SupportsPipeline(Protocol):
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
-    ) -> LoadInfo: ...
+    ) -> LoadInfo:
+        ...
 
     def _set_context(self, is_active: bool) -> None:
         """Called when pipeline context activated or deactivate"""
@@ -554,7 +550,8 @@ class SupportsPipelineRun(Protocol):
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
-    ) -> LoadInfo: ...
+    ) -> LoadInfo:
+        ...
 
 
 @configspec
@@ -604,7 +601,8 @@ class StateInjectableContext(ContainerInjectableContext):
 
     if TYPE_CHECKING:
 
-        def __init__(self, state: TPipelineState = None) -> None: ...
+        def __init__(self, state: TPipelineState = None) -> None:
+            ...
 
 
 def pipeline_state(
