@@ -288,3 +288,33 @@ def test_batched_transactions(loader_file_format: TLoaderFileFormat, batch_size:
     # both calls combined should have every item called just once
     assert_items_in_range(calls["items"] + first_calls["items"], 0, 100)
     assert_items_in_range(calls["items2"] + first_calls["items2"], 0, 100)
+
+
+def test_naming_convention() -> None:
+    @dlt.resource(table_name="PErson")
+    def resource():
+        yield [{"UpperCase": 1, "snake_case": 1, "camelCase": 1}]
+
+    # check snake case
+    @dlt.destination(naming_convention="snake_case")
+    def snake_sink(items, table):
+        if table["name"].startswith("_dlt"):
+            return
+        assert table["name"] == "p_erson"
+        assert table["columns"]["upper_case"]["name"] == "upper_case"
+        assert table["columns"]["snake_case"]["name"] == "snake_case"
+        assert table["columns"]["camel_case"]["name"] == "camel_case"
+
+    dlt.pipeline("sink_test", destination=snake_sink, full_refresh=True).run(resource())
+
+    # check default (which is direct)
+    @dlt.destination()
+    def direct_sink(items, table):
+        if table["name"].startswith("_dlt"):
+            return
+        assert table["name"] == "PErson"
+        assert table["columns"]["UpperCase"]["name"] == "UpperCase"
+        assert table["columns"]["snake_case"]["name"] == "snake_case"
+        assert table["columns"]["camelCase"]["name"] == "camelCase"
+
+    dlt.pipeline("sink_test", destination=direct_sink, full_refresh=True).run(resource())

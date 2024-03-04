@@ -7,14 +7,21 @@ from dlt.common.utils import get_callable_name
 
 
 def sink(
-    loader_file_format: TLoaderFileFormat = None, batch_size: int = 10, name: str = None
+    loader_file_format: TLoaderFileFormat = None,
+    batch_size: int = 10,
+    name: str = None,
+    naming_convention: str = "direct",
 ) -> Any:
     def decorator(f: TSinkCallable) -> TDestinationReferenceArg:
         nonlocal name
         if name is None:
             name = get_callable_name(f)
         return _sink(
-            credentials=f, loader_file_format=loader_file_format, batch_size=batch_size, name=name
+            credentials=f,
+            loader_file_format=loader_file_format,
+            batch_size=batch_size,
+            name=name,
+            naming_convention=naming_convention,
         )
 
     return decorator

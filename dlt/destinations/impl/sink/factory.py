@@ -18,7 +18,10 @@ class sink(Destination[SinkClientConfiguration, "SinkClient"]):
     spec = SinkClientConfiguration
 
     def capabilities(self) -> DestinationCapabilitiesContext:
-        return capabilities(self.config_params.get("loader_file_format", "puae-jsonl"))
+        return capabilities(
+            self.config_params.get("loader_file_format", "puae-jsonl"),
+            self.config_params.get("naming_convention", "direct"),
+        )
 
     @property
     def client_class(self) -> t.Type["SinkClient"]:
@@ -33,6 +36,7 @@ class sink(Destination[SinkClientConfiguration, "SinkClient"]):
         environment: t.Optional[str] = None,
         loader_file_format: TLoaderFileFormat = None,
         batch_size: int = 10,
+        naming_convention: str = "direct",
         **kwargs: t.Any,
     ) -> None:
         super().__init__(
@@ -41,5 +45,6 @@ class sink(Destination[SinkClientConfiguration, "SinkClient"]):
             environment=environment,
             loader_file_format=loader_file_format,
             batch_size=batch_size,
+            naming_convention=naming_convention,
             **kwargs,
         )
