@@ -113,3 +113,87 @@ def test_import_schema_is_respected() -> None:
     export_schema = _get_export_schema(name)
     assert export_schema.tables["person"]["columns"]["id"]["data_type"] == "text"
     assert export_schema.tables["person"]["columns"]["name"]["data_type"] == "text"
+
+
+def test_only_explicit_hints_in_import_schema() -> None:
+    @dlt.source(schema_contract={"columns": "evolve"})
+    def source():
+        @dlt.resource(primary_key="id", name="person")
+        def resource():
+            yield EXAMPLE_DATA
+
+        return resource()
+
+    p = dlt.pipeline(
+        pipeline_name=uniq_id(),
+        destination=dummy(completed_prob=1),
+        import_schema_path=IMPORT_SCHEMA_PATH,
+        export_schema_path=EXPORT_SCHEMA_PATH,
+        full_refresh=True,
+    )
+    p.run(source())
+
+    # import schema has only the primary key hint, but no name or data types
+    import_schema = _get_import_schema("source")
+    assert import_schema.tables["person"]["columns"].keys() == {"id"}
+    assert import_schema.tables["person"]["columns"]["id"] == {
+        "nullable": False,
+        "primary_key": True,
+        "name": "id",
+    }
+
+    # pipeline schema has all the stuff
+    assert p.default_schema.tables["person"]["columns"].keys() == {
+        "id",
+        "name",
+        "_dlt_load_id",
+        "_dlt_id",
+    }
+    assert p.default_schema.tables["person"]["columns"]["id"] == {
+        "nullable": False,
+        "primary_key": True,
+        "name": "id",
+        "data_type": "bigint",
+    }
+
+    # adding column to the resource will not change the import schema, but the pipeline schema will evolve
+    @dlt.resource(primary_key="id", name="person", columns={"email": {"data_type": "text"}})
+    def resource():
+        yield EXAMPLE_DATA
+
+    p.run(resource())
+
+    # check schemas
+    import_schema = _get_import_schema("source")
+    assert import_schema.tables["person"]["columns"].keys() == {"id"}
+    assert p.default_schema.tables["person"]["columns"].keys() == {
+        "id",
+        "name",
+        "_dlt_load_id",
+        "_dlt_id",
+        "email",
+    }
+
+    # changing the import schema will force full update
+    import_schema.tables["person"]["columns"]["age"] = {
+        "data_type": "bigint",
+        "nullable": True,
+        "name": "age",
+    }
+    with open(
+        os.path.join(IMPORT_SCHEMA_PATH, "source" + ".schema.yaml"), "w", encoding="utf-8"
+    ) as f:
+        f.write(import_schema.to_pretty_yaml())
+
+    # run with the original source, email hint should be gone after this, but we now have age
+    p.run(source())
+
+    assert p.default_schema.tables["person"]["columns"].keys() == {
+        "id",
+        "name",
+        "_dlt_load_id",
+        "_dlt_id",
+        "age",
+    }
+    import_schema = _get_import_schema("source")
+    assert import_schema.tables["person"]["columns"].keys() == {"id", "age"}
