@@ -1,15 +1,15 @@
+from collections.abc import Callable
 from copy import deepcopy
 import pytest
 import yaml
-from typing import Dict, List, Literal, Mapping, Sequence, TypedDict, Optional, Union
+from typing import List, Literal, Mapping, Sequence, TypedDict, TypeVar, Optional, Union
 
-from dlt.common import json
 from dlt.common.exceptions import DictValidationException
 from dlt.common.schema.typing import TStoredSchema, TColumnSchema
 from dlt.common.schema.utils import simple_regex_validator
 from dlt.common.typing import DictStrStr, StrStr
 from dlt.common.validation import validate_dict, validate_dict_ignoring_xkeys
-from dlt.extract.typing import TTableHintTemplate
+from dlt.extract.typing import TDataItem, TTableHintTemplate
 
 
 TLiteral = Literal["uno", "dos", "tres"]
@@ -245,11 +245,28 @@ def test_nested_union(test_doc: TTestRecord) -> None:
 
 
 def test_no_name() -> None:
-    class TTestRecordNoNoame(TypedDict):
+    class TTestRecordNoName(TypedDict):
         name: TTableHintTemplate[str]
 
     test_item = {"name": "test"}
     try:
-        validate_dict(TTestRecordNoNoame, test_item, path=".")
+        validate_dict(TTestRecordNoName, test_item, path=".")
     except AttributeError:
         pytest.fail("validate_dict raised AttributeError unexpectedly")
+
+
+def test_callable() -> None:
+    TDynHintType = TypeVar("TDynHintType")
+    TFunHintTemplate = Callable[[TDataItem], TDynHintType]
+    t_table_hint_template = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
+
+    class TTestRecordCallable(TypedDict):
+        prop: t_table_hint_template  # type: ignore
+
+    def f(item: TDataItem) -> TDynHintType:
+        return TDynHintType("test")
+
+    test_item = {"prop": f}
+    validate_dict(
+        TTestRecordCallable, test_item, path=".", validator_f=lambda p, pk, pv, t: callable(pv)
+    )
