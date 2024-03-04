@@ -263,8 +263,8 @@ def test_callable() -> None:
     class TTestRecordCallable(TypedDict):
         prop: t_table_hint_template  # type: ignore
 
-    def f(item: TDataItem) -> TDynHintType:  # type: ignore
-        return "test"
+    def f(item: Union[TDataItem, TDynHintType]) -> TDynHintType:
+        return item
 
     test_item = {"prop": f}
     validate_dict(
