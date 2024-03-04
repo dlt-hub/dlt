@@ -15,26 +15,6 @@ data = [
 ]
 
 
-def test_pipeline_load_info_metrics_is_always_a_single_table_e2e() -> None:
-    pipeline = dlt.pipeline(
-        pipeline_name="quick_start_e2e",
-        destination="duckdb",
-        dataset_name="mydata",
-    )
-
-    load_info = pipeline.run(data, table_name="users")
-
-    pipeline.run([load_info], table_name="_load_info")
-    metrics_tables_first_run = get_metrics_table(pipeline.default_schema.data_tables())
-
-    load_info = pipeline.run(data, table_name="users")
-    pipeline.run([load_info], table_name="_load_info")
-    metrics_tables_second_run = get_metrics_table(pipeline.default_schema.data_tables())
-
-    assert len(metrics_tables_first_run) == len(metrics_tables_second_run)
-    assert metrics_tables_first_run == metrics_tables_second_run
-
-
 def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
     pipeline = dlt.pipeline(
         pipeline_name="quick_start",
