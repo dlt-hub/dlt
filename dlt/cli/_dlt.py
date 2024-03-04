@@ -563,6 +563,17 @@ def main() -> int:
 
     subparsers.add_parser("telemetry", help="Shows telemetry status")
 
+    # Run pipeline
+    run_cmd = subparsers.add_parser("run", help="Run pipelines in a given directory")
+
+    run_cmd.add_argument(
+        "module",
+        metavar="N",
+        type=str,
+        nargs="+",
+        help="Path to module or python file with pipelines",
+    )
+
     args = parser.parse_args()
 
     if Venv.is_virtual_env() and not Venv.is_venv_activated():
