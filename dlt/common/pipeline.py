@@ -61,8 +61,12 @@ class _StepInfo(NamedTuple):
 class StepMetrics(TypedDict):
     """Metrics for particular package processed in particular pipeline step"""
 
+    load_id: str
+    """Related load id"""
+
     started_at: datetime.datetime
     """Start of package processing"""
+
     finished_at: datetime.datetime
     """End of package processing"""
 
@@ -72,7 +76,7 @@ TStepMetricsCo = TypeVar("TStepMetricsCo", bound=StepMetrics, covariant=True)
 
 class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
     pipeline: "SupportsPipeline"
-    metrics: Dict[str, List[TStepMetricsCo]]
+    metrics: List[TStepMetricsCo]
     """Metrics per load id. If many sources with the same name were extracted, there will be more than 1 element in the list"""
     loads_ids: List[str]
     """ids of the loaded packages"""
@@ -99,6 +103,10 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
             return max(m["finished_at"] for l_m in self.metrics.values() for m in l_m)
         except ValueError:
             return None
+
+    @property
+    def metrics_as_dict(self) -> Dict[str, List[TStepMetricsCo]]:
+        return {load_metric["load_id"]: load_metric for load_metric in self.metrics}
 
     def asdict(self) -> DictStrAny:
         # to be mixed with NamedTuple
@@ -184,7 +192,7 @@ class _ExtractInfo(NamedTuple):
     """NamedTuple cannot be part of the derivation chain so we must re-declare all fields to use it as mixin later"""
 
     pipeline: "SupportsPipeline"
-    metrics: Dict[str, List[ExtractMetrics]]
+    metrics: List[ExtractMetrics]
     extract_data_info: List[ExtractDataInfo]
     loads_ids: List[str]
     """ids of the loaded packages"""
@@ -209,9 +217,9 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):  # type: ignore[misc]
             "dag": [],
             "hints": [],
         }
-        for load_id, metrics_list in self.metrics.items():
-            for idx, metrics in enumerate(metrics_list):
-                extend = {"load_id": load_id, "extract_idx": idx}
+        for metrics in self.metrics:
+            for idx, metric in enumerate(metrics):
+                extend = {"load_id": metric["load_id"], "extract_idx": idx}
                 load_metrics["job_metrics"].extend(
                     self.job_metrics_asdict(metrics["job_metrics"], extend=extend)
                 )
