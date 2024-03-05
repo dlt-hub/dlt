@@ -63,9 +63,7 @@ class LiveSchemaStorage(SchemaStorage):
             raise SchemaNotFoundError(name, f"live-schema://{name}")
         try:
             stored_schema_json = self._load_schema_json(name)
-            return live_schema.stored_version_hash == cast(
-                str, stored_schema_json.get("version_hash")
-            )
+            return live_schema.version_hash == cast(str, stored_schema_json.get("version_hash"))
         except FileNotFoundError:
             return False
 
