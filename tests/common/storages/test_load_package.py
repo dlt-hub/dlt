@@ -14,7 +14,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
     destination_state,
-    load_package_state,
+    load_package,
     commit_load_package_state,
     clear_destination_state,
 )
@@ -87,7 +87,7 @@ def test_create_and_update_loadpackage_state(load_storage: LoadStorage) -> None:
     # check timestamp
     time = pendulum.parse(state["created_at"])
     now = pendulum.now()
-    assert (now - time).in_seconds() < 2
+    assert (now - time).in_seconds() < 2  # type: ignore
 
 
 def test_loadpackage_state_injectable_context(load_storage: LoadStorage) -> None:
@@ -101,9 +101,9 @@ def test_loadpackage_state_injectable_context(load_storage: LoadStorage) -> None
         )
     ):
         # test general load package state
-        injected_state = load_package_state()
-        assert injected_state["_state_version"] == 0
-        injected_state["new_key"] = "new_value"  # type: ignore
+        injected_state = load_package()
+        assert injected_state["state"]["_state_version"] == 0
+        injected_state["state"]["new_key"] = "new_value"  # type: ignore
 
         # not persisted yet
         assert load_storage.new_packages.get_load_package_state("copy").get("new_key") is None
@@ -117,7 +117,7 @@ def test_loadpackage_state_injectable_context(load_storage: LoadStorage) -> None
         assert load_storage.new_packages.get_load_package_state("copy").get("_state_version") == 1
 
         # check that second injection is the same as first
-        second_injected_instance = load_package_state()
+        second_injected_instance = load_package()
         assert second_injected_instance == injected_state
 
         # check scoped destination states
@@ -133,7 +133,7 @@ def test_loadpackage_state_injectable_context(load_storage: LoadStorage) -> None
         ) == {"new_key": "new_value"}
 
         # this also shows up on the previously injected state
-        assert injected_state["destination_state"]["new_key"] == "new_value"
+        assert injected_state["state"]["destination_state"]["new_key"] == "new_value"
 
         # clear destination state
         clear_destination_state()
