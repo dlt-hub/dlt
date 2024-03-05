@@ -77,7 +77,7 @@ def data_to_sources(
             schema_ = schema
         # if we have a default schema name, use it but do not collect any info from the existing schema
         elif pipeline.default_schema_name:
-            schema_ = Schema(pipeline.default_schema_name)
+            schema_ = pipeline.schemas[pipeline.default_schema_name].clone()
         else:
             schema_ = pipeline._make_schema_with_default_name()
         return schema_

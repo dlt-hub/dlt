@@ -1,5 +1,5 @@
 import yaml
-from typing import Iterator, List, Mapping, Tuple
+from typing import Iterator, List, Mapping, Tuple, cast
 
 from dlt.common import json, logger
 from dlt.common.configuration import with_config
@@ -33,7 +33,7 @@ class SchemaStorage(Mapping[str, Schema]):
 
     def _load_schema_json(self, name: str) -> DictStrAny:
         schema_file = self._file_name_in_store(name, "json")
-        return json.loads(self.storage.load(schema_file))
+        return cast(DictStrAny, json.loads(self.storage.load(schema_file)))
 
     def load_schema(self, name: str) -> Schema:
         # loads a schema from a store holding many schemas
