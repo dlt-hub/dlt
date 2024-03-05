@@ -313,8 +313,17 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
             "DltResource": returns self
         """
 
+        # make sure max_items is a number, to allow "None" as value for unlimited
+        if max_items is None:
+            max_items = -1
+
         def _gen_wrap(gen: TPipeStep) -> TPipeStep:
             """Wrap a generator to take the first `max_items` records"""
+
+            # zero items should produce empty generator
+            if max_items == 0:
+                return
+
             count = 0
             is_async_gen = False
             if inspect.isfunction(gen):
