@@ -250,6 +250,25 @@ def test_replace_schema_content() -> None:
     assert replaced_stored_hash == schema.stored_version_hash
     assert schema.stored_version_hash != schema.version_hash
 
+    # replace with self
+    eth_v5 = load_yml_case("schemas/eth/ethereum_schema_v5")
+    schema_eth = Schema.from_dict(eth_v5, bump_version=True)  # type: ignore[arg-type]
+    stored_hash = schema_eth.stored_version_hash
+    schema_eth.replace_schema_content(schema_eth)
+    assert stored_hash == schema_eth.stored_version_hash
+    assert stored_hash == schema_eth.version_hash
+    assert stored_hash not in schema_eth.previous_hashes
+
+    # replace with self but version is not bumped
+    eth_v5 = load_yml_case("schemas/eth/ethereum_schema_v5")
+    schema_eth = Schema.from_dict(eth_v5, bump_version=False)  # type: ignore[arg-type]
+    stored_hash = schema_eth.stored_version_hash
+    schema_eth.replace_schema_content(schema_eth)
+    assert stored_hash == schema_eth.stored_version_hash
+    assert stored_hash != schema_eth.version_hash
+    assert stored_hash in schema_eth.previous_hashes
+    assert schema_eth.version_hash not in schema_eth.previous_hashes
+
 
 @pytest.mark.parametrize(
     "columns,hint,value",

@@ -136,8 +136,10 @@ class Schema:
         if link_to_replaced_schema:
             replaced_version_hash = self.stored_version_hash
             assert replaced_version_hash is not None
-            utils.store_prev_hash(stored_schema, replaced_version_hash)
-            stored_schema["version_hash"] = replaced_version_hash
+            # do not store hash if the replaced schema is identical
+            if stored_schema["version_hash"] != replaced_version_hash:
+                utils.store_prev_hash(stored_schema, replaced_version_hash)
+                stored_schema["version_hash"] = replaced_version_hash
         self._reset_schema(schema.name, schema._normalizers_config)
         self._from_stored_schema(stored_schema)
 
