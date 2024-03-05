@@ -2,6 +2,7 @@ import inspect
 import makefun
 import asyncio
 from typing import (
+    Callable,
     Optional,
     Tuple,
     Union,
@@ -181,16 +182,10 @@ def wrap_async_iterator(
 def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
     """Wraps a generator for parallel extraction"""
 
-    def _wrapper(*args: Any, **kwargs: Any) -> Generator[TDataItems, None, None]:
-        is_generator = True
+    def _gen_wrapper(*args: Any, **kwargs: Any) -> Iterator[TDataItems]:
         gen: TAnyFunOrGenerator
         if callable(f):
-            if inspect.isgeneratorfunction(inspect.unwrap(f)):
-                gen = f(*args, **kwargs)
-            else:
-                # Function is a transformer that returns values
-                is_generator = False
-                gen = f
+            gen = f(*args, **kwargs)
         else:
             gen = f
 
@@ -201,10 +196,7 @@ def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
             nonlocal busy
             nonlocal exhausted
             try:
-                if is_generator:
-                    return next(gen)  # type: ignore[call-overload]
-                else:
-                    return gen(*args, **kwargs)  # type: ignore[operator]
+                return next(gen)  # type: ignore[call-overload]
             except StopIteration:
                 exhausted = True
                 return None
@@ -216,17 +208,24 @@ def wrap_parallel_iterator(f: TAnyFunOrGenerator) -> TAnyFunOrGenerator:
                 while busy:
                     yield None
                 busy = True
-                if not is_generator:  # Regular function is only resolved once
-                    exhausted = True
                 yield _parallel_gen
             except GeneratorExit:
-                if is_generator:
-                    gen.close()  # type: ignore[attr-defined]
+                gen.close()  # type: ignore[attr-defined]
                 raise
 
     if callable(f):
-        return wraps(f)(_wrapper)  # type: ignore[arg-type]
-    return _wrapper()
+        if inspect.isgeneratorfunction(inspect.unwrap(f)):
+            return wraps(f)(_gen_wrapper)  # type: ignore[arg-type]
+        else:
+
+            def _fun_wrapper(*args: Any, **kwargs: Any) -> Any:
+                def _curry() -> Any:
+                    return f(*args, **kwargs)
+
+                return _curry
+
+            return wraps(f)(_fun_wrapper)  # type: ignore[arg-type]
+    return _gen_wrapper()  # type: ignore[return-value]
 
 
 def wrap_compat_transformer(
