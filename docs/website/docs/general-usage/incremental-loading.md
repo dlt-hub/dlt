@@ -422,18 +422,25 @@ stop getting data at `end_value`. Instead we set `row_order` to `asc` and `dlt` 
 getting more pages from API after first page with cursor value `updated_at` is found older
 than `end_value`.
 
+:::caution
+In rare cases when you use Incremental with a transformer, `dlt` will not be able to automatically close
+generator associated with a row that is out of range. You can still use still call `can_close()` method on
+incremental and exit yield loop when true.
+:::
+
 :::tip
 The `dlt.sources.incremental` instance provides `start_out_of_range` and `end_out_of_range`
 attributes which are set when the resource yields an element with a higher/lower cursor value than the
 initial or end values. If you do not want `dlt` to stop processing automatically and instead to handle such events yourself, do not specify `row_order`:
 ```python
-@dlt.resource(primary_key="id")
+@dlt.transformer(primary_key="id")
 def tickets(
     zendesk_client,
     updated_at=dlt.sources.incremental(
         "updated_at",
         initial_value="2023-01-01T00:00:00Z",
         end_value="2023-02-01T00:00:00Z",
+        row_order="asc"
     ),
 ):
     for page in zendesk_client.get_pages(
