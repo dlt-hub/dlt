@@ -362,6 +362,9 @@ assert list(r) == list(range(10))
 > 💡 You cannot limit transformers. They should process all the data they receive fully to avoid
 > inconsistencies in generated datasets.
 
+> 💡 If you are paremetrizing the value of `add_limit` and sometimes need it to be disabled, you can set `None` or `-1`
+>  to disable the limiting. You can also set the limit to `0` for the resource to not yield any items.
+
 ### Set table name and adjust schema
 
 You can change the schema of a resource, be it standalone or as a part of a source. Look for method
