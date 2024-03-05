@@ -1130,8 +1130,29 @@ def test_exhausted_property() -> None:
 
     s = mysource()
     assert s.exhausted is False
-    assert next(iter(s)) == 2  # transformer is returned befor resource
-    assert s.exhausted is True
+    assert next(iter(s)) == 2  # transformer is returned before resource
+    assert s.exhausted is False
+
+
+def test_exhausted_with_limit() -> None:
+    def open_generator_data():
+        yield from [1, 2, 3, 4]
+
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [dlt.resource(open_generator_data)],
+    )
+    assert s.exhausted is False
+    list(s)
+    assert s.exhausted is False
+
+    # use limit
+    s.add_limit(1)
+    list(s)
+    # must still be false, limit should not open generator if it is still generator function
+    assert s.exhausted is False
+    assert list(s) == [1]
 
 
 def test_clone_resource_with_name() -> None:

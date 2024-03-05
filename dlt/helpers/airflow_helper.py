@@ -48,28 +48,6 @@ DEFAULT_RETRY_BACKOFF = Retrying(
 )
 
 
-def task_name(pipeline: Pipeline, data: Any) -> str:
-    """Generate a task name.
-
-    Args:
-        pipeline (Pipeline): The pipeline to run.
-        data (Any): The data to run the pipeline with.
-
-    Returns:
-        str: The name of the task.
-    """
-    task_name = pipeline.pipeline_name
-
-    if isinstance(data, DltSource):
-        resource_names = list(data.selected_resources.keys())
-        task_name = data.name + "_" + "-".join(resource_names[:4])
-
-        if len(resource_names) > 4:
-            task_name += f"-{len(resource_names)-4}-more"
-
-    return task_name
-
-
 class PipelineTasksGroup(TaskGroup):
     """
     Represents a dlt Airflow pipeline task group.
@@ -197,7 +175,7 @@ class PipelineTasksGroup(TaskGroup):
             schema_contract=schema_contract,
             pipeline_name=pipeline_name,
         )
-        return PythonOperator(task_id=task_name(pipeline, data), python_callable=f, **kwargs)
+        return PythonOperator(task_id=_task_name(pipeline, data), python_callable=f, **kwargs)
 
     def _run(
         self,
@@ -385,7 +363,7 @@ class PipelineTasksGroup(TaskGroup):
                     pipeline_name=name,
                 )
                 return PythonOperator(
-                    task_id=task_name(pipeline, data), python_callable=f, **kwargs
+                    task_id=_task_name(pipeline, data), python_callable=f, **kwargs
                 )
 
             if decompose == "none":
@@ -415,7 +393,7 @@ class PipelineTasksGroup(TaskGroup):
 
                 tasks = []
                 sources = data.decompose("scc")
-                t_name = task_name(pipeline, data)
+                t_name = _task_name(pipeline, data)
                 start = make_task(pipeline, sources[0])
 
                 # parallel tasks
@@ -456,16 +434,16 @@ class PipelineTasksGroup(TaskGroup):
                 start = make_task(
                     pipeline,
                     sources[0],
-                    naming.normalize_identifier(task_name(pipeline, sources[0])),
+                    naming.normalize_identifier(_task_name(pipeline, sources[0])),
                 )
 
                 # parallel tasks
                 for source in sources[1:]:
                     # name pipeline the same as task
-                    new_pipeline_name = naming.normalize_identifier(task_name(pipeline, source))
+                    new_pipeline_name = naming.normalize_identifier(_task_name(pipeline, source))
                     tasks.append(make_task(pipeline, source, new_pipeline_name))
 
-                t_name = task_name(pipeline, data)
+                t_name = _task_name(pipeline, data)
                 end = DummyOperator(task_id=f"{t_name}_end")
 
                 if tasks:
@@ -480,10 +458,6 @@ class PipelineTasksGroup(TaskGroup):
                     " 'parallel-isolated']"
                 )
 
-    def add_fun(self, f: Callable[..., Any], **kwargs: Any) -> Any:
-        """Will execute a function `f` inside an Airflow task. It is up to the function to create pipeline and source(s)"""
-        raise NotImplementedError()
-
 
 def airflow_get_execution_dates() -> Tuple[pendulum.DateTime, Optional[pendulum.DateTime]]:
     # prefer logging to task logger
@@ -494,3 +468,25 @@ def airflow_get_execution_dates() -> Tuple[pendulum.DateTime, Optional[pendulum.
         return context["data_interval_start"], context["data_interval_end"]
     except Exception:
         return None, None
+
+
+def _task_name(pipeline: Pipeline, data: Any) -> str:
+    """Generate a task name.
+
+    Args:
+        pipeline (Pipeline): The pipeline to run.
+        data (Any): The data to run the pipeline with.
+
+    Returns:
+        str: The name of the task.
+    """
+    task_name = pipeline.pipeline_name
+
+    if isinstance(data, DltSource):
+        resource_names = list(data.selected_resources.keys())
+        task_name = data.name + "_" + "-".join(resource_names[:4])
+
+        if len(resource_names) > 4:
+            task_name += f"-{len(resource_names)-4}-more"
+
+    return task_name

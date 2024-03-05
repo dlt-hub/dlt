@@ -1,5 +1,5 @@
 from dlt.common.typing import TDataItem
-from dlt.extract.typing import ItemTransformFunctionNoMeta
+from dlt.extract.items import ItemTransformFunctionNoMeta
 
 
 def take_first(max_items: int) -> ItemTransformFunctionNoMeta[bool]:

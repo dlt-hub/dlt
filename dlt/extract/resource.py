@@ -1,5 +1,6 @@
 from copy import deepcopy
 import inspect
+from functools import partial
 from typing import (
     AsyncIterable,
     AsyncIterator,
@@ -26,7 +27,7 @@ from dlt.common.pipeline import (
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
 from dlt.extract.utils import wrap_async_iterator, wrap_parallel_iterator
 
-from dlt.extract.typing import (
+from dlt.extract.items import (
     DataItemWithMeta,
     ItemTransformFunc,
     ItemTransformFunctionWithMeta,
@@ -326,8 +327,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
             count = 0
             is_async_gen = False
-            if inspect.isfunction(gen):
-                gen = gen()
+            if callable(gen):
+                gen = gen()  # type: ignore
 
             # wrap async gen already here
             if isinstance(gen, AsyncIterator):
@@ -351,7 +352,13 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
         # transformers should be limited by their input, so we only limit non-transformers
         if not self.is_transformer:
-            self._pipe.replace_gen(_gen_wrap(self._pipe.gen))
+            gen = self._pipe.gen
+            # wrap gen directly
+            if inspect.isgenerator(gen):
+                self._pipe.replace_gen(_gen_wrap(gen))
+            else:
+                # keep function as function to not evaluate generators before pipe starts
+                self._pipe.replace_gen(partial(_gen_wrap, gen))
         return self
 
     def parallelize(self) -> "DltResource":

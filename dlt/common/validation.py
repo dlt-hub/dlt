@@ -90,7 +90,11 @@ def validate_dict(
                         has_passed = True
                 if not has_passed:
                     type_names = [
-                        str(get_args(ut)) if is_literal_type(ut) else ut.__name__
+                        (
+                            str(get_args(ut))
+                            if is_literal_type(ut)
+                            else getattr(ut, "__name__", str(ut))
+                        )
                         for ut in union_types
                     ]
                     raise DictValidationException(
@@ -162,7 +166,7 @@ def validate_dict(
             if not validator_f(path, pk, pv, t):
                 # TODO: when Python 3.9 and earlier support is
                 # dropped, just __name__ can be used
-                type_name = getattr(t, "__name__", t.__class__)
+                type_name = getattr(t, "__name__", str(t))
                 raise DictValidationException(
                     f"In {path}: field {pk} has expected type {type_name} which lacks validator",
                     path,
