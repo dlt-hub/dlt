@@ -45,14 +45,17 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
     """Test if load info schema is idempotent throughout multiple load cycles
 
     ## Setup
-        We will run the same pipeline with
+
+    We will run the same pipeline with
+
         1. A single source returning one resource and collect `schema.version_hash`,
         2. Another source returning 2 resources with more complex data and collect `schema.version_hash`,
         3. At last we run both sources,
         4. For each 1. 2. 3. we load `last_extract_info`, `last_normalize_info` and `last_load_info` and collect `schema.version_hash`
 
     ## Expected
-        `version_hash` collected in each stage should remain the same at all times.
+
+    `version_hash` collected in each stage should remain the same at all times.
     """
     schema = dlt.Schema(name="nice_load_info_schema")
     pipeline = dlt.pipeline(
