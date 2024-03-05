@@ -1,10 +1,12 @@
-import dlt, os
+import dlt, os, pytest
 
 from dlt.common.utils import uniq_id
 
 from tests.utils import TEST_STORAGE_ROOT
 from dlt.common.schema import Schema
 from dlt.common.storages.schema_storage import SchemaStorage
+from dlt.common.schema.exceptions import CannotCoerceColumnException
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from dlt.destinations import dummy
 
@@ -89,8 +91,13 @@ def test_import_schema_is_respected() -> None:
     with open(os.path.join(IMPORT_SCHEMA_PATH, name + ".schema.yaml"), "w", encoding="utf-8") as f:
         f.write(modified_schema.to_pretty_yaml())
 
-    p.run(EXAMPLE_DATA, table_name="person")
-    assert p.default_schema.tables["person"]["columns"]["id"]["data_type"] == "bigint"
+    # this will provoke a CannotCoerceColumnException
+    with pytest.raises(PipelineStepFailed) as exc:
+        p.run(EXAMPLE_DATA, table_name="person")
+    assert type(exc.value.exception) == CannotCoerceColumnException
+
+    # schema is changed
+    assert p.default_schema.tables["person"]["columns"]["id"]["data_type"] == "text"
 
     # import schema is not overwritten
     assert _get_import_schema(name).tables["person"]["columns"]["id"]["data_type"] == "text"
