@@ -1738,14 +1738,18 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
         {"id": 2, "name": "Bob"},
     ]
 
+    # this source must have all the hints so other sources do not change trace schema (extract/hints)
+
     @dlt.source
     def users_source():
         return dlt.resource([data], name="users_resource")
 
     @dlt.source
     def taxi_demand_source():
-        @dlt.resource(primary_key="city")
-        def locations():
+        @dlt.resource(
+            primary_key="city", columns=[{"name": "id", "data_type": "bigint", "precision": 4}]
+        )
+        def locations(idx=dlt.sources.incremental("id")):
             for idx in range(10):
                 yield {
                     "id": idx,
@@ -1772,43 +1776,16 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
         # export_schema_path="schemas",
     )
 
-    users_load_info = pipeline.run(
-        users_source(),
-        table_name="users",
-        schema=schema,
+    taxi_load_info = pipeline.run(
+        taxi_demand_source(),
     )
 
     schema_hashset = set()
-    pipeline.run(
-        [users_load_info],
-        table_name="_load_info",
-        schema=schema,
-    )
-
-    pipeline.run(
-        [pipeline.last_trace.last_normalize_info],
-        table_name="_normalize_info",
-        schema=schema,
-    )
-
-    pipeline.run(
-        [pipeline.last_trace.last_extract_info],
-        table_name="_extract_info",
-        schema=schema,
-    )
-    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
-
-    taxi_load_info = pipeline.run(
-        taxi_demand_source(),
-        schema=schema,
-    )
-
     pipeline.run(
         [taxi_load_info],
         table_name="_load_info",
         schema=schema,
     )
-    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
 
     pipeline.run(
         [pipeline.last_trace.last_normalize_info],
@@ -1816,14 +1793,40 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
         schema=schema,
     )
 
+    pipeline.run(
+        [pipeline.last_trace.last_extract_info],
+        table_name="_extract_info",
+        schema=schema,
+    )
     schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
+    trace_schema = pipeline.schemas["nice_load_info_schema"].to_pretty_yaml()
+
+    users_load_info = pipeline.run(
+        users_source(),
+    )
+
+    pipeline.run(
+        [users_load_info],
+        table_name="_load_info",
+        schema=schema,
+    )
+    assert trace_schema == pipeline.schemas["nice_load_info_schema"].to_pretty_yaml()
+    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
+    assert len(schema_hashset) == 1
+
+    pipeline.run(
+        [pipeline.last_trace.last_normalize_info],
+        table_name="_normalize_info",
+        schema=schema,
+    )
+    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
+    assert len(schema_hashset) == 1
 
     pipeline.run(
         [pipeline.last_trace.last_extract_info],
         table_name="_extract_info",
         schema=schema,
     )
-
     schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
     assert len(schema_hashset) == 1
 
@@ -1833,14 +1836,6 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
 
     pipeline.run(
         [load_info],
-        table_name="_load_info",
-        schema=schema,
-    )
-
-    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
-
-    pipeline.run(
-        [taxi_load_info],
         table_name="_load_info",
         schema=schema,
     )
