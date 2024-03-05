@@ -73,7 +73,7 @@ def test_rotation_on_none() -> None:
     def source_gen1():
         gen_1_started = time.time()
         yield None
-        while time.time() - gen_1_started < 0.6:
+        while time.time() - gen_1_started < 3:
             time.sleep(0.05)
             yield None
         yield 1
@@ -81,7 +81,7 @@ def test_rotation_on_none() -> None:
     def source_gen2():
         gen_2_started = time.time()
         yield None
-        while time.time() - gen_2_started < 0.2:
+        while time.time() - gen_2_started < 1:
             time.sleep(0.05)
             yield None
         yield 2
@@ -89,7 +89,7 @@ def test_rotation_on_none() -> None:
     def source_gen3():
         gen_3_started = time.time()
         yield None
-        while time.time() - gen_3_started < 0.4:
+        while time.time() - gen_3_started < 2:
             time.sleep(0.05)
             yield None
         yield 3
@@ -106,7 +106,7 @@ def test_rotation_on_none() -> None:
     # items will be round robin, nested iterators are fully iterated and appear inline as soon as they are encountered
     assert [pi.item for pi in _l] == [2, 3, 1]
     # jobs should have been executed in parallel
-    assert time.time() - started < 0.8
+    assert time.time() - started < 3.5
 
 
 def test_add_step() -> None:
