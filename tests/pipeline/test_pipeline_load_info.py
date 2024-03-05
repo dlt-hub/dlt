@@ -61,69 +61,98 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
         pipeline_name="quick_start",
         destination="duckdb",
         dataset_name="mydata",
+        # export_schema_path="schemas",
     )
 
     users_load_info = pipeline.run(
         users_source(),
         table_name="users",
-        primary_key="id",
+        schema=schema,
     )
 
     schema_hashset = set()
-    pipeline.run([users_load_info], table_name="_load_info", schema=schema)
-
     pipeline.run(
-        [pipeline.last_trace.last_normalize_info], table_name="_normalize_info", schema=schema
+        [users_load_info],
+        table_name="_load_info",
+        schema=schema,
     )
 
-    pipeline.run([pipeline.last_trace.last_extract_info], table_name="_extract_info", schema=schema)
+    pipeline.run(
+        [pipeline.last_trace.last_normalize_info],
+        table_name="_normalize_info",
+        schema=schema,
+    )
+
+    pipeline.run(
+        [pipeline.last_trace.last_extract_info],
+        table_name="_extract_info",
+        schema=schema,
+    )
     schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
 
     taxi_load_info = pipeline.run(
         taxi_demand_source(),
-        table_name="taxi_demands",
-        primary_key="id",
-        write_disposition="replace",
+        schema=schema,
     )
 
-    pipeline.run([taxi_load_info], table_name="_load_info", schema=schema)
+    pipeline.run(
+        [taxi_load_info],
+        table_name="_load_info",
+        schema=schema,
+    )
     schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
 
     pipeline.run(
-        [pipeline.last_trace.last_normalize_info], table_name="_normalize_info", schema=schema
+        [pipeline.last_trace.last_normalize_info],
+        table_name="_normalize_info",
+        schema=schema,
     )
+
     schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
 
-    pipeline.run([pipeline.last_trace.last_extract_info], table_name="_extract_info", schema=schema)
-    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
+    pipeline.run(
+        [pipeline.last_trace.last_extract_info],
+        table_name="_extract_info",
+        schema=schema,
+    )
 
+    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
     assert len(schema_hashset) == 1
 
-    users_load_info = pipeline.run(
-        users_source(),
-        table_name="users",
-        primary_key="id",
+    load_info = pipeline.run(
+        [users_source(), taxi_demand_source()],
     )
 
-    taxi_load_info = pipeline.run(
-        taxi_demand_source(),
-        table_name="taxi_demands",
-        primary_key="id",
-        write_disposition="replace",
+    pipeline.run(
+        [load_info],
+        table_name="_load_info",
+        schema=schema,
     )
 
-    pipeline.run([users_load_info], table_name="_load_info", schema=schema)
-    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
-
-    pipeline.run([taxi_load_info], table_name="_load_info", schema=schema)
     schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
 
     pipeline.run(
-        [pipeline.last_trace.last_normalize_info], table_name="_normalize_info", schema=schema
+        [taxi_load_info],
+        table_name="_load_info",
+        schema=schema,
     )
+
     schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
 
-    pipeline.run([pipeline.last_trace.last_extract_info], table_name="_extract_info", schema=schema)
+    pipeline.run(
+        [pipeline.last_trace.last_normalize_info],
+        table_name="_normalize_info",
+        schema=schema,
+    )
+
+    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
+
+    pipeline.run(
+        [pipeline.last_trace.last_extract_info],
+        table_name="_extract_info",
+        schema=schema,
+    )
+
     schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
 
     assert len(schema_hashset) == 1
