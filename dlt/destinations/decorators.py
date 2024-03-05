@@ -20,7 +20,7 @@ def sink(
             credentials=f,
             loader_file_format=loader_file_format,
             batch_size=batch_size,
-            name=name,
+            destination_name=name,
             naming_convention=naming_convention,
         )
 

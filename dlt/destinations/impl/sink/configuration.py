@@ -18,8 +18,6 @@ TSinkCallable = Callable[[Union[TDataItems, str], TTableSchema], None]
 @configspec
 class SinkClientCredentials(CredentialsConfiguration):
     callable: Optional[str] = None  # noqa: A003
-    # name provides namespace for callable state saving
-    name: Optional[str] = None
 
     def parse_native_representation(self, native_value: Any) -> None:
         # a callable was passed in
@@ -53,9 +51,6 @@ class SinkClientCredentials(CredentialsConfiguration):
 
         if not callable(self.resolved_callable):
             raise ConfigurationValueError("Resolved Sink destination callable is not a callable.")
-
-        if not self.name:
-            self.name = self.resolved_callable.__name__
 
 
 @configspec

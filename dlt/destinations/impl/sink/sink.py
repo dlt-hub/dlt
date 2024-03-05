@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 from types import TracebackType
 from typing import ClassVar, Dict, Optional, Type, Iterable, Iterable
+from dlt.common.configuration import with_config, known_sections
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.common.typing import TDataItems
@@ -32,12 +33,14 @@ class SinkLoadJob(LoadJob, ABC):
         config: SinkClientConfiguration,
         schema: Schema,
         destination_state: Dict[str, int],
+        resolved_callable: TSinkCallable,
     ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._file_path = file_path
         self._config = config
         self._table = table
         self._schema = schema
+        self._resolved_callable = resolved_callable
 
         self._state: TLoadJobState = "running"
         self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
@@ -68,7 +71,7 @@ class SinkLoadJob(LoadJob, ABC):
         if not items:
             return
         # call callable
-        self._config.credentials.resolved_callable(items, self._table)
+        self._resolved_callable(items, self._table)
 
     def state(self) -> TLoadJobState:
         return self._state
@@ -125,6 +128,12 @@ class SinkClient(JobClientBase):
         super().__init__(schema, config)
         self.config: SinkClientConfiguration = config
 
+        # inject config values
+        self.resolved_callable = with_config(
+            self.config.credentials.resolved_callable,
+            sections=(known_sections.DESTINATION, self.config.destination_name),
+        )
+
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         pass
 
@@ -143,9 +152,13 @@ class SinkClient(JobClientBase):
         # save our state in destination name scope
         load_state = destination_state()
         if file_path.endswith("parquet"):
-            return SinkParquetLoadJob(table, file_path, self.config, self.schema, load_state)
+            return SinkParquetLoadJob(
+                table, file_path, self.config, self.schema, load_state, self.resolved_callable
+            )
         if file_path.endswith("jsonl"):
-            return SinkJsonlLoadJob(table, file_path, self.config, self.schema, load_state)
+            return SinkJsonlLoadJob(
+                table, file_path, self.config, self.schema, load_state, self.resolved_callable
+            )
         return None
 
     def restore_file_load(self, file_path: str) -> LoadJob:

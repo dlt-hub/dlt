@@ -3,6 +3,7 @@ from typing import List, Tuple, Dict
 import dlt
 import pytest
 import pytest
+import os
 
 from copy import deepcopy
 from dlt.common.typing import TDataItems
@@ -16,7 +17,6 @@ from tests.load.utils import (
     TABLE_ROW_ALL_DATA_TYPES,
     TABLE_UPDATE_COLUMNS_SCHEMA,
     assert_all_data_types_row,
-    delete_dataset,
 )
 
 SUPPORTED_LOADER_FORMATS = ["parquet", "puae-jsonl"]
@@ -344,4 +344,46 @@ def test_file_batch() -> None:
 
     dlt.pipeline("sink_test", destination=direct_sink, full_refresh=True).run(
         [resource1(), resource2()]
+    )
+
+
+def test_config_spec() -> None:
+    @dlt.destination()
+    def my_sink(file_path, table, my_val=dlt.config.value):
+        assert my_val == "something"
+
+    # if no value is present, it should raise
+    with pytest.raises(PipelineStepFailed) as exc:
+        dlt.pipeline("sink_test", destination=my_sink, full_refresh=True).run(
+            [1, 2, 3], table_name="items"
+        )
+
+    # right value will pass
+    os.environ["DESTINATION__MY_SINK__MY_VAL"] = "something"
+    dlt.pipeline("sink_test", destination=my_sink, full_refresh=True).run(
+        [1, 2, 3], table_name="items"
+    )
+
+    # wrong value will raise
+    os.environ["DESTINATION__MY_SINK__MY_VAL"] = "wrong"
+    with pytest.raises(PipelineStepFailed) as exc:
+        dlt.pipeline("sink_test", destination=my_sink, full_refresh=True).run(
+            [1, 2, 3], table_name="items"
+        )
+
+    # will respect given name
+    @dlt.destination(name="some_name")
+    def other_sink(file_path, table, my_val=dlt.config.value):
+        assert my_val == "something"
+
+    # if no value is present, it should raise
+    with pytest.raises(PipelineStepFailed) as exc:
+        dlt.pipeline("sink_test", destination=other_sink, full_refresh=True).run(
+            [1, 2, 3], table_name="items"
+        )
+
+    # right value will pass
+    os.environ["DESTINATION__SOME_NAME__MY_VAL"] = "something"
+    dlt.pipeline("sink_test", destination=other_sink, full_refresh=True).run(
+        [1, 2, 3], table_name="items"
     )
