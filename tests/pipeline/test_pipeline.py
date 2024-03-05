@@ -581,9 +581,8 @@ def test_pipeline_state_on_extract_exception() -> None:
     assert p.first_run is True
     assert p.has_data is False
     assert p.default_schema_name is None
-    # one of the schemas is in memory
-    # TODO: we may want to fix that
-    assert len(p._schema_storage.list_schemas()) == 1
+    # live schemas created during extract are popped from mem
+    assert len(p._schema_storage.list_schemas()) == 0
 
     # restore the pipeline
     p = dlt.attach(pipeline_name)
@@ -617,9 +616,8 @@ def test_pipeline_state_on_extract_exception() -> None:
     # first run didn't really happen
     assert p.first_run is True
     assert p.has_data is False
-    # schemas from two sources are in memory
-    # TODO: we may want to fix that
-    assert len(p._schema_storage.list_schemas()) == 2
+    # live schemas created during extract are popped from mem
+    assert len(p._schema_storage.list_schemas()) == 0
     assert p.default_schema_name is None
 
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
