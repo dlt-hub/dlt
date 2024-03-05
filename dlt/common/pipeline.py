@@ -108,7 +108,9 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
         if self.metrics:
             d["started_at"] = self.started_at
             d["finished_at"] = self.finished_at
-            d["metrics"] = [dict(metric) for metric in self.metrics.values()]
+            d["metrics"] = [
+                {**dict(metric), "load_id": load_id} for load_id, metric in self.metrics.items()
+            ]
         return d
 
     def __str__(self) -> str:
