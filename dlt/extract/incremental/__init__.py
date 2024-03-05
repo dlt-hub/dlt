@@ -144,7 +144,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         """Becomes true on the first item that is out of range of `start_value`. I.e. when using `max` this is a value that is lower than `start_value`"""
 
         self._transformers: Dict[str, IncrementalTransform] = {}
-        self._pipe: SupportsPipe = None
+        self._bound_pipe: SupportsPipe = None
         """Bound pipe"""
 
     @property
@@ -315,19 +315,15 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     def _transform_item(
         self, transformer: IncrementalTransform, row: TDataItem
     ) -> Optional[TDataItem]:
-        row, start_out_of_range, end_out_of_range = transformer(row)
-        self.start_out_of_range = start_out_of_range
-        self.end_out_of_range = end_out_of_range
+        row, self.start_out_of_range, self.end_out_of_range = transformer(row)
         # if we know that rows are ordered we can close the generator automatically
         # mind that closing pipe will not immediately close processing. it only closes the
         # generator so this page will be fully processed
-        if self.row_order:
-            # ordered ascending, check if we cross upper bound
-            if self.row_order == "asc" and end_out_of_range:
-                self._pipe.close()
-            # ordered descending, check if we cross lower bound
-            if self.row_order == "desc" and start_out_of_range:
-                self._pipe.close()
+        # TODO: we cannot close partially evaluated transformer gen. to implement that
+        # we'd need to pass the source gen along with each yielded item and close this particular gen
+        # NOTE: with that implemented we could implement add_limit as a regular transform having access to gen
+        if self.can_close() and not self._bound_pipe.has_parent:
+            self._bound_pipe.close()
         return row
 
     def get_incremental_value_type(self) -> Type[Any]:
@@ -408,7 +404,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         if self.is_partial():
             raise IncrementalCursorPathMissing(pipe.name, None, None)
         self.resource_name = pipe.name
-        self._pipe = pipe
+        self._bound_pipe = pipe
         # try to join external scheduler
         if self.allow_external_schedulers:
             self._join_external_scheduler()
@@ -422,6 +418,21 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._cached_state = self.get_state()
         self._make_transforms()
         return self
+
+    def can_close(self) -> bool:
+        """Checks if incremental is out of range and can be closed.
+
+        Returns true only when `row_order` was set and
+        1. results are ordered ascending and are above upper bound (end_value)
+        2. results are ordered descending and are below or equal lower bound (start_value)
+        """
+        # ordered ascending, check if we cross upper bound
+        return (
+            self.row_order == "asc"
+            and self.end_out_of_range
+            or self.row_order == "desc"
+            and self.start_out_of_range
+        )
 
     def __str__(self) -> str:
         return (
@@ -475,6 +486,7 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         self.primary_key = primary_key
         self.incremental_state: IncrementalColumnState = None
         self._allow_external_schedulers: bool = None
+        self._bound_pipe: SupportsPipe = None
 
     @staticmethod
     def should_wrap(sig: inspect.Signature) -> bool:
@@ -548,7 +560,9 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
             self._incremental.resolve()
             # in case of transformers the bind will be called before this wrapper is set: because transformer is called for a first time late in the pipe
             if self._resource_name:
-                self._incremental.bind(Pipe(self._resource_name))
+                # rebind internal _incremental from wrapper that already holds
+                # instance of a Pipe
+                self.bind(None)
             bound_args.arguments[p.name] = self._incremental
             return func(*bound_args.args, **bound_args.kwargs)
 
@@ -568,6 +582,9 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
             self._incremental.allow_external_schedulers = value
 
     def bind(self, pipe: SupportsPipe) -> "IncrementalResourceWrapper":
+        # if pipe is None we are re-binding internal incremental
+        pipe = pipe or self._bound_pipe
+        self._bound_pipe = pipe
         self._resource_name = pipe.name
         if self._incremental:
             if self._allow_external_schedulers is not None:
