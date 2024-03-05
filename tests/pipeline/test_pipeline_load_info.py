@@ -55,3 +55,10 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
         )
         == 1
     )
+
+    last_trace = pipeline.last_trace
+    assert (
+        last_trace.last_extract_info.load_packages[0].schema_hash
+        == last_trace.last_normalize_info.load_packages[0].schema_hash
+        == last_trace.last_load_info.load_packages[0].schema_hash
+    )
