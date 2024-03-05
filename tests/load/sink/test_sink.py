@@ -377,7 +377,7 @@ def test_config_spec() -> None:
         assert my_val == "something"
 
     # if no value is present, it should raise
-    with pytest.raises(PipelineStepFailed) as exc:
+    with pytest.raises(PipelineStepFailed):
         dlt.pipeline("sink_test", destination=other_sink, full_refresh=True).run(
             [1, 2, 3], table_name="items"
         )
