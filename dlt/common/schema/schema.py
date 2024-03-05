@@ -124,10 +124,22 @@ class Schema:
         self._from_stored_schema(stored_schema)
         return self
 
-    def replace_schema_content(self, schema: "Schema") -> None:
-        self._reset_schema(schema.name, schema._normalizers_config)
+    def replace_schema_content(
+        self, schema: "Schema", link_to_replaced_schema: bool = False
+    ) -> None:
+        """Replaces content of the current schema with `schema` content. Does not compute new schema hash and
+        does not increase the numeric version. Optionally will link the replaced schema to incoming schema
+        by keeping its hash in prev hashes and setting stored hash to replaced schema hash.
+        """
         # do not bump version so hash from `schema` is preserved
-        self._from_stored_schema(schema.to_dict(bump_version=False))
+        stored_schema = schema.to_dict(bump_version=False)
+        if link_to_replaced_schema:
+            replaced_version_hash = self.stored_version_hash
+            assert replaced_version_hash is not None
+            utils.store_prev_hash(stored_schema, replaced_version_hash)
+            stored_schema["version_hash"] = replaced_version_hash
+        self._reset_schema(schema.name, schema._normalizers_config)
+        self._from_stored_schema(stored_schema)
 
     def to_dict(self, remove_defaults: bool = False, bump_version: bool = True) -> TStoredSchema:
         stored_schema: TStoredSchema = {

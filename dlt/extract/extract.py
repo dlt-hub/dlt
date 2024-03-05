@@ -33,7 +33,7 @@ from dlt.common.utils import get_callable_name, get_full_class_name
 
 from dlt.extract.decorators import SourceInjectableContext, SourceSchemaInjectableContext
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
-from dlt.extract.pipe import PipeIterator
+from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
 from dlt.extract.resource import DltResource
 from dlt.extract.storage import ExtractStorage

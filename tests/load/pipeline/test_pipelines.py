@@ -878,7 +878,6 @@ def test_pipeline_upfront_tables_two_loads(
     # use staging tables for replace
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
 
-    print(destination_config)
     pipeline = destination_config.setup_pipeline(
         "test_pipeline_upfront_tables_two_loads",
         dataset_name="test_pipeline_upfront_tables_two_loads",
@@ -982,6 +981,48 @@ def test_pipeline_upfront_tables_two_loads(
         pipeline.default_schema.tables["table_1"]["x-normalizer"]["seen-data"]  # type: ignore[typeddict-item]
         is True
     )
+
+
+# @pytest.mark.skip(reason="Finalize the test: compare some_data values to values from database")
+# @pytest.mark.parametrize(
+#     "destination_config",
+#     destinations_configs(all_staging_configs=True, default_sql_configs=True, file_format=["insert_values", "jsonl", "parquet"]),
+#     ids=lambda x: x.name,
+# )
+# def test_load_non_utc_timestamps_with_arrow(destination_config: DestinationTestConfiguration) -> None:
+#     """Checks if dates are stored properly and timezones are not mangled"""
+#     from datetime import timedelta, datetime, timezone
+#     start_dt = datetime.now()
+
+#     # columns=[{"name": "Hour", "data_type": "bool"}]
+#     @dlt.resource(standalone=True, primary_key="Hour")
+#     def some_data(
+#         max_hours: int = 2,
+#     ):
+#         data = [
+#             {
+#                 "naive_dt": start_dt + timedelta(hours=hour), "hour": hour,
+#                 "utc_dt": pendulum.instance(start_dt + timedelta(hours=hour)), "hour": hour,
+#                 # tz="Europe/Berlin"
+#                 "berlin_dt": pendulum.instance(start_dt + timedelta(hours=hour), tz=timezone(offset=timedelta(hours=-8))), "hour": hour,
+#             }
+#             for hour in range(0, max_hours)
+#         ]
+#         data = data_to_item_format("arrow", data)
+#         # print(py_arrow_to_table_schema_columns(data[0].schema))
+#         # print(data)
+#         yield data
+
+#     pipeline = destination_config.setup_pipeline(
+#         "test_load_non_utc_timestamps",
+#         dataset_name="test_load_non_utc_timestamps",
+#         full_refresh=True,
+#     )
+#     info = pipeline.run(some_data())
+#     # print(pipeline.default_schema.to_pretty_yaml())
+#     assert_load_info(info)
+#     table_name = pipeline.sql_client().make_qualified_table_name("some_data")
+#     print(select_data(pipeline, f"SELECT * FROM {table_name}"))
 
 
 def simple_nested_pipeline(

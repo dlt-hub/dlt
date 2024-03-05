@@ -4,6 +4,7 @@ from pendulum.tz import UTC
 
 from dlt.common import pendulum
 from dlt.common.time import (
+    parse_iso_like_datetime,
     timestamp_before,
     timestamp_within,
     ensure_pendulum_datetime,
@@ -40,27 +41,27 @@ test_params = [
     # python datetime without tz
     (
         datetime(2021, 1, 1, 0, 0, 0),
-        pendulum.datetime(2021, 1, 1, 0, 0, 0).in_tz("UTC"),
+        pendulum.DateTime(2021, 1, 1, 0, 0, 0).in_tz("UTC"),
     ),
     # python datetime with tz
     (
         datetime(2021, 1, 1, 0, 0, 0, tzinfo=timezone(timedelta(hours=-8))),
-        pendulum.datetime(2021, 1, 1, 8, 0, 0).in_tz("UTC"),
+        pendulum.DateTime(2021, 1, 1, 8, 0, 0).in_tz("UTC"),
     ),
     # python date object
-    (date(2021, 1, 1), pendulum.datetime(2021, 1, 1, 0, 0, 0).in_tz("UTC")),
+    (date(2021, 1, 1), pendulum.DateTime(2021, 1, 1, 0, 0, 0).in_tz("UTC")),
     # pendulum datetime with tz
     (
-        pendulum.datetime(2021, 1, 1, 0, 0, 0).in_tz("UTC"),
-        pendulum.datetime(2021, 1, 1, 0, 0, 0).in_tz("UTC"),
+        pendulum.DateTime(2021, 1, 1, 0, 0, 0).in_tz("UTC"),
+        pendulum.DateTime(2021, 1, 1, 0, 0, 0).in_tz("UTC"),
     ),
     # pendulum datetime without tz
     (
-        pendulum.datetime(2021, 1, 1, 0, 0, 0),
-        pendulum.datetime(2021, 1, 1, 0, 0, 0).in_tz("UTC"),
+        pendulum.DateTime(2021, 1, 1, 0, 0, 0),
+        pendulum.DateTime(2021, 1, 1, 0, 0, 0).in_tz("UTC"),
     ),
     # iso datetime in UTC
-    ("2021-01-01T00:00:00+00:00", pendulum.datetime(2021, 1, 1, 0, 0, 0).in_tz("UTC")),
+    ("2021-01-01T00:00:00+00:00", pendulum.DateTime(2021, 1, 1, 0, 0, 0).in_tz("UTC")),
     # iso datetime with non utc tz
     (
         "2021-01-01T00:00:00+05:00",
@@ -69,11 +70,16 @@ test_params = [
     # iso datetime without tz
     (
         "2021-01-01T05:02:32",
-        pendulum.datetime(2021, 1, 1, 5, 2, 32).in_tz("UTC"),
+        pendulum.DateTime(2021, 1, 1, 5, 2, 32).in_tz("UTC"),
     ),
     # iso date
-    ("2021-01-01", pendulum.datetime(2021, 1, 1, 0, 0, 0).in_tz("UTC")),
+    ("2021-01-01", pendulum.DateTime(2021, 1, 1, 0, 0, 0).in_tz("UTC")),
 ]
+
+
+def test_parse_iso_like_datetime() -> None:
+    # naive datetime is still naive
+    assert parse_iso_like_datetime("2021-01-01T05:02:32") == pendulum.DateTime(2021, 1, 1, 5, 2, 32)
 
 
 @pytest.mark.parametrize("date_value, expected", test_params)

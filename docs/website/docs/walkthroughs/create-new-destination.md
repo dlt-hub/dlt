@@ -1,13 +1,20 @@
 # Create new destination
 
-:::caution
-This guide is compatible with `dlt` **0.3.x**. Version **0.4.x** has a different module layout. We are working on an update.
-:::
 
 `dlt` can import destinations from external python modules. Below we show how to quickly add a [dbapi](https://peps.python.org/pep-0249/) based destination. `dbapi` is a standardized interface to access
 databases in Python. If you used ie. postgres (ie. `psycopg2`) you are already familiar with it.
 
-> 🧪 This guide is not comprehensive. The internal interfaces are still evolving. Besides reading info below, you should check out [source code of existing destinations](https://github.com/dlt-hub/dlt/tree/devel/dlt/destinations)
+> 🧪 This guide is not comprehensive. The internal interfaces are still evolving. Besides reading info below, you should check out [source code of existing destinations](https://github.com/dlt-hub/dlt/tree/devel/dlt/destinations/impl)
+
+## 0. Prerequisites
+
+Destinations are implemented in python packages under: `dlt.destinations.impl.<destination_name>`. Generally a destination consists of the following modules:
+
+* `__init__.py` - this module contains the destination capabilities
+* `<destination_name>.py` - this module contains the job client and load job implementations for the destination
+* `configuration.py` - this module contains the destination and credentials configuration classes
+* `sql_client.py` - this module contains the SQL client implementation for the destination, this is a wrapper over `dbapi` that provides consistent interface to `dlt` for executing queries
+* `factory.py` - this module contains a `Destination` subclass that is the entry point for the destination.
 
 ## 1. Copy existing destination to your `dlt` project
 Initialize a new project with [dlt init](../reference/command-line-interface.md#dlt-init)
@@ -16,7 +23,7 @@ dlt init github postgres
 ```
 This adds `github` verified source (it produces quite complicated datasets and that good for testing, does not require credentials to use) and `postgres` credentials (connection-string-like) that we'll repurpose later.
 
-Clone [dlt](https://github.com/dlt-hub/dlt) repository to a separate folder. In the repository look for **dlt/destinations** folder and copy one of the destinations to your project. Pick your starting point:
+Clone [dlt](https://github.com/dlt-hub/dlt) repository to a separate folder. In the repository look for **dlt/destinations/impl** folder and copy one of the destinations to your project. Pick your starting point:
 * **postgres** - a simple destination without staging storage support and COPY jobs
 * **redshift** - based on postgres, adds staging storage support and remote COPY jobs
 * **snowflake** - a destination supporting additional authentication schemes, local and remote COPY jobs and no support for direct INSERTs
@@ -30,11 +37,10 @@ Below we'll use **postgres** as starting point.
 We keep config and credentials in `configuration.py`. You should:
 - rename the classes properly to match your destination name
 - if you need more properties (ie. look at `iam_role` in `redshift` credentials) then add them, remember about typing. Behind the hood credentials and configs are **dataclasses**.
-- import and use new configuration class in `_configure()` method in `__init__.py`
-- tell `dlt` the default configuration section by placing your destination name in `sections` argument of `@with_config` decorator.
-- expose the configuration type in `spec` method in `__init__.py`
+- adjust `__init__` arguments in your `Destination` class in `factory.py` to match the new credentials and config classes
+- expose the configuration type in `spec` attribute in `factory.py`
 
-> 💡 Each destination module implements `DestinationReference` protocol defined in [reference.py](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/destination/reference.py).
+> 💡 Each destination implements `Destination` abstract class defined in [reference.py](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/destination/reference.py).
 
 > 💡 See how `snowflake` destination adds additional authorization methods and configuration options.
 
@@ -42,8 +48,8 @@ We keep config and credentials in `configuration.py`. You should:
 `dlt` needs to know a few things about the destination to correctly work with it. Those are stored in `capabilities()` function in `__init__.py`.
 
 * supported loader file formats both for direct and staging loading (see below)
-* `escape_identifier` a function that escapes database identifiers ie. table or column name. provided implementation for postgres should work for you.
-* `escape_literal` a function that escapes string literal. it is only used if destination supports **insert-values** loader format
+* `escape_identifier` a function that escapes database identifiers ie. table or column name. Look in `dlt.common.data_writers.escape` module to see how this is implemented for existing destinations.
+* `escape_literal` a function that escapes string literal. it is only used if destination supports **insert-values** loader format (also see existing implementations in `dlt.common.data_writers.escape`)
 * `decimal_precision` precision and scale of decimal/numeric types. also used to create right decimal types in loader files ie. parquet
 * `wei_precision` precision and scale of decimal/numeric to store very large (up to 2**256) integers. specify maximum precision for scale 0
 * `max_identifier_length` max length of table and schema/dataset names
@@ -55,6 +61,8 @@ We keep config and credentials in `configuration.py`. You should:
 * `supports_ddl_transactions` tells if the destination supports ddl transactions.
 * `alter_add_multi_column` tells if destination can add multiple columns in **ALTER** statement
 * `supports_truncate_command` tells dlt if **truncate** command is used, otherwise it will use **DELETE** to clear tables.
+* `schema_supports_numeric_precision` whether numeric data types support precision/scale configuration
+* `max_rows_per_insert` max number of rows supported per insert statement, used with `insert-values` loader file format (set to `None` for no limit). E.g. MS SQL has a limit of 1000 rows per statement, but most databases have no limit and the statement is divided according to `max_query_length`.
 
 ### Supported loader file formats
 Specify which [loader file formats](../dlt-ecosystem/file-formats/) your destination will support directly and via [storage staging](../dlt-ecosystem/staging.md). Direct support means that destination is able to load a local file or supports INSERT command. Loading via staging is using `filesystem` to send load package to a (typically) bucket storage and then load from there.
@@ -107,10 +115,10 @@ When created, `sql_client` is bound to particular dataset name (which typically 
  - `DROP TABLE` only for CLI command (`pipeline drop`)
 
 ## 5. Adjust the job client
-Job client is responsible for creating/starting load jobs and managing the schema updates. Here we'll adjust the `SqlJobClientBase` base class which uses the `sql_client` to manage the destination. Typically only a few methods needs to be overridden by a particular implementation. The job client code customarily resides in a file with name `<destination_name>.py` ie. `postgres.py` and is exposed in `__init__.py` by `client` method.
+Job client is responsible for creating/starting load jobs and managing the schema updates. Here we'll adjust the `SqlJobClientBase` base class which uses the `sql_client` to manage the destination. Typically only a few methods needs to be overridden by a particular implementation. The job client code customarily resides in a file with name `<destination_name>.py` ie. `postgres.py` and is exposed in `factory.py` by the `client_class` property on the destination class.
 
 ### Database type mappings
-You must map `dlt` data types to destination data types. This happens in `_to_db_type` and `_from_db_type` class methods. Typically just a mapping dictionary is enough. A few tricks to remember:
+You must map `dlt` data types to destination data types. For this you can implement a subclass of `TypeMapper`. You can specify there dicts to map `dlt` data types to destination data types, with or without precision. A few tricks to remember:
 * the database types must be exactly those as used in `INFORMATION_SCHEMA.COLUMNS`
 * decimal precision and scale are filled from the capabilities (in all our implementations)
 * until now all destinations could handle binary types
@@ -159,18 +167,23 @@ The `postgres` destination does not implement any copy jobs.
 - See `RedshiftCopyFileLoadJob` in `redshift.py` how we create and start a copy job from a bucket. It uses `CopyRemoteFileLoadJob` base to handle the references and creates a `COPY` SQL statement in `execute()` method.
 - See `SnowflakeLoadJob` in `snowflake.py` how to implement a job that can load local and reference files. It also forwards AWS credentials from staging destination. At the end the code just generates a COPY command for various loader file formats.
 
+## 7. Expose your destination to dlt
+
+The `Destination` subclass in `dlt.destinations.impl.<destination_name>.factory` module is the entry point for the destination.
+Add an import to your factory in [`dlt.destinations.__init__`](https://github.com/dlt-hub/dlt/blob/devel/dlt/destinations/__init__.py). `dlt` looks in this module when you reference a destination by name, i.e. `dlt.pipeline(..., destination="postgres")`.
+
 ## Testing
 We can quickly repurpose existing github source and `secrets.toml` already present in the project to test new destination. Let's assume that the module name is `presto`, same for the destination name and config section name. Here's our testing script `github_pipeline.py`
 ```python
 import dlt
 
 from github import github_repo_events
-import presto  # importing destination module
+from presto import presto  # importing destination factory
 
 def load_airflow_events() -> None:
     """Loads airflow events. Shows incremental loading. Forces anonymous access token"""
     pipeline = dlt.pipeline(
-        "github_events", destination=presto, dataset_name="airflow_events"
+        "github_events", destination=presto(), dataset_name="airflow_events"
     )
     data = github_repo_events("apache", "airflow", access_token="")
     print(pipeline.run(data))

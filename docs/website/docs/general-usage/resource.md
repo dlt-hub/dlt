@@ -265,6 +265,38 @@ kinesis_stream = kinesis("telemetry_stream")
 ```
 `kinesis_stream` resource has a name **telemetry_stream**
 
+
+### Declare parallel and async resources
+You can extract multiple resources in parallel threads or with async IO.
+To enable this for a sync resource you can set the `parallelized` flag to `True` in the resource decorator:
+
+
+```python
+@dlt.resource(parallelized=True)
+def get_users():
+    for u in _get_users():
+        yield u
+
+@dlt.resource(parallelized=True)
+def get_orders():
+    for o in _get_orders():
+        yield o
+
+# users and orders will be iterated in parallel in two separate threads
+pipeline.run(get_users(), get_orders())
+```
+
+Async generators are automatically extracted concurrently with other resources:
+
+```python
+@dlt.resource
+async def get_users():
+    async for u in _get_users():  # Assuming _get_users is an async generator
+        yield u
+```
+
+Please find more details in [extract performance](../reference/performance.md#extract)
+
 ## Customize resources
 
 ### Filter, transform and pivot data

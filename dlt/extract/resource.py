@@ -24,7 +24,7 @@ from dlt.common.pipeline import (
     pipeline_state,
 )
 from dlt.common.utils import flatten_list_or_items, get_callable_name, uniq_id
-from dlt.extract.utils import wrap_async_iterator
+from dlt.extract.utils import wrap_async_iterator, wrap_parallel_iterator
 
 from dlt.extract.typing import (
     DataItemWithMeta,
@@ -36,7 +36,8 @@ from dlt.extract.typing import (
     YieldMapItem,
     ValidateItem,
 )
-from dlt.extract.pipe import Pipe, ManagedPipeIterator, TPipeStep
+from dlt.extract.pipe_iterator import ManagedPipeIterator
+from dlt.extract.pipe import Pipe, TPipeStep
 from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
@@ -48,6 +49,7 @@ from dlt.extract.exceptions import (
     InvalidTransformerGeneratorFunction,
     InvalidResourceDataTypeBasic,
     InvalidResourceDataTypeMultiplePipes,
+    InvalidParallelResourceDataType,
     ParametrizedResourceUnbound,
     ResourceNameMissing,
     ResourceNotATransformer,
@@ -341,6 +343,24 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         # transformers should be limited by their input, so we only limit non-transformers
         if not self.is_transformer:
             self._pipe.replace_gen(_gen_wrap(self._pipe.gen))
+        return self
+
+    def parallelize(self) -> "DltResource":
+        """Wraps the resource to execute each item in a threadpool to allow multiple resources to extract in parallel.
+
+        The resource must be a generator or generator function or a transformer function.
+        """
+        if (
+            not inspect.isgenerator(self._pipe.gen)
+            and not (
+                callable(self._pipe.gen)
+                and inspect.isgeneratorfunction(inspect.unwrap(self._pipe.gen))
+            )
+            and not (callable(self._pipe.gen) and self.is_transformer)
+        ):
+            raise InvalidParallelResourceDataType(self.name, self._pipe.gen, type(self._pipe.gen))
+
+        self._pipe.replace_gen(wrap_parallel_iterator(self._pipe.gen))  # type: ignore  # TODO
         return self
 
     def add_step(

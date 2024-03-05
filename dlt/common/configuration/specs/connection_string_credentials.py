@@ -1,5 +1,5 @@
 from typing import Any, ClassVar, Dict, List, Optional
-from sqlalchemy.engine import URL, make_url
+from dlt.common.libs.sql_alchemy import URL, make_url
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 
 from dlt.common.typing import TSecretValue
@@ -26,6 +26,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
             # update only values that are not None
             self.update({k: v for k, v in url._asdict().items() if v is not None})
             if self.query is not None:
+                # query may be immutable so make it mutable
                 self.query = dict(self.query)
         except Exception:
             raise InvalidConnectionString(self.__class__, native_value, self.drivername)
