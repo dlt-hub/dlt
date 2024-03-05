@@ -2493,21 +2493,6 @@ files = [
 test = ["pytest (>=6)"]
 
 [[package]]
-name = "faker"
-version = "24.0.0"
-description = "Faker is a Python package that generates fake data for you."
-optional = false
-python-versions = ">=3.8"
-files = [
-    {file = "Faker-24.0.0-py3-none-any.whl", hash = "sha256:2456d674f40bd51eb3acbf85221277027822e529a90cc826453d9a25dff932b1"},
-    {file = "Faker-24.0.0.tar.gz", hash = "sha256:ea6f784c40730de0f77067e49e78cdd590efb00bec3d33f577492262206c17fc"},
-]
-
-[package.dependencies]
-python-dateutil = ">=2.4"
-typing-extensions = {version = ">=3.10.0.1", markers = "python_version <= \"3.8\""}
-
-[[package]]
 name = "fastembed"
 version = "0.1.1"
 description = "Fast, light, accurate library built for retrieval embedding generation"
@@ -9050,4 +9035,4 @@ weaviate = ["weaviate-client"]
 [metadata]
 lock-version = "2.0"
 python-versions = ">=3.8.1,<3.13"
-content-hash = "229bd0a471d14ad25722b9d8fc8273f83380f3d327de990947c45321a4297f93"
+content-hash = "a7aa3e523522ab3260a7a19f097a34349b66cf046289db1e17b48f88f7fd189f"
