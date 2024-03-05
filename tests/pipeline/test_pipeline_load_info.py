@@ -9,7 +9,6 @@ data = [
     {"id": 2, "name": "Bob"},
 ]
 
-faker.Faker.seed(random.randint(0, 10000))
 fakes = faker.Faker("de_DE")
 
 
