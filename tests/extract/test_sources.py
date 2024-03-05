@@ -2,6 +2,7 @@ import itertools
 from typing import Iterator
 
 import pytest
+import asyncio
 
 import dlt
 from dlt.common.configuration.container import Container
@@ -787,6 +788,31 @@ def test_add_transformer_right_pipe() -> None:
 def test_limit_infinite_counter() -> None:
     r = dlt.resource(itertools.count(), name="infinity").add_limit(10)
     assert list(r) == list(range(10))
+
+
+@pytest.mark.parametrize("limit", (None, -1, 0, 10))
+def test_limit_edge_cases(limit: int) -> None:
+    r = dlt.resource(range(20), name="infinity").add_limit(limit)
+
+    @dlt.resource()
+    async def r_async():
+        for i in range(20):
+            await asyncio.sleep(0.01)
+            yield i
+
+    sync_list = list(r)
+    async_list = list(r_async().add_limit(limit))
+
+    # check the expected results
+    assert sync_list == async_list
+    if limit == 10:
+        assert sync_list == list(range(10))
+    elif limit in [None, -1]:
+        assert sync_list == list(range(20))
+    elif limit == 0:
+        assert sync_list == []
+    else:
+        assert False
 
 
 def test_limit_source() -> None:
