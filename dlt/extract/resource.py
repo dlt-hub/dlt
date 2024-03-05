@@ -314,7 +314,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         """
 
         # make sure max_items is a number, to allow "None" as value for unlimited
-        if max_items == None:
+        if max_items is None:
             max_items = -1
 
         def _gen_wrap(gen: TPipeStep) -> TPipeStep:

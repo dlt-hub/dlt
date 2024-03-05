@@ -792,7 +792,7 @@ def test_limit_infinite_counter() -> None:
 
 @pytest.mark.parametrize("limit", (None, -1, 0, 10))
 def test_limit_edge_cases(limit: int) -> None:
-    r = dlt.resource(range(20), name="infinity").add_limit(limit)
+    r = dlt.resource(range(20), name="infinity").add_limit(limit)  # type: ignore
 
     @dlt.resource()
     async def r_async():
@@ -812,7 +812,7 @@ def test_limit_edge_cases(limit: int) -> None:
     elif limit == 0:
         assert sync_list == []
     else:
-        assert False
+        raise AssertionError(f"Unexpected limit: {limit}")
 
 
 def test_limit_source() -> None:
