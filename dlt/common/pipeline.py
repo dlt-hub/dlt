@@ -108,6 +108,7 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
         if self.metrics:
             d["started_at"] = self.started_at
             d["finished_at"] = self.finished_at
+            d["metrics"] = [dict(metric) for metric in self.metrics.values()]
         return d
 
     def __str__(self) -> str:
@@ -319,7 +320,7 @@ class LoadMetrics(StepMetrics):
 
 class _LoadInfo(NamedTuple):
     pipeline: "SupportsPipeline"
-    metrics: Dict[str, List[LoadMetrics]]
+    metrics: List[LoadMetrics]
     destination_type: str
     destination_displayable_credentials: str
     destination_name: str
@@ -524,7 +525,8 @@ class SupportsPipeline(Protocol):
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
-    ) -> LoadInfo: ...
+    ) -> LoadInfo:
+        ...
 
     def _set_context(self, is_active: bool) -> None:
         """Called when pipeline context activated or deactivate"""
@@ -546,7 +548,8 @@ class SupportsPipelineRun(Protocol):
         schema: Schema = None,
         loader_file_format: TLoaderFileFormat = None,
         schema_contract: TSchemaContract = None,
-    ) -> LoadInfo: ...
+    ) -> LoadInfo:
+        ...
 
 
 @configspec
@@ -596,7 +599,8 @@ class StateInjectableContext(ContainerInjectableContext):
 
     if TYPE_CHECKING:
 
-        def __init__(self, state: TPipelineState = None) -> None: ...
+        def __init__(self, state: TPipelineState = None) -> None:
+            ...
 
 
 def pipeline_state(
