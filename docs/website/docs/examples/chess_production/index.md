@@ -178,9 +178,11 @@ def load_data_with_retry(pipeline, data):
 <!--@@@DLT_SNIPPET_END ./code/chess-snippets.py::markdown_retry_cm-->
 
 :::warning
-To run this example you need to provide Slack incoming hook in `.dlt/secrets.toml` :
+To run this example you need to provide Slack incoming hook in `.dlt/secrets.toml`:
+```python
 [runtime]
 slack_incoming_hook="https://hooks.slack.com/services/***"
+```
 Read [Using Slack to send messages.](https://dlthub.com/docs/running-in-production/running#using-slack-to-send-messages)
 :::
 
