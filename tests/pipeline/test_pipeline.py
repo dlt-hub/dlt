@@ -1663,3 +1663,54 @@ def test_resource_while_stop() -> None:
     load_info = pipeline.run(product())
     assert_load_info(load_info)
     assert pipeline.last_trace.last_normalize_info.row_counts["product"] == 12
+
+
+def test_run_with_pua_payload() -> None:
+    # prepare some data and complete load with run
+    os.environ["COMPLETED_PROB"] = "1.0"
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    print(pipeline_name)
+    from dlt.common.json import PUA_START, PUA_CHARACTER_MAX
+
+    def some_data():
+        yield from [
+            # text is only PUA
+            {"id": 1, "text": chr(PUA_START)},
+            {"id": 2, "text": chr(PUA_START - 1)},
+            {"id": 3, "text": chr(PUA_START + 1)},
+            {"id": 4, "text": chr(PUA_START + PUA_CHARACTER_MAX + 1)},
+            # PUA inside text
+            {"id": 5, "text": f"a{chr(PUA_START)}b"},
+            {"id": 6, "text": f"a{chr(PUA_START - 1)}b"},
+            {"id": 7, "text": f"a{chr(PUA_START + 1)}b"},
+            # text starts with PUA
+            {"id": 8, "text": f"{chr(PUA_START)}a"},
+            {"id": 9, "text": f"{chr(PUA_START - 1)}a"},
+            {"id": 10, "text": f"{chr(PUA_START + 1)}a"},
+        ]
+
+    @dlt.source
+    def source():
+        return dlt.resource(some_data(), name="pua_data")
+
+    load_info = p.run(source())
+    assert p.last_trace.last_normalize_info.row_counts["pua_data"] == 10
+
+    with p.sql_client() as client:
+        rows = client.execute_sql("SELECT text FROM pua_data ORDER BY id")
+
+    values = [r[0] for r in rows]
+    assert values == [
+        "\uf026",
+        "\uf025",
+        "\uf027",
+        "\uf02f",
+        "a\uf026b",
+        "a\uf025b",
+        "a\uf027b",
+        "\uf026a",
+        "\uf025a",
+        "\uf027a",
+    ]
+    assert len(load_info.loads_ids) == 1
