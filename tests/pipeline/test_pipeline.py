@@ -1717,40 +1717,6 @@ def test_run_with_pua_payload() -> None:
     assert len(load_info.loads_ids) == 1
 
 
-data = [
-    {"id": 1, "name": "Alice"},
-    {"id": 2, "name": "Bob"},
-]
-
-
-@dlt.source
-def users_source():
-    return dlt.resource([data], name="users_resource")
-
-
-@dlt.source
-def taxi_demand_source():
-    @dlt.resource(primary_key="city")
-    def locations():
-        for idx in range(10):
-            yield {
-                "id": idx,
-                "address": f"address-{idx}",
-                "city": f"city-{idx}",
-            }
-
-    @dlt.resource(primary_key="id")
-    def demand_map():
-        for idx in range(10):
-            yield {
-                "id": idx,
-                "city": f"city-{idx}",
-                "demand": random.randint(0, 10000),
-            }
-
-    return [locations, demand_map]
-
-
 def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
     """Test if load info schema is idempotent throughout multiple load cycles
 
@@ -1767,6 +1733,37 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
 
     `version_hash` collected in each stage should remain the same at all times.
     """
+    data = [
+        {"id": 1, "name": "Alice"},
+        {"id": 2, "name": "Bob"},
+    ]
+
+    @dlt.source
+    def users_source():
+        return dlt.resource([data], name="users_resource")
+
+    @dlt.source
+    def taxi_demand_source():
+        @dlt.resource(primary_key="city")
+        def locations():
+            for idx in range(10):
+                yield {
+                    "id": idx,
+                    "address": f"address-{idx}",
+                    "city": f"city-{idx}",
+                }
+
+        @dlt.resource(primary_key="id")
+        def demand_map():
+            for idx in range(10):
+                yield {
+                    "id": idx,
+                    "city": f"city-{idx}",
+                    "demand": random.randint(0, 10000),
+                }
+
+        return [locations, demand_map]
+
     schema = dlt.Schema(name="nice_load_info_schema")
     pipeline = dlt.pipeline(
         pipeline_name="quick_start",
