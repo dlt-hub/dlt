@@ -320,7 +320,7 @@ class LoadMetrics(StepMetrics):
 
 class _LoadInfo(NamedTuple):
     pipeline: "SupportsPipeline"
-    metrics: List[LoadMetrics]
+    metrics: Dict[str, List[LoadMetrics]]
     destination_type: str
     destination_displayable_credentials: str
     destination_name: str
