@@ -66,7 +66,6 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
         table_name="users",
         primary_key="id",
     )
-    pipeline.run([users_load_info], table_name="_load_info")
 
     schema_hashset = set()
     pipeline.run([users_load_info], table_name="_load_info", schema=schema)
@@ -103,6 +102,7 @@ def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
         table_name="users",
         primary_key="id",
     )
+
     taxi_load_info = pipeline.run(
         taxi_demand_source(),
         table_name="taxi_demands",
