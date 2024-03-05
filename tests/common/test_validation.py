@@ -6,12 +6,16 @@ from typing import Callable, List, Literal, Mapping, Sequence, TypedDict, TypeVa
 from dlt.common.exceptions import DictValidationException
 from dlt.common.schema.typing import TStoredSchema, TColumnSchema
 from dlt.common.schema.utils import simple_regex_validator
-from dlt.common.typing import DictStrStr, StrStr
+from dlt.common.typing import DictStrStr, StrStr, TDataItem
 from dlt.common.validation import validate_dict, validate_dict_ignoring_xkeys
-from dlt.extract.typing import TDataItem, TTableHintTemplate
 
 
 TLiteral = Literal["uno", "dos", "tres"]
+
+# some typevars for testing
+TDynHintType = TypeVar("TDynHintType")
+TFunHintTemplate = Callable[[TDataItem], TDynHintType]
+TTableHintTemplate = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
 
 
 class TDict(TypedDict):
@@ -253,14 +257,14 @@ def test_no_name() -> None:
     except AttributeError:
         pytest.fail("validate_dict raised AttributeError unexpectedly")
 
+    test_item_2 = {"name": True}
+    with pytest.raises(DictValidationException):
+        validate_dict(TTestRecordNoName, test_item_2, path=".")
+
 
 def test_callable() -> None:
-    TDynHintType = TypeVar("TDynHintType")
-    TFunHintTemplate = Callable[[TDataItem], TDynHintType]
-    t_table_hint_template = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
-
     class TTestRecordCallable(TypedDict):
-        prop: t_table_hint_template  # type: ignore
+        prop: TTableHintTemplate  # type: ignore
 
     def f(item: Union[TDataItem, TDynHintType]) -> TDynHintType:
         return item
