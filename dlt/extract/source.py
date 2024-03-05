@@ -23,7 +23,7 @@ from dlt.common.pipeline import (
 )
 from dlt.common.utils import graph_find_scc_nodes, flatten_list_or_items, graph_edges_to_nodes
 
-from dlt.extract.typing import TDecompositionStrategy
+from dlt.extract.items import TDecompositionStrategy
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe
 from dlt.extract.hints import DltResourceHints, make_hints

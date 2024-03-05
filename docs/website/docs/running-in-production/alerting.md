@@ -40,5 +40,33 @@ receiving rich information on executed pipelines, including encountered errors a
 
 ## Slack
 
-Read [here](./running#using-slack-to-send-messages) about how to send
-messages to Slack.
+Alerts can be sent to a Slack channel via Slack's incoming webhook URL. The code snippet below demonstrates automated Slack notifications for database table updates using the `send_slack_message` function.
+
+```python
+# Import the send_slack_message function from the dlt library
+from dlt.common.runtime.slack import send_slack_message
+
+# Define the URL for your Slack webhook
+hook = "https://hooks.slack.com/services/xxx/xxx/xxx"
+
+# Iterate over each package in the load_info object
+for package in info.load_packages:
+    # Iterate over each table in the schema_update of the current package
+    for table_name, table in package.schema_update.items():
+        # Iterate over each column in the current table
+        for column_name, column in table["columns"].items():
+            # Send a message to the Slack channel with the table 
+						# and column update information
+            send_slack_message(
+                hook,
+                message=(
+                    f"\tTable updated: {table_name}: "
+                    f"Column changed: {column_name}: "
+                    f"{column['data_type']}"
+                )
+            )
+```
+Refer to this [example](../../docs/examples/chess_production/) for a practical application of the method in a production environment.
+
+Similarly, Slack notifications can be extended to include information on pipeline execution times, loading durations, schema modifications, and more. For comprehensive details on configuring and sending messages to Slack, please read [here](./running#using-slack-to-send-messages). 
+

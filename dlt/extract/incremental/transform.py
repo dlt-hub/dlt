@@ -13,7 +13,7 @@ from dlt.extract.incremental.exceptions import (
 )
 from dlt.extract.incremental.typing import IncrementalColumnState, TCursorValue, LastValueFunc
 from dlt.extract.utils import resolve_column_value
-from dlt.extract.typing import TTableHintTemplate
+from dlt.extract.items import TTableHintTemplate
 from dlt.common.schema.typing import TColumnNames
 
 try:
@@ -109,9 +109,8 @@ class JsonIncremental(IncrementalTransform):
         Returns:
             Tuple (row, start_out_of_range, end_out_of_range) where row is either the data item or `None` if it is completely filtered out
         """
-        start_out_of_range = end_out_of_range = False
         if row is None:
-            return row, start_out_of_range, end_out_of_range
+            return row, False, False
 
         row_value = self.find_cursor_value(row)
         last_value = self.incremental_state["last_value"]
@@ -132,8 +131,7 @@ class JsonIncremental(IncrementalTransform):
             self.last_value_func((row_value, self.end_value)) != self.end_value
             or self.last_value_func((row_value,)) == self.end_value
         ):
-            end_out_of_range = True
-            return None, start_out_of_range, end_out_of_range
+            return None, False, True
 
         check_values = (row_value,) + ((last_value,) if last_value is not None else ())
         new_value = self.last_value_func(check_values)
@@ -146,10 +144,10 @@ class JsonIncremental(IncrementalTransform):
                 # if unique value exists then use it to deduplicate
                 if unique_value:
                     if unique_value in self.incremental_state["unique_hashes"]:
-                        return None, start_out_of_range, end_out_of_range
+                        return None, False, False
                     # add new hash only if the record row id is same as current last value
                     self.incremental_state["unique_hashes"].append(unique_value)
-                return row, start_out_of_range, end_out_of_range
+                return row, False, False
             # skip the record that is not a last_value or new_value: that record was already processed
             check_values = (row_value,) + (
                 (self.start_value,) if self.start_value is not None else ()
@@ -157,17 +155,16 @@ class JsonIncremental(IncrementalTransform):
             new_value = self.last_value_func(check_values)
             # Include rows == start_value but exclude "lower"
             if new_value == self.start_value and processed_row_value != self.start_value:
-                start_out_of_range = True
-                return None, start_out_of_range, end_out_of_range
+                return None, True, False
             else:
-                return row, start_out_of_range, end_out_of_range
+                return row, False, False
         else:
             self.incremental_state["last_value"] = new_value
             unique_value = self.unique_value(row, self.primary_key, self.resource_name)
             if unique_value:
                 self.incremental_state["unique_hashes"] = [unique_value]
 
-        return row, start_out_of_range, end_out_of_range
+        return row, False, False
 
 
 class ArrowIncremental(IncrementalTransform):

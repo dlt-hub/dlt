@@ -12,7 +12,7 @@ If you can, yield pages when producing data. This makes some processes more effe
 the necessary function calls (each chunk of data that you yield goes through the extract pipeline once so if you yield a chunk of 10.000 items you will gain significant savings)
 For example:
 <!--@@@DLT_SNIPPET_START ./performance_snippets/performance-snippets.py::performance_chunking-->
-```python
+```py
 import dlt
 
 def get_rows(limit):
@@ -27,7 +27,7 @@ def database_cursor():
 can be replaced with:
 
 <!--@@@DLT_SNIPPET_START ./performance_snippets/performance-snippets.py::performance_chunking_chunk-->
-```python
+```py
 from itertools import islice
 
 @dlt.resource
@@ -149,7 +149,7 @@ Consider an example source which consists of 2 resources fetching pages of items
 The `parallelized=True` argument wraps the resources in a generator that yields callables to evaluate each generator step. These callables are executed in the thread pool. Transformer that are not generators (as shown in the example) are internally wrapped in a generator that yields once.
 
 <!--@@@DLT_SNIPPET_START ./performance_snippets/performance-snippets.py::parallel_extract_callables-->
-```python
+```py
 import dlt
 import time
 from threading import currentThread
@@ -222,7 +222,7 @@ workers=4
 The example below does the same but using an async generator as the main resource and async/await and futures pool for the transformer.
 The `parallelized` flag is not supported or needed for async generators, these are wrapped and evaluated concurrently by default:
 <!--@@@DLT_SNIPPET_START ./performance_snippets/performance-snippets.py::parallel_extract_awaitables-->
-```python
+```py
 import asyncio
 
 @dlt.resource
@@ -350,7 +350,7 @@ workers=11
 
 
 <!--@@@DLT_SNIPPET_START ./performance_snippets/performance-snippets.py::parallel_config-->
-```pyhon
+```py
 import os
 import dlt
 from itertools import islice
@@ -424,7 +424,7 @@ You can run several pipeline instances in parallel from a single process by plac
 separate threads. The most straightforward way is to use `ThreadPoolExecutor` and `asyncio` to execute pipeline methods.
 
 <!--@@@DLT_SNIPPET_START ./performance_snippets/performance-snippets.py::parallel_pipelines-->
-```python
+```py
 import asyncio
 import dlt
 from time import sleep
@@ -468,9 +468,9 @@ async def _run_async():
 asyncio.run(_run_async())
 # activate pipelines before they are used
 pipeline_1.activate()
-# assert load_data_table_counts(pipeline_1) == {"async_table": 10}
+assert pipeline_1.last_trace.last_normalize_info.row_counts["async_table"] == 10
 pipeline_2.activate()
-# assert load_data_table_counts(pipeline_2) == {"defer_table": 5}
+assert pipeline_2.last_trace.last_normalize_info.row_counts["defer_table"] == 5
 ```
 <!--@@@DLT_SNIPPET_END ./performance_snippets/performance-snippets.py::parallel_pipelines-->
 

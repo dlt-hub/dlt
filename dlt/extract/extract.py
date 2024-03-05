@@ -1,6 +1,6 @@
 import contextlib
 from collections.abc import Sequence as C_Sequence
-from datetime import datetime  # noqa: 251
+from copy import copy
 import itertools
 from typing import List, Set, Dict, Optional, Set, Any
 import yaml
@@ -33,6 +33,7 @@ from dlt.common.utils import get_callable_name, get_full_class_name
 
 from dlt.extract.decorators import SourceInjectableContext, SourceSchemaInjectableContext
 from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints
+from dlt.extract.incremental import IncrementalResourceWrapper
 from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
 from dlt.extract.resource import DltResource
@@ -202,14 +203,20 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         for resource in source.selected_resources.values():
             # cleanup the hints
             hints = clean_hints[resource.name] = {}
-            resource_hints = resource._hints or resource.compute_table_schema()
+            resource_hints = copy(resource._hints) or resource.compute_table_schema()
+            if resource.incremental and "incremental" not in resource_hints:
+                resource_hints["incremental"] = resource.incremental  # type: ignore
 
             for name, hint in resource_hints.items():
                 if hint is None or name in ["validator"]:
                     continue
                 if name == "incremental":
                     # represent incremental as dictionary (it derives from BaseConfiguration)
-                    hints[name] = dict(hint)  # type: ignore[call-overload]
+                    if isinstance(hint, IncrementalResourceWrapper):
+                        hint = hint._incremental
+                    # sometimes internal incremental is not bound
+                    if hint:
+                        hints[name] = dict(hint)  # type: ignore[call-overload]
                     continue
                 if name == "original_columns":
                     # this is original type of the columns ie. Pydantic model
