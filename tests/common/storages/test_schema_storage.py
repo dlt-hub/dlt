@@ -106,6 +106,7 @@ def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: Sch
     # evolve schema
     row = {"floatX": 78172.128, "confidenceX": 1.2, "strX": "STR"}
     _, new_table = storage_schema.coerce_row("event_user", None, row)
+    new_table["write_disposition"] = "append"
     storage_schema.update_table(new_table)
     storage.save_schema(storage_schema)
     # now use synced storage to load schema again
