@@ -10,8 +10,10 @@ from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.destination.reference import Destination
-from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.pipeline.exceptions import PipelineStepFailed
+from dlt.common.utils import uniq_id
+from dlt.common.exceptions import InvalidDestinationReference
+from dlt.common.configuration.exceptions import ConfigFieldMissingException
 
 from tests.load.utils import (
     TABLE_ROW_ALL_DATA_TYPES,
@@ -140,19 +142,11 @@ def test_instantiation() -> None:
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
 
-    # test passing via credentials
-    calls = []
-    p = dlt.pipeline(
-        "sink_test", destination="sink", credentials=local_sink_func, full_refresh=True
-    )
-    p.run([1, 2, 3], table_name="items")
-    assert len(calls) == 1
-
     # test passing via from_reference
     calls = []
     p = dlt.pipeline(
         "sink_test",
-        destination=Destination.from_reference("sink", credentials=local_sink_func),  # type: ignore
+        destination=Destination.from_reference("destination", destination_callable=local_sink_func),  # type: ignore
         full_refresh=True,
     )
     p.run([1, 2, 3], table_name="items")
@@ -163,23 +157,30 @@ def test_instantiation() -> None:
     global_calls = []
     p = dlt.pipeline(
         "sink_test",
-        destination="sink",
-        credentials="tests.load.sink.test_sink.global_sink_func",
+        destination=Destination.from_reference("destination", destination_callable="tests.load.sink.test_sink.global_sink_func"),  # type: ignore
         full_refresh=True,
     )
     p.run([1, 2, 3], table_name="items")
     assert len(global_calls) == 1
 
     # pass None credentials reference
-    p = dlt.pipeline("sink_test", destination="sink", credentials=None, full_refresh=True)
-    with pytest.raises(ConfigurationValueError):
+    with pytest.raises(InvalidDestinationReference):
+        p = dlt.pipeline(
+            "sink_test",
+            destination=Destination.from_reference("destination", destination_callable=None),
+            full_refresh=True,
+        )
         p.run([1, 2, 3], table_name="items")
 
     # pass invalid credentials module
-    p = dlt.pipeline(
-        "sink_test", destination="sink", credentials="does.not.exist.callable", full_refresh=True
-    )
-    with pytest.raises(ConfigurationValueError):
+    with pytest.raises(InvalidDestinationReference):
+        p = dlt.pipeline(
+            "sink_test",
+            destination=Destination.from_reference(
+                "destination", destination_callable="does.not.exist"
+            ),
+            full_refresh=True,
+        )
         p.run([1, 2, 3], table_name="items")
 
 
@@ -353,7 +354,7 @@ def test_config_spec() -> None:
         assert my_val == "something"
 
     # if no value is present, it should raise
-    with pytest.raises(PipelineStepFailed) as exc:
+    with pytest.raises(ConfigFieldMissingException) as exc:
         dlt.pipeline("sink_test", destination=my_sink, full_refresh=True).run(
             [1, 2, 3], table_name="items"
         )
@@ -377,7 +378,7 @@ def test_config_spec() -> None:
         assert my_val == "something"
 
     # if no value is present, it should raise
-    with pytest.raises(PipelineStepFailed):
+    with pytest.raises(ConfigFieldMissingException):
         dlt.pipeline("sink_test", destination=other_sink, full_refresh=True).run(
             [1, 2, 3], table_name="items"
         )

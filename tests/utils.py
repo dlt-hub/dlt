@@ -45,11 +45,11 @@ IMPLEMENTED_DESTINATIONS = {
     "motherduck",
     "mssql",
     "qdrant",
-    "sink",
+    "destination",
     "synapse",
     "databricks",
 }
-NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant", "sink"}
+NON_SQL_DESTINATIONS = {"filesystem", "weaviate", "dummy", "motherduck", "qdrant", "destination"}
 SQL_DESTINATIONS = IMPLEMENTED_DESTINATIONS - NON_SQL_DESTINATIONS
 
 # exclude destination configs (for now used for athena and athena iceberg separation)

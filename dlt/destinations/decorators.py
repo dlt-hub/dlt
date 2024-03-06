@@ -1,23 +1,22 @@
-from typing import Any, Callable
-from dlt.destinations.impl.sink.factory import sink as _sink
-from dlt.destinations.impl.sink.configuration import SinkClientConfiguration, TSinkCallable
+from typing import Any, Type
+from dlt.destinations.impl.destination.factory import destination as _destination
+from dlt.destinations.impl.destination.configuration import SinkClientConfiguration, TSinkCallable
 from dlt.common.destination import TDestinationReferenceArg
 from dlt.common.destination import TLoaderFileFormat
-from dlt.common.utils import get_callable_name
 
 
-def sink(
+def destination(
     loader_file_format: TLoaderFileFormat = None,
     batch_size: int = 10,
     name: str = None,
     naming_convention: str = "direct",
+    spec: Type[SinkClientConfiguration] = SinkClientConfiguration,
 ) -> Any:
-    def decorator(f: TSinkCallable) -> TDestinationReferenceArg:
-        nonlocal name
-        if name is None:
-            name = get_callable_name(f)
-        return _sink(
-            credentials=f,
+    def decorator(destination_callable: TSinkCallable) -> TDestinationReferenceArg:
+        # return destination instance
+        return _destination(
+            spec=spec,
+            destination_callable=destination_callable,
             loader_file_format=loader_file_format,
             batch_size=batch_size,
             destination_name=name,

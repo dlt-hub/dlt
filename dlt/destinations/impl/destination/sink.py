@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from types import TracebackType
-from typing import ClassVar, Dict, Optional, Type, Iterable, Iterable
-from dlt.common.configuration import with_config, known_sections
+from typing import ClassVar, Dict, Optional, Type, Iterable, Iterable, NamedTuple, Dict
+import threading
 
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.common.typing import TDataItems
@@ -21,11 +21,11 @@ from dlt.common.destination.reference import (
     JobClientBase,
 )
 
-from dlt.destinations.impl.sink import capabilities
-from dlt.destinations.impl.sink.configuration import SinkClientConfiguration, TSinkCallable
+from dlt.destinations.impl.destination import capabilities
+from dlt.destinations.impl.destination.configuration import SinkClientConfiguration, TSinkCallable
 
 
-class SinkLoadJob(LoadJob, ABC):
+class DestinationLoadJob(LoadJob, ABC):
     def __init__(
         self,
         table: TTableSchema,
@@ -33,14 +33,14 @@ class SinkLoadJob(LoadJob, ABC):
         config: SinkClientConfiguration,
         schema: Schema,
         destination_state: Dict[str, int],
-        resolved_callable: TSinkCallable,
+        destination_callable: TSinkCallable,
     ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._file_path = file_path
         self._config = config
         self._table = table
         self._schema = schema
-        self._resolved_callable = resolved_callable
+        self._callable = destination_callable
 
         self._state: TLoadJobState = "running"
         self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
@@ -71,7 +71,9 @@ class SinkLoadJob(LoadJob, ABC):
         if not items:
             return
         # call callable
-        self._resolved_callable(items, self._table)
+        print("Start callable  " + threading.currentThread().getName())
+        self._callable(items, self._table)
+        print("end callable  ")
 
     def state(self) -> TLoadJobState:
         return self._state
@@ -80,7 +82,7 @@ class SinkLoadJob(LoadJob, ABC):
         raise NotImplementedError()
 
 
-class SinkParquetLoadJob(SinkLoadJob):
+class SinkParquetLoadJob(DestinationLoadJob):
     def run(self, start_index: int) -> Iterable[TDataItems]:
         # stream items
         from dlt.common.libs.pyarrow import pyarrow
@@ -99,7 +101,7 @@ class SinkParquetLoadJob(SinkLoadJob):
                 yield record_batch
 
 
-class SinkJsonlLoadJob(SinkLoadJob):
+class SinkJsonlLoadJob(DestinationLoadJob):
     def run(self, start_index: int) -> Iterable[TDataItems]:
         current_batch: TDataItems = []
 
@@ -127,12 +129,7 @@ class SinkClient(JobClientBase):
     def __init__(self, schema: Schema, config: SinkClientConfiguration) -> None:
         super().__init__(schema, config)
         self.config: SinkClientConfiguration = config
-
-        # inject config values
-        self.resolved_callable = with_config(
-            self.config.credentials.resolved_callable,
-            sections=(known_sections.DESTINATION, self.config.destination_name),
-        )
+        self.destination_callable = self.config.destination_callable
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         pass
@@ -153,11 +150,11 @@ class SinkClient(JobClientBase):
         load_state = destination_state()
         if file_path.endswith("parquet"):
             return SinkParquetLoadJob(
-                table, file_path, self.config, self.schema, load_state, self.resolved_callable
+                table, file_path, self.config, self.schema, load_state, self.destination_callable
             )
         if file_path.endswith("jsonl"):
             return SinkJsonlLoadJob(
-                table, file_path, self.config, self.schema, load_state, self.resolved_callable
+                table, file_path, self.config, self.schema, load_state, self.destination_callable
             )
         return None
 

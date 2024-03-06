@@ -58,6 +58,7 @@ def with_config(
     include_defaults: bool = True,
     accept_partial: bool = False,
     initial_config: Optional[BaseConfiguration] = None,
+    base: Type[BaseConfiguration] = BaseConfiguration,
 ) -> Callable[[TFun], TFun]:
     """Injects values into decorated function arguments following the specification in `spec` or by deriving one from function's signature.
 
@@ -75,6 +76,7 @@ def with_config(
     Returns:
         Callable[[TFun], TFun]: A decorated function
     """
+
     section_f: Callable[[StrAny], str] = None
     # section may be a function from function arguments to section
     if callable(sections):
@@ -88,9 +90,8 @@ def with_config(
         )
         spec_arg: Parameter = None
         pipeline_name_arg: Parameter = None
-
         if spec is None:
-            SPEC = spec_from_signature(f, sig, include_defaults)
+            SPEC = spec_from_signature(f, sig, include_defaults, base=base)
         else:
             SPEC = spec
 

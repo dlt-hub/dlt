@@ -626,6 +626,7 @@ class LoadPackageStateInjectableContext(ContainerInjectableContext):
     storage: PackageStorage
     load_id: str
     can_create_default: ClassVar[bool] = False
+    global_affinity: ClassVar[bool] = True
 
     def commit(self) -> None:
         with self.state_save_lock:
