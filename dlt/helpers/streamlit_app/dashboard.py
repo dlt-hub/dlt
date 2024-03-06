@@ -2,6 +2,7 @@ import sys
 
 from typing import List, Iterator
 
+import dlt
 import streamlit as st
 
 from dlt.common.exceptions import MissingDependencyException
@@ -11,7 +12,7 @@ from dlt.helpers.streamlit_app.menu import menu
 from dlt.helpers.streamlit_app.widgets import tag
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import SqlClientNotAvailable
-
+from streamlit import config
 
 # use right caching function to disable deprecation message
 if hasattr(st, "cache_data"):
@@ -160,8 +161,16 @@ def write_data_explorer_page(
 
 
 def display(pipeline_name: str) -> None:
-    import dlt
+    config.set_option("theme.primaryColor", "#191937")
 
+    # Main background
+    config.set_option("theme.backgroundColor", "#4C4898")
+
+    # Sidebar
+    config.set_option("theme.secondaryBackgroundColor", "#191937")
+
+    # Text
+    config.set_option("theme.textColor", "#FFFFFF")
     pipeline = dlt.attach(pipeline_name)
     st.session_state["pipeline_name"] = pipeline_name
     with st.sidebar:
