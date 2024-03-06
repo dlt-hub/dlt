@@ -49,7 +49,7 @@ def write_data_explorer_page(
         except SqlClientNotAvailable:
             st.error("Cannot load data - SqlClient not available")
 
-    st.subheader("Schemas and tables")
+    st.subheader("Schemas and tables", divider="rainbow")
 
     num_schemas = len(pipeline.schema_names)
     if num_schemas == 1:
@@ -164,7 +164,6 @@ def display(pipeline_name: str) -> None:
 
     pipeline = dlt.attach(pipeline_name)
     st.session_state["pipeline_name"] = pipeline_name
-    st.subheader(f"{pipeline_name}", divider="rainbow")
     with st.sidebar:
         menu(pipeline)
 
