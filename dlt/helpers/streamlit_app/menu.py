@@ -18,11 +18,7 @@ def menu(pipeline: dlt.Pipeline) -> None:
 
 def pipeline_state_info(pipeline: dlt.Pipeline) -> None:
     st.divider()
-    tag(
-        pipeline.destination.destination_name,
-        label="Destination",
-        tag_type="error",
-    )
+    tag(pipeline.destination.destination_name, label="Destination")
     st.subheader(f"Pipeline {pipeline.pipeline_name}", divider="rainbow")
     st.subheader("State info")
     remote_state = None
