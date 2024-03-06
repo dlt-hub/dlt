@@ -817,13 +817,11 @@ def test_group_tables_by_resource(schema: Schema) -> None:
                 "columns": {},
                 "name": "c_products",
                 "resource": "products",
-                "write_disposition": "append",
             },
             {
                 "columns": {},
                 "name": "mc_products",
                 "resource": "products",
-                "write_disposition": "append",
             },
             {"columns": {}, "name": "mc_products__sub", "parent": "mc_products"},
         ]
