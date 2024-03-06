@@ -21,7 +21,7 @@ from dlt.extract.exceptions import (
     InconsistentTableTemplate,
 )
 from dlt.extract.incremental import Incremental
-from dlt.extract.typing import TFunHintTemplate, TTableHintTemplate, ValidateItem
+from dlt.extract.items import TFunHintTemplate, TTableHintTemplate, ValidateItem
 from dlt.extract.utils import ensure_table_schema_columns, ensure_table_schema_columns_hint
 from dlt.extract.validation import create_item_validator
 

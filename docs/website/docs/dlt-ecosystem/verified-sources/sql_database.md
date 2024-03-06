@@ -215,6 +215,10 @@ def sql_database(
     schema: Optional[str] = dlt.config.value,
     metadata: Optional[MetaData] = None,
     table_names: Optional[List[str]] = dlt.config.value,
+    chunk_size: int = 1000,
+    detect_precision_hints: Optional[bool] = dlt.config.value,
+    defer_table_reflect: Optional[bool] = dlt.config.value,
+    table_adapter_callback: Callable[[Table], None] = None,
 ) -> Iterable[DltResource]:
 ```
 
@@ -225,6 +229,16 @@ def sql_database(
 `metadata`: Optional SQLAlchemy.MetaData; takes precedence over schema.
 
 `table_names`: List of tables to load; defaults to all if not provided.
+
+`chunk_size`: Number of records in a batch. Internally SqlAlchemy maintains a buffer twice that size
+
+`detect_precision_hints`: Infers full schema for columns including data type, precision and scale
+
+`defer_table_reflect`: Will connect to the source database and reflect the tables
+only at runtime. Use when running on Airflow
+
+`table_adapter_callback`: A callback with SQLAlchemy `Table` where you can, for example,
+remove certain columns to be selected.
 
 ### Resource `sql_table`
 
@@ -240,20 +254,17 @@ def sql_table(
     schema: Optional[str] = dlt.config.value,
     metadata: Optional[MetaData] = None,
     incremental: Optional[dlt.sources.incremental[Any]] = None,
+    chunk_size: int = 1000,
+    detect_precision_hints: Optional[bool] = dlt.config.value,
+    defer_table_reflect: Optional[bool] = dlt.config.value,
+    table_adapter_callback: Callable[[Table], None] = None,
 ) -> DltResource:
 ```
-
-`credentials`: Database info or an Engine instance.
-
-`table`: Table to load, set in code or default from "config.toml".
-
-`schema`: Optional name of the table schema.
-
-`metadata`: Optional SQLAlchemy.MetaData; takes precedence over schema.
-
 `incremental`: Optional, enables incremental loading.
 
 `write_disposition`: Can be "merge", "replace", or "append".
+
+for other arguments, see `sql_database` source above.
 
 ## Incremental Loading
 Efficient data management often requires loading only new or updated data from your SQL databases, rather than reprocessing the entire dataset. This is where incremental loading comes into play.
@@ -264,15 +275,13 @@ Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing I
 ### Configuring Incremental Loading
 1. **Choose a Cursor Column**: Identify a column in your SQL table that can serve as a reliable indicator of new or updated rows. Common choices include timestamp columns or auto-incrementing IDs.
 1. **Set an Initial Value**: Choose a starting value for the cursor to begin loading data. This could be a specific timestamp or ID from which you wish to start loading data.
-1. **Apply Incremental Configuration**: Enable incremental loading with your configuration's `incremental` argument.
 1. **Deduplication**: When using incremental loading, the system automatically handles the deduplication of rows based on the primary key (if available) or row hash for tables without a primary key.
-
-:::note
-Incorporating incremental loading into your SQL data pipelines can significantly enhance performance by minimizing unnecessary data processing and transfer.
-:::
+1. **Set end_value for backfill**: Set `end_value` if you want to backfill data from
+certain range.
+1. **Order returned rows**. Set `row_order` to `asc` or `desc` to order returned rows.
 
 #### Incremental Loading Example
-1. Consider a table with a `last_modified` timestamp column. By setting this column as your cursor and specifying an 
+1. Consider a table with a `last_modified` timestamp column. By setting this column as your cursor and specifying an
    initial value, the loader generates a SQL query filtering rows with `last_modified` values greater than the specified initial value.
 
    ```python
@@ -288,8 +297,8 @@ Incorporating incremental loading into your SQL data pipelines can significantly
        )
    )
 
-   info = pipeline.extract(table, write_disposition="merge")  
-   print(info)  
+   info = pipeline.extract(table, write_disposition="merge")
+   print(info)
    ```
 
 1. To incrementally load the "family" table using the sql_database source method:
@@ -324,6 +333,20 @@ Incorporating incremental loading into your SQL data pipelines can significantly
    * For merge write disposition, the source table needs a primary key, which `dlt` automatically sets up.
    * `apply_hints` is a powerful method that enables schema modifications after resource creation, like adjusting write disposition and primary keys. You can choose from various tables and use `apply_hints` multiple times to create pipelines with merged, appendend, or replaced resources.
    :::
+
+### Run on Airflow
+When running on Airflow
+1. Use `dlt` [Airflow Helper](../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file) to create tasks from `sql_database` source. You should be able to run table extraction in parallel with `parallel-isolated` source->DAG conversion.
+2. Reflect tables at runtime with `defer_table_reflect` argument.
+3. Set `allow_external_schedulers` to load data using [Airflow intervals](../../general-usage/incremental-loading.md#using-airflow-schedule-for-backfill-and-incremental-loading).
+
+### Parallel extraction
+You can extract each table in a separate thread (no multiprocessing at this point). This will decrease loading time if your queries take time to execute or your network latency/speed is low.
+```python
+database = sql_database().parallelize()
+table = sql_table().parallelize()
+```
+
 
 ### Troubleshooting
 If you encounter issues where the expected WHERE clause for incremental loading is not generated, ensure your configuration aligns with the `sql_table` resource rather than applying hints post-resource creation. This ensures the loader generates the correct query for incremental loading.

@@ -141,31 +141,65 @@ You can create pipelines that extract, normalize and load data in parallel.
 ### Extract
 You can extract data concurrently if you write your pipelines to yield callables or awaitables or use async generators for your resources that can be then evaluated in a thread or futures pool respectively.
 
-The example below simulates a typical situation where a dlt resource is used to fetch a page of items and then details of individual items are fetched separately in the transformer. The `@dlt.defer` decorator wraps the `get_details` function in another callable that will be executed in the thread pool.
+This is easily accomplished by using the `parallelized` argument in the resource decorator.
+Resources based on sync generators will execute each step (yield) of the generator in a thread pool, so each individual resource is still extracted one item at a time but multiple such resources can run in parallel with each other.
+
+Consider an example source which consists of 2 resources fetching pages of items from different API endpoints, and each of those resources are piped to transformers to fetch complete data items respectively.
+
+The `parallelized=True` argument wraps the resources in a generator that yields callables to evaluate each generator step. These callables are executed in the thread pool. Transformer that are not generators (as shown in the example) are internally wrapped in a generator that yields once.
+
 <!--@@@DLT_SNIPPET_START ./performance_snippets/performance-snippets.py::parallel_extract_callables-->
 ```py
 import dlt
-from time import sleep
+import time
 from threading import currentThread
 
-@dlt.resource
-def list_items(start, limit):
-    yield from range(start, start + limit)
+@dlt.resource(parallelized=True)
+def list_users(n_users):
+    for i in range(1, 1 + n_users):
+        # Simulate network delay of a rest API call fetching a page of items
+        if i % 10 == 0:
+            time.sleep(0.1)
+        yield i
 
-@dlt.transformer
-@dlt.defer
-def get_details(item_id):
-    # simulate a slow REST API where you wait 0.3 sec for each item
-    sleep(0.3)
-    print(f"item_id {item_id} in thread {currentThread().name}")
-    # just return the results, if you yield, generator will be evaluated in main thread
-    return {"row": item_id}
+@dlt.transformer(parallelized=True)
+def get_user_details(user_id):
+    # Transformer that fetches details for users in a page
+    time.sleep(0.1)  # Simulate latency of a rest API call
+    print(f"user_id {user_id} in thread {currentThread().name}")
+    return {"entity": "user", "id": user_id}
+
+@dlt.resource(parallelized=True)
+def list_products(n_products):
+    for i in range(1, 1 + n_products):
+        if i % 10 == 0:
+            time.sleep(0.1)
+        yield i
+
+@dlt.transformer(parallelized=True)
+def get_product_details(product_id):
+    time.sleep(0.1)
+    print(f"product_id {product_id} in thread {currentThread().name}")
+    return {"entity": "product", "id": product_id}
+
+@dlt.source
+def api_data():
+    return [
+        list_users(24) | get_user_details,
+        list_products(32) | get_product_details,
+    ]
 
 # evaluate the pipeline and print all the items
-# resources are iterators and they are evaluated in the same way in the pipeline.run
-print(list(list_items(0, 10) | get_details))
+# sources are iterators and they are evaluated in the same way in the pipeline.run
+print(list(api_data()))
 ```
 <!--@@@DLT_SNIPPET_END ./performance_snippets/performance-snippets.py::parallel_extract_callables-->
+
+The `parallelized` flag in the `resource` and `transformer` decorators is supported for:
+
+* Generator functions (as shown in the example)
+* Generators without functions (e.g. `dlt.resource(name='some_data', parallelized=True)(iter(range(100)))`)
+* `dlt.transformer` decorated functions. These can be either generator functions or regular functions that return one value
 
 You can control the number of workers in the thread pool with **workers** setting. The default number of workers is **5**. Below you see a few ways to do that with different granularity
 <!--@@@DLT_SNIPPET_START ./performance_snippets/toml-snippets.toml::extract_workers_toml-->
@@ -185,7 +219,8 @@ workers=4
 <!--@@@DLT_SNIPPET_END ./performance_snippets/toml-snippets.toml::extract_workers_toml-->
 
 
-The example below does the same but using an async generator as the main resource and async/await and futures pool for the transformer:
+The example below does the same but using an async generator as the main resource and async/await and futures pool for the transformer.
+The `parallelized` flag is not supported or needed for async generators, these are wrapped and evaluated concurrently by default:
 <!--@@@DLT_SNIPPET_START ./performance_snippets/performance-snippets.py::parallel_extract_awaitables-->
 ```py
 import asyncio
@@ -234,7 +269,8 @@ of callables to be evaluated in a thread pool with a size of 5. This limit will 
 :::
 
 :::caution
-Generators and iterators are always evaluated in the main thread. If you have a loop that yields items, instead yield functions or async functions that will create the items when evaluated in the pool.
+Generators and iterators are always evaluated in a single thread: item by item. If you have a loop that yields items that you want to evaluate
+in parallel, instead yield functions or async functions that will be evaluates in separate threads or in async pool.
 :::
 
 ### Normalize
@@ -394,26 +430,18 @@ import dlt
 from time import sleep
 from concurrent.futures import ThreadPoolExecutor
 
-# create both futures and thread parallel resources
-
-def async_table():
-    async def _gen(idx):
-        await asyncio.sleep(0.1)
-        return {"async_gen": idx}
-
-    # just yield futures in a loop
+# create both asyncio and thread parallel resources
+@dlt.resource
+async def async_table():
     for idx_ in range(10):
-        yield _gen(idx_)
+        await asyncio.sleep(0.1)
+        yield {"async_gen": idx_}
 
+@dlt.resource(parallelized=True)
 def defer_table():
-    @dlt.defer
-    def _gen(idx):
-        sleep(0.1)
-        return {"thread_gen": idx}
-
-    # just yield futures in a loop
     for idx_ in range(5):
-        yield _gen(idx_)
+        sleep(0.1)
+        yield idx_
 
 def _run_pipeline(pipeline, gen_):
     # run the pipeline in a thread, also instantiate generators here!
@@ -440,9 +468,9 @@ async def _run_async():
 asyncio.run(_run_async())
 # activate pipelines before they are used
 pipeline_1.activate()
-# assert load_data_table_counts(pipeline_1) == {"async_table": 10}
+assert pipeline_1.last_trace.last_normalize_info.row_counts["async_table"] == 10
 pipeline_2.activate()
-# assert load_data_table_counts(pipeline_2) == {"defer_table": 5}
+assert pipeline_2.last_trace.last_normalize_info.row_counts["defer_table"] == 5
 ```
 <!--@@@DLT_SNIPPET_END ./performance_snippets/performance-snippets.py::parallel_pipelines-->
 

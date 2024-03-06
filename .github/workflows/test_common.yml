@@ -83,11 +83,11 @@ jobs:
         run: poetry install --no-interaction -E duckdb --with sentry-sdk
 
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py
+          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py
         if: runner.os != 'Windows'
         name: Run pipeline smoke tests with minimum deps Linux/MAC
       - run: |
-          poetry run pytest tests/pipeline/test_pipeline.py
+          poetry run pytest tests/pipeline/test_pipeline.py tests/pipeline/test_import_export_schema.py
         if: runner.os == 'Windows'
         name: Run smoke tests with minimum deps Windows
         shell: cmd

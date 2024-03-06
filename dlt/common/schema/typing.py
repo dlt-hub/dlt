@@ -18,6 +18,7 @@ from typing_extensions import Never
 
 from dlt.common.data_types import TDataType
 from dlt.common.normalizers.typing import TNormalizersConfig
+from dlt.common.typing import TSortOrder
 
 try:
     from pydantic import BaseModel as _PydanticBaseModel
@@ -71,7 +72,6 @@ TTypeDetections = Literal[
 TTypeDetectionFunc = Callable[[Type[Any], Any], Optional[TDataType]]
 TColumnNames = Union[str, Sequence[str]]
 """A string representing a column name or a list of"""
-TSortOrder = Literal["asc", "desc"]
 
 COLUMN_PROPS: Set[TColumnProp] = set(get_args(TColumnProp))
 COLUMN_HINTS: Set[TColumnHint] = set(

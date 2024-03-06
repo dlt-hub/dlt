@@ -1,6 +1,8 @@
 from tests.pipeline.utils import assert_load_info
+from tests.utils import skipifgithubfork
 
 
+@skipifgithubfork
 def pdf_to_weaviate_snippet() -> None:
     # @@@DLT_SNIPPET_START example
     # @@@DLT_SNIPPET_START pdf_to_weaviate

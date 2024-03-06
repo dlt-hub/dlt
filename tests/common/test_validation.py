@@ -1,17 +1,21 @@
 from copy import deepcopy
 import pytest
 import yaml
-from typing import Dict, List, Literal, Mapping, Sequence, TypedDict, Optional, Union
+from typing import Callable, List, Literal, Mapping, Sequence, TypedDict, TypeVar, Optional, Union
 
-from dlt.common import json
 from dlt.common.exceptions import DictValidationException
 from dlt.common.schema.typing import TStoredSchema, TColumnSchema
 from dlt.common.schema.utils import simple_regex_validator
-from dlt.common.typing import DictStrStr, StrStr
+from dlt.common.typing import DictStrStr, StrStr, TDataItem
 from dlt.common.validation import validate_dict, validate_dict_ignoring_xkeys
 
 
 TLiteral = Literal["uno", "dos", "tres"]
+
+# some typevars for testing
+TDynHintType = TypeVar("TDynHintType")
+TFunHintTemplate = Callable[[TDataItem], TDynHintType]
+TTableHintTemplate = Union[TDynHintType, TFunHintTemplate[TDynHintType]]
 
 
 class TDict(TypedDict):
@@ -241,3 +245,31 @@ def test_nested_union(test_doc: TTestRecord) -> None:
         validate_dict(TTestRecord, test_doc, ".")
     assert e.value.field == "f_optional_union"
     assert e.value.value == "blah"
+
+
+def test_no_name() -> None:
+    class TTestRecordNoName(TypedDict):
+        name: TTableHintTemplate[str]
+
+    test_item = {"name": "test"}
+    try:
+        validate_dict(TTestRecordNoName, test_item, path=".")
+    except AttributeError:
+        pytest.fail("validate_dict raised AttributeError unexpectedly")
+
+    test_item_2 = {"name": True}
+    with pytest.raises(DictValidationException):
+        validate_dict(TTestRecordNoName, test_item_2, path=".")
+
+
+def test_callable() -> None:
+    class TTestRecordCallable(TypedDict):
+        prop: TTableHintTemplate  # type: ignore
+
+    def f(item: Union[TDataItem, TDynHintType]) -> TDynHintType:
+        return item
+
+    test_item = {"prop": f}
+    validate_dict(
+        TTestRecordCallable, test_item, path=".", validator_f=lambda p, pk, pv, t: callable(pv)
+    )

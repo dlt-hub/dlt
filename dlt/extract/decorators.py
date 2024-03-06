@@ -62,7 +62,7 @@ from dlt.extract.exceptions import (
 )
 from dlt.extract.incremental import IncrementalResourceWrapper
 
-from dlt.extract.typing import TTableHintTemplate
+from dlt.extract.items import TTableHintTemplate
 from dlt.extract.source import DltSource
 from dlt.extract.resource import DltResource, TUnboundDltResource
 
@@ -301,6 +301,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> DltResource: ...
 
 
@@ -318,6 +319,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> Callable[[Callable[TResourceFunParams, Any]], DltResource]: ...
 
 
@@ -335,6 +337,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
     standalone: Literal[True] = True,
 ) -> Callable[[Callable[TResourceFunParams, Any]], Callable[TResourceFunParams, DltResource]]: ...
 
@@ -353,6 +356,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> DltResource: ...
 
 
@@ -369,6 +373,7 @@ def resource(
     table_format: TTableHintTemplate[TTableFormat] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
     standalone: bool = False,
     data_from: TUnboundDltResource = None,
 ) -> Any:
@@ -427,6 +432,8 @@ def resource(
 
         data_from (TUnboundDltResource, optional): Allows to pipe data from one resource to another to build multi-step pipelines.
 
+        parallelized (bool, optional): If `True`, the resource generator will be extracted in parallel with other resources. Defaults to `False`.
+
     Raises:
         ResourceNameMissing: indicates that name of the resource cannot be inferred from the `data` being passed.
         InvalidResourceDataType: indicates that the `data` argument cannot be converted into `dlt resource`
@@ -447,7 +454,7 @@ def resource(
             schema_contract=schema_contract,
             table_format=table_format,
         )
-        return DltResource.from_data(
+        resource = DltResource.from_data(
             _data,
             _name,
             _section,
@@ -456,6 +463,9 @@ def resource(
             cast(DltResource, data_from),
             incremental=incremental,
         )
+        if parallelized:
+            return resource.parallelize()
+        return resource
 
     def decorator(
         f: Callable[TResourceFunParams, Any]
@@ -565,6 +575,7 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> Callable[[Callable[Concatenate[TDataItem, TResourceFunParams], Any]], DltResource]: ...
 
 
@@ -581,6 +592,7 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
     standalone: Literal[True] = True,
 ) -> Callable[
     [Callable[Concatenate[TDataItem, TResourceFunParams], Any]],
@@ -601,6 +613,7 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
 ) -> DltResource: ...
 
 
@@ -617,6 +630,7 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
     standalone: Literal[True] = True,
 ) -> Callable[TResourceFunParams, DltResource]: ...
 
@@ -633,6 +647,7 @@ def transformer(
     merge_key: TTableHintTemplate[TColumnNames] = None,
     selected: bool = True,
     spec: Type[BaseConfiguration] = None,
+    parallelized: bool = False,
     standalone: bool = False,
 ) -> Any:
     """A form of `dlt resource` that takes input from other resources via `data_from` argument in order to enrich or transform the data.
@@ -707,6 +722,7 @@ def transformer(
         spec=spec,
         standalone=standalone,
         data_from=data_from,
+        parallelized=parallelized,
     )
 
 

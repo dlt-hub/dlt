@@ -13,7 +13,6 @@ from dlt.common.arithmetics import InvalidOperation
 from dlt.common.data_types.typing import TDataType
 from dlt.common.time import (
     ensure_pendulum_datetime,
-    parse_iso_like_datetime,
     ensure_pendulum_date,
     ensure_pendulum_time,
 )
