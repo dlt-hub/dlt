@@ -82,7 +82,9 @@ class Schema:
     _imported_version_hash: str  # version hash of recently imported schema
     _schema_description: str  # optional schema description
     _schema_tables: TSchemaTables
-    _settings: TSchemaSettings  # schema settings to hold default hints, preferred types and other settings
+    _settings: (
+        TSchemaSettings  # schema settings to hold default hints, preferred types and other settings
+    )
 
     # list of preferred types: map regex on columns into types
     _compiled_preferred_types: List[Tuple[REPattern, TDataType]]
@@ -234,7 +236,9 @@ class Schema:
         updated_table_partial: TPartialTableSchema = None
         table = self._schema_tables.get(table_name)
         if not table:
-            table = utils.new_table(table_name, parent_table)
+            table = utils.new_table(
+                table_name, parent_table, write_disposition=utils.DEFAULT_WRITE_DISPOSITION
+            )
         table_columns = table["columns"]
 
         new_row: DictStrAny = {}

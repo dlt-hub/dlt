@@ -1235,7 +1235,6 @@ def test_apply_hints() -> None:
         "name": "empty_gen",
         "columns": {},
         "resource": "empty_gen",
-        "write_disposition": None,
     }
 
     empty = DltResource.from_data(empty_gen)
