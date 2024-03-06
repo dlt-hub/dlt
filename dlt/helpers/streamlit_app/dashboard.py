@@ -170,7 +170,7 @@ def display(pipeline_name: str) -> None:
     config.set_option("theme.secondaryBackgroundColor", "#191937")
 
     # Text
-    config.set_option("theme.textColor", "#FFFFFF")
+    config.set_option("theme.textColor", "#FEFEFA")
     pipeline = dlt.attach(pipeline_name)
     st.session_state["pipeline_name"] = pipeline_name
     with st.sidebar:
