@@ -3,7 +3,7 @@ import streamlit as st
 
 from dlt.common.destination.reference import WithStateSync
 from dlt.helpers.streamlit_app.utils import HERE
-from dlt.helpers.streamlit_app.widgets import logo, stat
+from dlt.helpers.streamlit_app.widgets import logo, stat, tag
 from dlt.helpers.streamlit_app.last_load_info import last_load_info
 from dlt.pipeline.state_sync import load_state_from_destination
 
@@ -18,6 +18,11 @@ def menu(pipeline: dlt.Pipeline) -> None:
 
 def pipeline_state_info(pipeline: dlt.Pipeline):
     st.divider()
+    tag(
+        pipeline.destination.destination_name,
+        label="Destination",
+        tag_type="error",
+    )
     st.subheader(f"Pipeline {pipeline.pipeline_name}", divider="rainbow")
     st.subheader("State info")
     remote_state = None

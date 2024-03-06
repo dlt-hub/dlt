@@ -2,19 +2,20 @@ from typing import Optional, Literal
 
 import streamlit as st
 
-TagType = Literal["info", "success", "warning", "error"]
+TagType = Literal["info", "success", "warning", "error", "mute"]
 
 
 def tag(
     tag_name: str,
     label: Optional[str] = None,
     border_radius: Optional[int] = 4,
-    tag_type: Optional[TagType] = "info",
+    tag_type: Optional[TagType] = "mute",
 ) -> None:
     tag_html = f"""
     {label+": " if label else ""}<span class="tag">{tag_name}</span>
     """
     kinds = {
+        "mute": {"text_color": "#495057", "bg_color": "#e9ecef"},
         "info": {"text_color": "#1864ab", "bg_color": "#4dabf7"},
         "success": {"text_color": "#2b8a3e", "bg_color": "#8ce99a"},
         "warning": {"text_color": "#d9480f", "bg_color": "#ffa94d"},
