@@ -217,6 +217,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
     def on_resolved(self) -> None:
         compile_path(self.cursor_path)
+        self.resolve_initial_value()
         if self.end_value is not None and self.initial_value is None:
             raise ConfigurationValueError(
                 "Incremental 'end_value' was specified without 'initial_value'. 'initial_value' is"
@@ -245,6 +246,13 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                     " 'end_value'"
                 )
             raise ConfigurationValueError(msg)
+
+    def resolve_initial_value(self) -> None:
+        current_pipeline = dlt.current.pipeline()
+        if not self.initial_value:
+            pipeline_config = dlt.config.get(current_pipeline.pipeline_name) or {}
+            if initial_value := pipeline_config.get("initial_value"):
+                self.initial_value = initial_value
 
     def parse_native_representation(self, native_value: Any) -> None:
         if isinstance(native_value, Incremental):
