@@ -102,7 +102,7 @@ the `private_key` for Google credentials. It will look
 
 :::info
 While using Google secrets provider please make sure your pipeline name
-contains no space or any other punctuation characters except "-" and "_".
+contains no whitespace or any other punctuation characters except "-" and "_".
 
 Per Google the secret name can contain
 
