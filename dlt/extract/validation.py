@@ -8,7 +8,7 @@ except ModuleNotFoundError:
 
 from dlt.common.typing import TDataItems
 from dlt.common.schema.typing import TAnySchemaColumns, TSchemaContract, TSchemaEvolutionMode
-from dlt.extract.typing import TTableHintTemplate, ValidateItem
+from dlt.extract.items import TTableHintTemplate, ValidateItem
 
 
 _TPydanticModel = TypeVar("_TPydanticModel", bound=PydanticBaseModel)

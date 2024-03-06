@@ -1,8 +1,10 @@
 import os
+import asyncio
 from time import sleep
 from typing import Optional, Any
+from unittest import mock
 from datetime import datetime  # noqa: I251
-from itertools import chain
+from itertools import chain, count
 
 import duckdb
 import pytest
@@ -27,7 +29,12 @@ from dlt.extract.incremental.exceptions import (
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.extract.utils import AssertItems, data_item_to_list
-from tests.utils import data_to_item_format, TDataItemFormat, ALL_DATA_ITEM_FORMATS
+from tests.utils import (
+    data_item_length,
+    data_to_item_format,
+    TDataItemFormat,
+    ALL_DATA_ITEM_FORMATS,
+)
 
 
 @pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)
@@ -1331,6 +1338,119 @@ def test_out_of_range_flags(item_type: TDataItemFormat) -> None:
     pipeline.extract(descending_single_item())
 
     pipeline.extract(ascending_single_item())
+
+
+@pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)
+def test_async_row_order_out_of_range(item_type: TDataItemFormat) -> None:
+    @dlt.resource
+    async def descending(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at", initial_value=10, row_order="desc"
+        )
+    ) -> Any:
+        for chunk in chunks(count(start=48, step=-1), 10):
+            await asyncio.sleep(0.01)
+            data = [{"updated_at": i} for i in chunk]
+            yield data_to_item_format(item_type, data)
+
+    data = list(descending)
+    assert data_item_length(data) == 48 - 10 + 1  # both bounds included
+
+
+@pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)
+def test_parallel_row_order_out_of_range(item_type: TDataItemFormat) -> None:
+    """Test automatic generator close for ordered rows"""
+
+    @dlt.resource(parallelized=True)
+    def descending(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at", initial_value=10, row_order="desc"
+        )
+    ) -> Any:
+        for chunk in chunks(count(start=48, step=-1), 10):
+            data = [{"updated_at": i} for i in chunk]
+            yield data_to_item_format(item_type, data)
+
+    data = list(descending)
+    assert data_item_length(data) == 48 - 10 + 1  # both bounds included
+
+
+def test_transformer_row_order_out_of_range() -> None:
+    out_of_range = []
+
+    @dlt.transformer
+    def descending(
+        package: int,
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at", initial_value=10, row_order="desc", primary_key="updated_at"
+        ),
+    ) -> Any:
+        for chunk in chunks(count(start=48, step=-1), 10):
+            data = [{"updated_at": i, "package": package} for i in chunk]
+            yield data_to_item_format("json", data)
+            if updated_at.can_close():
+                out_of_range.append(package)
+                return
+
+    data = list([3, 2, 1] | descending)
+    assert len(data) == 48 - 10 + 1
+    # we take full package 3 and then nothing in 1 and 2
+    assert len(out_of_range) == 3
+
+
+@pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)
+def test_row_order_out_of_range(item_type: TDataItemFormat) -> None:
+    """Test automatic generator close for ordered rows"""
+
+    @dlt.resource
+    def descending(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at", initial_value=10, row_order="desc"
+        )
+    ) -> Any:
+        for chunk in chunks(count(start=48, step=-1), 10):
+            data = [{"updated_at": i} for i in chunk]
+            yield data_to_item_format(item_type, data)
+
+    data = list(descending)
+    assert data_item_length(data) == 48 - 10 + 1  # both bounds included
+
+    @dlt.resource
+    def ascending(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at", initial_value=22, end_value=45, row_order="asc"
+        )
+    ) -> Any:
+        # use INFINITE sequence so this test wil not stop if closing logic is flawed
+        for chunk in chunks(count(start=22), 10):
+            data = [{"updated_at": i} for i in chunk]
+            yield data_to_item_format(item_type, data)
+
+    data = list(ascending)
+    assert data_item_length(data) == 45 - 22
+
+    # use wrong row order, this will prevent end value to close pipe
+
+    @dlt.resource
+    def ascending_desc(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at", initial_value=22, end_value=45, row_order="desc"
+        )
+    ) -> Any:
+        for chunk in chunks(range(22, 100), 10):
+            data = [{"updated_at": i} for i in chunk]
+            yield data_to_item_format(item_type, data)
+
+    from dlt.extract import pipe
+
+    with mock.patch.object(
+        pipe.Pipe,
+        "close",
+        side_effect=RuntimeError("Close pipe should not be called"),
+    ) as close_pipe:
+        data = list(ascending_desc)
+        assert close_pipe.assert_not_called
+        assert data_item_length(data) == 45 - 22
 
 
 @pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)

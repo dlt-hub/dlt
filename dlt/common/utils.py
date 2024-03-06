@@ -43,9 +43,18 @@ TValue = TypeVar("TValue")
 RowCounts = Dict[str, int]
 
 
-def chunks(seq: Sequence[T], n: int) -> Iterator[Sequence[T]]:
-    for i in range(0, len(seq), n):
-        yield seq[i : i + n]
+def chunks(iterable: Iterable[T], n: int) -> Iterator[Sequence[T]]:
+    it = iter(iterable)
+    while True:
+        chunk = list()
+        try:
+            for _ in range(n):
+                chunk.append(next(it))
+        except StopIteration:
+            if chunk:
+                yield chunk
+            break
+        yield chunk
 
 
 def uniq_id(len_: int = 16) -> str:

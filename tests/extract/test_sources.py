@@ -2,6 +2,7 @@ import itertools
 from typing import Iterator
 
 import pytest
+import asyncio
 
 import dlt
 from dlt.common.configuration.container import Container
@@ -789,6 +790,31 @@ def test_limit_infinite_counter() -> None:
     assert list(r) == list(range(10))
 
 
+@pytest.mark.parametrize("limit", (None, -1, 0, 10))
+def test_limit_edge_cases(limit: int) -> None:
+    r = dlt.resource(range(20), name="infinity").add_limit(limit)  # type: ignore
+
+    @dlt.resource()
+    async def r_async():
+        for i in range(20):
+            await asyncio.sleep(0.01)
+            yield i
+
+    sync_list = list(r)
+    async_list = list(r_async().add_limit(limit))
+
+    # check the expected results
+    assert sync_list == async_list
+    if limit == 10:
+        assert sync_list == list(range(10))
+    elif limit in [None, -1]:
+        assert sync_list == list(range(20))
+    elif limit == 0:
+        assert sync_list == []
+    else:
+        raise AssertionError(f"Unexpected limit: {limit}")
+
+
 def test_limit_source() -> None:
     def mul_c(item):
         yield from "A" * (item + 2)
@@ -1104,8 +1130,29 @@ def test_exhausted_property() -> None:
 
     s = mysource()
     assert s.exhausted is False
-    assert next(iter(s)) == 2  # transformer is returned befor resource
-    assert s.exhausted is True
+    assert next(iter(s)) == 2  # transformer is returned before resource
+    assert s.exhausted is False
+
+
+def test_exhausted_with_limit() -> None:
+    def open_generator_data():
+        yield from [1, 2, 3, 4]
+
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [dlt.resource(open_generator_data)],
+    )
+    assert s.exhausted is False
+    list(s)
+    assert s.exhausted is False
+
+    # use limit
+    s.add_limit(1)
+    list(s)
+    # must still be false, limit should not open generator if it is still generator function
+    assert s.exhausted is False
+    assert list(s) == [1]
 
 
 def test_clone_resource_with_name() -> None:

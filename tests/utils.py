@@ -205,6 +205,25 @@ def data_to_item_format(
         raise ValueError(f"Unknown item format: {item_format}")
 
 
+def data_item_length(data: TDataItem) -> int:
+    import pandas as pd
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    if isinstance(data, list):
+        # If data is a list, check if it's a list of supported data types
+        if all(isinstance(item, (list, pd.DataFrame, pa.Table, pa.RecordBatch)) for item in data):
+            return sum(data_item_length(item) for item in data)
+        # If it's a list but not a list of supported types, treat it as a single list object
+        else:
+            return len(data)
+    elif isinstance(data, pd.DataFrame):
+        return len(data.index)
+    elif isinstance(data, pa.Table) or isinstance(data, pa.RecordBatch):
+        return data.num_rows
+    else:
+        raise TypeError("Unsupported data type.")
+
+
 def init_test_logging(c: RunConfiguration = None) -> None:
     if not c:
         c = resolve_configuration(RunConfiguration())
