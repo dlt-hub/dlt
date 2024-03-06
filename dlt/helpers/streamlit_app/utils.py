@@ -1,4 +1,5 @@
 from pathlib import Path
+from typing import Optional
 
 import dlt
 import pandas as pd
@@ -14,9 +15,10 @@ else:
     cache_data = st.experimental_memo
 
 
+# FIXME: make something to DRY the code
 def query_data(pipeline: dlt.Pipeline, query: str, schema_name: str = None) -> pd.DataFrame:
     @cache_data(ttl=600)
-    def query_data(query: str, schema_name: str = None):
+    def query_data(query: str, schema_name: str = None) -> Optional[pd.DataFrame]:
         try:
             with pipeline.sql_client(schema_name) as client:
                 with client.execute_query(query) as curr:
@@ -29,7 +31,7 @@ def query_data(pipeline: dlt.Pipeline, query: str, schema_name: str = None) -> p
 
 def query_data_live(pipeline: dlt.Pipeline, query: str, schema_name: str = None) -> pd.DataFrame:
     @cache_data(ttl=5)
-    def query_data(query: str, schema_name: str = None):
+    def query_data(query: str, schema_name: str = None) -> Optional[pd.DataFrame]:
         try:
             with pipeline.sql_client(schema_name) as client:
                 with client.execute_query(query) as curr:

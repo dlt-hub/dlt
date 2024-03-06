@@ -1,7 +1,7 @@
 import streamlit as st
 
 
-def logo():
+def logo() -> None:
     logo_text = """
     <div class="logo">
         <span class="dlt">dlt</span>

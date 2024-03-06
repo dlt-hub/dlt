@@ -91,7 +91,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         st.exception(ex)
 
 
-def show():
+def show() -> None:
     import dlt
 
     if not st.session_state.get("pipeline_name"):

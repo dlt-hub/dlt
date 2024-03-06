@@ -16,7 +16,7 @@ def menu(pipeline: dlt.Pipeline) -> None:
     last_load_info(pipeline)
 
 
-def pipeline_state_info(pipeline: dlt.Pipeline):
+def pipeline_state_info(pipeline: dlt.Pipeline) -> None:
     st.divider()
     tag(
         pipeline.destination.destination_name,

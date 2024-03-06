@@ -2,7 +2,7 @@ import dlt
 import streamlit as st
 
 
-def pipeline_summary(pipeline: dlt.Pipeline):
+def pipeline_summary(pipeline: dlt.Pipeline) -> None:
     credentials = pipeline.sql_client().credentials
     schema_names = ", ".join(sorted(pipeline.schema_names))
     expander = st.expander("Pipeline info")

@@ -1,6 +1,6 @@
 import sys
 
-from typing import List, Iterator
+from typing import Any, Dict, List, Iterator
 
 import dlt
 import streamlit as st
@@ -97,7 +97,7 @@ def write_data_explorer_page(
         st.markdown(" | ".join(table_hints))
 
         # table schema contains various hints (like clustering or partition options) that we do not want to show in basic view
-        def essentials_f(c):
+        def essentials_f(c) -> Dict[str, Any]:
             return {k: v for k, v in c.items() if k in ["name", "data_type", "nullable"]}
 
         st.table(map(essentials_f, table["columns"].values()))

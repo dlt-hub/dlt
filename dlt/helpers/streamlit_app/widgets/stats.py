@@ -12,7 +12,7 @@ def stat(
     border_color: Optional[str] = "#272736",
     border_left_color: Optional[str] = "#007b05",
     border_left_width: Optional[int] = 0,
-):
+) -> None:
     stat_html = f"""
     <div class="stat">
         <p class="stat-label">{label}</p>
