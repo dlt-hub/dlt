@@ -3,12 +3,12 @@ import sys
 from typing import List, Iterator
 
 import streamlit as st
-from streamlit_extras.tags import tagger_component
 
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.utils import flatten_list_or_items
 from dlt.common.libs.pandas import pandas as pd
 from dlt.helpers.streamlit_app.menu import menu
+from dlt.helpers.streamlit_app.widgets import tag
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import SqlClientNotAvailable
 
@@ -64,8 +64,7 @@ def write_data_explorer_page(
 
     for table in sorted(selected_schema.data_tables(), key=lambda table: table["name"]):
         table_name = table["name"]
-
-        tagger_component("Table", [table_name])
+        tag(table_name, label="Table")
         if "description" in table:
             st.text(table["description"])
         table_hints: List[str] = []
