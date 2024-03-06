@@ -101,12 +101,21 @@ def pipeline_command(
 
     if operation == "show":
         from dlt.common.runtime import signals
-        from dlt.helpers import streamlit_helper
+        from dlt.helpers.streamlit_app import dashboard
 
         with signals.delayed_signals():
             venv = Venv.restore_current()
             for line in iter_stdout(
-                venv, "streamlit", "run", streamlit_helper.__file__, pipeline_name
+                venv,
+                "streamlit",
+                "run",
+                dashboard.__file__,
+                pipeline_name,
+                "--client.showSidebarNavigation",
+                "false",
+                # TODO: once done remove the option below
+                "--server.runOnSave",
+                "true",
             ):
                 fmt.echo(line)
 
