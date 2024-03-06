@@ -1,17 +1,12 @@
 import streamlit as st
 
-import humanize
 
-from dlt.common import pendulum
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.destination.reference import WithStateSync
 from dlt.common.libs.pandas import pandas as pd
 from dlt.helpers.streamlit_app.menu import menu, pipeline_state_info
 from dlt.helpers.streamlit_app.widgets import pipeline_summary
-
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
-from dlt.pipeline.state_sync import load_state_from_destination
 
 # use right caching function to disable deprecation message
 if hasattr(st, "cache_data"):
@@ -44,30 +39,10 @@ def write_load_status_page(pipeline: Pipeline) -> None:
     try:
         pipeline_summary(pipeline)
 
-        st.subheader("Last load info")
-        col1, col2, col3 = st.columns(3)
         loads_df = _query_data_live(
             f"SELECT load_id, inserted_at FROM {pipeline.default_schema.loads_table_name} WHERE"
             " status = 0 ORDER BY inserted_at DESC LIMIT 101 "
         )
-        loads_no = loads_df.shape[0]
-        if loads_df.shape[0] > 0:
-            rel_time = (
-                humanize.naturaldelta(
-                    pendulum.now() - pendulum.from_timestamp(loads_df.iloc[0, 1].timestamp())
-                )
-                + " ago"
-            )
-            last_load_id = loads_df.iloc[0, 0]
-            if loads_no > 100:
-                loads_no = "> " + str(loads_no)
-        else:
-            rel_time = "---"
-            last_load_id = "---"
-
-        col1.metric("Last load time", rel_time)
-        col2.metric("Last load id", last_load_id)
-        col3.metric("Total number of loads", loads_no)
 
         st.markdown("**Number of loaded rows:**")
         selected_load_id = st.selectbox("Select load id", loads_df)
@@ -126,8 +101,7 @@ def show():
     st.subheader("Load info", divider="rainbow")
     write_load_status_page(pipeline)
     with st.sidebar:
-        menu()
-        pipeline_state_info(pipeline)
+        menu(pipeline)
 
 
 if __name__ == "__main__":

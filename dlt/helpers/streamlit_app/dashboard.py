@@ -167,7 +167,7 @@ def display(pipeline_name: str) -> None:
     st.session_state["pipeline_name"] = pipeline_name
     st.subheader(f"{pipeline_name}", divider="rainbow")
     with st.sidebar:
-        menu()
+        menu(pipeline)
 
     write_data_explorer_page(pipeline)
 

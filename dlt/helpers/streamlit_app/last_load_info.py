@@ -1,0 +1,36 @@
+import dlt
+import humanize
+import streamlit as st
+
+from dlt.common import pendulum
+from dlt.helpers.streamlit_app.utils import query_data_live
+from dlt.helpers.streamlit_app.widgets.stats import stat
+
+
+def last_load_info(pipeline: dlt.Pipeline):
+    loads_df = query_data_live(
+        pipeline,
+        f"SELECT load_id, inserted_at FROM {pipeline.default_schema.loads_table_name} WHERE"
+        " status = 0 ORDER BY inserted_at DESC LIMIT 101 ",
+    )
+
+    loads_no = loads_df.shape[0]
+    if loads_df.shape[0] > 0:
+        rel_time = (
+            humanize.naturaldelta(
+                pendulum.now() - pendulum.from_timestamp(loads_df.iloc[0, 1].timestamp())
+            )
+            + " ago"
+        )
+        last_load_id = loads_df.iloc[0, 0]
+        if loads_no > 100:
+            loads_no = "> " + str(loads_no)
+    else:
+        rel_time = "---"
+        last_load_id = "---"
+
+    st.divider()
+    st.subheader("Last load info", divider="rainbow")
+    stat("Last load time", rel_time, border_left_width=4)
+    stat("Last load id", last_load_id)
+    stat("Total number of loads", loads_no)
