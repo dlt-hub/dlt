@@ -55,7 +55,7 @@ for package in info.load_packages:
     for table_name, table in package.schema_update.items():
         # Iterate over each column in the current table
         for column_name, column in table["columns"].items():
-            # Send a message to the Slack channel with the table 
+            # Send a message to the Slack channel with the table
 						# and column update information
             send_slack_message(
                 hook,
@@ -66,7 +66,7 @@ for package in info.load_packages:
                 )
             )
 ```
-Refer to this [example](../../docs/examples/chess_production/) for a practical application of the method in a production environment.
+Refer to this [example](../examples/chess_production/) for a practical application of the method in a production environment.
 
-Similarly, Slack notifications can be extended to include information on pipeline execution times, loading durations, schema modifications, and more. For comprehensive details on configuring and sending messages to Slack, please read [here](./running#using-slack-to-send-messages). 
+Similarly, Slack notifications can be extended to include information on pipeline execution times, loading durations, schema modifications, and more. For comprehensive details on configuring and sending messages to Slack, please read [here](./running#using-slack-to-send-messages).
 
