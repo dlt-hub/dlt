@@ -1,5 +1,6 @@
 import os
 import asyncio
+import random
 from time import sleep
 from typing import Optional, Any
 from unittest import mock
@@ -125,11 +126,11 @@ def test_unique_keys_are_deduplicated(item_type: TDataItemFormat) -> None:
         {"created_at": 3, "id": "e"},
     ]
     data2 = [
+        {"created_at": 4, "id": "g"},
         {"created_at": 3, "id": "c"},
         {"created_at": 3, "id": "d"},
         {"created_at": 3, "id": "e"},
         {"created_at": 3, "id": "f"},
-        {"created_at": 4, "id": "g"},
     ]
 
     source_items1 = data_to_item_format(item_type, data1)
@@ -1307,7 +1308,6 @@ def test_out_of_range_flags(item_type: TDataItemFormat) -> None:
         for i in reversed(range(14)):
             data = [{"updated_at": i}]
             yield from data_to_item_format(item_type, data)
-            yield {"updated_at": i}
             if i >= 10:
                 assert updated_at.start_out_of_range is False
             else:
@@ -1375,7 +1375,8 @@ def test_parallel_row_order_out_of_range(item_type: TDataItemFormat) -> None:
     assert data_item_length(data) == 48 - 10 + 1  # both bounds included
 
 
-def test_transformer_row_order_out_of_range() -> None:
+@pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)
+def test_transformer_row_order_out_of_range(item_type: TDataItemFormat) -> None:
     out_of_range = []
 
     @dlt.transformer
@@ -1387,13 +1388,14 @@ def test_transformer_row_order_out_of_range() -> None:
     ) -> Any:
         for chunk in chunks(count(start=48, step=-1), 10):
             data = [{"updated_at": i, "package": package} for i in chunk]
+            # print(data)
             yield data_to_item_format("json", data)
             if updated_at.can_close():
                 out_of_range.append(package)
                 return
 
     data = list([3, 2, 1] | descending)
-    assert len(data) == 48 - 10 + 1
+    assert data_item_length(data) == 48 - 10 + 1
     # we take full package 3 and then nothing in 1 and 2
     assert len(out_of_range) == 3
 
@@ -1451,6 +1453,38 @@ def test_row_order_out_of_range(item_type: TDataItemFormat) -> None:
         data = list(ascending_desc)
         assert close_pipe.assert_not_called
         assert data_item_length(data) == 45 - 22
+
+
+@pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)
+def test_unique_values_unordered_rows(item_type: TDataItemFormat) -> None:
+    @dlt.resource
+    def random_ascending_chunks(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=10,
+        )
+    ) -> Any:
+        range_ = list(range(updated_at.start_value, updated_at.start_value + 121))
+        random.shuffle(range_)
+        for chunk in chunks(range_, 30):
+            # make sure that overlapping element is the last one
+            data = [{"updated_at": i} for i in chunk]
+            # random.shuffle(data)
+            print(data)
+            yield data_to_item_format(item_type, data)
+
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
+    pipeline = dlt.pipeline("test_unique_values_unordered_rows", destination="dummy")
+    # print(list(random_ascending_chunks()))
+    pipeline.run(random_ascending_chunks())
+    assert pipeline.last_trace.last_normalize_info.row_counts["random_ascending_chunks"] == 121
+
+    # 120 rows (one overlap - incremental reacquires and deduplicates)
+    # print(list(random_ascending_chunks()))
+    pipeline.run(random_ascending_chunks())
+    assert pipeline.last_trace.last_normalize_info.row_counts["random_ascending_chunks"] == 120
+
+    # test next batch adding to unique
 
 
 @pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)
