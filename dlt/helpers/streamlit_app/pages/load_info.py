@@ -1,5 +1,5 @@
+import dlt
 import streamlit as st
-
 
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.libs.pandas import pandas as pd
@@ -92,8 +92,6 @@ def write_load_status_page(pipeline: Pipeline) -> None:
 
 
 def show() -> None:
-    import dlt
-
     if not st.session_state.get("pipeline_name"):
         st.switch_page("dashboard.py")
 
