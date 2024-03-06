@@ -114,7 +114,7 @@ def write_data_explorer_page(
                     st.text(f"Top {rows_count} row(s)")
                 st.dataframe(df)
 
-    st.header("Run your query")
+    st.subheader("Run your query")
     sql_query = st.text_area("Enter your SQL query", value=example_query)
     if st.button("Run Query"):
         if sql_query:
