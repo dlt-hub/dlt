@@ -684,7 +684,7 @@ def new_table(
         assert schema_contract is None
     else:
         # set write disposition only for root tables
-        table["write_disposition"] = write_disposition or DEFAULT_WRITE_DISPOSITION
+        table["write_disposition"] = write_disposition
         table["resource"] = resource or table_name
         if schema_contract is not None:
             table["schema_contract"] = schema_contract
