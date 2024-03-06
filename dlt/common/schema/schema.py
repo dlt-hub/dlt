@@ -236,9 +236,7 @@ class Schema:
         updated_table_partial: TPartialTableSchema = None
         table = self._schema_tables.get(table_name)
         if not table:
-            table = utils.new_table(
-                table_name, parent_table, write_disposition=utils.DEFAULT_WRITE_DISPOSITION
-            )
+            table = utils.new_table(table_name, parent_table)
         table_columns = table["columns"]
 
         new_row: DictStrAny = {}
