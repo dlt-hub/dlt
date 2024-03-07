@@ -433,9 +433,11 @@ class PackageStorage:
                 recursively=True,
             )
 
-    def delete_package(self, load_id: str) -> None:
+    def delete_package(self, load_id: str, not_exists_ok: bool = False) -> None:
         package_path = self.get_package_path(load_id)
         if not self.storage.has_folder(package_path):
+            if not_exists_ok:
+                return
             raise LoadPackageNotFound(load_id)
         self.storage.delete_folder(package_path, recursively=True)
 

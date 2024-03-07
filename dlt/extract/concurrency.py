@@ -10,8 +10,7 @@ from typing import Awaitable, Dict, Optional
 from dlt.common.exceptions import PipelineException
 from dlt.common.configuration.container import Container
 from dlt.common.runtime.signals import sleep
-from dlt.extract.typing import DataItemWithMeta, TItemFuture
-from dlt.extract.items import ResolvablePipeItem, FuturePipeItem
+from dlt.extract.items import DataItemWithMeta, TItemFuture, ResolvablePipeItem, FuturePipeItem
 
 from dlt.extract.exceptions import (
     DltSourceException,

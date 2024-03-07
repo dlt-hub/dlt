@@ -21,7 +21,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.extract.hints import HintsMeta
 from dlt.extract.resource import DltResource
-from dlt.extract.typing import TableNameMeta
+from dlt.extract.items import TableNameMeta
 from dlt.extract.storage import ExtractStorage, ExtractorItemStorage
 
 try:

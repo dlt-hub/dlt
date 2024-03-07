@@ -40,7 +40,7 @@ from dlt.extract.exceptions import (
     CurrentSourceSchemaNotAvailable,
     InvalidParallelResourceDataType,
 )
-from dlt.extract.typing import TableNameMeta
+from dlt.extract.items import TableNameMeta
 
 from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V9
 
@@ -914,7 +914,7 @@ def test_class_resource() -> None:
 
 
 def test_parallelized_resource_decorator() -> None:
-    """Test paralellized resources are wrapped correctly.
+    """Test parallelized resources are wrapped correctly.
     Note: tests for parallel execution are in test_resource_evaluation
     """
 
@@ -928,14 +928,17 @@ def test_parallelized_resource_decorator() -> None:
     gen = resource._pipe.gen()  # type: ignore
     result = next(gen)  # type: ignore[arg-type]
     assert result() == 1
+    assert list(resource) == [1, 2, 3]
 
     # Same but wrapping generator directly
     resource = dlt.resource(some_gen(), parallelized=True)
 
     result = next(resource._pipe.gen)  # type: ignore
     assert result() == 1
+    # get remaining items
+    assert list(resource) == [2, 3]
 
-    # Wrap a transformer
+    # Wrap a yielding transformer
     def some_tx(item):
         yield item + 1
 
@@ -946,6 +949,18 @@ def test_parallelized_resource_decorator() -> None:
     # Calling transformer returns the parallel wrapper generator
     inner = pipe_gen(1)  # type: ignore
     assert next(inner)() == 2  # type: ignore
+    assert list(transformer) == [2, 3, 4]  # add 1 to resource
+
+    # Wrap a transformer function
+    def some_tx_func(item):
+        return list(range(item))
+
+    transformer = dlt.transformer(some_tx_func, parallelized=True, data_from=resource)
+    pipe_gen = transformer._pipe.gen
+    inner = pipe_gen(3)  # type: ignore
+    # this is a regular function returning list
+    assert inner() == [0, 1, 2]  # type: ignore[operator]
+    assert list(transformer) == [0, 0, 1, 0, 1, 2]
 
     # Invalid parallel resources
 

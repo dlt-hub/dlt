@@ -9,7 +9,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.destinations.utils import ensure_resource
 from dlt.extract import DltResource
-from dlt.extract.typing import TTableHintTemplate
+from dlt.extract.items import TTableHintTemplate
 
 
 PARTITION_HINT: Literal["x-bigquery-partition"] = "x-bigquery-partition"

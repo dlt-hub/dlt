@@ -29,7 +29,7 @@ We'll learn how to:
 ### Loading code
 
 <!--@@@DLT_SNIPPET_START ./code/pokemon-snippets.py::example-->
-```python
+```py
 import dlt
 from dlt.sources.helpers import requests
 

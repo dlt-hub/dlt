@@ -29,15 +29,13 @@ def source(pokemon_api_url: str):
 
     # a special case where just one item is retrieved in transformer
     # a whole transformer may be marked for parallel execution
-    @dlt.transformer
-    @dlt.defer
+    @dlt.transformer(parallelized=True)
     def species(pokemon_details):
         """Yields species details for a pokemon"""
         species_data = requests.get(pokemon_details["species"]["url"]).json()
         # link back to pokemon so we have a relation in loaded data
         species_data["pokemon_id"] = pokemon_details["id"]
-        # just return the results, if you yield,
-        # generator will be evaluated in main thread
+        # You can return the result instead of yield since the transformer only generates one result
         return species_data
 
     # create two simple pipelines with | operator

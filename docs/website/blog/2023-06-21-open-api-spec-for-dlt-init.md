@@ -13,17 +13,17 @@ Today we are releasing a proof of concept of the [`dlt init`](https://dlthub.com
 
 If you build APIs, for example with [FastAPI](https://fastapi.tiangolo.com/), you can, thanks to the [OpenAPI spec,](https://spec.openapis.org/oas/v3.1.0) automatically generate a [python client](https://pypi.org/project/openapi-python-client/0.6.0a4/) and give it to your users. Our demo takes this a step further and enables you to generate advanced `dlt` pipelines that, in essence, convert your API into a live dataset.
 
-You can see how Marcin generates such a pipeline from the OpenAPI spec using the [Pokemon API](https://pokeapi.co/) in the Loom below.  
-[![marcin-demo](https://camo.githubusercontent.com/1aca1132999dde59bc5b274aeb4d01c79eab525941362491a534ddd8d1015dce/68747470733a2f2f63646e2e6c6f6f6d2e636f6d2f73657373696f6e732f7468756d626e61696c732f32383036623837336261316334653065613338326562336234666261663830382d776974682d706c61792e676966)](https://www.loom.com/share/2806b873ba1c4e0ea382eb3b4fbaf808?sid=501add8b-90a0-4734-9620-c6184d840995)  
-  
+You can see how Marcin generates such a pipeline from the OpenAPI spec using the [Pokemon API](https://pokeapi.co/) in the Loom below.
+[![marcin-demo](https://storage.googleapis.com/dlt-blog-images/openapi_loom_old.png)](https://www.loom.com/share/2806b873ba1c4e0ea382eb3b4fbaf808?sid=501add8b-90a0-4734-9620-c6184d840995)
+
 Part of our vision is that each API will come with a `dlt` pipeline - similar to how these days often it comes with a python client. We believe that very often API users do not really want to deal with endpoints, http requests, and JSON responses. They need live, evolving datasets that they can place anywhere they want so that it's accessible to any workflow.
 
 We believe that API builders will bundle `dlt` pipelines with their APIs only if such a process is hassle free. One answer to that is code generation and the reuse of information from the OpenAPI spec.
 
-This release is a part of a bigger vision for `dlt` of a world centered around accessible data for modern data teams. In these new times code is becoming more disposable, but the data stays valuable. We eventually want to create an ecosystem where hundreds of thousands of pipelines will be created, shared, and deployed. Where datasets, reports, and analytics can be written and shared publicly and privately. [Code generation is automation on steroids](https://dlthub.com/product/#code-generation-is-automation-on-steroids) and we are going to be releasing many more features based on this principle.  
-  
-## Generating a pipeline for PokeAPI using OpenAPI spec  
-  
+This release is a part of a bigger vision for `dlt` of a world centered around accessible data for modern data teams. In these new times code is becoming more disposable, but the data stays valuable. We eventually want to create an ecosystem where hundreds of thousands of pipelines will be created, shared, and deployed. Where datasets, reports, and analytics can be written and shared publicly and privately. [Code generation is automation on steroids](https://dlthub.com/product/#code-generation-is-automation-on-steroids) and we are going to be releasing many more features based on this principle.
+
+## Generating a pipeline for PokeAPI using OpenAPI spec
+
 In the embedded loom you saw Marcin pull data from the `dlt` pipeline created from the OpenAPI spec. The proof of concept already uses a few tricks and heuristics to generate useful code. Contrary to what you may think, PokeAPI is a complex one with a lot of linked data types and endpoints!
 
 - It created a resource for all endpoints that return lists of objects.
