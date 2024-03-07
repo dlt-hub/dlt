@@ -41,10 +41,10 @@ Usually users want to create a POC first, so we do our best to help. In this cas
 
 Since the Chargebee API uses the OpenAPI standard, we used the OpenAPI Proof of Concept pipeline generator that we built last year.
 
-<aside>
-💡 To join our onboarding program, fill this [form](https://forms.gle/oMgiTqhnrFrYrfyD7) to request a call.
 
-</aside>
+💡 *To join our onboarding program, fill this [form](https://forms.gle/oMgiTqhnrFrYrfyD7) to request a call.*
+
+
 
 # Generating a pipeline with dlt - real fast like.
 
