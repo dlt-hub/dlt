@@ -91,7 +91,10 @@ class destination(Destination[SinkClientConfiguration, "SinkClient"]):
         # build destination spec
         destination_sections = (known_sections.DESTINATION, destination_name)
         conf_callable = with_config(
-            destination_callable, sections=destination_sections, include_defaults=True, base=spec
+            destination_callable,
+            sections=destination_sections,
+            include_defaults=True,
+            base=spec,
         )
 
         # save destination in registry

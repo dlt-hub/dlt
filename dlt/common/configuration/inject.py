@@ -1,4 +1,6 @@
 import inspect
+import threading
+
 from functools import wraps
 from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload
 from inspect import Signature, Parameter
@@ -72,7 +74,7 @@ def with_config(
         prefer_existing_sections: (bool, optional): When joining existing section context, the existing context will be preferred to the one in `sections`. Default: False
         auto_pipeline_section (bool, optional): If True, a top level pipeline section will be added if `pipeline_name` argument is present . Defaults to False.
         include_defaults (bool, optional): If True then arguments with default values will be included in synthesized spec. If False only the required arguments marked with `dlt.secrets.value` and `dlt.config.value` are included
-
+        base (Type[BaseConfiguration], optional): A base class for synthesized spec. Defaults to BaseConfiguration.
     Returns:
         Callable[[TFun], TFun]: A decorated function
     """
@@ -110,51 +112,53 @@ def with_config(
                 pipeline_name_arg = p
                 pipeline_name_arg_default = None if p.default == Parameter.empty else p.default
 
-        @wraps(f)
-        def _wrap(*args: Any, **kwargs: Any) -> Any:
+        def resolve_config(bound_args: inspect.BoundArguments) -> BaseConfiguration:
+            """Resolve arguments using the provided spec"""
             # bind parameters to signature
-            bound_args = sig.bind(*args, **kwargs)
             # for calls containing resolved spec in the kwargs, we do not need to resolve again
             config: BaseConfiguration = None
-            if _LAST_DLT_CONFIG in kwargs:
-                config = last_config(**kwargs)
-            else:
-                # if section derivation function was provided then call it
-                if section_f:
-                    curr_sections: Tuple[str, ...] = (section_f(bound_args.arguments),)
-                    # sections may be a string
-                elif isinstance(sections, str):
-                    curr_sections = (sections,)
-                else:
-                    curr_sections = sections
 
-                # if one of arguments is spec the use it as initial value
-                if initial_config:
-                    config = initial_config
-                elif spec_arg:
-                    config = bound_args.arguments.get(spec_arg.name, None)
-                # resolve SPEC, also provide section_context with pipeline_name
-                if pipeline_name_arg:
-                    curr_pipeline_name = bound_args.arguments.get(
-                        pipeline_name_arg.name, pipeline_name_arg_default
-                    )
-                else:
-                    curr_pipeline_name = None
-                section_context = ConfigSectionContext(
-                    pipeline_name=curr_pipeline_name,
-                    sections=curr_sections,
-                    merge_style=sections_merge_style,
+            # if section derivation function was provided then call it
+            if section_f:
+                curr_sections: Tuple[str, ...] = (section_f(bound_args.arguments),)
+                # sections may be a string
+            elif isinstance(sections, str):
+                curr_sections = (sections,)
+            else:
+                curr_sections = sections
+
+            # if one of arguments is spec the use it as initial value
+            if initial_config:
+                config = initial_config
+            elif spec_arg:
+                config = bound_args.arguments.get(spec_arg.name, None)
+            # resolve SPEC, also provide section_context with pipeline_name
+            if pipeline_name_arg:
+                curr_pipeline_name = bound_args.arguments.get(
+                    pipeline_name_arg.name, pipeline_name_arg_default
                 )
-                # this may be called from many threads so section_context is thread affine
-                with inject_section(section_context):
-                    # print(f"RESOLVE CONF in inject: {f.__name__}: {section_context.sections} vs {sections}")
-                    config = resolve_configuration(
-                        config or SPEC(),
-                        explicit_value=bound_args.arguments,
-                        accept_partial=accept_partial,
-                    )
-            resolved_params = dict(config)
+            else:
+                curr_pipeline_name = None
+            section_context = ConfigSectionContext(
+                pipeline_name=curr_pipeline_name,
+                sections=curr_sections,
+                merge_style=sections_merge_style,
+            )
+
+            # this may be called from many threads so section_context is thread affine
+            with inject_section(section_context):
+                # print(f"RESOLVE CONF in inject: {f.__name__}: {section_context.sections} vs {sections}")
+                return resolve_configuration(
+                    config or SPEC(),
+                    explicit_value=bound_args.arguments,
+                    accept_partial=accept_partial,
+                )
+
+        def update_bound_args(
+            bound_args: inspect.BoundArguments, config: BaseConfiguration, *args, **kwargs
+        ) -> None:
             # overwrite or add resolved params
+            resolved_params = dict(config)
             for p in sig.parameters.values():
                 if p.name in resolved_params:
                     bound_args.arguments[p.name] = resolved_params.pop(p.name)
@@ -168,11 +172,47 @@ def with_config(
                 bound_args.arguments[kwargs_arg.name].update(resolved_params)
                 bound_args.arguments[kwargs_arg.name][_LAST_DLT_CONFIG] = config
                 bound_args.arguments[kwargs_arg.name][_ORIGINAL_ARGS] = (args, kwargs)
+
+        def create_resolved_partial() -> Any:
+            # creates a pre-resolved partial of the decorated function
+            empty_bound_args = sig.bind_partial()
+            config = resolve_config(empty_bound_args)
+
+            # TODO: do some checks, for example fail if there is a spec arg
+
+            def creator(*args: Any, **kwargs: Any) -> Any:
+                nonlocal config
+
+                # we can still overwrite the config
+                if _LAST_DLT_CONFIG in kwargs:
+                    config = last_config(**kwargs)
+
+                # call the function with the pre-resolved config
+                bound_args = sig.bind(*args, **kwargs)
+                update_bound_args(bound_args, config, args, kwargs)
+                return f(*bound_args.args, **bound_args.kwargs)
+
+            return creator
+
+        @wraps(f)
+        def _wrap(*args: Any, **kwargs: Any) -> Any:
+            # Resolve config
+            config: BaseConfiguration = None
+            bound_args = sig.bind(*args, **kwargs)
+            if _LAST_DLT_CONFIG in kwargs:
+                config = last_config(**kwargs)
+            else:
+                config = resolve_config(bound_args)
+
             # call the function with resolved config
+            update_bound_args(bound_args, config, args, kwargs)
             return f(*bound_args.args, **bound_args.kwargs)
 
         # register the spec for a wrapped function
         _FUNC_SPECS[id(_wrap)] = SPEC
+
+        # add a method to create a pre-resolved partial
+        _wrap.create_resolved_partial = create_resolved_partial
 
         return _wrap  # type: ignore
 

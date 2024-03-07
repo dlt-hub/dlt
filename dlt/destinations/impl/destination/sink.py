@@ -71,9 +71,7 @@ class DestinationLoadJob(LoadJob, ABC):
         if not items:
             return
         # call callable
-        print("Start callable  " + threading.currentThread().getName())
         self._callable(items, self._table)
-        print("end callable  ")
 
     def state(self) -> TLoadJobState:
         return self._state
@@ -129,7 +127,9 @@ class SinkClient(JobClientBase):
     def __init__(self, schema: Schema, config: SinkClientConfiguration) -> None:
         super().__init__(schema, config)
         self.config: SinkClientConfiguration = config
-        self.destination_callable = self.config.destination_callable
+
+        # we create pre_resolved callable here
+        self.destination_callable = self.config.destination_callable.create_resolved_partial()
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         pass
