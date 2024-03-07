@@ -465,7 +465,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
 
         # write back state
         self._cached_state["last_value"] = transformer.last_value
-        if self.primary_key != ():
+        if not transformer.deduplication_disabled:
             # compute hashes for new last rows
             unique_hashes = set(
                 transformer.compute_unique_value(row, self.primary_key)
@@ -473,7 +473,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             )
             # add directly computed hashes
             unique_hashes.update(transformer.unique_hashes)
-            print(unique_hashes)
             self._cached_state["unique_hashes"] = list(unique_hashes)
 
         return rows

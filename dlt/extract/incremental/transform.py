@@ -70,6 +70,11 @@ class IncrementalTransform:
         primary_key: Optional[TTableHintTemplate[TColumnNames]],
     ) -> str:
         try:
+            assert not self.deduplication_disabled, (
+                f"{self.resource_name}: Attempt to compute unique values when deduplication is"
+                " disabled"
+            )
+
             if primary_key:
                 return digest128(json.dumps(resolve_column_value(primary_key, row), sort_keys=True))
             elif primary_key is None:
@@ -83,6 +88,11 @@ class IncrementalTransform:
         self,
         row: TDataItem,
     ) -> Tuple[bool, bool, bool]: ...
+
+    @property
+    def deduplication_disabled(self) -> bool:
+        """Skip deduplication when length of the key is 0"""
+        return isinstance(self.primary_key, (list, tuple)) and len(self.primary_key) == 0
 
 
 class JsonIncremental(IncrementalTransform):
@@ -154,13 +164,13 @@ class JsonIncremental(IncrementalTransform):
             if new_value == self.start_value:
                 # if equal there's still a chance that item gets in
                 if processed_row_value == self.start_value:
-                    unique_value = self.compute_unique_value(row, self.primary_key)
-                    # if unique value exists then use it to deduplicate
-                    if unique_value:
+                    if not self.deduplication_disabled:
+                        unique_value = self.compute_unique_value(row, self.primary_key)
+                        # if unique value exists then use it to deduplicate
                         if unique_value in self.start_unique_hashes:
                             return None, True, False
                 else:
-                    # smaller than start value gets out
+                    # smaller than start value: gets out
                     return None, True, False
 
             # we store row id for all records with the current "last_value" in state and use it to deduplicate
@@ -169,8 +179,7 @@ class JsonIncremental(IncrementalTransform):
                 self.last_rows.append(row)
         else:
             self.last_value = new_value
-            # store rows with "max" values to compute hashes
-            # only when needed
+            # store rows with "max" values to compute hashes after processing full batch
             self.last_rows = [row]
             self.unique_hashes = set()
 
@@ -198,9 +207,7 @@ class ArrowIncremental(IncrementalTransform):
             for index, row in zip(indices, rows)
         ]
 
-    def _add_unique_index(
-        self, tbl: "pa.Table", unique_columns: Optional[List[str]], aggregate: str, cursor_path: str
-    ) -> "pa.Table":
+    def _add_unique_index(self, tbl: "pa.Table") -> "pa.Table":
         """Creates unique index if necessary."""
         # create unique index if necessary
         if self._dlt_index not in tbl.schema.names:
@@ -231,8 +238,6 @@ class ArrowIncremental(IncrementalTransform):
                 self._dlt_index = primary_key
         elif primary_key is None:
             unique_columns = tbl.schema.names
-        else:  # deduplicating is disabled
-            unique_columns = None
 
         start_out_of_range = end_out_of_range = False
         if not tbl:  # row is None or empty arrow table
@@ -240,13 +245,11 @@ class ArrowIncremental(IncrementalTransform):
 
         if self.last_value_func is max:
             compute = pa.compute.max
-            aggregate = "max"
             end_compare = pa.compute.less
             last_value_compare = pa.compute.greater_equal
             new_value_compare = pa.compute.greater
         elif self.last_value_func is min:
             compute = pa.compute.min
-            aggregate = "min"
             end_compare = pa.compute.greater
             last_value_compare = pa.compute.less_equal
             new_value_compare = pa.compute.less
@@ -287,21 +290,24 @@ class ArrowIncremental(IncrementalTransform):
             keep_filter = last_value_compare(tbl[cursor_path], start_value_scalar)
             start_out_of_range = bool(pa.compute.any(pa.compute.invert(keep_filter)).as_py())
             tbl = tbl.filter(keep_filter)
-            # Deduplicate after filtering old values
-            tbl = self._add_unique_index(tbl, unique_columns, aggregate, cursor_path)
-            # Remove already processed rows where the cursor is equal to the start value
-            eq_rows = tbl.filter(pa.compute.equal(tbl[cursor_path], start_value_scalar))
-            # compute index, unique hash mapping
-            unique_values_index = self.compute_unique_values_with_index(eq_rows, unique_columns)
-            unique_values_index = [
-                (i, uq_val)
-                for i, uq_val in unique_values_index
-                if uq_val in self.start_unique_hashes
-            ]
-            # find rows with unique ids that were stored from previous run
-            remove_idx = pa.array(i for i, _ in unique_values_index)
-            # Filter the table
-            tbl = tbl.filter(pa.compute.invert(pa.compute.is_in(tbl[self._dlt_index], remove_idx)))
+            if not self.deduplication_disabled:
+                # Deduplicate after filtering old values
+                tbl = self._add_unique_index(tbl)
+                # Remove already processed rows where the cursor is equal to the start value
+                eq_rows = tbl.filter(pa.compute.equal(tbl[cursor_path], start_value_scalar))
+                # compute index, unique hash mapping
+                unique_values_index = self.compute_unique_values_with_index(eq_rows, unique_columns)
+                unique_values_index = [
+                    (i, uq_val)
+                    for i, uq_val in unique_values_index
+                    if uq_val in self.start_unique_hashes
+                ]
+                # find rows with unique ids that were stored from previous run
+                remove_idx = pa.array(i for i, _ in unique_values_index)
+                # Filter the table
+                tbl = tbl.filter(
+                    pa.compute.invert(pa.compute.is_in(tbl[self._dlt_index], remove_idx))
+                )
 
         if (
             self.last_value is None
@@ -310,14 +316,15 @@ class ArrowIncremental(IncrementalTransform):
             ).as_py()
         ):  # Last value has changed
             self.last_value = row_value
-            # Compute unique hashes for all rows equal to row value
-            self.unique_hashes = set(
-                self.compute_unique_values(
-                    tbl.filter(pa.compute.equal(tbl[cursor_path], row_value_scalar)),
-                    unique_columns,
+            if not self.deduplication_disabled:
+                # Compute unique hashes for all rows equal to row value
+                self.unique_hashes = set(
+                    self.compute_unique_values(
+                        tbl.filter(pa.compute.equal(tbl[cursor_path], row_value_scalar)),
+                        unique_columns,
+                    )
                 )
-            )
-        elif self.last_value == row_value:
+        elif self.last_value == row_value and not self.deduplication_disabled:
             # last value is unchanged, add the hashes
             self.unique_hashes.update(
                 set(
