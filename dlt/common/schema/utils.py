@@ -542,7 +542,7 @@ def get_write_disposition(tables: TSchemaTables, table_name: str) -> TWriteDispo
     """Returns table hint of a table if present. If not, looks up into parent table"""
     return cast(
         TWriteDisposition,
-        get_inherited_table_hint(tables, table_name, "write_disposition", allow_none=False),
+        get_inherited_table_hint(tables, table_name, "write_disposition", allow_none=True),
     )
 
 

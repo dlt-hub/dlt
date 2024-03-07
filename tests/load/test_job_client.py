@@ -362,7 +362,7 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
 def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     schema = client.schema
     table_name = "event_test_table" + uniq_id()
-    schema.update_table(new_table(table_name, columns=TABLE_UPDATE))
+    schema.update_table(new_table(table_name, columns=TABLE_UPDATE, write_disposition="append"))
     schema.bump_version()
     schema_update = client.update_stored_schema()
     # we have all columns in the update
