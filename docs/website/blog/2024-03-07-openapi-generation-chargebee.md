@@ -41,6 +41,11 @@ Usually users want to create a POC first, so we do our best to help. In this cas
 
 Since the Chargebee API uses the OpenAPI standard, we used the OpenAPI Proof of Concept pipeline generator that we built last year.
 
+<aside>
+💡 To join our onboarding program, fill this [form](https://forms.gle/oMgiTqhnrFrYrfyD7) to request a call.
+
+</aside>
+
 # Generating a pipeline with dlt - real fast like.
 
 ### Starting resources
@@ -61,7 +66,7 @@ So the first thing I found extremely attractive — the code generator actually 
 
 I was able to understand what was happening in each part of the code. What unfortunately differs from one API to another — is the authentication method and pagination. This needed some tuning. Also, there were other minor inconveniences which I needed to handle.
 
-There was no great challenges. The most ~~difficult~~ tedious probably was to manually change pagination in different sources and rename each table.
+There were no great challenges. The most ~~difficult~~ tedious probably was to manually change pagination in different sources and rename each table.
 
 1) Authentication
 The provided Authentication was a bit off. The generated code assumed the using of a username and password but what was actually required was — an empty username + api_key as a password. So super easy fix was changing
@@ -124,11 +129,9 @@ The only problem I was left with — namings. The generated table names were lik
 
 Result: https://github.com/dlt-hub/chargebee-source
 
-I showed this source to our user, and did a walk-through with him. Some additional context started to appear. Like which endpoints needed to be used with `replace` write disposition, which would require specifying the `merge` keys. So at the end this source would still require some testing to be performed and some fine tuning from the user.
-
-I think silver lining is here — how to start. I don’t know how much time I would’ve spend on this source if I would start from scratch. Probably, for the first couple of hours I would be trying to decide where should the authentication code go, i’d be going through the docs searching for information on how can I obtain the api key from config. I would need to go through all API endpoints in documentation to be able to find the right one. There are a lot of different things which could be difficult especially if you’re doing it for the first time.
-
-I think at the end, if I would have done it from scratch, I would’ve got cleaner code but would have spent 2-3 days. With the generator, even with finetuning, I spent about half day. And the structure was already there, so it was overall easier to work with and I didn’t have to consider everything upfront.
+I did a walk-through with our user. Some additional context started to appear. For example, which endpoints needed to be used with `replace` write disposition, which would require specifying the `merge` keys. So in the end this source would still require some testing to be performed and some fine-tuning from the user.
+I think the silver lining here is how to start. I don’t know how much time I would’ve spent on this source if I started from scratch. Probably, for the first couple of hours, I would be trying to decide where should the authentication code go, or going through the docs searching for information on how to use dlt configs. I would certainly need to go through all API endpoints in the documentation to be able to find the one I needed. There are a lot of different things which could be difficult especially if you’re doing it for the first time.
+I think in the end if I had done it from scratch, I would’ve got cleaner code but spent a couple of days. With the generator, even with finetuning, I spent about half a day. And the structure was already there, so it was overall easier to work with and I didn’t have to consider everything upfront.
 
 # In conclusion
 
