@@ -4,6 +4,7 @@ import threading
 from functools import wraps
 from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload
 from inspect import Signature, Parameter
+from contextlib import nullcontext
 
 from dlt.common.typing import DictStrAny, StrAny, TFun, AnyFun
 from dlt.common.configuration.resolve import resolve_configuration, inject_section
@@ -78,6 +79,7 @@ def with_config(
     Returns:
         Callable[[TFun], TFun]: A decorated function
     """
+    thread_lock = threading.Lock()
 
     section_f: Callable[[StrAny], str] = None
     # section may be a function from function arguments to section
@@ -173,10 +175,11 @@ def with_config(
                 bound_args.arguments[kwargs_arg.name][_LAST_DLT_CONFIG] = config
                 bound_args.arguments[kwargs_arg.name][_ORIGINAL_ARGS] = (args, kwargs)
 
-        def create_resolved_partial() -> Any:
+        def create_resolved_partial(lock: bool = False) -> Any:
             # creates a pre-resolved partial of the decorated function
             empty_bound_args = sig.bind_partial()
-            config = resolve_config(empty_bound_args)
+            with nullcontext() if lock is False else thread_lock:
+                config = resolve_config(empty_bound_args)
 
             # TODO: do some checks, for example fail if there is a spec arg
 

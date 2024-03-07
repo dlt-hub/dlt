@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict
+from typing import List, Tuple, Dict, Union
 
 import dlt
 import pytest
@@ -14,6 +14,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.common.utils import uniq_id
 from dlt.common.exceptions import InvalidDestinationReference
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.sources.credentials import GcpOAuthCredentials, GcpServiceAccountCredentials  #
 
 from tests.load.utils import (
     TABLE_ROW_ALL_DATA_TYPES,
@@ -386,5 +387,32 @@ def test_config_spec() -> None:
     # right value will pass
     os.environ["DESTINATION__SOME_NAME__MY_VAL"] = "something"
     dlt.pipeline("sink_test", destination=other_sink, full_refresh=True).run(
+        [1, 2, 3], table_name="items"
+    )
+
+    # test nested spec
+    @dlt.destination()
+    def my_gcp_sink(
+        file_path,
+        table,
+        credentials: Union[GcpOAuthCredentials, GcpServiceAccountCredentials] = dlt.secrets.value,
+    ):
+        assert credentials.client_email == "client_email"
+        assert credentials.private_key == "private_key\n"
+        assert credentials.project_id == "project_id"
+
+    # missing spec
+    with pytest.raises(ConfigFieldMissingException):
+        dlt.pipeline("sink_test", destination=my_gcp_sink, full_refresh=True).run(
+            [1, 2, 3], table_name="items"
+        )
+
+    # add gcp vars (in different sections for testing)
+    os.environ["SINK_TEST__DESTINATION__CREDENTIALS__CLIENT_EMAIL"] = "client_email"
+    os.environ["DESTINATION__CREDENTIALS__PRIVATE_KEY"] = "private_key"
+    os.environ["CREDENTIALS__PROJECT_ID"] = "project_id"
+
+    # now it will run
+    dlt.pipeline("sink_test", destination=my_gcp_sink, full_refresh=True).run(
         [1, 2, 3], table_name="items"
     )

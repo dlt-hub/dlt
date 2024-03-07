@@ -129,7 +129,9 @@ class SinkClient(JobClientBase):
         self.config: SinkClientConfiguration = config
 
         # we create pre_resolved callable here
-        self.destination_callable = self.config.destination_callable.create_resolved_partial()
+        self.destination_callable = self.config.destination_callable.create_resolved_partial(
+            lock=True
+        )
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         pass
