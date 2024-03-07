@@ -10,6 +10,7 @@ from dlt.common.typing import DictStrAny, StrAny, TFun, AnyFun
 from dlt.common.configuration.resolve import resolve_configuration, inject_section
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
+
 from dlt.common.reflection.spec import spec_from_signature
 
 
@@ -215,7 +216,7 @@ def with_config(
         _FUNC_SPECS[id(_wrap)] = SPEC
 
         # add a method to create a pre-resolved partial
-        _wrap.create_resolved_partial = create_resolved_partial
+        _wrap.__RESOLVED_PARTIAL_FUNC__ = create_resolved_partial
 
         return _wrap  # type: ignore
 
@@ -241,3 +242,10 @@ def last_config(**kwargs: Any) -> Any:
 
 def get_orig_args(**kwargs: Any) -> Tuple[Tuple[Any], DictStrAny]:
     return kwargs[_ORIGINAL_ARGS]  # type: ignore
+
+
+def create_resolved_partial(f: AnyFun) -> AnyFun:
+    """Create a pre-resolved partial of the decorated function"""
+    if hasattr(f, "__RESOLVED_PARTIAL_FUNC__"):
+        return f.__RESOLVED_PARTIAL_FUNC__(lock=True)
+    return f

@@ -10,6 +10,7 @@ from dlt.pipeline.current import (
     destination_state,
     commit_load_package_state,
 )
+from dlt.common.configuration import create_resolved_partial
 
 from dlt.common.schema import Schema, TTableSchema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema
@@ -129,9 +130,7 @@ class SinkClient(JobClientBase):
         self.config: SinkClientConfiguration = config
 
         # we create pre_resolved callable here
-        self.destination_callable = self.config.destination_callable.create_resolved_partial(
-            lock=True
-        )
+        self.destination_callable = create_resolved_partial(self.config.destination_callable)
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         pass
