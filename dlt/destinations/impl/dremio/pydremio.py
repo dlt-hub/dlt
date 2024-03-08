@@ -1,7 +1,23 @@
 """
-Provides a PEP 249 compatible wrapper around the Arrow Flight client.
-This implementation will always eagerly gather the full result set after every query.
-This is not ideal, however ultimately this entire module should be replaced with ADBC Flight SQL client.
+  Copyright (C) 2017-2021 Dremio Corporation
+
+  Licensed under the Apache License, Version 2.0 (the "License");
+  you may not use this file except in compliance with the License.
+  You may obtain a copy of the License at
+
+      http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing, software
+  distributed under the License is distributed on an "AS IS" BASIS,
+  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+  See the License for the specific language governing permissions and
+  limitations under the License.
+
+The code in this module was original from https://github.com/dremio-hub/arrow-flight-client-examples/tree/main/python.
+The code has been modified and extended to provide a PEP 249 compatible interface.
+
+This implementation will eagerly gather the full result set after every query.
+Eventually, this module should be replaced with ADBC Flight SQL client.
 See: https://github.com/apache/arrow-adbc/issues/1559
 """
 
