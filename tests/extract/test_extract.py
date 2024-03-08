@@ -93,6 +93,9 @@ def test_make_hints_default() -> None:
     hints = make_hints()
     assert hints == {"columns": {}}
 
+    hints = make_hints(write_disposition=None)
+    assert hints == {"columns": {}}
+
 
 def test_extract_hints_mark(extract_step: Extract) -> None:
     @dlt.resource

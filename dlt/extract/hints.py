@@ -82,6 +82,8 @@ def make_hints(
     )
     if not table_name:
         new_template.pop("name")
+    if not write_disposition and "write_disposition" in new_template:
+        new_template.pop("write_disposition")
     # remember original columns
     if columns is not None:
         new_template["original_columns"] = columns

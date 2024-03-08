@@ -1326,9 +1326,11 @@ def test_apply_dynamic_hints() -> None:
 
     empty_r = empty()
     with pytest.raises(InconsistentTableTemplate):
-        empty_r.apply_hints(parent_table_name=lambda ev: ev["p"])
+        empty_r.apply_hints(parent_table_name=lambda ev: ev["p"], write_disposition=None)
 
-    empty_r.apply_hints(table_name=lambda ev: ev["t"], parent_table_name=lambda ev: ev["p"])
+    empty_r.apply_hints(
+        table_name=lambda ev: ev["t"], parent_table_name=lambda ev: ev["p"], write_disposition=None
+    )
     assert empty_r._table_name_hint_fun is not None
     assert empty_r._table_has_other_dynamic_hints is True
 
