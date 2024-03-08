@@ -278,6 +278,6 @@ WHERE
             def _to_temp_table(cls, select_sql: str, temp_table_name: str) -> str:
                 return f"CREATE TABLE {temp_table_name} AS {select_sql};"
 
-        DremioMergeJob._new_temp_table_name = _new_temp_table_name
+        DremioMergeJob._new_temp_table_name = _new_temp_table_name  # type: ignore[method-assign]
 
         return [DremioMergeJob.from_table_chain(table_chain, self.sql_client)]
