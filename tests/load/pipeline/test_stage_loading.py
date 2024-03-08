@@ -94,13 +94,15 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
 
     # check item of first row in db
     with pipeline.sql_client() as sql_client:
+        qual_name = sql_client.make_qualified_table_name
         if destination_config.destination in ["mssql", "synapse"]:
-            qual_name = sql_client.make_qualified_table_name
             rows = sql_client.execute_sql(
                 f"SELECT TOP 1 url FROM {qual_name('issues')} WHERE id = 388089021"
             )
         else:
-            rows = sql_client.execute_sql("SELECT url FROM issues WHERE id = 388089021 LIMIT 1")
+            rows = sql_client.execute_sql(
+                f"SELECT url FROM {qual_name('issues')} WHERE id = 388089021 LIMIT 1"
+            )
         assert rows[0][0] == "https://api.github.com/repos/duckdb/duckdb/issues/71"
 
     if destination_config.supports_merge:
@@ -125,10 +127,10 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
                 )
             else:
                 rows_1 = sql_client.execute_sql(
-                    "SELECT number FROM issues WHERE id = 1232152492 LIMIT 1"
+                    f"SELECT number FROM {qual_name('issues')} WHERE id = 1232152492 LIMIT 1"
                 )
                 rows_2 = sql_client.execute_sql(
-                    "SELECT number FROM issues WHERE id = 1142699354 LIMIT 1"
+                    f"SELECT number FROM {qual_name('issues')} WHERE id = 1142699354 LIMIT 1"
                 )
             assert rows_1[0][0] == 105
             assert rows_2[0][0] == 300
