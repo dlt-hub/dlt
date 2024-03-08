@@ -29,7 +29,7 @@ def dremio_client(empty_schema) -> DremioClient:
             False,
             [
                 'CREATE TABLE "test_data_source"."test_database"."test_dataset"."event_test_table"'
-                ' (\n"foo" VARCHAR ,\n"bar" BIGINT ,\n"baz" FLOAT )\nPARTITION BY'
+                ' (\n"foo" VARCHAR ,\n"bar" BIGINT ,\n"baz" DOUBLE )\nPARTITION BY'
                 ' ("foo")\nLOCALSORT BY ("bar")'
             ],
         ),
@@ -42,7 +42,7 @@ def dremio_client(empty_schema) -> DremioClient:
             False,
             [
                 'CREATE TABLE "test_data_source"."test_database"."test_dataset"."event_test_table"'
-                ' (\n"foo" VARCHAR ,\n"bar" BIGINT ,\n"baz" FLOAT )\nPARTITION BY'
+                ' (\n"foo" VARCHAR ,\n"bar" BIGINT ,\n"baz" DOUBLE )\nPARTITION BY'
                 ' ("foo","bar")'
             ],
         ),
@@ -55,7 +55,7 @@ def dremio_client(empty_schema) -> DremioClient:
             False,
             [
                 'CREATE TABLE "test_data_source"."test_database"."test_dataset"."event_test_table"'
-                ' (\n"foo" VARCHAR ,\n"bar" BIGINT ,\n"baz" FLOAT )'
+                ' (\n"foo" VARCHAR ,\n"bar" BIGINT ,\n"baz" DOUBLE )'
             ],
         ),
     ],

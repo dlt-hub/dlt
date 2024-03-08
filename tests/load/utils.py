@@ -175,7 +175,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "mssql", "synapse", "databricks")
+            if destination not in ("athena", "mssql", "synapse", "databricks", "dremio")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -301,6 +301,12 @@ def destinations_configs(
                 file_format="parquet",
                 bucket_url=AZ_BUCKET,
                 extra_info="az-authorization",
+            ),
+            DestinationTestConfiguration(
+                destination="dremio",
+                staging="filesystem",
+                file_format="parquet",
+                bucket_url=AWS_BUCKET,
             ),
         ]
 

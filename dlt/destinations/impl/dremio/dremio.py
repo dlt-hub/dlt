@@ -31,12 +31,12 @@ class DremioTypeMapper(TypeMapper):
     sct_to_unbound_dbt = {
         "complex": "VARCHAR",
         "text": "VARCHAR",
-        "double": "FLOAT",
+        "double": "DOUBLE",
         "bool": "BOOLEAN",
         "date": "DATE",
         "timestamp": "TIMESTAMP",
         "bigint": "BIGINT",
-        "binary": "BINARY",
+        "binary": "VARBINARY",
         "time": "TIME",
     }
 
@@ -47,11 +47,12 @@ class DremioTypeMapper(TypeMapper):
 
     dbt_to_sct = {
         "VARCHAR": "text",
+        "DOUBLE": "double",
         "FLOAT": "double",
         "BOOLEAN": "bool",
         "DATE": "date",
         "TIMESTAMP": "timestamp",
-        "BINARY": "binary",
+        "VARBINARY": "binary",
         "VARIANT": "complex",
         "TIME": "time",
     }
