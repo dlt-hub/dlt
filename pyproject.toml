@@ -144,6 +144,7 @@ cryptography = "^41.0.7"
 google-api-python-client = ">=1.7.11"
 pytest-asyncio = "^0.23.5"
 types-sqlalchemy = "^1.4.53.38"
+clickhouse-driver = "^0.2.7"
 
 [tool.poetry.group.pipeline]
 optional=true
