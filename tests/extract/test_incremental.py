@@ -1,5 +1,6 @@
 import os
 import asyncio
+import random
 from time import sleep
 from typing import Optional, Any
 from unittest import mock
@@ -14,13 +15,14 @@ from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.base_configuration import configspec, BaseConfiguration
 from dlt.common.configuration import ConfigurationValueError
 from dlt.common.pendulum import pendulum, timedelta
-from dlt.common.pipeline import StateInjectableContext, resource_state
+from dlt.common.pipeline import NormalizeInfo, StateInjectableContext, resource_state
 from dlt.common.schema.schema import Schema
 from dlt.common.utils import uniq_id, digest128, chunks
 from dlt.common.json import json
 
 from dlt.extract import DltSource
 from dlt.extract.exceptions import InvalidStepFunctionArguments
+from dlt.extract.resource import DltResource
 from dlt.sources.helpers.transform import take_first
 from dlt.extract.incremental.exceptions import (
     IncrementalCursorPathMissing,
@@ -125,11 +127,11 @@ def test_unique_keys_are_deduplicated(item_type: TDataItemFormat) -> None:
         {"created_at": 3, "id": "e"},
     ]
     data2 = [
+        {"created_at": 4, "id": "g"},
         {"created_at": 3, "id": "c"},
         {"created_at": 3, "id": "d"},
         {"created_at": 3, "id": "e"},
         {"created_at": 3, "id": "f"},
-        {"created_at": 4, "id": "g"},
     ]
 
     source_items1 = data_to_item_format(item_type, data1)
@@ -1307,7 +1309,6 @@ def test_out_of_range_flags(item_type: TDataItemFormat) -> None:
         for i in reversed(range(14)):
             data = [{"updated_at": i}]
             yield from data_to_item_format(item_type, data)
-            yield {"updated_at": i}
             if i >= 10:
                 assert updated_at.start_out_of_range is False
             else:
@@ -1375,7 +1376,8 @@ def test_parallel_row_order_out_of_range(item_type: TDataItemFormat) -> None:
     assert data_item_length(data) == 48 - 10 + 1  # both bounds included
 
 
-def test_transformer_row_order_out_of_range() -> None:
+@pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)
+def test_transformer_row_order_out_of_range(item_type: TDataItemFormat) -> None:
     out_of_range = []
 
     @dlt.transformer
@@ -1387,13 +1389,14 @@ def test_transformer_row_order_out_of_range() -> None:
     ) -> Any:
         for chunk in chunks(count(start=48, step=-1), 10):
             data = [{"updated_at": i, "package": package} for i in chunk]
+            # print(data)
             yield data_to_item_format("json", data)
             if updated_at.can_close():
                 out_of_range.append(package)
                 return
 
     data = list([3, 2, 1] | descending)
-    assert len(data) == 48 - 10 + 1
+    assert data_item_length(data) == 48 - 10 + 1
     # we take full package 3 and then nothing in 1 and 2
     assert len(out_of_range) == 3
 
@@ -1451,6 +1454,143 @@ def test_row_order_out_of_range(item_type: TDataItemFormat) -> None:
         data = list(ascending_desc)
         assert close_pipe.assert_not_called
         assert data_item_length(data) == 45 - 22
+
+
+@pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("order", ["random", "desc", "asc"])
+@pytest.mark.parametrize("primary_key", [[], None, "updated_at"])
+@pytest.mark.parametrize(
+    "deterministic", (True, False), ids=("deterministic-record", "non-deterministic-record")
+)
+def test_unique_values_unordered_rows(
+    item_type: TDataItemFormat, order: str, primary_key: Any, deterministic: bool
+) -> None:
+    @dlt.resource(primary_key=primary_key)
+    def random_ascending_chunks(
+        order: str,
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=10,
+        ),
+    ) -> Any:
+        range_ = list(range(updated_at.start_value, updated_at.start_value + 121))
+        if order == "random":
+            random.shuffle(range_)
+        if order == "desc":
+            range_ = reversed(range_)  # type: ignore[assignment]
+
+        for chunk in chunks(range_, 30):
+            # make sure that overlapping element is the last one
+            data = [
+                {"updated_at": i, "rand": random.random() if not deterministic else 0}
+                for i in chunk
+            ]
+            # random.shuffle(data)
+            yield data_to_item_format(item_type, data)
+
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
+    pipeline = dlt.pipeline("test_unique_values_unordered_rows", destination="dummy")
+    pipeline.run(random_ascending_chunks(order))
+    assert pipeline.last_trace.last_normalize_info.row_counts["random_ascending_chunks"] == 121
+
+    # 120 rows (one overlap - incremental reacquires and deduplicates)
+    pipeline.run(random_ascending_chunks(order))
+    # overlapping element must be deduped when:
+    # 1. we have primary key on just updated at
+    # OR we have a key on full record but the record is deterministic so duplicate may be found
+    rows = 120 if primary_key == "updated_at" or (deterministic and primary_key != []) else 121
+    assert pipeline.last_trace.last_normalize_info.row_counts["random_ascending_chunks"] == rows
+
+
+@pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("primary_key", [[], None, "updated_at"])  # [], None,
+@pytest.mark.parametrize(
+    "deterministic", (True, False), ids=("deterministic-record", "non-deterministic-record")
+)
+def test_carry_unique_hashes(
+    item_type: TDataItemFormat, primary_key: Any, deterministic: bool
+) -> None:
+    # each day extends list of hashes and removes duplicates until the last day
+
+    @dlt.resource(primary_key=primary_key)
+    def random_ascending_chunks(
+        # order: str,
+        day: int,
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at",
+            initial_value=10,
+        ),
+    ) -> Any:
+        range_ = random.sample(
+            range(updated_at.initial_value, updated_at.initial_value + 10), k=10
+        )  # list(range(updated_at.initial_value, updated_at.initial_value + 10))
+        range_ += [100]
+        if day == 4:
+            # on day 4 add an element that will reset all others
+            range_ += [1000]
+
+        for chunk in chunks(range_, 3):
+            # make sure that overlapping element is the last one
+            data = [
+                {"updated_at": i, "rand": random.random() if not deterministic else 0}
+                for i in chunk
+            ]
+            yield data_to_item_format(item_type, data)
+
+    os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
+    pipeline = dlt.pipeline("test_unique_values_unordered_rows", destination="dummy")
+
+    def _assert_state(r_: DltResource, day: int, info: NormalizeInfo) -> None:
+        uniq_hashes = r_.state["incremental"]["updated_at"]["unique_hashes"]
+        row_count = info.row_counts.get("random_ascending_chunks", 0)
+        if primary_key == "updated_at":
+            # we keep only newest version of the record
+            assert len(uniq_hashes) == 1
+            if day == 1:
+                # all records loaded
+                assert row_count == 11
+            elif day == 4:
+                # new biggest item loaded
+                assert row_count == 1
+            else:
+                # all deduplicated
+                assert row_count == 0
+        elif primary_key is None:
+            # we deduplicate over full content
+            if day == 4:
+                assert len(uniq_hashes) == 1
+                # both the 100 or 1000 are in if non deterministic content
+                assert row_count == (2 if not deterministic else 1)
+            else:
+                # each day adds new hash if content non deterministic
+                assert len(uniq_hashes) == (day if not deterministic else 1)
+                if day == 1:
+                    assert row_count == 11
+                else:
+                    assert row_count == (1 if not deterministic else 0)
+        elif primary_key == []:
+            # no deduplication
+            assert len(uniq_hashes) == 0
+            if day == 4:
+                assert row_count == 2
+            else:
+                if day == 1:
+                    assert row_count == 11
+                else:
+                    assert row_count == 1
+
+    r_ = random_ascending_chunks(1)
+    pipeline.run(r_)
+    _assert_state(r_, 1, pipeline.last_trace.last_normalize_info)
+    r_ = random_ascending_chunks(2)
+    pipeline.run(r_)
+    _assert_state(r_, 2, pipeline.last_trace.last_normalize_info)
+    r_ = random_ascending_chunks(3)
+    pipeline.run(r_)
+    _assert_state(r_, 3, pipeline.last_trace.last_normalize_info)
+    r_ = random_ascending_chunks(4)
+    pipeline.run(r_)
+    _assert_state(r_, 4, pipeline.last_trace.last_normalize_info)
 
 
 @pytest.mark.parametrize("item_type", ALL_DATA_ITEM_FORMATS)

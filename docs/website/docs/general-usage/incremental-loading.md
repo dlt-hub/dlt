@@ -454,11 +454,20 @@ def tickets(
 ```
 :::
 
-### Deduplication primary_key
+### Deduplicate overlapping ranges with primary key
 
-`dlt.sources.incremental` will inherit the primary key that is set on the resource.
+`Incremental` **does not** deduplicate datasets like **merge** write disposition does. It however
+makes sure than when another portion of data is extracted, records that were previously loaded won't be
+included again. `dlt` assumes that you load a range of data, where the lower bound is inclusive (ie. greater than equal).
+This makes sure that you never lose any data but will also re-acquire some rows.
+For example: you have a database table with an cursor field on `updated_at` which has a day resolution, then there's a high
+chance that after you extract data on a given day, still more records will be added. When you extract on the next day, you
+should reacquire data from the last day to make sure all records are present, this will however create overlap with data
+from previous extract.
 
- let's you optionally set a `primary_key` that is used exclusively to
+By default, content hash (a hash of `json` representation of a row) will be used to deduplicate.
+This may be slow so`dlt.sources.incremental` will inherit the primary key that is set on the resource.
+You can optionally set a `primary_key` that is used exclusively to
 deduplicate and which does not become a table hint. The same setting lets you disable the
 deduplication altogether when empty tuple is passed. Below we pass `primary_key` directly to
 `incremental` to disable deduplication. That overrides `delta` primary_key set in the resource:

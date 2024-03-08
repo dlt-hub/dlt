@@ -273,3 +273,18 @@ def test_callable() -> None:
     validate_dict(
         TTestRecordCallable, test_item, path=".", validator_f=lambda p, pk, pv, t: callable(pv)
     )
+
+
+# def test_union_merge() -> None:
+#     """Overriding fields is simply illegal in TypedDict"""
+#     class EndpointResource(TypedDict, total=False):
+#         name: TTableHintTemplate[str]
+
+#     class TTestRecordNoName(EndpointResource, total=False):
+#         name: Optional[TTableHintTemplate[str]]
+
+#     # test_item = {"name": None}
+#     # validate_dict(TTestRecordNoName, test_item, path=".")
+
+#     test_item = {}
+#     validate_dict(TTestRecordNoName, test_item, path=".")
