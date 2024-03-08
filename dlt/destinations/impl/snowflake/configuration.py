@@ -3,7 +3,7 @@ import binascii
 
 from typing import Final, Optional, Any, Dict, ClassVar, List, TYPE_CHECKING
 
-from sqlalchemy.engine import URL
+from dlt.common.libs.sql_alchemy import URL
 
 from dlt import version
 from dlt.common.exceptions import MissingDependencyException

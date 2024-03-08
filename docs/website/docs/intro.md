@@ -165,7 +165,7 @@ print(load_info)
 
 Install **pymysql** driver:
 ```sh
-pip install pymysql
+pip install sqlalchemy pymysql
 ```
 
   </TabItem>

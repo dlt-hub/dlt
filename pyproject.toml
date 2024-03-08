@@ -1,6 +1,6 @@
 [tool.poetry]
 name = "dlt"
-version = "0.4.5"
+version = "0.4.6"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = ["dltHub Inc. <services@dlthub.com>"]
 maintainers = [ "Marcin Rudolf <marcin@dlthub.com>", "Adrian Brudaru <adrian@dlthub.com>", "Ty Dunn <ty@dlthub.com>"]
@@ -33,7 +33,6 @@ hexbytes = ">=0.2.2"
 tzdata = ">=2022.1"
 tomlkit = ">=0.11.3"
 pathvalidate = ">=2.5.2"
-SQLAlchemy = ">=1.4.0"
 typing-extensions = ">=4.0.0"
 makefun = ">=1.15.0"
 click = ">=7.1"
@@ -138,7 +137,6 @@ types-python-dateutil = ">=2.8.15"
 flake8-tidy-imports = ">=4.8.0"
 flake8-encodings = "^0.5.0"
 flake8-builtins = "^1.5.3"
-types-SQLAlchemy = ">=1.4.53"
 boto3-stubs = "^1.28.28"
 types-tqdm = "^4.66.0.2"
 types-psutil = "^5.9.5.16"
@@ -146,6 +144,7 @@ types-psycopg2 = "^2.9.21.14"
 cryptography = "^41.0.7"
 google-api-python-client = ">=1.7.11"
 pytest-asyncio = "^0.23.5"
+types-sqlalchemy = "^1.4.53.38"
 types-pytz = ">=2024.1.0.20240203"
 
 [tool.poetry.group.pipeline]
@@ -188,6 +187,7 @@ sentry-sdk = "^1.5.6"
 optional = true
 
 [tool.poetry.group.docs.dependencies]
+SQLAlchemy = ">=1.4.0"
 pymysql = "^1.1.0"
 pypdf2 = "^3.0.1"
 pydoc-markdown = "^4.8.2"

@@ -9,9 +9,10 @@ import pytest
 import dlt
 from dlt.common import sleep
 from dlt.common.typing import TDataItems
-from dlt.extract.exceptions import CreatePipeException, ResourceExtractionError
-from dlt.extract.typing import DataItemWithMeta, FilterItem, MapItem, YieldMapItem
-from dlt.extract.pipe import ManagedPipeIterator, Pipe, PipeItem, PipeIterator
+from dlt.extract.exceptions import CreatePipeException, ResourceExtractionError, UnclosablePipe
+from dlt.extract.items import DataItemWithMeta, FilterItem, MapItem, YieldMapItem
+from dlt.extract.pipe import Pipe
+from dlt.extract.pipe_iterator import PipeIterator, ManagedPipeIterator, PipeItem
 
 
 def test_next_item_mode() -> None:
@@ -72,7 +73,7 @@ def test_rotation_on_none() -> None:
     def source_gen1():
         gen_1_started = time.time()
         yield None
-        while time.time() - gen_1_started < 0.6:
+        while time.time() - gen_1_started < 3:
             time.sleep(0.05)
             yield None
         yield 1
@@ -80,7 +81,7 @@ def test_rotation_on_none() -> None:
     def source_gen2():
         gen_2_started = time.time()
         yield None
-        while time.time() - gen_2_started < 0.2:
+        while time.time() - gen_2_started < 1:
             time.sleep(0.05)
             yield None
         yield 2
@@ -88,7 +89,7 @@ def test_rotation_on_none() -> None:
     def source_gen3():
         gen_3_started = time.time()
         yield None
-        while time.time() - gen_3_started < 0.4:
+        while time.time() - gen_3_started < 2:
             time.sleep(0.05)
             yield None
         yield 3
@@ -105,7 +106,7 @@ def test_rotation_on_none() -> None:
     # items will be round robin, nested iterators are fully iterated and appear inline as soon as they are encountered
     assert [pi.item for pi in _l] == [2, 3, 1]
     # jobs should have been executed in parallel
-    assert time.time() - started < 0.8
+    assert time.time() - started < 3.5
 
 
 def test_add_step() -> None:
@@ -611,6 +612,21 @@ def test_circular_deps() -> None:
         _f_items(list(PipeIterator.from_pipe(cloned_pipes[-1])))
     with pytest.raises(RecursionError):
         _f_items(list(PipeIterator.from_pipes(pipes)))
+
+
+def test_explicit_close_pipe() -> None:
+    list_pipe = Pipe.from_data("list_pipe", iter([1, 2, 3]))
+    with pytest.raises(UnclosablePipe):
+        list_pipe.close()
+
+    # generator function cannot be closed
+    genfun_pipe = Pipe.from_data("genfun_pipe", lambda _: (yield from [1, 2, 3]))
+    with pytest.raises(UnclosablePipe):
+        genfun_pipe.close()
+
+    gen_pipe = Pipe.from_data("gen_pipe", (lambda: (yield from [1, 2, 3]))())
+    gen_pipe.close()
+    assert inspect.getgeneratorstate(gen_pipe.gen) == "GEN_CLOSED"  # type: ignore[arg-type]
 
 
 close_pipe_got_exit = False

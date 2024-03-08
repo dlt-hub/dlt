@@ -192,7 +192,7 @@ def resource():
     yield [
         {"id": 2, "val": "foo", "lsn": 1, "deleted_flag": False},
         {"id": 2, "lsn": 2, "deleted_flag": True}
-    ]    
+    ]
 ...
 ```
 
@@ -267,7 +267,7 @@ In essence, `dlt.sources.incremental` instance above
 * **updated_at.initial_value** which is always equal to "1970-01-01T00:00:00Z" passed in constructor
 * **updated_at.start_value** a maximum `updated_at` value from the previous run or the **initial_value** on first run
 * **updated_at.last_value** a "real time" `updated_at` value updated with each yielded item or page. before first yield it equals **start_value**
-* **updated_at.end_value** (here not used) [marking end of backfill range](#using-dltsourcesincremental-for-backfill)
+* **updated_at.end_value** (here not used) [marking end of backfill range](#using-end_value-for-backfill)
 
 When paginating you probably need **start_value** which does not change during the execution of the resource, however
 most paginators will return a **next page** link which you should use.
@@ -284,31 +284,21 @@ duplicates and past issues.
 # use naming function in table name to generate separate tables for each event
 @dlt.resource(primary_key="id", table_name=lambda i: i['type'])  # type: ignore
 def repo_events(
-    last_created_at = dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z", last_value_func=max)
+    last_created_at = dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z", last_value_func=max), row_order="desc"
 ) -> Iterator[TDataItems]:
     repos_path = "/repos/%s/%s/events" % (urllib.parse.quote(owner), urllib.parse.quote(name))
     for page in _get_rest_pages(access_token, repos_path + "?per_page=100"):
         yield page
-
-        # ---> part below is an optional optimization
-        # Stop requesting more pages when we encounter an element that
-        # is older than the incremental value at the beginning of the run.
-        # The start_out_of_range boolean flag is set in this case
-        if last_created_at.start_out_of_range:
-            break
 ```
 
 We just yield all the events and `dlt` does the filtering (using `id` column declared as
 `primary_key`).
-As an optimization we stop requesting more pages once the incremental value is out of range,
-in this case that means we got an element which has a smaller `created_at` than the the `last_created_at.start_value`.
-The `start_out_of_range` boolean flag is set when the first such element is yielded from the resource, and
-since we know that github returns results ordered from newest to oldest, we know that all subsequent
-items will be filtered out anyway and there's no need to fetch more data.
+
+Github returns events ordered from newest to oldest so we declare the `rows_order` as **descending** to [stop requesting more pages once the incremental value is out of range](#declare-row-order-to-not-request-unnecessary-data). We stop requesting more data from the API after finding first event with `created_at` earlier than `initial_value`.
 
 ### max, min or custom `last_value_func`
 
-`dlt.sources.incremental` allows to choose a function that orders (compares) values coming from the items to current `last_value`.
+`dlt.sources.incremental` allows to choose a function that orders (compares) cursor values to current `last_value`.
 * The default function is built-in `max` which returns bigger value of the two
 * Another built-in `min` returns smaller value.
 
@@ -341,9 +331,134 @@ def get_events(last_created_at = dlt.sources.incremental("$", last_value_func=by
         yield json.load(f)
 ```
 
+### Using `end_value` for backfill
+You can specify both initial and end dates when defining incremental loading. Let's go back to our Github example:
+```python
+@dlt.resource(primary_key="id")
+def repo_issues(
+    access_token,
+    repository,
+    created_at = dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z", end_value="2022-07-01T00:00:00Z")
+):
+    # get issues from created from last "created_at" value
+    for page in _get_issues_page(access_token, repository, since=created_at.start_value, until=created_at.end_value):
+        yield page
+```
+Above we use `initial_value` and `end_value` arguments of the `incremental` to define the range of issues that we want to retrieve
+and pass this range to the Github API (`since` and `until`). As in the examples above, `dlt` will make sure that only the issues from
+defined range are returned.
+
+Please note that when `end_date` is specified, `dlt` **will not modify the existing incremental state**. The backfill is **stateless** and:
+1. You can run backfill and incremental load in parallel (ie. in Airflow DAG) in a single pipeline.
+2. You can partition your backfill into several smaller chunks and run them in parallel as well.
+
+To define specific ranges to load, you can simply override the incremental argument in the resource, for example:
+
+```python
+july_issues = repo_issues(
+    created_at=dlt.sources.incremental(
+        initial_value='2022-07-01T00:00:00Z', end_value='2022-08-01T00:00:00Z'
+    )
+)
+august_issues = repo_issues(
+    created_at=dlt.sources.incremental(
+        initial_value='2022-08-01T00:00:00Z', end_value='2022-09-01T00:00:00Z'
+    )
+)
+...
+```
+
+Note that `dlt`'s incremental filtering considers the ranges half closed. `initial_value` is inclusive, `end_value` is exclusive, so chaining ranges like above works without overlaps.
+
+
+### Declare row order to not request unnecessary data
+With `row_order` argument set, `dlt` will stop getting data from the data source (ie. Github API) if it detect that values of cursor field are out of range of **start** and **end** values.
+
+In particular:
+* `dlt` stops processing when the resource yields any item with an _equal or greater_ cursor value than the `end_value` and `row_order` is set to **asc**. (`end_value` is not included)
+* `dlt` stops processing when the resource yields any item with a _lower_ cursor value than the `last_value` and `row_order` is set to **desc**. (`last_value` is included)
+
+:::note
+"higher" and "lower" here refers to when the default `last_value_func` is used (`max()`),
+when using `min()` "higher" and "lower" are inverted.
+:::
+
+:::caution
+If you use `row_order`, **make sure that the data source returns ordered records** (ascending / descending) on the cursor field,
+e.g. if an API returns results both higher and lower
+than the given `end_value` in no particular order, data reading stops and you'll miss the data items that were out of order.
+:::
+
+Row order is the most useful when:
+
+1. The data source does **not** offer start/end filtering of results (e.g. there is no `start_time/end_time` query parameter or similar)
+2. The source returns results **ordered by the cursor field**
+
+The github events example is exactly such case. The results are ordered on cursor value descending but there's no way to tell API to limit returned items to those created before certain date. Without the `row_order` setting, we'd be getting all events, each time we extract the `github_events` resource.
+
+In the same fashion the `row_order` can be used to **optimize backfill** so we don't continue
+making unnecessary API requests after the end of range is reached. For example:
+
+```python
+@dlt.resource(primary_key="id")
+def tickets(
+    zendesk_client,
+    updated_at=dlt.sources.incremental(
+        "updated_at",
+        initial_value="2023-01-01T00:00:00Z",
+        end_value="2023-02-01T00:00:00Z",
+        row_order="asc"
+    ),
+):
+    for page in zendesk_client.get_pages(
+        "/api/v2/incremental/tickets", "tickets", start_time=updated_at.start_value
+    ):
+        yield page
+```
+
+In this example we're loading tickets from Zendesk. The Zendesk API yields items paginated and ordered by oldest to newest,
+but only offers a `start_time` parameter for filtering so we cannot tell it to
+stop getting data at `end_value`. Instead we set `row_order` to `asc` and `dlt` wil stop
+getting more pages from API after first page with cursor value `updated_at` is found older
+than `end_value`.
+
+:::caution
+In rare cases when you use Incremental with a transformer, `dlt` will not be able to automatically close
+generator associated with a row that is out of range. You can still use still call `can_close()` method on
+incremental and exit yield loop when true.
+:::
+
+:::tip
+The `dlt.sources.incremental` instance provides `start_out_of_range` and `end_out_of_range`
+attributes which are set when the resource yields an element with a higher/lower cursor value than the
+initial or end values. If you do not want `dlt` to stop processing automatically and instead to handle such events yourself, do not specify `row_order`:
+```python
+@dlt.transformer(primary_key="id")
+def tickets(
+    zendesk_client,
+    updated_at=dlt.sources.incremental(
+        "updated_at",
+        initial_value="2023-01-01T00:00:00Z",
+        end_value="2023-02-01T00:00:00Z",
+        row_order="asc"
+    ),
+):
+    for page in zendesk_client.get_pages(
+        "/api/v2/incremental/tickets", "tickets", start_time=updated_at.start_value
+    ):
+        yield page
+        # Stop loading when we reach the end value
+        if updated_at.end_out_of_range:
+            return
+
+```
+:::
+
 ### Deduplication primary_key
 
-`dlt.sources.incremental` let's you optionally set a `primary_key` that is used exclusively to
+`dlt.sources.incremental` will inherit the primary key that is set on the resource.
+
+ let's you optionally set a `primary_key` that is used exclusively to
 deduplicate and which does not become a table hint. The same setting lets you disable the
 deduplication altogether when empty tuple is passed. Below we pass `primary_key` directly to
 `incremental` to disable deduplication. That overrides `delta` primary_key set in the resource:
@@ -394,45 +509,6 @@ Here we call **get_resource(endpoint)** and that creates un-evaluated generator 
 is created. That prevents `dlt` from controlling the **created** argument during runtime and will
 result in `IncrementalUnboundError` exception.
 :::
-
-### Using `dlt.sources.incremental` for backfill
-You can specify both initial and end dates when defining incremental loading. Let's go back to our Github example:
-```python
-@dlt.resource(primary_key="id")
-def repo_issues(
-    access_token,
-    repository,
-    created_at = dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z", end_value="2022-07-01T00:00:00Z")
-):
-    # get issues from created from last "created_at" value
-    for page in _get_issues_page(access_token, repository, since=created_at.start_value, until=created_at.end_value):
-        yield page
-```
-Above we use `initial_value` and `end_value` arguments of the `incremental` to define the range of issues that we want to retrieve
-and pass this range to the Github API (`since` and `until`). As in the examples above, `dlt` will make sure that only the issues from
-defined range are returned.
-
-Please note that when `end_date` is specified, `dlt` **will not modify the existing incremental state**. The backfill is **stateless** and:
-1. You can run backfill and incremental load in parallel (ie. in Airflow DAG) in a single pipeline.
-2. You can partition your backfill into several smaller chunks and run them in parallel as well.
-
-To define specific ranges to load, you can simply override the incremental argument in the resource, for example:
-
-```python
-july_issues = repo_issues(
-    created_at=dlt.sources.incremental(
-        initial_value='2022-07-01T00:00:00Z', end_value='2022-08-01T00:00:00Z'
-    )
-)
-august_issues = repo_issues(
-    created_at=dlt.sources.incremental(
-        initial_value='2022-08-01T00:00:00Z', end_value='2022-09-01T00:00:00Z'
-    )
-)
-...
-```
-
-Note that `dlt`'s incremental filtering considers the ranges half closed. `initial_value` is inclusive, `end_value` is exclusive, so chaining ranges like above works without overlaps.
 
 ### Using Airflow schedule for backfill and incremental loading
 When [running in Airflow task](../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file), you can opt-in your resource to get the `initial_value`/`start_value` and `end_value` from Airflow schedule associated with your DAG. Let's assume that **Zendesk tickets** resource contains a year of data with thousands of tickets. We want to backfill the last year of data week by week and then continue incremental loading daily.
@@ -527,59 +603,6 @@ Before `dlt` starts executing incremental resources, it looks for `data_interval
 You can run DAGs manually but you must remember to specify the Airflow logical date of the run in the past (use Run with config option). For such run `dlt` will load all data from that past date until now.
 If you do not specify the past date, a run with a range (now, now) will happen yielding no data.
 
-### Using `start/end_out_of_range` flags with incremental resources
-
-The `dlt.sources.incremental` instance provides `start_out_of_range` and `end_out_of_range`
-attributes which are set when the resource yields an element with a higher/lower cursor value than the
-initial or end values.
-This makes it convenient to optimize resources in some cases.
-
-* `start_out_of_range` is `True` when the resource yields any item with a _lower_ cursor value than the `initial_value`
-* `end_out_of_range` is `True` when the resource yields any item with an equal or _higher_ cursor value than the `end_value`
-
-**Note**: "higher" and "lower" here refers to when the default `last_value_func` is used (`max()`),
-when using `min()` "higher" and "lower" are inverted.
-
-You can use these flags when both:
-
-1. The source does **not** offer start/end filtering of results (e.g. there is no `start_time/end_time` query parameter or similar)
-2. The source returns results **ordered by the cursor field**
-
-:::caution
-If you use those flags, **make sure that the data source returns record ordered** (ascending / descending) on the cursor field,
-e.g. if an API returns results both higher and lower
-than the given `end_value` in no particular order, the `end_out_of_range` flag can be `True` but you'll still want to keep loading.
-:::
-
-The github events example above demonstrates how to use `start_out_of_range` as a stop condition.
-This approach works in any case where the API returns items in descending order and we're incrementally loading newer data.
-
-In the same fashion the `end_out_of_range` filter can be used to optimize backfill so we don't continue
-making unnecessary API requests after the end of range is reached. For example:
-
-```python
-@dlt.resource(primary_key="id")
-def tickets(
-    zendesk_client,
-    updated_at=dlt.sources.incremental(
-        "updated_at",
-        initial_value="2023-01-01T00:00:00Z",
-        end_value="2023-02-01T00:00:00Z",
-    ),
-):
-    for page in zendesk_client.get_pages(
-        "/api/v2/incremental/tickets", "tickets", start_time=updated_at.start_value
-    ):
-        yield page
-
-        # Optimization: Stop loading when we reach the end value
-        if updated_at.end_out_of_range:
-            return
-```
-
-In this example we're loading tickets from Zendesk. The Zendesk API yields items paginated and ordered by oldest to newest,
-but only offers a `start_time` parameter for filtering. The incremental `end_out_of_range` flag is set on the first item which
-has a timestamp equal or higher than `end_value`. All subsequent items get filtered out so there's no need to request more data.
 
 ## Doing a full refresh
 

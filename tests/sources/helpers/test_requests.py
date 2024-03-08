@@ -1,7 +1,5 @@
-from contextlib import contextmanager
-from typing import Iterator, Any, cast, Type
+from typing import Iterator, Type
 from unittest import mock
-from email.utils import format_datetime
 import os
 import random
 
@@ -103,6 +101,25 @@ def test_retry_on_status_without_raise_for_status(mock_sleep: mock.MagicMock) ->
         assert response.status_code == 503
 
     assert m.call_count == RunConfiguration.request_max_attempts
+
+
+def test_hooks_with_raise_for_statue() -> None:
+    url = "https://example.com/data"
+    session = Client(raise_for_status=True).session
+
+    def _no_content(resp: requests.Response, *args, **kwargs) -> requests.Response:
+        resp.status_code = 204
+        resp._content = b"[]"
+        return resp
+
+    with requests_mock.mock(session=session) as m:
+        m.get(url, status_code=503)
+        response = session.get(url, hooks={"response": _no_content})
+        # we simulate empty response
+        assert response.status_code == 204
+        assert response.json() == []
+
+    assert m.call_count == 1
 
 
 @pytest.mark.parametrize(
