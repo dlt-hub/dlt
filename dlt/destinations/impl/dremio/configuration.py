@@ -1,10 +1,9 @@
 from typing import Final, Optional, Any, Dict, ClassVar, List, TYPE_CHECKING
 
-from sqlalchemy.engine import URL
-
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.destination.reference import DestinationClientDwhWithStagingConfiguration
+from dlt.common.libs.sql_alchemy import URL
 from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import digest128
 
