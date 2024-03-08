@@ -159,7 +159,7 @@ def destinations_configs(
     all_buckets_filesystem_configs: bool = False,
     subset: Sequence[str] = (),
     exclude: Sequence[str] = (),
-    file_format: Optional[TLoaderFileFormat] = None,
+    file_format: Union[TLoaderFileFormat, Sequence[TLoaderFileFormat]] = None,
     supports_merge: Optional[bool] = None,
     supports_dbt: Optional[bool] = None,
 ) -> List[DestinationTestConfiguration]:
@@ -175,7 +175,7 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(destination=destination)
             for destination in SQL_DESTINATIONS
-            if destination not in ("athena", "mssql", "synapse")
+            if destination not in ("athena", "mssql", "synapse", "databricks")
         ]
         destination_configs += [
             DestinationTestConfiguration(destination="duckdb", file_format="parquet")
@@ -184,7 +184,6 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination="athena",
-                staging="filesystem",
                 file_format="parquet",
                 supports_merge=False,
                 bucket_url=AWS_BUCKET,
@@ -193,13 +192,20 @@ def destinations_configs(
         destination_configs += [
             DestinationTestConfiguration(
                 destination="athena",
-                staging="filesystem",
                 file_format="parquet",
                 bucket_url=AWS_BUCKET,
                 force_iceberg=True,
                 supports_merge=False,
                 supports_dbt=False,
                 extra_info="iceberg",
+            )
+        ]
+        destination_configs += [
+            DestinationTestConfiguration(
+                destination="databricks",
+                file_format="parquet",
+                bucket_url=AZ_BUCKET,
+                extra_info="az-authorization",
             )
         ]
         destination_configs += [
@@ -279,7 +285,7 @@ def destinations_configs(
                 staging="filesystem",
                 file_format="jsonl",
                 bucket_url=AZ_BUCKET,
-                extra_info="s3-authorization",
+                extra_info="az-authorization",
                 disable_compression=True,
             ),
             DestinationTestConfiguration(
@@ -377,8 +383,12 @@ def destinations_configs(
             conf for conf in destination_configs if conf.destination not in exclude
         ]
     if file_format:
+        if not isinstance(file_format, Sequence):
+            file_format = [file_format]
         destination_configs = [
-            conf for conf in destination_configs if conf.file_format == file_format
+            conf
+            for conf in destination_configs
+            if conf.file_format and conf.file_format in file_format
         ]
     if supports_merge is not None:
         destination_configs = [

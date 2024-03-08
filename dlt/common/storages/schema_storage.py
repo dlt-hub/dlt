@@ -1,5 +1,5 @@
 import yaml
-from typing import Iterator, List, Mapping, Tuple
+from typing import Iterator, List, Mapping, Tuple, cast
 
 from dlt.common import json, logger
 from dlt.common.configuration import with_config
@@ -31,12 +31,15 @@ class SchemaStorage(Mapping[str, Schema]):
         self.config = config
         self.storage = FileStorage(config.schema_volume_path, makedirs=makedirs)
 
+    def _load_schema_json(self, name: str) -> DictStrAny:
+        schema_file = self._file_name_in_store(name, "json")
+        return cast(DictStrAny, json.loads(self.storage.load(schema_file)))
+
     def load_schema(self, name: str) -> Schema:
         # loads a schema from a store holding many schemas
-        schema_file = self._file_name_in_store(name, "json")
         storage_schema: DictStrAny = None
         try:
-            storage_schema = json.loads(self.storage.load(schema_file))
+            storage_schema = self._load_schema_json(name)
             # prevent external modifications of schemas kept in storage
             if not verify_schema_hash(storage_schema, verifies_if_not_migrated=True):
                 raise InStorageSchemaModified(name, self.config.schema_volume_path)

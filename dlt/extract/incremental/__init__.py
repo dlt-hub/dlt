@@ -1,13 +1,10 @@
 import os
+from datetime import datetime  # noqa: I251
 from typing import Generic, ClassVar, Any, Optional, Type, Dict
 from typing_extensions import get_origin, get_args
+
 import inspect
 from functools import wraps
-
-try:
-    import pandas as pd
-except ModuleNotFoundError:
-    pd = None
 
 import dlt
 from dlt.common.exceptions import MissingDependencyException
@@ -17,6 +14,7 @@ from dlt.common.typing import (
     TDataItem,
     TDataItems,
     TFun,
+    TSortOrder,
     extract_inner_type,
     get_generic_type_argument_from_instance,
     is_optional_type,
@@ -38,7 +36,7 @@ from dlt.extract.incremental.exceptions import (
 )
 from dlt.extract.incremental.typing import IncrementalColumnState, TCursorValue, LastValueFunc
 from dlt.extract.pipe import Pipe
-from dlt.extract.typing import SupportsPipe, TTableHintTemplate, ItemTransform
+from dlt.extract.items import SupportsPipe, TTableHintTemplate, ItemTransform
 from dlt.extract.incremental.transform import (
     JsonIncremental,
     ArrowIncremental,
@@ -49,6 +47,11 @@ try:
     from dlt.common.libs.pyarrow import is_arrow_item
 except MissingDependencyException:
     is_arrow_item = lambda item: False
+
+try:
+    from dlt.common.libs.pandas import pandas
+except MissingDependencyException:
+    pandas = None
 
 
 @configspec
@@ -84,6 +87,9 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         end_value: Optional value used to load a limited range of records between `initial_value` and `end_value`.
             Use in conjunction with `initial_value`, e.g. load records from given month `incremental(initial_value="2022-01-01T00:00:00Z", end_value="2022-02-01T00:00:00Z")`
             Note, when this is set the incremental filtering is stateless and `initial_value` always supersedes any previous incremental value in state.
+        row_order: Declares that data source returns rows in descending (desc) or ascending (asc) order as defined by `last_value_func`. If row order is know, Incremental class
+                    is able to stop requesting new rows by closing pipe generator. This prevents getting more data from the source. Defaults to None, which means that
+                    row order is not known.
         allow_external_schedulers: If set to True, allows dlt to look for external schedulers from which it will take "initial_value" and "end_value" resulting in loading only
             specified range of data. Currently Airflow scheduler is detected: "data_interval_start" and "data_interval_end" are taken from the context and passed Incremental class.
             The values passed explicitly to Incremental will be ignored.
@@ -95,6 +101,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     # TODO: Support typevar here
     initial_value: Optional[Any] = None
     end_value: Optional[Any] = None
+    row_order: Optional[TSortOrder] = None
+    allow_external_schedulers: bool = False
 
     # incremental acting as empty
     EMPTY: ClassVar["Incremental[Any]"] = None
@@ -106,6 +114,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         last_value_func: Optional[LastValueFunc[TCursorValue]] = max,
         primary_key: Optional[TTableHintTemplate[TColumnNames]] = None,
         end_value: Optional[TCursorValue] = None,
+        row_order: Optional[TSortOrder] = None,
         allow_external_schedulers: bool = False,
     ) -> None:
         # make sure that path is valid
@@ -120,6 +129,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         """Value of last_value at the beginning of current pipeline run"""
         self.resource_name: Optional[str] = None
         self._primary_key: Optional[TTableHintTemplate[TColumnNames]] = primary_key
+        self.row_order = row_order
         self.allow_external_schedulers = allow_external_schedulers
 
         self._cached_state: IncrementalColumnState = None
@@ -132,6 +142,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         """Becomes true on the first item that is out of range of `start_value`. I.e. when using `max` this is a value that is lower than `start_value`"""
 
         self._transformers: Dict[str, IncrementalTransform] = {}
+        self._bound_pipe: SupportsPipe = None
+        """Bound pipe"""
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
@@ -151,11 +163,12 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             self._transformers[dt] = kls(
                 self.resource_name,
                 self.cursor_path,
+                self.initial_value,
                 self.start_value,
                 self.end_value,
-                self._cached_state,
                 self.last_value_func,
                 self._primary_key,
+                set(self._cached_state["unique_hashes"]),
             )
 
     @classmethod
@@ -168,18 +181,6 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         i.resource_name = resource_name
         return i
 
-    def copy(self) -> "Incremental[TCursorValue]":
-        # preserve Generic param information
-        constructor = self.__orig_class__ if hasattr(self, "__orig_class__") else self.__class__
-        return constructor(  # type: ignore
-            self.cursor_path,
-            initial_value=self.initial_value,
-            last_value_func=self.last_value_func,
-            primary_key=self._primary_key,
-            end_value=self.end_value,
-            allow_external_schedulers=self.allow_external_schedulers,
-        )
-
     def merge(self, other: "Incremental[TCursorValue]") -> "Incremental[TCursorValue]":
         """Create a new incremental instance which merges the two instances.
         Only properties which are not `None` from `other` override the current instance properties.
@@ -190,6 +191,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         >>>
         >>> my_resource(updated=incremental(initial_value='2023-01-01', end_value='2023-02-01'))
         """
+        # func, resource name and primary key are not part of the dict
         kwargs = dict(self, last_value_func=self.last_value_func, primary_key=self._primary_key)
         for key, value in dict(
             other, last_value_func=other.last_value_func, primary_key=other.primary_key
@@ -204,7 +206,15 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 other.__orig_class__ if hasattr(other, "__orig_class__") else other.__class__
             )
         constructor = extract_inner_type(constructor)
-        return constructor(**kwargs)  # type: ignore
+        merged = constructor(**kwargs)
+        merged.resource_name = self.resource_name
+        if other.resource_name:
+            merged.resource_name = other.resource_name
+        return merged  # type: ignore
+
+    def copy(self) -> "Incremental[TCursorValue]":
+        # merge creates a copy
+        return self.merge(self)
 
     def on_resolved(self) -> None:
         compile_path(self.cursor_path)
@@ -213,6 +223,8 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
                 "Incremental 'end_value' was specified without 'initial_value'. 'initial_value' is"
                 " required when using 'end_value'."
             )
+        self._cursor_datetime_check(self.initial_value, "initial_value")
+        self._cursor_datetime_check(self.initial_value, "end_value")
         # Ensure end value is "higher" than initial value
         if (
             self.end_value is not None
@@ -241,7 +253,10 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             self.initial_value = native_value.initial_value
             self.last_value_func = native_value.last_value_func
             self.end_value = native_value.end_value
-            self.resource_name = self.resource_name
+            self.resource_name = native_value.resource_name
+            self._primary_key = native_value._primary_key
+            self.allow_external_schedulers = native_value.allow_external_schedulers
+            self.row_order = native_value.row_order
         else:  # TODO: Maybe check if callable(getattr(native_value, '__lt__', None))
             # Passing bare value `incremental=44` gets parsed as initial_value
             self.initial_value = native_value
@@ -281,6 +296,16 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         # if state params is empty
         return state
 
+    @staticmethod
+    def _cursor_datetime_check(value: Any, arg_name: str) -> None:
+        if value and isinstance(value, datetime) and value.tzinfo is None:
+            logger.warning(
+                f"The {arg_name} argument {value} is a datetime without timezone. This may result"
+                " in an error when such values  are compared by Incremental class. Note that `dlt`"
+                " stores datetimes in timezone-aware types so the UTC timezone will be added by"
+                " the destination"
+            )
+
     @property
     def last_value(self) -> Optional[TCursorValue]:
         s = self.get_state()
@@ -289,9 +314,15 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
     def _transform_item(
         self, transformer: IncrementalTransform, row: TDataItem
     ) -> Optional[TDataItem]:
-        row, start_out_of_range, end_out_of_range = transformer(row)
-        self.start_out_of_range = start_out_of_range
-        self.end_out_of_range = end_out_of_range
+        row, self.start_out_of_range, self.end_out_of_range = transformer(row)
+        # if we know that rows are ordered we can close the generator automatically
+        # mind that closing pipe will not immediately close processing. it only closes the
+        # generator so this page will be fully processed
+        # TODO: we cannot close partially evaluated transformer gen. to implement that
+        # we'd need to pass the source gen along with each yielded item and close this particular gen
+        # NOTE: with that implemented we could implement add_limit as a regular transform having access to gen
+        if self.can_close() and not self._bound_pipe.has_parent:
+            self._bound_pipe.close()
         return row
 
     def get_incremental_value_type(self) -> Type[Any]:
@@ -372,6 +403,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         if self.is_partial():
             raise IncrementalCursorPathMissing(pipe.name, None, None)
         self.resource_name = pipe.name
+        self._bound_pipe = pipe
         # try to join external scheduler
         if self.allow_external_schedulers:
             self._join_external_scheduler()
@@ -386,6 +418,21 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         self._make_transforms()
         return self
 
+    def can_close(self) -> bool:
+        """Checks if incremental is out of range and can be closed.
+
+        Returns true only when `row_order` was set and
+        1. results are ordered ascending and are above upper bound (end_value)
+        2. results are ordered descending and are below or equal lower bound (start_value)
+        """
+        # ordered ascending, check if we cross upper bound
+        return (
+            self.row_order == "asc"
+            and self.end_out_of_range
+            or self.row_order == "desc"
+            and self.start_out_of_range
+        )
+
     def __str__(self) -> str:
         return (
             f"Incremental at {id(self)} for resource {self.resource_name} with cursor path:"
@@ -397,7 +444,7 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
         for item in items if isinstance(items, list) else [items]:
             if is_arrow_item(item):
                 return self._transformers["arrow"]
-            elif pd is not None and isinstance(item, pd.DataFrame):
+            elif pandas is not None and isinstance(item, pandas.DataFrame):
                 return self._transformers["arrow"]
             return self._transformers["json"]
         return self._transformers["json"]
@@ -407,14 +454,28 @@ class Incremental(ItemTransform[TDataItem], BaseConfiguration, Generic[TCursorVa
             return rows
 
         transformer = self._get_transformer(rows)
-
         if isinstance(rows, list):
-            return [
+            rows = [
                 item
                 for item in (self._transform_item(transformer, row) for row in rows)
                 if item is not None
             ]
-        return self._transform_item(transformer, rows)
+        else:
+            rows = self._transform_item(transformer, rows)
+
+        # write back state
+        self._cached_state["last_value"] = transformer.last_value
+        if not transformer.deduplication_disabled:
+            # compute hashes for new last rows
+            unique_hashes = set(
+                transformer.compute_unique_value(row, self.primary_key)
+                for row in transformer.last_rows
+            )
+            # add directly computed hashes
+            unique_hashes.update(transformer.unique_hashes)
+            self._cached_state["unique_hashes"] = list(unique_hashes)
+
+        return rows
 
 
 Incremental.EMPTY = Incremental[Any]("")
@@ -438,6 +499,7 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
         self.primary_key = primary_key
         self.incremental_state: IncrementalColumnState = None
         self._allow_external_schedulers: bool = None
+        self._bound_pipe: SupportsPipe = None
 
     @staticmethod
     def should_wrap(sig: inspect.Signature) -> bool:
@@ -511,7 +573,9 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
             self._incremental.resolve()
             # in case of transformers the bind will be called before this wrapper is set: because transformer is called for a first time late in the pipe
             if self._resource_name:
-                self._incremental.bind(Pipe(self._resource_name))
+                # rebind internal _incremental from wrapper that already holds
+                # instance of a Pipe
+                self.bind(None)
             bound_args.arguments[p.name] = self._incremental
             return func(*bound_args.args, **bound_args.kwargs)
 
@@ -531,6 +595,9 @@ class IncrementalResourceWrapper(ItemTransform[TDataItem]):
             self._incremental.allow_external_schedulers = value
 
     def bind(self, pipe: SupportsPipe) -> "IncrementalResourceWrapper":
+        # if pipe is None we are re-binding internal incremental
+        pipe = pipe or self._bound_pipe
+        self._bound_pipe = pipe
         self._resource_name = pipe.name
         if self._incremental:
             if self._allow_external_schedulers is not None:

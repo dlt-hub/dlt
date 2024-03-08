@@ -24,7 +24,7 @@ help:
 	@echo "		test"
 	@echo "			tests all the components including destinations"
 	@echo "		test-load-local"
-	@echo "			tests all components unsing local destinations: duckdb and postgres"
+	@echo "			tests all components using local destinations: duckdb and postgres"
 	@echo "		test-common"
 	@echo "			tests common components"
 	@echo "		test-and-lint-snippets"

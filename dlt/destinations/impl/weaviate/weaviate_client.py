@@ -684,7 +684,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         schema_str = json.dumps(schema.to_dict())
-        values = [schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(pendulum.now()), schema_str]
+        values = [schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(pendulum.now().isoformat()), schema_str]
         assert len(values) == len(self.version_collection_properties)
         properties = {k:v for k,v in zip(self.version_collection_properties, values)}
         self.create_object(properties, self.schema.version_table_name)

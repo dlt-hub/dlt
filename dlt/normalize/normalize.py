@@ -340,6 +340,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         )
 
     def spool_schema_files(self, load_id: str, schema: Schema, files: Sequence[str]) -> str:
+        # delete existing folder for the case that this is a retry
+        self.load_storage.new_packages.delete_package(load_id, not_exists_ok=True)
         # normalized files will go here before being atomically renamed
         self.load_storage.new_packages.create_package(load_id)
         logger.info(f"Created new load package {load_id} on loading volume")
@@ -372,6 +374,20 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         for load_id in load_ids:
             # read schema from package
             schema = self.normalize_storage.extracted_packages.load_schema(load_id)
+            # prefer schema from schema storage if it exists
+            try:
+                # also import the schema
+                storage_schema = self.schema_storage.load_schema(schema.name)
+                if schema.stored_version_hash != storage_schema.stored_version_hash:
+                    logger.warning(
+                        f"When normalizing package {load_id} with schema {schema.name}: the storage"
+                        f" schema hash {storage_schema.stored_version_hash} is different from"
+                        f" extract package schema hash {schema.stored_version_hash}. Storage schema"
+                        " was used."
+                    )
+                schema = storage_schema
+            except FileNotFoundError:
+                pass
             # read all files to normalize placed as new jobs
             schema_files = self.normalize_storage.extracted_packages.list_new_jobs(load_id)
             logger.info(

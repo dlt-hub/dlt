@@ -21,6 +21,7 @@ from dlt.common.utils import (
     extend_list_deduplicated,
     get_exception_trace,
     get_exception_trace_chain,
+    update_dict_nested,
 )
 
 
@@ -277,3 +278,14 @@ def test_exception_trace_chain() -> None:
     assert traces[0]["exception_type"] == "dlt.common.exceptions.PipelineException"
     assert traces[1]["exception_type"] == "dlt.common.exceptions.IdentifierTooLongException"
     assert traces[2]["exception_type"] == "dlt.common.exceptions.TerminalValueError"
+
+
+def test_nested_dict_merge() -> None:
+    dict_1 = {"a": 1, "b": 2}
+    dict_2 = {"a": 2, "c": 4}
+
+    assert update_dict_nested(dict(dict_1), dict_2) == {"a": 2, "b": 2, "c": 4}
+    assert update_dict_nested(dict(dict_2), dict_1) == {"a": 1, "b": 2, "c": 4}
+    assert update_dict_nested(dict(dict_1), dict_2, keep_dst_values=True) == update_dict_nested(
+        dict_2, dict_1
+    )

@@ -161,13 +161,30 @@ def with_schemas_sync(f: TFun) -> TFun:
         for name in self._schema_storage.live_schemas:
             # refresh live schemas in storage or import schema path
             self._schema_storage.commit_live_schema(name)
-        rv = f(self, *args, **kwargs)
-        # save modified live schemas
-        for name in self._schema_storage.live_schemas:
-            self._schema_storage.commit_live_schema(name)
-        # refresh list of schemas if any new schemas are added
-        self.schema_names = self._list_schemas_sorted()
-        return rv
+        try:
+            rv = f(self, *args, **kwargs)
+        except Exception:
+            # because we committed live schema before calling f, we may safely
+            # drop all changes in live schemas
+            for name in list(self._schema_storage.live_schemas.keys()):
+                try:
+                    schema = self._schema_storage.load_schema(name)
+                    self._schema_storage.update_live_schema(schema, can_create_new=False)
+                except FileNotFoundError:
+                    # no storage schema yet so pop live schema (created in call to f)
+                    self._schema_storage.live_schemas.pop(name, None)
+            # NOTE: with_state_sync will restore schema_names and default_schema_name
+            # so we do not need to do that here
+            raise
+        else:
+            # save modified live schemas
+            for name, schema in self._schema_storage.live_schemas.items():
+                self._schema_storage.commit_live_schema(name)
+                # also save import schemas only here
+                self._schema_storage.save_import_schema_if_not_exists(schema)
+            # refresh list of schemas if any new schemas are added
+            self.schema_names = self._list_schemas_sorted()
+            return rv
 
     return _wrap  # type: ignore
 
@@ -324,13 +341,17 @@ class Pipeline(SupportsPipeline):
             self.credentials = credentials
             self._configure(import_schema_path, export_schema_path, must_attach_to_local_pipeline)
 
-    def drop(self) -> "Pipeline":
-        """Deletes local pipeline state, schemas and any working files"""
+    def drop(self, pipeline_name: str = None) -> "Pipeline":
+        """Deletes local pipeline state, schemas and any working files.
+
+        Args:
+            pipeline_name (str): Optional. New pipeline name.
+        """
         # reset the pipeline working dir
         self._create_pipeline()
         # clone the pipeline
         return Pipeline(
-            self.pipeline_name,
+            pipeline_name or self.pipeline_name,
             self.pipelines_dir,
             self.pipeline_salt,
             self.destination,
@@ -1015,20 +1036,32 @@ class Pipeline(SupportsPipeline):
         self, extract: Extract, source: DltSource, max_parallel_items: int, workers: int
     ) -> str:
         # discover the existing pipeline schema
-        if source.schema.name in self.schemas:
-            # use clone until extraction complete
-            pipeline_schema = self.schemas[source.schema.name].clone()
+        try:
+            # all live schemas are initially committed and during the extract will accumulate changes in memory
+            # if schema is committed try to take schema from storage
+            if self._schema_storage.is_live_schema_committed(source.schema.name):
+                # this will (1) save live schema if modified (2) look for import schema if present
+                # (3) load import schema an overwrite pipeline schema if import schema modified
+                # (4) load pipeline schema if no import schema is present
+                pipeline_schema = self.schemas.load_schema(source.schema.name)
+            else:
+                # if schema is not committed we know we are in process of extraction
+                pipeline_schema = self.schemas[source.schema.name]
+            pipeline_schema = pipeline_schema.clone()  # use clone until extraction complete
             # apply all changes in the source schema to pipeline schema
             # NOTE: we do not apply contracts to changes done programmatically
             pipeline_schema.update_schema(source.schema)
             # replace schema in the source
             source.schema = pipeline_schema
+        except FileNotFoundError:
+            pass
 
         # extract into pipeline schema
         load_id = extract.extract(source, max_parallel_items, workers)
 
         # save import with fully discovered schema
-        self._schema_storage.save_import_schema_if_not_exists(source.schema)
+        # NOTE: moved to with_schema_sync, remove this if all test pass
+        # self._schema_storage.save_import_schema_if_not_exists(source.schema)
 
         # update live schema but not update the store yet
         self._schema_storage.update_live_schema(source.schema)
@@ -1188,6 +1221,7 @@ class Pipeline(SupportsPipeline):
             self.destination
             and not self.destination.capabilities().supported_loader_file_formats
             and not staging
+            and not self.staging
         ):
             logger.warning(
                 f"The destination {self.destination.destination_name} requires the filesystem"

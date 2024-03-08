@@ -44,9 +44,12 @@ def timestamp_before(timestamp: float, max_inclusive: Optional[float]) -> bool:
 
 
 def parse_iso_like_datetime(value: Any) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
-    # we use internal pendulum parse function. the generic function, for example, parses string "now" as now()
-    # it also tries to parse ISO intervals but the code is very low quality
+    """Parses ISO8601 string into pendulum datetime, date or time. Preserves timezone info.
+    Note: naive datetimes will generated from string without timezone
 
+       we use internal pendulum parse function. the generic function, for example, parses string "now" as now()
+       it also tries to parse ISO intervals but the code is very low quality
+    """
     # only iso dates are allowed
     dtv = None
     with contextlib.suppress(ValueError):
@@ -57,7 +60,7 @@ def parse_iso_like_datetime(value: Any) -> Union[pendulum.DateTime, pendulum.Dat
     if isinstance(dtv, datetime.time):
         return pendulum.time(dtv.hour, dtv.minute, dtv.second, dtv.microsecond)
     if isinstance(dtv, datetime.datetime):
-        return pendulum.instance(dtv)
+        return pendulum.instance(dtv, tz=dtv.tzinfo)
     if isinstance(dtv, pendulum.Duration):
         raise ValueError("Interval ISO 8601 not supported: " + value)
     return pendulum.date(dtv.year, dtv.month, dtv.day)  # type: ignore[union-attr]

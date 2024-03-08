@@ -3,6 +3,7 @@ from concurrent.futures import ThreadPoolExecutor
 import itertools
 import logging
 import os
+import random
 from time import sleep
 from typing import Any, Tuple, cast
 import threading
@@ -580,9 +581,8 @@ def test_pipeline_state_on_extract_exception() -> None:
     assert p.first_run is True
     assert p.has_data is False
     assert p.default_schema_name is None
-    # one of the schemas is in memory
-    # TODO: we may want to fix that
-    assert len(p._schema_storage.list_schemas()) == 1
+    # live schemas created during extract are popped from mem
+    assert len(p._schema_storage.list_schemas()) == 0
 
     # restore the pipeline
     p = dlt.attach(pipeline_name)
@@ -616,9 +616,8 @@ def test_pipeline_state_on_extract_exception() -> None:
     # first run didn't really happen
     assert p.first_run is True
     assert p.has_data is False
-    # schemas from two sources are in memory
-    # TODO: we may want to fix that
-    assert len(p._schema_storage.list_schemas()) == 2
+    # live schemas created during extract are popped from mem
+    assert len(p._schema_storage.list_schemas()) == 0
     assert p.default_schema_name is None
 
     os.environ["COMPLETED_PROB"] = "1.0"  # make it complete immediately
@@ -1258,6 +1257,16 @@ def test_resource_rename_same_table():
     assert pipeline.default_schema.get_table("single_table")["resource"] == "state1"
 
 
+def test_drop_with_new_name() -> None:
+    old_test_name = "old_pipeline_name"
+    new_test_name = "new_pipeline_name"
+
+    pipeline = dlt.pipeline(pipeline_name=old_test_name, destination="duckdb")
+    new_pipeline = pipeline.drop(pipeline_name=new_test_name)
+
+    assert new_pipeline.pipeline_name == new_test_name
+
+
 def test_remove_autodetect() -> None:
     now = pendulum.now()
 
@@ -1653,3 +1662,198 @@ def test_resource_while_stop() -> None:
     load_info = pipeline.run(product())
     assert_load_info(load_info)
     assert pipeline.last_trace.last_normalize_info.row_counts["product"] == 12
+
+
+def test_run_with_pua_payload() -> None:
+    # prepare some data and complete load with run
+    os.environ["COMPLETED_PROB"] = "1.0"
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    print(pipeline_name)
+    from dlt.common.json import PUA_START, PUA_CHARACTER_MAX
+
+    def some_data():
+        yield from [
+            # text is only PUA
+            {"id": 1, "text": chr(PUA_START)},
+            {"id": 2, "text": chr(PUA_START - 1)},
+            {"id": 3, "text": chr(PUA_START + 1)},
+            {"id": 4, "text": chr(PUA_START + PUA_CHARACTER_MAX + 1)},
+            # PUA inside text
+            {"id": 5, "text": f"a{chr(PUA_START)}b"},
+            {"id": 6, "text": f"a{chr(PUA_START - 1)}b"},
+            {"id": 7, "text": f"a{chr(PUA_START + 1)}b"},
+            # text starts with PUA
+            {"id": 8, "text": f"{chr(PUA_START)}a"},
+            {"id": 9, "text": f"{chr(PUA_START - 1)}a"},
+            {"id": 10, "text": f"{chr(PUA_START + 1)}a"},
+        ]
+
+    @dlt.source
+    def source():
+        return dlt.resource(some_data(), name="pua_data")
+
+    load_info = p.run(source())
+    assert p.last_trace.last_normalize_info.row_counts["pua_data"] == 10
+
+    with p.sql_client() as client:
+        rows = client.execute_sql("SELECT text FROM pua_data ORDER BY id")
+
+    values = [r[0] for r in rows]
+    assert values == [
+        "\uf026",
+        "\uf025",
+        "\uf027",
+        "\uf02f",
+        "a\uf026b",
+        "a\uf025b",
+        "a\uf027b",
+        "\uf026a",
+        "\uf025a",
+        "\uf027a",
+    ]
+    assert len(load_info.loads_ids) == 1
+
+
+def test_pipeline_load_info_metrics_schema_is_not_chaning() -> None:
+    """Test if load info schema is idempotent throughout multiple load cycles
+
+    ## Setup
+
+    We will run the same pipeline with
+
+        1. A single source returning one resource and collect `schema.version_hash`,
+        2. Another source returning 2 resources with more complex data and collect `schema.version_hash`,
+        3. At last we run both sources,
+        4. For each 1. 2. 3. we load `last_extract_info`, `last_normalize_info` and `last_load_info` and collect `schema.version_hash`
+
+    ## Expected
+
+    `version_hash` collected in each stage should remain the same at all times.
+    """
+    data = [
+        {"id": 1, "name": "Alice"},
+        {"id": 2, "name": "Bob"},
+    ]
+
+    # this source must have all the hints so other sources do not change trace schema (extract/hints)
+
+    @dlt.source
+    def users_source():
+        return dlt.resource([data], name="users_resource")
+
+    @dlt.source
+    def taxi_demand_source():
+        @dlt.resource(
+            primary_key="city", columns=[{"name": "id", "data_type": "bigint", "precision": 4}]
+        )
+        def locations(idx=dlt.sources.incremental("id")):
+            for idx in range(10):
+                yield {
+                    "id": idx,
+                    "address": f"address-{idx}",
+                    "city": f"city-{idx}",
+                }
+
+        @dlt.resource(primary_key="id")
+        def demand_map():
+            for idx in range(10):
+                yield {
+                    "id": idx,
+                    "city": f"city-{idx}",
+                    "demand": random.randint(0, 10000),
+                }
+
+        return [locations, demand_map]
+
+    schema = dlt.Schema(name="nice_load_info_schema")
+    pipeline = dlt.pipeline(
+        pipeline_name="quick_start",
+        destination="duckdb",
+        dataset_name="mydata",
+        # export_schema_path="schemas",
+    )
+
+    taxi_load_info = pipeline.run(
+        taxi_demand_source(),
+    )
+
+    schema_hashset = set()
+    pipeline.run(
+        [taxi_load_info],
+        table_name="_load_info",
+        schema=schema,
+    )
+
+    pipeline.run(
+        [pipeline.last_trace.last_normalize_info],
+        table_name="_normalize_info",
+        schema=schema,
+    )
+
+    pipeline.run(
+        [pipeline.last_trace.last_extract_info],
+        table_name="_extract_info",
+        schema=schema,
+    )
+    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
+    trace_schema = pipeline.schemas["nice_load_info_schema"].to_pretty_yaml()
+
+    users_load_info = pipeline.run(
+        users_source(),
+    )
+
+    pipeline.run(
+        [users_load_info],
+        table_name="_load_info",
+        schema=schema,
+    )
+    assert trace_schema == pipeline.schemas["nice_load_info_schema"].to_pretty_yaml()
+    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
+    assert len(schema_hashset) == 1
+
+    pipeline.run(
+        [pipeline.last_trace.last_normalize_info],
+        table_name="_normalize_info",
+        schema=schema,
+    )
+    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
+    assert len(schema_hashset) == 1
+
+    pipeline.run(
+        [pipeline.last_trace.last_extract_info],
+        table_name="_extract_info",
+        schema=schema,
+    )
+    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
+    assert len(schema_hashset) == 1
+
+    load_info = pipeline.run(
+        [users_source(), taxi_demand_source()],
+    )
+
+    pipeline.run(
+        [load_info],
+        table_name="_load_info",
+        schema=schema,
+    )
+
+    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
+
+    pipeline.run(
+        [pipeline.last_trace.last_normalize_info],
+        table_name="_normalize_info",
+        schema=schema,
+    )
+
+    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
+
+    pipeline.run(
+        [pipeline.last_trace.last_extract_info],
+        table_name="_extract_info",
+        schema=schema,
+    )
+
+    schema_hashset.add(pipeline.schemas["nice_load_info_schema"].version_hash)
+
+    assert len(schema_hashset) == 1

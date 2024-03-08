@@ -170,13 +170,19 @@ def bump_version_if_modified(stored_schema: TStoredSchema) -> Tuple[int, str, st
         pass
     elif hash_ != previous_hash:
         stored_schema["version"] += 1
-        # unshift previous hash to previous_hashes and limit array to 10 entries
-        if previous_hash not in stored_schema["previous_hashes"]:
-            stored_schema["previous_hashes"].insert(0, previous_hash)
-            stored_schema["previous_hashes"] = stored_schema["previous_hashes"][:10]
+        store_prev_hash(stored_schema, previous_hash)
 
     stored_schema["version_hash"] = hash_
     return stored_schema["version"], hash_, previous_hash, stored_schema["previous_hashes"]
+
+
+def store_prev_hash(
+    stored_schema: TStoredSchema, previous_hash: str, max_history_len: int = 10
+) -> None:
+    # unshift previous hash to previous_hashes and limit array to 10 entries
+    if previous_hash not in stored_schema["previous_hashes"]:
+        stored_schema["previous_hashes"].insert(0, previous_hash)
+        stored_schema["previous_hashes"] = stored_schema["previous_hashes"][:max_history_len]
 
 
 def generate_version_hash(stored_schema: TStoredSchema) -> str:

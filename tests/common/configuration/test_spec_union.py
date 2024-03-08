@@ -1,7 +1,6 @@
 import itertools
 import os
 import pytest
-from sqlalchemy.engine import Engine, create_engine
 from typing import Optional, Union, Any
 
 import dlt
@@ -236,6 +235,10 @@ def test_google_auth_union(environment: Any) -> None:
     assert isinstance(credentials, GcpServiceAccountCredentials)
 
 
+class Engine:
+    pass
+
+
 @dlt.source
 def sql_database(credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value):
     yield dlt.resource([credentials], name="creds")
@@ -243,7 +246,7 @@ def sql_database(credentials: Union[ConnectionStringCredentials, Engine, str] = 
 
 def test_union_concrete_type(environment: Any) -> None:
     # we can pass engine explicitly
-    engine = create_engine("sqlite:///:memory:", echo=True)
+    engine = Engine()
     db = sql_database(credentials=engine)
     creds = list(db)[0]
     assert isinstance(creds, Engine)

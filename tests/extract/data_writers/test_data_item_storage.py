@@ -11,7 +11,7 @@ from dlt.common.storages.data_item_storage import DataItemStorage
 from tests.utils import TEST_STORAGE_ROOT
 
 
-class TestItemStorage(DataItemStorage):
+class ItemTestStorage(DataItemStorage):
     def _get_data_item_path_template(self, load_id: str, schema_name: str, table_name: str) -> str:
         return os.path.join(TEST_STORAGE_ROOT, f"{load_id}.{schema_name}.{table_name}.%s")
 
@@ -21,7 +21,7 @@ def test_write_items(format_: TLoaderFileFormat) -> None:
     with Container().injectable_context(
         DestinationCapabilitiesContext.generic_capabilities(format_)
     ):
-        item_storage = TestItemStorage(format_)
+        item_storage = ItemTestStorage(format_)
         c1 = new_column("col1", "bigint")
         t1 = {"col1": c1}
         count = item_storage.write_data_item(
