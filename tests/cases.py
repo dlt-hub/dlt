@@ -189,6 +189,11 @@ def assert_all_data_types_row(
             ensure_pendulum_datetime(expected_rows["col4_precision"]), 3  # type: ignore[arg-type]
         )
 
+    if "col11" in expected_rows:
+        expected_rows["col11"] = reduce_pendulum_datetime_precision(
+            ensure_pendulum_time(expected_rows["col11"]), timestamp_precision  # type: ignore[arg-type]
+        ).isoformat()
+
     if "col11_precision" in expected_rows:
         parsed_time = ensure_pendulum_time(db_mapping["col11_precision"])
         db_mapping["col11_precision"] = reduce_pendulum_datetime_precision(parsed_time, 3)

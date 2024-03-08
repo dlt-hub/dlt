@@ -807,7 +807,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         column_schemas.pop("col11_null")
         column_schemas.pop("col11_precision")
 
-    if destination_config.destination == "redshift":
+    if destination_config.destination in ("redshift", "dremio"):
         data_types.pop("col7_precision")
         column_schemas.pop("col7_precision")
 
@@ -856,7 +856,7 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
             schema=column_schemas,
             parse_complex_strings=destination_config.destination
             in ["snowflake", "bigquery", "redshift"],
-            timestamp_precision=3 if destination_config.destination == "athena" else 6,
+            timestamp_precision=3 if destination_config.destination in ("athena", "dremio") else 6,
         )
 
 
