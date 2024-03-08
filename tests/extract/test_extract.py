@@ -89,6 +89,11 @@ def test_extract_select_tables_lambda(extract_step: Extract) -> None:
     assert "table_name_with_lambda" not in schema.tables
 
 
+def test_make_hints_default() -> None:
+    hints = make_hints()
+    assert hints == {"columns": {}}
+
+
 def test_extract_hints_mark(extract_step: Extract) -> None:
     @dlt.resource
     def with_table_hints():

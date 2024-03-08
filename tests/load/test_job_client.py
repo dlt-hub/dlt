@@ -258,7 +258,7 @@ def test_schema_update_alter_table(client: SqlJobClientBase) -> None:
         schema = client.schema
         col1 = schema._infer_column("col1", "string")
         table_name = "event_test_table" + uniq_id()
-        schema.update_table(new_table(table_name, columns=[col1], write_disposition="append"))
+        schema.update_table(new_table(table_name, columns=[col1]))
         schema.bump_version()
         schema_update = client.update_stored_schema()
         assert table_name in schema_update
@@ -362,7 +362,7 @@ def test_drop_tables(client: SqlJobClientBase) -> None:
 def test_get_storage_table_with_all_types(client: SqlJobClientBase) -> None:
     schema = client.schema
     table_name = "event_test_table" + uniq_id()
-    schema.update_table(new_table(table_name, columns=TABLE_UPDATE, write_disposition="append"))
+    schema.update_table(new_table(table_name, columns=TABLE_UPDATE))
     schema.bump_version()
     schema_update = client.update_stored_schema()
     # we have all columns in the update
@@ -406,7 +406,7 @@ def test_preserve_column_order(client: SqlJobClientBase) -> None:
     columns = deepcopy(TABLE_UPDATE)
     random.shuffle(columns)
 
-    schema.update_table(new_table(table_name, columns=columns, write_disposition="append"))
+    schema.update_table(new_table(table_name, columns=columns))
     schema.bump_version()
 
     def _assert_columns_order(sql_: str) -> None:
@@ -787,9 +787,7 @@ def prepare_schema(client: SqlJobClientBase, case: str) -> Tuple[List[Dict[str, 
     # use first row to infer table
     table: TTableSchemaColumns = {k: client.schema._infer_column(k, v) for k, v in rows[0].items()}
     table_name = f"event_{case}_{uniq_id()}"
-    client.schema.update_table(
-        new_table(table_name, columns=list(table.values()), write_disposition="append")
-    )
+    client.schema.update_table(new_table(table_name, columns=list(table.values())))
     client.schema.bump_version()
     client.update_stored_schema()
     return rows, table_name

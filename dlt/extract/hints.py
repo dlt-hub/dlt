@@ -174,7 +174,7 @@ class DltResourceHints:
         self,
         table_name: TTableHintTemplate[str] = None,
         parent_table_name: TTableHintTemplate[str] = None,
-        write_disposition: TTableHintTemplate[TWriteDisposition] = None,
+        write_disposition: TTableHintTemplate[TWriteDisposition] = DEFAULT_WRITE_DISPOSITION,
         columns: TTableHintTemplate[TAnySchemaColumns] = None,
         primary_key: TTableHintTemplate[TColumnNames] = None,
         merge_key: TTableHintTemplate[TColumnNames] = None,

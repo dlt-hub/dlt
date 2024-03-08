@@ -1235,6 +1235,7 @@ def test_apply_hints() -> None:
         "name": "empty_gen",
         "columns": {},
         "resource": "empty_gen",
+        "write_disposition": "append",
     }
 
     empty = DltResource.from_data(empty_gen)
@@ -1297,7 +1298,6 @@ def test_apply_hints() -> None:
     assert table["name"] == "empty_gen"
     assert "parent" not in table
     assert table["columns"] == {}
-    empty_table_schema["write_disposition"] = "append"
     assert empty_r.compute_table_schema() == empty_table_schema
 
     # combine columns with primary key
