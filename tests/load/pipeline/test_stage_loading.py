@@ -184,7 +184,10 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     if destination_config.destination == "synapse" and destination_config.file_format == "parquet":
         # TIME columns are not supported for staged parquet loads into Synapse
         exclude_types.append("time")
-    if destination_config.destination == "redshift" and destination_config.file_format in (
+    if destination_config.destination in (
+        "redshift",
+        "dremio",
+    ) and destination_config.file_format in (
         "parquet",
         "jsonl",
     ):
