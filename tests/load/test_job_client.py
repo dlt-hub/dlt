@@ -45,9 +45,10 @@ from tests.load.utils import (
 from tests.load.pipeline.utils import destinations_configs, DestinationTestConfiguration
 
 
-@pytest.fixture(autouse=True)
-def set_environ():
-    os.environ["SCHEMA__NAMING"] = "sql_upper"
+# @pytest.fixture(autouse=True)
+# def set_environ():
+#     os.environ["SCHEMA__NAMING"] = "sql_upper"
+
 
 @pytest.fixture
 def file_storage() -> FileStorage:

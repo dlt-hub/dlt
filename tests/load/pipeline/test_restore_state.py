@@ -181,7 +181,9 @@ def test_silently_skip_on_invalid_credentials(
 @pytest.mark.parametrize("use_single_dataset", [True, False])
 @pytest.mark.parametrize("naming_convention", ["sql_upper", "snake_case"])
 def test_get_schemas_from_destination(
-    destination_config: DestinationTestConfiguration, use_single_dataset: bool, naming_convention: str
+    destination_config: DestinationTestConfiguration,
+    use_single_dataset: bool,
+    naming_convention: str,
 ) -> None:
     # use specific naming convention
     os.environ["SCHEMA__NAMING"] = naming_convention
@@ -265,7 +267,9 @@ def test_get_schemas_from_destination(
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("naming_convention", ["sql_upper"])
-def test_restore_state_pipeline(destination_config: DestinationTestConfiguration, naming_convention: str) -> None:
+def test_restore_state_pipeline(
+    destination_config: DestinationTestConfiguration, naming_convention: str
+) -> None:
     # use specific naming convention
     os.environ["SCHEMA__NAMING"] = naming_convention
     # enable restoring from destination
@@ -602,10 +606,16 @@ def test_restore_state_parallel_changes(destination_config: DestinationTestConfi
         with p.sql_client() as client:
             # use sql_client to escape identifiers properly
             state_table = client.make_qualified_table_name(p.default_schema.state_table_name)
-            c_version = client.escape_column_name(p.default_schema.naming.normalize_identifier("version"))
-            c_created_at = client.escape_column_name(p.default_schema.naming.normalize_identifier("created_at"))
+            c_version = client.escape_column_name(
+                p.default_schema.naming.normalize_identifier("version")
+            )
+            c_created_at = client.escape_column_name(
+                p.default_schema.naming.normalize_identifier("created_at")
+            )
         assert_query_data(
-            p, f"SELECT {c_version} FROM {state_table} ORDER BY {c_created_at} DESC", [5, 4, 4, 3, 2]
+            p,
+            f"SELECT {c_version} FROM {state_table} ORDER BY {c_created_at} DESC",
+            [5, 4, 4, 3, 2],
         )
     except SqlClientNotAvailable:
         pytest.skip(f"destination {destination_config.destination} does not support sql client")

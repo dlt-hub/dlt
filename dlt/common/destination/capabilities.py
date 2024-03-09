@@ -36,6 +36,8 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supported_staging_file_formats: List[TLoaderFileFormat]
     escape_identifier: Callable[[str], str]
     escape_literal: Callable[[Any], Any]
+    case_identifier: Callable[[str], str] = identity
+    """Controls identifier casing on top of naming convention. Used to generate case insensitive casing."""
     decimal_precision: Tuple[int, int]
     wei_precision: Tuple[int, int]
     max_identifier_length: int
@@ -71,6 +73,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.supported_staging_file_formats = []
         caps.escape_identifier = identity
         caps.escape_literal = serialize_value
+        caps.case_identifier = identity
         caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
         caps.wei_precision = (EVM_DECIMAL_PRECISION, 0)
         caps.max_identifier_length = 65536
