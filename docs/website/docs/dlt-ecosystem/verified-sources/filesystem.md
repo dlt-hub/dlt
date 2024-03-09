@@ -23,6 +23,7 @@ Sources and resources that can be used with this verified source are:
 | read_jsonl   | Resource-transformer | Reads jsonl file content and extract the data                             |
 | read_parquet | Resource-transformer | Reads parquet file content and extract the data with **Pyarrow**          |
 
+
 ## Setup Guide
 
 ### Grab credentials
@@ -49,8 +50,11 @@ For more info, see
 [AWS official documentation.](https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_access-keys.html)
 
 #### Google Cloud Storage / Google Drive credentials
+There are two ways to access GDrive, using:
+   - Service account credentials, which is the preferred option for those who have a GCP account.
+   - OAuth credentials, which is suitable for those who don't have a GCP account.
 
-To get GCS/GDrive access:
+To get GCS/GDrive access using **Service account** credentials:
 
 1. Log in to [console.cloud.google.com](http://console.cloud.google.com/).
 1. Create a [service account](https://cloud.google.com/iam/docs/service-accounts-create#creating).
@@ -62,6 +66,57 @@ To get GCS/GDrive access:
 
 For more info, see how to
 [create service account](https://support.google.com/a/answer/7378726?hl=en).
+
+To get GCS/GDrive access using **OAuth** credentials:
+
+You need to create a GCP account to get OAuth credentials if you don't have one. To create one,
+follow these steps:
+
+1. Initialize the verified source as explained in ["initialize-the-verified-source"](#initialize-the-verified-source) to set up OAuth credentials.
+
+1. Open a GCP project in your GCP account.
+
+1. Enable the Google Drive API in the project.
+
+1. Search credentials in the search bar and go to Credentials.
+
+1. Go to Credentials -> OAuth client ID -> Select Desktop App from the Application type and give an
+   appropriate name.
+
+1. Download the credentials and fill "client_id", "client_secret" and "project_id" in
+   "secrets.toml". You can comment out the "refresh_token" field since we will grab it 
+   in the next steps.
+
+1. Go back to credentials and select the OAuth consent screen on the left.
+
+1. Fill in the App name, user support email(your email), authorized domain (localhost.com), and dev
+   contact info (your email again).
+
+1. To access GDrive, add the following scope:
+
+   ```
+   "https://www.googleapis.com/auth/drive.readonly"
+   ```
+
+1. To access GCS, add the following scope:
+
+   ```
+   "https://www.googleapis.com/auth/devstorage.read_only"
+   ```
+
+1. Add your email as a test user.
+
+1. Generate `refresh_token`:
+
+   After configuring "client_id", "client_secret" and "project_id" in "secrets.toml". To generate
+   the refresh token, run the following script from the root folder:
+
+   ```bash
+   python filesystem/setup_script_gcp_oauth.py
+   ```
+
+   Once you have executed the script and completed the authentication, you will receive a "refresh
+   token" that can be used to set up the ".dlt/secrets.toml".
 
 #### Azure Blob Storage credentials
 
@@ -111,10 +166,16 @@ For more information, read the
    aws_access_key_id="Please set me up!"
    aws_secret_access_key="Please set me up!"
 
-   # For GCS bucket / Google Drive access:
+   # For GCS bucket / Google Drive access (Service account method):
    client_email="Please set me up!"
    private_key="Please set me up!"
    project_id="Please set me up!"
+
+   # For GCS bucket / Google Drive access (OAuth method):
+   client_id = "Please set me up!"
+   client_secret = "Please set me up!"
+   refresh_token = "Please set me up!"
+   project_id = "Please set me up!"
 
    # For Azure blob storage access:
    azure_storage_account_name="Please set me up!"
@@ -164,7 +225,7 @@ For more information, read the
      ```bash
      pip install adlfs>=2023.9.0
      ```
-   - GCS storage: No separate module needed.
+   - GCS, GDrive storage: No separate module needed.
 
 1. You're now ready to run the pipeline! To get started, run the following command:
 
