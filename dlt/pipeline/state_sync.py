@@ -22,6 +22,7 @@ from dlt.pipeline.exceptions import PipelineStateEngineNoUpgradePathException
 # allows to upgrade state when restored with a new version of state logic/schema
 STATE_ENGINE_VERSION = 4
 
+
 def json_encode_state(state: TPipelineState) -> str:
     return json.typed_dumps(state)
 
@@ -82,7 +83,10 @@ def state_resource(state: TPipelineState) -> DltResource:
         "version_hash": state["_version_hash"],
     }
     return dlt.resource(
-        [state_doc], name=PIPELINE_STATE_TABLE_NAME, write_disposition="append", columns=pipeline_state_table()["columns"]
+        [state_doc],
+        name=PIPELINE_STATE_TABLE_NAME,
+        write_disposition="append",
+        columns=pipeline_state_table()["columns"],
     )
 
 

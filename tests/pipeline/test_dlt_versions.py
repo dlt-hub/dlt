@@ -66,7 +66,8 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     )
                     # check the dlt state table
                     assert {
-                        "version_hash" not in github_schema["tables"][PIPELINE_STATE_TABLE_NAME]["columns"]
+                        "version_hash"
+                        not in github_schema["tables"][PIPELINE_STATE_TABLE_NAME]["columns"]
                     }
                     # check loads table without attaching to pipeline
                     duckdb_cfg = resolve_configuration(
@@ -131,7 +132,9 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                     # two schema versions
                     rows = client.execute_sql(f"SELECT * FROM {VERSION_TABLE_NAME}")
                     assert len(rows) == 2
-                    rows = client.execute_sql(f"SELECT * FROM {PIPELINE_STATE_TABLE_NAME} ORDER BY version")
+                    rows = client.execute_sql(
+                        f"SELECT * FROM {PIPELINE_STATE_TABLE_NAME} ORDER BY version"
+                    )
                     # we have hash columns
                     assert len(rows[0]) == 6 + 2
                     assert len(rows) == 2

@@ -95,14 +95,14 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         # Drop all views
         rows = self.execute_sql(
             "SELECT table_name FROM information_schema.views WHERE table_schema = %s;",
-            self.dataset_name,
+            self.capabilities.case_identifier(self.dataset_name),
         )
         view_names = [row[0] for row in rows]
         self._drop_views(*view_names)
         # Drop all tables
         rows = self.execute_sql(
             "SELECT table_name FROM information_schema.tables WHERE table_schema = %s;",
-            self.dataset_name,
+            self.capabilities.case_identifier(self.dataset_name),
         )
         table_names = [row[0] for row in rows]
         self.drop_tables(*table_names)
@@ -148,11 +148,6 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
             yield DBApiCursorImpl(curr)  # type: ignore[abstract]
         except pyodbc.Error as outer:
             raise outer
-
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        return (
-            self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
-        )
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:

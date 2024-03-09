@@ -230,15 +230,15 @@ def normalize_simple_regex_column(naming: NamingConvention, regex: TSimpleRegex)
             r_ = r_[1:-1]
         # if this a simple string then normalize it
         if r_ == re.escape(r_):
-            r_ = naming.normalize_identifier(r_)
+            r_ = naming.normalize_path(r_)
         if is_exact:
             r_ = "^" + r_ + "$"
         return r_
 
     if regex.startswith(SIMPLE_REGEX_PREFIX):
-        return SIMPLE_REGEX_PREFIX + _normalize(regex[3:])
+        return cast(TSimpleRegex, SIMPLE_REGEX_PREFIX + _normalize(regex[3:]))
     else:
-        return _normalize(regex)
+        return cast(TSimpleRegex, _normalize(regex))
 
 
 def simple_regex_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
@@ -692,7 +692,7 @@ def pipeline_state_table() -> TTableSchema:
     # set to nullable so we can migrate existing tables
     table = new_table(
         PIPELINE_STATE_TABLE_NAME,
-        columns = [
+        columns=[
             {"name": "version", "data_type": "bigint", "nullable": False},
             {"name": "engine_version", "data_type": "bigint", "nullable": False},
             {"name": "pipeline_name", "data_type": "text", "nullable": False},

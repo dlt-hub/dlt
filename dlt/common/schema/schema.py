@@ -404,7 +404,9 @@ class Schema:
         # expand settings, empty settings will expand into default settings
         return Schema.expand_schema_contract_settings(settings)
 
-    def update_table(self, partial_table: TPartialTableSchema, normalize_identifiers: bool = True) -> TPartialTableSchema:
+    def update_table(
+        self, partial_table: TPartialTableSchema, normalize_identifiers: bool = True
+    ) -> TPartialTableSchema:
         """Adds or merges `partial_table` into the schema. Identifiers are normalized by default"""
         if normalize_identifiers:
             partial_table = self.normalize_table_identifiers(partial_table)
@@ -438,7 +440,7 @@ class Schema:
         self._settings = deepcopy(schema.settings)
         self._configure_normalizers(schema._normalizers_config)
         self._compile_settings()
-         # update all tables
+        # update all tables
         for table in schema.tables.values():
             self.update_table(table)
 
@@ -473,7 +475,11 @@ class Schema:
         # dicts are ordered and we will return the rows with hints in the same order as they appear in the columns
         return rv_row
 
-    def merge_hints(self, new_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]], normalize_identifiers: bool = True) -> None:
+    def merge_hints(
+        self,
+        new_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]],
+        normalize_identifiers: bool = True,
+    ) -> None:
         """Merges existing default hints with `new_hint`. Normalizes names in column regexes if possible"""
         if normalize_identifiers:
             new_hints = self._normalize_default_hints(new_hints)
@@ -820,13 +826,23 @@ class Schema:
         if type_detections:
             self._settings["detections"] = type_detections
 
-    def _normalize_default_hints(self, default_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]]) ->  Mapping[TColumnHint, Sequence[TSimpleRegex]]:
+    def _normalize_default_hints(
+        self, default_hints: Mapping[TColumnHint, Sequence[TSimpleRegex]]
+    ) -> Dict[TColumnHint, List[TSimpleRegex]]:
         """Normalizes the column names in default hints. In case of column names that are regexes, normalization is skipped"""
-        return {hint: [utils.normalize_simple_regex_column(self.naming, regex) for regex in regexes] for hint, regexes in default_hints.items()}
+        return {
+            hint: [utils.normalize_simple_regex_column(self.naming, regex) for regex in regexes]
+            for hint, regexes in default_hints.items()
+        }
 
-    def _normalize_preferred_types(self, preferred_types: Dict[TSimpleRegex, TDataType]) -> Dict[TSimpleRegex, TDataType]:
+    def _normalize_preferred_types(
+        self, preferred_types: Dict[TSimpleRegex, TDataType]
+    ) -> Dict[TSimpleRegex, TDataType]:
         """Normalizes the column names in preferred types mapping. In case of column names that are regexes, normalization is skipped"""
-        return {utils.normalize_simple_regex_column(self.naming, regex): data_type for regex, data_type in preferred_types.items()}
+        return {
+            utils.normalize_simple_regex_column(self.naming, regex): data_type
+            for regex, data_type in preferred_types.items()
+        }
 
     def _configure_normalizers(self, normalizers: TNormalizersConfig) -> None:
         # import desired modules

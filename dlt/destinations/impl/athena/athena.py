@@ -204,6 +204,7 @@ class AthenaSQLClient(SqlClientBase[Connection]):
         # Athena uses HIVE to create tables but for querying it uses PRESTO (so normal escaping)
         if not v:
             return v
+        v = self.capabilities.case_identifier(v)
         # bigquery uses hive escaping
         return escape_bigquery_identifier(v)
 
@@ -220,11 +221,6 @@ class AthenaSQLClient(SqlClientBase[Connection]):
 
     def drop_dataset(self) -> None:
         self.execute_sql(f"DROP DATABASE {self.fully_qualified_ddl_dataset_name()} CASCADE;")
-
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        return (
-            self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
-        )
 
     def drop_tables(self, *tables: str) -> None:
         if not tables:

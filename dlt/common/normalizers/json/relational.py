@@ -3,7 +3,7 @@ from dlt.common.normalizers.exceptions import InvalidJsonNormalizer
 from dlt.common.normalizers.typing import TJSONNormalizer
 from dlt.common.normalizers.utils import generate_dlt_id, DLT_ID_LENGTH_BYTES
 
-from dlt.common.typing import DictStrAny, DictStrStr, TDataItem, StrAny
+from dlt.common.typing import DictStrAny, TDataItem, StrAny
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TColumnName, TSimpleRegex
 from dlt.common.schema.utils import column_name_validator
@@ -17,8 +17,8 @@ from dlt.common.validation import validate_dict
 
 
 class RelationalNormalizerConfigPropagation(TypedDict, total=False):
-    root: Optional[Mapping[TColumnName, TColumnName]]
-    tables: Optional[Mapping[str, Mapping[TColumnName, TColumnName]]]
+    root: Optional[Dict[TColumnName, TColumnName]]
+    tables: Optional[Dict[str, Dict[TColumnName, TColumnName]]]
 
 
 class RelationalNormalizerConfig(TypedDict, total=False):
@@ -28,7 +28,6 @@ class RelationalNormalizerConfig(TypedDict, total=False):
 
 
 class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
-
     # known normalizer props
     C_DLT_ID = "_dlt_id"
     """unique id of current row"""
@@ -46,7 +45,6 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     # other constants
     EMPTY_KEY_IDENTIFIER = "_empty"  # replace empty keys with this
 
-
     normalizer_config: RelationalNormalizerConfig
     propagation_config: RelationalNormalizerConfigPropagation
     max_nesting: int
@@ -61,12 +59,20 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     def _reset(self) -> None:
         # normalize known normalizer column identifiers
-        self.c_dlt_id = self.naming.normalize_identifier(self.C_DLT_ID)
-        self.c_dlt_load_id = self.naming.normalize_identifier(self.C_DLT_LOAD_ID)
-        self.c_dlt_root_id = self.naming.normalize_identifier(self.C_DLT_ROOT_ID)
-        self.c_dlt_parent_id = self.naming.normalize_identifier(self.C_DLT_PARENT_ID)
-        self.c_dlt_list_idx = self.naming.normalize_identifier(self.C_DLT_LIST_IDX)
-        self.c_value = self.naming.normalize_identifier(self.C_VALUE)
+        self.c_dlt_id: TColumnName = TColumnName(self.naming.normalize_identifier(self.C_DLT_ID))
+        self.c_dlt_load_id: TColumnName = TColumnName(
+            self.naming.normalize_identifier(self.C_DLT_LOAD_ID)
+        )
+        self.c_dlt_root_id: TColumnName = TColumnName(
+            self.naming.normalize_identifier(self.C_DLT_ROOT_ID)
+        )
+        self.c_dlt_parent_id: TColumnName = TColumnName(
+            self.naming.normalize_identifier(self.C_DLT_PARENT_ID)
+        )
+        self.c_dlt_list_idx: TColumnName = TColumnName(
+            self.naming.normalize_identifier(self.C_DLT_LIST_IDX)
+        )
+        self.c_value: TColumnName = TColumnName(self.naming.normalize_identifier(self.C_VALUE))
 
         # normalize config
 
@@ -136,7 +142,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 out_rec_row[child_name] = v
 
         norm_row_dicts(dict_row, _r_lvl)
-        return cast(DictStrAny, out_rec_row), out_rec_list
+        return out_rec_row, out_rec_list
 
     @staticmethod
     def _get_child_row_hash(parent_row_id: str, child_table: str, list_idx: int) -> str:
@@ -154,7 +160,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
 
     @staticmethod
     def _extend_row(extend: DictStrAny, row: DictStrAny) -> None:
-        row.update(extend)  # type: ignore
+        row.update(extend)
 
     def _add_row_id(
         self, table: str, row: DictStrAny, parent_row_id: str, pos: int, _r_lvl: int
@@ -167,7 +173,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 # child table row deterministic hash
                 row_id = DataItemNormalizer._get_child_row_hash(parent_row_id, table, pos)
                 # link to parent table
-                DataItemNormalizer._link_row(cast(DictStrAny, row), parent_row_id, pos)
+                DataItemNormalizer._link_row(row, parent_row_id, pos)
         row[self.c_dlt_id] = row_id
         return row_id
 
@@ -177,7 +183,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
         config = self.propagation_config
         if config:
             # mapping(k:v): propagate property with name "k" as property with name "v" in child table
-            mappings: DictStrStr = {}
+            mappings: Dict[TColumnName, TColumnName] = {}
             if _r_lvl == 0:
                 mappings.update(config.get("root") or {})
             if table in (config.get("tables") or {}):
@@ -185,7 +191,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
             # look for keys and create propagation as values
             for prop_from, prop_as in mappings.items():
                 if prop_from in row:
-                    extend[prop_as] = row[prop_from]  # type: ignore
+                    extend[prop_as] = row[prop_from]
 
         return extend
 
@@ -283,7 +289,7 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 "root_key": [TSimpleRegex(self.c_dlt_root_id)],
                 "unique": [TSimpleRegex(self.c_dlt_id)],
             },
-            normalize_identifiers=False  # already normalized
+            normalize_identifiers=False,  # already normalized
         )
 
         for table_name in self.schema.tables.keys():
@@ -292,13 +298,21 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def extend_table(self, table_name: str) -> None:
         """If the table has a merge write disposition, add propagation info to normalizer
 
-           Table name should be normalized.
+        Table name should be normalized.
         """
         table = self.schema.tables.get(table_name)
         if not table.get("parent") and table.get("write_disposition") == "merge":
             DataItemNormalizer.update_normalizer_config(
                 self.schema,
-                {"propagation": {"tables": {table_name: {self.c_dlt_id: TColumnName(self.c_dlt_root_id)}}}},
+                {
+                    "propagation": {
+                        "tables": {
+                            table_name: {
+                                TColumnName(self.c_dlt_id): TColumnName(self.c_dlt_root_id)
+                            }
+                        }
+                    }
+                },
             )
 
     def normalize_data_item(
@@ -344,8 +358,15 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
     def _validate_normalizer_config(schema: Schema, config: RelationalNormalizerConfig) -> None:
         """Normalizes all known column identifiers according to the schema and then validates the configuration"""
 
-        def _normalize_prop(mapping: Mapping[TColumnName, TColumnName]) -> Mapping[TColumnName, TColumnName]:
-            return {schema.naming.normalize_identifier(from_col): schema.naming.normalize_identifier(to_col) for from_col, to_col in mapping.items()}
+        def _normalize_prop(
+            mapping: Mapping[TColumnName, TColumnName]
+        ) -> Dict[TColumnName, TColumnName]:
+            return {
+                TColumnName(schema.naming.normalize_path(from_col)): TColumnName(
+                    schema.naming.normalize_path(to_col)
+                )
+                for from_col, to_col in mapping.items()
+            }
 
         # normalize the identifiers first
         propagation_config = config.get("propagation")
@@ -354,7 +375,9 @@ class DataItemNormalizer(DataItemNormalizerBase[RelationalNormalizerConfig]):
                 propagation_config["root"] = _normalize_prop(propagation_config["root"])
             if "tables" in propagation_config:
                 for table_name in propagation_config["tables"]:
-                    propagation_config["tables"][table_name] = _normalize_prop(propagation_config["tables"][table_name])
+                    propagation_config["tables"][table_name] = _normalize_prop(
+                        propagation_config["tables"][table_name]
+                    )
 
         validate_dict(
             RelationalNormalizerConfig,

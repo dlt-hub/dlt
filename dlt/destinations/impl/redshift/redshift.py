@@ -244,7 +244,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
             for h in HINT_TO_REDSHIFT_ATTR.keys()
             if c.get(h, False) is True
         )
-        column_name = self.capabilities.escape_identifier(c["name"])
+        column_name = self.sql_client.escape_column_name(c["name"])
         return (
             f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )

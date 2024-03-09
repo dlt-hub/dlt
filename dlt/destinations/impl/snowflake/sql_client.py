@@ -112,12 +112,6 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
                     self.open_connection()
                 raise outer
 
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        # Always escape for uppercase
-        if escape:
-            return self.capabilities.escape_identifier(self.dataset_name)
-        return self.dataset_name.upper()
-
     def _reset_connection(self) -> None:
         self._conn.rollback()
         self._conn.autocommit(True)

@@ -112,11 +112,6 @@ class Psycopg2SqlClient(SqlClientBase["psycopg2.connection"], DBTransaction):
         composed = Composed(sql if isinstance(sql, Composable) else SQL(sql) for sql in fragments)
         return self.execute_sql(composed, *args, **kwargs)
 
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        return (
-            self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
-        )
-
     def _reset_connection(self) -> None:
         # self._conn.autocommit = True
         self._conn.reset()

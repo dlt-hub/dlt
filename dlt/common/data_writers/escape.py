@@ -129,7 +129,7 @@ def escape_bigquery_identifier(v: str) -> str:
 def escape_snowflake_identifier(v: str) -> str:
     # Snowcase uppercase all identifiers unless quoted. Match this here so queries on information schema work without issue
     # See also https://docs.snowflake.com/en/sql-reference/identifiers-syntax#double-quoted-identifiers
-    return escape_postgres_identifier(v.upper())
+    return escape_postgres_identifier(v)
 
 
 escape_databricks_identifier = escape_bigquery_identifier

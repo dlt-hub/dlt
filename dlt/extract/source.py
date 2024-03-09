@@ -265,12 +265,19 @@ class DltSource(Iterable[TDataItem]):
 
         if value is True:
             RelationalNormalizer.update_normalizer_config(
-                self._schema, {"propagation": {"root": {data_normalizer.c_dlt_id: TColumnName(data_normalizer.c_dlt_root_id)}}}
+                self._schema,
+                {
+                    "propagation": {
+                        "root": {
+                            data_normalizer.c_dlt_id: TColumnName(data_normalizer.c_dlt_root_id)
+                        }
+                    }
+                },
             )
         else:
             if self.root_key:
                 propagation_config = config["propagation"]
-                propagation_config["root"].pop(data_normalizer.c_dlt_id)  # type: ignore
+                propagation_config["root"].pop(data_normalizer.c_dlt_id)
 
     @property
     def resources(self) -> DltResourceDict:

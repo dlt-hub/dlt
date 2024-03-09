@@ -1,4 +1,3 @@
-
 from types import TracebackType
 from typing import ClassVar, Optional, Sequence, List, Dict, Type, Iterable, Any, IO
 
@@ -145,10 +144,16 @@ class QdrantClient(JobClientBase, WithStateSync):
 
     def __init__(self, schema: Schema, config: QdrantClientConfiguration) -> None:
         super().__init__(schema, config)
-        self.version_collection_properties = list(schema.get_table_columns(schema.version_table_name).keys())
-        self.loads_collection_properties = list(schema.get_table_columns(schema.loads_table_name).keys())
+        self.version_collection_properties = list(
+            schema.get_table_columns(schema.version_table_name).keys()
+        )
+        self.loads_collection_properties = list(
+            schema.get_table_columns(schema.loads_table_name).keys()
+        )
         # get definition of state table (may not be present in the schema)
-        state_table = schema.tables.get(schema.state_table_name, schema.normalize_table_identifiers(pipeline_state_table()))
+        state_table = schema.tables.get(
+            schema.state_table_name, schema.normalize_table_identifiers(pipeline_state_table())
+        )
         # column names are pipeline properties
         self.pipeline_state_properties = list(state_table["columns"].keys())
         self.config: QdrantClientConfiguration = config
@@ -421,7 +426,7 @@ class QdrantClient(JobClientBase, WithStateSync):
     def complete_load(self, load_id: str) -> None:
         values = [load_id, self.schema.name, 0, str(pendulum.now())]
         assert len(values) == len(self.loads_collection_properties)
-        properties = {k:v for k,v in zip(self.loads_collection_properties, values)}
+        properties = {k: v for k, v in zip(self.loads_collection_properties, values)}
         loads_table_name = self._make_qualified_collection_name(self.schema.loads_table_name)
         self._create_point_no_vector(properties, loads_table_name)
 
@@ -438,9 +443,16 @@ class QdrantClient(JobClientBase, WithStateSync):
 
     def _update_schema_in_storage(self, schema: Schema) -> None:
         schema_str = json.dumps(schema.to_dict())
-        values = [schema.stored_version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(pendulum.now()), schema_str]
+        values = [
+            schema.stored_version_hash,
+            schema.name,
+            schema.version,
+            schema.ENGINE_VERSION,
+            str(pendulum.now()),
+            schema_str,
+        ]
         assert len(values) == len(self.version_collection_properties)
-        properties = {k:v for k,v in zip(self.version_collection_properties, values)}
+        properties = {k: v for k, v in zip(self.version_collection_properties, values)}
         version_table_name = self._make_qualified_collection_name(self.schema.version_table_name)
         self._create_point_no_vector(properties, version_table_name)
 

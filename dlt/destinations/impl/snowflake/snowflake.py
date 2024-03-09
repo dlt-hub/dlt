@@ -241,7 +241,7 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
 
         cluster_list = [
-            self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("cluster")
+            self.sql_client.escape_column_name(c["name"]) for c in new_columns if c.get("cluster")
         ]
 
         if cluster_list:
@@ -255,11 +255,7 @@ class SnowflakeClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
-        name = self.capabilities.escape_identifier(c["name"])
+        name = self.sql_client.escape_column_name(c["name"])
         return (
             f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
         )
-
-    def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
-        table_name = table_name.upper()  # All snowflake tables are uppercased in information schema
-        return super().get_storage_table(table_name)
