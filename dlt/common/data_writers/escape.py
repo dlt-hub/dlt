@@ -1,9 +1,10 @@
-import re
 import base64
-from typing import Any, Dict
+import re
 from datetime import date, datetime, time  # noqa: I251
+from typing import Any, Dict
 
 from dlt.common.json import json
+
 
 # use regex to escape characters in single pass
 SQL_ESCAPE_DICT = {"'": "''", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
@@ -24,14 +25,14 @@ def _escape_extended(
 ) -> str:
     escape_dict = escape_dict or SQL_ESCAPE_DICT
     escape_re = escape_re or SQL_ESCAPE_RE
-    return "{}{}{}".format(prefix, escape_re.sub(lambda x: escape_dict[x.group(0)], v), "'")
+    return f"{prefix}{escape_re.sub(lambda x: escape_dict[x.group(0)], v)}'"
 
 
 def escape_redshift_literal(v: Any) -> Any:
     if isinstance(v, str):
         # https://www.postgresql.org/docs/9.3/sql-syntax-lexical.html
         # looks like this is the only thing we need to escape for Postgres > 9.1
-        # redshift keeps \ as escape character which is pre 9 behavior
+        # redshift keeps \ as escape character which is pre-9 behavior.
         return _escape_extended(v, prefix="'")
     if isinstance(v, bytes):
         return f"from_hex('{v.hex()}')"
@@ -39,15 +40,12 @@ def escape_redshift_literal(v: Any) -> Any:
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
         return "json_parse(%s)" % _escape_extended(json.dumps(v), prefix="'")
-    if v is None:
-        return "NULL"
-
-    return str(v)
+    return "NULL" if v is None else str(v)
 
 
 def escape_postgres_literal(v: Any) -> Any:
     if isinstance(v, str):
-        # we escape extended string which behave like the redshift string
+        # we escape extended string which behaves like the redshift string.
         return _escape_extended(v)
     if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
@@ -55,15 +53,12 @@ def escape_postgres_literal(v: Any) -> Any:
         return _escape_extended(json.dumps(v))
     if isinstance(v, bytes):
         return f"'\\x{v.hex()}'"
-    if v is None:
-        return "NULL"
-
-    return str(v)
+    return "NULL" if v is None else str(v)
 
 
 def escape_duckdb_literal(v: Any) -> Any:
     if isinstance(v, str):
-        # we escape extended string which behave like the redshift string
+        # We escape extended string which behaves like the redshift string.
         return _escape_extended(v)
     if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
@@ -71,10 +66,7 @@ def escape_duckdb_literal(v: Any) -> Any:
         return _escape_extended(json.dumps(v))
     if isinstance(v, bytes):
         return f"from_base64('{base64.b64encode(v).decode('ascii')}')"
-    if v is None:
-        return "NULL"
-
-    return str(v)
+    return "NULL" if v is None else str(v)
 
 
 MS_SQL_ESCAPE_DICT = {
@@ -100,17 +92,12 @@ def escape_mssql_literal(v: Any) -> Any:
     if isinstance(v, bytes):
         from dlt.destinations.impl.mssql.mssql import VARBINARY_MAX_N
 
-        if len(v) <= VARBINARY_MAX_N:
-            n = str(len(v))
-        else:
-            n = "MAX"
+        n = str(len(v)) if len(v) <= VARBINARY_MAX_N else "MAX"
         return f"CONVERT(VARBINARY({n}), '{v.hex()}', 2)"
 
     if isinstance(v, bool):
         return str(int(v))
-    if v is None:
-        return "NULL"
-    return str(v)
+    return "NULL" if v is None else str(v)
 
 
 def escape_redshift_identifier(v: str) -> str:
@@ -127,8 +114,8 @@ def escape_bigquery_identifier(v: str) -> str:
 
 
 def escape_snowflake_identifier(v: str) -> str:
-    # Snowcase uppercase all identifiers unless quoted. Match this here so queries on information schema work without issue
-    # See also https://docs.snowflake.com/en/sql-reference/identifiers-syntax#double-quoted-identifiers
+    # Snowflake uppercase all identifiers unless quoted. Match this here so queries on information schema work without issue.
+    # See https://docs.snowflake.com/en/sql-reference/identifiers-syntax#double-quoted-identifiers.
     return escape_postgres_identifier(v.upper())
 
 
@@ -147,7 +134,45 @@ def escape_databricks_literal(v: Any) -> Any:
         return _escape_extended(json.dumps(v), prefix="'", escape_dict=DATABRICKS_ESCAPE_DICT)
     if isinstance(v, bytes):
         return f"X'{v.hex()}'"
-    if v is None:
-        return "NULL"
+    return "NULL" if v is None else str(v)
 
-    return str(v)
+
+# https://github.com/ClickHouse/ClickHouse/blob/master/docs/en/sql-reference/syntax.md#string
+CLICKHOUSE_ESCAPE_DICT = {
+    "'": "''",
+    "\\": "\\\\",
+    "\n": "\\n",
+    "\t": "\\t",
+    "\b": "\\b",
+    "\f": "\\f",
+    "\r": "\\r",
+    "\0": "\\0",
+    "\a": "\\a",
+    "\v": "\\v",
+}
+
+CLICKHOUSE_ESCAPE_RE = _make_sql_escape_re(CLICKHOUSE_ESCAPE_DICT)
+
+
+def escape_clickhouse_literal(v: Any) -> Any:
+    if isinstance(v, str):
+        return _escape_extended(
+            v, prefix="'", escape_dict=CLICKHOUSE_ESCAPE_DICT, escape_re=CLICKHOUSE_ESCAPE_RE
+        )
+    if isinstance(v, (datetime, date, time)):
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return _escape_extended(
+            json.dumps(v),
+            prefix="'",
+            escape_dict=CLICKHOUSE_ESCAPE_DICT,
+            escape_re=CLICKHOUSE_ESCAPE_RE,
+        )
+    if isinstance(v, bytes):
+        return f"'{v.hex()}'"
+    return "NULL" if v is None else str(v)
+
+
+def escape_clickhouse_identifier(v: str, quote_char: str = "`") -> str:
+    quote_char = quote_char if quote_char in {'"', "`"} else "`"
+    return quote_char + v.replace(quote_char, quote_char * 2).replace("\\", "\\\\") + quote_char
