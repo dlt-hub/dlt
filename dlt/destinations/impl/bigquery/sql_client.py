@@ -1,5 +1,5 @@
 from contextlib import contextmanager
-from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence
+from typing import Any, AnyStr, ClassVar, Iterator, List, Optional, Sequence, Generator
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -8,6 +8,7 @@ from google.cloud.bigquery import dbapi as bq_dbapi
 from google.cloud.bigquery.dbapi import Connection as DbApiConnection, Cursor as BQDbApiCursor
 from google.cloud.bigquery.dbapi import exceptions as dbapi_exceptions
 
+from dlt.common import logger
 from dlt.common.configuration.specs import GcpServiceAccountCredentialsWithoutDefaults
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.typing import StrAny
@@ -44,17 +45,30 @@ class BigQueryDBApiCursorImpl(DBApiCursorImpl):
     """Use native BigQuery data frame support if available"""
 
     native_cursor: BQDbApiCursor  # type: ignore
+    df_iterator: Generator[Any, None, None]
+
+    def __init__(self, curr: DBApiCursor) -> None:
+        super().__init__(curr)
+        self.df_iterator = None
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
-        if chunk_size is not None:
-            return super().df(chunk_size=chunk_size)
-        query_job: bigquery.QueryJob = self.native_cursor._query_job
-
+        query_job: bigquery.QueryJob = self.native_cursor.query_job
+        if self.df_iterator:
+            return next(self.df_iterator, None)
         try:
+            if chunk_size is not None:
+                # create iterator with given page size
+                self.df_iterator = query_job.result(page_size=chunk_size).to_dataframe_iterable()
+                return next(self.df_iterator, None)
             return query_job.to_dataframe(**kwargs)
-        except ValueError:
+        except ValueError as ex:
             # no pyarrow/db-types, fallback to our implementation
-            return super().df()
+            logger.warning(f"Native BigQuery pandas reader could not be used: {str(ex)}")
+            return super().df(chunk_size=chunk_size)
+
+    def close(self) -> None:
+        if self.df_iterator:
+            self.df_iterator.close()
 
 
 class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
@@ -220,12 +234,11 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
                 conn.close()
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
+        project_id = self.capabilities.case_identifier(self.credentials.project_id)
+        dataset_name = self.capabilities.case_identifier(self.dataset_name)
         if escape:
-            project_id = self.capabilities.escape_identifier(self.credentials.project_id)
-            dataset_name = self.capabilities.escape_identifier(self.dataset_name)
-        else:
-            project_id = self.credentials.project_id
-            dataset_name = self.dataset_name
+            project_id = self.capabilities.escape_identifier(project_id)
+            dataset_name = self.capabilities.escape_identifier(dataset_name)
         return f"{project_id}.{dataset_name}"
 
     @classmethod
