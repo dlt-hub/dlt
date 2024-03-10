@@ -120,7 +120,7 @@ If you decide to change the [filename layout](./filesystem#data-loading) from th
 ## Additional destination options
 
 ### Iceberg data tables
-You can save your tables as iceberg tables to Athena. This will enable you, for example, to delete data from them later if you need to. To switch a resource to the iceberg table format, supply the table_format argument like this:
+You can save your tables as Iceberg tables to Athena. This will enable you, for example, to delete data from them later if you need to. To switch a resource to the iceberg table format, supply the table_format argument like this:
 
 ```python
 @dlt.resource(table_format="iceberg")
