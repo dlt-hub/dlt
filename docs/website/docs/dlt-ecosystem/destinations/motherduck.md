@@ -59,7 +59,7 @@ python3 chess_pipeline.py
 All write dispositions are supported.
 
 ## Data loading
-By default, **parquet** files and the `COPY` command are used to move files to the remote duckdb database. All write dispositions are supported.
+By default, Parquet files and the `COPY` command are used to move files to the remote duckdb database. All write dispositions are supported.
 
 The **INSERT** format is also supported and will execute large INSERT queries directly into the remote database. This method is significantly slower and may exceed the maximum query size, so it is not advised.
 
