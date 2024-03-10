@@ -87,7 +87,7 @@ You can specify the location of the data i.e. `EU` instead of `US` which is the 
 
 ### OAuth 2.0 Authentication
 
-You can use OAuth 2.0 authentication. You'll need to generate a **refresh token** with the right scopes (I suggest asking our GPT-4 assistant for details).
+You can use OAuth 2.0 authentication. You'll need to generate a **refresh token** with the right scopes (we suggest asking our GPT-4 assistant for details).
 Then you can fill the following information in `secrets.toml`
 
 ```toml
