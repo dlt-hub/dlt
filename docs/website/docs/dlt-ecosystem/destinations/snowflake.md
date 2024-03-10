@@ -23,7 +23,7 @@ dlt init chess snowflake
 ```
 pip install -r requirements.txt
 ```
-This will install dlt with the **snowflake** extra, which contains the Snowflake Python dbapi client.
+This will install `dlt` with the `snowflake` extra, which contains the Snowflake Python dbapi client.
 
 **3. Create a new database, user, and give dlt access.**
 
