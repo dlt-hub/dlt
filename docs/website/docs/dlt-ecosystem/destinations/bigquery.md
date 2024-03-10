@@ -276,6 +276,3 @@ Refer to the [full API specification](../../../docs/api_reference/destinations/i
 - [Load data from Google Sheets to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-bigquery)
 - [Load data from Stripe to BigQuery in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-bigquery)
 <!--@@@DLT_SNIPPET_END tuba::bigquery-->
-<!---
-grammarcheck: true
--->

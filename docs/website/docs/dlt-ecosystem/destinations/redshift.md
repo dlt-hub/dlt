@@ -143,6 +143,3 @@ Supported loader file formats for Redshift are `sql` and `insert_values` (defaul
 - [Load data from Stripe to Redshift in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-redshift)
 - [Load data from Google Sheets to Redshift in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-redshift)
 <!--@@@DLT_SNIPPET_END tuba::redshift-->
-<!---
-grammarcheck: true
--->

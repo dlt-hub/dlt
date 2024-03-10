@@ -266,6 +266,3 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 - [Load data from Chess.com to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-snowflake)
 - [Load data from Google Sheets to Snowflake in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-snowflake)
 <!--@@@DLT_SNIPPET_END tuba::snowflake-->
-<!---
-grammarcheck: true
--->

@@ -13,6 +13,3 @@ Pick one of our high-quality destinations and load your data into a local databa
 Otherwise, pick a destination below:
 
 <DocCardList />
-<!---
-grammarcheck: true
--->

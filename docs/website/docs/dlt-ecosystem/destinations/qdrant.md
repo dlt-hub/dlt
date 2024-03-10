@@ -223,6 +223,3 @@ Qdrant destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_SNIPPET_START tuba::qdrant-->
 <!--@@@DLT_SNIPPET_END tuba::qdrant-->
-<!---
-grammarcheck: true
--->

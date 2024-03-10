@@ -108,6 +108,3 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 - [Load data from Google Sheets to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-postgres)
 - [Load data from Stripe to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-postgres)
 <!--@@@DLT_SNIPPET_END tuba::postgres-->
-<!---
-grammarcheck: true
--->

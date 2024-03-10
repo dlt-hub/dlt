@@ -136,9 +136,9 @@ Possible values:
 >* **CLUSTERED COLUMNSTORE INDEX tables do not support the `varchar(max)`, `nvarchar(max)`, and `varbinary(max)` data types.** If you don't specify the `precision` for columns that map to any of these types, `dlt` will use the maximum lengths `varchar(4000)`, `nvarchar(4000)`, and `varbinary(8000)`.
 >* **While Synapse creates CLUSTERED COLUMNSTORE INDEXES by default, `dlt` creates HEAP tables by default.** HEAP is a more robust choice because it supports all data types and doesn't require conversions.
 >* **When using the `insert-from-staging` [`replace` strategy](../../general-usage/full-loading.md), the staging tables are always created as HEAP tables**—any configuration of the table index types is ignored. The HEAP strategy makes sense for staging tables for reasons explained [here](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index#heap-tables).
->* **When using the `staging-optimized` [`replace` strategy](../../general-usage/full-loading.md), the staging tables are already created with the configured table index type**, because the staging table becomes the final table.   
->* **`dlt` system tables are always created as HEAP tables, regardless of any configuration.** This is in line with Microsoft's recommendation that "for small lookup tables, less than 60 million rows, consider using HEAP or clustered index for faster query performance." 
->* Child tables, if any, inherit the table index type of their parent table. 
+>* **When using the `staging-optimized` [`replace` strategy](../../general-usage/full-loading.md), the staging tables are already created with the configured table index type**, because the staging table becomes the final table.
+>* **`dlt` system tables are always created as HEAP tables, regardless of any configuration.** This is in line with Microsoft's recommendation that "for small lookup tables, less than 60 million rows, consider using HEAP or clustered index for faster query performance."
+>* Child tables, if any, inherit the table index type of their parent table.
 
 ## Supported column hints
 
@@ -189,7 +189,7 @@ destination.synapse.credentials = "synapse://loader:your_loader_password@your_sy
 ```
 
 Descriptions:
-- `default_table_index_type` sets the [table index type](#table-index-type) that is used if no table index type is specified on the resource. 
+- `default_table_index_type` sets the [table index type](#table-index-type) that is used if no table index type is specified on the resource.
 - `create_indexes` determines if `primary_key` and `unique` [column hints](#supported-column-hints) are applied.
 - `staging_use_msi` determines if the Managed Identity of the Synapse workspace is used to authorize access to the [staging](#staging-support) Storage Account. Ensure the Managed Identity has the [Storage Blob Data Reader](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#storage-blob-data-reader) role (or a higher-privileged role) assigned on the blob container if you set this option to `"true"`.
 - `port` used for the ODBC connection.
@@ -212,6 +212,3 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 - [Load data from Stripe to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-synapse)
 - [Load data from Chess.com to Azure Synapse in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-synapse)
 <!--@@@DLT_SNIPPET_END tuba::synapse-->
-<!---
-grammarcheck: true
--->

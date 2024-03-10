@@ -305,6 +305,3 @@ Weaviate destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_SNIPPET_START tuba::weaviate-->
 <!--@@@DLT_SNIPPET_END tuba::weaviate-->
-<!---
-grammarcheck: true
--->

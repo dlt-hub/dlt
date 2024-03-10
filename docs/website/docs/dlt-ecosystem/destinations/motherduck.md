@@ -100,6 +100,3 @@ Use `duckdb 0.8.1` or above.
 
 <!--@@@DLT_SNIPPET_START tuba::motherduck-->
 <!--@@@DLT_SNIPPET_END tuba::motherduck-->
-<!---
-grammarcheck: true
--->

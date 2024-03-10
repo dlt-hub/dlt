@@ -196,6 +196,3 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 - [Load data from Google Sheets to Databricks in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-databricks)
 - [Load data from Chess.com to Databricks in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-databricks)
 <!--@@@DLT_SNIPPET_END tuba::databricks-->
-<!---
-grammarcheck: true
--->

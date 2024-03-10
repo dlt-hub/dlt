@@ -125,6 +125,3 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 - [Load data from HubSpot to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-duckdb)
 - [Load data from GitHub to DuckDB in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-duckdb)
 <!--@@@DLT_SNIPPET_END tuba::duckdb-->
-<!---
-grammarcheck: true
--->

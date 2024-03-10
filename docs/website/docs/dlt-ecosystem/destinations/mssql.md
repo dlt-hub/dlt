@@ -121,6 +121,3 @@ No dbt support yet.
 - [Load data from Notion to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-mssql)
 - [Load data from HubSpot to Microsoft SQL Server in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-mssql)
 <!--@@@DLT_SNIPPET_END tuba::mssql-->
-<!---
-grammarcheck: true
--->
