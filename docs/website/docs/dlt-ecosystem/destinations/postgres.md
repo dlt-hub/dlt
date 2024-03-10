@@ -23,7 +23,7 @@ dlt init chess postgres
 ```
 pip install -r requirements.txt
 ```
-This will install dlt with the **postgres** extra, which contains the `psycopg2` client.
+This will install dlt with the `postgres` extra, which contains the `psycopg2` client.
 
 **3. After setting up a Postgres instance and `psql` / query editor, create a new database by running:**
 ```
