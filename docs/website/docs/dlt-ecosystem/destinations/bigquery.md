@@ -28,7 +28,7 @@ dlt init chess bigquery
 pip install -r requirements.txt
 ```
 
-This will install dlt with the **bigquery** extra, which contains all the dependencies required by the bigquery client.
+This will install dlt with the `bigquery` extra, which contains all the dependencies required by the bigquery client.
 
 **3. Log in to or create a Google Cloud account**
 
