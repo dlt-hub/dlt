@@ -252,7 +252,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 
 ### Run the pipeline
 
-1. Install necessary dependencies for the preferred [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/), For example, duckdb:
+1. Install necessary dependencies for the preferred [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/), For example, DuckDB:
 
    ```
    pip install dlt[duckdb]
