@@ -29,9 +29,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
                 # Query may be immutable so make it mutable.
                 self.query = dict(self.query)
         except Exception as e:
-            raise InvalidConnectionString(
-                self.__class__, native_value, self.drivername
-            ) from e
+            raise InvalidConnectionString(self.__class__, native_value, self.drivername) from e
 
     def on_resolved(self) -> None:
         if self.password:
