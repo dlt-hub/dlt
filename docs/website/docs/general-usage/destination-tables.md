@@ -163,7 +163,7 @@ cases where the primary key or other unique columns are defined.
 During a pipeline run, dlt [normalizes both table and column names](schema.md#naming-convention) to ensure compatibility with the destination database's accepted format. All names from your source data will be transformed into snake_case and will only include alphanumeric characters. Please be aware that the names in the destination database may differ somewhat from those in your original input.
 
 ### Variant columns
-If your data has inconsistent types, `dlt` will dispatch the data to several **variant columns**. For example, if you have a resource (i.e., a JSON file) with a field named **answer** and your data contains boolean values, you will get a column with the name **answer** of type **BOOLEAN** in your destination. If for some reason, on the next load you get integer value and string value in **answer**, the inconsistent data will go to **answer__v_bigint** and **answer__v_text** columns respectively.
+If your data has inconsistent types, `dlt` will dispatch the data to several **variant columns**. For example, if you have a resource (i.e., a JSON file) with a field named `answer` and your data contains boolean values, you will get a column with the name `answer` of type `BOOLEAN` in your destination. If for some reason, on the next load you get integer value and string value in `answer`, the inconsistent data will go to `answer__v_bigint` and `answer__v_text` columns respectively.
 The general naming rule for variant columns is `<original name>__v_<type>` where `original_name` is the existing column name (with data type clash) and `type` is the name of the data type stored in the variant.
 
 
