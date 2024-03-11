@@ -5,8 +5,16 @@ Run streamlit showing this pipeline like this:
 
     dlt pipeline test_resources_pipeline show
 """
+import os
+from pathlib import Path
 
 import dlt
+
+from streamlit.testing.v1 import AppTest
+
+here = Path(__file__).parent
+dlt_root = here.parent.parent.parent.absolute()
+streamlit_app_path = dlt_root / "dlt/helpers/streamlit_app"
 
 
 @dlt.source
@@ -53,17 +61,23 @@ def source2(nr):
 
 def test_multiple_resources_pipeline():
     pipeline = dlt.pipeline(
-        pipeline_name="test_resources_pipeline", destination="duckdb", dataset_name="rows_data2"
+        pipeline_name="test_resources_pipeline",
+        destination="duckdb",
+        dataset_name="rows_data2",
     )
     load_info = pipeline.run([source1(10), source2(20)])
 
     source1_schema = load_info.pipeline.schemas.get("source1")
 
-    assert load_info.pipeline.schema_names == ["source2", "source1"]  # type: ignore[attr-defined]
+    assert set(load_info.pipeline.schema_names) == set(["source2", "source1"])  # type: ignore[attr-defined]
 
     assert source1_schema.data_tables()[0]["name"] == "one"
     assert source1_schema.data_tables()[0]["columns"]["column_1"].get("primary_key") is True
     assert source1_schema.data_tables()[0]["columns"]["column_1"].get("merge_key") is True
     assert source1_schema.data_tables()[0]["write_disposition"] == "merge"
 
-    # The rest should be inspected using the streamlit tool.
+    os.environ["DLT_TEST_PIPELINE_NAME"] = "test_resources_pipeline"
+    streamlit_app = AppTest.from_file(str(streamlit_app_path / "dashboard.py"), default_timeout=5)
+    streamlit_app.run()
+    assert not streamlit_app.exception
+    # TODO: Add more tests

@@ -1,3 +1,4 @@
+import os
 import sys
 
 import dlt
@@ -54,4 +55,8 @@ def display(pipeline_name: str) -> None:
 
 
 if __name__ == "__main__":
-    display(sys.argv[1])
+    if test_pipeline_name := os.getenv("DLT_TEST_PIPELINE_NAME"):
+        print(f"RUNNING TEST PIPELINE: {test_pipeline_name}")
+        display(test_pipeline_name)
+    else:
+        display(sys.argv[1])
