@@ -13,7 +13,7 @@ def tag(
     tag_type: Optional[TagType] = "mute",
 ) -> None:
     tag_html = f"""
-    {label+": " if label else ""}<span class="tag">{tag_name}</span>
+    {str(label)+": " if label else ""}<span class="tag">{tag_name}</span>
     """
     kinds = {
         "mute": {"text_color": "#495057", "bg_color": "#e9ecef"},
