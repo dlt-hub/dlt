@@ -3,12 +3,13 @@ import streamlit as st
 
 from dlt.common.destination.reference import WithStateSync
 from dlt.helpers.streamlit_app.utils import HERE
-from dlt.helpers.streamlit_app.widgets import logo, stat, tag
+from dlt.helpers.streamlit_app.widgets import logo, stat, tag, mode_selector
 from dlt.helpers.streamlit_app.last_load_info import last_load_info
 from dlt.pipeline.state_sync import load_state_from_destination
 
 
 def menu(pipeline: dlt.Pipeline) -> None:
+    mode_selector()
     logo()
     st.page_link(f"{HERE}/dashboard.py", label="Explore data", icon="🕹️")
     st.page_link(f"{HERE}/pages/load_info.py", label="Load info", icon="💾")
@@ -51,6 +52,7 @@ def pipeline_state_info(pipeline: dlt.Pipeline) -> None:
         )
 
     if remote_state_version != local_state["_state_version"]:
+        st.text("")
         st.warning(
             "Looks like that local state is not yet synchronized or synchronization is disabled",
             icon="⚠️",

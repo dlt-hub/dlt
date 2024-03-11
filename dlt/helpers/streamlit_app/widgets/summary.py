@@ -1,9 +1,15 @@
 import dlt
 import streamlit as st
+from dlt.pipeline.exceptions import SqlClientNotAvailable
 
 
 def pipeline_summary(pipeline: dlt.Pipeline) -> None:
-    credentials = pipeline.sql_client().credentials
+    try:
+        credentials = pipeline.sql_client().credentials
+    except SqlClientNotAvailable:
+        credentials = "---"
+        st.error("🚨 Cannot load data - SqlClient not available")
+
     schema_names = ", ".join(sorted(pipeline.schema_names))
     expander = st.expander("Pipeline info")
     expander.markdown(f"""

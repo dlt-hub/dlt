@@ -3,7 +3,8 @@ import streamlit as st
 
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.libs.pandas import pandas as pd
-from dlt.helpers.streamlit_app.menu import menu, pipeline_state_info
+from dlt.helpers.streamlit_app.menu import menu
+from dlt.helpers.streamlit_app.blocks.schema_tabs import show_schema_tabs
 from dlt.helpers.streamlit_app.widgets import pipeline_summary
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
@@ -43,38 +44,43 @@ def write_load_status_page(pipeline: Pipeline) -> None:
             f"SELECT load_id, inserted_at FROM {pipeline.default_schema.loads_table_name} WHERE"
             " status = 0 ORDER BY inserted_at DESC LIMIT 101 "
         )
+        st.json(st.session_state)
+        if loads_df is not None:
+            selected_load_id = st.selectbox("Select load id", loads_df)
+            schema = pipeline.default_schema
 
-        st.markdown("**Number of loaded rows:**")
-        selected_load_id = st.selectbox("Select load id", loads_df)
-        schema = pipeline.default_schema
+            # st.json(st.session_state["schema"].data_tables(), expanded=False)
+            st.markdown("**Number of loaded rows:**")
 
-        # construct a union query
-        query_parts = []
-        for table in schema.data_tables():
-            if "parent" in table:
-                continue
-            table_name = table["name"]
-            query_parts.append(
-                f"SELECT '{table_name}' as table_name, COUNT(1) As rows_count FROM"
-                f" {table_name} WHERE _dlt_load_id = '{selected_load_id}'"
+            # construct a union query
+            query_parts = []
+            for table in schema.data_tables():
+                if "parent" in table:
+                    continue
+                table_name = table["name"]
+                query_parts.append(
+                    f"SELECT '{table_name}' as table_name, COUNT(1) As rows_count FROM"
+                    f" {table_name} WHERE _dlt_load_id = '{selected_load_id}'"
+                )
+                query_parts.append("UNION ALL")
+
+            query_parts.pop()
+            rows_counts_df = _query_data("\n".join(query_parts))
+
+            st.markdown(f"Rows loaded in **{selected_load_id}**")
+            st.dataframe(rows_counts_df)
+
+            st.markdown("**Last 100 loads**")
+            st.dataframe(loads_df)
+
+            st.subheader("Schema updates")
+            schemas_df = _query_data_live(
+                "SELECT schema_name, inserted_at, version, version_hash FROM"
+                f" {pipeline.default_schema.version_table_name} ORDER BY inserted_at DESC LIMIT"
+                " 101 "
             )
-            query_parts.append("UNION ALL")
-        query_parts.pop()
-        rows_counts_df = _query_data("\n".join(query_parts))
-
-        st.markdown(f"Rows loaded in **{selected_load_id}**")
-        st.dataframe(rows_counts_df)
-
-        st.markdown("**Last 100 loads**")
-        st.dataframe(loads_df)
-
-        st.subheader("Schema updates")
-        schemas_df = _query_data_live(
-            "SELECT schema_name, inserted_at, version, version_hash FROM"
-            f" {pipeline.default_schema.version_table_name} ORDER BY inserted_at DESC LIMIT 101 "
-        )
-        st.markdown("**100 recent schema updates**")
-        st.dataframe(schemas_df)
+            st.markdown("**100 recent schema updates**")
+            st.dataframe(schemas_df)
     except CannotRestorePipelineException as restore_ex:
         st.error("Seems like the pipeline does not exist. Did you run it at least once?")
         st.exception(restore_ex)

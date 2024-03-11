@@ -9,10 +9,9 @@ from dlt.common.exceptions import MissingDependencyException
 from dlt.common.utils import flatten_list_or_items
 from dlt.common.libs.pandas import pandas as pd
 from dlt.helpers.streamlit_app.menu import menu
-from dlt.helpers.streamlit_app.widgets import tag
+from dlt.helpers.streamlit_app.utils import query_data
+from dlt.helpers.streamlit_app.widgets import tag, schema_picker
 from dlt.pipeline import Pipeline
-from dlt.pipeline.exceptions import SqlClientNotAvailable
-from streamlit import config
 
 # use right caching function to disable deprecation message
 if hasattr(st, "cache_data"):
@@ -41,29 +40,10 @@ def write_data_explorer_page(
         MissingDependencyException: Raised when a particular python dependency is not installed
     """
 
-    @cache_data(ttl=60)
-    def _query_data(query: str, chunk_size: int = None) -> pd.DataFrame:
-        try:
-            with pipeline.sql_client(schema_name) as client:
-                with client.execute_query(query) as curr:
-                    return curr.df(chunk_size=chunk_size)
-        except SqlClientNotAvailable:
-            st.error("Cannot load data - SqlClient not available")
-
     st.subheader("Schemas and tables", divider="rainbow")
+    schema_picker(pipeline)
 
-    num_schemas = len(pipeline.schema_names)
-    if num_schemas == 1:
-        schema_name = pipeline.schema_names[0]
-        selected_schema = pipeline.schemas.get(schema_name)
-        st.text(f"Schema: {schema_name}")
-    elif num_schemas > 1:
-        st.subheader("Schema:")
-        text = "Pick a schema name to see all its tables below"
-        selected_schema_name = st.selectbox(text, sorted(pipeline.schema_names))
-        selected_schema = pipeline.schemas.get(selected_schema_name)
-
-    for table in sorted(selected_schema.data_tables(), key=lambda table: table["name"]):
+    for table in sorted(st.session_state["schema"].data_tables(), key=lambda table: table["name"]):
         table_name = table["name"]
         tag(table_name, label="Table")
         if "description" in table:
@@ -97,13 +77,13 @@ def write_data_explorer_page(
         st.markdown(" | ".join(table_hints))
 
         # table schema contains various hints (like clustering or partition options) that we do not want to show in basic view
-        def essentials_f(c) -> Dict[str, Any]:
+        def essentials_f(c: Any) -> Dict[str, Any]:
             return {k: v for k, v in c.items() if k in ["name", "data_type", "nullable"]}
 
         st.table(map(essentials_f, table["columns"].values()))
         # add a button that when pressed will show the full content of a table
         if st.button("SHOW DATA", key=table_name):
-            df = _query_data(f"SELECT * FROM {table_name}", chunk_size=2048)
+            df = query_data(pipeline, f"SELECT * FROM {table_name}", chunk_size=2048)
             if df is None:
                 st.text("No rows returned")
             else:
@@ -120,7 +100,7 @@ def write_data_explorer_page(
         if sql_query:
             try:
                 # run the query from the text area
-                df = _query_data(sql_query)
+                df = query_data(pipeline, sql_query, chunk_size=2048)
                 if df is None:
                     st.text("No rows returned")
                 else:
@@ -161,16 +141,6 @@ def write_data_explorer_page(
 
 
 def display(pipeline_name: str) -> None:
-    config.set_option("theme.primaryColor", "#191937")
-
-    # Main background
-    config.set_option("theme.backgroundColor", "#4C4898")
-
-    # Sidebar
-    config.set_option("theme.secondaryBackgroundColor", "#191937")
-
-    # Text
-    config.set_option("theme.textColor", "#FEFEFA")
     pipeline = dlt.attach(pipeline_name)
     st.session_state["pipeline_name"] = pipeline_name
     with st.sidebar:

@@ -11,8 +11,9 @@ def logo() -> None:
     styles = """
     <style>
         .logo {
-            margin-top: -80px;
-            margin-left: 30%;
+            margin-top: -120px;
+            margin-left: 36%;
+            margin-bottom: 0;
             width: 60%;
             font-size: 2em;
             letter-spacing: -1.8px;

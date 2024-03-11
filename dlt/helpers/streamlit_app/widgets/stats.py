@@ -19,6 +19,11 @@ def stat(
         <p class="stat-value">{value}</p>
     </div>
     """
+    mode = st.session_state.get("color_mode", "dark")
+    if mode == "light":
+        background_color = "#FEFEFE"
+        border_left_color = "#333333"
+
     styles = """
         .stat {
             display: %s;
@@ -37,7 +42,8 @@ def stat(
             font-size: 32px;
             margin-bottom: 0;
         }
-        """ % (display, width, border_radius, border_color, background_color)
+        %s
+        """ % (display, width, border_radius, border_color, background_color, "")
 
     if border_left_width > 1:
         styles += """
