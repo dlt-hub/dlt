@@ -102,7 +102,7 @@ the pipeline run is progressing. `dlt` supports four progress monitors out of th
 - [tqdm](https://github.com/tqdm/tqdm) - the most popular Python progress bar lib, proven to work in
   Notebooks.
 - [alive_progress](https://github.com/rsalmei/alive-progress) - with the most fancy animations.
-- **log** - dumps the progress information to the log, console, or text stream. **The most useful on
+- **log** - dumps the progress information to the log, console, or text stream. The most useful in
   production** optionally adds memory and CPU usage stats.
 
 > 💡 You must install the required progress bar library yourself.
