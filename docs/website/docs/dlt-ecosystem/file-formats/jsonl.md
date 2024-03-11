@@ -6,7 +6,7 @@ keywords: [jsonl, file formats]
 
 # jsonl - JSON Delimited
 
-`JSON Delimited` is a file format that stores several `JSON` documents in one file. The `JSON`
+JSON Delimited is a file format that stores several JSON documents in one file. The JSON
 documents are separated by a new line.
 
 Additional data types are stored as follows:
