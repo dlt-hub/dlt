@@ -1,7 +1,7 @@
 import streamlit as st
 
 
-def dark_theme():
+def dark_theme() -> None:
     st.config.set_option("theme.base", "dark")
     st.config.set_option("theme.primaryColor", "#191937")
 
@@ -15,7 +15,7 @@ def dark_theme():
     st.config.set_option("theme.textColor", "#FEFEFA")
 
 
-def light_theme():
+def light_theme() -> None:
     st.config.set_option("theme.base", "light")
     st.config.set_option("theme.primaryColor", "#333")
 

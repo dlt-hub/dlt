@@ -8,7 +8,7 @@ ColorMode = Literal["light", "dark"]
 
 
 def set_color_mode(mode: ColorMode) -> Callable[..., None]:
-    def set_mode():
+    def set_mode() -> None:
         st.session_state["color_mode"] = mode
         if mode == "dark":
             dark_theme()
@@ -18,7 +18,7 @@ def set_color_mode(mode: ColorMode) -> Callable[..., None]:
     return set_mode
 
 
-def mode_selector():
+def mode_selector() -> None:
     columns = st.columns(10)
     light = columns[3]
     dark = columns[5]
