@@ -23,7 +23,7 @@ def query_data(
     chunk_size: Optional[int] = None,
 ) -> pd.DataFrame:
     @cache_data(ttl=600)
-    def query_data(
+    def query_data(  # type: ignore[return]
         query: str,
         schema_name: str = None,
         chunk_size: Optional[int] = None,
@@ -45,7 +45,7 @@ def query_data_live(
     chunk_size: Optional[int] = None,
 ) -> pd.DataFrame:
     @cache_data(ttl=5)
-    def query_data(
+    def query_data(  # type: ignore[return]
         query: str,
         schema_name: str = None,
         chunk_size: Optional[int] = None,
