@@ -6,6 +6,7 @@ import streamlit as st
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.utils import flatten_list_or_items
 from dlt.helpers.streamlit_app.blocks.show_data import show_data_button
+from dlt.helpers.streamlit_app.widgets.tags import tag
 
 
 def list_table_hints(pipeline: dlt.Pipeline, tables: List[TTableSchema]) -> None:
@@ -48,6 +49,7 @@ def list_table_hints(pipeline: dlt.Pipeline, tables: List[TTableSchema]) -> None
         def essentials_f(c: Any) -> Dict[str, Any]:
             return {k: v for k, v in c.items() if k in ["name", "data_type", "nullable"]}
 
+        tag(table["name"], label="Table")
         st.table(map(essentials_f, table["columns"].values()))
 
         show_data_button(pipeline, table["name"])

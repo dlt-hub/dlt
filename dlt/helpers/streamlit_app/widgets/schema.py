@@ -9,7 +9,6 @@ def schema_picker(pipeline: dlt.Pipeline) -> None:
     if num_schemas == 1:
         schema_name = pipeline.schema_names[0]
         schema = pipeline.schemas.get(schema_name)
-        st.text(f"Schema: {schema_name}")
     elif num_schemas > 1:
         text = "Select schema"
         selected_schema_name = st.selectbox(
@@ -19,4 +18,5 @@ def schema_picker(pipeline: dlt.Pipeline) -> None:
         schema = pipeline.schemas.get(selected_schema_name)
 
     if schema:
+        st.subheader(f"Schema: {schema_name}")
         st.session_state["schema"] = schema
