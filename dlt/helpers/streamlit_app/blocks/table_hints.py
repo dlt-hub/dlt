@@ -49,7 +49,11 @@ def list_table_hints(pipeline: dlt.Pipeline, tables: List[TTableSchema]) -> None
         def essentials_f(c: Any) -> Dict[str, Any]:
             return {k: v for k, v in c.items() if k in ["name", "data_type", "nullable"]}
 
-        tag(table["name"], label="Table")
+        tag(
+            table["name"],
+            label="Table",
+            bold=True,
+        )
         st.table(map(essentials_f, table["columns"].values()))
 
         show_data_button(pipeline, table["name"])

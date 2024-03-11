@@ -1,6 +1,5 @@
 import sys
 
-
 import dlt
 import streamlit as st
 
@@ -9,12 +8,6 @@ from dlt.helpers.streamlit_app.blocks.table_hints import list_table_hints
 from dlt.helpers.streamlit_app.menu import menu
 from dlt.helpers.streamlit_app.widgets import schema_picker
 from dlt.pipeline import Pipeline
-
-# use right caching function to disable deprecation message
-if hasattr(st, "cache_data"):
-    cache_data = st.cache_data
-else:
-    cache_data = st.experimental_memo
 
 
 def write_data_explorer_page(

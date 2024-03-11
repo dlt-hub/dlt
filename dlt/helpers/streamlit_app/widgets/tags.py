@@ -9,6 +9,7 @@ def tag(
     tag_name: str,
     label: Optional[str] = None,
     border_radius: Optional[int] = 4,
+    bold: Optional[bool] = False,
     tag_type: Optional[TagType] = "mute",
 ) -> None:
     tag_html = f"""
@@ -32,8 +33,9 @@ def tag(
         background: %s;
         padding: 1px 4px;
         color: %s;
+        font-weight: %s;
     }
     </style>
-    """ % (border_radius, bg_color, text_color)
+    """ % (border_radius, bg_color, text_color, "600" if bold else "normal")
 
     st.markdown(tag_html + styles, unsafe_allow_html=True)

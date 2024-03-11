@@ -1,6 +1,5 @@
 import dlt
 import streamlit as st
-from typing_extensions import Callable, TypeAlias
 
 
 def schema_picker(pipeline: dlt.Pipeline) -> None:

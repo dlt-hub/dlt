@@ -5,14 +5,9 @@ from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.libs.pandas import pandas as pd
 from dlt.helpers.streamlit_app.menu import menu
 from dlt.helpers.streamlit_app.widgets import pipeline_summary
+from dlt.helpers.streamlit_app.utils import cache_data
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
-
-# use right caching function to disable deprecation message
-if hasattr(st, "cache_data"):
-    cache_data = st.cache_data
-else:
-    cache_data = st.experimental_memo
 
 
 def write_load_status_page(pipeline: Pipeline) -> None:
