@@ -35,7 +35,7 @@ The data store where data from the source is loaded (e.g., Google BigQuery).
 
 ## [Pipeline](pipeline)
 
-This moves the data from the source to the destination, according to instructions provided in the schema
+Pipeline moves the data from the source to the destination, according to instructions provided in the schema
 (i.e., extracting, normalizing, and loading the data).
 
 ## [Verified Source](../walkthroughs/add-a-verified-source)
