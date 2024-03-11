@@ -205,7 +205,7 @@ request value cast to a desired type. For example:
 ```python
 credentials = dlt.secrets.get("my_section.gcp_credentials", GcpServiceAccountCredentials)
 ```
-Creates `GcpServiceAccountCredentials` instance out of values (typically a dictionary) under **my_section.gcp_credentials** key.
+Creates `GcpServiceAccountCredentials` instance out of values (typically a dictionary) under `my_section.gcp_credentials` key.
 
 ### Write configs and secrets in code
 **dlt.config** and **dlt.secrets** can also be used as setters. For example:
