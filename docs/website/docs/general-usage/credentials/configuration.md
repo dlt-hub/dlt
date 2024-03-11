@@ -208,7 +208,7 @@ credentials = dlt.secrets.get("my_section.gcp_credentials", GcpServiceAccountCre
 Creates `GcpServiceAccountCredentials` instance out of values (typically a dictionary) under `my_section.gcp_credentials` key.
 
 ### Write configs and secrets in code
-**dlt.config** and **dlt.secrets** can also be used as setters. For example:
+`dlt.config` and `dlt.secrets` can also be used as setters. For example:
 ```python
 dlt.config["sheet_id"] = "23029402349032049"
 dlt.secrets["destination.postgres.credentials"] = BaseHook.get_connection('postgres_dsn').extra
