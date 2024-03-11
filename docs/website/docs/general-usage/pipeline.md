@@ -33,7 +33,7 @@ You instantiate a pipeline by calling the `dlt.pipeline` function with the follo
 - `destination` is the name of the [destination](../dlt-ecosystem/destinations) to which dlt
   will load the data. It may also be provided to the `run` method of the `pipeline`.
 - `dataset_name` is the name of the dataset to which the data will be loaded. A dataset is a logical
-  group of tables, i.e., `schema` in relational databases or a folder grouping many files. It may also be
+  group of tables, i.e., schema in relational databases or a folder grouping many files. It may also be
   provided later to the `run` or `load` methods of the pipeline. If not provided at all, it
   defaults to the `pipeline_name`.
 
