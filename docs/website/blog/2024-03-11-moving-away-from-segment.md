@@ -16,7 +16,7 @@ TL;DR: This blog post introduces a cost-effective solution for event streaming t
 ## The Segment Problem
 Event tracking is a complicated problem for which there exist many solutions. One such solution is Segment, which offers ample startup credits to organizations looking to set up event ingestion pipelines. Segment is used for a variety of purposes, including web analytics.
 
-<aside>
+:::note
 
 💡 With Segment, you pay 1-1.2 cents for every tracked users. 
 
@@ -28,7 +28,7 @@ Let’s take a back-of-napkin example: for 100.000 users, ingesting their events
 * **Additional 1,000 monthly tracked users (25k - 100K)** + $11 / 1000 user.
 * **Additional 1,000 monthly tracked users (100k +)** + $10 / 1000 user.
 
-</aside>
+:::
 
 The price of **$1000/month** for 100k tracked users doesn’t seem excessive, given the complexity of the task at hand. 
 
@@ -203,7 +203,7 @@ Currently, our telemetry tracks 50,000 anonymized devices each month on a 1:60 d
 
 Cloud Functions is by far the most expensive service used by our pipeline. It is billed based on the vCPU / memory, compute time, and number of invocations.
 
-<aside>
+:::note
 💡  The cost of compute for 512MB / .333vCPU machine time for 1000ms is as follows
 
 | Metric |  Unit Price |
@@ -215,12 +215,10 @@ Cloud Functions is by far the most expensive service used by our pipeline. It is
 
 This puts the **monthly cost of ingesting 1 million events with Cloud Functions at:**
 - (1 million / 60) * 0.0022 cents =  **$37**
-
-</aside>
+:::
 
 <aside>
 💡 Although Pub/Sub has built-in load balancing, using Cloudflare can lower latency from different world regions, ensuring telemetry does not slow down the operation of your app.
-
 </aside>
 
 ## In Conclusion
