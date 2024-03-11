@@ -101,7 +101,7 @@ Where do the configs and secrets come from? By default, `dlt` looks in two **con
   private_key = <private_key from services.json>
   project_id = <project_id from services json>
   ```
-  Note that **credentials** will be evaluated as a dictionary containing **client_email**, **private_key**, and **project_id** as keys. It is standard TOML behavior.
+  Note that `credentials` will be evaluated as a dictionary containing `client_email`, `private_key`, and `project_id` as keys. It is standard TOML behavior.
 - [Environment Variables](config_providers#environment-provider):
   ```python
   CREDENTIALS=<service.json>
