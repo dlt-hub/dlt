@@ -27,25 +27,32 @@ def list_table_hints(pipeline: dlt.Pipeline, tables: List[TTableSchema]) -> None
             table_hints.append("write disposition: **%s**" % table["write_disposition"])
 
         columns = table["columns"]
-        primary_keys: Iterator[str] = flatten_list_or_items(
-            [
-                col_name
-                for col_name in columns.keys()
-                if not col_name.startswith("_") and columns[col_name].get("primary_key") is not None
-            ]
+        primary_keys: List[str] = list(
+            flatten_list_or_items(
+                [
+                    col_name
+                    for col_name in columns.keys()
+                    if not col_name.startswith("_")
+                    and columns[col_name].get("primary_key") is not None
+                ]
+            )
         )
-        table_hints.append("primary key(s): **%s**" % ", ".join(primary_keys))
+        if primary_keys:
+            table_hints.append("primary key(s): **%s**" % ", ".join(primary_keys))
 
-        merge_keys = flatten_list_or_items(
-            [
-                col_name
-                for col_name in columns.keys()
-                if not col_name.startswith("_")
-                and not columns[col_name].get("merge_key") is None  # noqa: E714
-            ]
+        merge_keys = list(
+            flatten_list_or_items(
+                [
+                    col_name
+                    for col_name in columns.keys()
+                    if not col_name.startswith("_")
+                    and not columns[col_name].get("merge_key") is None  # noqa: E714
+                ]
+            )
         )
 
-        table_hints.append("merge key(s): **%s**" % ", ".join(merge_keys))
+        if merge_keys:
+            table_hints.append("merge key(s): **%s**" % ", ".join(merge_keys))
 
         st.subheader(f"Table: {table['name']}", divider=True)
         st.markdown(" | ".join(table_hints))
