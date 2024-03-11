@@ -9,44 +9,62 @@ authors:
   image_url: https://avatars.githubusercontent.com/u/89419010?s=48&v=4
 tags: [data observability, data pipeline observability]
 ---
-At dltHub, we're pioneering the future of data pipeline generation, making complex processes simple and scalable.
 
-Pipeline generation on a simple level is already possible directly in gpt chats - just ask for it. But doing it at scale, correctly, and producing comprehensive, good quality pipelines is a much more complex endeavour.
+At dltHub, we have been pioneering the future of data pipeline generation, [making complex processes simple and scalable.](https://dlthub.com/product/#multiply-don't-add-to-our-productivity) We have not only been building dlt for humans, but also LLMs.
 
-# The automated work by our existing PoC
+Pipeline generation on a simple level is already possible directly in ChatGPT chats - just ask for it. But doing it at scale, correctly, and producing comprehensive, good quality pipelines is a much more complex endeavour.
 
-![OpenAPI spec can be used to generate multiple things](https://storage.googleapis.com/dlt-blog-images/openapi-generation.png)
-*This diagram illustrates how OpenAPI spec is used for software generation.*
+# Our early exploration with code generation
 
-To generate pipelines, what we need is the right knowledge of what should happen. One such source is the OpenApi spec, but it does not contain complete information for generating everything.
+As LLMs became available at the end of 2023, we were already uniquely positioned to be part of the wave. By being a library, a LLM could use dlt to build pipelines without the complexities of traditional ETL tools.
 
-Last year we experimented with extracting this information and generating pipelines, and you can read about it here: https://dlthub.com/docs/blog/open-api-spec-for-dlt-init
+This raised from the start the question - what are the different levels of pipeline quality? For example, how does a user code snippet, which formerly had value, compare to LLM snippets which can be generated en-masse? What does a perfect pipeline look like now, and what can LLMs do?
 
-Our PoC leveraged the OpenAPI spec to automate pipeline creation, achieving significant strides in efficiency and accuracy.
+We were only able to answer some of these questions, but we had some concrete outcomes that we carry into the future.
 
+### In June ‘23 we added a GPT-4 docs helper that generates snippets
 
-# The manual last mile
+![Screenshot 2023-06-22 at 14.39.50.png](https://prod-files-secure.s3.us-west-2.amazonaws.com/775f89b5-30e8-42e6-a412-d1736f9fb013/fd4513ca-d679-4d66-9156-fc917461b28a/Screenshot_2023-06-22_at_14.39.50.png)
 
-Ideally, we would love to point a tool at an api or doc of the api, and just have the pipeline generated. We can already do that to some extent, and fill in any gaps manually.
+### We created an OpenAPI based pipeline generator
 
-While automation handles the bulk, some customisation remains manual, generating requirements towards our ongoing efforts of full automation.
-
-# Why now? Community growth requires faster onboarding with code generation
-
-dlt community has been growing steadily in recent months. In February, we had a 25% growth on slack and even more in usage.
-
-The new users generated a lot of questions and some of them used our onboarding program, where we speed-run you through any obstacles, learning how to make things smoother along the way.
-
-Usually users want to create a POC first, so we do our best to help. In this case, one of our users wanted to try dlt with a source we did not list in our public sources - chargebee.
-
-Since the Chargebee API uses the OpenAPI standard, we used the OpenAPI Proof of Concept pipeline generator that we built last year.
+- Blog: https://dlthub.com/docs/blog/open-api-spec-for-dlt-init
+- OpenApi spec describes the api; Just as we can create swagger docs or a python api wrapper, we can create pipelines
 
 
+[![marcin-demo](https://storage.googleapis.com/dlt-blog-images/openapi_loom_old.png)](https://www.loom.com/share/2806b873ba1c4e0ea382eb3b4fbaf808?sid=501add8b-90a0-4734-9620-c6184d840995)
+
+
+
+### Running into early limits of LLM automation: A manual last mile is needed
+
+Ideally, we would love to point a tool at an API or doc of the API, and just have the pipeline generated.
+
+However, the OpenApi spec does not contain complete information for generating a complete pipeline. There’s many challenges to overcome and gaps that need to be handled manually.
+
+While LLM automation can handle the bulk, some customisation remains manual, generating requirements towards our ongoing efforts of full automation.
+
+# Why revisit code generation at dlt now?
+
+### Growth drives a need for faster onboarding
+
+The dlt community has been growing steadily in recent months. In February alone we had a 25% growth on Slack and even more in usage.
+
+New users generate a lot of questions and some of them used our onboarding program, where we speed-run users through any obstacles, learning how to make things smoother on the dlt product side along the way.
+
+### Onboarding usually means building a pipeline POC fast
+
+During onboarding, most companies want to understand if dlt fits their use cases. For these purposes, building a POC pipeline is pretty typical.
+
+This is where code generation can prove invaluable - and reducing a build time from 2-3d to 0.5 would lower the workload for both users and our team.
 💡 *To join our onboarding program, fill this [form](https://forms.gle/oMgiTqhnrFrYrfyD7) to request a call.*
 
 
+# **Case Study: How our solution engineer Violetta used our PoC to generate a production-grade  Chargebee pipeline within hours**
 
-# Generating a pipeline with dlt - real fast like.
+In a recent case, one of our users wanted to try dlt with a source we did not list in our [public sources](https://dlthub.com/docs/dlt-ecosystem/verified-sources/) - Chargebee.
+
+Since the Chargebee API uses the OpenAPI standard, we used the OpenAPI PoC dlt pipeline code generator that we built last year.
 
 ### Starting resources
 
@@ -125,21 +143,13 @@ I regenerated code with uncommented line and understood why it was commented. Co
 The only problem I was left with — namings. The generated table names were like
 `ListEventsResponse200ListItem` or `ListInvoicesForACustomerResponse200ListItem` . I had to go and change them to something more appropriate like `events` and `invoices` .
 
-### The result
+# The result
 
 Result: https://github.com/dlt-hub/chargebee-source
 
 I did a walk-through with our user. Some additional context started to appear. For example, which endpoints needed to be used with `replace` write disposition, which would require specifying the `merge` keys. So in the end this source would still require some testing to be performed and some fine-tuning from the user.
 I think the silver lining here is how to start. I don’t know how much time I would’ve spent on this source if I started from scratch. Probably, for the first couple of hours, I would be trying to decide where should the authentication code go, or going through the docs searching for information on how to use dlt configs. I would certainly need to go through all API endpoints in the documentation to be able to find the one I needed. There are a lot of different things which could be difficult especially if you’re doing it for the first time.
 I think in the end if I had done it from scratch, I would’ve got cleaner code but spent a couple of days. With the generator, even with finetuning, I spent about half a day. And the structure was already there, so it was overall easier to work with and I didn’t have to consider everything upfront.
-
-# In conclusion
-
-Code generation is automation on steroids.
-
-In this example, we used an algorithmic approach - the code was written by rule-based logic, not by LLMs. This means that the code is reliable in what it does, but it downright misses some pieces because we did not have information to generate them from.
-
-The missing pieces such as pagination, incremental loading, are not captured in the OpenAPI spec and thus we cannot infer them automatically. However, it would be possible to design a process by which a LLM-assistant will ask or suggest ways to handle it.
 
 ### We are currently working on making full generation a reality.
 
