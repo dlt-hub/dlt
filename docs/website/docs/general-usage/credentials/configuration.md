@@ -220,7 +220,7 @@ Will mock the **toml** provider to desired values.
 
 Config and secret values are added to the function arguments when a function decorated with `@dlt.source` or `@dlt.resource` is called.
 
-The signature of such function (i.e., `google_sheets` above) is **also a specification of the configuration**.
+The signature of such function (i.e., `google_sheets` above) is also a **specification of the configuration**.
 During runtime `dlt` takes the argument names in the signature and supplies (`inject`) the required values via various config providers.
 
 The injection rules are:
