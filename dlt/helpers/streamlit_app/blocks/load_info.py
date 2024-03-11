@@ -8,7 +8,6 @@ from dlt.helpers.streamlit_app.widgets.stats import stat
 
 
 def last_load_info(pipeline: dlt.Pipeline) -> None:
-    # TODO:
     loads_df = query_data_live(
         pipeline,
         f"SELECT load_id, inserted_at FROM {pipeline.default_schema.loads_table_name} WHERE"

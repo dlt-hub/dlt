@@ -29,4 +29,3 @@ def mode_selector():
         st.button("☀️", on_click=set_color_mode("light"))
     with dark:
         st.button("🌚", on_click=set_color_mode("dark"))
-    # st.markdown()

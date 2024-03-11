@@ -4,7 +4,6 @@ import streamlit as st
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.libs.pandas import pandas as pd
 from dlt.helpers.streamlit_app.menu import menu
-from dlt.helpers.streamlit_app.blocks.schema_tabs import show_schema_tabs
 from dlt.helpers.streamlit_app.widgets import pipeline_summary
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
@@ -44,7 +43,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
             f"SELECT load_id, inserted_at FROM {pipeline.default_schema.loads_table_name} WHERE"
             " status = 0 ORDER BY inserted_at DESC LIMIT 101 "
         )
-        st.json(st.session_state)
+
         if loads_df is not None:
             selected_load_id = st.selectbox("Select load id", loads_df)
             schema = pipeline.default_schema

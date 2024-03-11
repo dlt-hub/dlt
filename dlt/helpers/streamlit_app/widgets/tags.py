@@ -35,4 +35,5 @@ def tag(
     }
     </style>
     """ % (border_radius, bg_color, text_color)
+
     st.markdown(tag_html + styles, unsafe_allow_html=True)

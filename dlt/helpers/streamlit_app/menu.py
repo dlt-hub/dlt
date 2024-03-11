@@ -4,7 +4,7 @@ import streamlit as st
 from dlt.common.destination.reference import WithStateSync
 from dlt.helpers.streamlit_app.utils import HERE
 from dlt.helpers.streamlit_app.widgets import logo, stat, tag, mode_selector
-from dlt.helpers.streamlit_app.last_load_info import last_load_info
+from dlt.helpers.streamlit_app.blocks.load_info import last_load_info
 from dlt.pipeline.state_sync import load_state_from_destination
 
 

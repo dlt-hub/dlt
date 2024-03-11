@@ -2,8 +2,6 @@ import dlt
 import streamlit as st
 from typing_extensions import Callable, TypeAlias
 
-WidgetCallback: TypeAlias = Callable[..., None]
-
 
 def schema_picker(pipeline: dlt.Pipeline) -> None:
     schema = None
