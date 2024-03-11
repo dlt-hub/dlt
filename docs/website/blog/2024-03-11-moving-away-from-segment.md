@@ -20,7 +20,7 @@ Event tracking is a complicated problem for which there exist many solutions. On
 
 💡 With Segment, you pay 1-1.2 cents for every tracked users. 
 
-Let’s take a back of napkin example: for 100.000 users, ingesting their events data would cost **$1000.**
+Let’s take a back-of-napkin example: for 100.000 users, ingesting their events data would cost **$1000.**
 
 **The bill:**
 * **Minimum 10,000 monthly tracked users (0-10K)** + $120. 
@@ -41,7 +41,7 @@ Our proposed solution to replace Segment involves using dlt with Cloud Pub/Sub t
 
 ![pubsub_dlt-pipeline](https://storage.googleapis.com/dlt-blog-images/dlt-segment-migration.jpeg)
 
-In this architecture, a publisher initiates the process by pushing events to a Pub/Sub topic. Specifically, in the context of dlt, the library acts as the publisher, directing user telemetry data to a designated topic within Pub/Sub
+In this architecture, a publisher initiates the process by pushing events to a Pub/Sub topic. Specifically, in the context of dlt, the library acts as the publisher, directing user telemetry data to a designated topic within Pub/Sub.
 
 A subscriber is attached to the topic. Pub/Sub offers a push-based [subscriber](https://cloud.google.com/pubsub/docs/subscription-overview) that proactively receives messages from the topic and writes them to Cloud Storage. The subscriber is configured to aggregate all messages received within a 10-minute window and then forward them to a designated storage bucket. 
 
