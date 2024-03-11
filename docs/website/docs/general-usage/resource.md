@@ -223,6 +223,21 @@ the **pipe |** operator to bind resources dynamically
 pipeline.run(users(limit=100) | user_details)
 ```
 
+:::tip
+Transformers are allowed not only to **yield** but also to **return** values and can decorate **async** functions and [**async generators**](../reference/performance.md#extract). Below we decorate an async function and request details on two pokemons. Http calls are made in parallel via httpx library.
+```python
+import dlt
+import httpx
+
+
+@dlt.transformer
+async def pokemon(id):
+    async with httpx.AsyncClient() as client:
+        r = await client.get(f"https://pokeapi.co/api/v2/pokemon/{id}")
+        return r.json()
+
+# get bulbasaur and ivysaur (you need dlt 0.4.6 for pipe operator working with lists)
+print(list([1,2] | pokemon()))
 ### Declare a standalone resource
 A standalone resource is defined on a function that is top level in a module (not an inner function) that accepts config and secrets values. Additionally,
 if the `standalone` flag is specified, the decorated function signature and docstring will be preserved. `dlt.resource` will just wrap the
