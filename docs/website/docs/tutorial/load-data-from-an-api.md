@@ -251,7 +251,7 @@ Above we add a `primary_key` argument to the `dlt.resource()` that tells `dlt` h
 
 Note that we now track the `updated_at` field — so we filter in all issues **updated** since the last pipeline run (which also includes those newly created).
 
-Pay attention to how we use the **since** parameter from [GitHub API](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues)
+Pay attention to how we use the `since` parameter from [GitHub API](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues)
 and `updated_at.last_value` to tell GitHub to return issues updated only **after** the date we pass. `updated_at.last_value` holds the last `updated_at` value from the previous run.
 
 [Learn more about merge write disposition](../general-usage/incremental-loading#merge-incremental_loading).
