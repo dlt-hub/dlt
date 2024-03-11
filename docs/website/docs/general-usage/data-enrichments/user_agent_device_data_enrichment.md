@@ -217,7 +217,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 
    [Transformers](../../general-usage/resource#process-resources-with-dlttransformer) are used to process a resource and are ideal for post-load data transformations in a pipeline, compatible with tools like `dbt`, the `dlt SQL client`, or Pandas for intricate data manipulation.
 
-   Conversely, `add_map` is used to customize a resource and applies transformations at an item level within a resource. It's useful for tasks like anonymizing individual data records. More on this can be found under [Customize resources](../../general-usage/resource#customize-resources) in the documentation.
+   Conversely, `add_map` is used to customize a resource and applies transformations at an item level within a resource. It's useful for tasks like anonymizing individual data records. More on this can be found under [customize resources](../../general-usage/resource#customize-resources) in the documentation.
 
 
 1. Here, we create the pipeline and use the `add_map` functionality:
