@@ -194,7 +194,7 @@ On average the cost for our proposed pipeline are as follows:
 - 100k users tracked on Segment would cost **$1000**.
 - 1 million events ingested via our setup **$37**.
 - Our web tracking user:event ratio is 1:15, so the Segment cost equivalent would be **$55**.
-- Our telemetry device:event ratio is 1:60,  so the Segment cost equivalent would be **$165**.
+- Our telemetry device:event ratio is 1:60,  so the Segment cost equivalent would be **$220**.
 
 So with our setup, as long as we keep events-to-user ratio **under 270**, we will have cost savings over Segment. In reality, it gets even better because GCP offers a very generous free tier that resets every month, where Segment costs more at low volumes. 
 
