@@ -9,7 +9,7 @@ keywords: [amazon kinesis, verified source]
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
 [Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer, Adrian.
 :::
 
 [Amazon Kinesis](https://docs.aws.amazon.com/streams/latest/dev/key-concepts.html) is a cloud-based
@@ -36,7 +36,7 @@ You can check out our pipeline example
 
 ### Grab credentials
 
-To use this verified source you need AWS `Access key` and `Secret access key`, that can be obtained
+To use this verified source, you need an AWS `Access key` and `Secret access key`, which can be obtained
 as follows:
 
 1. Sign in to your AWS Management Console.
@@ -122,7 +122,7 @@ For more information, read [Credentials](../../general-usage/credentials).
    ```bash
    dlt pipeline <pipeline_name> show
    ```
-   For example, the `pipeline_name` for the above pipeline example is `kinesis_pipeline`, you may
+   For example, the `pipeline_name` for the above pipeline example is `kinesis_pipeline`. You may
    also use any custom name instead.
 
 For more information, read [Run a pipeline.](../../walkthroughs/run-a-pipeline)
@@ -178,7 +178,7 @@ def kinesis_stream(
 
 You create a resource `kinesis_stream` by passing the stream name and a few other options. The
 resource will have the same name as the stream. When you iterate this resource (or pass it to
-`pipeline.run` records) it will query Kinesis for all the shards in the requested stream. For each
+`pipeline.run` records), it will query Kinesis for all the shards in the requested stream. For each
  shard, it will create an iterator to read messages:
 
 1. If `initial_at_timestamp` is present, the resource will read all messages after this timestamp.
@@ -192,7 +192,7 @@ will load messages incrementally:
 1. For shards that didn't have messages (or new shards), the last run time is used to get messages.
 
 Please check the `kinesis_stream` [docstring](https://github.com/dlt-hub/verified-sources/blob/master/sources/kinesis/__init__.py#L31-L46)
-for additional options, i.e. to limit the number of messages
+for additional options, i.e., to limit the number of messages
 returned or to automatically parse JSON messages.
 
 ### Kinesis message format
@@ -220,7 +220,7 @@ verified source.
    )
    ```
 
-1. To load messages from a stream from last one hour:
+1. To load messages from a stream from the last one hour:
 
    ```python
    # the resource below will take its name from the stream name,
