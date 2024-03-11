@@ -94,7 +94,7 @@ load_info = pipeline.run(
 print(load_info)
 ```
 
-Run this script twice to see that the **issues** table still contains only one copy of the data.
+Run this script twice to see that the `issues` table still contains only one copy of the data.
 
 :::tip
 What if the API has changed and new fields get added to the response?
