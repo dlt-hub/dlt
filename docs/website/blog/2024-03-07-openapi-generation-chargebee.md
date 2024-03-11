@@ -24,7 +24,8 @@ We were only able to answer some of these questions, but we had some concrete ou
 
 ### In June ‘23 we added a GPT-4 docs helper that generates snippets
 
-![Screenshot 2023-06-22 at 14.39.50.png](https://prod-files-secure.s3.us-west-2.amazonaws.com/775f89b5-30e8-42e6-a412-d1736f9fb013/fd4513ca-d679-4d66-9156-fc917461b28a/Screenshot_2023-06-22_at_14.39.50.png)
+- try it on our docs; it's widely used as code troubleshooter
+![gpt-4 dhelp](https://storage.googleapis.com/dlt-blog-images/dhelp.png)
 
 ### We created an OpenAPI based pipeline generator
 
