@@ -35,7 +35,7 @@ def get_comments(
         url = response.links["next"]["url"]
 ```
 
-We can load this resource separately from the issues resource, but loading both issues and comments in one go is more efficient. To do that, we'll use the `@dlt.source` decorator on a function that returns a list of resources:
+We can load this resource separately from the issues resource, however loading both issues and comments in one go is more efficient. To do that, we'll use the `@dlt.source` decorator on a function that returns a list of resources:
 
 ```py
 @dlt.source
