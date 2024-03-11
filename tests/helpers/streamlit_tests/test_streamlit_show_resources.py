@@ -10,7 +10,7 @@ from pathlib import Path
 
 import dlt
 
-from streamlit.testing.v1 import AppTest
+from streamlit.testing.v1 import AppTest    # type: ignore
 
 here = Path(__file__).parent
 dlt_root = here.parent.parent.parent.absolute()
