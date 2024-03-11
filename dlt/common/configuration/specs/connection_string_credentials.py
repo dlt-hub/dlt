@@ -23,13 +23,15 @@ class ConnectionStringCredentials(CredentialsConfiguration):
             raise InvalidConnectionString(self.__class__, native_value, self.drivername)
         try:
             url = make_url(native_value)
-            # update only values that are not None
+            # Update only values that are not None.
             self.update({k: v for k, v in url._asdict().items() if v is not None})
             if self.query is not None:
-                # query may be immutable so make it mutable
+                # Query may be immutable so make it mutable.
                 self.query = dict(self.query)
-        except Exception:
-            raise InvalidConnectionString(self.__class__, native_value, self.drivername)
+        except Exception as e:
+            raise InvalidConnectionString(
+                self.__class__, native_value, self.drivername
+            ) from e
 
     def on_resolved(self) -> None:
         if self.password:

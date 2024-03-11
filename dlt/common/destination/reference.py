@@ -179,10 +179,10 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
 
 @configspec
 class DestinationClientDwhWithStagingConfiguration(DestinationClientDwhConfiguration):
-    """Configuration of a destination that can take data from staging destination"""
+    """Configuration of a destination that can take data from a staging destination."""
 
     staging_config: Optional[DestinationClientStagingConfiguration] = None
-    """configuration of the staging, if present, injected at runtime"""
+    """Configuration of the staging, if present, injected at runtime."""
     if TYPE_CHECKING:
 
         def __init__(
