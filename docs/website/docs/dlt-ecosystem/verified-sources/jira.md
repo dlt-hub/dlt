@@ -3,7 +3,7 @@
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
 [Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer, Adrian.
 :::
 
 [Jira](https://www.atlassian.com/software/jira) by Atlassian helps teams manage projects and tasks
@@ -11,16 +11,16 @@ efficiently, prioritize work, and collaborate.
 
 This Jira `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/jira_pipeline.py)
-loads data using Jira API to the destination of your choice.
+loads data using the Jira API to the destination of your choice.
 
 The endpoints that this verified source supports are:
 
 | Name      | Description                                                                              |
 | --------- | ---------------------------------------------------------------------------------------- |
-| issues    | individual pieces of work to be completed                                                |
-| users     | administrator of a given project                                                         |
-| workflows | the key aspect of managing and tracking the progress of issues or tasks within a project |
-| projects  | a collection of tasks that need to be completed to achieve a certain outcome             |
+| issues    | Individual pieces of work to be completed                                                |
+| users     | Administrators of a given project                                                         |
+| workflows | The key aspect of managing and tracking the progress of issues or tasks within a project |
+| projects  | A collection of tasks that need to be completed to achieve a certain outcome             |
 
 To get a complete list of sub-endpoints that can be loaded, see
 [jira/settings.py.](https://github.com/dlt-hub/verified-sources/blob/master/sources/jira/settings.py)
@@ -96,7 +96,7 @@ For more information, read the guide on [how to add a verified source](../../wal
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
-For more information, read the [General Usage: Credentials.](../../general-usage/credentials)
+For more information, read [General Usage: Credentials.](../../general-usage/credentials)
 
 ## Run the pipeline
 
@@ -114,7 +114,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    ```bash
    dlt pipeline <pipeline_name> show
    ```
-   For example, the `pipeline_name` for the above pipeline example is `jira_pipeline`, you may also
+   For example, the `pipeline_name` for the above pipeline example is `jira_pipeline`. You may also
    use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
@@ -145,7 +145,7 @@ def jira(
 
 - `subdomain`: The subdomain of the Jira account. Configured in ".dlt/secrets.toml".
 - `email`: The email associated with the Jira account. Configured in ".dlt/secrets.toml".
-- `api_token`: The API token for accessing the Jira account.Configured in ".dlt/secrets.toml".
+- `api_token`: The API token for accessing the Jira account. Configured in ".dlt/secrets.toml".
 
 ### Source `jira_search`
 
@@ -161,8 +161,8 @@ def jira_search(
 ) -> Iterable[DltResource]:
 ```
 
-The above function uses the same arguments `subdomain`, `email` and `api_token` as described above
-for [jira source](jira.md#source-jira).
+The above function uses the same arguments `subdomain`, `email`, and `api_token` as described above
+for the [jira source](jira.md#source-jira).
 
 ### Resource `issues`
 
@@ -179,7 +179,7 @@ def issues(jql_queries: List[str]) -> Iterable[TDataItem]:
 ## Customization
 ### Create your own pipeline
 
-If you wish to create your own pipelines you can leverage source and resource methods as discussed
+If you wish to create your own pipelines, you can leverage source and resource methods as discussed
 above.
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset. To read more
@@ -202,7 +202,7 @@ above.
     print(f"Load Information: {load_info}")
     ```
 
-3. To load the custom issues using JQL queries, you can use custom queries, here is an example
+3. To load the custom issues using JQL queries, you can use custom queries. Here is an example
    below:
 
     ```python

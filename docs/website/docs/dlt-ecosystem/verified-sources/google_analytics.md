@@ -12,7 +12,7 @@ or application.
 
 This Google Analytics `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics_pipeline.py)
-loads data using “Google Analytics API” to the destination of your choice.
+loads data using the "Google Analytics API" to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
@@ -29,7 +29,7 @@ Sources and resources that can be loaded using this verified source are:
 There are two methods to get authenticated for using this verified source:
 
 - OAuth credentials
-- Service account credential
+- Service account credentials
 
 Let's go over how to set up both OAuth tokens and service account credentials. In general, OAuth
 tokens are preferred when user consent is required, while service account credentials are better
@@ -39,14 +39,14 @@ requirement.
 ### Grab Google service account credentials
 
 You need to create a GCP service account to get API credentials if you don't have one. To create
- one, follow these steps:
+one, follow these steps:
 
 1. Sign in to [console.cloud.google.com](http://console.cloud.google.com/).
 
 1. [Create a service account](https://cloud.google.com/iam/docs/service-accounts-create#creating) if
    needed.
 
-1. Enable "Google Analytics API", refer
+1. Enable the "Google Analytics API". Refer to the
    [Google documentation](https://support.google.com/googleapi/answer/6158841?hl=en) for
    comprehensive instructions on this process.
 
@@ -58,7 +58,7 @@ You need to create a GCP service account to get API credentials if you don't hav
    1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
    1. You can download the ".json" file containing the necessary credentials for future use.
 
-### Grab google OAuth credentials
+### Grab Google OAuth credentials
 
 You need to create a GCP account to get OAuth credentials if you don't have one. To create one,
 follow these steps:
@@ -69,17 +69,17 @@ follow these steps:
 
 1. Enable the Analytics API in the project.
 
-1. Search credentials in the search bar and go to Credentials.
+1. Search for credentials in the search bar and go to Credentials.
 
 1. Go to Credentials -> OAuth client ID -> Select Desktop App from the Application type and give an
    appropriate name.
 
-1. Download the credentials and fill "client_id", "client_secret" and "project_id" in
+1. Download the credentials and fill in "client_id", "client_secret", and "project_id" in
    "secrets.toml".
 
 1. Go back to credentials and select the OAuth consent screen on the left.
 
-1. Fill in the App name, user support email(your email), authorized domain (localhost.com), and dev
+1. Fill in the App name, user support email (your email), authorized domain (localhost.com), and dev
    contact info (your email again).
 
 1. Add the following scope:
@@ -90,7 +90,7 @@ follow these steps:
 
 1. Add your email as a test user.
 
-After configuring "client_id", "client_secret" and "project_id" in "secrets.toml". To generate the
+After configuring "client_id", "client_secret", and "project_id" in "secrets.toml", to generate the
 refresh token, run the following script from the root folder:
 
 ```bash
@@ -239,7 +239,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 ### Source `simple_load`
 
 This function returns a list of resources including metadata, metrics, and dimensions data from
-Google Analytics API.
+the Google Analytics API.
 
 ```python
 @dlt.source(max_table_nesting=2)
@@ -293,7 +293,7 @@ def metrics_table(metadata: Metadata) -> Iterator[TDataItem]:
 
 `metadata`: GA4 metadata is stored in this "Metadata" class object.
 
-Similarly, there is a transformer function called `dimensions_table` that populates table called
+Similarly, there is a transformer function called `dimensions_table` that populates a table called
 "dimensions" with the data from each dimension.
 
 ## Customization
@@ -330,7 +330,7 @@ verified source.
 
    ```python
    load_data = google_analytics(start_date='2023-01-01')
-   load_info = pipeline.run(load_data).
+   load_info = pipeline.run(load_data)
    print(load_info)
    ```
 
