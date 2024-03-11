@@ -90,7 +90,7 @@ The TOML provider in dlt utilizes two TOML files:
 By default, the `.gitignore` file in the project prevents `secrets.toml` from being added to version control and pushed. However, `config.toml` can be freely added to version control.
 
 :::info
-**The TOML provider always loads these files from the `.dlt` folder**, which is looked for **relative to the current Working Directory**.
+The TOML provider always loads these files from the `.dlt` folder, which is looked for relative to the current working directory.
 :::
 
 Example: If your working directory is `my_dlt_project` and your project has the following structure:
