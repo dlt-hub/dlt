@@ -51,7 +51,7 @@ Example 2. Use the **native** form.
 dsn="postgres://loader:loader@localhost:5432/dlt_data"
 ```
 
-Example 3. Use the **mixed** form: the password is missing in the explicit dsn and will be taken from the
+Example 3. Use the mixed form: the password is missing in the explicit DSN and will be taken from the
 `secrets.toml`.
 
 ```toml
