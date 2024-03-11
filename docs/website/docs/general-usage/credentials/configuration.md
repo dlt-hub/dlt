@@ -359,5 +359,22 @@ Lookup rules:
 **Rule 1:** The lookup starts with the most specific possible path, and if value is not found there,
 it removes the right-most section and tries again.
 
-Example: We use the `bigquery` destination and the `google_sheets` source. They both use
+Example: We use the `bigquery` destination and the `google_sheets` source. They both use google credentials and expect them to be configured under `credentials` key.
+
+1. If we create just a single `credentials` section like in [here](#default-layout-without-sections), destination and source will share the same credentials.
+
+2. If we define sections as below, we'll keep the credentials separate
+
+```toml
+# google sheet credentials
+[sources.credentials]
+client_email = <client_email from services.json>
+private_key = <private_key from services.json>
+project_id = <project_id from services json>
+
+# bigquery credentials
+[destination.credentials]
+client_email = <client_email from services.json>
+private_key = <private_key from services.json>
+project_id = <project_id from services json>
 
