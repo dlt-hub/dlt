@@ -6,34 +6,26 @@ keywords: [data enrichment, user-agent data, device enrichment]
 
 # Data enrichment part one: User-agent device data enrichment
 
-Data enrichment enhances raw data with valuable information from multiple sources, increasing its
-analytical and decision-making value.
+Data enrichment enhances raw data with valuable information from multiple sources, increasing its analytical and decision-making value.
 
-This part covers enriching sample data with device price. Understanding the price segment
-of the device that the user used to access your service can be helpful in personalized marketing,
-customer segmentation, and many more.
+This part covers enriching sample data with device price. Understanding the price segment of the device that the user used to access your service can be helpful in personalized marketing, customer segmentation, and many more.
 
-This documentation will discuss how to enrich the user device information with the average market
-price.
+This documentation will discuss how to enrich the user device information with the average market price.
 
 ## Setup Guide
 
-We use SerpAPI to retrieve device prices using Google Shopping, but alternative services or APIs are
-viable.
+We use SerpAPI to retrieve device prices using Google Shopping, but alternative services or APIs are viable.
 
 :::note
-SerpAPI free tier offers 100 free calls monthly. For production, consider upgrading to a higher
-plan.
+SerpAPI's free tier offers 100 free calls monthly. For production, consider upgrading to a higher plan.
 :::
 
 
-## Creating data enrichment pipeline
-You can either follow the example in the linked Colab notebook or follow this documentation to
-create the user-agent device data enrichment pipeline.
+## Creating a data enrichment pipeline
+You can either follow the example in the linked Colab notebook or follow this documentation to create the user-agent device data enrichment pipeline.
 
 ### A. Colab notebook
-The Colab notebook combines three data enrichment processes for a sample dataset, starting with "Data
-enrichment part one: User-agent device data".
+The Colab notebook combines three data enrichment processes for a sample dataset, starting with "Data enrichment part one: User-agent device data".
 
 Here's the link to the notebook:
 **[Colab Notebook](https://colab.research.google.com/drive/1ZKEkf1LRSld7CWQFS36fUXjhJKPAon7P?usp=sharing).**
@@ -47,19 +39,15 @@ user_device_enrichment/
 │   └── secrets.toml
 └── device_enrichment_pipeline.py
 ```
-### 1. Creating resource
+### 1. Creating a resource
 
-   `dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source)
-   and [resources.](https://dlthub.com/docs/general-usage/resource)
+   `dlt` works on the principle of [sources](https://dlthub.com/docs/general-usage/source) and [resources.](https://dlthub.com/docs/general-usage/resource)
 
-   This data resource yields data typical of what many web analytics and
-   tracking tools can collect. However, the specifics of what data is collected
-   and how it's used can vary significantly among different tracking services.
+   This data resource yields data typical of what many web analytics and tracking tools can collect. However, the specifics of what data is collected and how it's used can vary significantly among different tracking services.
 
    Let's examine a synthetic dataset created for this article. It includes:
 
-   `user_id`: Web trackers typically assign unique ID to users for
-   tracking their journeys and interactions over time.
+   `user_id`: Web trackers typically assign a unique ID to users for tracking their journeys and interactions over time.
 
    `device_name`: User device information helps in understanding the user base's device.
 
@@ -107,16 +95,11 @@ user_device_enrichment/
 
 ### 2. Create `fetch_average_price` function
 
-This particular function retrieves the average price of a device by utilizing SerpAPI and Google
-shopping listings. To filter the data, the function uses `dlt` state, and only fetches prices
-from SerpAPI for devices that have not been updated in the most recent run or for those that were
-loaded more than 180 days in the past.
+This particular function retrieves the average price of a device by utilizing SerpAPI and Google shopping listings. To filter the data, the function uses `dlt` state, and only fetches prices from SerpAPI for devices that have not been updated in the most recent run or for those that were loaded more than 180 days in the past.
 
 The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the API token key.
 
-1. In the `.dlt`folder, there's a file called `secrets.toml`. It's where you store sensitive
-   information securely, like access tokens. Keep this file safe. Here's its format for service
-   account authentication:
+1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive information securely, like access tokens. Keep this file safe. Here's its format for service account authentication:
 
    ```python
    [sources]
@@ -230,19 +213,11 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    - Transformer function
 
 
-   The `dlt` library's `transformer` and `add_map` functions serve distinct purposes in data
-   processing.
+   The `dlt` library's `transformer` and `add_map` functions serve distinct purposes in data processing.
 
-   `Transformers` used to process a resource and are ideal for post-load data transformations in a
-   pipeline, compatible with tools like `dbt`, the `dlt SQL client`, or Pandas for intricate data
-   manipulation. To read more:
-   [Click here.](../../general-usage/resource#process-resources-with-dlttransformer)
+   `Transformers` are used to process a resource and are ideal for post-load data transformations in a pipeline, compatible with tools like `dbt`, the `dlt SQL client`, or Pandas for intricate data manipulation. To read more: [Click here.](../../general-usage/resource#process-resources-with-dlttransformer)
 
-   Conversely, `add_map` used to customize a resource applies transformations at an item level
-   within a resource. It's useful for tasks like anonymizing individual data records. More on this
-   can be found under
-   [Customize resources](../../general-usage/resource#customize-resources) in the
-   documentation.
+   Conversely, `add_map` is used to customize a resource and applies transformations at an item level within a resource. It's useful for tasks like anonymizing individual data records. More on this can be found under [Customize resources](../../general-usage/resource#customize-resources) in the documentation.
 
 
 1. Here, we create the pipeline and use the `add_map` functionality:
@@ -262,9 +237,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    ```
 
    :::info
-   Please note that the same outcome can be achieved by using the transformer function. To
-   do so, you need to add the transformer decorator at the top of the `fetch_average_price` function.
-   For `pipeline.run`, you can use the following code:
+   Please note that the same outcome can be achieved by using the transformer function. To do so, you need to add the transformer decorator at the top of the `fetch_average_price` function. For `pipeline.run`, you can use the following code:
 
    ```python
    # using fetch_average_price as a transformer function
@@ -274,14 +247,12 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    )
    ```
 
-   This will execute the `fetch_average_price` function with the tracked data and return the average
-   price.
+   This will execute the `fetch_average_price` function with the tracked data and return the average price.
    :::
 
 ### Run the pipeline
 
-1. Install necessary dependencies for the preferred
-   [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/), For example, duckdb:
+1. Install necessary dependencies for the preferred [destination](https://dlthub.com/docs/dlt-ecosystem/destinations/), For example, duckdb:
 
    ```
    pip install dlt[duckdb]
@@ -299,7 +270,5 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    dlt pipeline <pipeline_name> show
    ```
 
-   For example, the "pipeline_name" for the above pipeline example is `data_enrichment_one`; you can use
-   any custom name instead.
-
+   For example, the "pipeline_name" for the above pipeline example is `data_enrichment_one`; you can use any custom name instead.
 

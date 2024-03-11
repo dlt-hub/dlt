@@ -8,12 +8,12 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 # Secrets and Configs
 
 Use secret and config values to pass access credentials and configure or fine-tune your pipelines without the need to modify your code.
-When done right you'll be able to run the same pipeline script during development and in production.
+When done correctly, you'll be able to run the same pipeline script during development and in production.
 
 **Configs**:
 
   - Configs refer to non-sensitive configuration data. These are settings, parameters, or options that define the behavior of a data pipeline.
-  - They can include things like file paths, database hosts and timeouts, API urls, performance settings, or any other settings that affect the pipeline's behavior.
+  - They can include things like file paths, database hosts and timeouts, API URLs, performance settings, or any other settings that affect the pipeline's behavior.
 
 **Secrets**:
 
@@ -23,7 +23,7 @@ When done right you'll be able to run the same pipeline script during developmen
 ## Configure dlt sources and resources
 
 In the example below, the `google_sheets` source function is used to read selected tabs from Google Sheets.
-It takes several arguments that specify the spreadsheet, the tab names and the Google credentials to be used when extracting data.
+It takes several arguments that specify the spreadsheet, the tab names, and the Google credentials to be used when extracting data.
 
 ```python
 @dlt.source
@@ -46,9 +46,9 @@ def google_sheets(
         tabs.append(dlt.resource(data, name=tab_name))
     return tabs
 ```
-`dlt.source` decorator makes all arguments in `google_sheets` function signature configurable.
+The `dlt.source` decorator makes all arguments in the `google_sheets` function signature configurable.
 `dlt.secrets.value` and `dlt.config.value` are special argument defaults that tell `dlt` that this
-argument is required and must be passed explicitly or must exist in the configuration. Additionally
+argument is required and must be passed explicitly or must exist in the configuration. Additionally,
 `dlt.secrets.value` tells `dlt` that an argument is a secret.
 
 In the example above:
@@ -65,22 +65,22 @@ of a **source**)
 ### Allow `dlt` to pass the config and secrets automatically
 You are free to call the function above as usual and pass all the arguments in the code. You'll hardcode google credentials and [we do not recommend that](#do-not-pass-hardcoded-secrets).
 
-Instead let `dlt` to do the work and leave it to [injection mechanism](#injection-mechanism) that looks for function arguments in the config files or environment variables and adds them to your explicit arguments during a function call. Below are two most typical examples:
+Instead, let `dlt` do the work and leave it to the [injection mechanism](#injection-mechanism) that looks for function arguments in the config files or environment variables and adds them to your explicit arguments during a function call. Below are two most typical examples:
 
 1. Pass spreadsheet id and tab names in the code, inject credentials from the secrets:
     ```python
     data_source = google_sheets("23029402349032049", ["tab1", "tab2"])
     ```
-    `credentials` value will be injected by the `@source` decorator (e.g. from `secrets.toml`).
+    The `credentials` value will be injected by the `@source` decorator (e.g., from `secrets.toml`).
     `spreadsheet_id` and `tab_names` take values from the call arguments.
 
 2. Inject all the arguments from config / secrets
     ```python
     data_source = google_sheets()
     ```
-    `credentials` value will be injected by the `@source` decorator (e.g. from **secrets.toml**).
+    The `credentials` value will be injected by the `@source` decorator (e.g., from **secrets.toml**).
 
-    `spreadsheet_id` and `tab_names` will be also injected by the `@source` decorator (e.g. from **config.toml**).
+    `spreadsheet_id` and `tab_names` will also be injected by the `@source` decorator (e.g., from **config.toml**).
 
 
 Where do the configs and secrets come from? By default, `dlt` looks in two **config providers**:
@@ -101,21 +101,21 @@ Where do the configs and secrets come from? By default, `dlt` looks in two **con
   private_key = <private_key from services.json>
   project_id = <project_id from services json>
   ```
-  Note that **credentials** will be evaluated as dictionary containing **client_email**, **private_key** and **project_id** as keys. It is standard TOML behavior.
+  Note that **credentials** will be evaluated as a dictionary containing **client_email**, **private_key**, and **project_id** as keys. It is standard TOML behavior.
 - [Environment Variables](config_providers#environment-provider):
   ```python
   CREDENTIALS=<service.json>
   SPREADSHEET_ID=1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580
   TAB_NAMES=tab1,tab2
   ```
-  We pass the JSON contents of `service.json` file to `CREDENTIALS` and we specify tab names as comma-delimited values.  Environment variables are always in **upper case**.
+  We pass the JSON contents of the `service.json` file to `CREDENTIALS` and we specify tab names as comma-delimited values.  Environment variables are always in **upper case**.
 
 :::tip
-There are many ways you can organize your configs and secrets. The example above is the simplest default **layout** that `dlt` supports. In more complicated cases (i.e. a single configuration is shared by many pipelines with different sources and destinations) you may use more [explicit layouts](#secret-and-config-values-layout-and-name-lookup).
+There are many ways you can organize your configs and secrets. The example above is the simplest default **layout** that `dlt` supports. In more complicated cases (i.e., a single configuration is shared by many pipelines with different sources and destinations) you may use more [explicit layouts](#secret-and-config-values-layout-and-name-lookup).
 :::
 
 :::caution
-**[TOML provider](config_providers#toml-provider) always loads `secrets.toml` and `config.toml` files from `.dlt` folder** which is looked relative to the
+**[TOML provider](config_providers#toml-provider) always loads `secrets.toml` and `config.toml` files from the `.dlt` folder** which is looked relative to the
 **current [Working Directory](https://en.wikipedia.org/wiki/Working_directory)**. TOML provider also has the capability to read files from `~/.dlt/`
 (located in the user's [Home Directory](https://en.wikipedia.org/wiki/Home_directory)).
 :::
@@ -158,10 +158,10 @@ information on what source/resource expects.
 Doing so provides several benefits:
 
 1. You'll never receive invalid data types in your code.
-1. `dlt` will automatically parse and coerce types for you. In our example, you do not need to parse list of tabs or credentials dictionary yourself.
+1. `dlt` will automatically parse and coerce types for you. In our example, you do not need to parse the list of tabs or credentials dictionary yourself.
 1. We can generate nice sample config and secret files for your source.
-1. You can request [built-in and custom credentials](config_specs.md) (i.e. connection strings, AWS / GCP / Azure credentials).
-1. You can specify a set of possible types via `Union` i.e. OAuth or API Key authorization.
+1. You can request [built-in and custom credentials](config_specs.md) (i.e., connection strings, AWS / GCP / Azure credentials).
+1. You can specify a set of possible types via `Union` i.e., OAuth or API Key authorization.
 
 ```python
 @dlt.source
@@ -180,11 +180,11 @@ Now:
 1. You will get actual Google credentials (see [GCP Credential Configuration](config_specs#gcp-credentials)), and your users can
    pass them in many different forms.
 
-In case of `GcpServiceAccountCredentials`:
+In the case of `GcpServiceAccountCredentials`:
 
-- You may just pass the `service.json` as string or dictionary (in code and via config providers).
+- You may just pass the `service.json` as a string or dictionary (in code and via config providers).
 - You may pass a connection string (used in SQL Alchemy) (in code and via config providers).
-- If you do not pass any credentials, the default credentials are used (i.e. those present on Cloud Function runner)
+- If you do not pass any credentials, the default credentials are used (i.e., those present on Cloud Function runner)
 
 ## Read configs and secrets yourself
 `dlt.secrets` and `dlt.config` provide dictionary-like access to configuration values and secrets, respectively.
@@ -208,7 +208,7 @@ credentials = dlt.secrets.get("my_section.gcp_credentials", GcpServiceAccountCre
 Creates `GcpServiceAccountCredentials` instance out of values (typically a dictionary) under **my_section.gcp_credentials** key.
 
 ### Write configs and secrets in code
-**dlt.config** and **dlt.secrets** can be also used as setters. For example:
+**dlt.config** and **dlt.secrets** can also be used as setters. For example:
 ```python
 dlt.config["sheet_id"] = "23029402349032049"
 dlt.secrets["destination.postgres.credentials"] = BaseHook.get_connection('postgres_dsn').extra
@@ -220,7 +220,7 @@ Will mock the **toml** provider to desired values.
 
 Config and secret values are added to the function arguments when a function decorated with `@dlt.source` or `@dlt.resource` is called.
 
-The signature of such function (i.e. `google_sheets` above) is **also a specification of the configuration**.
+The signature of such function (i.e., `google_sheets` above) is **also a specification of the configuration**.
 During runtime `dlt` takes the argument names in the signature and supplies (`inject`) the required values via various config providers.
 
 The injection rules are:
@@ -236,23 +236,23 @@ The injection rules are:
    (or explicitly passed). If they are not found by the config providers, the code raises
    exception. The code in the functions always receives those arguments.
 
-Additionally `dlt.secrets.value` tells `dlt` that supplied value is a secret, and it will be injected
+Additionally, `dlt.secrets.value` tells `dlt` that supplied value is a secret, and it will be injected
 only from secure config providers.
 
 ## Secret and config values layout and name lookup
 
 `dlt` uses a layout of hierarchical sections to organize the config and secret values. This makes
 configurations and secrets easy to manage, and disambiguate values with the same keys by placing
-them in the different sections.
+them in different sections.
 
 :::note
 If you know how TOML files are organized -> this is the same concept!
 :::
 
-A lot of config values are dictionaries themselves (i.e. most of the credentials) and you want the
+A lot of config values are dictionaries themselves (i.e., most of the credentials) and you want the
 values corresponding to one component to be close together.
 
-You can have a separate credentials for your destinations and each of the sources your pipeline uses,
+You can have separate credentials for your destinations and each of the sources your pipeline uses,
 if you have many pipelines in a single project, you can group them in separate sections.
 
 Here is the simplest default layout for our `google_sheets` example.
@@ -325,7 +325,7 @@ tabs=["tab1", "tab2"]
 
 `dlt` arranges the sections into **default layout** that is expected by injection mechanism. This layout
 makes it easy to configure simple cases but also provides a room for more explicit sections and
-complex cases i.e. having several sources with different credentials or even hosting several pipelines
+complex cases i.e., having several sources with different credentials or even hosting several pipelines
 in the same project sharing the same config and credentials.
 
 ```
@@ -359,129 +359,5 @@ Lookup rules:
 **Rule 1:** The lookup starts with the most specific possible path, and if value is not found there,
 it removes the right-most section and tries again.
 
-Example: We use the `bigquery` destination and the `google_sheets` source. They both use google credentials and expect them to be configured under `credentials` key.
+Example: We use the `bigquery` destination and the `google_sheets` source. They both use
 
-1. If we create just a single `credentials` section like in [here](#default-layout-without-sections), destination and source will share the same credentials.
-
-2. If we define sections as below, we'll keep the credentials separate
-
-```toml
-# google sheet credentials
-[sources.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
-
-# bigquery credentials
-[destination.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
-```
-
-Now when `dlt` looks for destination credentials, it will start with `destination.bigquery.credentials`, eliminate `bigquery` and stop at `destination.credentials`.
-
-When looking for `sources` credentials it will start with `sources.google_sheets.google_sheets.credentials`, eliminate `google_sheets` twice and stop at `sources.credentials` (we assume that `google_sheets` source was defined in `google_sheets` python module)
-
-Example: let's be even more explicit and use a full section path possible.
-
-```toml
-# google sheet credentials
-[sources.google_sheets.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
-
-# google analytics credentials
-[sources.google_analytics.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
-
-# bigquery credentials
-[destination.bigquery.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
-```
-
-Now we can separate credentials for different sources as well.
-
-**Rule 2:** You can use your pipeline name to have separate configurations for each pipeline in your
-project.
-
-Pipeline created/obtained with `dlt.pipeline()` creates a global and optional namespace with the
-value of `pipeline_name`. All config values will be looked with pipeline name first and then again
-without it.
-
-Example: the pipeline is named `ML_sheets`.
-
-```toml
-[ML_sheets.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
-```
-
-or maximum path:
-
-```toml
-[ML_sheets.sources.google_sheets.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
-```
-
-### The `sources` section
-
-Config and secrets for decorated sources and resources are kept in
-`sources.<source module name>.<function_name>` section. **All sections are optional during lookup**. For example,
-if source module is named `pipedrive` and the function decorated with `@dlt.source` is
-`deals(api_key: str=...)` then `dlt` will look for API key in:
-
-1. `sources.pipedrive.deals.api_key`
-1. `sources.pipedrive.api_key`
-1. `sources.api_key`
-1. `api_key`
-
-Step 2 in a search path allows all the sources/resources in a module to share the same set of
-credentials.
-
-Also look at the [following test](https://github.com/dlt-hub/dlt/blob/devel/tests/extract/test_decorators.py#L303) `test_source_sections`.
-
-## Understanding the exceptions
-
-Now we can finally understand the `ConfigFieldMissingException`.
-
-Let's run `chess.py` example without providing the password:
-
-```
-$ CREDENTIALS="postgres://loader@localhost:5432/dlt_data" python chess.py
-...
-dlt.common.configuration.exceptions.ConfigFieldMissingException: Following fields are missing: ['password'] in configuration with spec PostgresCredentials
-        for field "password" config providers and keys were tried in following order:
-                In Environment Variables key CHESS_GAMES__DESTINATION__POSTGRES__CREDENTIALS__PASSWORD was not found.
-                In Environment Variables key CHESS_GAMES__DESTINATION__CREDENTIALS__PASSWORD was not found.
-                In Environment Variables key CHESS_GAMES__CREDENTIALS__PASSWORD was not found.
-                In secrets.toml key chess_games.destination.postgres.credentials.password was not found.
-                In secrets.toml key chess_games.destination.credentials.password was not found.
-                In secrets.toml key chess_games.credentials.password was not found.
-                In Environment Variables key DESTINATION__POSTGRES__CREDENTIALS__PASSWORD was not found.
-                In Environment Variables key DESTINATION__CREDENTIALS__PASSWORD was not found.
-                In Environment Variables key CREDENTIALS__PASSWORD was not found.
-                In secrets.toml key destination.postgres.credentials.password was not found.
-                In secrets.toml key destination.credentials.password was not found.
-                In secrets.toml key credentials.password was not found.
-Please refer to https://dlthub.com/docs/general-usage/credentials for more information
-```
-
-It tells you exactly which paths `dlt` looked at, via which config providers and in which order.
-
-In the example above:
-
-1. First it looked in a big section `chess_games` which is name of the pipeline.
-1. In each case it starts with full paths and goes to minimum path `credentials.password`.
-1. First it looks into `environ` then in `secrets.toml`. It displays the exact keys tried.
-1. Note that `config.toml` was skipped! It may not contain any secrets.
-
-Read more about [Provider Hierarchy](./config_providers).

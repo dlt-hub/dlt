@@ -6,8 +6,8 @@ keywords: [api, source, decorator, dynamic resource, github, tutorial]
 
 This tutorial continues the [previous](load-data-from-an-api) part. We'll use the same GitHub API example to show you how to:
 1. Load data from other GitHub API endpoints.
-1. Group your resources into sources for easier management.
-2. Handle secrets and configuration.
+2. Group your resources into sources for easier management.
+3. Handle secrets and configuration.
 
 ## Use source decorator
 
@@ -29,13 +29,13 @@ def get_comments(
         response.raise_for_status()
         yield response.json()
 
-        # get next page
+        # Get the next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
 ```
 
-We can load this resource separately from the issues resource, however loading both issues and comments in one go is more efficient. To do that, we'll use the `@dlt.source` decorator on a function that returns a list of resources:
+We can load this resource separately from the issues resource, but loading both issues and comments in one go is more efficient. To do that, we'll use the `@dlt.source` decorator on a function that returns a list of resources:
 
 ```py
 @dlt.source
@@ -43,7 +43,7 @@ def github_source():
     return [get_issues, get_comments]
 ```
 
-`github_source()` groups resources into a [source](../general-usage/source). A dlt source is a logical grouping of resources. You use it to group resources that belong together, for example, to load data from the same API. Loading data from a source can be run in a single pipeline. Here's what our updated script looks like:
+`github_source()` groups resources into a [source](../general-usage/source). A dlt source is a logical grouping of resources. You use it to group resources that belong together, for example, to load data from the same API. Loading data from a source can be run in a single pipeline. Here's how our updated script looks like:
 
 ```py
 import dlt
@@ -68,7 +68,7 @@ def get_issues(
         response.raise_for_status()
         yield response.json()
 
-        # Get next page
+        # Get the next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -92,7 +92,7 @@ def get_comments(
         response.raise_for_status()
         yield response.json()
 
-        # Get next page
+        # Get the next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -132,7 +132,7 @@ def fetch_github_data(endpoint, params={}):
         response.raise_for_status()
         yield response.json()
 
-        # Get next page
+        # Get the next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -159,7 +159,7 @@ row_counts = pipeline.last_trace.last_normalize_info
 
 ## Handle secrets
 
-For the next step we'd want to get the [number of repository clones](https://docs.github.com/en/rest/metrics/traffic?apiVersion=2022-11-28#get-repository-clones) for our dlt repo from the GitHub API. However, the `traffic/clones` endpoint that returns the data requires [authentication](https://docs.github.com/en/rest/overview/authenticating-to-the-rest-api?apiVersion=2022-11-28).
+For the next step, we want to get the [number of repository clones](https://docs.github.com/en/rest/metrics/traffic?apiVersion=2022-11-28#get-repository-clones) for our dlt repo from the GitHub API. However, the `traffic/clones` endpoint that returns the data requires [authentication](https://docs.github.com/en/rest/overview/authenticating-to-the-rest-api?apiVersion=2022-11-28).
 
 Let's handle this by changing our `fetch_github_data()` first:
 
@@ -175,7 +175,7 @@ def fetch_github_data(endpoint, params={}, access_token=None):
         response.raise_for_status()
         yield response.json()
 
-        # Get next page
+        # Get the next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -194,13 +194,13 @@ def github_source(access_token):
 ...
 ```
 
-Here, we added `access_token` parameter and now we can use it to pass the access token to the request:
+Here, we added the `access_token` parameter and now we can use it to pass the access token to the request:
 
 ```python
 load_info = pipeline.run(github_source(access_token="ghp_XXXXX"))
 ```
 
-It's a good start. But we'd want to follow the best practices and not hardcode the token in the script. One option is to set the token as an environment variable, load it with `os.getenv()` and pass it around as a parameter. dlt offers a more convenient way to handle secrets and credentials: it lets you inject the arguments using a special `dlt.secrets.value` argument value.
+It's a good start. But we want to follow the best practices and not hardcode the token in the script. One option is to set the token as an environment variable, load it with `os.getenv()` and pass it around as a parameter. dlt offers a more convenient way to handle secrets and credentials: it lets you inject the arguments using a special `dlt.secrets.value` argument value.
 
 To use it, change the `github_source()` function to:
 
@@ -217,7 +217,7 @@ When you add `dlt.secrets.value` as a default value for an argument, `dlt` will 
 1. Special environment variables.
 2. `secrets.toml` file.
 
-The `secret.toml` file is located in the `~/.dlt` folder (for global configuration) or in the `.dlt` folder in the project folder (for project-specific configuration).
+The `secrets.toml` file is located in the `~/.dlt` folder (for global configuration) or in the `.dlt` folder in the project folder (for project-specific configuration).
 
 Let's add the token to the `~/.dlt/secrets.toml` file:
 
@@ -246,7 +246,7 @@ def fetch_github_data(endpoint, params={}, access_token=None):
         response.raise_for_status()
         yield response.json()
 
-        # get next page
+        # Get the next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -296,7 +296,7 @@ def fetch_github_data(repo_name, endpoint, params={}, access_token=None):
         response.raise_for_status()
         yield response.json()
 
-        # Get next page
+        # Get the next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -345,7 +345,8 @@ Interested in learning more? Here are some suggestions:
     - [Create your resources dynamically from data](../general-usage/source#create-resources-dynamically).
     - [Transform your data before loading](../general-usage/resource#customize-resources) and see some [examples of customizations like column renames and anonymization](../general-usage/customising-pipelines/renaming_columns).
     - [Pass config and credentials into your sources and resources](../general-usage/credentials).
-    - [Run in production: inspecting, tracing, retry policies and cleaning up](../running-in-production/running).
-    - [Run resources in parallel, optimize buffers and local storage](../reference/performance.md)
+    - [Run in production: inspecting, tracing, retry policies, and cleaning up](../running-in-production/running).
+    - [Run resources in parallel, optimize buffers, and local storage](../reference/performance.md)
 3. Check out our [how-to guides](../walkthroughs) to get answers to some common questions.
-4. Explore the [Examples](../examples) section to see how dlt can be used in real-world scenarios
+4. Explore the [Examples](../examples) section to see how dlt can be used in real-world scenarios.
+

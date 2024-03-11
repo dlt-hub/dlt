@@ -66,8 +66,8 @@ dlt pipeline github_issues show
 
 Try running the pipeline again with `python github_issues.py`. You will notice that the **issues** table contains two copies of the same data. This happens because the default load mode is `append`. It is very useful, for example, when you have a new folder created daily with `json` file logs, and you want to ingest them.
 
-To get the latest data, we'd need to run the script again. But how to do that without duplicating the data?
-One option is to tell `dlt` to replace the data in existing tables in the destination by using `replace` write disposition. Change the `github_issues.py` script to the following:
+To get the latest data, we'd need to run the script again. But how do we do that without duplicating the data?
+One option is to tell `dlt` to replace the data in existing tables in the destination by using the `replace` write disposition. Change the `github_issues.py` script to the following:
 
 ```py
 import dlt
@@ -94,7 +94,7 @@ load_info = pipeline.run(
 print(load_info)
 ```
 
-Run this script twice to see that **issues** table still contains only one copy of the data.
+Run this script twice to see that the **issues** table still contains only one copy of the data.
 
 :::tip
 What if the API has changed and new fields get added to the response?
@@ -109,14 +109,14 @@ Learn more:
 
 ## Declare loading behavior
 
-So far we have been passing the data to the `run` method directly. This is a quick way to get started. However, frequenly, you receive data in chunks, and you want to load it as it arrives. For example, you might want to load data from an API endpoint with pagination or a large file that does not fit in memory. In such cases, you can use Python generators as a data source.
+So far we have been passing the data to the `run` method directly. This is a quick way to get started. However, frequently, you receive data in chunks, and you want to load it as it arrives. For example, you might want to load data from an API endpoint with pagination or a large file that does not fit in memory. In such cases, you can use Python generators as a data source.
 
 You can pass a generator to the `run` method directly or use the `@dlt.resource` decorator to turn the generator into a [dlt resource](../general-usage/resource). The decorator allows you to specify the loading behavior and relevant resource parameters.
 
 ### Load only new data (incremental loading)
 
-Let's improve our GitHub API example and get only issues that were created since last load.
-Instead of using `replace` write disposition and downloading all issues each time the pipeline is run, we do the following:
+Let's improve our GitHub API example and get only issues that were created since the last load.
+Instead of using the `replace` write disposition and downloading all issues each time the pipeline is run, we do the following:
 
 <!--@@@DLT_SNIPPET_START incremental-->
 ```py
@@ -127,8 +127,8 @@ from dlt.sources.helpers import requests
 def get_issues(
     created_at=dlt.sources.incremental("created_at", initial_value="1970-01-01T00:00:00Z")
 ):
-    # NOTE: we read only open issues to minimize number of calls to the API.
-    # There's a limit of ~50 calls for not authenticated Github users.
+    # NOTE: we read only open issues to minimize the number of calls to the API.
+    # There's a limit of ~50 calls for non-authenticated Github users.
     url = (
         "https://api.github.com/repos/dlt-hub/dlt/issues"
         "?per_page=100&sort=created&directions=desc&state=open"
@@ -140,13 +140,13 @@ def get_issues(
         yield response.json()
 
         # Stop requesting pages if the last element was already
-        # older than initial value
+        # older than the initial value
         # Note: incremental will skip those items anyway, we just
-        # do not want to use the api limits
+        # do not want to use the API limits
         if created_at.start_out_of_range:
             break
 
-        # get next page
+        # get the next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -170,9 +170,9 @@ Let's take a closer look at the code above.
 
 We use the `@dlt.resource` decorator to declare the table name into which data will be loaded and specify the `append` write disposition.
 
-We request issues for dlt-hub/dlt repository ordered by **created_at** field (descending) and yield them page by page in `get_issues` generator function.
+We request issues for the dlt-hub/dlt repository ordered by the **created_at** field (descending) and yield them page by page in the `get_issues` generator function.
 
-We also use `dlt.sources.incremental` to track `created_at` field present in each issue to filter in the newly created.
+We also use `dlt.sources.incremental` to track the `created_at` field present in each issue to filter in the newly created ones.
 
 Now run the script. It loads all the issues from our repo to `duckdb`. Run it again, and you can see that no issues got added (if no issues were created in the meantime).
 
@@ -214,8 +214,8 @@ from dlt.sources.helpers import requests
 def get_issues(
     updated_at=dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
-    # NOTE: we read only open issues to minimize number of calls to
-    # the API. There's a limit of ~50 calls for not authenticated
+    # NOTE: we read only open issues to minimize the number of calls to
+    # the API. There's a limit of ~50 calls for non-authenticated
     # Github users
     url = (
         "https://api.github.com/repos/dlt-hub/dlt/issues"
@@ -228,7 +228,7 @@ def get_issues(
         response.raise_for_status()
         yield response.json()
 
-        # Get next page
+        # Get the next page
         if "next" not in response.links:
             break
         url = response.links["next"]["url"]
@@ -247,11 +247,11 @@ print(load_info)
 ```
 <!--@@@DLT_SNIPPET_END incremental_merge-->
 
-Above we add `primary_key` argument to the `dlt.resource()` that tells `dlt` how to identify the issues in the database to find duplicates which content it will merge.
+Above we add a `primary_key` argument to the `dlt.resource()` that tells `dlt` how to identify the issues in the database to find duplicates which content it will merge.
 
 Note that we now track the `updated_at` field — so we filter in all issues **updated** since the last pipeline run (which also includes those newly created).
 
-Pay attention how we use **since** parameter from [GitHub API](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues)
+Pay attention to how we use the **since** parameter from [GitHub API](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues)
 and `updated_at.last_value` to tell GitHub to return issues updated only **after** the date we pass. `updated_at.last_value` holds the last `updated_at` value from the previous run.
 
 [Learn more about merge write disposition](../general-usage/incremental-loading#merge-incremental_loading).
@@ -263,9 +263,10 @@ Continue your journey with the [Resource Grouping and Secrets](grouping-resource
 If you want to take full advantage of the `dlt` library, then we strongly suggest that you build your sources out of existing **building blocks:**
 
 - Pick your [destinations](../dlt-ecosystem/destinations/).
-- Check [verified sources](../dlt-ecosystem/verified-sources/) provided by us and community.
+- Check [verified sources](../dlt-ecosystem/verified-sources/) provided by us and the community.
 - Access your data with [SQL](../dlt-ecosystem/transformations/sql) or [Pandas](../dlt-ecosystem/transformations/sql).
 - [Append, replace and merge your tables](../general-usage/incremental-loading).
 - [Set up "last value" incremental loading](../general-usage/incremental-loading#incremental_loading-with-last-value).
-- [Set primary and merge keys, define the columns nullability and data types](../general-usage/resource#define-schema).
-- [Use built-in requests client](../reference/performance#using-the-built-in-requests-client).
+- [Set primary and merge keys, define the columns' nullability and data types](../general-usage/resource#define-schema).
+- [Use the built-in requests client](../reference/performance#using-the-built-in-requests-client).
+
