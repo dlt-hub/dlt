@@ -1,3 +1,4 @@
+import os
 import yaml
 from typing import Any, Sequence, Tuple
 import dlt
@@ -10,6 +11,7 @@ from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout
 from dlt.common.schema.utils import group_tables_by_resource, remove_defaults
 from dlt.common.storages import FileStorage, PackageStorage
+from dlt.common.utils import str2bool
 from dlt.pipeline.helpers import DropCommand
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 
@@ -104,19 +106,23 @@ def pipeline_command(
         from dlt.helpers.streamlit_app import dashboard
 
         with signals.delayed_signals():
-            venv = Venv.restore_current()
-            for line in iter_stdout(
-                venv,
+            # exit when there are not schemas
+            reload_flag = os.getenv("DLT_STREAMLIT_HOT_RELOAD")
+            should_reload = str2bool(reload_flag or "no")
+            streamlit_cmd = [
                 "streamlit",
                 "run",
                 dashboard.__file__,
                 pipeline_name,
                 "--client.showSidebarNavigation",
                 "false",
-                # TODO: once done remove the option below
-                "--server.runOnSave",
-                "true",
-            ):
+            ]
+            if should_reload:
+                streamlit_cmd.append("--server.runOnSave")
+                streamlit_cmd.append("true")
+
+            venv = Venv.restore_current()
+            for line in iter_stdout(venv, *streamlit_cmd):
                 fmt.echo(line)
 
     if operation == "info":
