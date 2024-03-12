@@ -86,15 +86,15 @@ def test_multiple_resources_pipeline():
     os.environ["DLT_TEST_PIPELINE_NAME"] = "test_resources_pipeline"
     streamlit_app = AppTest.from_file(str(streamlit_app_path / "dashboard.py"), default_timeout=5)
     streamlit_app.run()
-    assert streamlit_app.exception is None
+    assert not streamlit_app.exception  # noqa
 
     # Check color mode switching updates session stats
     streamlit_app.sidebar.button[0].click().run()
-    assert streamlit_app.exception is None
+    assert not streamlit_app.exception  # noqa
     streamlit_app.session_state["color_mode"] == "light"
 
     streamlit_app.sidebar.button[1].click().run()
-    assert streamlit_app.exception is None
+    assert not streamlit_app.exception  # noqa
     streamlit_app.session_state["color_mode"] == "dark"
 
     # Check page links in sidebar
@@ -112,3 +112,27 @@ def test_multiple_resources_pipeline():
     assert streamlit_app.subheader[4].value == f"Pipeline {pipeline.pipeline_name}"
     assert streamlit_app.subheader[5].value == "State info"
     assert streamlit_app.subheader[6].value == "Last load info"
+
+
+def test_multiple_resources_pipeline_with_dummy_destination():
+    pipeline = dlt.pipeline(
+        pipeline_name="test_resources_pipeline_dummy_destination",
+        destination="dummy",
+        dataset_name="rows_data2",
+    )
+    pipeline.run([source1(10), source2(20)])
+
+    os.environ["DLT_TEST_PIPELINE_NAME"] = "test_resources_pipeline_dummy_destination"
+    streamlit_app = AppTest.from_file(
+        str(streamlit_app_path / "dashboard.py"),
+        # bigger timeout because dlt might be slow at
+        # loading stage for dummy destination and timeout
+        default_timeout=8,
+    )
+    streamlit_app.run()
+
+    assert not streamlit_app.exception  # noqa
+    assert streamlit_app.warning.len == 1
+    # We should have at least 2 errors one on the sidebar
+    # and the other two errors in the page for missing sql client
+    assert streamlit_app.error.len > 2

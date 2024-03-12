@@ -55,5 +55,5 @@ def pipeline_state_info(pipeline: dlt.Pipeline) -> None:
         st.text("")
         st.warning(
             "Looks like that local state is not yet synchronized or synchronization is disabled",
-            icon=":warning:",
+            icon="⚠️",
         )
