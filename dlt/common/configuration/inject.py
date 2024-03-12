@@ -162,10 +162,11 @@ def with_config(
                 )
 
         def update_bound_args(
-            bound_args: inspect.BoundArguments, config: BaseConfiguration, *args: Any, **kwargs: Any
+            bound_args: inspect.BoundArguments, config: BaseConfiguration, args: Any, kwargs: Any
         ) -> None:
             # overwrite or add resolved params
             resolved_params = dict(config)
+            # overwrite or add resolved params
             for p in sig.parameters.values():
                 if p.name in resolved_params:
                     bound_args.arguments[p.name] = resolved_params.pop(p.name)
