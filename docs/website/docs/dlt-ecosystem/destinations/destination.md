@@ -1,10 +1,15 @@
 ---
-title: Destination Decorator / Reverse ETL
+title: 🧪 Destination Decorator / Reverse ETL
 description: Sink function `dlt` destination for reverse ETL
 keywords: [reverse etl, sink, function, decorator, destination]
 ---
 
 # Destination decorator / Reverse ETL
+
+:::caution
+The Destination Decorator is currently in alpha, while we think the interface is stable at this point and all is working pretty well, there still might be
+small changes done or bugs found in the next weeks.
+:::
 
 The dlt destination decorator allows you to receive all data passing through your pipeline in a simple function. This can be extremely useful for
 reverse ETL, where you are pushing data back to an api. You can also use this for sending data to a queue or a simple database destination that is not
