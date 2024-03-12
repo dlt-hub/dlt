@@ -6,10 +6,10 @@ from dlt.common.destination import DestinationCapabilitiesContext
 def capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
 
-    caps.preferred_loader_file_format = "jsonl"
+    caps.preferred_loader_file_format = "parquet"
     caps.supported_loader_file_formats = ["jsonl", "parquet", "insert_values"]
-    caps.preferred_staging_file_format = "jsonl"
-    caps.supported_staging_file_formats = ["parquet", "jsonl"]
+    caps.preferred_staging_file_format = "parquet"
+    caps.supported_staging_file_formats = ["jsonl", "parquet"]
 
     caps.escape_identifier = escape_clickhouse_identifier
     caps.escape_literal = escape_clickhouse_literal
@@ -22,11 +22,13 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.is_max_query_length_in_bytes = True
     caps.max_query_length = 262144
 
-    # Clickhouse has limited support for transactional semantics, especially for `ReplicatedMergeTree`,
-    # the default ClickHouse cloud engine.
+    # Clickhouse has limited support for transactional semantics, especially for `ReplicatedMergeTree`, the default ClickHouse Cloud engine.
+    # It does, however, provide atomicity for individual DDL operations like `ALTER TABLE`.
     # https://clickhouse-driver.readthedocs.io/en/latest/dbapi.html#clickhouse_driver.dbapi.connection.Connection.commit
     # https://clickhouse.com/docs/en/guides/developer/transactional#transactions-commit-and-rollback
-    caps.supports_ddl_transactions = False
     caps.supports_transactions = False
+    caps.supports_ddl_transactions = (
+        True  # Not as part of a transaction, but single atomic DDL operations are supported.
+    )
 
     return caps

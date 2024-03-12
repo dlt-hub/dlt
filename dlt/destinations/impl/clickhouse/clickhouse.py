@@ -8,7 +8,41 @@ from dlt.destinations.impl.clickhouse import capabilities
 from dlt.destinations.impl.clickhouse.configuration import ClickhouseClientConfiguration
 from dlt.destinations.job_client_impl import SqlJobClientWithStaging
 from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.type_mapping import TypeMapper
 from dlt.destinations.typing import TNativeConn
+
+
+class ClickhouseTypeMapper(TypeMapper):
+    sct_to_unbound_dbt = {
+        "complex": "JSON",
+        "text": "String",
+        "double": "Float64",
+        "bool": "Boolean",
+        "date": "Date",
+        "timestamp": "DateTime",
+        "bigint": "Int64",
+        "binary": "String",
+        "wei": "Decimal",
+    }
+
+    sct_to_dbt = {
+        "decimal": "Decimal(%i,%i)",
+        "wei": "Decimal(%i,%i)",
+    }
+
+    dbt_to_sct = {
+        "String": "text",
+        "Float64": "double",
+        "Boolean": "bool",
+        "Date": "date",
+        "DateTime": "timestamp",
+        "Int64": "bigint",
+        "JSON": "complex",
+        "Decimal": "decimal",
+    }
+
+    def to_db_time_type(self, precision: Optional[int], table_format: TTableFormat = None) -> str:
+        return "DateTime"
 
 
 class ClickhouseClient(SqlJobClientWithStaging, SupportsStagingDestination):
