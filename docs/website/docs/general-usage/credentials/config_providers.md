@@ -99,6 +99,19 @@ the `private_key` for Google credentials. It will look
 1. first in env variable `MY_SECTION__GCP_CREDENTIALS__PRIVATE_KEY` and if not found,
 1. in `secrets.toml` with key `my_section.gcp_credentials.private_key`.
 
+
+:::info
+While using Google secrets provider please make sure your pipeline name
+contains no whitespace or any other punctuation characters except "-" and "_".
+
+Per Google the secret name can contain
+
+    1. Uppercase and lowercase letters,
+    2. Numerals,
+    3. Hyphens,
+    4. Underscores.
+:::
+
 ### Environment provider
 
 Looks for the values in the environment variables.
