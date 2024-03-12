@@ -1,7 +1,7 @@
 import functools
 import os
 from tempfile import gettempdir
-from typing import Any, Callable, List, Literal, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple
 
 from tenacity import (
     retry_if_exception,
@@ -103,7 +103,7 @@ class PipelineTasksGroup(TaskGroup):
         """
 
         super().__init__(group_id=pipeline_name, **kwargs)
-        self._used_names = {}
+        self._used_names: Dict[str, Any] = {}
         self.use_task_logger = use_task_logger
         self.log_progress_period = log_progress_period
         self.buffer_max_items = buffer_max_items
