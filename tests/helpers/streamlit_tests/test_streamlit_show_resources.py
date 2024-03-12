@@ -86,16 +86,16 @@ def test_multiple_resources_pipeline():
     os.environ["DLT_TEST_PIPELINE_NAME"] = "test_resources_pipeline"
     streamlit_app = AppTest.from_file(str(streamlit_app_path / "dashboard.py"), default_timeout=5)
     streamlit_app.run()
-    assert not streamlit_app.exception  # flake8: noqa
+    assert not streamlit_app.exception
 
     # Check color mode switching updates session stats
     streamlit_app.sidebar.button[0].click().run()
-    assert not streamlit_app.exception  # flake8: noqa
-    streamlit_app.session_state["color_mode"] == "light"
+    assert not streamlit_app.exception
+    assert streamlit_app.session_state["color_mode"] == "light"
 
     streamlit_app.sidebar.button[1].click().run()
-    assert not streamlit_app.exception  # flake8: noqa
-    streamlit_app.session_state["color_mode"] == "dark"
+    assert not streamlit_app.exception
+    assert streamlit_app.session_state["color_mode"] == "dark"
 
     # Check page links in sidebar
     assert "Explore data" in streamlit_app.sidebar[2].label
@@ -131,7 +131,7 @@ def test_multiple_resources_pipeline_with_dummy_destination():
     )
     streamlit_app.run()
 
-    assert not streamlit_app.exception  # flake8: noqa
+    assert not streamlit_app.exception
     assert streamlit_app.warning.len == 1
     # We should have at least 2 errors one on the sidebar
     # and the other two errors in the page for missing sql client
