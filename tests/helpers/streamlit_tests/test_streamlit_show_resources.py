@@ -10,7 +10,7 @@ from pathlib import Path
 
 import dlt
 
-from streamlit.testing.v1 import AppTest    # type: ignore
+from streamlit.testing.v1 import AppTest  # type: ignore
 
 here = Path(__file__).parent
 dlt_root = here.parent.parent.parent.absolute()
@@ -80,4 +80,22 @@ def test_multiple_resources_pipeline():
     streamlit_app = AppTest.from_file(str(streamlit_app_path / "dashboard.py"), default_timeout=5)
     streamlit_app.run()
     assert not streamlit_app.exception
-    # TODO: Add more tests
+
+    # Check color mode switching updates session stats
+    streamlit_app.sidebar.button[0].click().run()
+    assert not streamlit_app.exception
+    streamlit_app.session_state["color_mode"] == "light"
+
+    streamlit_app.sidebar.button[1].click().run()
+    assert not streamlit_app.exception
+    streamlit_app.session_state["color_mode"] == "dark"
+
+    # Check page links in sidebar
+    assert "Explore data" in streamlit_app.sidebar[2].label
+    assert "Load info" in streamlit_app.sidebar[3].label
+
+    # Check Explore data page
+    assert streamlit_app.subheader[0].value == "Schemas and tables"
+    assert streamlit_app.subheader[1].value == "Schema: source1"
+    assert streamlit_app.subheader[2].value == "Table: one"
+    assert streamlit_app.subheader[3].value == "Run your query"
