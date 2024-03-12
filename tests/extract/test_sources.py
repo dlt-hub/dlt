@@ -1362,6 +1362,15 @@ def test_apply_dynamic_hints() -> None:
     assert table["columns"]["tags"] == {"name": "tags"}
 
 
+def test_resource_no_template() -> None:
+    empty = DltResource.from_data([1, 2, 3], name="table")
+    assert empty.write_disposition == "append"
+    assert empty.compute_table_schema()["write_disposition"] == "append"
+    empty.apply_hints()
+    assert empty.write_disposition == "append"
+    assert empty.compute_table_schema()["write_disposition"] == "append"
+
+
 def test_selected_pipes_with_duplicates():
     def input_gen():
         yield from [1, 2, 3]

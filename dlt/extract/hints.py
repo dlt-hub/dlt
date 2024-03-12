@@ -199,10 +199,11 @@ class DltResourceHints:
         """
         if not self._hints:
             # if there is no template yet, create and set a new one.
+            default_wd = None if parent_table_name else DEFAULT_WRITE_DISPOSITION
             t = make_hints(
                 table_name,
                 parent_table_name,
-                write_disposition,
+                write_disposition or default_wd,
                 columns,
                 primary_key,
                 merge_key,
