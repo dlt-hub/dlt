@@ -33,13 +33,25 @@ def source1(nr):
     yield resource
 
 
-@dlt.source
+@dlt.source()
 def source2(nr):
     def get_resource2(nr):
         for i in range(nr):
             yield {"id": i, "column_2": f"xyz_{i}"}
 
-    def get_resource3(nr):
+    @dlt.resource(
+        name="Three",
+        write_disposition="merge",
+        primary_key=["column_3", "column_4"],
+        merge_key=["column_3"],
+    )
+    def get_resource3(
+        nr,
+        id_inc: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "id",
+            initial_value=0,
+        ),
+    ):
         for i in range(nr):
             yield {"id": i, "column_3": f"pqr_{i}", "column_4": f"pqrr_{i}"}
 
@@ -50,13 +62,7 @@ def source2(nr):
         primary_key="column_2",
         merge_key=["column_2"],
     )
-    yield dlt.resource(
-        get_resource3(nr),
-        name="Three",
-        write_disposition="merge",
-        primary_key=["column_3", "column_4"],
-        merge_key=["column_3"],
-    )
+    yield get_resource3(nr)
 
 
 def test_multiple_resources_pipeline():
@@ -99,3 +105,7 @@ def test_multiple_resources_pipeline():
     assert streamlit_app.subheader[1].value == "Schema: source1"
     assert streamlit_app.subheader[2].value == "Table: one"
     assert streamlit_app.subheader[3].value == "Run your query"
+    assert streamlit_app.subheader[4].value == f"Pipeline {pipeline.pipeline_name}"
+    assert streamlit_app.subheader[5].value == "State info"
+    assert streamlit_app.subheader[6].value == "Last load info"
+    assert 3 < len(streamlit_app.subheader) < 10
