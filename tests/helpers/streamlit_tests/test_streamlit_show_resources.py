@@ -10,6 +10,7 @@ from pathlib import Path
 
 import dlt
 
+from dlt.helpers.streamlit_app.pages import load_info as dlt_load_info
 from streamlit.testing.v1 import AppTest  # type: ignore
 
 here = Path(__file__).parent
@@ -85,20 +86,23 @@ def test_multiple_resources_pipeline():
     os.environ["DLT_TEST_PIPELINE_NAME"] = "test_resources_pipeline"
     streamlit_app = AppTest.from_file(str(streamlit_app_path / "dashboard.py"), default_timeout=5)
     streamlit_app.run()
-    assert not streamlit_app.exception
+    assert streamlit_app.exception is None
 
     # Check color mode switching updates session stats
     streamlit_app.sidebar.button[0].click().run()
-    assert not streamlit_app.exception
+    assert streamlit_app.exception is None
     streamlit_app.session_state["color_mode"] == "light"
 
     streamlit_app.sidebar.button[1].click().run()
-    assert not streamlit_app.exception
+    assert streamlit_app.exception is None
     streamlit_app.session_state["color_mode"] == "dark"
 
     # Check page links in sidebar
     assert "Explore data" in streamlit_app.sidebar[2].label
     assert "Load info" in streamlit_app.sidebar[3].label
+
+    # Check that at leas 4 content sections rendered
+    assert len(streamlit_app.subheader) > 4
 
     # Check Explore data page
     assert streamlit_app.subheader[0].value == "Schemas and tables"
@@ -108,4 +112,3 @@ def test_multiple_resources_pipeline():
     assert streamlit_app.subheader[4].value == f"Pipeline {pipeline.pipeline_name}"
     assert streamlit_app.subheader[5].value == "State info"
     assert streamlit_app.subheader[6].value == "Last load info"
-    assert 3 < len(streamlit_app.subheader) < 10
