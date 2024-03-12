@@ -1,4 +1,5 @@
 from typing import TYPE_CHECKING, Optional, Final, Callable, Union, Any
+from typing_extensions import ParamSpec
 
 from dlt.common.configuration import configspec
 from dlt.common.destination import TLoaderFileFormat
@@ -8,15 +9,16 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
+from dlt.common.destination import Destination
 
-
-TSinkCallable = Callable[[Union[TDataItems, str], TTableSchema], None]
+TDestinationCallable = Callable[[Union[TDataItems, str], TTableSchema], None]
+TDestinationCallableParams = ParamSpec("TDestinationCallableParams")
 
 
 @configspec
 class SinkClientConfiguration(DestinationClientConfiguration):
     destination_type: Final[str] = "sink"  # type: ignore
-    destination_callable: Optional[str] = None  # noqa: A003
+    destination_callable: Optional[Union[str, TDestinationCallable]] = None  # noqa: A003
     loader_file_format: TLoaderFileFormat = "puae-jsonl"
     batch_size: int = 10
 
@@ -27,5 +29,5 @@ class SinkClientConfiguration(DestinationClientConfiguration):
             *,
             loader_file_format: TLoaderFileFormat = "puae-jsonl",
             batch_size: int = 10,
-            destination_callable: Union[TSinkCallable, str] = None,
+            destination_callable: Union[TDestinationCallable, str] = None,
         ) -> None: ...

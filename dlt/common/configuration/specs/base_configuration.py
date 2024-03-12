@@ -2,6 +2,8 @@ import copy
 import inspect
 import contextlib
 import dataclasses
+import threading
+
 from collections.abc import Mapping as C_Mapping
 from typing import (
     Callable,

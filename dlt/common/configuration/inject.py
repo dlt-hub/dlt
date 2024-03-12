@@ -1,8 +1,7 @@
 import inspect
-import threading
 
 from functools import wraps
-from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload
+from typing import Callable, Dict, Type, Any, Optional, Tuple, TypeVar, overload, cast
 from inspect import Signature, Parameter
 from contextlib import nullcontext
 
@@ -36,6 +35,8 @@ def with_config(
     auto_pipeline_section: bool = False,
     include_defaults: bool = True,
     accept_partial: bool = False,
+    initial_config: Optional[BaseConfiguration] = None,
+    base: Type[BaseConfiguration] = BaseConfiguration,
 ) -> TFun: ...
 
 
@@ -49,6 +50,8 @@ def with_config(
     auto_pipeline_section: bool = False,
     include_defaults: bool = True,
     accept_partial: bool = False,
+    initial_config: Optional[BaseConfiguration] = None,
+    base: Type[BaseConfiguration] = BaseConfiguration,
 ) -> Callable[[TFun], TFun]: ...
 
 
@@ -80,7 +83,6 @@ def with_config(
     Returns:
         Callable[[TFun], TFun]: A decorated function
     """
-    thread_lock = threading.Lock()
 
     section_f: Callable[[StrAny], str] = None
     # section may be a function from function arguments to section
@@ -102,6 +104,8 @@ def with_config(
 
         if SPEC is None:
             return f
+
+        func_id = id(f)
 
         for p in sig.parameters.values():
             # for all positional parameters that do not have default value, set default
@@ -149,7 +153,7 @@ def with_config(
             )
 
             # this may be called from many threads so section_context is thread affine
-            with inject_section(section_context):
+            with inject_section(section_context, lock_id=func_id):
                 # print(f"RESOLVE CONF in inject: {f.__name__}: {section_context.sections} vs {sections}")
                 return resolve_configuration(
                     config or SPEC(),
@@ -158,7 +162,7 @@ def with_config(
                 )
 
         def update_bound_args(
-            bound_args: inspect.BoundArguments, config: BaseConfiguration, *args, **kwargs
+            bound_args: inspect.BoundArguments, config: BaseConfiguration, *args: Any, **kwargs: Any
         ) -> None:
             # overwrite or add resolved params
             resolved_params = dict(config)
@@ -176,16 +180,22 @@ def with_config(
                 bound_args.arguments[kwargs_arg.name][_LAST_DLT_CONFIG] = config
                 bound_args.arguments[kwargs_arg.name][_ORIGINAL_ARGS] = (args, kwargs)
 
-        def create_resolved_partial(lock: bool = False) -> Any:
+        def create_resolved_partial() -> Any:
             # creates a pre-resolved partial of the decorated function
             empty_bound_args = sig.bind_partial()
-            with nullcontext() if lock is False else thread_lock:
-                config = resolve_config(empty_bound_args)
+            config = resolve_config(empty_bound_args)
 
-            # TODO: do some checks, for example fail if there is a spec arg
-
-            def creator(*args: Any, **kwargs: Any) -> Any:
+            def wrapped(*args: Any, **kwargs: Any) -> Any:
                 nonlocal config
+
+                # Do we need an exception here?
+                if spec_arg and spec_arg.name in kwargs:
+                    from dlt.common import logger
+
+                    logger.warning(
+                        "Spec argument is provided in kwargs, ignoring it for resolved partial"
+                        " function."
+                    )
 
                 # we can still overwrite the config
                 if _LAST_DLT_CONFIG in kwargs:
@@ -196,7 +206,7 @@ def with_config(
                 update_bound_args(bound_args, config, args, kwargs)
                 return f(*bound_args.args, **bound_args.kwargs)
 
-            return creator
+            return wrapped
 
         @wraps(f)
         def _wrap(*args: Any, **kwargs: Any) -> Any:
@@ -216,7 +226,7 @@ def with_config(
         _FUNC_SPECS[id(_wrap)] = SPEC
 
         # add a method to create a pre-resolved partial
-        _wrap.__RESOLVED_PARTIAL_FUNC__ = create_resolved_partial
+        setattr(_wrap, "__RESOLVED_PARTIAL_FUNC__", create_resolved_partial)
 
         return _wrap  # type: ignore
 
@@ -245,7 +255,7 @@ def get_orig_args(**kwargs: Any) -> Tuple[Tuple[Any], DictStrAny]:
 
 
 def create_resolved_partial(f: AnyFun) -> AnyFun:
-    """Create a pre-resolved partial of the decorated function"""
-    if hasattr(f, "__RESOLVED_PARTIAL_FUNC__"):
-        return f.__RESOLVED_PARTIAL_FUNC__(lock=True)
+    """Create a pre-resolved partial of the with_config decorated function"""
+    if partial_func := getattr(f, "__RESOLVED_PARTIAL_FUNC__", None):
+        return cast(AnyFun, partial_func())
     return f

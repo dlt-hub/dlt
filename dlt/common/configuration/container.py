@@ -1,7 +1,7 @@
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext, AbstractContextManager
 import re
 import threading
-from typing import ClassVar, Dict, Iterator, Tuple, Type, TypeVar
+from typing import ClassVar, Dict, Iterator, Tuple, Type, TypeVar, Any
 
 from dlt.common.configuration.specs.base_configuration import ContainerInjectableContext
 from dlt.common.configuration.exceptions import (
@@ -34,6 +34,9 @@ class Container:
 
     thread_contexts: Dict[int, Dict[Type[ContainerInjectableContext], ContainerInjectableContext]]
     """A thread aware mapping of injection context """
+    _context_container_locks: Dict[str, threading.Lock]
+    """Locks for container types on threads."""
+
     main_context: Dict[Type[ContainerInjectableContext], ContainerInjectableContext]
     """Injection context for the main thread"""
 
@@ -41,6 +44,7 @@ class Container:
         if not cls._INSTANCE:
             cls._INSTANCE = super().__new__(cls)
             cls._INSTANCE.thread_contexts = {}
+            cls._INSTANCE._context_container_locks = {}
             cls._INSTANCE.main_context = cls._INSTANCE.thread_contexts[
                 Container._MAIN_THREAD_ID
             ] = {}
@@ -72,6 +76,7 @@ class Container:
         # put it into context
         self._thread_setitem(self._thread_context(spec), spec, value)
 
+
     def __delitem__(self, spec: Type[TConfiguration]) -> None:
         context = self._thread_context(spec)
         self._thread_delitem(context, spec)
@@ -84,7 +89,7 @@ class Container:
         self, spec: Type[TConfiguration]
     ) -> Dict[Type[ContainerInjectableContext], ContainerInjectableContext]:
         if spec.global_affinity:
-            context = self.main_context
+            return self.main_context
         else:
             # thread pool names used in dlt contain originating thread id. use this id over pool id
             if m := re.match(r"dlt-pool-(\d+)-", threading.currentThread().getName()):
@@ -97,10 +102,9 @@ class Container:
                 return self.main_context
             # we may add a new empty thread context so lock here
             with Container._LOCK:
-                context = self.thread_contexts.get(thread_id)
-                if context is None:
+                if (context := self.thread_contexts.get(thread_id)) is None:
                     context = self.thread_contexts[thread_id] = {}
-        return context
+                return context
 
     def _thread_getitem(
         self, spec: Type[TConfiguration]
@@ -128,29 +132,44 @@ class Container:
         del context[spec]
 
     @contextmanager
-    def injectable_context(self, config: TConfiguration) -> Iterator[TConfiguration]:
+    def injectable_context(
+        self, config: TConfiguration, lock_id: int = None
+    ) -> Iterator[TConfiguration]:
         """A context manager that will insert `config` into the container and restore the previous value when it gets out of scope."""
+
         config.resolve()
         spec = type(config)
         previous_config: ContainerInjectableContext = None
-        context, previous_config = self._thread_getitem(spec)
+        context = self._thread_context(spec)
+        lock: AbstractContextManager[Any]
 
-        # set new config and yield context
-        self._thread_setitem(context, spec, config)
-        try:
-            yield config
-        finally:
-            # before setting the previous config for given spec, check if there was no overlapping modification
-            context, current_config = self._thread_getitem(spec)
-            if current_config is config:
-                # config is injected for spec so restore previous
-                if previous_config is None:
-                    self._thread_delitem(context, spec)
+        # if there is a lock_id, we need a lock for the lock_id in the scope of the current context
+        if lock_id:
+            lock_key = f"{lock_id}-{id(context)}"
+            if (lock := self._context_container_locks.get(lock_key)) is None:
+                with Container._LOCK:
+                    self._context_container_locks[lock_key] = lock = threading.Lock()
+        else:
+            lock = nullcontext()
+
+        with lock:
+            # remember context and set item
+            previous_config = context.get(spec)
+            self._thread_setitem(context, spec, config)
+            try:
+                yield config
+            finally:
+                # before setting the previous config for given spec, check if there was no overlapping modification
+                context, current_config = self._thread_getitem(spec)
+                if current_config is config:
+                    # config is injected for spec so restore previous
+                    if previous_config is None:
+                        self._thread_delitem(context, spec)
+                    else:
+                        self._thread_setitem(context, spec, previous_config)
                 else:
-                    self._thread_setitem(context, spec, previous_config)
-            else:
-                # value was modified in the meantime and not restored
-                raise ContainerInjectableContextMangled(spec, context[spec], config)
+                    # value was modified in the meantime and not restored
+                    raise ContainerInjectableContextMangled(spec, context[spec], config)
 
     @staticmethod
     def thread_pool_prefix() -> str:

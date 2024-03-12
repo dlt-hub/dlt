@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from types import TracebackType
-from typing import ClassVar, Dict, Optional, Type, Iterable, Iterable, NamedTuple, Dict
+from typing import ClassVar, Dict, Optional, Type, Iterable, Iterable, cast, Dict
 import threading
 
 from dlt.destinations.job_impl import EmptyLoadJob
@@ -23,7 +23,10 @@ from dlt.common.destination.reference import (
 )
 
 from dlt.destinations.impl.destination import capabilities
-from dlt.destinations.impl.destination.configuration import SinkClientConfiguration, TSinkCallable
+from dlt.destinations.impl.destination.configuration import (
+    SinkClientConfiguration,
+    TDestinationCallable,
+)
 
 
 class DestinationLoadJob(LoadJob, ABC):
@@ -34,15 +37,15 @@ class DestinationLoadJob(LoadJob, ABC):
         config: SinkClientConfiguration,
         schema: Schema,
         destination_state: Dict[str, int],
-        destination_callable: TSinkCallable,
+        destination_callable: TDestinationCallable,
     ) -> None:
         super().__init__(FileStorage.get_file_name_from_file_path(file_path))
         self._file_path = file_path
         self._config = config
         self._table = table
         self._schema = schema
+        # we create pre_resolved callable here
         self._callable = destination_callable
-
         self._state: TLoadJobState = "running"
         self._storage_id = f"{self._parsed_file_name.table_name}.{self._parsed_file_name.file_id}"
         try:
@@ -128,8 +131,7 @@ class SinkClient(JobClientBase):
     def __init__(self, schema: Schema, config: SinkClientConfiguration) -> None:
         super().__init__(schema, config)
         self.config: SinkClientConfiguration = config
-
-        # we create pre_resolved callable here
+        # create pre-resolved callable to avoid multiple config resolutions during execution of the jobs
         self.destination_callable = create_resolved_partial(self.config.destination_callable)
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
@@ -151,11 +153,21 @@ class SinkClient(JobClientBase):
         load_state = destination_state()
         if file_path.endswith("parquet"):
             return SinkParquetLoadJob(
-                table, file_path, self.config, self.schema, load_state, self.destination_callable
+                table,
+                file_path,
+                self.config,
+                self.schema,
+                load_state,
+                self.destination_callable,
             )
         if file_path.endswith("jsonl"):
             return SinkJsonlLoadJob(
-                table, file_path, self.config, self.schema, load_state, self.destination_callable
+                table,
+                file_path,
+                self.config,
+                self.schema,
+                load_state,
+                self.destination_callable,
             )
         return None
 

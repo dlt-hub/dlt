@@ -92,7 +92,7 @@ def initialize_credentials(hint: Any, initial_value: Any) -> CredentialsConfigur
 
 
 def inject_section(
-    section_context: ConfigSectionContext, merge_existing: bool = True
+    section_context: ConfigSectionContext, merge_existing: bool = True, lock_id: int = None
 ) -> ContextManager[ConfigSectionContext]:
     """Context manager that sets section specified in `section_context` to be used during configuration resolution. Optionally merges the context already in the container with the one provided
 
@@ -112,7 +112,7 @@ def inject_section(
     if merge_existing:
         section_context.merge(existing_context)
 
-    return container.injectable_context(section_context)
+    return container.injectable_context(section_context, lock_id=lock_id)
 
 
 def _maybe_parse_native_value(

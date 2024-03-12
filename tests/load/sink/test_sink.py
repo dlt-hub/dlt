@@ -1,4 +1,4 @@
-from typing import List, Tuple, Dict, Union
+from typing import List, Tuple, Dict, Union, cast
 
 import dlt
 import pytest
@@ -131,11 +131,16 @@ def global_sink_func(items: TDataItems, table: TTableSchema) -> None:
 def test_instantiation() -> None:
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
-    def local_sink_func(items: TDataItems, table: TTableSchema) -> None:
+    # NOTE: we also test injection of config vars here
+    def local_sink_func(items: TDataItems, table: TTableSchema, my_val=dlt.config.value) -> None:
         nonlocal calls
         if table["name"].startswith("_dlt"):
             return
+        assert my_val == "something"
+
         calls.append((items, table))
+
+    os.environ["DESTINATION__MY_VAL"] = "something"
 
     # test decorator
     calls = []
@@ -147,7 +152,7 @@ def test_instantiation() -> None:
     calls = []
     p = dlt.pipeline(
         "sink_test",
-        destination=Destination.from_reference("destination", destination_callable=local_sink_func),  # type: ignore
+        destination=Destination.from_reference("destination", destination_callable=local_sink_func),
         full_refresh=True,
     )
     p.run([1, 2, 3], table_name="items")
@@ -158,7 +163,9 @@ def test_instantiation() -> None:
     global_calls = []
     p = dlt.pipeline(
         "sink_test",
-        destination=Destination.from_reference("destination", destination_callable="tests.load.sink.test_sink.global_sink_func"),  # type: ignore
+        destination=Destination.from_reference(
+            "destination", destination_callable="tests.load.sink.test_sink.global_sink_func"
+        ),
         full_refresh=True,
     )
     p.run([1, 2, 3], table_name="items")
@@ -350,12 +357,14 @@ def test_file_batch() -> None:
 
 
 def test_config_spec() -> None:
+    # NOTE: define the destination before the env var to test env vars are evaluated
+    # at runtime
     @dlt.destination()
     def my_sink(file_path, table, my_val=dlt.config.value):
         assert my_val == "something"
 
     # if no value is present, it should raise
-    with pytest.raises(ConfigFieldMissingException) as exc:
+    with pytest.raises(ConfigFieldMissingException):
         dlt.pipeline("sink_test", destination=my_sink, full_refresh=True).run(
             [1, 2, 3], table_name="items"
         )
@@ -368,7 +377,7 @@ def test_config_spec() -> None:
 
     # wrong value will raise
     os.environ["DESTINATION__MY_SINK__MY_VAL"] = "wrong"
-    with pytest.raises(PipelineStepFailed) as exc:
+    with pytest.raises(PipelineStepFailed):
         dlt.pipeline("sink_test", destination=my_sink, full_refresh=True).run(
             [1, 2, 3], table_name="items"
         )
@@ -397,9 +406,10 @@ def test_config_spec() -> None:
         table,
         credentials: Union[GcpOAuthCredentials, GcpServiceAccountCredentials] = dlt.secrets.value,
     ):
-        assert credentials.client_email == "client_email"
-        assert credentials.private_key == "private_key\n"
-        assert credentials.project_id == "project_id"
+        creds = cast(GcpServiceAccountCredentials, credentials)
+        assert creds.client_email == "client_email"
+        assert creds.private_key == "private_key\n"
+        assert creds.project_id == "project_id"
 
     # missing spec
     with pytest.raises(ConfigFieldMissingException):

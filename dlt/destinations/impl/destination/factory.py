@@ -11,7 +11,7 @@ from dlt.common.configuration.exceptions import ConfigurationValueError
 
 from dlt.destinations.impl.destination.configuration import (
     SinkClientConfiguration,
-    TSinkCallable,
+    TDestinationCallable,
 )
 from dlt.destinations.impl.destination import capabilities
 from dlt.common.data_writers import TLoaderFileFormat
@@ -53,7 +53,7 @@ class destination(Destination[SinkClientConfiguration, "SinkClient"]):
 
     def __init__(
         self,
-        destination_callable: t.Union[TSinkCallable, str] = None,  # noqa: A003
+        destination_callable: t.Union[TDestinationCallable, str] = None,  # noqa: A003
         destination_name: t.Optional[str] = None,
         environment: t.Optional[str] = None,
         loader_file_format: TLoaderFileFormat = None,
@@ -98,7 +98,7 @@ class destination(Destination[SinkClientConfiguration, "SinkClient"]):
         )
 
         # save destination in registry
-        resolved_spec = get_fun_spec(conf_callable)
+        resolved_spec = t.cast(t.Type[SinkClientConfiguration], get_fun_spec(conf_callable))
         _DESTINATIONS[callable.__qualname__] = DestinationInfo(resolved_spec, callable, func_module)
 
         # remember spec

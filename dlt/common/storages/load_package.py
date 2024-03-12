@@ -38,7 +38,7 @@ from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TStoredSchema, TTableSchemaColumns
 from dlt.common.storages import FileStorage
-from dlt.common.storages.exceptions import LoadPackageNotFound
+from dlt.common.storages.exceptions import LoadPackageNotFound, CurrentLoadPackageStateNotAvailable
 from dlt.common.typing import DictStrAny, SupportsHumanize
 from dlt.common.utils import flatten_list_or_items
 from dlt.common.versioned_state import (
@@ -78,7 +78,7 @@ def bump_loadpackage_state_version_if_modified(state: TLoadPackageState) -> Tupl
     return bump_state_version_if_modified(state)
 
 
-def migrate_loadpackage_state(
+def migrate_load_package_state(
     state: DictStrAny, from_engine: int, to_engine: int
 ) -> TLoadPackageState:
     # TODO: if you start adding new versions, we need proper tests for these migrations!
@@ -472,7 +472,7 @@ class PackageStorage:
                 os.path.join(package_path, PackageStorage.LOAD_PACKAGE_STATE_FILE_NAME)
             )
             state = json.loads(state_dump)
-            return migrate_loadpackage_state(
+            return migrate_load_package_state(
                 state, state["_state_engine_version"], LOADPACKAGE_STATE_ENGINE_VERSION
             )
         except FileNotFoundError:
@@ -628,7 +628,7 @@ class LoadPackageStateInjectableContext(ContainerInjectableContext):
     storage: PackageStorage
     load_id: str
     can_create_default: ClassVar[bool] = False
-    global_affinity: ClassVar[bool] = True
+    global_affinity: ClassVar[bool] = False
 
     def commit(self) -> None:
         with self.state_save_lock:
@@ -651,7 +651,7 @@ def load_package() -> TLoadPackage:
     try:
         state_ctx = container[LoadPackageStateInjectableContext]
     except ContextDefaultCannotBeCreated:
-        raise Exception("Load package state not available")
+        raise CurrentLoadPackageStateNotAvailable()
     return TLoadPackage(state=state_ctx.state, load_id=state_ctx.load_id)
 
 
@@ -661,7 +661,7 @@ def commit_load_package_state() -> None:
     try:
         state_ctx = container[LoadPackageStateInjectableContext]
     except ContextDefaultCannotBeCreated:
-        raise Exception("Load package state not available")
+        raise CurrentLoadPackageStateNotAvailable()
     state_ctx.commit()
 
 
