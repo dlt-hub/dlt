@@ -1,7 +1,7 @@
 import functools
 import os
 from tempfile import gettempdir
-from typing import Any, Callable, List, Literal, Optional, Sequence, Tuple
+from typing import Any, Callable, Dict, List, Literal, Optional, Sequence, Tuple
 
 from tenacity import (
     retry_if_exception,
@@ -103,6 +103,7 @@ class PipelineTasksGroup(TaskGroup):
         """
 
         super().__init__(group_id=pipeline_name, **kwargs)
+        self._used_names: Dict[str, Any] = {}
         self.use_task_logger = use_task_logger
         self.log_progress_period = log_progress_period
         self.buffer_max_items = buffer_max_items
@@ -131,6 +132,33 @@ class PipelineTasksGroup(TaskGroup):
         # delete existing config providers in container, they will get reloaded on next use
         if ConfigProvidersContext in Container():
             del Container()[ConfigProvidersContext]
+
+    def _task_name(self, pipeline: Pipeline, data: Any) -> str:
+        """Generate a task name.
+
+        Args:
+            pipeline (Pipeline): The pipeline to run.
+            data (Any): The data to run the pipeline with.
+
+        Returns:
+            str: The name of the task.
+        """
+        task_name = pipeline.pipeline_name
+
+        if isinstance(data, DltSource):
+            resource_names = list(data.selected_resources.keys())
+            task_name = data.name + "_" + "-".join(resource_names[:4])
+
+            if len(resource_names) > 4:
+                task_name += f"-{len(resource_names)-4}-more"
+
+            num = self._used_names.setdefault(task_name, 0)
+            self._used_names[task_name] = num + 1
+
+            if num:
+                task_name += f"-{num + 1}"
+
+        return task_name
 
     def run(
         self,
@@ -175,7 +203,7 @@ class PipelineTasksGroup(TaskGroup):
             schema_contract=schema_contract,
             pipeline_name=pipeline_name,
         )
-        return PythonOperator(task_id=_task_name(pipeline, data), python_callable=f, **kwargs)
+        return PythonOperator(task_id=self._task_name(pipeline, data), python_callable=f, **kwargs)
 
     def _run(
         self,
@@ -363,7 +391,7 @@ class PipelineTasksGroup(TaskGroup):
                     pipeline_name=name,
                 )
                 return PythonOperator(
-                    task_id=_task_name(pipeline, data), python_callable=f, **kwargs
+                    task_id=self._task_name(pipeline, data), python_callable=f, **kwargs
                 )
 
             if decompose == "none":
@@ -393,7 +421,7 @@ class PipelineTasksGroup(TaskGroup):
 
                 tasks = []
                 sources = data.decompose("scc")
-                t_name = _task_name(pipeline, data)
+                t_name = self._task_name(pipeline, data)
                 start = make_task(pipeline, sources[0])
 
                 # parallel tasks
@@ -434,16 +462,18 @@ class PipelineTasksGroup(TaskGroup):
                 start = make_task(
                     pipeline,
                     sources[0],
-                    naming.normalize_identifier(_task_name(pipeline, sources[0])),
+                    naming.normalize_identifier(self._task_name(pipeline, sources[0])),
                 )
 
                 # parallel tasks
                 for source in sources[1:]:
                     # name pipeline the same as task
-                    new_pipeline_name = naming.normalize_identifier(_task_name(pipeline, source))
+                    new_pipeline_name = naming.normalize_identifier(
+                        self._task_name(pipeline, source)
+                    )
                     tasks.append(make_task(pipeline, source, new_pipeline_name))
 
-                t_name = _task_name(pipeline, data)
+                t_name = self._task_name(pipeline, data)
                 end = DummyOperator(task_id=f"{t_name}_end")
 
                 if tasks:
@@ -468,25 +498,3 @@ def airflow_get_execution_dates() -> Tuple[pendulum.DateTime, Optional[pendulum.
         return context["data_interval_start"], context["data_interval_end"]
     except Exception:
         return None, None
-
-
-def _task_name(pipeline: Pipeline, data: Any) -> str:
-    """Generate a task name.
-
-    Args:
-        pipeline (Pipeline): The pipeline to run.
-        data (Any): The data to run the pipeline with.
-
-    Returns:
-        str: The name of the task.
-    """
-    task_name = pipeline.pipeline_name
-
-    if isinstance(data, DltSource):
-        resource_names = list(data.selected_resources.keys())
-        task_name = data.name + "_" + "-".join(resource_names[:4])
-
-        if len(resource_names) > 4:
-            task_name += f"-{len(resource_names)-4}-more"
-
-    return task_name
