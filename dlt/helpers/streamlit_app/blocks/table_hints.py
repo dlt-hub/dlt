@@ -11,7 +11,7 @@ from dlt.helpers.streamlit_app.widgets.tags import tag
 
 
 def list_table_hints(pipeline: dlt.Pipeline, tables: List[TTableSchema]) -> None:
-    current_schema = pipeline.default_schema
+    current_schema = st.session_state["schema"] or pipeline.default_schema
     if st.session_state["schema"]:
         current_schema = st.session_state["schema"]
 
