@@ -28,7 +28,7 @@ dlt init chess bigquery
 pip install -r requirements.txt
 ```
 
-This will install dlt with **bigquery** extra, which contains all the dependencies required by the bigquery client.
+This will install dlt with the `bigquery` extra, which contains all the dependencies required by the bigquery client.
 
 **3. Log in to or create a Google Cloud account**
 
@@ -58,7 +58,7 @@ You don't need to grant users access to this service account now, so click the `
 In the service accounts table page that you're redirected to after clicking `Done` as instructed above,
 select the three dots under the `Actions` column for the service account you created and select `Manage keys`.
 
-This will take you to page where you can click the `Add key` button, then the `Create new key` button,
+This will take you to a page where you can click the `Add key` button, then the `Create new key` button,
 and finally the `Create` button, keeping the preselected `JSON` option.
 
 A `JSON` file that includes your service account private key will then be downloaded.
@@ -83,11 +83,11 @@ private_key = "private_key" # please set me up!
 client_email = "client_email" # please set me up!
 ```
 
-You can specify the location of the data i.e. `EU` instead of `US` which is a default.
+You can specify the location of the data i.e. `EU` instead of `US` which is the default.
 
 ### OAuth 2.0 Authentication
 
-You can use the OAuth 2.0 authentication. You'll need to generate a **refresh token** with right scopes (I suggest to ask our GPT-4 assistant for details).
+You can use OAuth 2.0 authentication. You'll need to generate a **refresh token** with the right scopes (we suggest asking our GPT-4 assistant for details).
 Then you can fill the following information in `secrets.toml`
 
 ```toml
@@ -103,9 +103,9 @@ refresh_token = "refresh_token"  # please set me up!
 
 ### Using Default Credentials
 
-Google provides several ways to get default credentials i.e. from `GOOGLE_APPLICATION_CREDENTIALS` environment variable or metadata services.
+Google provides several ways to get default credentials i.e. from the `GOOGLE_APPLICATION_CREDENTIALS` environment variable or metadata services.
 VMs available on GCP (cloud functions, Composer runners, Colab notebooks) have associated service accounts or authenticated users.
-Will try to use default credentials if nothing is explicitly specified in the secrets.
+`dlt` will try to use default credentials if nothing is explicitly specified in the secrets.
 
 ```toml
 [destination.bigquery]
@@ -114,16 +114,16 @@ location = "US"
 
 ## Write Disposition
 
-All write dispositions are supported
+All write dispositions are supported.
 
-If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized` the destination tables will be dropped and
+If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be dropped and
 recreated with a [clone command](https://cloud.google.com/bigquery/docs/table-clones-create) from the staging tables.
 
 ## Data Loading
 
-`dlt` uses `BigQuery` load jobs that send files from local filesystem or gcs buckets.
-Loader follows [Google recommendations](https://cloud.google.com/bigquery/docs/error-messages) when retrying and terminating jobs.
-Google BigQuery client implements elaborate retry mechanism and timeouts for queries and file uploads, which may be configured in destination options.
+`dlt` uses `BigQuery` load jobs that send files from the local filesystem or GCS buckets.
+The loader follows [Google recommendations](https://cloud.google.com/bigquery/docs/error-messages) when retrying and terminating jobs.
+The Google BigQuery client implements an elaborate retry mechanism and timeouts for queries and file uploads, which may be configured in destination options.
 
 ## Supported File Formats
 
@@ -143,36 +143,36 @@ When staging is enabled:
 
 BigQuery supports the following [column hints](https://dlthub.com/docs/general-usage/schema#tables-and-columns):
 
-* `partition` - creates a partition with a day granularity on decorated column (`PARTITION BY DATE`).
-  May be used with `datetime`, `date` and `bigint` data types.
+* `partition` - creates a partition with a day granularity on the decorated column (`PARTITION BY DATE`).
+  May be used with `datetime`, `date`, and `bigint` data types.
   Only one column per table is supported and only when a new table is created.
   For more information on BigQuery partitioning, read the [official docs](https://cloud.google.com/bigquery/docs/partitioned-tables).
 
   > ❗ `bigint` maps to BigQuery's **INT64** data type.
   > Automatic partitioning requires converting an INT64 column to a UNIX timestamp, which `GENERATE_ARRAY` doesn't natively support.
   > With a 10,000 partition limit, we can’t cover the full INT64 range.
-  > Instead, we set 86,400 second boundaries to enable daily partitioning.
+  > Instead, we set 86,400-second boundaries to enable daily partitioning.
   > This captures typical values, but extremely large/small outliers go to an `__UNPARTITIONED__` catch-all partition.
 
 * `cluster` - creates a cluster column(s). Many columns per table are supported and only when a new table is created.
 
 ## Staging Support
 
-BigQuery supports gcs as a file staging destination. dlt will upload files in the parquet format to gcs and ask BigQuery to copy their data directly into the db.
-Please refer to the [Google Storage filesystem documentation](./filesystem.md#google-storage) to learn how to set up your gcs bucket with the bucket_url and credentials.
-If you use the same service account for gcs and your redshift deployment, you do not need to provide additional authentication for BigQuery to be able to read from your bucket.
+BigQuery supports GCS as a file staging destination. `dlt` will upload files in the parquet format to GCS and ask BigQuery to copy their data directly into the database.
+Please refer to the [Google Storage filesystem documentation](./filesystem.md#google-storage) to learn how to set up your GCS bucket with the bucket_url and credentials.
+If you use the same service account for GCS and your Redshift deployment, you do not need to provide additional authentication for BigQuery to be able to read from your bucket.
 
-Alternatively to parquet files, you can specify jsonl as the staging file format. For this set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
+Alternatively to parquet files, you can specify jsonl as the staging file format. For this, set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.
 
 ### BigQuery/GCS Staging Example
 
 ```python
 # Create a dlt pipeline that will load
 # chess player data to the BigQuery destination
-# via a gcs bucket.
+# via a GCS bucket.
 pipeline = dlt.pipeline(
     pipeline_name='chess_pipeline',
-    destination='biquery',
+    destination='bigquery',
     staging='filesystem', # Add this to activate the staging location.
     dataset_name='player_data'
 )
@@ -180,7 +180,7 @@ pipeline = dlt.pipeline(
 
 ## Additional Destination Options
 
-You can configure the data location and various timeouts as shown below. This information is not a secret so can be placed in `config.toml` as well:
+You can configure the data location and various timeouts as shown below. This information is not a secret so it can be placed in `config.toml` as well:
 
 ```toml
 [destination.bigquery]
@@ -191,15 +191,15 @@ retry_deadline=60.0
 ```
 
 * `location` sets the [BigQuery data location](https://cloud.google.com/bigquery/docs/locations) (default: **US**)
-* `http_timeout` sets the timeout when connecting and getting a response from BigQuery API (default: **15 seconds**)
-* `file_upload_timeout` a timeout for file upload when loading local files: the total time of the upload may not exceed this value (default: **30 minutes**, set in seconds)
-* `retry_deadline` a deadline for a [DEFAULT_RETRY used by Google](https://cloud.google.com/python/docs/reference/storage/1.39.0/retry_timeout)
+* `http_timeout` sets the timeout when connecting and getting a response from the BigQuery API (default: **15 seconds**)
+* `file_upload_timeout` is a timeout for file upload when loading local files: the total time of the upload may not exceed this value (default: **30 minutes**, set in seconds)
+* `retry_deadline` is a deadline for a [DEFAULT_RETRY used by Google](https://cloud.google.com/python/docs/reference/storage/1.39.0/retry_timeout)
 
 ### dbt Support
 
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-bigquery](https://github.com/dbt-labs/dbt-bigquery).
 Credentials, if explicitly defined, are shared with `dbt` along with other settings like **location** and retries and timeouts.
-In case of implicit credentials (i.e. available in cloud function), `dlt` shares the `project_id` and delegates obtaining credentials to `dbt` adapter.
+In the case of implicit credentials (i.e. available in a cloud function), `dlt` shares the `project_id` and delegates obtaining credentials to the `dbt` adapter.
 
 ### Syncing of `dlt` State
 
@@ -215,7 +215,7 @@ The adapter updates the DltResource with metadata about the destination column a
 
 ### Use an Adapter to Apply Hints to a Resource
 
-Here is an example of how to use the `bigquery_adapter` method to apply hints to a resource on both column level and table level:
+Here is an example of how to use the `bigquery_adapter` method to apply hints to a resource on both the column level and table level:
 
 ```python
 from datetime import date, timedelta
@@ -246,9 +246,9 @@ bigquery_adapter(
 bigquery_adapter(event_data, table_description="Dummy event data.")
 ```
 
-Above, the adapter specifies that `event_date` should be used for partitioning and both `event_date` and `user_id` should be used for clustering (in the given order) when the table is created.
+In the example above, the adapter specifies that `event_date` should be used for partitioning and both `event_date` and `user_id` should be used for clustering (in the given order) when the table is created.
 
-Some things to note with the adapter's behaviour:
+Some things to note with the adapter's behavior:
 
 - You can only partition on one column (refer to [supported hints](#supported-column-hints)).
 - You can cluster on as many columns as you would like.

@@ -9,14 +9,14 @@ keywords: [inbox, inbox verified source, inbox mail, email]
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
 [Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer, Adrian.
 :::
 
 This source collects inbox emails, retrieves attachments, and stores relevant email data. It uses the imaplib library for IMAP interactions and the dlt library for data processing.
 
 This Inbox `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/inbox_pipeline.py)
-loads data using “Inbox” verified source to the destination of your choice.
+load data using the “Inbox” verified source to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
@@ -36,14 +36,14 @@ Sources and resources that can be loaded using this verified source are:
    - "email_account": Associated email account name (e.g. dlthub@dlthub.com).
    - "password": APP password (for third-party clients) from the email provider.
 
-1. Host addresses and APP password procedures vary by provider and can be found via a quick Google search. For Google Mail's app password, read [here](https://support.google.com/mail/answer/185833?hl=en#:~:text=An%20app%20password%20is%20a,2%2DStep%20Verification%20turned%20on).
+2. Host addresses and APP password procedures vary by provider and can be found via a quick Google search. For Google Mail's app password, read [here](https://support.google.com/mail/answer/185833?hl=en#:~:text=An%20app%20password%20is%20a,2%2DStep%20Verification%20turned%20on).
 
-1. However, this guide covers Gmail inbox configuration; similar steps apply to other providers.
+3. However, this guide covers Gmail inbox configuration; similar steps apply to other providers.
 
 ### Accessing Gmail Inbox
 
 1. SMTP server DNS: 'imap.gmail.com' for Gmail.
-1. Port: 993 (for internet messaging access protocol over TLS/SSL).
+2. Port: 993 (for internet messaging access protocol over TLS/SSL).
 
 ### Grab App password for Gmail
 
@@ -52,12 +52,12 @@ Sources and resources that can be loaded using this verified source are:
 #### Steps to Create and Use App Passwords:
 
 1. Visit your Google Account > Security.
-1. Under "How you sign in to Google", enable 2-Step Verification.
-1. Choose App passwords at the bottom.
-1. Name the device for reference.
-1. Click Generate.
-1. Input the generated 16-character app password as prompted.
-1. Click Done.
+2. Under "How you sign in to Google", enable 2-Step Verification.
+3. Choose App passwords at the bottom.
+4. Name the device for reference.
+5. Click Generate.
+6. Input the generated 16-character app password as prompted.
+7. Click Done.
 
 Read more in [this article](https://pythoncircle.com/post/727/accessing-gmail-inbox-using-python-imaplib-module/) or [Google official documentation.](https://support.google.com/mail/answer/185833#zippy=%2Cwhy-you-may-need-an-app-password)
 
@@ -76,10 +76,10 @@ To get started with your data pipeline, follow these steps:
    with Inbox as the [source](../../general-usage/source) and
    [duckdb](../destinations/duckdb.md) as the [destination](../destinations).
 
-1. If you'd like to use a different destination, simply replace `duckdb` with the name of your
+2. If you'd like to use a different destination, simply replace `duckdb` with the name of your
    preferred [destination](../destinations).
 
-1. After running this command, a new directory will be created with the necessary files and
+3. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
 For more information, read the
@@ -100,11 +100,11 @@ For more information, read the
    password = "Please set me up!" # # APP Password for the above email account.
    ```
 
-1. Replace the host, email and password value with the [previously copied one](#grab-credentials)
+2. Replace the host, email, and password value with the [previously copied one](#grab-credentials)
    to ensure secure access to your Inbox resources.
    > When adding the App Password, remove any spaces. For instance, "abcd efgh ijkl mnop" should be "abcdefghijklmnop".
 
-1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
+3. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to
    add credentials for your chosen destination, ensuring proper routing of your data to the final
    destination.
 
@@ -126,7 +126,7 @@ For more information, read the
    For pdf parsing:
     - PyPDF2: `pip install PyPDF2`
 
-1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
+2. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
    ```bash
    dlt pipeline <pipeline_name> show
@@ -246,7 +246,7 @@ verified source.
    To read more about pipeline configuration, please refer to our
    [documentation](../../general-usage/pipeline).
 
-1. To load messages from "mycreditcard@bank.com" starting "2023-10-1":
+2. To load messages from "mycreditcard@bank.com" starting "2023-10-1":
 
     - Set `DEFAULT_START_DATE = pendulum.datetime(2023, 10, 1)` in `./inbox/settings.py`.
     - Use the following code:
@@ -261,7 +261,7 @@ verified source.
       print(load_info)
       ```
       > Please refer to inbox_source() docstring for email filtering options by sender, date, or mime type.
-1. To load messages from multiple emails, including "community@dlthub.com":
+3. To load messages from multiple emails, including "community@dlthub.com":
 
    ```python
    messages = inbox_source(
@@ -269,7 +269,7 @@ verified source.
    ).messages
    ```
 
-1. In `inbox_pipeline.py`, the `pdf_to_text` transformer extracts text from PDFs, treating each page as a separate data item.
+4. In `inbox_pipeline.py`, the `pdf_to_text` transformer extracts text from PDFs, treating each page as a separate data item.
    Using the `pdf_to_text` function to load parsed pdfs from mail to the database:
 
    ```python

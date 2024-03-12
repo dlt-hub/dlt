@@ -7,47 +7,47 @@ keywords: [postgres, destination, data warehouse]
 # Postgres
 
 ## Install dlt with PostgreSQL
-**To install the DLT library with PostgreSQL dependencies:**
+**To install the DLT library with PostgreSQL dependencies, run:**
 ```
 pip install dlt[postgres]
 ```
 
 ## Setup Guide
 
-**1. Initialize a project with a pipeline that loads to Postgres by running**
+**1. Initialize a project with a pipeline that loads to Postgres by running:**
 ```
 dlt init chess postgres
 ```
 
-**2. Install the necessary dependencies for Postgres by running**
+**2. Install the necessary dependencies for Postgres by running:**
 ```
 pip install -r requirements.txt
 ```
-This will install dlt with **postgres** extra which contains `psycopg2` client.
+This will install dlt with the `postgres` extra, which contains the `psycopg2` client.
 
-**3. Create a new database after setting up a Postgres instance and `psql` / query editor by running**
+**3. After setting up a Postgres instance and `psql` / query editor, create a new database by running:**
 ```
 CREATE DATABASE dlt_data;
 ```
 
-Add `dlt_data` database to `.dlt/secrets.toml`.
+Add the `dlt_data` database to `.dlt/secrets.toml`.
 
-**4. Create a new user by running**
+**4. Create a new user by running:**
 ```
 CREATE USER loader WITH PASSWORD '<password>';
 ```
 
-Add `loader` user and `<password>` password to `.dlt/secrets.toml`.
+Add the `loader` user and `<password>` password to `.dlt/secrets.toml`.
 
-**5. Give the `loader` user owner permissions by running**
+**5. Give the `loader` user owner permissions by running:**
 ```
 ALTER DATABASE dlt_data OWNER TO loader;
 ```
 
-It is possible to set more restrictive permissions (e.g. give user access to a specific schema).
+You can set more restrictive permissions (e.g., give user access to a specific schema).
 
 **6. Enter your credentials into `.dlt/secrets.toml`.**
-It should now look like
+It should now look like this:
 ```toml
 [destination.postgres.credentials]
 
@@ -59,33 +59,33 @@ port = 5432
 connect_timeout = 15
 ```
 
-You can also pass a database connection string similar to the one used by `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). Credentials above will look like this:
+You can also pass a database connection string similar to the one used by the `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). The credentials above will look like this:
 ```toml
 # keep it at the top of your toml file! before any section starts
 destination.postgres.credentials="postgresql://loader:<password>@localhost/dlt_data?connect_timeout=15"
 ```
 
-To pass credentials directly you can use `credentials` argument passed to `dlt.pipeline` or `pipeline.run` methods.
+To pass credentials directly, you can use the `credentials` argument passed to the `dlt.pipeline` or `pipeline.run` methods.
 ```python
 pipeline = dlt.pipeline(pipeline_name='chess', destination='postgres', dataset_name='chess_data', credentials="postgresql://loader:<password>@localhost/dlt_data")
 ```
 
 ## Write disposition
-All write dispositions are supported
+All write dispositions are supported.
 
-If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized` the destination tables will be dropped and replaced by the staging tables.
+If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be dropped and replaced by the staging tables.
 
 ## Data loading
 `dlt` will load data using large INSERT VALUES statements by default. Loading is multithreaded (20 threads by default).
 
 ## Supported file formats
-* [insert-values](../file-formats/insert-format.md) is used by default
+* [insert-values](../file-formats/insert-format.md) is used by default.
 
 ## Supported column hints
-`postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**
+`postgres` will create unique indexes for all columns with `unique` hints. This behavior **may be disabled**.
 
 ## Additional destination options
-Postgres destination creates UNIQUE indexes by default on columns with `unique` hint (ie. `_dlt_id`). To disable this behavior
+The Postgres destination creates UNIQUE indexes by default on columns with the `unique` hint (i.e., `_dlt_id`). To disable this behavior:
 ```toml
 [destination.postgres]
 create_indexes=false
@@ -95,16 +95,16 @@ create_indexes=false
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via dbt-postgres.
 
 ### Syncing of `dlt` state
-This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination)
+This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_SNIPPET_START tuba::postgres-->
-## Additional Setup guides
+## Additional Setup Guides
 
-- [Load data from HubSpot to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-postgres)
-- [Load data from GitHub to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-postgres)
-- [Load data from Chess.com to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-postgres)
-- [Load data from Notion to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-postgres)
-- [Load data from Google Analytics to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-postgres)
-- [Load data from Google Sheets to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-postgres)
-- [Load data from Stripe to PostgreSQL in python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-postgres)
+- [Load data from HubSpot to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/hubspot/load-data-with-python-from-hubspot-to-postgres)
+- [Load data from GitHub to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/github/load-data-with-python-from-github-to-postgres)
+- [Load data from Chess.com to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/chess/load-data-with-python-from-chess-to-postgres)
+- [Load data from Notion to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/notion/load-data-with-python-from-notion-to-postgres)
+- [Load data from Google Analytics to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/google_analytics/load-data-with-python-from-google_analytics-to-postgres)
+- [Load data from Google Sheets to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/google_sheets/load-data-with-python-from-google_sheets-to-postgres)
+- [Load data from Stripe to PostgreSQL in Python with dlt](https://dlthub.com/docs/pipelines/stripe_analytics/load-data-with-python-from-stripe_analytics-to-postgres)
 <!--@@@DLT_SNIPPET_END tuba::postgres-->

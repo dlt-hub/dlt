@@ -92,7 +92,7 @@ qdrant_adapter(data, embed)
 
 It accepts the following arguments:
 
-- `data`: a dlt resource object or a Python data structure (e.g. a list of dictionaries).
+- `data`: a dlt resource object or a Python data structure (e.g., a list of dictionaries).
 - `embed`: a name of the field or a list of names to generate embeddings for.
 
 Returns: [DLT resource](../../general-usage/resource.md) object that you can pass to the `pipeline.run()`.
@@ -135,7 +135,7 @@ info = pipeline.run(
 ### Merge
 
 The [merge](../../general-usage/incremental-loading.md) write disposition merges the data from the resource with the data at the destination.
-For `merge` disposition, you would need to specify a `primary_key` for the resource:
+For the `merge` disposition, you need to specify a `primary_key` for the resource:
 
 ```python
 info = pipeline.run(
@@ -166,7 +166,7 @@ Qdrant uses collections to categorize and identify data. To avoid potential nami
 
 For example, if you have a dataset named `movies_dataset` and a table named `actors`, the Qdrant collection name would be `movies_dataset_actors` (the default separator is an underscore).
 
-However, if you prefer to have class names without the dataset prefix, skip `dataset_name` argument.
+However, if you prefer to have class names without the dataset prefix, skip the `dataset_name` argument.
 
 For example:
 
@@ -185,7 +185,7 @@ pipeline = dlt.pipeline(
 
 - `upload_batch_size`: (int) The batch size for data uploads. The default value is 64.
 
-- `upload_parallelism`: (int) The maximal number of concurrent threads to run data uploads. The default value is 1.
+- `upload_parallelism`: (int) The maximum number of concurrent threads to run data uploads. The default value is 1.
 
 - `upload_max_retries`: (int) The number of retries to upload data in case of failure. The default value is 3.
 

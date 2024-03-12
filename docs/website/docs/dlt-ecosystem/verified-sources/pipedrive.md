@@ -9,7 +9,7 @@ keywords: [pipedrive api, pipedrive verified source, pipedrive]
 :::info Need help deploying these sources, or figuring out how to run them in your data stack?
 
 [Join our Slack community](https://dlthub.com/community)
-or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer Adrian.
+or [book a call](https://calendar.app.google/kiLhuMsWKpZUpfho6) with our support engineer, Adrian.
 :::
 
 [Pipedrive](https://developers.pipedrive.com/docs/api/v1) is a cloud-based sales Customer
@@ -18,7 +18,7 @@ communication, and automate sales processes.
 
 This Pipedrive `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/pipedrive_pipeline.py)
-loads data using “Pipedrive API” to the destination of your choice.
+load data using the “Pipedrive API” to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
@@ -105,7 +105,7 @@ For more information, read the [General Usage: Credentials.](../../general-usage
    ```bash
    dlt pipeline <pipeline_name> show
    ```
-   For example, the `pipeline_name` for the above pipeline example is `pipedrive`, you may also use
+   For example, the `pipeline_name` for the above pipeline example is `pipedrive`, but you may also use
    any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
@@ -151,7 +151,7 @@ def pipedrive_source(
 `since_timestamp`: Starting timestamp for incremental loading. By default, complete history is loaded
  on the first run. And new data in subsequent runs.
 
-> Note: Incremental loading can be enabled or disabled depending on user prefrences.
+> Note: Incremental loading can be enabled or disabled depending on user preferences.
 
 ### Resource `iterator RECENTS_ENTITIES`
 
