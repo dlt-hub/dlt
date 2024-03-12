@@ -21,6 +21,7 @@ from dlt.cli.init_command import (
     DEFAULT_VERIFIED_SOURCES_REPO,
 )
 from dlt.cli.pipeline_command import pipeline_command, DLT_PIPELINE_COMMAND_DOCS_URL
+from dlt.cli.run_command import run_pipeline_command
 from dlt.cli.telemetry_command import (
     DLT_TELEMETRY_DOCS_URL,
     change_telemetry_status_command,
@@ -563,15 +564,37 @@ def main() -> int:
 
     subparsers.add_parser("telemetry", help="Shows telemetry status")
 
-    # Run pipeline
+    # CLI pipeline runner
     run_cmd = subparsers.add_parser("run", help="Run pipelines in a given directory")
 
     run_cmd.add_argument(
         "module",
-        metavar="N",
-        type=str,
-        nargs="+",
         help="Path to module or python file with pipelines",
+    )
+
+    run_cmd.add_argument(
+        "pipeline",
+        type=str,
+        nargs="?",
+        help="Pipeline name",
+    )
+
+    run_cmd.add_argument(
+        "source",
+        type=str,
+        nargs="?",
+        help="Source or resource name",
+    )
+
+    run_cmd.add_argument(
+        "--args",
+        "-a",
+        nargs="+",
+        default=[],
+        help=(
+            "Arguments passed to pipeline.run, example: "
+            "--args write_disposition=merge loader_file_format=jsonl"
+        ),
     )
 
     args = parser.parse_args()
@@ -586,6 +609,8 @@ def main() -> int:
 
     if args.command == "schema":
         return schema_command_wrapper(args.file, args.format, args.remove_defaults)
+    elif args.command == "run":
+        return run_pipeline_command(args.module, args.pipeline, args.source, args.args)
     elif args.command == "pipeline":
         if args.list_pipelines:
             return pipeline_command_wrapper("list", "-", args.pipelines_dir, args.verbosity)
