@@ -214,6 +214,7 @@ const sidebars = {
             'reference/explainers/airflow-gcp-cloud-composer',
             'walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions',
             'walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook',
+            'walkthroughs/deploy-a-pipeline/deploy-with-dagster',
           ]
         },
         {
