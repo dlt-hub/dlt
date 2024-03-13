@@ -47,28 +47,27 @@ complemented by AI-driven summarization and sentiment analysis. You can refer to
 github repo here: [Github repo.](https://github.com/dlt-hub/dlt-kestra-demo)
 
 :::info 
-For the detailed guide, refer to the project's README section for project setup. 
+For the detailed guide, refer to the project's README section. 
 :::
 
 Here is the summary of the steps:
 
 1. Start by creating a virtual environment.
 
-1. Generate an `.env` File\*\*: Inside your project repository, create an `.env` file to store
-   credentials in base64 format, prefixed with 'SECRET\_' for compatibility with Kestra's `secret()`
+1. Generate an `.env` File: Inside your project repository, create an `.env` file to store
+   credentials in "base64" format, prefixed with 'SECRET\_' for compatibility with Kestra's `secret()`
    function.
 
 1. As per Kestra’s recommendation, install the docker desktop on your machine.
 
-1. Download Docker Compose File: Ensure Docker is running, then download the Docker Compose file
-   with:
+1. Ensure Docker is running, then download the Docker compose file with:
 
    ```python
     curl -o docker-compose.yml \
     https://raw.githubusercontent.com/kestra-io/kestra/develop/docker-compose.yml
    ```
 
-1. Configure Docker Compose File: Edit the downloaded Docker Compose file to link the `.env` file
+1. Configure Docker compose File: Edit the downloaded Docker compose file to link the `.env` file
    for environment variables.
 
    ```python
@@ -109,15 +108,3 @@ features for efficient data pipeline orchestration.
 - Ingest Pipedrive CRM data to BigQuery using dlt and schedule it to run every hour:
   [here.](https://kestra.io/blueprints/146-ingest-pipedrive-crm-data-to-bigquery-using-dlt-and-schedule-it-to-run-every-hour)
 
-## Conclusion
-
-Deploying `dlt` on Kestra streamlines data workflow management by automating and simplifying data
-loading processes. This integration offers developers and data engineers a robust framework for
-scalable, resilient, and manageable data pipelines. By following the outlined steps, users can use
-the orchestration capabilities of Kestra and the intuitive data pipeline construction offered by
-`dlt`.
-
-We encourage data engineers and developers to explore the capabilities of `dlt` within the Kestra
-platform. In embracing Kestra and `dlt`, you gain access to a community-driven ecosystem that
-encourages innovation and collaboration. Using `dlt` on Kestra streamlines the pipeline development
-process and unlocks the potential making better data ingestion pipelines.
