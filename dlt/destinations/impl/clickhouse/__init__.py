@@ -27,8 +27,6 @@ def capabilities() -> DestinationCapabilitiesContext:
     # https://clickhouse-driver.readthedocs.io/en/latest/dbapi.html#clickhouse_driver.dbapi.connection.Connection.commit
     # https://clickhouse.com/docs/en/guides/developer/transactional#transactions-commit-and-rollback
     caps.supports_transactions = False
-    caps.supports_ddl_transactions = (
-        True  # Not as part of a transaction, but single atomic DDL operations are supported.
-    )
+    caps.supports_ddl_transactions = False
 
     return caps

@@ -59,16 +59,17 @@ class ClickhouseSqlClient(SqlClientBase[Connection], DBTransaction):
     @raise_database_error
     def begin_transaction(self) -> Iterator[DBTransaction]:
         logger.warning(
-            "Clickhouse does not support transactions! Each SQL statement is auto-committed"
-            " separately."
+            "Clickhouse does not support transactions! Each statement is auto-committed separately."
         )
         yield self
 
     @raise_database_error
     def rollback_transaction(self) -> None:
-        raise NotImplementedError("You cannot rollback Clickhouse SQL statements.")
+        raise NotImplementedError("You cannot rollback Clickhouse transactions.")
 
 
 class TransactionsNotImplementedError(NotImplementedError):
     def __init__(self) -> None:
-        super().__init__("Clickhouse does not support transaction management.")
+        super().__init__(
+            "Clickhouse does not support transactions! Each statement is auto-committed separately."
+        )
