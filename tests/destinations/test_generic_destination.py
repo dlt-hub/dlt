@@ -164,7 +164,8 @@ def test_instantiation() -> None:
     p = dlt.pipeline(
         "sink_test",
         destination=Destination.from_reference(
-            "destination", destination_callable="tests.load.sink.test_sink.global_sink_func"
+            "destination",
+            destination_callable="tests.destinations.test_generic_destination.global_sink_func",
         ),
         full_refresh=True,
     )
