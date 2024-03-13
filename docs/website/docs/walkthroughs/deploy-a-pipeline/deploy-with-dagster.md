@@ -13,17 +13,17 @@ Dagster is an orchestrator that's designed for developing and maintaining data a
 
 To learn more, please read Dagster’s [documentation.](https://docs.dagster.io/getting-started?_gl=1*19ikq9*_ga*NTMwNTUxNDAzLjE3MDg5Mjc4OTk.*_ga_84VRQZG7TV*MTcwOTkwNDY3MS4zLjEuMTcwOTkwNTYzNi41Ny4wLjA.*_gcl_au*OTM3OTU1ODMwLjE3MDg5Mjc5MDA.)
 
-## Dagster Cloud Features
+### Dagster Cloud Features
 
 Dagster Cloud further enhances these features by providing an enterprise-level orchestration service with serverless or hybrid deployment options. It incorporates native branching and built-in CI/CD to prioritize the developer experience. It enables scalable, cost-effective operations without the hassle of infrastructure management. 
 
-## Dagster deployment options: **Serverless versus Hybrid**:
+### Dagster deployment options: **Serverless versus Hybrid**:
 
 The *serverless* option fully hosts the orchestration engine, while the *hybrid* model offers flexibility to use your computing resources, with Dagster managing the control plane, reducing operational overhead, and ensuring security.
 
 For more, please visit [Dagster cloud.](https://dagster.io/cloud)
 
-## Using Dagster for Free
+### Using Dagster for Free
 
 Dagster offers a 30-day free trial during which you can explore its features, such as pipeline orchestration, data quality checks, and embedded ELTs. You can try Dagster using its open source or by signing up for the trial. 
 
@@ -44,7 +44,7 @@ Here’s a brief summary of how to orchestrate `dlt` pipeline on Dagster:
 
 To do a hands-on project about “Orchestrating unstructured data pipelines with dagster and `dlt`," please read the following [article](https://dagster.io/blog/dagster-dlt). Here, the author has given a detailed overview and steps to ingest GitHub issue data from a repository and store the data in BigQuery. To build your pipelines, you can employ a similar approach.
 
-## Additional Resources
+### Additional Resources
 
 - A general configurable `dlt` resource orchestrated on Dagster: [dlt resource](https://github.com/dagster-io/dagster-open-platform/blob/5030ff6828e2b001a557c6864f279c3b476b0ca0/dagster_open_platform/resources/dlt_resource.py#L29).
 - `dlt` pipelines configured for Dagster: [dlt pipelines](https://github.com/dagster-io/dagster-open-platform/tree/5030ff6828e2b001a557c6864f279c3b476b0ca0/dagster_open_platform/assets/dlt_pipelines).
