@@ -14,7 +14,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.common.utils import uniq_id
 from dlt.common.exceptions import InvalidDestinationReference
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.sources.credentials import GcpOAuthCredentials, GcpServiceAccountCredentials  #
+from dlt.common.configuration.specs import ConnectionStringCredentials
 
 from tests.load.utils import (
     TABLE_ROW_ALL_DATA_TYPES,
@@ -407,16 +407,16 @@ def test_config_spec() -> None:
     )
 
     # test nested spec
+
     @dlt.destination()
     def my_gcp_sink(
         file_path,
         table,
-        credentials: Union[GcpOAuthCredentials, GcpServiceAccountCredentials] = dlt.secrets.value,
+        credentials: ConnectionStringCredentials = dlt.secrets.value,
     ):
-        creds = cast(GcpServiceAccountCredentials, credentials)
-        assert creds.client_email == "client_email"
-        assert creds.private_key == "private_key\n"
-        assert creds.project_id == "project_id"
+        assert credentials.drivername == "my_driver"
+        assert credentials.database == "my_database"
+        assert credentials.username == "my_user_name"
 
     # missing spec
     with pytest.raises(ConfigFieldMissingException):
@@ -425,9 +425,9 @@ def test_config_spec() -> None:
         )
 
     # add gcp vars (in different sections for testing)
-    os.environ["SINK_TEST__DESTINATION__CREDENTIALS__CLIENT_EMAIL"] = "client_email"
-    os.environ["DESTINATION__CREDENTIALS__PRIVATE_KEY"] = "private_key"
-    os.environ["CREDENTIALS__PROJECT_ID"] = "project_id"
+    os.environ["SINK_TEST__DESTINATION__CREDENTIALS__DRIVERNAME"] = "my_driver"
+    os.environ["DESTINATION__CREDENTIALS__DATABASE"] = "my_database"
+    os.environ["CREDENTIALS__USERNAME"] = "my_user_name"
 
     # now it will run
     dlt.pipeline("sink_test", destination=my_gcp_sink, full_refresh=True).run(
