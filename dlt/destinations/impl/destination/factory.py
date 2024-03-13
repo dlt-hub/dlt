@@ -10,7 +10,7 @@ from dlt.common.configuration import known_sections, with_config, get_fun_spec
 from dlt.common.configuration.exceptions import ConfigurationValueError
 
 from dlt.destinations.impl.destination.configuration import (
-    SinkClientConfiguration,
+    GenericDestinationClientConfiguration,
     TDestinationCallable,
 )
 from dlt.destinations.impl.destination import capabilities
@@ -18,13 +18,13 @@ from dlt.common.data_writers import TLoaderFileFormat
 from dlt.common.utils import get_callable_name
 
 if t.TYPE_CHECKING:
-    from dlt.destinations.impl.destination.sink import SinkClient
+    from dlt.destinations.impl.destination.destination import DestinationClient
 
 
 class DestinationInfo(t.NamedTuple):
     """Runtime information on a discovered destination"""
 
-    SPEC: t.Type[SinkClientConfiguration]
+    SPEC: t.Type[GenericDestinationClientConfiguration]
     f: AnyFun
     module: ModuleType
 
@@ -33,7 +33,7 @@ _DESTINATIONS: t.Dict[str, DestinationInfo] = {}
 """A registry of all the decorated destinations"""
 
 
-class destination(Destination[SinkClientConfiguration, "SinkClient"]):
+class destination(Destination[GenericDestinationClientConfiguration, "DestinationClient"]):
     def capabilities(self) -> DestinationCapabilitiesContext:
         return capabilities(
             self.config_params.get("loader_file_format", "puae-jsonl"),
@@ -41,15 +41,15 @@ class destination(Destination[SinkClientConfiguration, "SinkClient"]):
         )
 
     @property
-    def spec(self) -> t.Type[SinkClientConfiguration]:
+    def spec(self) -> t.Type[GenericDestinationClientConfiguration]:
         """A spec of destination configuration resolved from the sink function signature"""
         return self._spec
 
     @property
-    def client_class(self) -> t.Type["SinkClient"]:
-        from dlt.destinations.impl.destination.sink import SinkClient
+    def client_class(self) -> t.Type["DestinationClient"]:
+        from dlt.destinations.impl.destination.destination import DestinationClient
 
-        return SinkClient
+        return DestinationClient
 
     def __init__(
         self,
@@ -59,7 +59,7 @@ class destination(Destination[SinkClientConfiguration, "SinkClient"]):
         loader_file_format: TLoaderFileFormat = None,
         batch_size: int = 10,
         naming_convention: str = "direct",
-        spec: t.Type[SinkClientConfiguration] = SinkClientConfiguration,
+        spec: t.Type[GenericDestinationClientConfiguration] = GenericDestinationClientConfiguration,
         **kwargs: t.Any,
     ) -> None:
         # resolve callable
@@ -98,7 +98,9 @@ class destination(Destination[SinkClientConfiguration, "SinkClient"]):
         )
 
         # save destination in registry
-        resolved_spec = t.cast(t.Type[SinkClientConfiguration], get_fun_spec(conf_callable))
+        resolved_spec = t.cast(
+            t.Type[GenericDestinationClientConfiguration], get_fun_spec(conf_callable)
+        )
         _DESTINATIONS[callable.__qualname__] = DestinationInfo(resolved_spec, callable, func_module)
 
         # remember spec

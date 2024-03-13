@@ -132,7 +132,7 @@ def test_instantiation() -> None:
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
     # NOTE: we also test injection of config vars here
-    def local_sink_func(items: TDataItems, table: TTableSchema, my_val=dlt.config.value) -> None:
+    def local_sink_func(items: TDataItems, table: TTableSchema, my_val=dlt.config.value, /) -> None:
         nonlocal calls
         if table["name"].startswith("_dlt"):
             return
@@ -144,7 +144,7 @@ def test_instantiation() -> None:
 
     # test decorator
     calls = []
-    p = dlt.pipeline("sink_test", destination=dlt.destination()(local_sink_func), full_refresh=True)
+    p = dlt.pipeline("sink_test", destination=dlt.destination()(local_sink_func), full_refresh=True)  # type: ignore
     p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
 
@@ -363,11 +363,18 @@ def test_config_spec() -> None:
     def my_sink(file_path, table, my_val=dlt.config.value):
         assert my_val == "something"
 
+    print(my_sink)
+
     # if no value is present, it should raise
     with pytest.raises(ConfigFieldMissingException):
         dlt.pipeline("sink_test", destination=my_sink, full_refresh=True).run(
             [1, 2, 3], table_name="items"
         )
+
+    # we may give the value via __callable__ function
+    dlt.pipeline("sink_test", destination=my_sink(my_val="something"), full_refresh=True).run(
+        [1, 2, 3], table_name="items"
+    )
 
     # right value will pass
     os.environ["DESTINATION__MY_SINK__MY_VAL"] = "something"

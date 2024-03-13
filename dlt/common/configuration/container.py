@@ -76,7 +76,6 @@ class Container:
         # put it into context
         self._thread_setitem(self._thread_context(spec), spec, value)
 
-
     def __delitem__(self, spec: Type[TConfiguration]) -> None:
         context = self._thread_context(spec)
         self._thread_delitem(context, spec)
@@ -133,7 +132,7 @@ class Container:
 
     @contextmanager
     def injectable_context(
-        self, config: TConfiguration, lock_id: int = None
+        self, config: TConfiguration, lock_context: bool = False
     ) -> Iterator[TConfiguration]:
         """A context manager that will insert `config` into the container and restore the previous value when it gets out of scope."""
 
@@ -144,8 +143,8 @@ class Container:
         lock: AbstractContextManager[Any]
 
         # if there is a lock_id, we need a lock for the lock_id in the scope of the current context
-        if lock_id:
-            lock_key = f"{lock_id}-{id(context)}"
+        if lock_context:
+            lock_key = f"{id(context)}"
             if (lock := self._context_container_locks.get(lock_key)) is None:
                 with Container._LOCK:
                     self._context_container_locks[lock_key] = lock = threading.Lock()

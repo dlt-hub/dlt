@@ -121,6 +121,6 @@ class UnexpectedSchemaName(SchemaStorageException, ValueError):
 class CurrentLoadPackageStateNotAvailable(StorageException):
     def __init__(self) -> None:
         super().__init__(
-            f"State of the current load package is not available. Current load package state is"
-            f" only available in a function decorated with @dlt.destination during loading."
+            "State of the current load package is not available. Current load package state is"
+            " only available in a function decorated with @dlt.destination during loading."
         )

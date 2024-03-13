@@ -5,7 +5,6 @@ from dlt.common.configuration import configspec
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.destination.reference import (
     DestinationClientConfiguration,
-    CredentialsConfiguration,
 )
 from dlt.common.typing import TDataItems
 from dlt.common.schema import TTableSchema
@@ -16,8 +15,8 @@ TDestinationCallableParams = ParamSpec("TDestinationCallableParams")
 
 
 @configspec
-class SinkClientConfiguration(DestinationClientConfiguration):
-    destination_type: Final[str] = "sink"  # type: ignore
+class GenericDestinationClientConfiguration(DestinationClientConfiguration):
+    destination_type: Final[str] = "destination"  # type: ignore
     destination_callable: Optional[Union[str, TDestinationCallable]] = None  # noqa: A003
     loader_file_format: TLoaderFileFormat = "puae-jsonl"
     batch_size: int = 10

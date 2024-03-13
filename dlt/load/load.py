@@ -1,4 +1,4 @@
-import contextlib, threading
+import contextlib
 from functools import reduce
 import datetime  # noqa: 251
 from typing import Dict, List, Optional, Tuple, Set, Iterator, Iterable
