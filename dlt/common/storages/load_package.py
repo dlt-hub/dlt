@@ -94,7 +94,7 @@ def migrate_load_package_state(
     return cast(TLoadPackageState, state)
 
 
-def default_loadpackage_state() -> TLoadPackageState:
+def default_load_package_state() -> TLoadPackageState:
     return {
         **default_versioned_state(),
         "_state_engine_version": LOADPACKAGE_STATE_ENGINE_VERSION,
@@ -476,7 +476,7 @@ class PackageStorage:
                 state, state["_state_engine_version"], LOADPACKAGE_STATE_ENGINE_VERSION
             )
         except FileNotFoundError:
-            return default_loadpackage_state()
+            return default_load_package_state()
 
     def save_load_package_state(self, load_id: str, state: TLoadPackageState) -> None:
         package_path = self.get_package_path(load_id)

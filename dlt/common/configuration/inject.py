@@ -37,6 +37,7 @@ def with_config(
     accept_partial: bool = False,
     initial_config: BaseConfiguration = None,
     base: Type[BaseConfiguration] = BaseConfiguration,
+    lock_context_on_injection: bool = True,
 ) -> TFun: ...
 
 
@@ -52,6 +53,7 @@ def with_config(
     accept_partial: bool = False,
     initial_config: Optional[BaseConfiguration] = None,
     base: Type[BaseConfiguration] = BaseConfiguration,
+    lock_context_on_injection: bool = True,
 ) -> Callable[[TFun], TFun]: ...
 
 
@@ -66,6 +68,7 @@ def with_config(
     accept_partial: bool = False,
     initial_config: Optional[BaseConfiguration] = None,
     base: Type[BaseConfiguration] = BaseConfiguration,
+    lock_context_on_injection: bool = True,
 ) -> Callable[[TFun], TFun]:
     """Injects values into decorated function arguments following the specification in `spec` or by deriving one from function's signature.
 
@@ -80,6 +83,7 @@ def with_config(
         auto_pipeline_section (bool, optional): If True, a top level pipeline section will be added if `pipeline_name` argument is present . Defaults to False.
         include_defaults (bool, optional): If True then arguments with default values will be included in synthesized spec. If False only the required arguments marked with `dlt.secrets.value` and `dlt.config.value` are included
         base (Type[BaseConfiguration], optional): A base class for synthesized spec. Defaults to BaseConfiguration.
+        lock_context_on_injection (bool, optional): If True, the thread context will be locked during injection to prevent race conditions. Defaults to True.
     Returns:
         Callable[[TFun], TFun]: A decorated function
     """
@@ -151,7 +155,7 @@ def with_config(
             )
 
             # this may be called from many threads so section_context is thread affine
-            with inject_section(section_context, lock_context=True):
+            with inject_section(section_context, lock_context=lock_context_on_injection):
                 # print(f"RESOLVE CONF in inject: {f.__name__}: {section_context.sections} vs {sections}")
                 return resolve_configuration(
                     config or SPEC(),

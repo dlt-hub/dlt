@@ -5,6 +5,7 @@ from typing_extensions import Concatenate
 
 from functools import wraps
 
+from dlt.common import logger
 from dlt.destinations.impl.destination.factory import destination as _destination
 from dlt.destinations.impl.destination.configuration import (
     TDestinationCallableParams,
@@ -36,6 +37,11 @@ def destination(
         def wrapper(
             *args: TDestinationCallableParams.args, **kwargs: TDestinationCallableParams.kwargs
         ) -> _destination:
+            if args:
+                logger.warning(
+                    "Ignoring positional arguments for destination callable %s",
+                    destination_callable,
+                )
             return _destination(
                 spec=spec,
                 destination_callable=destination_callable,
