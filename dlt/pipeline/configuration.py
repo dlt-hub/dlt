@@ -5,6 +5,7 @@ from dlt.common.configuration.specs import RunConfiguration, BaseConfiguration
 from dlt.common.typing import AnyFun, TSecretValue
 from dlt.common.utils import digest256
 from dlt.common.data_writers import TLoaderFileFormat
+from dlt.common.pipeline import TRefreshMode
 
 
 @configspec
@@ -25,9 +26,15 @@ class PipelineConfiguration(BaseConfiguration):
     use_single_dataset: bool = True
     """Stores all schemas in single dataset. When False, each schema will get a separate dataset with `{dataset_name}_{schema_name}"""
     full_refresh: bool = False
+    """Deprecated. Use `dev_mode` instead. When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset."""
+    dev_mode: bool = False
     """When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset."""
     progress: Optional[str] = None
     runtime: RunConfiguration
+    refresh: Optional[TRefreshMode] = None
+    """Refresh mode for the pipeline, use with care. `full` completely wipes pipeline state and data before each run.
+    `replace` wipes only state and data from the resources selected to run. Default is `None` which means no refresh.
+    """
 
     def on_resolved(self) -> None:
         if not self.pipeline_name:

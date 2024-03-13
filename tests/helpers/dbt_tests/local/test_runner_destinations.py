@@ -99,7 +99,7 @@ def test_dbt_test_no_raw_schema(destination_info: DBTDestinationInfo) -> None:
     assert isinstance(prq_ex.value.args[0], DBTProcessingError)
 
 
-def test_dbt_run_full_refresh(destination_info: DBTDestinationInfo) -> None:
+def test_dbt_run_dev_mode(destination_info: DBTDestinationInfo) -> None:
     if destination_info.destination_name == "redshift":
         pytest.skip("redshift disabled due to missing fixtures")
     runner = setup_rasa_runner(destination_info.destination_name)

@@ -1,4 +1,4 @@
-from typing import Sequence, cast, overload
+from typing import Sequence, cast, overload, Optional
 
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition, TSchemaContract
@@ -8,12 +8,12 @@ from dlt.common.configuration import with_config
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.inject import get_orig_args, last_config
 from dlt.common.destination import TLoaderFileFormat, Destination, TDestinationReferenceArg
-from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir
+from dlt.common.pipeline import LoadInfo, PipelineContext, get_dlt_pipelines_dir, TRefreshMode
 
 from dlt.pipeline.configuration import PipelineConfiguration, ensure_correct_pipeline_kwargs
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.progress import _from_name as collector_from_name, TCollectorArg, _NULL_COLLECTOR
-from dlt.pipeline.warnings import credentials_argument_deprecated
+from dlt.pipeline.warnings import credentials_argument_deprecated, full_refresh_argument_deprecated
 
 
 @overload
@@ -27,6 +27,8 @@ def pipeline(
     import_schema_path: str = None,
     export_schema_path: str = None,
     full_refresh: bool = False,
+    dev_mode: bool = False,
+    refresh: Optional[TRefreshMode] = None,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
 ) -> Pipeline:
@@ -63,7 +65,7 @@ def pipeline(
 
         export_schema_path (str, optional): A path where the schema `yaml` file will be exported after every schema change. Defaults to None which disables exporting.
 
-        full_refresh (bool, optional): When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset.
+        dev_mode (bool, optional): When set to True, each instance of the pipeline with the `pipeline_name` starts from scratch when run and loads the data to a separate dataset.
         The datasets are identified by `dataset_name_` + datetime suffix. Use this setting whenever you experiment with your data to be sure you start fresh on each run. Defaults to False.
 
         credentials (Any, optional): Credentials for the `destination` ie. database connection string or a dictionary with google cloud credentials.
@@ -95,6 +97,8 @@ def pipeline(
     import_schema_path: str = None,
     export_schema_path: str = None,
     full_refresh: bool = False,
+    dev_mode: bool = False,
+    refresh: Optional[TRefreshMode] = None,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
     **kwargs: Any,
@@ -106,6 +110,7 @@ def pipeline(
     has_arguments = bool(orig_args[0]) or any(orig_args[1].values())
 
     credentials_argument_deprecated("pipeline", credentials, destination)
+    full_refresh_argument_deprecated("pipeline", full_refresh)
 
     if not has_arguments:
         context = Container()[PipelineContext]
@@ -139,11 +144,12 @@ def pipeline(
         credentials,
         import_schema_path,
         export_schema_path,
-        full_refresh,
+        dev_mode or full_refresh,
         progress,
         False,
         last_config(**kwargs),
         kwargs["runtime"],
+        refresh=refresh,
     )
     # set it as current pipeline
     p.activate()
@@ -156,12 +162,14 @@ def attach(
     pipelines_dir: str = None,
     pipeline_salt: TSecretValue = None,
     full_refresh: bool = False,
+    dev_mode: bool = False,
     credentials: Any = None,
     progress: TCollectorArg = _NULL_COLLECTOR,
     **kwargs: Any,
 ) -> Pipeline:
     """Attaches to the working folder of `pipeline_name` in `pipelines_dir` or in default directory. Requires that valid pipeline state exists in working folder."""
     ensure_correct_pipeline_kwargs(attach, **kwargs)
+    full_refresh_argument_deprecated("attach", full_refresh)
     # if working_dir not provided use temp folder
     if not pipelines_dir:
         pipelines_dir = get_dlt_pipelines_dir()
@@ -177,7 +185,7 @@ def attach(
         credentials,
         None,
         None,
-        full_refresh,
+        dev_mode or full_refresh,
         progress,
         True,
         last_config(**kwargs),

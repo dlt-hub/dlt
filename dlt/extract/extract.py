@@ -17,6 +17,7 @@ from dlt.common.pipeline import (
     SupportsPipeline,
     WithStepInfo,
     reset_resource_state,
+    TRefreshMode,
 )
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -299,6 +300,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 data_tables = {t["name"]: t for t in schema.data_tables(include_incomplete=False)}
                 tables_by_resources = utils.group_tables_by_resource(data_tables)
                 for resource in source.resources.selected.values():
+                    # Truncate when write disposition is replace or refresh = 'replace'
                     if (
                         resource.write_disposition != "replace"
                         or resource.name in resources_with_items

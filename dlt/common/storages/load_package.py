@@ -201,6 +201,7 @@ class PackageStorage:
     PACKAGE_COMPLETED_FILE_NAME = (  # completed package marker file, currently only to store data with os.stat
         "package_completed.json"
     )
+    DROPPED_TABLES_FILE_NAME = "dropped_tables.json"
 
     def __init__(self, storage: FileStorage, initial_state: TLoadPackageState) -> None:
         """Creates storage that manages load packages with root at `storage` and initial package state `initial_state`"""
@@ -380,6 +381,20 @@ class PackageStorage:
             os.path.join(load_id, PackageStorage.SCHEMA_UPDATES_FILE_NAME), mode="wb"
         ) as f:
             json.dump(schema_update, f)
+
+    def save_dropped_tables(self, load_id: str, dropped_tables: Sequence[str]) -> None:
+        with self.storage.open_file(
+            os.path.join(load_id, PackageStorage.DROPPED_TABLES_FILE_NAME), mode="wb"
+        ) as f:
+            json.dump(dropped_tables, f)
+
+    def load_dropped_tables(self, load_id: str) -> List[str]:
+        try:
+            return json.loads(  # type: ignore[no-any-return]
+                self.storage.load(os.path.join(load_id, PackageStorage.DROPPED_TABLES_FILE_NAME))
+            )
+        except FileNotFoundError:
+            return []
 
     #
     # Get package info

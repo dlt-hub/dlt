@@ -1,5 +1,17 @@
 import contextlib
-from typing import Callable, Sequence, Iterable, Optional, Any, List, Dict, Tuple, Union, TypedDict
+from typing import (
+    Callable,
+    Sequence,
+    Iterable,
+    Optional,
+    Any,
+    List,
+    Dict,
+    Tuple,
+    Union,
+    TypedDict,
+    TYPE_CHECKING,
+)
 from itertools import chain
 
 from dlt.common.jsonpath import resolve_paths, TAnyJsonPath, compile_paths
@@ -17,6 +29,8 @@ from dlt.common.pipeline import (
     _sources_state,
     _delete_source_state_keys,
     _get_matching_resources,
+    StateInjectableContext,
+    Container,
 )
 from dlt.common.destination.reference import WithStagingDataset
 
@@ -27,7 +41,10 @@ from dlt.pipeline.exceptions import (
     PipelineHasPendingDataException,
 )
 from dlt.pipeline.typing import TPipelineStep
-from dlt.pipeline import Pipeline
+from dlt.common.configuration.exceptions import ContextDefaultCannotBeCreated
+
+if TYPE_CHECKING:
+    from dlt.pipeline import Pipeline
 
 
 def retry_load(
@@ -77,13 +94,27 @@ class _DropInfo(TypedDict):
 class DropCommand:
     def __init__(
         self,
-        pipeline: Pipeline,
+        pipeline: "Pipeline",
         resources: Union[Iterable[Union[str, TSimpleRegex]], Union[str, TSimpleRegex]] = (),
         schema_name: Optional[str] = None,
         state_paths: TAnyJsonPath = (),
         drop_all: bool = False,
         state_only: bool = False,
+        tables_only: bool = False,
+        extract_only: bool = False,
     ) -> None:
+        """
+        Args:
+            pipeline: Pipeline to drop tables and state from
+            resources: List of resources to drop. If empty, no resources are dropped unless `drop_all` is True
+            schema_name: Name of the schema to drop tables from. If not specified, the default schema is used
+            state_paths: JSON path(s) relative to the source state to drop
+            drop_all: Drop all resources and tables in the schema (supersedes `resources` list)
+            state_only: Drop only state, not tables
+            extract_only: Only apply changes locally, but do not normalize and load to destination
+
+        """
+        self.extract_only = extract_only
         self.pipeline = pipeline
         if isinstance(resources, str):
             resources = [resources]
@@ -96,7 +127,7 @@ class DropCommand:
         self.schema = pipeline.schemas[schema_name or pipeline.default_schema_name].clone()
         self.schema_tables = self.schema.tables
         self.drop_tables = not state_only
-        self.drop_state = True
+        self.drop_state = not tables_only
         self.state_paths_to_drop = compile_paths(state_paths)
 
         resources = set(resources)
@@ -152,13 +183,14 @@ class DropCommand:
             and len(self.info["resource_states"]) == 0
         )
 
-    def _drop_destination_tables(self) -> None:
+    def _drop_destination_tables(self, allow_schema_tables: bool = False) -> None:
         table_names = [tbl["name"] for tbl in self.tables_to_drop]
-        for table_name in table_names:
-            assert table_name not in self.schema._schema_tables, (
-                f"You are dropping table {table_name} in {self.schema.name} but it is still present"
-                " in the schema"
-            )
+        if not allow_schema_tables:
+            for table_name in table_names:
+                assert table_name not in self.schema._schema_tables, (
+                    f"You are dropping table {table_name} in {self.schema.name} but it is still"
+                    " present in the schema"
+                )
         with self.pipeline._sql_job_client(self.schema) as client:
             client.drop_tables(*table_names, replace_schema=True)
             # also delete staging but ignore if staging does not exist
@@ -187,7 +219,10 @@ class DropCommand:
                     self.info["resource_states"].append(key)
                     reset_resource_state(key, source_state)
             # drop additional state paths
-            resolved_paths = resolve_paths(self.state_paths_to_drop, source_state)
+            # Don't drop 'resources' key if jsonpath is wildcard
+            resolved_paths = [
+                p for p in resolve_paths(self.state_paths_to_drop, source_state) if p != "resources"
+            ]
             if self.state_paths_to_drop and not resolved_paths:
                 self.info["warnings"].append(
                     f"State paths {self.state_paths_to_drop} did not select any paths in source"
@@ -202,6 +237,18 @@ class DropCommand:
         with self.pipeline.managed_state(extract_state=True) as state:  # type: ignore[assignment]
             state.clear()
             state.update(self._new_state)
+        try:
+            # Also update the state in current context if one is active
+            # so that we can run the pipeline directly after drop in the same process
+            ctx = Container()[StateInjectableContext]
+            state = ctx.state  # type: ignore[assignment]
+            state.clear()
+            state.update(self._new_state)
+        except ContextDefaultCannotBeCreated:
+            pass
+
+    def _save_local_schema(self) -> None:
+        self.pipeline.schemas.save_schema(self.schema)
 
     def __call__(self) -> None:
         if (
@@ -217,12 +264,15 @@ class DropCommand:
 
         if self.drop_tables:
             self._delete_pipeline_tables()
-            self._drop_destination_tables()
+            if not self.extract_only:
+                self._drop_destination_tables()
         if self.drop_tables:
-            self.pipeline.schemas.save_schema(self.schema)
+            self._save_local_schema()
         if self.drop_state:
             self._drop_state_keys()
         # Send updated state to destination
+        if self.extract_only:
+            return
         self.pipeline.normalize()
         try:
             self.pipeline.load(raise_on_failed_jobs=True)
@@ -236,7 +286,7 @@ class DropCommand:
 
 
 def drop(
-    pipeline: Pipeline,
+    pipeline: "Pipeline",
     resources: Union[Iterable[str], str] = (),
     schema_name: str = None,
     state_paths: TAnyJsonPath = (),

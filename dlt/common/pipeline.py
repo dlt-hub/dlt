@@ -19,6 +19,7 @@ from typing import (
     TypeVar,
     TypedDict,
     Mapping,
+    Literal,
 )
 from typing_extensions import NotRequired
 
@@ -45,6 +46,9 @@ from dlt.common.typing import DictStrAny, REPattern, StrAny, SupportsHumanize
 from dlt.common.jsonpath import delete_matches, TAnyJsonPath
 from dlt.common.data_writers.writers import DataWriterMetrics, TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
+
+
+TRefreshMode = Literal["full", "replace"]
 
 
 class _StepInfo(NamedTuple):

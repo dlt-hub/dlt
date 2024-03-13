@@ -88,6 +88,7 @@ from dlt.common.pipeline import (
     StateInjectableContext,
     TStepMetrics,
     WithStepInfo,
+    TRefreshMode,
 )
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive
@@ -113,6 +114,7 @@ from dlt.pipeline.exceptions import (
     PipelineNotActive,
     PipelineStepFailed,
     SqlClientNotAvailable,
+    PipelineNeverRan,
 )
 from dlt.pipeline.trace import (
     PipelineTrace,
@@ -135,6 +137,7 @@ from dlt.pipeline.state_sync import (
     json_decode_state,
 )
 from dlt.pipeline.warnings import credentials_argument_deprecated
+from dlt.pipeline.helpers import DropCommand
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -274,7 +277,7 @@ class Pipeline(SupportsPipeline):
     schema_names: List[str] = []
     first_run: bool = False
     """Indicates a first run of the pipeline, where run ends with successful loading of the data"""
-    full_refresh: bool
+    dev_mode: bool
     must_attach_to_local_pipeline: bool
     pipelines_dir: str
     """A directory where the pipelines' working directories are created"""
@@ -291,6 +294,7 @@ class Pipeline(SupportsPipeline):
     collector: _Collector
     config: PipelineConfiguration
     runtime_config: RunConfiguration
+    refresh: Optional[TRefreshMode] = None
 
     def __init__(
         self,
@@ -303,20 +307,22 @@ class Pipeline(SupportsPipeline):
         credentials: Any,
         import_schema_path: str,
         export_schema_path: str,
-        full_refresh: bool,
+        dev_mode: bool,
         progress: _Collector,
         must_attach_to_local_pipeline: bool,
         config: PipelineConfiguration,
         runtime: RunConfiguration,
+        refresh: Optional[TRefreshMode] = None,
     ) -> None:
         """Initializes the Pipeline class which implements `dlt` pipeline. Please use `pipeline` function in `dlt` module to create a new Pipeline instance."""
         self.pipeline_salt = pipeline_salt
         self.config = config
         self.runtime_config = runtime
-        self.full_refresh = full_refresh
+        self.dev_mode = dev_mode
         self.collector = progress or _NULL_COLLECTOR
         self.destination = None
         self.staging = None
+        self.refresh = refresh
 
         self._container = Container()
         self._pipeline_instance_id = self._create_pipeline_instance_id()
@@ -360,7 +366,7 @@ class Pipeline(SupportsPipeline):
             self.credentials,
             self._schema_storage.config.import_schema_path,
             self._schema_storage.config.export_schema_path,
-            self.full_refresh,
+            self.dev_mode,
             self.collector,
             False,
             self.config,
@@ -386,6 +392,7 @@ class Pipeline(SupportsPipeline):
         schema_contract: TSchemaContract = None,
     ) -> ExtractInfo:
         """Extracts the `data` and prepare it for the normalization. Does not require destination or credentials to be configured. See `run` method for the arguments' description."""
+
         # create extract storage to which all the sources will be extracted
         extract_step = Extract(
             self._schema_storage,
@@ -409,7 +416,36 @@ class Pipeline(SupportsPipeline):
                 ):
                     if source.exhausted:
                         raise SourceExhausted(source.name)
-                    self._extract_source(extract_step, source, max_parallel_items, workers)
+                    dropped_tables = []
+                    if not self.first_run:
+                        if self.refresh == "full":
+                            # Drop all tables from all resources and all source state paths
+                            d = DropCommand(
+                                self,
+                                drop_all=True,
+                                extract_only=True,  # Only modify local state/schema, destination drop tables is done in load step
+                                state_paths="*",
+                                schema_name=source.schema.name,
+                            )
+                            dropped_tables = d.info["tables"]
+                            d()
+                        elif self.refresh == "replace":
+                            # Drop tables from resources being currently extracted
+                            d = DropCommand(
+                                self,
+                                resources=source.resources.extracted,
+                                extract_only=True,
+                                schema_name=source.schema.name,
+                            )
+                            dropped_tables = d.info["tables"]
+                            d()
+                    load_id = self._extract_source(
+                        extract_step, source, max_parallel_items, workers
+                    )
+                    # Save the tables that were dropped locally (to be dropped from destination in load step)
+                    extract_step.extract_storage.new_packages.save_dropped_tables(
+                        load_id, dropped_tables
+                    )
                 # extract state
                 if self.config.restore_from_destination:
                     # this will update state version hash so it will not be extracted again by with_state_sync
@@ -614,7 +650,7 @@ class Pipeline(SupportsPipeline):
         # sync state with destination
         if (
             self.config.restore_from_destination
-            and not self.full_refresh
+            and not self.dev_mode
             and not self._state_restored
             and (self.destination or destination)
         ):
@@ -981,7 +1017,7 @@ class Pipeline(SupportsPipeline):
         # create pipeline storage, do not create working dir yet
         self._pipeline_storage = FileStorage(self.working_dir, makedirs=False)
         # if full refresh was requested, wipe out all data from working folder, if exists
-        if self.full_refresh:
+        if self.dev_mode:
             self._wipe_working_folder()
 
     def _configure(
@@ -1099,9 +1135,9 @@ class Pipeline(SupportsPipeline):
 
         # this client support many schemas and datasets
         if issubclass(client_spec, DestinationClientDwhConfiguration):
-            if not self.dataset_name and self.full_refresh:
+            if not self.dataset_name and self.dev_mode:
                 logger.warning(
-                    "Full refresh may not work if dataset name is not set. Please set the"
+                    "Dev mode may not work if dataset name is not set. Please set the"
                     " dataset_name argument in dlt.pipeline or run method"
                 )
             # set default schema name to load all incoming data to a single dataset, no matter what is the current schema name
@@ -1333,8 +1369,8 @@ class Pipeline(SupportsPipeline):
         if not new_dataset_name:
             return
 
-        # in case of full refresh add unique suffix
-        if self.full_refresh:
+        # in case of dev_mode add unique suffix
+        if self.dev_mode:
             # dataset must be specified
             # double _ is not allowed
             if new_dataset_name.endswith("_"):

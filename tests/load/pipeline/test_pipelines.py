@@ -209,7 +209,7 @@ def test_skip_sync_schema_for_tables_without_columns(
         for d in data:
             yield d
 
-    p = destination_config.setup_pipeline("test_skip_sync_schema_for_tables", full_refresh=True)
+    p = destination_config.setup_pipeline("test_skip_sync_schema_for_tables", dev_mode=True)
     p.extract(_data)
     schema = p.default_schema
     assert "data_table" in schema.tables
@@ -232,7 +232,7 @@ def test_skip_sync_schema_for_tables_without_columns(
     destinations_configs(default_sql_configs=True, all_buckets_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-def test_run_full_refresh(destination_config: DestinationTestConfiguration) -> None:
+def test_run_dev_mode(destination_config: DestinationTestConfiguration) -> None:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
     destination_config.setup()
 
@@ -243,7 +243,7 @@ def test_run_full_refresh(destination_config: DestinationTestConfiguration) -> N
     def _data():
         return dlt.resource(d(), name="lists", write_disposition="replace")
 
-    p = dlt.pipeline(full_refresh=True)
+    p = dlt.pipeline(dev_mode=True)
     info = p.run(
         _data(),
         destination=destination_config.destination,
@@ -259,7 +259,7 @@ def test_run_full_refresh(destination_config: DestinationTestConfiguration) -> N
     # restore the pipeline
     p = dlt.attach()
     # restored pipeline should be never put in full refresh
-    assert p.full_refresh is False
+    assert p.dev_mode is False
     # assert parent table (easy), None First (db order)
     assert_table(p, "lists", [None, None, "a"], info=info)
     # child tables contain nested lists
@@ -448,7 +448,7 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
     ds_2_name = "IteRation" + uniq_id()
     # illegal name that will be later normalized
     ds_3_name = "1it/era 👍 tion__" + uniq_id()
-    p, s = simple_nested_pipeline(destination_config, dataset_name=ds_1_name, full_refresh=False)
+    p, s = simple_nested_pipeline(destination_config, dataset_name=ds_1_name, dev_mode=False)
     try:
         info = p.run(s(), loader_file_format=destination_config.file_format)
         assert_load_info(info)
@@ -581,7 +581,7 @@ def test_pipeline_with_sources_sharing_schema(
     # conflict deselected
     assert "conflict" not in discover_2.tables
 
-    p = dlt.pipeline(pipeline_name="multi", destination="duckdb", full_refresh=True)
+    p = dlt.pipeline(pipeline_name="multi", destination="duckdb", dev_mode=True)
     p.extract([source_1(), source_2()])
     default_schema = p.default_schema
     gen1_table = default_schema.tables["gen1"]
@@ -606,7 +606,7 @@ def test_pipeline_with_sources_sharing_schema(
     drop_active_pipeline_data()
 
     # same pipeline but enable conflict
-    p = dlt.pipeline(pipeline_name="multi", destination="duckdb", full_refresh=True)
+    p = dlt.pipeline(pipeline_name="multi", destination="duckdb", dev_mode=True)
     with pytest.raises(PipelineStepFailed) as py_ex:
         p.extract([source_1(), source_2().with_resources("conflict")])
     assert isinstance(py_ex.value.__context__, CannotCoerceColumnException)
@@ -881,7 +881,7 @@ def test_pipeline_upfront_tables_two_loads(
     pipeline = destination_config.setup_pipeline(
         "test_pipeline_upfront_tables_two_loads",
         dataset_name="test_pipeline_upfront_tables_two_loads",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     @dlt.source
@@ -1016,7 +1016,7 @@ def test_pipeline_upfront_tables_two_loads(
 #     pipeline = destination_config.setup_pipeline(
 #         "test_load_non_utc_timestamps",
 #         dataset_name="test_load_non_utc_timestamps",
-#         full_refresh=True,
+#         dev_mode=True,
 #     )
 #     info = pipeline.run(some_data())
 #     # print(pipeline.default_schema.to_pretty_yaml())
@@ -1026,7 +1026,7 @@ def test_pipeline_upfront_tables_two_loads(
 
 
 def simple_nested_pipeline(
-    destination_config: DestinationTestConfiguration, dataset_name: str, full_refresh: bool
+    destination_config: DestinationTestConfiguration, dataset_name: str, dev_mode: bool
 ) -> Tuple[dlt.Pipeline, Callable[[], DltSource]]:
     data = ["a", ["a", "b", "c"], ["a", "b", "c"]]
 
@@ -1039,7 +1039,7 @@ def simple_nested_pipeline(
 
     p = dlt.pipeline(
         pipeline_name=f"pipeline_{dataset_name}",
-        full_refresh=full_refresh,
+        dev_mode=dev_mode,
         destination=destination_config.destination,
         staging=destination_config.staging,
         dataset_name=dataset_name,

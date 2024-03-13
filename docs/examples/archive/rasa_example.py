@@ -20,7 +20,7 @@ credentials = "postgres://loader@localhost:5432/dlt_data"
 event_files = jsonl_files([file for file in os.scandir("docs/examples/data/rasa_trackers")])
 
 info = dlt.pipeline(
-    full_refresh=True,
+    dev_mode=True,
     destination=postgres,
     # export_schema_path=...  # uncomment to see the final schema in the folder you want
 ).run(

@@ -18,7 +18,7 @@ from tests.load.pipeline.utils import destinations_configs, DestinationTestConfi
     ids=lambda x: x.name,
 )
 def test_athena_destinations(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
 
     @dlt.resource(name="items", write_disposition="append")
     def items():
@@ -76,7 +76,7 @@ def test_athena_destinations(destination_config: DestinationTestConfiguration) -
 def test_athena_all_datatypes_and_timestamps(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
 
     # TIME is not supported
     column_schemas, data_types = table_update_and_row(exclude_types=["time"])
@@ -164,7 +164,7 @@ def test_athena_all_datatypes_and_timestamps(
     ids=lambda x: x.name,
 )
 def test_athena_blocks_time_column(destination_config: DestinationTestConfiguration) -> None:
-    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), full_refresh=True)
+    pipeline = destination_config.setup_pipeline("athena_" + uniq_id(), dev_mode=True)
 
     column_schemas, data_types = table_update_and_row()
 

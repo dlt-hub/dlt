@@ -358,7 +358,7 @@ To read more about tables, columns, and datatypes, please refer to [our document
 `dlt` will **not modify** tables after they are created.
 So if you changed data types with hints,
 then you need to **delete the dataset**
-or set `full_refresh=True`.
+or set `dev_mode=True`.
 :::
 
 ## Sources and resources

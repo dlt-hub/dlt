@@ -295,12 +295,12 @@ the current one.
 
 ## Versioned datasets
 
-When you set the `full_refresh` argument to `True` in `dlt.pipeline` call, dlt creates a versioned dataset.
+When you set the `dev_mode` argument to `True` in `dlt.pipeline` call, dlt creates a versioned dataset.
 This means that each time you run the pipeline, the data is loaded into a new dataset (a new database schema).
 The dataset name is the same as the `dataset_name` you provided in the pipeline definition with a
 datetime-based suffix.
 
-We modify our pipeline to use the `full_refresh` option to see how this works:
+We modify our pipeline to use the `dev_mode` option to see how this works:
 
 ```py
 import dlt
@@ -314,7 +314,7 @@ pipeline = dlt.pipeline(
     pipeline_name='quick_start',
     destination='duckdb',
     dataset_name='mydata',
-    full_refresh=True # <-- add this line
+    dev_mode=True # <-- add this line
 )
 load_info = pipeline.run(data, table_name="users")
 ```

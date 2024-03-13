@@ -1,7 +1,7 @@
 ---
 title: Pipeline
 description: Explanation of what a dlt pipeline is
-keywords: [pipeline, source, full refresh]
+keywords: [pipeline, source, full refresh, dev mode]
 ---
 
 # Pipeline
@@ -85,11 +85,11 @@ You can inspect stored artifacts using the command
 > 💡 You can attach `Pipeline` instance to an existing working folder, without creating a new
 > pipeline with `dlt.attach`.
 
-## Do experiments with full refresh
+## Do experiments with dev mode
 
 If you [create a new pipeline script](../walkthroughs/create-a-pipeline.md) you will be
 experimenting a lot. If you want that each time the pipeline resets its state and loads data to a
-new dataset, set the `full_refresh` argument of the `dlt.pipeline` method to True. Each time the
+new dataset, set the `dev_mode` argument of the `dlt.pipeline` method to True. Each time the
 pipeline is created, `dlt` adds datetime-based suffix to the dataset name.
 
 ## Display the loading progress

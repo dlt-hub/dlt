@@ -75,17 +75,17 @@ By default, a DuckDB database will be created in the current working directory w
 The `duckdb` credentials do not require any secret values. You are free to pass the configuration explicitly via the `credentials` parameter to `dlt.pipeline` or `pipeline.run` methods. For example:
 ```python
 # will load data to files/data.db database file
-p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials="files/data.db")
+p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', dev_mode=False, credentials="files/data.db")
 
 # will load data to /var/local/database.duckdb
-p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials="/var/local/database.duckdb")
+p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', dev_mode=False, credentials="/var/local/database.duckdb")
 ```
 
 The destination accepts a `duckdb` connection instance via `credentials`, so you can also open a database connection yourself and pass it to `dlt` to use. `:memory:` databases are supported.
 ```python
 import duckdb
 db = duckdb.connect()
-p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', full_refresh=False, credentials=db)
+p = dlt.pipeline(pipeline_name='chess', destination='duckdb', dataset_name='chess_data', dev_mode=False, credentials=db)
 ```
 
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).

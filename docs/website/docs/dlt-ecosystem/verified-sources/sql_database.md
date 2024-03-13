@@ -438,7 +438,7 @@ To create your own pipeline, use source and resource methods from this verified 
    print(info)
    ```
 
-1. Remember to keep the pipeline name and destination dataset name consistent. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) from the last run, which is essential for incremental loading. Altering these names could initiate a "[full_refresh](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-full-refresh)", interfering with the metadata tracking necessary for [incremental loads](https://dlthub.com/docs/general-usage/incremental-loading).
+1. Remember to keep the pipeline name and destination dataset name consistent. The pipeline name is crucial for retrieving the [state](https://dlthub.com/docs/general-usage/state) from the last run, which is essential for incremental loading. Altering these names could initiate a "[dev_mode](https://dlthub.com/docs/general-usage/pipeline#do-experiments-with-dev-mode)", interfering with the metadata tracking necessary for [incremental loads](https://dlthub.com/docs/general-usage/incremental-loading).
 
 <!--@@@DLT_SNIPPET_START tuba::sql_database-->
 <!--@@@DLT_SNIPPET_END tuba::sql_database-->

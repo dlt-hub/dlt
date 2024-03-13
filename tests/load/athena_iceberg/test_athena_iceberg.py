@@ -30,7 +30,7 @@ def test_iceberg() -> None:
         pipeline_name="athena-iceberg",
         destination="athena",
         staging="filesystem",
-        full_refresh=True,
+        dev_mode=True,
     )
 
     def items() -> Iterator[Any]:
