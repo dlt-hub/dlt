@@ -21,11 +21,10 @@ As the structure of data changes, such as the addition of new columns, changing 
 ## Inferring a schema from nested data
 The first run of a pipeline will scan the data that goes through it and generate a schema. To convert nested data into relational format, dlt flattens dictionaries and unpacks nested lists into sub-tables.
 
-We’ll review some examples here and figure out how `dlt` creates initial schema and how normalisation works. Let’s start by running a simple pipeline with organizations and department details in the data resource. Here’s the resource:
+We’ll review some examples here and figure out how `dlt` creates initial schema and how normalisation works. Let's begin by creating a pipeline that loads the following data:
 
 ```python
-# Define a data resource using 'dlt.resource' with a schema contract
-    yield {
+{
     "organization": "Tech Innovations Inc.",
     "address": {
         'building': 'r&d', 
@@ -44,7 +43,7 @@ The schema of data above is loaded to the destination as follows:
 
 ### What did the schema inference engine do?
 
-As you can above the `dlt's` inference engine generates the structure of the data based on the source and provided hints . It normalizes the data, creates tables and columns and infers data types.
+As you can see above the `dlt's` inference engine generates the structure of the data based on the source and provided hints. It normalizes the data, creates tables and columns, and infers data types.
 
 For more information, you can refer to the **[Schema](https://dlthub.com/docs/general-usage/schema)** and **[Adjust a Schema](https://dlthub.com/docs/walkthroughs/adjust-a-schema)** sections in the documentation.
 
@@ -59,30 +58,25 @@ Let’s add the following 4 cases:
 - A column is removed: a field named “room” was commented out/removed.
 - A column is renamed: a field “building” was renamed to “main_block”.
 
-Here’s the resource:
+Please update the pipeline for the cases discussed above.
 ```python
-# Define a data resource using 'dlt.resource' with a schema contract set to 'evolve'
-
-    yield {
-        "organization": "Tech Innovations Inc.",
-        # Column added:
-        "CEO": "Alice Smith", 
-        "address": {
-            # 'building' renamed to 'main_block'
-            'main_block': 'r&d', 
-	          # Removed room column
-            # "room": 7890,  
-        },
-        "Inventory": [
-            # Type change: 'inventory_nr' changed to string from int
-            {"name": "Plasma ray", "inventory nr": "AR2411"}, 
-            {"name": "Self-aware Roomba", "inventory nr": "AR268"},  
-            {"name": "Type-inferrer", "inventory nr": "AR3621"}  
-        ]
-    }
-
-
-# Create and run the `dlt` pipeline
+{
+    "organization": "Tech Innovations Inc.",
+    # Column added:
+    "CEO": "Alice Smith", 
+    "address": {
+        # 'building' renamed to 'main_block'
+        'main_block': 'r&d', 
+	      # Removed room column
+        # "room": 7890,  
+    },
+    "Inventory": [
+        # Type change: 'inventory_nr' changed to string from int
+        {"name": "Plasma ray", "inventory nr": "AR2411"}, 
+        {"name": "Self-aware Roomba", "inventory nr": "AR268"},  
+        {"name": "Type-inferrer", "inventory nr": "AR3621"}  
+    ]
+}
 ```
 
 Let’s load the data and look at the tables:
@@ -137,7 +131,7 @@ This script sends Slack notifications for data schema updates using the 'send_sl
 
 ## How to control evolution
 
-DLT allows schema evolution control via its schema and data contracts. Refer to our **[documentation](https://dlthub.com/docs/general-usage/schema-contracts)** for details.
+`dlt` allows schema evolution control via its schema and data contracts. Refer to our **[documentation](https://dlthub.com/docs/general-usage/schema-contracts)** for details.
 
 ### How to test for removed columns - applying “not null” constraint
 
@@ -168,12 +162,11 @@ During pipeline execution a data validation error indicates that a removed colum
 
 ## Some schema changes in the data
 
-The data schema mentioned above is modified. The changes include:
+The data in the pipeline mentioned above is modified.
 
-- Updated data resource now includes key 'specifications' within 'details', nested in 'Inventory'.
+- Updated data pipeine now includes key 'specifications' within 'details', nested in 'Inventory'.
 ```python
-## Define a data resource using dlt.resource with a schema contract set to evolve
-    yield {
+    {
         "organization": "Tech Innovations Inc.",
         "CEO": "Alice Smith",
         "address": {'main_block': 'r&d'},
@@ -193,15 +186,9 @@ The data schema mentioned above is modified. The changes include:
             }
         ]
     }
-
-# Create and run the `dlt` pipeline
 ```
 The schema of the data above is loaded to the destination as follows:
 <iframe width="560" height="315" src='https://dbdiagram.io/e/65e80b31cd45b569fba33169/65e81055cd45b569fba3aa20'> </iframe>
-
-:::note
-Please note how `dlt`  infers deeply nested schema.
-:::
 
 ## What did the schema evolution engine do?
 
