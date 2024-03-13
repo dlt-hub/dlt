@@ -18,6 +18,7 @@ The wider community is increasingly noticing these benefits. In February the com
 
 ![custom sources](https://storage.googleapis.com/dlt-blog-images/source-lib-1.png)
 
+
 A custom `dlt` source is something new for our industry. With `dlt` we automated the majority of the work data engineers tasks that are usually done in traditional ETL platforms. Hence, creating an ad hoc [`dlt` pipeline and source](https://dlthub.com/docs/walkthroughs/create-a-pipeline) is a [dramatically simpler.](https://dlthub.com/docs/build-a-pipeline-tutorial#the-simplest-pipeline-1-liner-to-load-data-with-schema-evolution) Maintaining a custom `dlt` source in production is relatively easy as most of the common [pipeline maintenance issues are handled.](https://dlthub.com/docs/build-a-pipeline-tutorial#governance-support-in-dlt-pipelines)
 
 Today [`dlt` users](https://dlthub.com/docs/blog/dlthub-who-we-serve) pick dlt because it is the fastest way to create a dataset. As we frequently hear it from all of you “dlt is pip install and go”. This is in line with our [mission to make this next generation of Python users autonomous when they create and use data in their organizations](https://dlthub.com/docs/blog/dlthub-mission).
@@ -44,7 +45,9 @@ We have not only been building `dlt` for humans, but also LLMs.
 
 Back in March ‘23 we released [dlt init](https://dlthub.com/docs/getting-started) as the simplest way to add a pipeline/initialize a project in `dlt`. We rebuilt the `dlt` library in such a way that it performs well with LLMs. At the end of May ‘23 we opened up our `dltHub` Slack to the broader community.
 
+
 [Back in June ‘23 we released a proof of concept](https://dlthub.com/docs/blog/open-api-spec-for-dlt-init) of the ['dlt init'](https://dlthub.com/docs/walkthroughs/create-a-pipeline) extension that can [generate `dlt` pipelines from an OpenAPI specification.](https://github.com/dlt-hub/dlt-init-openapi) As we said at that time, if you build APIs, for example with [FastAPI](https://fastapi.tiangolo.com/), you can, thanks to the [OpenAPI spec,](https://spec.openapis.org/oas/v3.1.0) automatically generate a [Python client](https://pypi.org/project/openapi-python-client/0.6.0a4/) and give it to your users. If you have 3min time watch how a demo Marcin generates such a pipeline from the OpenAPI spec using the [Pokemon API](https://pokeapi.co/) in [this Loom](https://www.loom.com/share/2806b873ba1c4e0ea382eb3b4fbaf808?sid=501add8b-90a0-4734-9620-c6184d840995). This demo took things a step further and enables users to generate advanced `dlt` pipelines that, in essence, convert your API into a live dataset.
+
 
 However, it takes a long time to go from a LLM PoC to production-grade code. We know much of our user base is already using ChatPGT and comparable tools to generate sources. We hear our community's excitement about the promise of LLMs for this task. The automation promise is in both in building and configuring pipelines. Anything seems possible, but if any of you have played around this task with ChatPGT - usually the results are janky.  Along these lines in the last couple of months we have been dog fooding the PoC that can generate `dlt` pipelines from an OpenAPI specification.
 
