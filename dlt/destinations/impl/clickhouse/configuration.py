@@ -59,7 +59,14 @@ class ClickhouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     destination_type: Final[str] = "clickhouse"  # type: ignore[misc]
     credentials: ClickhouseCredentials
 
-    create_indexes: bool = True
+    # Primary key columns are used to build a sparse primary index which allows for efficient data retrieval,
+    # but they do not enforce uniqueness constraints. It permits duplicate values even for the primary key
+    # columns within the same granule.
+    # See: https://clickhouse.com/docs/en/optimize/sparse-primary-indexes
+    create_indexes: bool = False
+    """Whether `primary_key` and `unique` column hints are applied."""
+
+    __config_gen_annotations__: ClassVar[List[str]] = ["create_indexes"]
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of host part of a connection string."""
@@ -74,14 +81,13 @@ class ClickhouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
             *,
             credentials: ClickhouseCredentials = None,
             dataset_name: str = None,
-            default_schema_name: str = None,
+            create_indexes: bool = False,
             destination_name: str = None,
             environment: str = None
         ) -> None:
             super().__init__(
                 credentials=credentials,
                 dataset_name=dataset_name,
-                default_schema_name=default_schema_name,
                 destination_name=destination_name,
                 environment=environment,
             )
