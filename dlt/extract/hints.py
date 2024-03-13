@@ -82,6 +82,8 @@ def make_hints(
     )
     if not table_name:
         new_template.pop("name")
+    if not write_disposition and "write_disposition" in new_template:
+        new_template.pop("write_disposition")
     # remember original columns
     if columns is not None:
         new_template["original_columns"] = columns
@@ -197,10 +199,11 @@ class DltResourceHints:
         """
         if not self._hints:
             # if there is no template yet, create and set a new one.
+            default_wd = None if parent_table_name else DEFAULT_WRITE_DISPOSITION
             t = make_hints(
                 table_name,
                 parent_table_name,
-                write_disposition,
+                write_disposition or default_wd,
                 columns,
                 primary_key,
                 merge_key,

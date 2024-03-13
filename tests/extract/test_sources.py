@@ -1326,9 +1326,11 @@ def test_apply_dynamic_hints() -> None:
 
     empty_r = empty()
     with pytest.raises(InconsistentTableTemplate):
-        empty_r.apply_hints(parent_table_name=lambda ev: ev["p"])
+        empty_r.apply_hints(parent_table_name=lambda ev: ev["p"], write_disposition=None)
 
-    empty_r.apply_hints(table_name=lambda ev: ev["t"], parent_table_name=lambda ev: ev["p"])
+    empty_r.apply_hints(
+        table_name=lambda ev: ev["t"], parent_table_name=lambda ev: ev["p"], write_disposition=None
+    )
     assert empty_r._table_name_hint_fun is not None
     assert empty_r._table_has_other_dynamic_hints is True
 
@@ -1358,6 +1360,15 @@ def test_apply_dynamic_hints() -> None:
         {"t": "table", "p": "parent", "pk": ["a", "b"], "wd": "skip", "c": [{"name": "tags"}]}
     )
     assert table["columns"]["tags"] == {"name": "tags"}
+
+
+def test_resource_no_template() -> None:
+    empty = DltResource.from_data([1, 2, 3], name="table")
+    assert empty.write_disposition == "append"
+    assert empty.compute_table_schema()["write_disposition"] == "append"
+    empty.apply_hints()
+    assert empty.write_disposition == "append"
+    assert empty.compute_table_schema()["write_disposition"] == "append"
 
 
 def test_selected_pipes_with_duplicates():

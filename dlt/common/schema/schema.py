@@ -82,7 +82,9 @@ class Schema:
     _imported_version_hash: str  # version hash of recently imported schema
     _schema_description: str  # optional schema description
     _schema_tables: TSchemaTables
-    _settings: TSchemaSettings  # schema settings to hold default hints, preferred types and other settings
+    _settings: (
+        TSchemaSettings  # schema settings to hold default hints, preferred types and other settings
+    )
 
     # list of preferred types: map regex on columns into types
     _compiled_preferred_types: List[Tuple[REPattern, TDataType]]
