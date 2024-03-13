@@ -1,6 +1,7 @@
 from typing import ClassVar, Dict, Optional, Sequence, Tuple, List, Any, Iterable, Type, cast
 from urllib.parse import urlparse, urlunparse
 
+from dlt import config
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
     FollowupJob,
@@ -15,26 +16,22 @@ from dlt.common.configuration.specs import (
     AzureCredentials,
     AzureCredentialsWithoutDefaults,
 )
-from dlt.common.data_types import TDataType
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TTableSchema, TColumnType, TSchemaTables, TTableFormat
 from dlt.common.schema.utils import table_schema_has_type
+from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
 
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.job_impl import EmptyLoadJob
 from dlt.destinations.exceptions import LoadJobTerminalException
-
 from dlt.destinations.impl.databricks import capabilities
 from dlt.destinations.impl.databricks.configuration import DatabricksClientConfiguration
 from dlt.destinations.impl.databricks.sql_client import DatabricksSqlClient
-from dlt.destinations.sql_jobs import SqlMergeJob, SqlJobParams
+from dlt.destinations.sql_jobs import SqlMergeJob
 from dlt.destinations.job_impl import NewReferenceJob
-from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.type_mapping import TypeMapper
-from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
-from dlt import config
 
 
 class DatabricksTypeMapper(TypeMapper):
@@ -298,7 +295,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
 
         cluster_list = [
-            self.capabilities.escape_identifier(c["name"]) for c in new_columns if c.get("cluster")
+            self.sql_client.escape_column_name(c["name"]) for c in new_columns if c.get("cluster")
         ]
 
         if cluster_list:
@@ -312,7 +309,7 @@ class DatabricksClient(InsertValuesJobClient, SupportsStagingDestination):
         return self.type_mapper.from_db_type(bq_t, precision, scale)
 
     def _get_column_def_sql(self, c: TColumnSchema, table_format: TTableFormat = None) -> str:
-        name = self.capabilities.escape_identifier(c["name"])
+        name = self.sql_client.escape_column_name(c["name"])
         return (
             f"{name} {self.type_mapper.to_db_type(c)} {self._gen_not_null(c.get('nullable', True))}"
         )

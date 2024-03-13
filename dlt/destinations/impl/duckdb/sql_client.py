@@ -22,7 +22,7 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbBaseCredentials
 
 
 class DuckDBDBApiCursorImpl(DBApiCursorImpl):
-    """Use native BigQuery data frame support if available"""
+    """Use native duckdb data frame support if available"""
 
     native_cursor: duckdb.DuckDBPyConnection  # type: ignore
     vector_size: ClassVar[int] = 2048
@@ -141,11 +141,6 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
     #         return results
     #     else:
     #         return None
-
-    def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        return (
-            self.capabilities.escape_identifier(self.dataset_name) if escape else self.dataset_name
-        )
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:

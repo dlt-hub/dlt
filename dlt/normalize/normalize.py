@@ -177,15 +177,15 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         logger.info(f"Processed all items in {len(extracted_items_files)} files")
         return TWorkerRV(schema_updates, writer_metrics)
 
-    def update_table(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
+    def update_schema(self, schema: Schema, schema_updates: List[TSchemaUpdate]) -> None:
         for schema_update in schema_updates:
             for table_name, table_updates in schema_update.items():
                 logger.info(
                     f"Updating schema for table {table_name} with {len(table_updates)} deltas"
                 )
                 for partial_table in table_updates:
-                    # merge columns
-                    schema.update_table(partial_table)
+                    # merge columns where we expect identifiers to be normalized
+                    schema.update_table(partial_table, normalize_identifiers=False)
 
     @staticmethod
     def group_worker_files(files: Sequence[str], no_groups: int) -> List[Sequence[str]]:
@@ -238,7 +238,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
                     )  # Exception in task (if any) is raised here
                     try:
                         # gather schema from all manifests, validate consistency and combine
-                        self.update_table(schema, result[0])
+                        self.update_schema(schema, result[0])
                         summary.schema_updates.extend(result.schema_updates)
                         summary.file_metrics.extend(result.file_metrics)
                         # update metrics
@@ -277,7 +277,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             load_id,
             files,
         )
-        self.update_table(schema, result.schema_updates)
+        self.update_schema(schema, result.schema_updates)
         self.collector.update("Files", len(result.file_metrics))
         self.collector.update(
             "Items", sum(result.file_metrics, EMPTY_DATA_WRITER_METRICS).items_count

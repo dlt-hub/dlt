@@ -8,8 +8,6 @@ from databricks.sql.client import (
 )
 from databricks.sql.exc import Error as DatabricksSqlError
 
-from dlt.common import pendulum
-from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.exceptions import (
     DatabaseTerminalException,
@@ -22,10 +20,26 @@ from dlt.destinations.sql_client import (
     raise_database_error,
     raise_open_connection_error,
 )
-from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction
+from dlt.destinations.typing import DBApi, DBApiCursor, DBTransaction, DataFrame
 from dlt.destinations.impl.databricks.configuration import DatabricksCredentials
 from dlt.destinations.impl.databricks import capabilities
-from dlt.common.time import to_py_date, to_py_datetime
+
+
+class DatabricksCursorImpl(DBApiCursorImpl):
+    """Use native data frame support if available"""
+
+    native_cursor: DatabricksSqlCursor
+    vector_size: ClassVar[int] = 2048
+
+    def df(self, chunk_size: int = None, **kwargs: Any) -> DataFrame:
+        if chunk_size is None:
+            return self.native_cursor.fetchall_arrow().to_pandas()
+        else:
+            df = self.native_cursor.fetchmany_arrow(chunk_size).to_pandas()
+            if df.shape[0] == 0:
+                return None
+            else:
+                return df
 
 
 class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction):
@@ -39,7 +53,9 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
 
     def open_connection(self) -> DatabricksSqlConnection:
         conn_params = self.credentials.to_connector_params()
-        self._conn = databricks_lib.connect(**conn_params, schema=self.dataset_name)
+        self._conn = databricks_lib.connect(
+            **conn_params, schema=self.dataset_name, use_inline_params="silent"
+        )
         return self._conn
 
     @raise_open_connection_error
@@ -91,6 +107,7 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
     def execute_query(self, query: AnyStr, *args: Any, **kwargs: Any) -> Iterator[DBApiCursor]:
         curr: DBApiCursor = None
         # TODO: databricks connector 3.0.0 will use :named paramstyle only
+        # NOTE: we were able to use the old style until they get deprecated
         # if args:
         #     keys = [f"arg{i}" for i in range(len(args))]
         #     # Replace position arguments (%s) with named arguments (:arg0, :arg1, ...)
@@ -114,15 +131,14 @@ class DatabricksSqlClient(SqlClientBase[DatabricksSqlConnection], DBTransaction)
             db_args = None
         with self._conn.cursor() as curr:
             curr.execute(query, db_args)
-            yield DBApiCursorImpl(curr)  # type: ignore[abstract]
+            yield DatabricksCursorImpl(curr)  # type: ignore[abstract]
 
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
+        catalog = self.capabilities.case_identifier(self.credentials.catalog)
+        dataset_name = self.capabilities.case_identifier(self.dataset_name)
         if escape:
-            catalog = self.capabilities.escape_identifier(self.credentials.catalog)
-            dataset_name = self.capabilities.escape_identifier(self.dataset_name)
-        else:
-            catalog = self.credentials.catalog
-            dataset_name = self.dataset_name
+            catalog = self.capabilities.escape_identifier(catalog)
+            dataset_name = self.capabilities.escape_identifier(dataset_name)
         return f"{catalog}.{dataset_name}"
 
     @staticmethod

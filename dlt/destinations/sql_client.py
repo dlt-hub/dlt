@@ -138,16 +138,20 @@ SELECT 1
                     ret.append(result)
         return ret
 
-    @abstractmethod
     def fully_qualified_dataset_name(self, escape: bool = True) -> str:
-        pass
+        dataset_name = self.capabilities.case_identifier(self.dataset_name)
+        if escape:
+            return self.capabilities.escape_identifier(dataset_name)
+        return dataset_name
 
     def make_qualified_table_name(self, table_name: str, escape: bool = True) -> str:
+        table_name = self.capabilities.case_identifier(table_name)
         if escape:
             table_name = self.capabilities.escape_identifier(table_name)
         return f"{self.fully_qualified_dataset_name(escape=escape)}.{table_name}"
 
     def escape_column_name(self, column_name: str, escape: bool = True) -> str:
+        column_name = self.capabilities.case_identifier(column_name)
         if escape:
             return self.capabilities.escape_identifier(column_name)
         return column_name
@@ -221,6 +225,11 @@ class DBApiCursorImpl(DBApiCursor):
         return [c[0] for c in self.native_cursor.description]
 
     def df(self, chunk_size: int = None, **kwargs: Any) -> Optional[DataFrame]:
+        """Fetches results as data frame in full or in specified chunks.
+
+        May use native pandas/arrow reader if available. Depending on
+        the native implementation chunk size may vary.
+        """
         from dlt.common.libs.pandas import _wrap_result
 
         columns = self._get_columns()

@@ -256,15 +256,15 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             c for c in new_columns if c.get("partition") or c.get(PARTITION_HINT, False)
         ]:
             if len(partition_list) > 1:
-                col_names = [self.capabilities.escape_identifier(c["name"]) for c in partition_list]
+                col_names = [self.sql_client.escape_column_name(c["name"]) for c in partition_list]
                 raise DestinationSchemaWillNotUpdate(
                     canonical_name, col_names, "Partition requested for more than one column"
                 )
             elif (c := partition_list[0])["data_type"] == "date":
-                sql[0] += f"\nPARTITION BY {self.capabilities.escape_identifier(c['name'])}"
+                sql[0] += f"\nPARTITION BY {self.sql_client.escape_column_name(c['name'])}"
             elif (c := partition_list[0])["data_type"] == "timestamp":
                 sql[0] = (
-                    f"{sql[0]}\nPARTITION BY DATE({self.capabilities.escape_identifier(c['name'])})"
+                    f"{sql[0]}\nPARTITION BY DATE({self.sql_client.escape_column_name(c['name'])})"
                 )
             # Automatic partitioning of an INT64 type requires us to be prescriptive - we treat the column as a UNIX timestamp.
             # This is due to the bounds requirement of GENERATE_ARRAY function for partitioning.
@@ -273,12 +273,12 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
             # See: https://dlthub.com/devel/dlt-ecosystem/destinations/bigquery#supported-column-hints
             elif (c := partition_list[0])["data_type"] == "bigint":
                 sql[0] += (
-                    f"\nPARTITION BY RANGE_BUCKET({self.capabilities.escape_identifier(c['name'])},"
+                    f"\nPARTITION BY RANGE_BUCKET({self.sql_client.escape_column_name(c['name'])},"
                     " GENERATE_ARRAY(-172800000, 691200000, 86400))"
                 )
 
         if cluster_list := [
-            self.capabilities.escape_identifier(c["name"])
+            self.sql_client.escape_column_name(c["name"])
             for c in new_columns
             if c.get("cluster") or c.get(CLUSTER_HINT, False)
         ]:
@@ -327,7 +327,7 @@ class BigQueryClient(SqlJobClientWithStaging, SupportsStagingDestination):
         return table
 
     def _get_column_def_sql(self, column: TColumnSchema, table_format: TTableFormat = None) -> str:
-        name = self.capabilities.escape_identifier(column["name"])
+        name = self.sql_client.escape_column_name(column["name"])
         column_def_sql = (
             f"{name} {self.type_mapper.to_db_type(column, table_format)} {self._gen_not_null(column.get('nullable', True))}"
         )

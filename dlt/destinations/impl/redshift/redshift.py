@@ -14,7 +14,7 @@ else:
 
     # from psycopg2.sql import SQL, Composed
 
-from typing import ClassVar, Dict, List, Optional, Sequence, Any
+from typing import ClassVar, Dict, List, Optional, Sequence, Any, Tuple
 
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.reference import (
@@ -24,7 +24,7 @@ from dlt.common.destination.reference import (
 )
 from dlt.common.data_types import TDataType
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
-from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat
+from dlt.common.schema.typing import TTableSchema, TColumnType, TTableFormat, TTableSchemaColumns
 from dlt.common.configuration.specs import AwsCredentialsWithoutDefaults
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
@@ -244,7 +244,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
             for h in HINT_TO_REDSHIFT_ATTR.keys()
             if c.get(h, False) is True
         )
-        column_name = self.capabilities.escape_identifier(c["name"])
+        column_name = self.sql_client.escape_column_name(c["name"])
         return (
             f"{column_name} {self.type_mapper.to_db_type(c)} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
         )

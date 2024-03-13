@@ -14,6 +14,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_staging_file_formats = []
     caps.escape_identifier = escape_postgres_identifier
     caps.escape_literal = escape_postgres_literal
+    caps.case_identifier = str.lower
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (2 * EVM_DECIMAL_PRECISION, EVM_DECIMAL_PRECISION)
     caps.max_identifier_length = 63

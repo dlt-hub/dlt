@@ -1,4 +1,3 @@
-from dlt.common.data_writers.escape import escape_bigquery_identifier
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.data_writers.escape import escape_snowflake_identifier
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
@@ -11,6 +10,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.preferred_staging_file_format = "jsonl"
     caps.supported_staging_file_formats = ["jsonl", "parquet"]
     caps.escape_identifier = escape_snowflake_identifier
+    caps.case_identifier = str.upper
     caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
     caps.wei_precision = (DEFAULT_NUMERIC_PRECISION, 0)
     caps.max_identifier_length = 255

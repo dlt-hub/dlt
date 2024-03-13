@@ -175,7 +175,7 @@ class MsSqlClient(InsertValuesJobClient):
             for h in self.active_hints.keys()
             if c.get(h, False) is True
         )
-        column_name = self.capabilities.escape_identifier(c["name"])
+        column_name = self.sql_client.escape_column_name(c["name"])
         return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c['nullable'])}"
 
     def _create_replace_followup_jobs(
