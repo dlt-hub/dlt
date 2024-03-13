@@ -468,9 +468,7 @@ class PackageStorage:
         if not self.storage.has_folder(package_path):
             raise LoadPackageNotFound(load_id)
         try:
-            state_dump = self.storage.load(
-                os.path.join(package_path, PackageStorage.LOAD_PACKAGE_STATE_FILE_NAME)
-            )
+            state_dump = self.storage.load(self.get_load_package_state_path(load_id))
             state = json.loads(state_dump)
             return migrate_load_package_state(
                 state, state["_state_engine_version"], LOADPACKAGE_STATE_ENGINE_VERSION
@@ -484,9 +482,13 @@ class PackageStorage:
             raise LoadPackageNotFound(load_id)
         bump_loadpackage_state_version_if_modified(state)
         self.storage.save(
-            os.path.join(package_path, PackageStorage.LOAD_PACKAGE_STATE_FILE_NAME),
+            self.get_load_package_state_path(load_id),
             json.dumps(state),
         )
+
+    def get_load_package_state_path(self, load_id: str) -> str:
+        package_path = self.get_package_path(load_id)
+        return os.path.join(package_path, PackageStorage.LOAD_PACKAGE_STATE_FILE_NAME)
 
     #
     # Get package info

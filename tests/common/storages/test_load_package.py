@@ -1,6 +1,9 @@
 import os
 import pytest
 from pathlib import Path
+from os.path import join
+
+import dlt
 
 from dlt.common import sleep
 from dlt.common.schema import Schema
@@ -205,3 +208,25 @@ def test_build_parse_job_path(load_storage: LoadStorage) -> None:
 
     with pytest.raises(ValueError):
         ParsedLoadJobFileName.parse("tab.id.wrong_retry.jsonl")
+
+
+def test_migrate_to_load_package_state() -> None:
+    """
+    Here we test that an existing load package without a state will not error
+    when the user upgrades to a dlt version with the state. we simulate it by
+    wiping the state after normalization and see wether anything breaks
+    """
+    from dlt.destinations import dummy
+
+    p = dlt.pipeline(pipeline_name=uniq_id(), destination=dummy(completed_prob=1))
+
+    p.extract([{"id": 1, "name": "dave"}], table_name="person")
+    p.normalize()
+
+    # delete load package after normalization
+    storage = p._get_load_storage()
+    packaged_id = p.list_normalized_load_packages()[0]
+    state_path = storage.normalized_packages.get_load_package_state_path(packaged_id)
+    storage.storage.delete(join(LoadStorage.NORMALIZED_FOLDER, state_path))
+
+    p.load()

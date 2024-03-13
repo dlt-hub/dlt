@@ -265,7 +265,8 @@ def test_base_spec() -> None:
 
 
 @pytest.mark.parametrize("lock", [False, True])
-def test_lock_context(lock) -> None:
+@pytest.mark.parametrize("same_pool", [False, True])
+def test_lock_context(lock, same_pool) -> None:
     # we create a slow provider to test locking
 
     class SlowProvider(EnvironProvider):
@@ -287,9 +288,14 @@ def test_lock_context(lock) -> None:
     with Container().injectable_context(ctx):
         start = time.time()
 
+        if same_pool:
+            thread_ids = ["dlt-pool-1-1", "dlt-pool-1-2"]
+        else:
+            thread_ids = ["dlt-pool-5-1", "dlt-pool-20-2"]
+
         # simulate threads in the same pool
-        thread1 = threading.Thread(target=test_sections, name="dlt-pool-1-1")
-        thread2 = threading.Thread(target=test_sections, name="dlt-pool-1-2")
+        thread1 = threading.Thread(target=test_sections, name=thread_ids[0])
+        thread2 = threading.Thread(target=test_sections, name=thread_ids[1])
 
         thread1.start()
         thread2.start()
@@ -300,7 +306,8 @@ def test_lock_context(lock) -> None:
         elapsed = time.time() - start
 
         # see wether there was any parallel execution going on
-        if lock:
+        # it should only lock if we're in the same pool and we want it to lock
+        if lock and same_pool:
             assert elapsed > 1
         else:
             assert elapsed < 0.7
