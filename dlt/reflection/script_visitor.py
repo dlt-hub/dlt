@@ -2,7 +2,8 @@ import inspect
 import ast
 import astunparse
 from ast import NodeVisitor
-from typing import Any, Dict, List
+from collections import defaultdict
+from typing import Any, Dict, List, Tuple
 from dlt.common.reflection.utils import find_outer_func_def
 
 
@@ -19,6 +20,7 @@ class PipelineScriptVisitor(NodeVisitor):
         # self.source_aliases: Dict[str, str] = {}
         self.is_destination_imported: bool = False
         self.known_calls: Dict[str, List[inspect.BoundArguments]] = {}
+        self.known_calls_with_nodes: Dict[str, List[Tuple[inspect.BoundArguments, ast.AST]]] = defaultdict(list)
         self.known_sources: Dict[str, ast.FunctionDef] = {}
         self.known_source_calls: Dict[str, List[ast.Call]] = {}
         self.known_resources: Dict[str, ast.FunctionDef] = {}
@@ -104,6 +106,7 @@ class PipelineScriptVisitor(NodeVisitor):
                     # print(f"ALIAS: {alias_name} of {self.func_aliases.get(alias_name)} with {bound_args}")
                     fun_calls = self.known_calls.setdefault(fn, [])
                     fun_calls.append(bound_args)
+                    self.known_calls_with_nodes[fn].append((bound_args, node))
                 except TypeError:
                     # skip the signature
                     pass

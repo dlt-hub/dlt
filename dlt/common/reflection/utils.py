@@ -78,8 +78,11 @@ def creates_func_def_name_node(func_def: ast.FunctionDef, source_lines: Sequence
 def rewrite_python_script(
     source_script_lines: List[str], transformed_nodes: List[Tuple[ast.AST, ast.AST]]
 ) -> List[str]:
-    """Replaces all the nodes present in `transformed_nodes` in the `script_lines`. The `transformed_nodes` is a tuple where the first element
-    is must be a node with full location information created out of `script_lines`"""
+    """Replaces all the nodes present in `transformed_nodes` in the `script_lines`.
+
+    The `transformed_nodes` is a tuple where the first element must be a node with
+    full location information created out of `script_lines`
+    """
     script_lines: List[str] = []
     last_line = -1
     last_offset = -1
