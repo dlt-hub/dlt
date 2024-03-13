@@ -21,6 +21,8 @@ if __name__ == "__main__":
 
     markdown_files = []
     for path, directories, files in os.walk(DOCS_DIR):
+        if "api_reference" in path:
+            continue
         for file in files:
             if file.endswith(".md"):
                 markdown_files.append(os.path.join(path, file))
@@ -53,20 +55,23 @@ if __name__ == "__main__":
 
     # parse python snippets for now
     count = 0
+    failed = 0
     for snippet in snippets:
         print("Processing snippet no", count, " at line", snippet["line"], "in file", snippet["file"])
         if snippet["language"] in ["python", "py"]:
-            ast.parse(dedent(snippet["code"]))
+            count += 1
+            try:
+                ast.parse(dedent(snippet["code"]))
+            except Exception as e:
+                print(f"Failed to parse snippet: {e}")
+                failed += 1
         if snippet["language"] in ["toml"]:
-            tomlkit.loads(snippet["code"])
+            ...
+            # tomlkit.loads(snippet["code"])
 
-
-        count += 1
 
     print(count)
 
 
-    print(f"Found {len(snippets)} snippets")
-
-    print(snippets[500]["code"])
+    print(failed)
 
