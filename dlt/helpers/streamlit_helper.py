@@ -12,7 +12,7 @@ from dlt.common.utils import flatten_list_or_items
 from dlt.common.libs.pandas import pandas
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
-from dlt.pipeline.state_sync import load_state_from_destination
+from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
 try:
     import streamlit as st
@@ -190,7 +190,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         st.header("Pipeline state info")
         with pipeline.destination_client() as client:
             if isinstance(client, WithStateSync):
-                remote_state = load_state_from_destination(pipeline.pipeline_name, client)
+                remote_state = load_pipeline_state_from_destination(pipeline.pipeline_name, client)
         local_state = pipeline.state
 
         col1, col2 = st.columns(2)

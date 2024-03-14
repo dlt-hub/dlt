@@ -1,6 +1,9 @@
 import os
 import pytest
 from pathlib import Path
+from os.path import join
+
+import dlt
 
 from dlt.common import sleep
 from dlt.common.schema import Schema
@@ -9,6 +12,15 @@ from dlt.common.utils import uniq_id
 
 from tests.common.storages.utils import start_loading_file, assert_package_info, load_storage
 from tests.utils import autouse_test_storage
+from dlt.common.pendulum import pendulum
+from dlt.common.configuration.container import Container
+from dlt.common.storages.load_package import (
+    LoadPackageStateInjectableContext,
+    destination_state,
+    load_package,
+    commit_load_package_state,
+    clear_destination_state,
+)
 
 
 def test_is_partially_loaded(load_storage: LoadStorage) -> None:
@@ -55,6 +67,83 @@ def test_save_load_schema(load_storage: LoadStorage) -> None:
     )
     schema_copy = load_storage.new_packages.load_schema("copy")
     assert schema.stored_version == schema_copy.stored_version
+
+
+def test_create_and_update_loadpackage_state(load_storage: LoadStorage) -> None:
+    load_storage.new_packages.create_package("copy")
+    state = load_storage.new_packages.get_load_package_state("copy")
+    assert state["_state_version"] == 0
+    assert state["_version_hash"] is not None
+    assert state["created_at"] is not None
+    old_state = state.copy()
+
+    state["new_key"] = "new_value"  # type: ignore
+    load_storage.new_packages.save_load_package_state("copy", state)
+
+    state = load_storage.new_packages.get_load_package_state("copy")
+    assert state["new_key"] == "new_value"  # type: ignore
+    assert state["_state_version"] == 1
+    assert state["_version_hash"] != old_state["_version_hash"]
+    # created timestamp should be conserved
+    assert state["created_at"] == old_state["created_at"]
+
+    # check timestamp
+    time = pendulum.parse(state["created_at"])
+    now = pendulum.now()
+    assert (now - time).in_seconds() < 2  # type: ignore
+
+
+def test_loadpackage_state_injectable_context(load_storage: LoadStorage) -> None:
+    load_storage.new_packages.create_package("copy")
+
+    container = Container()
+    with container.injectable_context(
+        LoadPackageStateInjectableContext(
+            storage=load_storage.new_packages,
+            load_id="copy",
+        )
+    ):
+        # test general load package state
+        injected_state = load_package()
+        assert injected_state["state"]["_state_version"] == 0
+        injected_state["state"]["new_key"] = "new_value"  # type: ignore
+
+        # not persisted yet
+        assert load_storage.new_packages.get_load_package_state("copy").get("new_key") is None
+        # commit
+        commit_load_package_state()
+
+        # now it should be persisted
+        assert (
+            load_storage.new_packages.get_load_package_state("copy").get("new_key") == "new_value"
+        )
+        assert load_storage.new_packages.get_load_package_state("copy").get("_state_version") == 1
+
+        # check that second injection is the same as first
+        second_injected_instance = load_package()
+        assert second_injected_instance == injected_state
+
+        # check scoped destination states
+        assert (
+            load_storage.new_packages.get_load_package_state("copy").get("destination_state")
+            is None
+        )
+        dstate = destination_state()
+        dstate["new_key"] = "new_value"
+        commit_load_package_state()
+        assert load_storage.new_packages.get_load_package_state("copy").get(
+            "destination_state"
+        ) == {"new_key": "new_value"}
+
+        # this also shows up on the previously injected state
+        assert injected_state["state"]["destination_state"]["new_key"] == "new_value"
+
+        # clear destination state
+        clear_destination_state()
+        assert (
+            load_storage.new_packages.get_load_package_state("copy").get("destination_state")
+            is None
+        )
 
 
 def test_job_elapsed_time_seconds(load_storage: LoadStorage) -> None:
@@ -119,3 +208,25 @@ def test_build_parse_job_path(load_storage: LoadStorage) -> None:
 
     with pytest.raises(ValueError):
         ParsedLoadJobFileName.parse("tab.id.wrong_retry.jsonl")
+
+
+def test_migrate_to_load_package_state() -> None:
+    """
+    Here we test that an existing load package without a state will not error
+    when the user upgrades to a dlt version with the state. we simulate it by
+    wiping the state after normalization and see wether anything breaks
+    """
+    from dlt.destinations import dummy
+
+    p = dlt.pipeline(pipeline_name=uniq_id(), destination=dummy(completed_prob=1))
+
+    p.extract([{"id": 1, "name": "dave"}], table_name="person")
+    p.normalize()
+
+    # delete load package after normalization
+    storage = p._get_load_storage()
+    packaged_id = p.list_normalized_load_packages()[0]
+    state_path = storage.normalized_packages.get_load_package_state_path(packaged_id)
+    storage.storage.delete(join(LoadStorage.NORMALIZED_FOLDER, state_path))
+
+    p.load()

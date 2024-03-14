@@ -1,6 +1,7 @@
 from os.path import join
 from typing import Iterable, Optional, Sequence
 
+from dlt.common.typing import DictStrAny
 from dlt.common import json
 from dlt.common.configuration import known_sections
 from dlt.common.configuration.inject import with_config
@@ -18,6 +19,7 @@ from dlt.common.storages.load_package import (
     PackageStorage,
     ParsedLoadJobFileName,
     TJobState,
+    TLoadPackageState,
 )
 from dlt.common.storages.exceptions import JobWithUnsupportedWriterException, LoadPackageNotFound
 
@@ -38,6 +40,11 @@ class LoadStorage(DataItemStorage, VersionedStorage):
         supported_file_formats: Iterable[TLoaderFileFormat],
         config: LoadStorageConfiguration = config.value,
     ) -> None:
+        # puae-jsonl jobs have the extension .jsonl, so cater for this here
+        if supported_file_formats and "puae-jsonl" in supported_file_formats:
+            supported_file_formats = list(supported_file_formats)
+            supported_file_formats.append("jsonl")
+
         if not LoadStorage.ALL_SUPPORTED_FILE_FORMATS.issuperset(supported_file_formats):
             raise TerminalValueError(supported_file_formats)
         if preferred_file_format and preferred_file_format not in supported_file_formats:
@@ -79,7 +86,7 @@ class LoadStorage(DataItemStorage, VersionedStorage):
     def list_new_jobs(self, load_id: str) -> Sequence[str]:
         """Lists all jobs in new jobs folder of normalized package storage and checks if file formats are supported"""
         new_jobs = self.normalized_packages.list_new_jobs(load_id)
-        # # make sure all jobs have supported writers
+        # make sure all jobs have supported writers
         wrong_job = next(
             (
                 j
@@ -184,3 +191,10 @@ class LoadStorage(DataItemStorage, VersionedStorage):
             return self.loaded_packages.get_load_package_info(load_id)
         except LoadPackageNotFound:
             return self.normalized_packages.get_load_package_info(load_id)
+
+    def get_load_package_state(self, load_id: str) -> TLoadPackageState:
+        """Gets state of normlized or loaded package with given load_id, all jobs and their statuses."""
+        try:
+            return self.loaded_packages.get_load_package_state(load_id)
+        except LoadPackageNotFound:
+            return self.normalized_packages.get_load_package_state(load_id)
