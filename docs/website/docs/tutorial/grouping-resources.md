@@ -22,7 +22,7 @@ In the previous tutorial, we loaded issues from the GitHub API. Now we'll prepar
 def get_comments(
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
-    url = f"https://api.github.com/repos/dlt-hub/dlt/comments?per_page=100"
+    url = "https://api.github.com/repos/dlt-hub/dlt/comments?per_page=100"
 
     while True:
         response = requests.get(url)
@@ -58,9 +58,9 @@ def get_issues(
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
     url = (
-        f"https://api.github.com/repos/dlt-hub/dlt/issues"
+        "https://api.github.com/repos/dlt-hub/dlt/issues"
         f"?since={updated_at.last_value}&per_page=100"
-        f"&sort=updated&directions=desc&state=open"
+        "&sort=updated&directions=desc&state=open"
     )
 
     while True:
@@ -83,8 +83,8 @@ def get_comments(
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
     url = (
-        f"https://api.github.com/repos/dlt-hub/dlt/comments"
-        f"?per_page=100"
+        "https://api.github.com/repos/dlt-hub/dlt/comments"
+        "?per_page=100"
     )
 
     while True:

@@ -17,12 +17,12 @@ pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
 try:
     with pipeline.sql_client() as client:
         client.sql_client.execute_sql(
-            f"INSERT INTO customers VALUES (%s, %s, %s)",
+            "INSERT INTO customers VALUES (%s, %s, %s)",
             10,
             "Fred",
             "fred@fred.com"
         )
-except:
+except Exception:
     ...
 ```
 
@@ -38,7 +38,7 @@ try:
         )
         # prints column values of the first row
         print(res[0])
-except:
+except Exception:
     ...
 ```
 

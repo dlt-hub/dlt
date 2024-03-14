@@ -208,6 +208,8 @@ multi_line_output = 3
 
 [tool.ruff] # https://beta.ruff.rs/docs/
 line-length = 100
+
+[tool.ruff.lint]
 ignore = ["F401"]
 ignore-init-module-imports = true
 

@@ -207,7 +207,7 @@ execution of particular step. You can catch those in code:
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 try:
-    return pipeline.run(data)
+    pipeline.run(data)
 except PipelineStepFailed as step_failed:
     print(f"We failed at step: {step_failed.step} with step info {step_failed.step_info}")
     raise

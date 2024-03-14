@@ -4,12 +4,16 @@ Walks through all markdown files, finds all code snippets, and checks wether the
 from typing import TypedDict, List, Dict
 
 import os, ast, json, yaml, tomlkit  # noqa: I251
+import subprocess
+
 from textwrap import dedent
 
 DOCS_DIR = "../website/docs"
 
 SNIPPET_MARKER = "```"
 
+LINT_TEMPLATE = "./lint_setup/template.py"
+LINT_FILE = "./lint_setup/lint_me.py"
 
 class Snippet(TypedDict):
     language: str
@@ -138,3 +142,47 @@ All code blocks that are not a specific (markup-) language should be marked as t
         print(failed_count)
     else:
         print("All snippets could be parsed.")
+
+    print("---")
+    print("Linting snippets")
+    print("---")
+    
+    failed_count = {}
+    count = {}
+    with open(LINT_TEMPLATE, "r") as f:
+        lint_template = f.read()
+    for snippet in snippets:
+        if snippet["language"] not in ["python", "py"]:
+            continue
+        count["py"] = failed_count.get(language, 0) + 1
+
+        with open(LINT_FILE, "w") as f:
+            f.write(lint_template)
+            f.write("# Snippet start\n\n")
+            f.write(snippet["code"])
+        result = subprocess.run(['ruff', 'check', LINT_FILE], capture_output=True, text=True)
+        if "error" in result.stdout.lower():
+            print(
+                "---\nFailed linting snippet",
+                "at line",
+                snippet["line"],
+                "in file",
+                snippet["file"],
+                "with language",
+                "py",
+                "\n---",
+            )
+            print(result.stdout)
+            print(result.stderr)
+            failed_count["py"] = failed_count.get("py", 0) + 1
+
+            # raise AssertionError("Failed linting snippet")
+
+    with open(LINT_FILE, "w") as f:
+        f.write("")
+    if failed_count:
+        print("Failed to lint the following amount of snippets:")
+        print(failed_count)
+        raise AssertionError("Failed linting snippets")
+    else:
+        print("All snippets could be linted.")
