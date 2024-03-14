@@ -91,20 +91,18 @@ if __name__ == "__main__":
             elif language in ["yaml"]:
                 yaml.safe_load(code)
             # ignore text and shell scripts
-            elif language in ["text", "sh", "shell", "bash", "bat"]:
+            elif language in ["text", "shell", "bat"]:
                 pass
             elif language in ["sql"]:
                 pass
-            elif language in ["unknown"]:
-                pass
             else:
-                assert False, (
-                    "Unknown language. Please add a parser or exception for this language, or choose"
-                    " the correct language for the snippet."
-                )
+                assert False, "Unknown language. Please choose the correct language for the snippet: py, toml, json, yaml, text, shell, bat or sql."
+
         except Exception as e:
             print(f"Failed to parse snippet: {e}")
             failed_count[language] = failed_count.get(language, 0) + 1
+            if language in ["json", "yaml"]:
+                raise
 
     assert len(snippets) > 100, "Found too few snippets. Something went wrong."  # sanity check
 
