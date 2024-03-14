@@ -3,7 +3,7 @@ from collections import defaultdict
 import inspect
 import os
 import typing as t
-
+import importlib
 from dataclasses import dataclass
 from importlib import machinery as im
 from importlib import util as iu
@@ -71,18 +71,14 @@ class PipelineRunner:
         self.workdir = os.path.dirname(os.path.abspath(self.inventory.script_path))
 
     def run(self):
-        config_path = f"{self.workdir}/.dlt"
-        ConfigProvidersContext.initial_providers = [
-            EnvironProvider(),
-            SecretsTomlProvider(project_dir=config_path, add_global_config=False),
-            ConfigTomlProvider(project_dir=config_path, add_global_config=False),
-        ]
-
         pick_first = not self.inventory.pipeline_name and not self.inventory.source_name
         if pick_first:
             fmt.echo(
-                "Neiter of pipeline name or source were specified, "
-                "we will pick first pipeline and a source to run"
+                fmt.style(
+                    "Pipeline name and source not specified, "
+                    "we will pick first pipeline and a source to run",
+                    fg="blue",
+                )
             )
 
         pipeline_name = self.inventory.pipeline_name
@@ -95,9 +91,22 @@ class PipelineRunner:
         else:
             resource = getattr(self.module, resource_name)
             pipeline_instance = self.pipelines[pipeline_name]
-            setattr(self.module, f"pipeline_{pipeline_name}", pipeline_instance)
 
-        pipeline_instance.run(resource(), **self.run_options)
+        setattr(self.module, f"pipeline_{pipeline_name}", pipeline_instance)
+
+        fmt.echo(
+            fmt.style("Pipeline workdir", fg="black", bg="blue")
+            + f": {pipeline_instance.working_dir}"
+        )
+
+        fmt.echo(f"Runtime options for pipeline: {pipeline_instance.pipeline_name}\n")
+        for key, val in self.run_options.items():
+            fmt.echo(f"    {fmt.style(key, fg='green')}={val}")
+
+        pipeline_instance.activate()
+        load_info = pipeline_instance.run(resource(), **self.run_options)
+        fmt.echo("")
+        fmt.echo(load_info)
 
     @property
     def run_nodes(self) -> t.List[ast.AST]:
@@ -132,7 +141,7 @@ class PipelineRunner:
                     pipeline_options[arg_name] = value
 
             pipeline = dlt.pipeline(**pipeline_options)
-            pipeline.working_dir = os.path.dirname(os.path.abspath(self.inventory.script_path))
+            pipeline.working_dir = self.workdir
             pipeline_items[pipeline_options["pipeline_name"]] = pipeline
 
         return pipeline_items
