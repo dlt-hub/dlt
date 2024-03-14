@@ -8,8 +8,8 @@ keywords: [how to, deploy a pipeline, Kestra]
 
 ## Introduction to Kestra
 
-[Kestra](https://kestra.io/docs) is an open-source, **scalable orchestration platform** that enables
-all engineers to manage **business-critical workflows** declaratively in code. By
+[Kestra](https://kestra.io/docs) is an open-source, scalable orchestration platform that enables
+all engineers to manage business-critical workflows declaratively in code. By
 applying Infrastructure as Code best practices to data, process, and microservice orchestration, you
 can build reliable workflows and manage them.
 
@@ -19,35 +19,35 @@ engineers and developers.
 
 ### Kestra features
 
-Kestra, as an open-source platform, provides a robust orchestration engine with features including:
+Kestra provides a robust orchestration engine with features including:
 
-- Declarative workflows are accessible as code and through a user interface, event-driven
+- Workflows are accessible through a user interface, event-driven
   automation, and an embedded Visual Studio code editor.
 - It also offers embedded documentation, a live-updating topology view, and access to over 400
   plugins, enhancing its versatility.
 - Kestra supports Git & CI/CD integrations, basic authentication, and benefits from community
   support.
 
-To know more, please refer to [Kestra's documentation.](https://kestra.io/pricing)
+To know more, please refer to [Kestra's documentation.](https://kestra.io/docs)
 
 ## Building Data Pipelines with `dlt`
 
-**`dlt`** is an open-source Python library that allows you to declaratively **load** data sources
+**`dlt`** is an open-source Python library that allows you to declaratively load data sources
 into well-structured tables or datasets through automatic schema inference and evolution. It
 simplifies building data pipelines by providing functionality to support the entire extract and load
 process.
 
 ### How does `dlt` integrate with Kestra for pipeline orchestration?
 
-To illustrate setting up a pipeline in Kestra, we’ll be using
-[this example.](https://kestra.io/blogs/2023-12-04-dlt-kestra-usage)
+To illustrate setting up a pipeline in Kestra, we’ll be using the following example: 
+[From Inbox to Insights AI-Enhanced Email Analysis with dlt and Kestra.](https://kestra.io/blogs/2023-12-04-dlt-kestra-usage)
 
 It demonstrates automating a workflow to load data from Gmail to BigQuery using the `dlt`,
 complemented by AI-driven summarization and sentiment analysis. You can refer to the project's
-github repo here: [Github repo.](https://github.com/dlt-hub/dlt-kestra-demo)
+github repo by clicking [here.](https://github.com/dlt-hub/dlt-kestra-demo)
 
 :::info 
-For the detailed guide, refer to the project's README section. 
+For the detailed guide, please take a look at the project's [README](https://github.com/dlt-hub/dlt-kestra-demo/blob/main/README.md) section. 
 :::
 
 Here is the summary of the steps:
@@ -101,10 +101,10 @@ features for efficient data pipeline orchestration.
 
 ### Additional Resources
 
-- Ingest Zendesk data into Weaviate using dlt with Kestra:
+- Ingest Zendesk data into Weaviate using `dlt` with Kestra:
   [here](https://kestra.io/blueprints/148-ingest-zendesk-data-into-weaviate-using-dlt).
 - Ingest Zendesk data into DuckDb using dlt with Kestra:
   [here.](https://kestra.io/blueprints/147-ingest-zendesk-data-into-duckdb-using-dlt)
-- Ingest Pipedrive CRM data to BigQuery using dlt and schedule it to run every hour:
+- Ingest Pipedrive CRM data to BigQuery using `dlt` and schedule it to run every hour:
   [here.](https://kestra.io/blueprints/146-ingest-pipedrive-crm-data-to-bigquery-using-dlt-and-schedule-it-to-run-every-hour)
 
