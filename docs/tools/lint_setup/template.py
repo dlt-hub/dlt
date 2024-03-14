@@ -1,5 +1,7 @@
 # This section is imported before linting
 
+# mypy: disable-error-code="name-defined,import-not-found,import-untyped,empty-body"
+
 # some universal imports
 from typing import Optional, Dict, List, Any, Iterable, Iterator, Tuple, Sequence, Callable
 
@@ -26,8 +28,8 @@ from dlt.common.configuration.specs import (
 from dlt.common.storages.configuration import FileSystemCredentials
 
 # some universal variables
-pipeline: dlt.Pipeline = None
-p: dlt.Pipeline = None
-ex: Exception = None
-load_info: LoadInfo = None
-url: str = None
+pipeline: dlt.Pipeline = None # type: ignore[assignment]
+p: dlt.Pipeline = None # type: ignore[assignment]
+ex: Exception = None # type: ignore[assignment]
+load_info: LoadInfo = None # type: ignore[assignment]
+url: str = None # type: ignore[assignment]

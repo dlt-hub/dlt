@@ -180,7 +180,23 @@ All code blocks that are not a specific (markup-) language should be marked as t
                     undefined_names[key] = undefined_names.get(key, 0) + 1
             print(result.stdout)
             print(result.stderr)
-            failed_count["py"] = failed_count.get("py", 0) + 1
+            failed_count["py"] = faile#d_count.get("py", 0) + 1
+
+        # TODO: mypy linting
+        # result = subprocess.run(["mypy", LINT_FILE], capture_output=True, text=True)
+        # if "no issues found" not in result.stdout.lower():
+        #     print(
+        #         "---\nFailed type checking snippet",
+        #         "at line",
+        #         snippet["line"],
+        #         "in file",
+        #         snippet["file"],
+        #         "with language",
+        #         "py",
+        #         "\n---",
+        #     )
+        #     print(result.stdout)
+
     with open(LINT_FILE, "w") as f:
         f.write("")
     if failed_count:
