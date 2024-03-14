@@ -246,19 +246,19 @@ API token.
 1. Install necessary dependencies for the preferred
    [destination](../../dlt-ecosystem/destinations/), For example, duckdb:
 
-   ```
+   ```shell
    pip install dlt[duckdb]
    ```
 
 1. Run the pipeline with the following command:
 
-   ```
+   ```shell
    python currency_enrichment_pipeline.py
    ```
 
 1. To ensure that everything loads as expected, use the command:
 
-   ```
+   ```shell
    dlt pipeline <pipeline_name> show
    ```
 

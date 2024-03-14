@@ -207,7 +207,7 @@ port = 5432
 Mind that in the script above we import the `presto` module and then pass it in `destination` argument to `dlt.pipeline`. Github pipeline will load the events in `append` mode. You may force `replace` and `merge` modes in `pipeline.run` to check more advanced behavior of the destination.
 
 After executing the pipeline script:
-```
+```text
 python github_pipeline.py
 got page https://api.github.com/repos/apache/airflow/events?per_page=100, requests left: 59
 got page https://api.github.com/repositories/33884891/events?per_page=100&page=2, requests left: 58

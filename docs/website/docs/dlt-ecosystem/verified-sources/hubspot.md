@@ -55,7 +55,7 @@ Follow these steps:
 
    - Read scopes for CMS, CRM, and Settings.
    - Permissions for:
-    ```
+    ```text
     business-intelligence, actions, crm.export, e-commerce, oauth, tickets
     ```
 

@@ -9,7 +9,7 @@ keywords: [MotherDuck, duckdb, destination, data warehouse]
 
 ## Install dlt with MotherDuck
 **To install the DLT library with MotherDuck dependencies:**
-```
+```shell
 pip install dlt[motherduck]
 ```
 
@@ -25,12 +25,12 @@ or export the **LOAD__WORKERS=3** env variable. See more in [performance](../../
 ## Setup Guide
 
 **1. Initialize a project with a pipeline that loads to MotherDuck by running**
-```
+```shell
 dlt init chess motherduck
 ```
 
 **2. Install the necessary dependencies for MotherDuck by running**
-```
+```shell
 pip install -r requirements.txt
 ```
 
@@ -51,7 +51,7 @@ motherduck.credentials="md:///dlt_data_3?token=<my service token>"
 ```
 
 **4. Run the pipeline**
-```
+```shell
 python3 chess_pipeline.py
 ```
 
@@ -90,7 +90,7 @@ before opening the connection.
 
 ### I see some watchdog timeouts.
 We also see them.
-```
+```text
 'ATTACH_DATABASE': keepalive watchdog timeout
 ```
 Our observation is that if you write a lot of data into the database, then close the connection and then open it again to write, there's a chance of such a timeout. A possible **WAL** file is being written to the remote duckdb database.

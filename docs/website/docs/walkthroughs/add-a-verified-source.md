@@ -36,7 +36,7 @@ dlt init pipedrive bigquery
 The command will create your pipeline project by copying over the `pipedrive` folder and creating a
 `.dlt` folder:
 
-```
+```text
 ├── .dlt
 │   ├── config.toml
 │   └── secrets.toml
@@ -53,7 +53,7 @@ The command will create your pipeline project by copying over the `pipedrive` fo
 After running the command, read the command output for the instructions on how to install the
 dependencies:
 
-```
+```text
 Verified source pipedrive was added to your project!
 * See the usage examples and code snippets to copy from pipedrive_pipeline.py
 * Add credentials for bigquery and other secrets in .dlt/secrets.toml

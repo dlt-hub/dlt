@@ -171,7 +171,7 @@ dlt pipeline github_events drop repo_events
 `dlt` will inform you on the names of dropped tables and the resource state slots that will be
 reset:
 
-```
+```text
 About to drop the following data in dataset airflow_events_1 in destination dlt.destinations.duckdb:
 Selected schema:: github_repo_events
 Selected resource(s):: ['repo_events']

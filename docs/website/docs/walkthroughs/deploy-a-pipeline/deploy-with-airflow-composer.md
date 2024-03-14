@@ -481,7 +481,7 @@ folder.
 
 If you run it locally, then check your `airflow.cfg` file (line 4):
 
-```
+```text
 # The folder where your airflow pipelines live, most likely a
 # subfolder in a code repository. This path must be absolute.
 # default: dags_folder = ~/airflow/dags

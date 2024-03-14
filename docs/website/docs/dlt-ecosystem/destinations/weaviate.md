@@ -246,7 +246,7 @@ You can configure an alternative naming convention which will lowercase all prop
 {"camelCase": 1, "CamelCase": 2}
 ```
 it will be normalized to:
-```
+```json
 {"camelcase": 2}
 ```
 so your best course of action is to clean up the data yourself before loading and use the default naming convention. Nevertheless, you can configure the alternative in `config.toml`:

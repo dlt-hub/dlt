@@ -84,7 +84,7 @@ follow these steps:
 
 1. Add the following scope:
 
-   ```
+   ```text
    "https://www.googleapis.com/auth/analytics.readonly"
    ```
 

@@ -53,7 +53,7 @@ timestamp_timezone="Europe/Berlin"
 
 Or using environment variables:
 
-```
+```shell
 NORMALIZE__DATA_WRITER__FLAVOR
 NORMALIZE__DATA_WRITER__VERSION
 NORMALIZE__DATA_WRITER__DATA_PAGE_SIZE

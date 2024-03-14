@@ -87,7 +87,7 @@ follow these steps:
 
 1. Add the following scope:
 
-   ```
+   ```text
    "https://www.googleapis.com/auth/spreadsheets.readonly"
    ```
 
@@ -183,7 +183,7 @@ converted into tables, named after them and stored in the destination.
 
 1. In range_names, you can enter as follows:
 
-   ```
+   ```text
    range_names = ["Range_1","Range_2","Sheet1!A1:D10"]
    ```
 

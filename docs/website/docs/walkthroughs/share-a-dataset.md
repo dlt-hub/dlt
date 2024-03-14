@@ -74,7 +74,7 @@ of them ('project_id', 'private_key', 'client_email') are missing. The exception
 list of all lookups for configuration performed -
 [here we explain how to read such list](run-a-pipeline.md#missing-secret-or-configuration-values).
 
-```
+```text
 dlt.common.configuration.exceptions.ConfigFieldMissingException: Following fields are missing: ['project_id', 'private_key', 'client_email'] in configuration with spec GcpServiceAccountCredentials
     for field "project_id" config providers and keys were tried in following order:
         In Environment Variables key CHESS__DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID was not found.
@@ -99,7 +99,7 @@ The most common cases for the exception:
 Here BigQuery complain that the format of the `private_key` is incorrect. Practically this most
 often happens if you forgot to replace the placeholders in `secrets.toml` with real values:
 
-```
+```text
 <class 'dlt.destinations.exceptions.DestinationConnectionError'>
 Connection with BigQuerySqlClient to dataset name games_data failed. Please check if you configured the credentials at all and provided the right credentials values. You can be also denied access or your internet connection may be down. The actual reason given is: No key could be detected.
 ```
@@ -108,7 +108,7 @@ Connection with BigQuerySqlClient to dataset name games_data failed. Please chec
 
 [You must enable BigQuery API.](https://console.cloud.google.com/apis/dashboard)
 
-```
+```text
 <class 'google.api_core.exceptions.Forbidden'>
 403 POST https://bigquery.googleapis.com/bigquery/v2/projects/bq-walkthrough/jobs?prettyPrint=false: BigQuery API has not been used in project 364286133232 before or it is disabled. Enable it by visiting https://console.developers.google.com/apis/api/bigquery.googleapis.com/overview?project=364286133232 then retry. If you enabled this API recently, wait a few minutes for the action to propagate to our systems and retry.
 
@@ -122,7 +122,7 @@ Job ID: a5f84253-3c10-428b-b2c8-1a09b22af9b2
 Add `BigQuery Job User` as described in the
 [destination page](../dlt-ecosystem/destinations/bigquery.md).
 
-```
+```text
 <class 'google.api_core.exceptions.Forbidden'>
 403 POST https://bigquery.googleapis.com/bigquery/v2/projects/bq-walkthrough/jobs?prettyPrint=false: Access Denied: Project bq-walkthrough: User does not have bigquery.jobs.create permission in project bq-walkthrough.
 
@@ -135,7 +135,7 @@ Job ID: c1476d2c-883c-43f7-a5fe-73db195e7bcd
 Add `BigQuery Data Editor` as described in the
 [destination page](../dlt-ecosystem/destinations/bigquery.md).
 
-```
+```text
 <class 'dlt.destinations.exceptions.DatabaseTransientException'>
 403 Access Denied: Table bq-walkthrough:games_data._dlt_loads: User does not have permission to query table bq-walkthrough:games_data._dlt_loads, or perhaps it does not exist in location EU.
 
@@ -148,14 +148,14 @@ Job ID: 299a92a3-7761-45dd-a433-79fdeb0c1a46
 `dlt` does not support BigQuery when project has no billing enabled. If you see a stack trace where
 following warning appears:
 
-```
+```text
 <class 'dlt.destinations.exceptions.DatabaseTransientException'>
 403 Billing has not been enabled for this project. Enable billing at https://console.cloud.google.com/billing. DML queries are not allowed in the free tier. Set up a billing account to remove this restriction.
 ```
 
 or
 
-```
+```text
 2023-06-08 16:16:26,769|[WARNING]|8096|dlt|load.py|complete_jobs:198|Job for players_games_83b8ac9e98_4_jsonl retried in load 1686233775.932288 with message {"error_result":{"reason":"billingNotEnabled","message":"Billing has not been enabled for this project. Enable billing at https://console.cloud.google.com/billing. Table expiration time must be less than 60 days while in sandbox mode."},"errors":[{"reason":"billingNotEnabled","message":"Billing has not been enabled for this project. Enable billing at https://console.cloud.google.com/billing. Table expiration time must be less than 60 days while in sandbox mode."}],"job_start":"2023-06-08T14:16:26.850000Z","job_end":"2023-06-08T14:16:26.850000Z","job_id":"players_games_83b8ac9e98_4_jsonl"}
 ```
 

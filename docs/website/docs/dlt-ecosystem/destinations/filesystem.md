@@ -7,7 +7,7 @@ Its primary role is to be used as a staging for other destinations, but you can 
 
 ## Install dlt with filesystem
 **To install the DLT library with filesystem dependencies:**
-```
+```shell
 pip install dlt[filesystem]
 ```
 
@@ -38,7 +38,7 @@ Let's start by initialising a new dlt project as follows:
 
 #### AWS S3
 The command above creates sample `secrets.toml` and requirements file for AWS S3 bucket. You can install those dependencies by running:
-```
+```shell
 pip install -r requirements.txt
 ```
 
@@ -71,7 +71,7 @@ You need to create a S3 bucket and a user who can access that bucket. `dlt` is n
 1. You can create the S3 bucket in the AWS console by clicking on "Create Bucket" in S3 and assigning the appropriate name and permissions to the bucket.
 2. Once the bucket is created, you'll have the bucket URL. For example, If the bucket name is `dlt-ci-test-bucket`, then the bucket URL will be:
 
-   ```
+   ```text
    s3://dlt-ci-test-bucket
    ```
 

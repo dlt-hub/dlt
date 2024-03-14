@@ -8,7 +8,7 @@ keywords: [redshift, destination, data warehouse]
 
 ## Install dlt with Redshift
 **To install the DLT library with Redshift dependencies:**
-```
+```shell
 pip install dlt[redshift]
 ```
 

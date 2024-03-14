@@ -19,7 +19,7 @@ you can do this here too.
 
 ## Install dlt for Sink / reverse ETL
 ** To install the DLT without additional dependencies **
-```
+```shell
 pip install dlt
 ```
 
@@ -28,7 +28,7 @@ pip install dlt
 
 Let's start by initializing a new dlt project as follows:
 
-```bash
+```shell
 dlt init chess sink
 ```
 > 💡 This command will initialize your pipeline with chess as the source and sink as the destination.

@@ -75,7 +75,7 @@ azure_storage_account_key="storage key"
 ```
 <!--@@@DLT_SNIPPET_END ./snippets/destination-toml.toml::default_layout-->
 or via environment variables:
-```
+```shell
 DESTINATION__FILESYSTEM__BUCKET_URL=az://dlt-azure-bucket
 DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME=dltdata
 DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY="storage key"

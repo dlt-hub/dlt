@@ -133,7 +133,7 @@ current Working Directory**.
 
 Example: If your working directory is `my_dlt_project` and your project has the following structure:
 
-```
+```text
 my_dlt_project:
   |
   pipelines/

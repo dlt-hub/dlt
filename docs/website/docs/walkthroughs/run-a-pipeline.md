@@ -40,7 +40,7 @@ print(load_info)
 
 To get this printed:
 
-```
+```text
 Pipeline chess_pipeline completed in 1.80 seconds
 1 load package(s) were loaded to destination duckdb and into dataset games_data
 The duckdb destination used duckdb:////home/user-name/src/dlt_tests/dlt-cmd-test-3/chess_pipeline.duckdb location to store data
@@ -92,7 +92,7 @@ dlt pipeline chess_pipeline show
 
 This will launch a Streamlit app, that you can open in your browser:
 
-```
+```text
 Found pipeline chess_pipeline in /home/user-name/.dlt/pipelines
 
 Collecting usage statistics. To deactivate, set browser.gatherUsageStats to False.
@@ -219,7 +219,7 @@ Or use `trace` command to review the last exception. Here we provided a wrong po
 dlt pipeline chess_pipeline trace
 ```
 
-```
+```text
 Found pipeline chess_pipeline in /home/user-name/.dlt/pipelines
 Run started at 2023-03-28T09:13:56.277016+00:00 and FAILED in 0.01 seconds with 1 steps.
 Step run FAILED in 0.01 seconds.
@@ -233,7 +233,7 @@ to load it, even if it retries the process. In that case the job is marked as fa
 information is available. Please note that (if not otherwise configured), `dlt` **will not raise
 exception on failed jobs**.
 
-```
+```text
 Step run COMPLETED in 14.21 seconds.
 Pipeline chess_pipeline completed in 35.21 seconds
 1 load package(s) were loaded to destination dummy and into dataset None
@@ -251,7 +251,7 @@ dlt pipeline chess_pipeline failed-jobs
 
 To get following output:
 
-```
+```text
 Found pipeline chess_pipeline in /home/user-name/.dlt/pipelines
 Checking failed jobs in load id '1679996953.776288'
 JOB: players_games.80eb41650c.0.jsonl(players_games)
