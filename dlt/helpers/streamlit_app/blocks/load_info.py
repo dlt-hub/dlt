@@ -35,7 +35,6 @@ def last_load_info(pipeline: dlt.Pipeline) -> None:
             rel_time = "---"
             last_load_id = "---"
 
-        st.divider()
         st.subheader("Last load info", divider="rainbow")
         stat("Last load time", rel_time, border_left_width=4)
         stat("Last load id", last_load_id)

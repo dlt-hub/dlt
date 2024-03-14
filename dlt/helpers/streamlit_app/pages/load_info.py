@@ -2,12 +2,14 @@ import dlt
 import streamlit as st
 
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
+from dlt.common.destination.reference import WithStateSync
 from dlt.common.libs.pandas import pandas as pd
 from dlt.helpers.streamlit_app.menu import menu
-from dlt.helpers.streamlit_app.widgets import pipeline_summary
+from dlt.helpers.streamlit_app.widgets import stat, pipeline_summary
 from dlt.helpers.streamlit_app.utils import cache_data
 from dlt.pipeline import Pipeline
 from dlt.pipeline.exceptions import CannotRestorePipelineException, SqlClientNotAvailable
+from dlt.pipeline.state_sync import load_pipeline_state_from_destination
 
 
 def write_load_status_page(pipeline: Pipeline) -> None:
@@ -67,7 +69,7 @@ def write_load_status_page(pipeline: Pipeline) -> None:
             st.markdown("**Last 100 loads**")
             st.dataframe(loads_df)
 
-            st.subheader("Schema updates")
+            st.subheader("Schema updates", divider=True)
             schemas_df = _query_data_live(
                 "SELECT schema_name, inserted_at, version, version_hash FROM"
                 f" {pipeline.default_schema.version_table_name} ORDER BY inserted_at DESC LIMIT"
@@ -91,6 +93,37 @@ def write_load_status_page(pipeline: Pipeline) -> None:
         st.exception(ex)
 
 
+def show_state_versions(pipeline: dlt.Pipeline) -> None:
+    st.subheader("State info", divider=True)
+    remote_state = None
+    with pipeline.destination_client() as client:
+        if isinstance(client, WithStateSync):
+            remote_state = load_pipeline_state_from_destination(pipeline.pipeline_name, client)
+
+    local_state = pipeline.state
+
+    remote_state_version = "---"  # type: ignore
+    if remote_state:
+        remote_state_version = remote_state["_state_version"]
+
+    col1, col2 = st.columns(2)
+    with col1:
+        stat(
+            label="Local version",
+            value=local_state["_state_version"],
+            display="block",
+            border_left_width=4,
+        )
+
+    with col2:
+        stat(
+            label="Remote version",
+            value=remote_state_version,
+            display="block",
+            border_left_width=4,
+        )
+
+
 def show() -> None:
     if not st.session_state.get("pipeline_name"):
         st.switch_page("dashboard.py")
@@ -98,6 +131,8 @@ def show() -> None:
     pipeline = dlt.attach(st.session_state["pipeline_name"])
     st.subheader("Load info", divider="rainbow")
     write_load_status_page(pipeline)
+    show_state_versions(pipeline)
+
     with st.sidebar:
         menu(pipeline)
 
