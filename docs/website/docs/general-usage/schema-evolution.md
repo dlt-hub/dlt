@@ -13,15 +13,15 @@ It separates the technical challenge of “loading” data, from the business ch
 
 However, for cases where schema evolution might be triggered by malicious events, such as in web tracking, data contracts are advised. Read more about how to implement data contracts [here](https://dlthub.com/docs/general-usage/schema-contracts).
 
-## Schema evolution with dlt
+## Schema evolution with `dlt`
 `dlt` automatically infers the initial schema for your first pipeline run. However, in most cases, the schema tends to change over time, which makes it critical for downstream consumers to adapt to schema changes. 
 
 As the structure of data changes, such as the addition of new columns, changing data types, etc., `dlt` handles these schema changes, enabling you to adapt to changes without losing velocity.
 
 ## Inferring a schema from nested data
-The first run of a pipeline will scan the data that goes through it and generate a schema. To convert nested data into relational format, dlt flattens dictionaries and unpacks nested lists into sub-tables.
+The first run of a pipeline will scan the data that goes through it and generate a schema. To convert nested data into relational format, `dlt` flattens dictionaries and unpacks nested lists into sub-tables.
 
-We’ll review some examples here and figure out how `dlt` creates initial schema and how normalisation works. Let's begin by creating a pipeline that loads the following data:
+We’ll review some examples here and figure out how `dlt` creates initial schema and how normalisation works. Consider a pipeline that load the following schema:
 
 ```python
 {
@@ -85,24 +85,25 @@ Let’s load the data and look at the tables:
 What happened?
 
 - Added column:
-    - A new column named “ceo” is added  to the “org” table.
+    - A new column named `ceo` is added to the “org” table.
 - Variant column:
     - A new column named `inventory_nr__v_text` is added as the datatype of the column was changed from “integer” to “string”.
 - Removed column stopped loading:
-    - New data to column “room” is not loaded.
+    - New data to column `room` is not loaded.
 - Column stopped loading and new one was added:
-    - A new column “address__building” was added and now data will be loaded to that and stop loading in the column “address__main_block”.
+    - A new column `address__building` was added and now data will be loaded to that and stop loading in the column `address__main_block`.
 
 ## Alert schema changes to curate new data
 
 By separating the technical process of loading data from curation, you free the data engineer to do engineering, and the analytics to curate data without technical obstacles. So, the analyst must be kept in the loop.
 
-**Keeping track of column lineage**
+**Tracking column lineage**
 
-By loading the ‘load_info’ to the destination,  info about the column ‘data types’, ‘add times’ and ‘load id’. To read more please see [the data lineage article](https://dlthub.com/docs/blog/dlt-data-lineage) we have on the blog.
+The column lineage can be tracked by loading the 'load_info' to the destination. The 'load_info' contains information about columns ‘data types’, ‘add times’, and ‘load id’. To read more please see [the data lineage article](https://dlthub.com/docs/blog/dlt-data-lineage) we have on the blog.
 
 **Getting notifications**
-We can read the load outcome and send it to slack webhook with dlt.
+
+We can read the load outcome and send it to slack webhook with `dlt`.
 ```python
 # Import the send_slack_message function from the dlt library
 from dlt.common.runtime.slack import send_slack_message
@@ -127,7 +128,7 @@ for package in info.load_packages:
                 )
             )
 ```
-This script sends Slack notifications for data schema updates using the 'send_slack_message' function from the dlt library. It provides details on the updated table and column.
+This script sends Slack notifications for schema updates using the `send_slack_message` function from the `dlt` library. It provides details on the updated table and column.
 
 ## How to control evolution
 
@@ -164,28 +165,27 @@ During pipeline execution a data validation error indicates that a removed colum
 
 The data in the pipeline mentioned above is modified.
 
-- Updated data pipeine now includes key 'specifications' within 'details', nested in 'Inventory'.
 ```python
-    {
-        "organization": "Tech Innovations Inc.",
-        "CEO": "Alice Smith",
-        "address": {'main_block': 'r&d'},
-        "Inventory": [
-            {"name": "Plasma ray", "inventory nr": "AR2411"}, 
-            {"name": "Self-aware Roomba", "inventory nr": "AR268"}, 
-            {
-                "name": "Type-inferrer", "inventory nr": "AR3621",
-                "details": {
-                    "category": "Computing Devices", 
-                    "id": 369,
-                    "specifications": [{ 
-                        "processor": "Quantum Core",
-                        "memory": "512PB"
-                    }]
-                }
+{
+    "organization": "Tech Innovations Inc.",
+    "CEO": "Alice Smith",
+    "address": {'main_block': 'r&d'},
+    "Inventory": [
+        {"name": "Plasma ray", "inventory nr": "AR2411"}, 
+        {"name": "Self-aware Roomba", "inventory nr": "AR268"}, 
+        {
+            "name": "Type-inferrer", "inventory nr": "AR3621",
+            "details": {
+                "category": "Computing Devices", 
+                "id": 369,
+                "specifications": [{ 
+                    "processor": "Quantum Core",
+                    "memory": "512PB"
+                }]
             }
-        ]
-    }
+        }
+    ]
+}
 ```
 The schema of the data above is loaded to the destination as follows:
 <iframe width="560" height="315" src='https://dbdiagram.io/e/65e80b31cd45b569fba33169/65e81055cd45b569fba3aa20'> </iframe>
@@ -194,7 +194,7 @@ The schema of the data above is loaded to the destination as follows:
 
 The schema evolution engine in the `dlt` library is designed to handle changes in the structure of your data over time. For example: 
 
-- As above in continuation of the inferred schema, the “specifications” are nested in ‘details” which are nested in “Inventory” all under table name “org”. So the table created for projects is ‘org__inventory__details__specifications’.
+- As above in continuation of the inferred schema, the “specifications” are nested in "details” which are nested in “Inventory” all under table name “org”. So the table created for projects is "org__inventory__details__specifications".
 
 These is a simple examples of how schema evolution works.
 
