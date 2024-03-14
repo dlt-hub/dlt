@@ -1,5 +1,5 @@
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.data_writers.escape import escape_clickhouse_identifier
+from dlt.common.data_writers.escape import escape_clickhouse_identifier, escape_clickhouse_literal
 from dlt.common.destination import DestinationCapabilitiesContext
 
 
@@ -12,6 +12,7 @@ def capabilities() -> DestinationCapabilitiesContext:
     caps.supported_staging_file_formats = ["jsonl", "parquet", "arrow"]
 
     caps.escape_identifier = escape_clickhouse_identifier
+    caps.escape_literal = escape_clickhouse_literal
 
     caps.schema_supports_numeric_precision = True
     # Use 'Decimal128' with these defaults.

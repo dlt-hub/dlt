@@ -137,5 +137,41 @@ def escape_databricks_literal(v: Any) -> Any:
     return "NULL" if v is None else str(v)
 
 
+# https://github.com/ClickHouse/ClickHouse/blob/master/docs/en/sql-reference/syntax.md#string
+CLICKHOUSE_ESCAPE_DICT = {
+    "'": "''",
+    "\\": "\\\\",
+    "\n": "\\n",
+    "\t": "\\t",
+    "\b": "\\b",
+    "\f": "\\f",
+    "\r": "\\r",
+    "\0": "\\0",
+    "\a": "\\a",
+    "\v": "\\v",
+}
+
+CLICKHOUSE_ESCAPE_RE = _make_sql_escape_re(CLICKHOUSE_ESCAPE_DICT)
+
+
+def escape_clickhouse_literal(v: Any) -> Any:
+    if isinstance(v, str):
+        return _escape_extended(
+            v, prefix="'", escape_dict=CLICKHOUSE_ESCAPE_DICT, escape_re=CLICKHOUSE_ESCAPE_RE
+        )
+    if isinstance(v, (datetime, date, time)):
+        return f"'{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return _escape_extended(
+            json.dumps(v),
+            prefix="'",
+            escape_dict=CLICKHOUSE_ESCAPE_DICT,
+            escape_re=CLICKHOUSE_ESCAPE_RE,
+        )
+    if isinstance(v, bytes):
+        return f"'{v.hex()}'"
+    return "NULL" if v is None else str(v)
+
+
 def escape_clickhouse_identifier(v: str) -> str:
     return "`" + v.replace("`", "``").replace("\\", "\\\\") + '"'
