@@ -7,7 +7,7 @@ authors:
   title: Data Science intern at dltHub
   url: https://github.com/hibajamal
   image_url: https://avatars.githubusercontent.com/u/35984866?v=4
-tags: [dashboarding tools, LLMs, AI driven analytics]
+tags: [dashboarding, analyst, LLMs]
 ---
 
 <aside>
@@ -45,7 +45,7 @@ ThoughtSpot’s Sage is powered by GPT - and as easy as GPT has made our lives, 
 
 In this article, we've chosen ThoughtSpot's Sage as our emblem for AI-driven analytics. We'll assess its performance across various analytics scenarios, aligned with the four categories previously defined. Our discussion will explore whether AI, through Sage, serves to replace or enhance analysts these analytics domains. The style of questions we will ask Sage will be a mix of what can be posed in the language of a business user and an analyst.
 
-## The data & data model:
+## The data & data model
 
 The data that’ll be used for this experiment will be from the HubSpot CRM, regarding various deals, companies and contacts and different stages of their journey. This data was populated and then pulled via the [HubSpot API in Python](https://developers.hubspot.com/docs/api/overview) and then [loaded into BigQuery](https://dlthub.com/docs/dlt-ecosystem/verified-sources/hubspot) via `dlt`. The data was structured into different tables by `dlt` and final model looks as follows:
 
@@ -75,13 +75,21 @@ Let’s begin asking questions and see how Sage answers! The framing of each que
 8. How many deals are signed by each company? **✅**
 
     This was by far the most astounding result! The underlying model is `companies__deals`, and it contains the unnested information for what deals belong to which company. The schema looks like this:
+   <p></p>
+
    ![schema](https://storage.googleapis.com/dlt-blog-images/smart-dashboarding-data-model-2.png)
-   a. 1. Unnested means that there is a parent table, which here is `companies`, and a child table, which here is `deals`. A company can have several deals.
+
+   a. Unnested means that there is a parent table, which here is `companies`, and a child table, which here is `deals`. A company can have several deals.
+
    b. The `_dlt_parent_id` then refers to a company id, saved in the companies table. This is a `dlt` assigned primary key to a company. Whereas, the `value` field is a HubSpot defined primary key to a company. Both saved as foreign keys in this table.
+
    c. The `deals_id` is also therefore present in the `deals` table.
+
    d. Whereas, `_dlt_list_idx` is another column to keep track of rows during the process of unnesting - courtesy of `dlt`.
-   Perhaps given the naming convention of the table; companies__deals, and the word parent in the columns, Sage was able to infer the connection between the two. Here is the result:
-   [outcome](https://storage.googleapis.com/dlt-blog-images/smart-dashboarding-outcome.png)
+   Perhaps given the naming convention of the table; `companies__deals`, and the word parent in the columns, Sage was able to infer the connection between the two. Here is the result:
+
+   ![outcome](https://storage.googleapis.com/dlt-blog-images/smart-dashboarding-outcome.png)
+
    To extend this result to include company names, I added joins in the ThoughtSpot data model as allowed by the tool, but it still did not seem to make a difference when it came to replacing the foreign keys with names of the companies. Nonetheless, the child table that `dlt` put into place still served its purpose for Sage to understand what it is, and that is a remarkable feat for both the tools!
 9. Best deals **✅**
     a. Showed by revenue/amount in descending order
@@ -119,16 +127,6 @@ The score:
 - Descriptive analytics: **6/8 (75%)**
 - Diagnostic Analytics: **1/8 (12.5%)**
 - Predictive Analytics: **0/4 (0%)**
-
-## Conclusion
-
-The summary of our findings was quite predictable: Sage excelled at answering descriptive analytics questions more so than in diagnostic or predictive contexts. Its performance in interpreting descriptive queries was notably impressive.
-
-The score:
-
-- Descriptive analytics: **6/8 (75%)**
-- Diagnostic Analytics: **1/8 (12.5%)**
-- Predictive Analytics: 0**/4 (0%)**
 
 # Conclusion
 
