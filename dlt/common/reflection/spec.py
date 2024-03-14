@@ -26,7 +26,10 @@ def _get_spec_name_from_f(f: AnyFun) -> str:
 
 
 def spec_from_signature(
-    f: AnyFun, sig: Signature, include_defaults: bool = True
+    f: AnyFun,
+    sig: Signature,
+    include_defaults: bool = True,
+    base: Type[BaseConfiguration] = BaseConfiguration,
 ) -> Type[BaseConfiguration]:
     name = _get_spec_name_from_f(f)
     module = inspect.getmodule(f)
@@ -109,7 +112,7 @@ def spec_from_signature(
     # set annotations so they are present in __dict__
     fields["__annotations__"] = annotations
     # synthesize type
-    T: Type[BaseConfiguration] = type(name, (BaseConfiguration,), fields)
+    T: Type[BaseConfiguration] = type(name, (base,), fields)
     SPEC = configspec()(T)
     # add to the module
     setattr(module, spec_id, SPEC)

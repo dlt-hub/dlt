@@ -106,7 +106,9 @@ def assert_destination_state_loaded(pipeline: Pipeline) -> None:
     """Verify stored destination state matches the local pipeline state"""
     client: SqlJobClientBase
     with pipeline.destination_client() as client:  # type: ignore[assignment]
-        destination_state = state_sync.load_state_from_destination(pipeline.pipeline_name, client)
+        destination_state = state_sync.load_pipeline_state_from_destination(
+            pipeline.pipeline_name, client
+        )
     pipeline_state = dict(pipeline.state)
     del pipeline_state["_local"]
     assert pipeline_state == destination_state

@@ -47,7 +47,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import normalize_schema_name
 from dlt.common.storages.exceptions import LoadPackageNotFound
-from dlt.common.typing import DictStrStr, TFun, TSecretValue, is_optional_type
+from dlt.common.typing import DictStrAny, TFun, TSecretValue, is_optional_type
 from dlt.common.runners import pool_runner as runner
 from dlt.common.storages import (
     LiveSchemaStorage,
@@ -126,15 +126,17 @@ from dlt.pipeline.trace import (
 )
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import (
-    STATE_ENGINE_VERSION,
-    bump_version_if_modified,
-    load_state_from_destination,
-    migrate_state,
+    PIPELINE_STATE_ENGINE_VERSION,
+    bump_pipeline_state_version_if_modified,
+    load_pipeline_state_from_destination,
+    migrate_pipeline_state,
     state_resource,
     json_encode_state,
     json_decode_state,
+    default_pipeline_state,
 )
 from dlt.pipeline.warnings import credentials_argument_deprecated
+from dlt.common.storages.load_package import TLoadPackageState
 
 
 def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
@@ -143,6 +145,7 @@ def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
         def _wrap(self: "Pipeline", *args: Any, **kwargs: Any) -> Any:
             # activate pipeline so right state is always provided
             self.activate()
+
             # backup and restore state
             should_extract_state = may_extract_state and self.config.restore_from_destination
             with self.managed_state(extract_state=should_extract_state) as state:
@@ -263,7 +266,14 @@ class Pipeline(SupportsPipeline):
     STATE_FILE: ClassVar[str] = "state.json"
     STATE_PROPS: ClassVar[List[str]] = list(
         set(get_type_hints(TPipelineState).keys())
-        - {"sources", "destination_type", "destination_name", "staging_type", "staging_name"}
+        - {
+            "sources",
+            "destination_type",
+            "destination_name",
+            "staging_type",
+            "staging_name",
+            "destinations",
+        }
     )
     LOCAL_STATE_PROPS: ClassVar[List[str]] = list(get_type_hints(TPipelineLocalState).keys())
     DEFAULT_DATASET_SUFFIX: ClassVar[str] = "_dataset"
@@ -438,6 +448,7 @@ class Pipeline(SupportsPipeline):
         """Normalizes the data prepared with `extract` method, infers the schema and creates load packages for the `load` method. Requires `destination` to be known."""
         if is_interactive():
             workers = 1
+
         if loader_file_format and loader_file_format in INTERNAL_LOADER_FILE_FORMATS:
             raise ValueError(f"{loader_file_format} is one of internal dlt file formats.")
         # check if any schema is present, if not then no data was extracted
@@ -745,7 +756,7 @@ class Pipeline(SupportsPipeline):
 
             # write the state back
             self._props_to_state(state)
-            bump_version_if_modified(state)
+            bump_pipeline_state_version_if_modified(state)
             self._save_state(state)
         except Exception as ex:
             raise PipelineStepFailed(self, "sync", None, ex, None) from ex
@@ -844,6 +855,10 @@ class Pipeline(SupportsPipeline):
             return self._get_load_storage().get_load_package_info(load_id)
         except LoadPackageNotFound:
             return self._get_normalize_storage().extracted_packages.get_load_package_info(load_id)
+
+    def get_load_package_state(self, load_id: str) -> TLoadPackageState:
+        """Returns information on extracted/normalized/completed package with given load_id, all jobs and their statuses."""
+        return self._get_load_storage().get_load_package_state(load_id)
 
     def list_failed_jobs_in_package(self, load_id: str) -> Sequence[LoadJobInfo]:
         """List all failed jobs and associated error messages for a specified `load_id`"""
@@ -1365,16 +1380,15 @@ class Pipeline(SupportsPipeline):
     def _get_state(self) -> TPipelineState:
         try:
             state = json_decode_state(self._pipeline_storage.load(Pipeline.STATE_FILE))
-            return migrate_state(
-                self.pipeline_name, state, state["_state_engine_version"], STATE_ENGINE_VERSION
+            return migrate_pipeline_state(
+                self.pipeline_name,
+                state,
+                state["_state_engine_version"],
+                PIPELINE_STATE_ENGINE_VERSION,
             )
         except FileNotFoundError:
             # do not set the state hash, this will happen on first merge
-            return {
-                "_state_version": 0,
-                "_state_engine_version": STATE_ENGINE_VERSION,
-                "_local": {"first_run": True},
-            }
+            return default_pipeline_state()
             # state["_version_hash"] = generate_version_hash(state)
             # return state
 
@@ -1404,7 +1418,7 @@ class Pipeline(SupportsPipeline):
                 schema = Schema(schema_name)
             with self._get_destination_clients(schema)[0] as job_client:
                 if isinstance(job_client, WithStateSync):
-                    state = load_state_from_destination(self.pipeline_name, job_client)
+                    state = load_pipeline_state_from_destination(self.pipeline_name, job_client)
                     if state is None:
                         logger.info(
                             "The state was not found in the destination"
@@ -1538,7 +1552,7 @@ class Pipeline(SupportsPipeline):
 
         Storage will be created on demand. In that case the extracted package will be immediately committed.
         """
-        _, hash_, _ = bump_version_if_modified(self._props_to_state(state))
+        _, hash_, _ = bump_pipeline_state_version_if_modified(self._props_to_state(state))
         should_extract = hash_ != state["_local"].get("_last_extracted_hash")
         if should_extract and extract_state:
             data = state_resource(state)

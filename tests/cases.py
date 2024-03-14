@@ -1,4 +1,4 @@
-from typing import Dict, List, Any, Sequence, Tuple, Literal
+from typing import Dict, List, Any, Sequence, Tuple, Literal, Union
 import base64
 from hexbytes import HexBytes
 from copy import deepcopy
@@ -7,7 +7,7 @@ import random
 
 from dlt.common import Decimal, pendulum, json
 from dlt.common.data_types import TDataType
-from dlt.common.typing import StrAny
+from dlt.common.typing import StrAny, TDataItems
 from dlt.common.wei import Wei
 from dlt.common.time import (
     ensure_pendulum_datetime,
@@ -161,18 +161,23 @@ def table_update_and_row(
 
 
 def assert_all_data_types_row(
-    db_row: List[Any],
+    db_row: Union[List[Any], TDataItems],
     parse_complex_strings: bool = False,
     allow_base64_binary: bool = False,
     timestamp_precision: int = 6,
     schema: TTableSchemaColumns = None,
+    expect_filtered_null_columns=False,
 ) -> None:
     # content must equal
     # print(db_row)
     schema = schema or TABLE_UPDATE_COLUMNS_SCHEMA
 
     # Include only columns requested in schema
-    db_mapping = {col_name: db_row[i] for i, col_name in enumerate(schema)}
+    if isinstance(db_row, dict):
+        db_mapping = db_row.copy()
+    else:
+        db_mapping = {col_name: db_row[i] for i, col_name in enumerate(schema)}
+
     expected_rows = {key: value for key, value in TABLE_ROW_ALL_DATA_TYPES.items() if key in schema}
     # prepare date to be compared: convert into pendulum instance, adjust microsecond precision
     if "col4" in expected_rows:
@@ -226,8 +231,16 @@ def assert_all_data_types_row(
     if "col11" in db_mapping:
         db_mapping["col11"] = db_mapping["col11"].isoformat()
 
-    for expected, actual in zip(expected_rows.values(), db_mapping.values()):
-        assert expected == actual
+    if expect_filtered_null_columns:
+        for key, expected in expected_rows.items():
+            if expected is None:
+                assert db_mapping.get(key, None) is None
+                db_mapping[key] = None
+
+    for key, expected in expected_rows.items():
+        actual = db_mapping[key]
+        assert expected == actual, f"Expected {expected} but got {actual} for column {key}"
+
     assert db_mapping == expected_rows
 
 
