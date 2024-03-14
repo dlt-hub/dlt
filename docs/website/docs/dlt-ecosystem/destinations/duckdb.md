@@ -92,7 +92,7 @@ This destination accepts database connection strings in the format used by [duck
 
 You can configure a DuckDB destination with [secret / config values](../../general-usage/credentials) (e.g., using a `secrets.toml` file)
 ```toml
-destination.duckdb.credentials=duckdb:///_storage/test_quack.duckdb
+destination.duckdb.credentials="duckdb:///_storage/test_quack.duckdb"
 ```
 The **duckdb://** URL above creates a **relative** path to `_storage/test_quack.duckdb`. To define an **absolute** path, you need to specify four slashes, i.e., `duckdb:////_storage/test_quack.duckdb`.
 

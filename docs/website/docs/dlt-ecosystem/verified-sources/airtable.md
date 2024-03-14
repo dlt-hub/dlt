@@ -154,6 +154,7 @@ def airtable_source(
     table_names: Optional[List[str]] = None,
     access_token: str = dlt.secrets.value,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `base_id`: The base's unique identifier.
@@ -173,6 +174,7 @@ def airtable_resource(
     base_id: str,
     table: Dict[str, Any],
 ) -> DltResource:
+   ...
 ```
 
 `table`: Airtable metadata, excluding actual records.
@@ -199,7 +201,7 @@ verified source.
    ```py
    base_id = "Please set me up!"     # The id of the base.
 
-   airtables = airtable_source(base_id=base_id))
+   airtables = airtable_source(base_id=base_id)
    load_info = pipeline.run(load_data, write_disposition="replace")
    ```
 

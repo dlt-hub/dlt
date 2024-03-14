@@ -163,6 +163,7 @@ def shopify_source(
     items_per_page: int = DEFAULT_ITEMS_PER_PAGE,
     order_status: TOrderStatus = "any",
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `private_app_password`: App's password for your shop.
@@ -202,6 +203,7 @@ def products(
     created_at_min: pendulum.DateTime = created_at_min_obj,
     items_per_page: int = items_per_page,
 ) -> Iterable[TDataItem]:
+   ...
 ```
 
 `updated_at`: The saved [state](../../general-usage/state) of the last 'updated_at' value.
@@ -224,6 +226,7 @@ def shopify_partner_query(
     organization_id: str = dlt.config.value,
     api_version: str = DEFAULT_PARTNER_API_VERSION,
 ) -> Iterable[TDataItem]:
+   ...
 ```
 
 `query`: The GraphQL query for execution.

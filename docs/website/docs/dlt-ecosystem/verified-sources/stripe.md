@@ -148,6 +148,7 @@ def stripe_source(
     start_date: Optional[DateTime] = None,
     end_date: Optional[DateTime] = None,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 - `endpoints`: Tuple containing endpoint names.
@@ -167,6 +168,7 @@ def incremental_stripe_source(
     initial_start_date: Optional[DateTime] = None,
     end_date: Optional[DateTime] = None,
 ) -> Iterable[DltResource]:
+   ...
 ```
 `endpoints`: Tuple containing incremental endpoint names.
 
@@ -186,6 +188,7 @@ This function loads a dictionary with calculated metrics, including MRR and Chur
 ```py
 @dlt.resource(name="Metrics", write_disposition="append", primary_key="created")
 def metrics_resource() -> Iterable[TDataItem]:
+   ...
 ```
 
 Abrevations MRR and Churn rate are as follows:

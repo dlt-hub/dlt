@@ -204,6 +204,7 @@ def readers(
     credentials: Union[FileSystemCredentials, AbstractFileSystem] = dlt.secrets.value,
     file_glob: Optional[str] = "*",
 ) -> Tuple[DltResource, ...]:
+   ...
 ```
 
 - `bucket_url`: The url to the bucket.
@@ -236,6 +237,7 @@ def filesystem(
     files_per_page: int = DEFAULT_CHUNK_SIZE,
     extract_content: bool = False,
 ) -> Iterator[List[FileItem]]:
+   ...
 ```
 
 - `bucket_url`: URL of the bucket.
@@ -258,7 +260,7 @@ To load data into a specific table (instead of the default filesystem table), se
 
 ```py
 @dlt.transformer(standalone=True)
-def read_csv(items, chunksize: int = 15) ->:
+def read_csv(items, chunksize: int = 15):
     """Reads csv file with Pandas chunk by chunk."""
     ...
 
@@ -341,13 +343,13 @@ verified source.
    BUCKET_URL = "YOUR_BUCKET_PATH_HERE"   # path of the bucket url or local destination
    met_files = readers(
         bucket_url=BUCKET_URL, file_glob="directory/*.csv"
-    ).read_csv()
-    # tell dlt to merge on date
-    met_files.apply_hints(write_disposition="merge", merge_key="date")
-    # We load the data into the met_csv table
-    load_info = pipeline.run(met_files.with_name("table_name"))
-    print(load_info)
-    print(pipeline.last_trace.last_normalize_info)
+      ).read_csv()
+   # tell dlt to merge on date
+   met_files.apply_hints(write_disposition="merge", merge_key="date")
+   # We load the data into the met_csv table
+   load_info = pipeline.run(met_files.with_name("table_name"))
+   print(load_info)
+   print(pipeline.last_trace.last_normalize_info)
    ```
 
     - The `file_glob` parameter targets all CSVs in the "met_csv/A801" directory.

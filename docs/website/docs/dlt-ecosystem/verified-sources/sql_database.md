@@ -59,7 +59,7 @@ The database above doesn't require a password.
 The connection URL can be broken down into:
 
 ```py
-connection_url = "connection_string = f"{drivername}://{username}:{password}@{host}:{port}/{database}"
+connection_url = connection_string = f"{drivername}://{username}:{password}@{host}:{port}{database}"
 ```
 
 `drivername`: Indicates both the database system and driver used.
@@ -220,6 +220,7 @@ def sql_database(
     defer_table_reflect: Optional[bool] = dlt.config.value,
     table_adapter_callback: Callable[[Table], None] = None,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `credentials`: Database details or an 'sqlalchemy.Engine' instance.
@@ -259,6 +260,7 @@ def sql_table(
     defer_table_reflect: Optional[bool] = dlt.config.value,
     table_adapter_callback: Callable[[Table], None] = None,
 ) -> DltResource:
+   ...
 ```
 `incremental`: Optional, enables incremental loading.
 

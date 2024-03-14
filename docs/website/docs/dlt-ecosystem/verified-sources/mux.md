@@ -133,6 +133,7 @@ def assets_resource(
     mux_api_secret_key: str = dlt.secrets.value,
     limit: int = DEFAULT_LIMIT,
 ) -> Iterable[TDataItem]:
+    ...
 ```
 
 `mux_api_access_token`: Mux API token for authentication, defaults to ".dlt/secrets.toml".
@@ -152,6 +153,7 @@ def views_resource(
     mux_api_secret_key: str = dlt.secrets.value,
     limit: int = DEFAULT_LIMIT,
 ) -> Iterable[DltResource]:
+    ...
 ```
 
 The arguments `mux_api_access_token`, `mux_api_secret_key` and `limit` are the same as described [above](#resource-assets_resource) in "asset_resource".
@@ -176,14 +178,14 @@ verified source.
 1. To load metadata about every asset to be loaded:
 
     ```py
-    load_info = pipeline.run(mux_source().with_resources("assets_resource")
+    load_info = pipeline.run(mux_source().with_resources("assets_resource"))
     print(load_info)
     ```
 
 1. To load data for each video view from yesterday:
 
     ```py
-    load_info = pipeline.run(mux_source().with_resources("views_resource")
+    load_info = pipeline.run(mux_source().with_resources("views_resource"))
     print(load_info)
     ```
 

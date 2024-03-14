@@ -125,6 +125,7 @@ def notion_databases(
     database_ids: Optional[List[Dict[str, str]]] = None,
     api_key: str = dlt.secrets.value,
 ) -> Iterator[DltResource]:
+   ...
 ```
 
 `database_ids`: A list of dictionaries each containing a database id and a name.

@@ -172,6 +172,7 @@ def workable_source(
     start_date: Optional[DateTime] = None,
     load_details: bool = False,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `access_token`: Authenticate the Workable API using the token specified in ".dlt/secrets.toml".
@@ -194,6 +195,7 @@ def candidates_resource(
         "updated_at", initial_value=workable.start_date_iso
     )
 ) -> Iterable[TDataItem]:
+   ...
 ```
 
 `updated_at`: Uses the dlt.sources.incremental method. Defaults to the function's start_date or Jan
@@ -245,7 +247,7 @@ To create your data pipeline using single loading and
 1. To load custom endpoints “candidates” and “members”:
 
    ```py
-   load_info = pipeline.run(load_data.with_resources("candidates", "members")
+   load_info = pipeline.run(load_data.with_resources("candidates", "members"))
    # print the information on data that was loaded
    print(load_info)
    ```

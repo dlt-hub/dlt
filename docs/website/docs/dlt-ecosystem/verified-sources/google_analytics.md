@@ -250,6 +250,7 @@ def google_analytics(
     start_date: Optional[str] = START_DATE,
     rows_per_page: int = 1000,
 ) -> List[DltResource]:
+   ...
 ```
 
 `credentials`: GCP OAuth or service account credentials.
@@ -272,6 +273,7 @@ This function retrieves all the metrics and dimensions for a report from a Googl
 ```py
 @dlt.resource(selected=False)
 def get_metadata(client: Resource, property_id: int) -> Iterator[Metadata]:
+   ...
 ```
 
 `client`: This is the Google Analytics client used to make requests.

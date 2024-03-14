@@ -147,6 +147,7 @@ def slack_source(
     end_date: Optional[TAnyDateTime] = None,
     selected_channels: Optional[List[str]] = dlt.config.value,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `page_size`: Maximum items per page (default: 1000).
@@ -166,6 +167,7 @@ This function yields all the channels data as a `dlt` resource.
 ```py
 @dlt.resource(name="channels", primary_key="id", write_disposition="replace")
 def channels_resource() -> Iterable[TDataItem]:
+   ...
 ```
 
 ### Resource `users`
@@ -175,6 +177,7 @@ This function yields all the users data as a `dlt` resource.
 ```py
 @dlt.resource(name="users", primary_key="id", write_disposition="replace")
 def users_resource() -> Iterable[TDataItem]:
+   ...
 ```
 
 ### Resource `get_messages_resource`
@@ -191,6 +194,7 @@ def get_messages_resource(
         allow_external_schedulers=True,
     ),
 ) -> Iterable[TDataItem]:
+   ...
 ```
 
 `channel_data`: A dictionary detailing a specific channel to determine where messages are fetched from.
@@ -218,6 +222,7 @@ This method retrieves access logs from the Slack API.
 )
 # it is not an incremental resource it just has a end_date filter
 def logs_resource() -> Iterable[TDataItem]:
+   ...
 ```
 
 `selected`: A boolean set to False, indicating the resource isn't loaded by default.

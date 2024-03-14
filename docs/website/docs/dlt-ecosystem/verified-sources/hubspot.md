@@ -154,6 +154,7 @@ def hubspot(
     api_key: str = dlt.secrets.value,
     include_history: bool = False,
 ) -> Sequence[DltResource]:
+   ...
 ```
 
 `api_key`: The key used to authenticate with the HubSpot API. Configured in "secrets.toml".
@@ -203,6 +204,7 @@ def hubspot_events_for_objects(
      api_key: str = dlt.secrets.value,
      start_date: pendulum.DateTime = STARTDATE,
 ) -> DltResource:
+   ...
 ```
 
 `object_type`: One of the Hubspot object types as defined in

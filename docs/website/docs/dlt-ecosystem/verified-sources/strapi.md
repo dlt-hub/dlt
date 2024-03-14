@@ -138,6 +138,7 @@ def strapi_source(
     api_secret_key: str = dlt.secrets.value,
     domain: str = dlt.secrets.value,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `endpoints`: Collections to fetch data from.

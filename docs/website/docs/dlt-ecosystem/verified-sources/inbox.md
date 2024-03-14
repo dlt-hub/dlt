@@ -158,6 +158,7 @@ def inbox_source(
     filter_by_mime_type: Sequence[str] = None,
     chunksize: int = DEFAULT_CHUNK_SIZE,
 ) -> Sequence[DltResource]:
+   ...
 ```
 
 `host` : IMAP server hostname. Default: 'dlt.secrets.value'.
@@ -189,6 +190,7 @@ def get_messages_uids(
         dlt.sources.incremental[int]
     ] = dlt.sources.incremental("message_uid", initial_value=1),
 ) -> TDataItem:
+   ...
 ```
 
 `initial_message_num`: provides incremental loading on UID.
@@ -203,6 +205,7 @@ def get_messages(
     items: TDataItems,
     include_body: bool = True,
 ) -> TDataItem:
+   ...
 ```
 
 `items`: An iterable containing dictionaries with 'message_uid' representing the email message UIDs.
@@ -222,6 +225,7 @@ It yields file items with attachments in the file_content field and the original
 def get_attachments(
     items: TDataItems,
 ) -> Iterable[List[FileItem]]:
+   ...
 ```
 `items`: An iterable containing dictionaries with 'message_uid' representing the email message UIDs.
 

@@ -253,6 +253,7 @@ def zendesk_talk(
     start_date: Optional[TAnyDateTime] = DEFAULT_START_DATE,
     end_date: Optional[TAnyDateTime] = None,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `credentials`: Authentication credentials.
@@ -273,6 +274,7 @@ def talk_resource(
     talk_endpoint: str,
     pagination_type: PaginationType,
 ) -> Iterator[TDataItem]:
+   ...
 ```
 
 `zendesk_client`: An instance of ZendeskAPIClient for making API calls to Zendesk Talk.
@@ -330,17 +332,17 @@ verified source.
 1. To load data related to support, chat and talk in incremental mode:
 
    ```py
-    pipeline = dlt.pipeline(
-        pipeline_name="dlt_zendesk_pipeline",  # Use a custom name if desired
-        destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
-        full_refresh = Fasle
-        dataset_name="sample_zendesk_data"  # Use a custom name if desired
+   pipeline = dlt.pipeline(
+      pipeline_name="dlt_zendesk_pipeline",  # Use a custom name if desired
+      destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
+      full_refresh = False,
+      dataset_name="sample_zendesk_data"  # Use a custom name if desired
    )
-    data = zendesk_support(load_all=True, start_date=start_date)
-    data_chat = zendesk_chat(start_date=start_date)
-    data_talk = zendesk_talk(start_date=start_date)
-    info = pipeline.run(data=[data, data_chat, data_talk])
-    return info
+   data = zendesk_support(load_all=True, start_date=start_date)
+   data_chat = zendesk_chat(start_date=start_date)
+   data_talk = zendesk_talk(start_date=start_date)
+   info = pipeline.run(data=[data, data_chat, data_talk])
+   return info
    ```
 
    > Supports incremental loading for Support, Chat, and Talk Endpoints. By default, it fetches data

@@ -144,6 +144,7 @@ def pipedrive_source(
     pipedrive_api_key: str = dlt.secrets.value,
     since_timestamp: Optional[Union[pendulum.DateTime, str]] = dlt.config.value,
 ) -> Iterator[DltResource]:
+   ...
 ```
 
 `pipedrive_api_key`: Authentication token for Pipedrive, configured in ".dlt/secrets.toml".
@@ -215,6 +216,7 @@ def create_state(pipedrive_api_key: str) -> Iterator[Dict[str, Any]]:
     def _get_pages_for_rename(
         entity: str, fields_entity: str, pipedrive_api_key: str
     ) -> Dict[str, Any]:
+      ...
 ```
 
 It processes each entity in ENTITY_MAPPINGS, updating the custom fields mapping if a related fields

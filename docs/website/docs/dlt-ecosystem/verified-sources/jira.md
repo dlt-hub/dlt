@@ -141,6 +141,7 @@ def jira(
      email: str = dlt.secrets.value,
      api_token: str = dlt.secrets.value,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 - `subdomain`: The subdomain of the Jira account. Configured in ".dlt/secrets.toml".
@@ -159,6 +160,7 @@ def jira_search(
      email: str = dlt.secrets.value,
      api_token: str = dlt.secrets.value,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 The above function uses the same arguments `subdomain`, `email`, and `api_token` as described above
@@ -209,7 +211,7 @@ above.
     # Define the JQL queries as follows
     queries = [
               "created >= -30d order by created DESC",
-              "created >= -30d AND project = DEV AND issuetype = Epic AND status = "In Progress" order by created DESC",
+              'created >= -30d AND project = DEV AND issuetype = Epic AND status = "In Progress" order by created DESC',
               ]
     # Run the pipeline
     load_info = pipeline.run(jira_search().issues(jql_queries=queries))

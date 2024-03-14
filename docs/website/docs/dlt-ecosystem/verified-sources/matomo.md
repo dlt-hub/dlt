@@ -136,6 +136,7 @@ def matomo_reports(
     queries: List[DictStrAny] = dlt.config.value,
     site_id: int = dlt.config.value,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `api_token`: API access token for Matomo server authentication, defaults to "./dlt/secrets.toml"
@@ -162,6 +163,7 @@ def matomo_visits(
     visit_max_duration_seconds: int = 3600,
     get_live_event_visitors: bool = False,
 ) -> List[DltResource]:
+   ...
 ```
 
 `api_token`: API token for authentication, defaulting to "./dlt/secrets.toml".
@@ -196,6 +198,7 @@ def get_last_visits(
     visit_max_duration_seconds: int = 3600,
     rows_per_page: int = 2000,
 ) -> Iterator[TDataItem]:
+   ...
 ```
 
 `site_id`: Unique ID for each Matomo site.
@@ -225,6 +228,7 @@ This function, retrieves unique visit information from get_last_visits.
 def get_unique_visitors(
     visits: List[DictStrAny], client: MatomoAPIClient, site_id: int
 ) -> Iterator[TDataItem]:
+   ...
 ```
 
 `visits`: Recent visit data within the specified timeframe.

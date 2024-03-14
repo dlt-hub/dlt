@@ -70,7 +70,7 @@ dlt deploy pipedrive_pipeline.py airflow-composer
 ```
 where `pipedrive_pipeline.py` is the pipeline script that you just ran and `airflow-composer` is a deployment method. The command will create deployment files and provide instructions to set up the credentials.
 
-```toml
+```text
 Your airflow-composer deployment for pipeline pipedrive is ready!
 * The airflow cloudbuild.yaml file was created in build.
 * The dag_pipedrive.py script was created in dags.
@@ -97,7 +97,7 @@ dlt deploy pipedrive_pipeline.py airflow-composer --secrets-format env
 ```
 which will output the environment variable names and their values.
 
-```toml
+```shell
 3. Add the following secret values (typically stored in ./.dlt/secrets.toml):
 SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
 
@@ -359,7 +359,7 @@ There are two ways to pass the credentials
    - During the execution of the `deploy` command with `--secrets-format toml`, secret variables
      will be displayed in the output:
 
-     ```toml
+     ```shell
      3. Add the following toml-string to the Airflow UI as the dlt_secrets_toml variable.
 
      [sources.pipedrive]
@@ -376,7 +376,7 @@ There are two ways to pass the credentials
    - During the execution of the `deploy` command with `--secrets-format env` (by default),
      environment variables will be displayed in the output:
 
-     ```toml
+     ```shell
      3. Add the following secret values (typically stored in ./.dlt/secrets.toml):
      SOURCES__PIPEDRIVE__PIPEDRIVE_API_KEY
 
@@ -545,7 +545,7 @@ activities_source = pipedrive_source(
 
 Because of this we got the following error:
 
-```py
+```shell
 airflow.exceptions.DuplicateTaskIdFound:
 Task id ‘pipedrive.pipedrive_custom_fields_mapping’ has already been added to the DAG
 ```

@@ -156,6 +156,7 @@ def kinesis_stream(
     parse_json: bool = True,
     chunk_size: int = 1000,
 ) -> Iterable[TDataItem]:
+    ...
 ```
 
 `stream_name`: Name of the Kinesis stream. Defaults to config/secrets if unspecified.

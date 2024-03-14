@@ -144,6 +144,7 @@ def salesforce_source(
     password: str = dlt.secrets.value,
     security_token: str = dlt.secrets.value,
 ) ->Iterable[DltResource]:
+   ...
 ```
 
 - `user_name`: Your Salesforce account username.

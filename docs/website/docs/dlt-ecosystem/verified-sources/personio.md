@@ -159,7 +159,7 @@ def personio_source(
 This resource retrieves data on all the employees in a company.
 
 ```py
- @dlt.resource(primary_key="id", write_disposition="merge")
+@dlt.resource(primary_key="id", write_disposition="merge")
 def employees(
     updated_at: dlt.sources.incremental[
         pendulum.DateTime
@@ -188,6 +188,7 @@ Simple resource, which retrieves a list of various types of employee absences.
 ```py
 @dlt.resource(primary_key="id", write_disposition="replace")
 def absence_types(items_per_page: int = items_per_page) -> Iterable[TDataItem]:
+   ...
 ...
 ```
 

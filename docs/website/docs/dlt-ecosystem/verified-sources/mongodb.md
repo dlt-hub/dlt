@@ -209,6 +209,7 @@ def mongodb(
     incremental: Optional[dlt.sources.incremental] = None,  # type: ignore[type-arg]
     write_disposition: Optional[str] = dlt.config.value,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `connection_url`: MongoDB connection URL.
@@ -234,6 +235,7 @@ def mongodb_collection(
     incremental: Optional[dlt.sources.incremental] = None,  # type: ignore[type-arg]
     write_disposition: Optional[str] = dlt.config.value,
 ) -> Any:
+   ...
 ```
 
 `collection`: Name of the collection to load.

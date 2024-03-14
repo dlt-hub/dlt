@@ -162,7 +162,7 @@ To prevent dlt from forwarding the S3 bucket credentials on every command, and s
 
 ```toml
 [destination]
-stage_name=PUBLIC.my_s3_stage
+stage_name="PUBLIC.my_s3_stage"
 ```
 
 To run Snowflake with S3 as the staging destination:
@@ -191,7 +191,7 @@ Please refer to the [Google Storage filesystem documentation](./filesystem.md#go
 
 ```toml
 [destination]
-stage_name=PUBLIC.my_gcs_stage
+stage_name="PUBLIC.my_gcs_stage"
 ```
 
 To run Snowflake with GCS as the staging destination:
@@ -222,7 +222,7 @@ Please consult the Snowflake Documentation on [how to create a stage for your Az
 
 ```toml
 [destination]
-stage_name=PUBLIC.my_azure_stage
+stage_name="PUBLIC.my_azure_stage"
 ```
 
 To run Snowflake with Azure as the staging destination:

@@ -22,6 +22,8 @@ try:
             "Fred",
             "fred@fred.com"
         )
+except:
+    ...
 ```
 
 In the case of SELECT queries, the data is returned as a list of rows, with the elements of a row
@@ -36,6 +38,8 @@ try:
         )
         # prints column values of the first row
         print(res[0])
+except:
+    ...
 ```
 
 ## Other transforming tools

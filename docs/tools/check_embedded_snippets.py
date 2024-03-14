@@ -27,6 +27,8 @@ if __name__ == "__main__":
     for path, directories, files in os.walk(DOCS_DIR):
         if "api_reference" in path:
             continue
+        if "jaffle_shop" in path:
+            continue
         for file in files:
             if file.endswith(".md"):
                 markdown_files.append(os.path.join(path, file))
@@ -69,16 +71,17 @@ if __name__ == "__main__":
         code = snippet["code"]
         total += 1
         count[language] = count.get(language, 0) + 1
-        print(
-            "Processing snippet no",
-            total,
-            "at line",
-            snippet["line"],
-            "in file",
-            snippet["file"],
-            "with language",
-            language,
-        )
+
+        # print(
+        #     "Processing snippet no",
+        #     total,
+        #     "at line",
+        #     snippet["line"],
+        #     "in file",
+        #     snippet["file"],
+        #     "with language",
+        #     language,
+        # )
 
         # parse snippet by type
         try:
@@ -99,10 +102,20 @@ if __name__ == "__main__":
                 assert False, "Unknown language. Please choose the correct language for the snippet: py, toml, json, yaml, text, shell, bat or sql."
 
         except Exception as e:
-            print(f"Failed to parse snippet: {e}")
+            print(
+                "---\n"
+                "Failed parsing snippet no",
+                total,
+                "at line",
+                snippet["line"],
+                "in file",
+                snippet["file"],
+                "with language",
+                language,
+                "\n---"
+            )
+            raise
             failed_count[language] = failed_count.get(language, 0) + 1
-            if language in ["json", "yaml"]:
-                raise
 
     assert len(snippets) > 100, "Found too few snippets. Something went wrong."  # sanity check
 

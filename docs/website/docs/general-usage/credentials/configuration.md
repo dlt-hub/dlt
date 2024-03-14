@@ -97,16 +97,16 @@ Where do the configs and secrets come from? By default, `dlt` looks in two **con
   Secrets in **.dlt/secrets.toml**. `dlt` will look for `credentials`,
   ```toml
   [credentials]
-  client_email = <client_email from services.json>
-  private_key = <private_key from services.json>
-  project_id = <project_id from services json>
+  client_email = "<client_email from services.json>"
+  private_key = "<private_key from services.json>"
+  project_id = "<project_id from services json>"
   ```
   Note that **credentials** will be evaluated as dictionary containing **client_email**, **private_key** and **project_id** as keys. It is standard TOML behavior.
 - [Environment Variables](config_providers#environment-provider):
-  ```py
-  CREDENTIALS=<service.json>
-  SPREADSHEET_ID=1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580
-  TAB_NAMES=tab1,tab2
+  ```toml
+  CREDENTIALS="<service.json>"
+  SPREADSHEET_ID="1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580"
+  TAB_NAMES=["tab1", "tab2"]
   ```
   We pass the JSON contents of `service.json` file to `CREDENTIALS` and we specify tab names as comma-delimited values.  Environment variables are always in **upper case**.
 
@@ -171,7 +171,7 @@ def google_sheets(
     credentials: GcpServiceAccountCredentials = dlt.secrets.value,
     only_strings: bool = False
 ):
-  ...
+    ...
 ```
 
 Now:
@@ -263,9 +263,9 @@ Here is the simplest default layout for our `google_sheets` example.
 
 ```toml
 [credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 ```
 
 **config.toml**
@@ -284,9 +284,9 @@ This makes sure that `google_sheets` source does not share any secrets and confi
 
 ```toml
 [sources.google_sheets.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 ```
 
 **config.toml**
@@ -305,9 +305,9 @@ Use this if you want to read and pass the config/secrets yourself
 ```toml
 [my_section]
 
-    [my_section.gcp_credentials]
-    client_email = <client_email from services.json>
-    private_key = <private_key from services.json>
+[my_section.gcp_credentials]
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
 ```
 
 **config.toml**
@@ -316,9 +316,9 @@ Use this if you want to read and pass the config/secrets yourself
 [my_section]
 tabs=["tab1", "tab2"]
 
-    [my_section.gcp_credentials]
-    # I prefer to keep my project id in config file and private key in secrets
-    project_id = <project_id from services json>
+[my_section.gcp_credentials]
+# I prefer to keep my project id in config file and private key in secrets
+project_id = "<project_id from services json>"
 ```
 
 ### Default layout and default key lookup during injection
@@ -368,15 +368,15 @@ Example: We use the `bigquery` destination and the `google_sheets` source. They 
 ```toml
 # google sheet credentials
 [sources.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 
 # bigquery credentials
 [destination.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 ```
 
 Now when `dlt` looks for destination credentials, it will start with `destination.bigquery.credentials`, eliminate `bigquery` and stop at `destination.credentials`.
@@ -388,21 +388,21 @@ Example: let's be even more explicit and use a full section path possible.
 ```toml
 # google sheet credentials
 [sources.google_sheets.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 
 # google analytics credentials
 [sources.google_analytics.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 
 # bigquery credentials
 [destination.bigquery.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 ```
 
 Now we can separate credentials for different sources as well.
@@ -418,18 +418,18 @@ Example: the pipeline is named `ML_sheets`.
 
 ```toml
 [ML_sheets.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 ```
 
 or maximum path:
 
 ```toml
 [ML_sheets.sources.google_sheets.credentials]
-client_email = <client_email from services.json>
-private_key = <private_key from services.json>
-project_id = <project_id from services json>
+client_email = "<client_email from services.json>"
+private_key = "<private_key from services.json>"
+project_id = "<project_id from services json>"
 ```
 
 ### The `sources` section

@@ -124,7 +124,7 @@ As with any other exception coming from pipeline run, it will be re-raised via `
 ```py
 try:
   pipeline.run()
-except as pip_ex:
+except Exception as pip_ex:
   if pip_ex.step == "normalize":
     if isinstance(pip_ex.__context__.__context__, DataValidationError):
       ...
@@ -195,7 +195,7 @@ def items():
 def other_items():
     ...
 
-@dlt.source(schema_contract={"columns": "freeze", "data_type": "freeze"}):
+@dlt.source(schema_contract={"columns": "freeze", "data_type": "freeze"})
 def source():
   return [items(), other_items()]
 

@@ -68,7 +68,7 @@ client_secret and execute the provided Python code.
 
 ```py
 from facebook_ads import get_long_lived_token
-print(get_long_lived_token("your short-lived token")
+print(get_long_lived_token("your short-lived token"))
 ```
 
 Replace the `access_token` in the `.dlt/secrets.toml` file with the long-lived token obtained from
@@ -88,7 +88,7 @@ level. In `config.toml` / `secrets.toml`:
 
 ```toml
 [sources.facebook_ads]
-access_token_expires_at=1688821881...
+access_token_expires_at=1688821881
 ```
 
 > Note: The Facebook UI, which is described here, might change.
@@ -200,6 +200,7 @@ def facebook_ads_source(
     request_timeout: float = 300.0,
     app_api_version: str = None,
 ) -> Sequence[DltResource]:
+   ...
 ```
 
 `account_id`: Account id associated with add manager, configured in "config.toml".
@@ -271,6 +272,7 @@ def facebook_insights_source(
     request_timeout: int = 300,
     app_api_version: str = None,
 ) -> DltResource:
+   ...
 ```
 
 `account_id`: Account id associated with ads manager, configured in _config.toml_.
@@ -322,6 +324,7 @@ def facebook_insights(
         "date_start", initial_value=initial_load_start_date_str
     )
 ) -> Iterator[TDataItems]:
+   ...
 ```
 
 `date_start`: Parameter sets the initial value for the "date_start" parameter in

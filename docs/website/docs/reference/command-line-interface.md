@@ -214,11 +214,13 @@ dlt pipeline chess_pipeline drop --state-paths archives
 This will select the `archives` key in `chess` source:
 
 ```json
-sources:{
-  "chess": {
-    "archives": [
-      "https://api.chess.com/pub/player/magnuscarlsen/games/2022/05",
-    ]
+{
+  "sources":{
+    "chess": {
+      "archives": [
+        "https://api.chess.com/pub/player/magnuscarlsen/games/2022/05"
+      ]
+    }
   }
 }
 ```

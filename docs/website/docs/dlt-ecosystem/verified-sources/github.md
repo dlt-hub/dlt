@@ -147,6 +147,7 @@ def github_reactions(
     max_items: int = None,
     max_item_age_seconds: float = None,
 ) -> Sequence[DltResource]:
+   ...
 ```
 
 `owner`: Refers to the owner of the repository.
@@ -198,6 +199,7 @@ on event type. It loads new events only and appends them to tables.
 def github_repo_events(
     owner: str, name: str, access_token: str = None
 ) -> DltResource:
+   ...
 ```
 
 `owner`: Refers to the owner of the repository.
@@ -223,6 +225,7 @@ def repo_events(
         "created_at", initial_value="1970-01-01T00:00:00Z", last_value_func=max
     )
 ) -> Iterator[TDataItems]:
+   ...
 ```
 
 `primary_key`: Serves as the primary key, instrumental in preventing data duplication.

@@ -168,15 +168,15 @@ The above code instantiates a Weaviate client and does a similarity search on th
                "subject": "How do I change the password for my account?",
                "description": "I forgot my password and I can't log in.",
                 "_additional": {
-                   "distance": 0.235,
-                },
+                   "distance": 0.235
+                }
             },
             {
                "subject": "I can't log in to my account.",
                "description": "The credentials I use to log in don't work.",
                "_additional": {
-                   "distance": 0.247,
-               },
+                   "distance": 0.247
+               }
             }
          ]
       }

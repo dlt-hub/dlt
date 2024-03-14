@@ -63,7 +63,7 @@ You can explicitly provide credentials in various forms:
 ```py
 query("SELECT * FROM customers", "postgres://loader@localhost:5432/dlt_data")
 # or
-query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"...})
+query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"})
 ```
 
 ## Built in credentials

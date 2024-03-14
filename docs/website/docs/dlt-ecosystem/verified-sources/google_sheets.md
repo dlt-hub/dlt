@@ -381,6 +381,7 @@ def google_spreadsheet(
       get_sheets: bool = False,
       get_named_ranges: bool = True,
 ) -> Iterable[DltResource]:
+   ...
 ```
 
 `spreadsheet_url_or_id`: ID or URL of the Google Spreadsheet.
@@ -554,7 +555,6 @@ verified source.
 
    load_info = pipeline.run(load_data)
    print(load_info)
-   }
    ```
 
 ### Using Airflow with Google Spreadsheets:

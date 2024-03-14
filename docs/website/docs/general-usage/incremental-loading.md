@@ -74,7 +74,8 @@ You can use compound primary keys:
 
 ```py
 @dlt.resource(primary_key=("id", "url"), write_disposition="merge")
-...
+def resource():
+    ...
 ```
 
 By default, `primary_key` deduplication is arbitrary. You can pass the `dedup_sort` column hint with a value of `desc` or `asc` to influence which record remains after deduplication. Using `desc`, the records sharing the same `primary_key` are sorted in descending order before deduplication, making sure the record with the highest value for the column with the `dedup_sort` hint remains. `asc` has the opposite behavior.
@@ -85,7 +86,8 @@ By default, `primary_key` deduplication is arbitrary. You can pass the `dedup_so
     write_disposition="merge",
     columns={"created_at": {"dedup_sort": "desc"}}  # select "latest" record
 )
-...
+def resource():
+    ...
 ```
 
 Example below merges on a column `batch_day` that holds the day for which given record is valid.
@@ -161,7 +163,7 @@ def resource():
 @dlt.resource(
     merge_key="id",
     write_disposition="merge",
-    columns={"deleted_at_ts": {"hard_delete": True}}}
+    columns={"deleted_at_ts": {"hard_delete": True}})
 def resource():
     # this will insert two records
     yield [
@@ -179,7 +181,7 @@ def resource():
 @dlt.resource(
     primary_key="id",
     write_disposition="merge",
-    columns={"deleted_flag": {"hard_delete": True}, "lsn": {"dedup_sort": "desc"}}
+    columns={"deleted_flag": {"hard_delete": True}, "lsn": {"dedup_sort": "desc"}})
 def resource():
     # this will insert one record (the one with lsn = 3)
     yield [

@@ -118,6 +118,7 @@ def kafka_consumer(
     batch_timeout: Optional[int] = 3,
     start_from: Optional[TAnyDateTime] = None,
 ) -> Iterable[TDataItem]:
+   ...
 ```
 
 `topics`: A list of Kafka topics to be extracted.

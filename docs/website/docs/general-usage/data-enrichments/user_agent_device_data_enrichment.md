@@ -41,7 +41,7 @@ Here's the link to the notebook:
 ### B. Create a pipeline
 Alternatively, to create a data enrichment pipeline, you can start by creating the following directory structure:
 
-```py
+```text
 user_device_enrichment/
 ├── .dlt/
 │   └── secrets.toml
@@ -68,10 +68,10 @@ user_device_enrichment/
    Here's the resource that yields the sample data as discussed above:
 
    ```py
-     import dlt
+    import dlt
 
-     @dlt.resource(write_disposition="append")
-     def tracked_data():
+    @dlt.resource(write_disposition="append")
+    def tracked_data():
      """
      A generator function that yields a series of dictionaries, each representing
      user tracking data.
